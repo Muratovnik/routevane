@@ -45,11 +45,11 @@ Cutting a release:
    verifies them, uploads a draft, compares every uploaded digest, and publishes
    the complete immutable release.
 7. Download the archive and follow the verification below, then complete the
-   [user guide](../README.md) with fresh data.
+   [quick start](../README.md#download-and-start) with fresh data.
 
 ## Verify a download
 
-Verify the checksum using the [user guide](../README.md#download-and-start), then
+Verify the checksum using the [installation guide](installation.md#verify-a-download), then
 verify the signed source/workflow identity:
 
    ```powershell

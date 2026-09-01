@@ -70,7 +70,7 @@ processes are inside the stated local trust boundary
 One registry maps renderer IDs to implementations. Target profiles are a separate
 catalog joined by renderer ID/version. Composition rejects inconsistent profiles
 and collisions. Seven renderers exist: six user-facing output formats and Raw
-JSON diagnostics; the [support matrix](../README.md#supported-outputs) owns the
+JSON diagnostics; the [support matrix](usage.md#supported-outputs) owns the
 user-facing acceptance claims.
 
 Target projection and size/rule limits precede rendering. Each renderer validates

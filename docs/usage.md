@@ -5,7 +5,7 @@ status: adopted
 # Advanced usage
 
 Audience: operators using the CLI, manual imports, or discovery. Start with the
-[user guide](../README.md); no implementation plan is needed to run Routevane.
+[quick start](../README.md#download-and-start).
 
 Run commands from an extracted release folder. `./routing-agent` resolves the
 binary (use `./routing-agent.exe` explicitly on Windows if needed). Contributors
@@ -13,6 +13,23 @@ can first build using [CONTRIBUTING](../CONTRIBUTING.md) and substitute the
 `.cache/build/` binary. Catalog and data paths are relative to the working directory.
 The learning-scenario example is a [separate downloadable file](examples/learning-scenario.yaml),
 not part of the runtime archive; save it and pass its actual local path.
+
+## Supported outputs
+
+These formats are built in. Rendering and validation are covered by repository
+tests; that does not establish acceptance on a physical device or running client.
+
+| Output | Use and acceptance limit |
+| --- | --- |
+| Keenetic IPv4 routes | BAT import or device delivery; protocol tests, no physical-router acceptance |
+| Keenetic FQDN groups | KeeneticOS 5.0+ CLI import or delivery; protocol tests, no physical-router acceptance |
+| sing-box source rule set | JSON file or atomic local-file delivery; live runtime reload is unverified |
+| OpenWrt dnsmasq nftset | Manual installation; physical firewall integration is unverified |
+| MikroTik address lists | Manual script import; device execution and interruption recovery are unverified |
+| AmneziaVPN split-tunnel list | JSON import; client import acceptance is unverified |
+
+Raw JSON is a diagnostic format. The sections below describe format prerequisites,
+manual imports, and delivery behavior.
 
 ## CLI basics
 
