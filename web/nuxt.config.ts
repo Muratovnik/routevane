@@ -22,6 +22,8 @@ export default defineNuxtConfig({
   srcDir: 'src/',
   typescript: {
     strict: true,
-    typeCheck: true,
+    // Production scripts run `nuxt typecheck` explicitly before generation.
+    // The embedded checker's shell command splits tsconfig paths with spaces.
+    typeCheck: process.env.NODE_ENV === 'development',
   },
 })

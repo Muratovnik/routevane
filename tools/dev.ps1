@@ -39,7 +39,8 @@ function Invoke-Checked {
         [Parameter(Mandatory)] [string]$Executable,
         [Parameter(Mandatory)] [string[]]$CommandArguments
     )
-    & $Executable @CommandArguments
+    # Diagnostic output must survive callers that capture a returned build path.
+    & $Executable @CommandArguments | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "Command failed with exit code ${LASTEXITCODE}: $Executable $($CommandArguments -join ' ')"
     }
@@ -86,6 +87,17 @@ function Open-RoutevaneOrigin {
     try { Start-Process $Origin } catch { }
 }
 
+function Invoke-GoSecurity {
+    # Ask Go which packages belong to this module. Gosec's own ./... walk also
+    # enters ignored caches and nested checkouts, unlike Go's package resolver.
+    $PackageDirectories = @(& $GoExecutable list '-f' '{{.Dir}}' './...')
+    if ($LASTEXITCODE -ne 0 -or $PackageDirectories.Count -eq 0) {
+        throw 'unable to resolve the module packages for security scanning'
+    }
+    Invoke-Checked $GoExecutable (@('tool', 'gosec', '-quiet', '-nosec-require-justification') + $PackageDirectories)
+    Invoke-Checked $GoExecutable @('tool', 'govulncheck', './...')
+}
+
 function Invoke-GoCheck {
     $GoRoots = @('cmd', 'sdk', 'examples' | ForEach-Object { Join-Path $RepositoryRoot $_ })
     $InternalRoot = Join-Path $RepositoryRoot 'internal'
@@ -107,8 +119,7 @@ function Invoke-GoCheck {
     New-Item -ItemType Directory -Force -Path $CoverageRoot | Out-Null
     Invoke-Checked $GoExecutable @('test', '-shuffle=on', '-covermode=atomic', '-coverprofile', (Join-Path $CoverageRoot 'go.cover'), './...')
     Invoke-Checked $GoExecutable @('tool', 'cover', '-func', (Join-Path $CoverageRoot 'go.cover'))
-    Invoke-Checked $GoExecutable @('tool', 'gosec', '-quiet', '-nosec-require-justification', './...')
-    Invoke-Checked $GoExecutable @('tool', 'govulncheck', './...')
+    Invoke-GoSecurity
 
     $BuildRoot = Join-Path $RepositoryRoot '.cache\build'
     New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
@@ -536,8 +547,7 @@ try {
         'check-go' { Invoke-GoCheck }
         'check-web' { Invoke-WebCheck | Out-Null }
         'security' {
-            Invoke-Checked $GoExecutable @('tool', 'gosec', '-quiet', '-nosec-require-justification', './...')
-            Invoke-Checked $GoExecutable @('tool', 'govulncheck', './...')
+            Invoke-GoSecurity
         }
         'build' { Invoke-ProductBuild | Out-Null }
         'release' { Invoke-ReleaseBuild | Out-Null }

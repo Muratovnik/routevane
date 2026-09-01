@@ -13,10 +13,10 @@
     "unrs-resolver@1.12.2": true
   },
   "scripts": {
-    "build": "nuxt generate",
+    "build": "npm run typecheck && nuxt generate",
     "dev": "nuxt dev",
     "format": "prettier . --write",
-    "generate": "nuxt generate",
+    "generate": "npm run build",
     "lint": "eslint . --max-warnings 0",
     "lint:format": "prettier . --check",
     "lint:styles": "stylelint \"**/*.{css,vue}\"",

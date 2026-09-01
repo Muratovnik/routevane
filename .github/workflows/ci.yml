@@ -61,18 +61,21 @@ jobs:
 
   web:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: source tree/web
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: source tree
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version-file: .node-version
+          node-version-file: source tree/.node-version
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: source tree/web/package-lock.json
       - name: Install web dependencies
-        working-directory: web
         run: npm ci
       - name: Check web surface
-        working-directory: web
         run: npm run check
 
   browser:

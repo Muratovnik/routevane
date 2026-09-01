@@ -24,6 +24,8 @@ breaking change raises the minor, everything else raises the patch. The
 - Preserve executable permissions in Unix archives produced on Windows and
   verify the actual shipped launchers with fresh runtime data.
 - Replace stale plugin templates with runnable, tested example files.
+- Build from source paths containing spaces without bypassing type checking;
+  keep child-command diagnostics visible when a developer command fails.
 
 ## [0.1.0](https://github.com/Muratovnik/routevane/releases/tag/v0.1.0) (2026-09-01)
 

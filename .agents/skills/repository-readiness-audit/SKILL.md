@@ -35,6 +35,10 @@ or publishing. Delegation requires separate authorization.
 - Follow documented commands literally with fresh data and isolated tool/browser
   caches. A clean checkout on a prepared workstation is not a clean environment.
   Record inherited prerequisites and any manual rescue steps.
+- Include a checkout/extraction path with spaces. Confirm a deliberately invalid
+  input still fails its gate and that the command exposes the actual diagnostic.
+- Verify that tool traversal covers the product's source packages without treating
+  ignored caches, nested checkouts or generated dependencies as product code.
 - Build examples using their shipped templates/manifests. Tests that reconstruct
   equivalent files do not prove the instructions or supplied files work.
 - Inspect every archive's inventory, licenses, notices, metadata, paths and modes.
