@@ -33,9 +33,11 @@ Cutting a release:
    npx --yes git-cliff@2.13.1 --unreleased --tag v0.1.0
    ```
 
-4. Audit before tagging: `python .github/relkit.pyz audit --history --owner`.
-   The tag is the trigger, so this must pass before the tag exists.
-5. Commit as `chore(release): v0.1.0`, then create the annotated tag.
+4. Commit as `chore(release): v0.1.0` after the staged audit. The history audit
+   requires a clean worktree, including the curated changelog.
+5. Run `python .github/relkit.pyz audit --history --owner` against that commit
+   before the first public push and before creating the annotated tag. The tag
+   is the publication trigger, so do not create or push it until the gates pass.
 6. Push the tag. The release workflow binds the annotated stable SemVer tag to
    the event SHA, reruns the canonical, race, browser, history and commit gates,
    builds and structurally verifies all five archives, and executes each archive

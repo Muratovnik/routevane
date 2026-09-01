@@ -17,16 +17,6 @@ breaking change raises the minor, everything else raises the patch. The
 
 ## [Unreleased]
 
-### Bug Fixes
-
-- Separate user installation from contributor setup; include offline lifecycle
-  instructions and open the browser only after the embedded UI is ready.
-- Preserve executable permissions in Unix archives produced on Windows and
-  verify the actual shipped launchers with fresh runtime data.
-- Replace stale plugin templates with runnable, tested example files.
-- Build from source paths containing spaces without bypassing type checking;
-  keep child-command diagnostics visible when a developer command fails.
-
 ## [0.1.0](https://github.com/Muratovnik/routevane/releases/tag/v0.1.0) (2026-09-01)
 
 ### Highlights
@@ -59,6 +49,13 @@ supported native runner before publishing it.
 
 ### Bug Fixes
 
+- Separate user installation from contributor setup; include offline lifecycle
+  instructions and open the browser only after the embedded UI is ready.
+- Preserve executable permissions in Unix archives produced on Windows and
+  verify the actual shipped launchers with fresh runtime data.
+- Replace stale plugin templates with runnable, tested example files.
+- Build from source paths containing spaces without bypassing type checking;
+  keep child-command diagnostics visible when a developer command fails.
 - Keep output builds and scheduled delivery attempts independent so one
   timeout or invalid output cannot starve its siblings or replace a previous
   valid artifact.
