@@ -114,6 +114,8 @@ function Invoke-GoCheck {
     Invoke-Checked $GoExecutable @('mod', 'verify')
     Invoke-Checked $GoExecutable @('vet', './...')
     Invoke-Checked $GoExecutable @('tool', 'staticcheck', './...')
+    # Staticcheck 2026.2 retired SA5011; keep nil-path analysis blocking.
+    Invoke-Checked $GoExecutable @('tool', 'nilness', './...')
 
     $CoverageRoot = Join-Path $RepositoryRoot '.cache/reports'
     New-Item -ItemType Directory -Force -Path $CoverageRoot | Out-Null

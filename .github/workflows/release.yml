@@ -22,6 +22,8 @@ env:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    env:
+      CHROME_DEVEL_SANDBOX: /opt/google/chrome/chrome-sandbox
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -65,6 +67,12 @@ jobs:
             Pop-Location
           }
           ./tools/dev.ps1 setup-browser
+      - name: Verify Chromium sandbox helper
+        shell: bash
+        run: |
+          test -x "$CHROME_DEVEL_SANDBOX"
+          test -u "$CHROME_DEVEL_SANDBOX"
+          test "$(stat -c %u "$CHROME_DEVEL_SANDBOX")" = 0
       - name: Run the canonical, race, and browser gates
         shell: pwsh
         run: |

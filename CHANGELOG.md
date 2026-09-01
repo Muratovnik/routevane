@@ -56,6 +56,8 @@ supported native runner before publishing it.
 - Replace stale plugin templates with runnable, tested example files.
 - Build from source paths containing spaces without bypassing type checking;
   keep child-command diagnostics visible when a developer command fails.
+- Keep Go 1.27 analysis and sandboxed Chromium acceptance working on Linux;
+  verify browser-opening behavior in both embedded-UI and API-only builds.
 - Keep output builds and scheduled delivery attempts independent so one
   timeout or invalid output cannot starve its siblings or replace a previous
   valid artifact.

@@ -80,6 +80,10 @@ jobs:
 
   browser:
     runs-on: ubuntu-latest
+    env:
+      # Use the runner's root-owned SUID helper without disabling AppArmor or
+      # Chromium's sandbox for the pinned browser downloaded by Playwright.
+      CHROME_DEVEL_SANDBOX: /opt/google/chrome/chrome-sandbox
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -100,6 +104,12 @@ jobs:
       - name: Install Chromium
         shell: pwsh
         run: ./tools/dev.ps1 setup-browser
+      - name: Verify Chromium sandbox helper
+        shell: bash
+        run: |
+          test -x "$CHROME_DEVEL_SANDBOX"
+          test -u "$CHROME_DEVEL_SANDBOX"
+          test "$(stat -c %u "$CHROME_DEVEL_SANDBOX")" = 0
       # The browser tests drive the real binary, so this job builds it the same
       # way the local gate does rather than running the npm script alone.
       - name: Run browser and accessibility tests

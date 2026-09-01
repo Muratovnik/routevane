@@ -12,6 +12,18 @@ application, use the [user guide](README.md).
 - PowerShell 7.4+ on every development OS; Windows PowerShell 5.1 is not supported.
 - Python 3.11+ and Git.
 
+On Ubuntu with AppArmor user-namespace restrictions, the downloaded Chromium
+also needs a working sandbox. If a trusted Google Chrome installation already
+provides its root-owned SUID helper, set the following before `test-browser`:
+
+```powershell
+$env:CHROME_DEVEL_SANDBOX = '/opt/google/chrome/chrome-sandbox'
+```
+
+Otherwise follow the [Chromium sandbox setup](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md).
+Do not disable the browser sandbox or AppArmor globally. CI verifies and uses
+the helper already supplied by its runner image; it does not change host policy.
+
 ## First checkout
 
 Run from the repository root:

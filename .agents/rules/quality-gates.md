@@ -8,7 +8,7 @@ commands. Do not add a second runner whose result can drift.
 
 - Go's own `gofmt`, module verification, `vet`, tests, race detector in CI, and
   fuzz support come first. `staticcheck` supplies the pinned general analyzers;
-  `govulncheck` is the Go team's low-noise vulnerability scan.
+  `nilness` checks nil paths and `govulncheck` scans known Go vulnerabilities.
 - Tool modules are pinned in `go.mod` with Go's `tool` directive. Do not replace
   them with unversioned global installs.
 - Frontend checks are typecheck, ESLint, Stylelint, Prettier, unit tests, and a

@@ -57,7 +57,7 @@ func TestBrowserWaitsForEmbeddedUI(t *testing.T) {
 	}
 }
 
-func TestBrowserServeLifecycleSurvivesOpenerFailure(t *testing.T) {
+func TestBrowserServeLifecycle(t *testing.T) {
 	opened := make(chan string, 2)
 	deps := runtimeDeps{OpenBrowser: func(_ context.Context, origin string) error {
 		opened <- origin
@@ -74,14 +74,28 @@ func TestBrowserServeLifecycleSurvivesOpenerFailure(t *testing.T) {
 		case <-time.After(6 * time.Second):
 			t.Error("serve or its browser worker did not stop")
 		}
+		select {
+		case <-opened:
+			t.Error("opener ran without a UI or more than once")
+		default:
+		}
 	}()
 	response, err := http.Get(origin + "/")
 	if err != nil {
 		t.Fatal(err)
 	}
 	response.Body.Close()
-	if response.Header.Get("X-Routevane-UI-Digest") == "" {
-		t.Skip("API-only checkout; canonical check builds the embedded UI")
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("serve root status=%d", response.StatusCode)
+	}
+	digest := response.Header.Get("X-Routevane-UI-Digest")
+	if digest == "unavailable" {
+		// A clean Go-only checkout must keep serving without opening a browser.
+		// The deferred check waits for the worker lifecycle before asserting this.
+		return
+	}
+	if !strings.HasPrefix(digest, "sha256-") || len(digest) != 71 {
+		t.Fatalf("unexpected UI identity: %q", digest)
 	}
 	select {
 	case got := <-opened:
@@ -98,11 +112,6 @@ func TestBrowserServeLifecycleSurvivesOpenerFailure(t *testing.T) {
 	response.Body.Close()
 	if response.StatusCode != http.StatusOK {
 		t.Fatal("opener failure stopped the service")
-	}
-	select {
-	case <-opened:
-		t.Fatal("opener was called more than once")
-	default:
 	}
 }
 
