@@ -10,6 +10,7 @@ does not justify an empty package, table, interface, or placeholder today.
 
 ```powershell
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 setup
+pwsh -NoLogo -NoProfile -File tools/dev.ps1 install-hooks
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 check
 ```
 

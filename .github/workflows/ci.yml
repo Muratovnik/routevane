@@ -25,7 +25,9 @@ jobs:
         with:
           python-version: '3.13'
       - name: Audit public history and links
-        run: python .github/relkit.pyz audit --history --owner
+        # Owner policy reads a private sibling checkout and is a maintainer-only
+        # pre-push gate. Public CI can and must validate the public history alone.
+        run: python .github/relkit.pyz audit --history
 
   commit-policy:
     runs-on: ubuntu-latest

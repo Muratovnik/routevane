@@ -65,6 +65,14 @@ def main() -> int:
                 "use the user-scoped registration instead"
             )
 
+    attributes_path = ROOT / ".gitattributes"
+    if attributes_path.is_file():
+        attributes = attributes_path.read_text(encoding="utf-8").splitlines()
+        if "* text=auto eol=lf" not in attributes:
+            failures.append(
+                ".gitattributes must keep cross-platform text checkouts on LF"
+            )
+
     for path in sorted((ROOT / "docs").rglob("*.md")):
         if path.name == "README.md":
             continue
@@ -88,12 +96,29 @@ def main() -> int:
 
     workflow_root = ROOT / ".github" / "workflows"
     for workflow_path in sorted(workflow_root.glob("*.y*ml")):
-        for number, line in enumerate(workflow_path.read_text(encoding="utf-8").splitlines(), 1):
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        for number, line in enumerate(workflow_text.splitlines(), 1):
             if "uses:" in line and not PINNED_ACTION.fullmatch(line):
                 failures.append(
                     f"{workflow_path.relative_to(ROOT)}:{number}: action must be pinned "
                     "to a full commit SHA"
                 )
+        if "audit --history --owner" in workflow_text:
+            failures.append(
+                f"{workflow_path.relative_to(ROOT)}: owner policy requires a private "
+                "maintainer checkout and must not run in public CI"
+            )
+
+    for workflow_name in ("ci.yml", "release.yml"):
+        workflow_path = workflow_root / workflow_name
+        workflow_text = (
+            workflow_path.read_text(encoding="utf-8") if workflow_path.is_file() else ""
+        )
+        if (
+            workflow_path.is_file()
+            and "python .github/relkit.pyz audit --history" not in workflow_text
+        ):
+            failures.append(f".github/workflows/{workflow_name}: public history gate is missing")
 
     release_gate = ROOT / "tools" / "release_gate.py"
     if release_gate.is_file():

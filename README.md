@@ -60,7 +60,8 @@ claimed as separately accepted.
    stop. If you would rather run it yourself, the launcher does nothing more
    than `routing-agent serve`.
 
-To build the same archives yourself: `pwsh -File tools/dev.ps1 release`.
+To build an equivalent archive set yourself (not a bit-for-bit reproducibility
+promise): `pwsh -File tools/dev.ps1 release`.
 
 ## Output support matrix
 
