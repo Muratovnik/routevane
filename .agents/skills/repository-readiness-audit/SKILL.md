@@ -3,64 +3,64 @@ name: repository-readiness-audit
 description: Audit repository files, documentation audiences, installation examples, and release readiness when a prerelease, file-hygiene, or onboarding audit is requested. Not a substitute for feature testing or permission to publish.
 ---
 
-# Repository readiness audit
+# Routevane readiness audit
 
-Use the repository contract and the user's requested scope. Audit requests are
-read-only unless cleanup or implementation is also authorized. Do not infer
-permission for history rewriting, deleting user data, installing global services,
-or publishing. Delegation requires separate authorization.
+Apply these project criteria with `independent-audit` when available. Otherwise,
+review directly against this file and the repository contracts. A clean clone
+must not require a shared skill, user installation, or workstation path.
 
-## Evidence to collect
+## Sources and boundaries
 
-- Freeze commit/tree and dirty/staged paths. Separate tracked source, generated
-  output, private/runtime data, vendored tools, and the actual distribution.
-- Inventory every root file and every documentation/support directory. Inspect
-  content and callers, not just names. Record reader or executable consumer,
-  unique purpose, authoritative fact owner, freshness, and disposition:
-  keep, merge, relocate, retire, or unresolved.
-- Trace user, contributor, maintainer and extension-author entry paths from their
-  first visible file. A user should not need internal plans to install a release.
-  Count documents to understand scope, never as a target to minimize.
-- Compare overlapping facts: vocabulary, supported versions/platforms, commands,
-  storage locations, deletion/update behavior, security guarantees, and support
-  claims. Mark drafts/history and explicit replacements. Broken code-span paths,
-  obsolete commit references, and documents reachable only from validators
-  deserve investigation just as broken Markdown links do.
-- Before retiring material, identify unique requirements and unfinished work.
-  Preserve real decisions/history where useful; do not move duplicate prose
-  into a new folder and call the conflict resolved.
+Read [AGENTS.md](../../../AGENTS.md) and
+[current requirements](../../../docs/requirements.md). For executable checks use
+[quality gates](../../rules/quality-gates.md); for release scope also read
+[releasing](../../../docs/releasing.md). Reuse their commands and acceptance map.
+Name the stage and audiences; a narrow documentation review is not a full release.
 
-## Exercise what the reader receives
+Audit is read-only toward implementation and live state. Use disposable data,
+isolated tool/browser caches and only task-owned processes for permitted probes;
+write evidence under ignored `tmp/`. No device changes, global installation,
+history rewriting, publication, delegation or deletion of real data is implied.
 
-- Follow documented commands literally with fresh data and isolated tool/browser
-  caches. A clean checkout on a prepared workstation is not a clean environment.
-  Record inherited prerequisites and any manual rescue steps.
-- Include a checkout/extraction path with spaces. Confirm a deliberately invalid
-  input still fails its gate and that the command exposes the actual diagnostic.
-- Verify that tool traversal covers the product's source packages without treating
-  ignored caches, nested checkouts or generated dependencies as product code.
-- Build examples using their shipped templates/manifests. Tests that reconstruct
-  equivalent files do not prove the instructions or supplied files work.
-- Inspect every archive's inventory, licenses, notices, metadata, paths and modes.
-  Start its real launcher on each claimed native platform; check version, health,
-  UI/catalog and process cleanup. Version-only execution is not installation.
-- Check start, stop, first safe use, update, backup/restore, uninstall, and
-  troubleshooting. Never exercise destructive device actions without authority.
-- Compare public claims with exact evidence: rendering, validation, transport,
-  consumer activation, physical-device behavior, clean OS, CI and publication
-  are separate claims. External comparisons need current primary sources;
-  unsourced positioning is not a requirement or confirmed advantage.
+## Project acceptance surfaces
 
-## Verdict and prevention
+- **Files and readers:** inventory root files, documentation/support directories
+  and product source packages, excluding identified caches/generated dependencies
+  and independent checkouts. Establish consumer, purpose, fact owner, freshness
+  and disposition. Preserve unique requirements and unfinished work. Follow user,
+  contributor, maintainer and extension-author entry paths; private history and
+  internal plans must not replace current onboarding.
+- **Guidance:** follow [README](../../../README.md),
+  [installation](../../../docs/installation.md) and
+  [contributing](../../../CONTRIBUTING.md) literally, including shipped plugin
+  examples/manifests. Record prerequisites and rescue steps. Check vocabulary,
+  platforms/versions, storage/update/deletion and security claims; investigate
+  code-span paths, obsolete commit references and validator-only navigation,
+  distinguishing intentional history. Do not substitute reconstructed examples.
+- **Packages:** derive the required archive/platform matrix from current release
+  guidance. Inspect every in-scope archive's contents, licenses/notices, metadata,
+  paths and modes. From an extraction path with spaces and fresh data, exercise
+  its real `start-routevane` launcher on each required native platform: version,
+  health, supplied `catalog/`, UI and process cleanup. Confirm invalid inputs
+  produce diagnostics and a failing result. Cross-builds and version-only runs
+  do not establish installation.
+- **Use and lifecycle:** follow README's Lists → Routes → Build a route →
+  Connection/export journey on disposable state. Check start/stop, update,
+  backup/restore, rollback, removal and troubleshooting where in scope. Protect
+  `data/` and edited `catalog/`; they are not caches. Do not exercise real
+  uninstall or device delivery merely to finish an audit.
 
-Report prioritized findings with a concrete file/line, contradiction or failed
-reader action, impact, and smallest sound correction. Distinguish observed facts
-from inference and untested scope. Include dispositions, protected data, exact
-oracles and source identity; do not declare ship from code gates alone.
+## Acceptance evidence
 
-Automate stable mechanical contracts such as local links, version alignment,
-example-file consumption, archive inventory and native launcher smoke. Keep
-audience clarity and document meaning as explicit human-review criteria. Do not
-replace semantic review with brittle phrase, length or document-count checks.
-After authorized changes, rerun affected gates and repeat the literal journeys
-against the final artifact, then report residual limitations.
+Bind findings to commit/tree, relevant dirty/staged state and archive digest.
+Report located expected/observed behavior, impact, coverage and missing checks;
+separate fact, inference and uncertainty. Recommend corrections only when supported.
+
+Use the requirements' open limits: rendering, validation, transport, activation,
+physical devices, clean OS, CI and publication are distinct claims. External
+comparisons require current primary sources. A known mandatory failure blocks
+acceptance; missing mandatory evidence prevents a pass without proving a defect.
+
+Put mechanical regressions in existing owner gates. Counts, phrases and document
+length do not prove clarity. After separately authorized changes, recheck gates
+and literal journeys against the final artifact.
