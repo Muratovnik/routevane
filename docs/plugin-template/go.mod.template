@@ -1,6 +1,0 @@
-// Rename to go.mod in your own repository.
-module example.com/routevane-example-plugin
-
-go 1.27.0
-
-require github.com/Muratovnik/routevane v0.0.0

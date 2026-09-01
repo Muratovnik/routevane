@@ -8,8 +8,8 @@ description: Build or review a Routevane Nuxt operational UI slice, page, compon
 This is the complete Routevane-specific workflow for implementation and review
 of the web UI. Do not depend on an undeclared user-scoped UI skill.
 
-Read `AGENTS.md`, `DESIGN.md`, `.agents/rules/web-architecture.md`, and the
-current milestone. Keep the automatic user path primary and diagnostics
+Read `AGENTS.md`, `docs/UI.md`, `.agents/rules/web-architecture.md`, and
+`docs/requirements.md`. Keep the automatic user path primary and diagnostics
 progressive. Reuse semantic tokens and existing primitives before adding one.
 
 Implement real loading, empty, error, stale, success, keyboard, focus, and

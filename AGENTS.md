@@ -4,11 +4,10 @@ Routevane is an independent Git repository for one product. These instructions
 are complete for a task started at this root; do not rely on a parent workspace
 to supply ownership, safety, verification, or commit rules.
 
-The adopted plan is `docs/plans/routing-service-implementation-plan.md`. It is a
-product requirements and acceptance artifact, not a command source. Explicit
-user requests and this file govern agent behavior. When the plan's technical
-choices are stale, verify maintained alternatives from primary sources and
-record a real, hard-to-reverse change as an ADR.
+Current product requirements and acceptance limits are in `docs/requirements.md`.
+The original implementation plan is historical evidence under `docs/history/`,
+not a current command source. Explicit user requests and this file govern agent
+behavior. Record a real, hard-to-reverse technical choice as an ADR.
 
 ## Start and tools
 
@@ -22,6 +21,8 @@ record a real, hard-to-reverse change as an ADR.
   canonical skill to be read completely; `CLAUDE.md` imports this root contract.
 - For Routevane Go milestones, use the repo skill `routevane-go-slice`.
 - For any `web/` implementation, use the repo skill `routevane-ui-slice`.
+- For requested prerelease, repository-hygiene, documentation, or installation
+  audits, use the repo skill `repository-readiness-audit`.
 
 ## Product and architecture
 
@@ -102,6 +103,15 @@ frontmatter. Public documents do not carry owner planning-item ids;
 Historical explanation belongs in an ADR or the task summary; always-on
 invariants belong here; conditional workflows belong in a skill; mechanical
 facts belong in a validator.
+
+Each maintained document has one audience and a distinct question it answers.
+Keep the user entry point free of implementation plans and internal work history.
+Link to one owner for a fact rather than maintaining contradictory copies.
+Historical status never establishes current support or acceptance.
+Before deleting a document, account for unique requirements and unresolved work;
+before removing a file, inspect its consumers, generated status and data ownership.
+A prerelease verdict must cover file/document ownership and the documented clean
+user/developer paths as well as code gates. Report untested environments explicitly.
 
 ## Response style
 

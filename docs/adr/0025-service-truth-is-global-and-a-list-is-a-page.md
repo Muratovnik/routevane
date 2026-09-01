@@ -4,6 +4,9 @@ status: adopted
 
 # ADR 0025: service truth is global, and a list is a page
 
+> Current scope: ADR 0029 restricts global editing to the library; a card opened while composing
+> is read-only. See [current UI contract](../UI.md).
+
 ## Context
 
 The surface mirrored its storage instead of the operator's mental model. A

@@ -1,57 +1,20 @@
 # Routevane plugin SDK
 
 An external adapter is a separate program the operator installs. It speaks one
-versioned protocol over its own standard input and output — there is no listener,
-no port, and no socket, so nothing else on the machine can reach a plugin or
-impersonate the host.
+versioned protocol over its own standard input and output, with no network
+listener. This avoids a separate network authentication surface; it is not an
+isolation guarantee against other processes running as the same OS user.
 
 Import this package and nothing else from Routevane.
 
-## A renderer in full
+## Implementing the protocol
 
-```go
-package main
-
-import (
-	"fmt"
-	"os"
-
-	plugin "github.com/Muratovnik/routevane/sdk/routevaneplugin"
-)
-
-type handler struct{ plugin.Unimplemented }
-
-func (handler) Manifest() plugin.Manifest {
-	return plugin.Manifest{
-		Name:            "my-renderer",
-		Version:         "1.0.0",
-		ProtocolVersion: plugin.ProtocolVersion,
-		Kind:            plugin.KindRenderer,
-		Permissions:     []plugin.Permission{plugin.PermissionRenderPlan},
-		Renderer: &plugin.RendererManifest{
-			ID:                 "my-format",
-			FormatVersion:      "my-format-v1",
-			ContentType:        "text/plain",
-			FileExtension:      "txt",
-			SupportedRuleKinds: []string{"ipv4", "prefix4"},
-		},
-	}
-}
-
-func (handler) Render(plan []byte) ([]byte, error)             { /* ... */ }
-func (handler) ProjectedRuleCount(plan []byte) (int, error)    { /* ... */ }
-func (handler) Validate(payload []byte) error                  { /* ... */ }
-
-func main() {
-	if err := plugin.Serve(handler{}); err != nil {
-		fmt.Fprintln(os.Stderr, "stopped:", err)
-		os.Exit(1)
-	}
-}
-```
-
-`Unimplemented` supplies the methods your kind does not serve; each refuses
-rather than pretending to succeed.
+Start from the complete [renderer or source examples](../../examples/plugins/README.md).
+Their real manifests and catalog files are consumed by the end-to-end tests.
+Import this SDK, embed `Unimplemented` for methods your kind does not support,
+implement the kind's methods, and call `Serve` on standard input/output.
+The public types and method signatures are in [protocol.go](protocol.go) and
+[serve.go](serve.go).
 
 ## What the host requires
 
@@ -91,62 +54,11 @@ rather than pretending to succeed.
 
 ## Installing
 
-```sh
-go build -o my-renderer ./cmd/my-renderer
-sha256sum my-renderer                       # the digest goes in manifest.json
-mkdir -p "$ROUTEVANE_PLUGINS_DIR/my-renderer"
-cp my-renderer manifest.json "$ROUTEVANE_PLUGINS_DIR/my-renderer/"
-```
-
-`manifest.json`:
-
-```json
-{
-  "name": "my-renderer",
-  "version": "1.0.0",
-  "protocol_version": 1,
-  "kind": "renderer",
-  "permissions": ["render_plan"],
-  "executable": "my-renderer",
-  "sha256": "<the digest of the file above>",
-  "renderer": {
-    "id": "my-format",
-    "format_version": "my-format-v1",
-    "content_type": "text/plain",
-    "file_extension": "txt",
-    "supported_rule_kinds": ["ipv4", "prefix4"]
-  }
-}
-```
-
-`ROUTEVANE_PLUGINS_DIR` is the only place the host looks. When it is unset no
-plugin host is started at all, and the built-in adapters behave exactly as they
-did before plugins existed.
-
-A renderer plugin becomes selectable by adding a catalog target whose `renderer`
-is your `id` and whose `profile_key` is your `format_version`. A target may not
-claim a capability your `supported_rule_kinds` does not list; such a target is
-dropped rather than offered.
-
-A source plugin becomes active when a service catalog entry names the source
-`type` and the exact `revision` from its manifest:
-
-```yaml
-sources:
-  - id: my-source
-    type: example-source
-    revision: example-source-v1
-    component: core
-    config:
-      names: [api.example.com, edge.example.com]
-```
-
-Routevane sends those normalized names to `Observe`, re-parses every returned
-address or prefix, and records the result as community evidence. The catalog is
-portable and can be inspected without a plugin installed, but `refresh` refuses
-a missing implementation or a manifest/catalog revision mismatch. See
-`docs/plugin-template/source-manifest.json` and
-`examples/plugins/static-source` for complete starting points.
+Follow the [example build/install procedure](../../examples/plugins/README.md).
+The executable name and digest depend on the actual build; the remaining
+manifest fields must equal `Manifest()`. A renderer also needs a matching
+catalog target, and a source needs a service naming its exact type/revision.
+With `ROUTEVANE_PLUGINS_DIR` unset, Routevane starts no external plugin host.
 
 ## Protocol version
 

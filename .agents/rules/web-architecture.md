@@ -22,6 +22,6 @@ labels, keyboard traversal, and non-color state text. Verify 320, 768, 1024,
 and 1440 pixel widths. Axe automation blocks serious and critical findings but
 does not replace keyboard and screen-reader review.
 
-Nuxt output is generated, not committed. When the Go server begins embedding or
-serving it, the build path and runtime identity become one tested contract.
-Until then the UI remains independently runnable from `web/`.
+Nuxt output is generated, not committed, and embedded by the canonical Go build.
+The build path and served UI digest are one tested contract. A Nuxt development
+server alone is not acceptance of the shipped single-binary application.

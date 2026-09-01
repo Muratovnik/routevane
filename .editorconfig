@@ -15,3 +15,6 @@ indent_style = tab
 
 [*.md]
 trim_trailing_whitespace = false
+
+[*.{ps1,cmd,bat}]
+end_of_line = crlf

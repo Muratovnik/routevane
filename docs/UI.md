@@ -1,9 +1,14 @@
+---
+status: adopted
+---
+
 # Routevane interface contract
 
 Routevane is an operational control surface for one job: make the destinations a
 person picked reach the internet through their router's VPN interface, and let
 them believe it because they saw what was sent. This file records the system the
-product is actually built on, and it is the authority for changing it.
+product is actually built on. It is for interface contributors, not installation.
+[Current requirements](requirements.md) own product scope; this file owns UI behavior.
 
 ## The shape of the product
 
@@ -230,7 +235,7 @@ reachable. A modal dialog owns the scroll: the page behind it does not move.
 
 ## Tokens
 
-`src/assets/styles/tokens.css` holds two levels. Primitives are raw values and
+`web/src/assets/styles/tokens.css` holds two levels. Primitives are raw values and
 never appear in component code. Roles are what components consume and the only
 thing a theme redefines. Dark is the default ground because the operating scene
 is an evening desk beside a router; light follows the operating system or an
@@ -247,7 +252,7 @@ size, space, radius or duration.
 
 ## Components
 
-`src/shared/ui` owns the primitives: `RvButton`, `RvStatus`, `RvStateNotice`,
+`web/src/shared/ui` owns the primitives: `RvButton`, `RvStatus`, `RvStateNotice`,
 `RvFacts`, `RvField`, `RvTextInput`, `RvTextarea`, `RvSegmented`, `RvTabs`,
 `RvDialog`, `RvSelect`, `RvCombobox`, `RvMenu`, `RvInfoTip`, `RvIcon`,
 `RvDisclosure`, `RvCopyButton`, `RvCodeBlock`. Overlays — dialogs, menus,
@@ -276,7 +281,7 @@ black box: a host styles its own root class, passes props or fills a slot.
 English is the primary language and the fallback when the browser prefers a
 language this build does not speak; Russian is a complete, equal dictionary,
 and both are equal layout cases. Interface copy lives in
-`src/shared/i18n/messages.ts` and nowhere else; a literal sentence in a
+`web/src/shared/i18n/messages.ts` and nowhere else; a literal sentence in a
 component is a defect. Catalog data — list titles, target titles,
 installation sentences — is data and is never translated in the interface; the
 catalog itself may carry per-language variants (`title_en`,
@@ -300,6 +305,7 @@ another. No eyebrow labels, no colored edge stripes, no arrow glyphs welded
 into copy, no teaching paragraphs on the default path. No dashboard of things
 the product does not have. No status the server cannot substantiate — a live
 "the router fetched your subscription" indicator waits for the server to record
-that fact, and until then the interface does not imply it. No deletion: a list
-and its published files stay (ADR 0004), and the surface never offers a control
-that would only pretend to remove them.
+that fact, and until then the interface does not imply it. Routes are archived,
+not destructively deleted; their published files remain immutable (ADR 0004).
+Library lists and categories can be removed through the guarded library flow
+(ADR 0029). Removing a library item never deletes published artifact history.

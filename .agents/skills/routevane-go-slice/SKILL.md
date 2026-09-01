@@ -5,9 +5,8 @@ description: Implement or review one Routevane Go backend milestone or vertical 
 
 # Routevane Go slice
 
-Read `AGENTS.md`, the current milestone in
-`docs/plans/routing-service-implementation-plan.md`, and only the routed rule
-files that the slice touches.
+Read `AGENTS.md`, `docs/requirements.md`, and only the routed rule files that
+the slice touches. Historical milestones are context, not current setup instructions.
 
 Define the user-visible outcome, forbidden later-milestone scope, data and
 network boundaries, rollback, and the end-to-end oracle before editing. Inspect

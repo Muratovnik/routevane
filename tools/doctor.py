@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from check_repository import supported
+
 
 ROOT = Path(__file__).resolve().parents[1]
 REQUIRED = (
@@ -26,6 +28,10 @@ REQUIRED = (
     ".github/workflows/release.yml",
     "tools/release_gate.py",
     "tools/release_metadata.py",
+    "tools/release_archive.py",
+    "tools/release_smoke.py",
+    "tools/check_repository.py",
+    "dev.cmd",
 )
 PINNED_ACTION = re.compile(
     r"^\s*-?\s*uses:\s+[\w.-]+/[\w.-]+@[0-9a-f]{40}(?:\s+#.*)?$"
@@ -156,16 +162,24 @@ def main() -> int:
         else:
             print(f"go: {version}")
 
-    node = shutil.which("node")
-    if node is None:
-        failures.append("Node.js is not installed or discoverable")
-    else:
-        version = command_version([node, "--version"])
-        match = re.fullmatch(r"v(\d+)\.(\d+)\.(\d+)", version)
-        if not match or (int(match.group(1)), int(match.group(2))) < (22, 12):
-            failures.append(f"Node.js 22.12+ is required, found {version}")
+    engines = json.loads(package_path.read_text(encoding="utf-8"))["engines"]
+    for name in ("node", "npm"):
+        executable = shutil.which(name)
+        if executable is None:
+            failures.append(f"{name} is not installed or discoverable")
+            continue
+        version = command_version([executable, "--version"])
+        if not supported(version, engines[name]):
+            failures.append(f"{name} {engines[name]} is required, found {version}")
         else:
-            print(f"node: {version}")
+            print(f"{name}: {version}")
+
+    for arguments in (
+        [str(ROOT / "tools/check_repository.py")],
+        ["-m", "unittest", "discover", "-s", "tools", "-p", "test_tooling.py"],
+    ):
+        if subprocess.run([sys.executable, *arguments], cwd=ROOT).returncode:
+            failures.append(f"repository contract failed: {' '.join(arguments)}")
 
     skill_check = subprocess.run([sys.executable, ROOT / "tools" / "validate_skills.py"], cwd=ROOT)
     if skill_check.returncode:

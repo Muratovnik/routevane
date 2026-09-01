@@ -18,6 +18,7 @@ regexes = ['''\bkeenetic-bat-ipv4-v1\b''']
 [[allowlists]]
 description = "Sing-box test proves that password-bearing candidates are rejected"
 targetRules = ["generic-password"]
+condition = "AND"
 regexTarget = "line"
 paths = ['''internal/deployers/singboxlocal/singboxlocal_test\.go''']
 regexes = ['''Password:\s*"secret"''']
@@ -25,38 +26,27 @@ regexes = ['''Password:\s*"secret"''']
 [[allowlists]]
 description = "Keenetic authentication fixtures never leave the loopback test server"
 targetRules = ["generic-password", "generic-credential-uri"]
+condition = "AND"
 regexTarget = "line"
 paths = ['''internal/deployers/keenetic/keenetic_test\.go''']
 regexes = [
   '''devicePassword\s*=\s*"correct-horse"''',
   '''wrong\.Password\s*=\s*"wrong-password-value"''',
-  '''http://user:password@192\.168\.1\.1''',
+  '''http://user:secret@192\.168\.1\.1''',
 ]
 
 [[allowlists]]
 description = "Deployment tests use a fixed non-production password marker"
 targetRules = ["generic-password"]
+condition = "AND"
 regexTarget = "line"
 paths = ['''internal/application/deploy_test\.go''']
 regexes = ['''deployTestPassword\s*=\s*"device-secret-value"''']
 
 [[allowlists]]
-description = "History audit includes the retired M8 deployment test's fixed password marker"
-targetRules = ["generic-password"]
-regexTarget = "line"
-paths = ['''cmd/routing-agent/m8_e2e_test\.go''']
-regexes = ['''m8Password\s*=\s*"device-secret-value"''']
-
-[[allowlists]]
-description = "History audit includes the retired deployment panel's literal password fixture"
-targetRules = ["generic-password"]
-regexTarget = "line"
-paths = ['''web/src/features/deploy-artifact/ui/DeployPanel\.spec\.ts''']
-regexes = ['''(?:setValue\('secret'\)|password:\s*'secret')''']
-
-[[allowlists]]
 description = "HTTP tests interpolate an in-memory fixture into a request body"
 targetRules = ["generic-password"]
+condition = "AND"
 regexTarget = "line"
 paths = ['''internal/infrastructure/httpapi/httpapi_test\.go''']
 regexes = ['''"password":"`\s*\+\s*secret\s*\+\s*`"''']
@@ -64,6 +54,15 @@ regexes = ['''"password":"`\s*\+\s*secret\s*\+\s*`"''']
 [[allowlists]]
 description = "Localized password field labels are user-facing copy"
 targetRules = ["generic-password"]
+condition = "AND"
 regexTarget = "line"
 paths = ['''web/src/shared/i18n/messages\.ts''']
-regexes = ['''^\s*'send\.field\.password': '(?:Пароль устройства|Device password)',$''']
+regexes = [''''send\.field\.password': '(?:Пароль устройства|Device password)',''']
+
+[[allowlists]]
+description = "API contract tests send this fixed fixture only to the mocked fetch function"
+targetRules = ["generic-password"]
+condition = "AND"
+regexTarget = "line"
+paths = ['''(?:^|/)web/src/shared/api/contracts\.spec\.ts$''']
+regexes = ['''password:\s*'secret',''']

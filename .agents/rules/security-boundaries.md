@@ -42,5 +42,5 @@ device, subprocess, file-import, or plugin boundary.
   rollback runs on a context detached from the caller's, with its own budget:
   the cancellation that failed a deployment must not disarm the recovery from
   it. See ADR 0020.
-- External plugins wait for their milestone and run out of process with a
+- External plugins run out of process with a
   versioned protocol, permissions, timeout, resource limits, and checksums.

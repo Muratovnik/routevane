@@ -1,0 +1,25 @@
+{
+  "name": "example-csv-renderer",
+  "version": "1.0.0",
+  "protocol_version": 1,
+  "kind": "renderer",
+  "permissions": [
+    "render_plan"
+  ],
+  "executable": "plugin.exe",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "renderer": {
+    "id": "example-csv",
+    "format_version": "example-csv-v1",
+    "content_type": "text/csv",
+    "file_extension": "csv",
+    "supported_rule_kinds": [
+      "domain_exact",
+      "domain_suffix",
+      "ipv4",
+      "ipv6",
+      "prefix4",
+      "prefix6"
+    ]
+  }
+}

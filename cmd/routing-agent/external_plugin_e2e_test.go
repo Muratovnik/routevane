@@ -17,23 +17,6 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-const exampleCSVTargetYAML = `id: examplecsv
-profile_key: example-csv-v1
-kind: app
-renderer: example-csv
-constraints:
-  supports_domain_exact: true
-  supports_domain_suffix: true
-  supports_dynamic_dns_set: false
-  supports_ipv4: true
-  supports_ipv6: true
-  supports_prefixes: true
-  max_rules: 1024
-  max_artifact_size: 131072
-renderer_options: []
-manual_installation_hint: Import the CSV wherever the example format is consumed.
-`
-
 // installPlugin builds one plugin and installs it the way an operator would: an
 // executable beside a manifest whose checksum matches it.
 func installPlugin(t *testing.T, root, name, packagePath string, manifest map[string]any) {
@@ -67,16 +50,22 @@ func installPlugin(t *testing.T, root, name, packagePath string, manifest map[st
 	}
 }
 
-func exampleCSVRendererManifest() map[string]any {
-	return map[string]any{
-		"name": "example-csv-renderer", "version": "1.0.0", "protocol_version": 1,
-		"kind": "renderer", "permissions": []string{"render_plan"},
-		"renderer": map[string]any{
-			"id": "example-csv", "format_version": "example-csv-v1",
-			"content_type": "text/csv", "file_extension": "csv",
-			"supported_rule_kinds": []string{"domain_exact", "domain_suffix", "ipv4", "ipv6", "prefix4", "prefix6"},
-		},
+func exampleFile(t *testing.T, example, name string) []byte {
+	t.Helper()
+	payload, err := os.ReadFile(filepath.Join("..", "..", "examples", "plugins", example, name))
+	if err != nil {
+		t.Fatal(err)
 	}
+	return payload
+}
+
+func exampleManifest(t *testing.T, example string) map[string]any {
+	t.Helper()
+	var manifest map[string]any
+	if err := json.Unmarshal(exampleFile(t, example, "manifest.json"), &manifest); err != nil {
+		t.Fatal(err)
+	}
+	return manifest
 }
 
 func TestPublishesThroughAnExternalRendererAndWorksWithoutOne(t *testing.T) {
@@ -108,7 +97,7 @@ func TestPublishesThroughAnExternalRendererAndWorksWithoutOne(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(catalogDir, "targets", "keenetic.yaml"), keeneticTarget, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(catalogDir, "targets", "examplecsv.yaml"), []byte(exampleCSVTargetYAML), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(catalogDir, "targets", "examplecsv.yaml"), exampleFile(t, "csv-renderer", "target.yaml"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -135,7 +124,7 @@ func TestPublishesThroughAnExternalRendererAndWorksWithoutOne(t *testing.T) {
 
 	// Installing the plugin makes its target selectable, and the artifact goes
 	// through the same publication path as a built-in one.
-	installPlugin(t, pluginsDir, "example-csv-renderer", "./examples/plugins/csv-renderer", exampleCSVRendererManifest())
+	installPlugin(t, pluginsDir, "example-csv-renderer", "./examples/plugins/csv-renderer", exampleManifest(t, "csv-renderer"))
 	deps.PluginsDir = pluginsDir
 	external := buildYoutubeArtifact(t, deps, catalogDir, dataDir, outputDir, "examplecsv")
 	if !strings.HasPrefix(external, "kind,value,service,component\n") {
@@ -176,11 +165,7 @@ func TestPublishesThroughAnExternalRendererAndWorksWithoutOne(t *testing.T) {
 
 func TestPluginsAreDiscoveredThroughOneEnvironmentVariable(t *testing.T) {
 	pluginsDir := filepath.Join(t.TempDir(), "plugins")
-	installPlugin(t, pluginsDir, "example-static-source", "./examples/plugins/static-source", map[string]any{
-		"name": "example-static-source", "version": "1.0.0", "protocol_version": 1,
-		"kind": "source", "permissions": []string{"observe_names"},
-		"source": map[string]any{"type": "example-static", "revision": "example-static-v1"},
-	})
+	installPlugin(t, pluginsDir, "example-static-source", "./examples/plugins/static-source", exampleManifest(t, "static-source"))
 	t.Setenv(PluginsDirVariable, pluginsDir)
 	deps := normalizeDeps(runtimeDeps{Now: func() time.Time { return time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC) }, Context: context.Background()})
 	if deps.PluginsDir != pluginsDir {
@@ -210,25 +195,6 @@ func TestPluginsAreDiscoveredThroughOneEnvironmentVariable(t *testing.T) {
 	}
 }
 
-const externalSourceServiceYAML = `id: plugin-service
-title: Plugin service
-components:
-  core:
-    required: true
-seeds:
-  - kind: domain_suffix
-    value: example.test
-    component: core
-    source: manual
-sources:
-  - id: static
-    type: example-static
-    revision: example-static-v1
-    component: core
-    config:
-      names: [static.example.test, edge.example.test]
-`
-
 func TestAnInstalledExternalSourceParticipatesInRefresh(t *testing.T) {
 	catalogDir := filepath.Join(t.TempDir(), "catalog")
 	dataDir := filepath.Join(t.TempDir(), "data")
@@ -237,14 +203,10 @@ func TestAnInstalledExternalSourceParticipatesInRefresh(t *testing.T) {
 		t.Fatal(err)
 	}
 	catalogPath := filepath.Join(catalogDir, "builtin", "plugin-service.yaml")
-	if err := os.WriteFile(catalogPath, []byte(externalSourceServiceYAML), 0o600); err != nil {
+	if err := os.WriteFile(catalogPath, exampleFile(t, "static-source", "service.yaml"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	installPlugin(t, pluginsDir, "example-static-source", "./examples/plugins/static-source", map[string]any{
-		"name": "example-static-source", "version": "1.0.0", "protocol_version": 1,
-		"kind": "source", "permissions": []string{"observe_names"},
-		"source": map[string]any{"type": "example-static", "revision": "example-static-v1"},
-	})
+	installPlugin(t, pluginsDir, "example-static-source", "./examples/plugins/static-source", exampleManifest(t, "static-source"))
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	deps := runtimeDeps{PluginsDir: pluginsDir, Now: func() time.Time { return now }, Context: context.Background()}
 	stdout, stderr := &syncBuffer{}, &syncBuffer{}
@@ -272,7 +234,7 @@ func TestAnInstalledExternalSourceParticipatesInRefresh(t *testing.T) {
 
 	// The catalog revision is the operator-reviewed contract. An installed
 	// process reporting another implementation revision is also a refusal.
-	mismatched := strings.Replace(externalSourceServiceYAML, "example-static-v1", "example-static-v2", 1)
+	mismatched := strings.Replace(string(exampleFile(t, "static-source", "service.yaml")), "example-static-v1", "example-static-v2", 1)
 	if err := os.WriteFile(catalogPath, []byte(mismatched), 0o600); err != nil {
 		t.Fatal(err)
 	}

@@ -18,7 +18,7 @@ import (
 // deps carries whatever a scenario needs to vary (Resolver, Now, the feed
 // seams, and so on); Context, Listen, and SignalContext belong to this shared
 // lifecycle and are set here, overwriting whatever the caller left in them.
-func startServeServer(t *testing.T, catalog, data string, deps runtimeDeps) (string, context.CancelFunc, <-chan int, *syncBuffer) {
+func startServeServer(t *testing.T, catalog, data string, deps runtimeDeps, extraArgs ...string) (string, context.CancelFunc, <-chan int, *syncBuffer) {
 	t.Helper()
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
@@ -36,7 +36,8 @@ func startServeServer(t *testing.T, catalog, data string, deps runtimeDeps) (str
 	}
 	deps.SignalContext = func(parent context.Context) (context.Context, context.CancelFunc) { return parent, func() {} }
 	go func() {
-		done <- runWithDeps(stdout, stderr, []string{"serve", "--catalog-dir", catalog, "--data-dir", data}, deps)
+		args := append([]string{"serve", "--catalog-dir", catalog, "--data-dir", data}, extraArgs...)
+		done <- runWithDeps(stdout, stderr, args, deps)
 	}()
 	select {
 	case call := <-called:

@@ -45,9 +45,10 @@ type doctorOptions struct {
 }
 
 type serveOptions struct {
-	Port       int
-	CatalogDir string
-	DataDir    string
+	Port        int
+	CatalogDir  string
+	DataDir     string
+	OpenBrowser bool
 }
 
 func commonFlags(name string) (*flag.FlagSet, *commonOptions) {
@@ -137,12 +138,13 @@ func parseServe(args []string) (serveOptions, bool) {
 	set := flag.NewFlagSet("serve", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
 	port := set.Int("port", 8765, "loopback port")
+	openBrowser := set.Bool("open-browser", false, "open the UI after it is ready")
 	catalogDir := set.String("catalog-dir", "./catalog", "catalog directory")
 	dataDir := set.String("data-dir", "./data", "data directory")
 	if set.Parse(args) != nil || set.NArg() != 0 || *port < 1 || *port > 65535 {
 		return serveOptions{}, false
 	}
-	return serveOptions{Port: *port, CatalogDir: *catalogDir, DataDir: *dataDir}, true
+	return serveOptions{Port: *port, CatalogDir: *catalogDir, DataDir: *dataDir, OpenBrowser: *openBrowser}, true
 }
 
 func loadConfiguredService(ctx context.Context, options commonOptions) (catalogyaml.Catalog, domain.ServiceDefinition, error) {

@@ -4,6 +4,9 @@ status: adopted
 
 # ADR 0024: an operator-defined service is a catalog entry, not a list note
 
+> Current scope: The original per-list editing split was replaced by ADR 0025 and the separate
+> library flow in ADR 0029. See [current UI contract](../UI.md).
+
 ## Context
 
 Composition could only name what the shipped catalog carries. An operator whose

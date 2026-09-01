@@ -66,6 +66,7 @@ type runtimeDeps struct {
 	ArtifactWriter filesystem.ArtifactWriter
 	BuildWriter    filesystem.BuildOutputWriter
 	Listen         func(string, string) (net.Listener, error)
+	OpenBrowser    func(context.Context, string) error
 }
 
 func productionDeps() runtimeDeps {
@@ -80,7 +81,8 @@ func productionDeps() runtimeDeps {
 		SignalContext: func(parent context.Context) (context.Context, context.CancelFunc) {
 			return signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 		},
-		Listen: net.Listen,
+		Listen:      net.Listen,
+		OpenBrowser: openSystemBrowser,
 	}
 }
 
@@ -111,6 +113,9 @@ func normalizeDeps(deps runtimeDeps) runtimeDeps {
 	}
 	if deps.Listen == nil {
 		deps.Listen = production.Listen
+	}
+	if deps.OpenBrowser == nil {
+		deps.OpenBrowser = production.OpenBrowser
 	}
 	return deps
 }
@@ -259,7 +264,7 @@ func logResult(logger *slog.Logger, operation, service, source, status string, c
 }
 
 func writeUsage(stderr io.Writer) {
-	fmt.Fprintln(stderr, "usage: routing-agent version | preview --service example --target raw-json | refresh --service ID [--catalog-dir DIR --data-dir DIR] | build --target raw-json --service ID [--catalog-dir DIR --data-dir DIR] | build --target keenetic --service ID [--service ID ... --output DIR --catalog-dir DIR --data-dir DIR] | doctor [--catalog-dir DIR --data-dir DIR] | run --target raw-json --service ID [--interval 30m --catalog-dir DIR --data-dir DIR] | serve [--port 8765 --catalog-dir DIR --data-dir DIR] | discover --url URL [--confirm --service-id ID --title TEXT --seed DOMAIN --browser PATH --catalog-dir DIR --data-dir DIR] | learn --scenario FILE | --har FILE --url URL [--confirm --service-id ID --title TEXT --seed DOMAIN --browser PATH --catalog-dir DIR --data-dir DIR] | deploy --artifact ID --target ID --device URL|file://PATH [--user NAME --interface NAME --confirm --device-tls-untrusted --catalog-dir DIR --data-dir DIR]")
+	fmt.Fprintln(stderr, "usage: routing-agent version | preview --service example --target raw-json | refresh --service ID [--catalog-dir DIR --data-dir DIR] | build --target raw-json --service ID [--catalog-dir DIR --data-dir DIR] | build --target keenetic --service ID [--service ID ... --output DIR --catalog-dir DIR --data-dir DIR] | doctor [--catalog-dir DIR --data-dir DIR] | run --target raw-json --service ID [--interval 30m --catalog-dir DIR --data-dir DIR] | serve [--port 8765 --catalog-dir DIR --data-dir DIR --open-browser] | discover --url URL [--confirm --service-id ID --title TEXT --seed DOMAIN --browser PATH --catalog-dir DIR --data-dir DIR] | learn --scenario FILE | --har FILE --url URL [--confirm --service-id ID --title TEXT --seed DOMAIN --browser PATH --catalog-dir DIR --data-dir DIR] | deploy --artifact ID --target ID --device URL|file://PATH [--user NAME --interface NAME --confirm --device-tls-untrusted --catalog-dir DIR --data-dir DIR]")
 }
 
 func main() {

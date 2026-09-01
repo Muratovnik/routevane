@@ -1,7 +1,8 @@
+#Requires -Version 7.4
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('setup', 'up', 'release', 'doctor', 'format', 'check-go', 'check-web', 'security', 'build', 'check', 'test-browser', 'install-hooks')]
+    [ValidateSet('setup', 'setup-browser', 'up', 'release', 'doctor', 'format', 'check-go', 'check-web', 'security', 'build', 'check', 'test-browser', 'install-hooks')]
     [string]$Command = 'check',
     # up only: the port the local service listens on, and an escape hatch for
     # an environment where opening a browser is unwanted.
@@ -15,6 +16,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = Split-Path -Parent $PSScriptRoot
+if (-not $env:PLAYWRIGHT_BROWSERS_PATH) {
+    $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $RepositoryRoot '.cache/browsers'
+}
 $GoCommand = Get-Command go -ErrorAction SilentlyContinue
 if ($null -eq $GoCommand) {
     $GoFallback = 'C:\Program Files\Go\bin\go.exe'
@@ -41,6 +45,26 @@ function Invoke-Checked {
     }
 }
 
+function Remove-RoutevaneGeneratedDirectory {
+    param([Parameter(Mandatory)][string]$Path)
+    $CacheRoot = [IO.Path]::GetFullPath((Join-Path $RepositoryRoot '.cache'))
+    $Resolved = [IO.Path]::GetFullPath($Path)
+    $Prefix = $CacheRoot + [IO.Path]::DirectorySeparatorChar
+    if (-not $Resolved.StartsWith($Prefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "refusing generated-directory removal outside the cache: $Resolved"
+    }
+    $Ancestor = $Resolved
+    while ($Ancestor.Length -ge $CacheRoot.Length) {
+        if (Test-Path -LiteralPath $Ancestor) {
+            if ((Get-Item -LiteralPath $Ancestor -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                throw "refusing linked cache directory: $Ancestor"
+            }
+        }
+        $Ancestor = Split-Path -Parent $Ancestor
+    }
+    if (Test-Path -LiteralPath $Resolved) { Remove-Item -LiteralPath $Resolved -Recurse -Force }
+}
+
 function Test-RoutevaneOrigin {
     param([Parameter(Mandatory)] [string]$Origin)
 
@@ -63,7 +87,7 @@ function Open-RoutevaneOrigin {
 }
 
 function Invoke-GoCheck {
-    $GoRoots = @((Join-Path $RepositoryRoot 'cmd'))
+    $GoRoots = @('cmd', 'sdk', 'examples' | ForEach-Object { Join-Path $RepositoryRoot $_ })
     $InternalRoot = Join-Path $RepositoryRoot 'internal'
     if (Test-Path -LiteralPath $InternalRoot -PathType Container) {
         $GoRoots += $InternalRoot
@@ -79,7 +103,7 @@ function Invoke-GoCheck {
     Invoke-Checked $GoExecutable @('vet', './...')
     Invoke-Checked $GoExecutable @('tool', 'staticcheck', './...')
 
-    $CoverageRoot = Join-Path $RepositoryRoot 'coverage'
+    $CoverageRoot = Join-Path $RepositoryRoot '.cache/reports'
     New-Item -ItemType Directory -Force -Path $CoverageRoot | Out-Null
     Invoke-Checked $GoExecutable @('test', '-shuffle=on', '-covermode=atomic', '-coverprofile', (Join-Path $CoverageRoot 'go.cover'), './...')
     Invoke-Checked $GoExecutable @('tool', 'cover', '-func', (Join-Path $CoverageRoot 'go.cover'))
@@ -228,7 +252,7 @@ function Get-RoutevaneBrowserPath {
     }
     $Path = $Path.Trim()
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        throw "Playwright Chromium is not installed at $Path; run tools/dev.ps1 setup"
+        throw "Playwright Chromium is not installed at $Path; run tools/dev.ps1 setup-browser"
     }
     return $Path
 }
@@ -286,9 +310,26 @@ function Assert-ReleaseArchives {
         $Zip = [System.IO.Compression.ZipFile]::OpenRead($ArchivePath)
         try {
             $Entries = @{}
-            foreach ($Entry in $Zip.Entries) { $Entries[$Entry.FullName.Replace('\', '/')] = $Entry }
-            foreach ($Required in @($Binary, $Launcher, "${Prefix}LICENSE", "${Prefix}THIRD_PARTY_NOTICES.txt", "${Prefix}SBOM.spdx.json")) {
+            foreach ($Entry in $Zip.Entries) {
+                $Name = $Entry.FullName.Replace('\', '/')
+                if ($Entries.ContainsKey($Name)) { throw "$ArchiveName carries duplicate entries: $Name" }
+                $Entries[$Name] = $Entry
+            }
+            $Expected = @($Binary, $Launcher, "${Prefix}README.txt", "${Prefix}LICENSE", "${Prefix}THIRD_PARTY_NOTICES.txt", "${Prefix}SBOM.spdx.json")
+            $CatalogFiles = @(& git -C $RepositoryRoot ls-files -- catalog)
+            if ($LASTEXITCODE -ne 0 -or $CatalogFiles.Count -eq 0) { throw 'tracked catalog inventory unavailable' }
+            $Expected += @($CatalogFiles | ForEach-Object { "${Prefix}$_" })
+            if ($Entries.Count -ne $Expected.Count) { throw "$ArchiveName carries unexpected or missing files" }
+            foreach ($Required in $Expected) {
                 if (-not $Entries.ContainsKey($Required)) { throw "$ArchiveName is missing $Required" }
+                if ($Entries[$Required].Length -eq 0) { throw "$ArchiveName carries empty $Required" }
+            }
+            if ($Platform.OS -ne 'windows') {
+                foreach ($Executable in @($Binary, $Launcher)) {
+                    if ((($Entries[$Executable].ExternalAttributes -shr 16) -band 511) -ne 493) {
+                        throw "$ArchiveName does not preserve executable permissions: $Executable"
+                    }
+                }
             }
             $LicenseReader = [System.IO.StreamReader]::new($Entries["${Prefix}LICENSE"].Open())
             try { $ArchivedLicense = $LicenseReader.ReadToEnd() } finally { $LicenseReader.Dispose() }
@@ -324,16 +365,9 @@ function Assert-ReleaseArchives {
     if ($null -ne $Native) {
         $NativeStem = "routevane-$ReleaseVersion-$($Native.OS)-$($Native.Arch)"
         $NativeArchive = Join-Path $ReleaseRoot "$NativeStem.zip"
-        $VerifyRoot = Join-Path $ReleaseRoot 'verify-native'
-        try {
-            Expand-Archive -LiteralPath $NativeArchive -DestinationPath $VerifyRoot
-            $NativeBinary = Join-Path (Join-Path $VerifyRoot $NativeStem) "routing-agent$($Native.Suffix)"
-            if (-not $IsWindows) { & chmod '+x' $NativeBinary }
-            $Reported = (& $NativeBinary version).Trim()
-            if ($Reported -ne "routevane $ReleaseVersion") { throw "native archive version = $Reported" }
-        } finally {
-            if (Test-Path -LiteralPath $VerifyRoot) { Remove-Item -Recurse -Force -LiteralPath $VerifyRoot }
-        }
+        Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools/release_smoke.py'),
+            '--archive', $NativeArchive, '--version', $ReleaseVersion,
+            '--platform', "$($Native.OS)-$($Native.Arch)")
     }
     Write-Host "verified $($Archives.Count) release archives"
 }
@@ -349,7 +383,8 @@ function Invoke-ReleaseBuild {
         $ReleaseVersion = if ($LASTEXITCODE -eq 0 -and $Described) { $Described.Trim() } else { 'dev' }
     }
     $ReleaseRoot = Join-Path $RepositoryRoot '.cache\release'
-    if (Test-Path -LiteralPath $ReleaseRoot) { Remove-Item -Recurse -Force -LiteralPath $ReleaseRoot }
+    if ($ReleaseVersion -notmatch '^[a-zA-Z0-9][a-zA-Z0-9.+-]{0,99}$') { throw 'invalid local release version' }
+    Remove-RoutevaneGeneratedDirectory -Path $ReleaseRoot
     New-Item -ItemType Directory -Force -Path $ReleaseRoot | Out-Null
     $SourceDate = (& git -C $RepositoryRoot show -s --format=%cI HEAD).Trim()
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($SourceDate)) { throw 'release source date is unavailable' }
@@ -387,13 +422,20 @@ function Invoke-ReleaseBuild {
         }
         # The catalog travels with the binary. It is operator-editable data, so
         # embedding it would hide which copy is in effect.
-        Copy-Item -Recurse -Force -Path (Join-Path $RepositoryRoot 'catalog') -Destination (Join-Path $Stage 'catalog')
+        $CatalogPaths = @(& git -C $RepositoryRoot ls-files -- catalog)
+        if ($LASTEXITCODE -ne 0 -or $CatalogPaths.Count -eq 0) { throw 'tracked catalog inventory unavailable' }
+        foreach ($CatalogPath in $CatalogPaths) {
+            $Destination = Join-Path $Stage $CatalogPath
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Destination) | Out-Null
+            Copy-Item -LiteralPath (Join-Path $RepositoryRoot $CatalogPath) -Destination $Destination
+        }
         Copy-Item -Force -Path (Join-Path $RepositoryRoot 'LICENSE') -Destination $Stage
         Copy-Item -Force -Path $NoticesPath -Destination $Stage
         Copy-Item -Force -Path $SBOMPath -Destination $Stage
         # Each archive carries the launcher for its own platform, so the product
         # starts from a double-click rather than from a remembered command.
         $LauncherRoot = Join-Path $RepositoryRoot 'tools\launchers'
+        Copy-Item -LiteralPath (Join-Path $LauncherRoot 'README.txt') -Destination $Stage
         if ($Platform.OS -eq 'windows') {
             Copy-Item -Force -Path (Join-Path $LauncherRoot 'start-routevane.cmd') -Destination $Stage
         } else {
@@ -402,8 +444,10 @@ function Invoke-ReleaseBuild {
             if (-not $IsWindows) { & chmod '+x' $Launcher }
         }
         $Archive = Join-Path $ReleaseRoot "$StemName.zip"
-        Compress-Archive -Path $Stage -DestinationPath $Archive -Force
-        Remove-Item -Recurse -Force -LiteralPath $Stage
+        Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools/release_archive.py'),
+            '--stage', $Stage, '--output', $Archive,
+            '--platform', "$($Platform.OS)-$($Platform.Arch)", '--created', $SourceDate)
+        Remove-RoutevaneGeneratedDirectory -Path $Stage
         $Archives += $Archive
         Write-Host "packaged $StemName.zip"
     }
@@ -469,11 +513,20 @@ try {
             try { Invoke-Checked 'npm' @('ci') } finally { Pop-Location }
             Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'))
         }
+        'setup-browser' {
+            Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools/doctor.py'))
+            Push-Location (Join-Path $RepositoryRoot 'web')
+            try {
+                if ($IsLinux) { Invoke-Checked 'npx' @('--no-install', 'playwright', 'install', '--with-deps', 'chromium') }
+                else { Invoke-Checked 'npx' @('--no-install', 'playwright', 'install', 'chromium') }
+            } finally { Pop-Location }
+            Get-RoutevaneBrowserPath | Out-Null
+        }
         'doctor' {
             Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'))
         }
         'format' {
-            $GoRoots = @((Join-Path $RepositoryRoot 'cmd'))
+            $GoRoots = @('cmd', 'sdk', 'examples' | ForEach-Object { Join-Path $RepositoryRoot $_ })
             if (Test-Path -LiteralPath (Join-Path $RepositoryRoot 'internal')) { $GoRoots += (Join-Path $RepositoryRoot 'internal') }
             $GoFiles = Get-ChildItem -LiteralPath $GoRoots -Filter '*.go' -File -Recurse | ForEach-Object { $_.FullName }
             Invoke-Checked $GoFmtExecutable (@('-w') + $GoFiles)
@@ -509,25 +562,8 @@ try {
             Write-Host "Routevane: ${Origin}"
             Write-Host 'Stop with Ctrl+C.'
             Write-Host ''
-            if (-not $NoBrowser) {
-                # The page is opened once the listener answers, not before, and a
-                # failure to open a browser must never stop the service.
-                Start-Job -Name 'routevane-open-page' -ScriptBlock {
-                    param($Target, $ListenPort)
-                    for ($Attempt = 0; $Attempt -lt 100; $Attempt++) {
-                        try {
-                            $Probe = [System.Net.Sockets.TcpClient]::new()
-                            $Probe.Connect('127.0.0.1', $ListenPort)
-                            $Probe.Close()
-                            break
-                        } catch {
-                            Start-Sleep -Milliseconds 200
-                        }
-                    }
-                    try { Start-Process $Target } catch { }
-                } -ArgumentList $Origin, $Port | Out-Null
-            }
-            Invoke-Checked $Binary @('serve', '--port', "$Port", '--catalog-dir', $CatalogDirectory, '--data-dir', $DataDirectory)
+            $OpenBrowser = (-not $NoBrowser).ToString().ToLowerInvariant()
+            Invoke-Checked $Binary @('serve', '--port', "$Port", '--catalog-dir', $CatalogDirectory, '--data-dir', $DataDirectory, "--open-browser=$OpenBrowser")
         }
         'check' {
             Assert-RoutevaneHooksCurrent
@@ -536,6 +572,7 @@ try {
             Invoke-GoCheck
         }
         'test-browser' {
+            Get-RoutevaneBrowserPath | Out-Null
             Invoke-ProductBuild | Out-Null
             Push-Location (Join-Path $RepositoryRoot 'web')
             try { Invoke-Checked 'npm' @('run', 'test:browser') } finally { Pop-Location }

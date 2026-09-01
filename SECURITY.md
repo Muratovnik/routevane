@@ -1,6 +1,9 @@
 # Security policy
 
-Report vulnerabilities privately to the repository owner. Do not include live
+Report vulnerabilities privately by email to
+[el.muratovnik@gmail.com](mailto:el.muratovnik@gmail.com). Include the Routevane
+version, affected platform, impact, and a minimal reproduction with synthetic
+data. Do not include live
 router credentials, tokens, private network addresses, or unredacted local
 runtime data in a public issue.
 

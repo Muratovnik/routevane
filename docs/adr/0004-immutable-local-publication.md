@@ -4,6 +4,9 @@ status: adopted
 
 # ADR 0004: immutable local publication and opaque subscriptions
 
+> Current scope: Publication immutability remains current. The profile model evolved in ADR 0013,
+> and subscription issuance in ADR 0023; see [current architecture](../ARCHITECTURE.md).
+
 ## Context
 
 Milestone 3 needs a stable local URL without allowing a failed renderer, a

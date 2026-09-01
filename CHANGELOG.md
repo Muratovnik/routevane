@@ -12,10 +12,18 @@ product and has no release to describe, so there are no historical entries to
 reconstruct.
 
 While Routevane is `0.y.z` nothing about its surface is guaranteed stable: a
-breaking change raises the minor, everything else raises the patch. `README.md`
-states what a version protects once the first one is published.
+breaking change raises the minor, everything else raises the patch. The
+[release policy](docs/releasing.md) states which surfaces a version protects.
 
 ## [Unreleased]
+
+### Bug Fixes
+
+- Separate user installation from contributor setup; include offline lifecycle
+  instructions and open the browser only after the embedded UI is ready.
+- Preserve executable permissions in Unix archives produced on Windows and
+  verify the actual shipped launchers with fresh runtime data.
+- Replace stale plugin templates with runnable, tested example files.
 
 ## [0.1.0](https://github.com/Muratovnik/routevane/releases/tag/v0.1.0) (2026-09-01)
 

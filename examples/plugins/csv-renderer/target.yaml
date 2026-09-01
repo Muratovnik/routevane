@@ -1,0 +1,15 @@
+id: examplecsv
+profile_key: example-csv-v1
+kind: app
+renderer: example-csv
+constraints:
+  supports_domain_exact: true
+  supports_domain_suffix: true
+  supports_dynamic_dns_set: false
+  supports_ipv4: true
+  supports_ipv6: true
+  supports_prefixes: true
+  max_rules: 1024
+  max_artifact_size: 131072
+renderer_options: []
+manual_installation_hint: Import the CSV wherever the example format is consumed.

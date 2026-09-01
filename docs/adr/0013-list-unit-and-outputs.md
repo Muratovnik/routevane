@@ -4,6 +4,9 @@ status: adopted
 
 # ADR 0013: the list is the product unit; outputs bind formats and devices
 
+> Current scope: Presets/references were revised by ADR 0016; UI vocabulary and library ownership
+> by ADR 0028–0029; unattended delivery by ADR 0031. See [current requirements](../requirements.md).
+
 ## Context
 
 The adopted plan's §1 scenario is device-first: the user picks a target device,

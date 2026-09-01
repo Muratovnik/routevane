@@ -1,0 +1,15 @@
+{
+  "name": "example-static-source",
+  "version": "1.0.0",
+  "protocol_version": 1,
+  "kind": "source",
+  "permissions": [
+    "observe_names"
+  ],
+  "executable": "plugin.exe",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "source": {
+    "type": "example-static",
+    "revision": "example-static-v1"
+  }
+}

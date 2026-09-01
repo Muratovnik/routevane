@@ -20,6 +20,6 @@ Routed from `AGENTS.md`. Read this before changing Go product code.
 - Tests mirror user-visible slices. Prefer table tests for transformations,
   fuzz tests for parsers and hostile inputs, property tests for set/hash
   invariants, and golden files only for renderer output.
-- Keep CGO optional until SQLite introduces a measured driver choice. A local
+- SQLite uses a pure-Go driver; CGO is not a product runtime requirement. A local
   race gate must not silently require a compiler the documented setup omits;
   CI owns the blocking race run on Linux.

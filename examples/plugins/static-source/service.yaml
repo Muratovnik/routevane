@@ -1,0 +1,17 @@
+id: plugin-service
+title: Plugin service
+components:
+  core:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: example.test
+    component: core
+    source: manual
+sources:
+  - id: static
+    type: example-static
+    revision: example-static-v1
+    component: core
+    config:
+      names: [static.example.test, edge.example.test]

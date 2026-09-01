@@ -4,6 +4,9 @@ status: adopted
 
 # ADR 0028: lists live in categories, and a route is what publishes them
 
+> Current scope: The prohibition on deleting catalog categories below was replaced by ADR 0029.
+> Vocabulary and category overlays remain; see [current UI contract](../UI.md).
+
 ## Context
 
 The owner's review of the composer and the service card rejected the

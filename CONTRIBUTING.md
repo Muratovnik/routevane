@@ -1,47 +1,77 @@
-# Contributing to Routevane
+# Developing Routevane
 
-## Before changing code
+This guide is for building and changing the source checkout. To run a downloaded
+application, use the [user guide](README.md).
 
-Read `AGENTS.md` and the adopted implementation plan. Work one vertical
-milestone at a time. A new abstraction needs a real consumer; a later milestone
-does not justify an empty package, table, interface, or placeholder today.
+## Prerequisites
 
-## Setup and gates
+- Go 1.27.x, as declared in [go.mod](go.mod).
+- Node.js 24.19+ within the 24.x line. [.node-version](.node-version) pins the
+  version used by CI; [web/package.json](web/package.json) declares the minimum.
+- npm 11.17+ within the 11.x line.
+- PowerShell 7.4+ on every development OS; Windows PowerShell 5.1 is not supported.
+- Python 3.11+ and Git.
+
+## First checkout
+
+Run from the repository root:
 
 ```powershell
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 setup
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 install-hooks
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 check
-```
-
-The full gate checks repository metadata, skills and docs, Go formatting,
-module integrity, lint, tests, build, vulnerability data, and the frontend
-type/lint/style/format/unit/build gate. Browser accessibility tests are a
-separate command because they own browser binaries:
-
-```powershell
+pwsh -NoLogo -NoProfile -File tools/dev.ps1 setup-browser
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 test-browser
 ```
 
-Do not claim a live UI result after rebuilding while an older listener is still
-serving. Restart the process that owns the artifact, then verify the visible
-runtime.
+`setup` validates prerequisites before downloading Go/npm dependencies. It does
+not install Git hooks or browser binaries. `install-hooks` installs the tracked
+checkout-local hooks. `setup-browser` installs the pinned Chromium in the
+checkout's ignored `.cache/browsers/`; on Linux it can also need elevated
+package-manager permission for browser system libraries. No user browser profile
+is used. Do not approve arbitrary dependency install scripts: approvals are
+version-pinned in package.json.
 
-## Commit messages
+A deprecated transitive npm package warning is not an instruction to install a
+different version or approve scripts. Investigate an audit failure; the security
+gate must remain green.
 
-Use `type(optional-scope): imperative summary`, lower case, no trailing period,
-and at most 72 characters. Allowed types are:
+## Run and build
 
-```text
-build chore ci docs feat fix perf refactor revert style test
+```powershell
+pwsh -NoLogo -NoProfile -File tools/dev.ps1 up
+pwsh -NoLogo -NoProfile -File tools/dev.ps1 build
 ```
 
-Use `!` for a breaking change and explain migration in a `BREAKING CHANGE:`
-footer. Stage exact task-owned paths, inspect the staged diff, and do not bypass
-the repository or user-scoped hooks.
+`up` builds the embedded UI and binary, starts the service, and opens the page.
+Use `-Port 9000` or `-NoBrowser` when needed; stop with Ctrl+C.
+On Windows, **dev.cmd** is a convenience shortcut for this source-build path,
+not a release launcher.
 
-## Security
+The binary is written to `.cache/build/`. Runtime state goes to `data/`;
+reports and browser binaries go below `.cache/`, and browser test artifacts
+below `tmp/`. Preserve runtime data when cleaning generated files.
+Plain `go build` does not generate the UI and can produce an API-only binary.
 
-Network-derived data is untrusted. Keep source validation, bounded execution,
-redirect policy, DNS rebinding protection, and secret-safe logging in the same
-vertical slice as the feature that needs them. See `SECURITY.md`.
+## Before changing code
+
+Read [the repository contract](AGENTS.md), then the relevant
+[current requirements](docs/requirements.md),
+[architecture](docs/ARCHITECTURE.md), or [UI contract](docs/UI.md).
+Historical plans explain earlier choices; they are not current setup instructions.
+
+Work one user-visible slice at a time and preserve unrelated changes. Verify
+the rebuilt runtime identity, not a previously running binary.
+The complete gate is `tools/dev.ps1 check`; browser-facing changes also require
+`tools/dev.ps1 test-browser`. Linux CI additionally runs the race detector.
+The gates validate code and mechanical repository contracts; they do not replace
+the file/audience and end-user review required for a prerelease.
+
+Commits follow the [repository Git contract](AGENTS.md#git). Stage only owned
+paths, run the staged publication audit, and keep the index empty after committing.
+
+- [CLI and format details](docs/usage.md)
+- [Plugin examples and installation](examples/plugins/README.md)
+- [Adding a renderer](docs/adding-a-renderer.md)
+- [Release procedure](docs/releasing.md)
+- [Security reporting](SECURITY.md)

@@ -4,6 +4,9 @@ status: adopted
 
 # ADR 0016: categories group lists; a list references, and the output deduplicates
 
+> Current scope: UI vocabulary and operator-owned categories were revised by ADR 0028–0029.
+> The original catalog-only scope below is historical; see [current UI contract](../UI.md).
+
 ## Context
 
 ADR 0013 made the list the product unit and shipped presets as ready-made

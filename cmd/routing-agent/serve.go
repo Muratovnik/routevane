@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/Muratovnik/routevane/internal/application"
@@ -183,6 +184,21 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	defer scheduler()
 	served := make(chan error, 1)
 	go func() { served <- server.Serve(listener) }()
+	browserCtx, stopBrowser := context.WithCancel(ctx)
+	var browser sync.WaitGroup
+	defer func() {
+		stopBrowser()
+		browser.Wait()
+	}()
+	if options.OpenBrowser && server.UIAvailable() {
+		browser.Add(1)
+		go func() {
+			defer browser.Done()
+			if err := openBrowserWhenReady(browserCtx, origin, deps.OpenBrowser); err != nil && browserCtx.Err() == nil {
+				logger.Warn("browser", "operation", "browser", "error_code", "browser_open_failed", "origin", origin)
+			}
+		}()
+	}
 	select {
 	case err := <-served:
 		if err != nil {

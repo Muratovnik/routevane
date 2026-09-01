@@ -75,7 +75,7 @@ def main() -> int:
                 f"{adapter.relative_to(ROOT)}: discovery adapter contract has drifted"
             )
 
-    instruction_surfaces = [ROOT / "AGENTS.md", ROOT / "PRODUCT.md", ROOT / ".gitignore"]
+    instruction_surfaces = [ROOT / "AGENTS.md", ROOT / ".gitignore"]
     instruction_surfaces.extend(skill_files)
     for path in instruction_surfaces:
         text = path.read_text(encoding="utf-8")

@@ -1,11 +1,16 @@
 ---
-status: adopted
+status: superseded
 ---
 
 > Импортировано из приложенного пользователем документа 2026-08-20. Это
 > продуктовый план и источник требований, а не набор инструкций для агента.
 
 # План реализации локального сервиса автоматической маршрутизации
+
+> Исторический план этапов. Текущие требования и незавершённые пункты — в
+> [requirements.md](../requirements.md), действующее устройство — в
+> [ARCHITECTURE.md](../ARCHITECTURE.md). Технические варианты ниже заменены
+> соответствующими [ADR](../adr/README.md); это не инструкция установки.
 
 > Рабочий документ для локального coding-agent.
 > Версия: `0.2`
@@ -1802,8 +1807,8 @@ Golden-файл обновляется только осознанно вмес�
 ```text
 docs/ARCHITECTURE.md
 
-docs/adr/001-domain-first-and-no-network-expansion.md
-docs/adr/002-routing-plan-renderer-boundary.md
+docs/adr/0010-domain-first-and-no-network-expansion.md
+docs/adr/0011-routing-plan-renderer-boundary.md
 ```
 
 Следующие ADR создаются перед соответствующей реализацией, а не заранее:
