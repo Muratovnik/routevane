@@ -1,0 +1,27 @@
+# Routevane web architecture
+
+Routed from `AGENTS.md`. Read this before changing `web/src`.
+
+Use Feature-Sliced layers from high to low: `pages`, `widgets`, `features`,
+`entities`, `shared`. `app.vue` and global styles exist once. A file imports
+only a lower layer; cross-slice imports use the `@/` alias. Do not create empty
+layers or index barrels without a current consumer.
+
+Styling is semantic tokens plus named classes. Raw palette, typography,
+spacing, radius, shadow, and motion values are declared in
+`src/assets/styles/tokens.css`; component code consumes semantic variables.
+There is no utility CSS framework.
+
+A component is a black box. A host styles its own root class, passes props,
+places slot content, or supplies a documented custom property. It does not
+reach through another component with element or implementation selectors.
+
+Every product state has loading, empty, error, stale, and success behavior as
+applicable. Use native interactive elements, visible focus, logical headings,
+labels, keyboard traversal, and non-color state text. Verify 320, 768, 1024,
+and 1440 pixel widths. Axe automation blocks serious and critical findings but
+does not replace keyboard and screen-reader review.
+
+Nuxt output is generated, not committed. When the Go server begins embedding or
+serving it, the build path and runtime identity become one tested contract.
+Until then the UI remains independently runnable from `web/`.

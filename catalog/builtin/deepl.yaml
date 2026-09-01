@@ -1,0 +1,18 @@
+id: deepl
+title: DeepL
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: deepl.com
+    component: web
+    source: manual
+sources:
+  - id: iplist
+    type: http
+    component: web
+    config:
+      url: https://iplist.opencck.org/?format=text&data=cidr4&site=deepl.com
+      format: text
+      class: community

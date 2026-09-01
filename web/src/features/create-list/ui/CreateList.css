@@ -1,0 +1,103 @@
+.create {
+  display: grid;
+  gap: var(--rv-space-8);
+  width: 100%;
+}
+
+.create__title {
+  font-size: var(--rv-text-page);
+  line-height: var(--rv-leading-tight);
+  letter-spacing: var(--rv-tracking-title);
+}
+
+.create__header {
+  display: grid;
+  gap: var(--rv-space-3);
+}
+
+.create__form {
+  display: grid;
+  gap: var(--rv-space-12);
+}
+
+.create__services {
+  display: grid;
+  gap: var(--rv-space-4);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.create__legend {
+  padding: 0;
+  font-weight: 600;
+  font-size: var(--rv-text-section);
+}
+
+.create__target {
+  display: grid;
+  gap: var(--rv-space-3);
+  max-width: var(--rv-measure-field);
+}
+
+.create__target-label {
+  font-weight: 600;
+  font-size: var(--rv-text-section);
+}
+
+/* The projected size sits under the field in the same register as the rest of
+   the small print: it is a fact about the chosen format, not an alert. The
+   refusal beside the create button is what carries the warning colour. */
+.create__forecast {
+  color: var(--rv-color-ink-tertiary);
+  font-size: var(--rv-text-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.create__name {
+  display: grid;
+  gap: var(--rv-space-3);
+  max-width: var(--rv-measure-field);
+}
+
+.create__name-label {
+  font-weight: 600;
+  font-size: var(--rv-text-section);
+}
+
+.create__name-input {
+  min-height: var(--rv-control-touch);
+  padding: 0 var(--rv-space-4);
+  color: var(--rv-color-ink);
+  font: inherit;
+  background: var(--rv-color-surface);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-md);
+}
+
+.create__name-input:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: var(--rv-focus-offset);
+}
+
+.create__submit {
+  display: grid;
+  gap: var(--rv-space-3);
+  justify-items: start;
+}
+
+/* The refusal explains the disabled control beneath it, so it takes the
+   reading width rather than the button's. */
+.create__blocked {
+  justify-self: stretch;
+  max-width: var(--rv-measure-prose);
+}
+
+/* The stage line keeps its height when empty so submitting never shifts the
+   layout under the pointer. */
+.create__stage {
+  min-height: 1.25rem;
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}

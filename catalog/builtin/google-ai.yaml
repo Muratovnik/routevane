@@ -1,0 +1,25 @@
+id: google-ai
+title: Google AI
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: aistudio.google.com
+    component: web
+    source: manual
+sources:
+  - id: itdoginfo
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/google_ai.lst
+      format: text
+      class: community
+  - id: iplist
+    type: http
+    component: web
+    config:
+      url: https://iplist.opencck.org/?format=text&data=cidr4&site=aistudio.google.com
+      format: text
+      class: community

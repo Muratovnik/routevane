@@ -1,0 +1,220 @@
+/* Routevane design tokens.
+ *
+ * Two levels. Primitives are raw values and never appear in component code.
+ * Roles are what components consume, and they are the only thing a theme
+ * redefines. A component that needs a value the roles do not name asks for a
+ * new role rather than a literal.
+ *
+ * Dark is the default because the operating scene is an evening desk beside a
+ * router; light follows the operating system or an explicit choice. */
+
+:root {
+  /* Primitives: ink and surface ramp */
+  --rv-near-black-950: #0f1211;
+  --rv-near-black-900: #151817;
+  --rv-near-black-880: #181a19;
+  --rv-near-black-850: #1f2221;
+  --rv-near-black-800: #262a28;
+  --rv-near-black-750: #2e3230;
+  --rv-near-black-700: #383d3a;
+  --rv-grey-300: #8b918d;
+  --rv-grey-200: #b0b6b2;
+  --rv-grey-100: #d7dbd8;
+  --rv-white-050: #ececec;
+  --rv-white-000: #fff;
+  --rv-paper-100: #f4f5f3;
+  --rv-paper-200: #e8eae6;
+  --rv-paper-300: #dcdfda;
+  --rv-paper-400: #c4c9c2;
+  --rv-slate-700: #4a534d;
+  --rv-slate-800: #333b36;
+  --rv-slate-900: #1b201d;
+
+  /* Primitives: signal colors */
+  --rv-green-600: #12694a;
+  --rv-green-500: #2f9c6e;
+  --rv-green-400: #58c08a;
+  --rv-green-300: #7fd6a8;
+  --rv-amber-600: #8a5415;
+  --rv-amber-400: #d9b06a;
+  --rv-red-600: #9b3131;
+  --rv-red-400: #ef8479;
+  --rv-blue-600: #315f86;
+  --rv-blue-400: #7cacf8;
+
+  /* Roles: dark, the default scene */
+  --rv-color-chrome: var(--rv-near-black-950);
+  --rv-color-chrome-raised: var(--rv-near-black-900);
+  --rv-color-canvas: var(--rv-near-black-880);
+  --rv-color-surface: var(--rv-near-black-850);
+  --rv-color-surface-muted: var(--rv-near-black-800);
+  --rv-color-surface-hover: var(--rv-near-black-750);
+  --rv-color-surface-selected: #1c2a24;
+  --rv-color-ink: var(--rv-white-050);
+  --rv-color-ink-muted: var(--rv-grey-200);
+  --rv-color-ink-tertiary: var(--rv-grey-300);
+  --rv-color-ink-inverted: var(--rv-near-black-950);
+  --rv-color-rule: rgb(255 255 255 / 9%);
+  --rv-color-rule-strong: rgb(255 255 255 / 20%);
+  --rv-color-accent: var(--rv-green-400);
+  --rv-color-accent-ink: var(--rv-green-300);
+  --rv-color-accent-quiet: rgb(88 192 138 / 14%);
+  --rv-color-focus: var(--rv-green-300);
+  --rv-color-status-ready: var(--rv-green-400);
+  --rv-color-status-warning: var(--rv-amber-400);
+  --rv-color-status-failed: var(--rv-red-400);
+  --rv-color-status-busy: var(--rv-blue-400);
+  --rv-color-status-waiting: var(--rv-grey-300);
+
+  /* Chrome roles keep the application rail self-contained without leaking
+   * primitive palette values into the shell component. */
+  --rv-color-chrome-ink: var(--rv-white-050);
+  --rv-color-chrome-ink-muted: var(--rv-grey-200);
+  --rv-color-chrome-ink-tertiary: var(--rv-grey-300);
+  --rv-color-chrome-accent: var(--rv-green-400);
+  --rv-color-chrome-hover: var(--rv-near-black-700);
+  --rv-color-chrome-rule: rgb(255 255 255 / 12%);
+  --rv-color-chrome-rule-strong: rgb(255 255 255 / 24%);
+
+  /* Roles: type. 13px is reserved for secondary metadata; 14px is the
+   * smallest reading size in working content. */
+  --rv-font-sans:
+    -apple-system, blinkmacsystemfont, 'Segoe UI Variable Text', 'Segoe UI',
+    system-ui, roboto, 'Helvetica Neue', arial, sans-serif;
+  --rv-font-mono:
+    'Cascadia Code', 'JetBrains Mono', 'SF Mono', consolas, 'Liberation Mono',
+    menlo, monospace;
+  --rv-text-meta: 0.8125rem;
+  --rv-text-dense: 0.875rem;
+  --rv-text-interface: 0.9375rem;
+  --rv-text-emphasis: 1rem;
+  --rv-text-section: 1.125rem;
+  --rv-text-module: 1.25rem;
+  --rv-text-page: 1.75rem;
+  --rv-text-figure: 2rem;
+  --rv-leading-tight: 1.25;
+  --rv-leading-normal: 1.5;
+  --rv-tracking-title: -0.02em;
+  --rv-tracking-label: 0;
+
+  /* Roles: metrics */
+  --rv-space-1: 0.25rem;
+  --rv-space-2: 0.5rem;
+  --rv-space-3: 0.75rem;
+  --rv-space-4: 1rem;
+  --rv-space-5: 1.25rem;
+  --rv-space-6: 1.5rem;
+  --rv-space-8: 2rem;
+  --rv-space-10: 2.5rem;
+  --rv-space-12: 3rem;
+  --rv-space-16: 4rem;
+  --rv-control-compact: 2.25rem;
+  --rv-control-default: 2.5rem;
+  --rv-control-touch: 2.75rem;
+  --rv-control-choice: 1.125rem;
+  --rv-row-default: 3.5rem;
+  --rv-row-comfortable: 4rem;
+  --rv-radius-sm: 0.25rem;
+  --rv-radius-md: 0.375rem;
+  --rv-radius-lg: 0.625rem;
+  --rv-border-hair: 0.0625rem;
+  --rv-border-mark: 0.1875rem;
+  --rv-focus-offset: 0.125rem;
+  --rv-shadow-panel: 0 0.0625rem 0.125rem rgb(0 0 0 / 40%);
+  --rv-shadow-raised: 0 0.5rem 1.5rem rgb(0 0 0 / 35%);
+  --rv-color-scrim: rgb(0 0 0 / 55%);
+  --rv-dialog-width: 64rem;
+  --rv-dialog-panel-width: 34rem;
+  --rv-dialog-panel-height: 40rem;
+  --rv-editor-min-height: 14rem;
+
+  /* A menu, a select list or a combobox list is a viewport overlay: it starts
+     at least as wide as a readable label and never grows past a screenful. */
+  --rv-overlay-min-width: 15rem;
+  --rv-overlay-height: min(24rem, calc(100dvh - var(--rv-space-4)));
+
+  /* The composition workspace claims the viewport it actually has: a tall
+     window shows more of the catalog instead of a fixed inner scroll box. */
+  --rv-picker-height: clamp(24rem, 56dvh, 38rem);
+  --rv-picker-mobile-height: clamp(22rem, 64dvh, 32rem);
+  --rv-fact-label-width: 8rem;
+  --rv-disabled-opacity: 0.5;
+  --rv-sidebar-width: 15rem;
+  --rv-measure-workspace: 70rem;
+
+  /* The standing width of a single choice or name field. A panel opened from
+     one of them is at least this wide. */
+  --rv-measure-field: 24rem;
+
+  /* The page's inline padding. The shell narrows it with the viewport, and an
+   * element that bleeds to the page edge must bleed exactly this much. */
+  --rv-page-inline: var(--rv-space-8);
+  --rv-measure-prose: 68ch;
+  --rv-motion-fast: 120ms;
+  --rv-motion-normal: 200ms;
+
+  color-scheme: dark;
+}
+
+/* Light roles: the same names, an inverted ground. Declared for the operating
+ * system's preference and again for an explicit choice, so the toggle wins in
+ * both directions. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-rv-theme='dark']) {
+    --rv-color-chrome: var(--rv-slate-900);
+    --rv-color-chrome-raised: var(--rv-slate-800);
+    --rv-color-canvas: var(--rv-paper-100);
+    --rv-color-surface: var(--rv-white-000);
+    --rv-color-surface-muted: var(--rv-paper-200);
+    --rv-color-surface-hover: var(--rv-paper-300);
+    --rv-color-surface-selected: #e2f1e9;
+    --rv-color-ink: #141815;
+    --rv-color-ink-muted: var(--rv-slate-700);
+    --rv-color-ink-tertiary: #59625c;
+    --rv-color-ink-inverted: var(--rv-white-000);
+    --rv-color-rule: rgb(20 24 21 / 12%);
+    --rv-color-rule-strong: rgb(20 24 21 / 28%);
+    --rv-color-accent: var(--rv-green-600);
+    --rv-color-accent-ink: var(--rv-green-600);
+    --rv-color-accent-quiet: rgb(18 105 74 / 10%);
+    --rv-color-focus: var(--rv-green-600);
+    --rv-color-status-ready: var(--rv-green-600);
+    --rv-color-status-warning: var(--rv-amber-600);
+    --rv-color-status-failed: var(--rv-red-600);
+    --rv-color-status-busy: var(--rv-blue-600);
+    --rv-color-status-waiting: #656e68;
+    --rv-shadow-panel: 0 0.0625rem 0.125rem rgb(20 24 21 / 10%);
+    --rv-shadow-raised: 0 0.5rem 1.5rem rgb(20 24 21 / 12%);
+
+    color-scheme: light;
+  }
+}
+
+:root[data-rv-theme='light'] {
+  --rv-color-chrome: var(--rv-slate-900);
+  --rv-color-chrome-raised: var(--rv-slate-800);
+  --rv-color-canvas: var(--rv-paper-100);
+  --rv-color-surface: var(--rv-white-000);
+  --rv-color-surface-muted: var(--rv-paper-200);
+  --rv-color-surface-hover: var(--rv-paper-300);
+  --rv-color-surface-selected: #e2f1e9;
+  --rv-color-ink: #141815;
+  --rv-color-ink-muted: var(--rv-slate-700);
+  --rv-color-ink-tertiary: #59625c;
+  --rv-color-ink-inverted: var(--rv-white-000);
+  --rv-color-rule: rgb(20 24 21 / 12%);
+  --rv-color-rule-strong: rgb(20 24 21 / 28%);
+  --rv-color-accent: var(--rv-green-600);
+  --rv-color-accent-ink: var(--rv-green-600);
+  --rv-color-accent-quiet: rgb(18 105 74 / 10%);
+  --rv-color-focus: var(--rv-green-600);
+  --rv-color-status-ready: var(--rv-green-600);
+  --rv-color-status-warning: var(--rv-amber-600);
+  --rv-color-status-failed: var(--rv-red-600);
+  --rv-color-status-busy: var(--rv-blue-600);
+  --rv-color-status-waiting: #656e68;
+  --rv-shadow-panel: 0 0.0625rem 0.125rem rgb(20 24 21 / 10%);
+  --rv-shadow-raised: 0 0.5rem 1.5rem rgb(20 24 21 / 12%);
+
+  color-scheme: light;
+}

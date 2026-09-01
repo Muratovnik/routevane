@@ -1,0 +1,25 @@
+id: itchio
+title: itch.io
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: itch.io
+    component: web
+    source: manual
+sources:
+  - id: v2fly
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/itchio
+      format: domain-list
+      class: community
+  - id: iplist
+    type: http
+    component: web
+    config:
+      url: https://iplist.opencck.org/?format=text&data=cidr4&site=itch.io
+      format: text
+      class: community

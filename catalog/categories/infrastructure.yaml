@@ -1,0 +1,8 @@
+id: infrastructure
+title: Инфраструктура
+services:
+  - cloudflare
+  - cloudfront
+  - digitalocean
+  - hetzner
+  - ovh

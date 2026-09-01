@@ -1,0 +1,20 @@
+id: limit-fixture
+title: Limit fixture
+components:
+  core:
+    required: true
+seeds:
+  - kind: ipv4
+    value: 192.0.2.20
+    component: core
+    source: manual
+  - kind: ipv4
+    value: 198.51.100.20
+    component: core
+    source: manual
+sources:
+  - id: dns-core
+    type: dns
+    component: core
+    config:
+      names: [localhost]

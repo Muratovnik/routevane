@@ -1,0 +1,18 @@
+id: keenetic
+profile_key: keenetic-bat-ipv4-v1
+title: Keenetic
+title_en: Keenetic
+kind: router
+renderer: keenetic-route-bat
+constraints:
+  supports_domain_exact: false
+  supports_domain_suffix: false
+  supports_dynamic_dns_set: false
+  supports_ipv4: true
+  supports_ipv6: false
+  supports_prefixes: true
+  max_rules: 1024
+  max_artifact_size: 131072
+renderer_options: []
+manual_installation_hint: Откройте «Маршрутизация — Пользовательские маршруты — Загрузить», выберите файл и укажите нужный VPN- или WAN-интерфейс.
+manual_installation_hint_en: Open Routing — User-defined routes — Upload, choose the file, and point it at the VPN or WAN interface you need.

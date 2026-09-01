@@ -1,0 +1,25 @@
+id: hetzner
+title: Hetzner
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: hetzner.com
+    component: web
+    source: manual
+sources:
+  - id: itdoginfo
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/hetzner.lst
+      format: text
+      class: community
+  - id: iplist
+    type: http
+    component: web
+    config:
+      url: https://iplist.opencck.org/?format=text&data=cidr4&site=hetzner.com
+      format: text
+      class: community

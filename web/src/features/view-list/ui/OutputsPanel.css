@@ -1,0 +1,156 @@
+.outputs {
+  display: grid;
+  gap: var(--rv-space-8);
+}
+
+/* The table scrolls inside its own box on narrow screens; the page never
+   scrolls sideways. The box is also the containing block, so the hidden column
+   header cannot escape it and widen the document. */
+.outputs__scroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+.outputs__table {
+  width: 100%;
+  min-width: 34rem;
+  border-collapse: collapse;
+}
+
+.outputs__table th {
+  padding: var(--rv-space-3) var(--rv-space-4);
+  color: var(--rv-color-ink-muted);
+  font-weight: 600;
+  font-size: var(--rv-text-dense);
+  text-align: start;
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule-strong);
+}
+
+.outputs__table td {
+  padding: var(--rv-space-4);
+  font-size: var(--rv-text-interface);
+  vertical-align: middle;
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.outputs__row--selected td {
+  background: var(--rv-color-surface-selected);
+}
+
+.outputs__cell-target {
+  white-space: nowrap;
+}
+
+/* The cell stays a table cell; the flex column lives inside it, or the name
+   column would fall out of the table's row grid. */
+.outputs__name {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  align-items: flex-start;
+}
+
+.outputs__select {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--rv-control-compact);
+  padding: 0 var(--rv-space-1);
+  color: var(--rv-color-ink);
+  font: inherit;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+
+.outputs__select:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: 0.125rem;
+}
+
+.outputs__select:hover {
+  color: var(--rv-color-accent-ink);
+}
+
+.outputs__kind {
+  color: var(--rv-color-ink-tertiary);
+  font-size: var(--rv-text-meta);
+}
+
+.outputs__cell-format {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+  font-family: var(--rv-font-mono);
+}
+
+.outputs__cell-updated {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+  white-space: nowrap;
+}
+
+.outputs__cell-device {
+  min-width: var(--rv-measure-field);
+}
+
+.outputs__device {
+  display: flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+}
+
+.outputs__updated {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.outputs__cell-actions {
+  white-space: nowrap;
+}
+
+.outputs__actions {
+  display: flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.outputs__add {
+  display: grid;
+  gap: var(--rv-space-3);
+  max-width: 36rem;
+}
+
+.outputs__add-label {
+  display: flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+  font-weight: 600;
+  font-size: var(--rv-text-section);
+}
+
+.outputs__add-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-2);
+  align-items: center;
+}
+
+.outputs__target-field {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.outputs__note {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}
+
+.outputs__visually-hidden {
+  position: absolute;
+  width: 0.0625rem;
+  height: 0.0625rem;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}

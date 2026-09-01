@@ -1,0 +1,90 @@
+<script setup lang="ts">
+import { computed, onMounted } from 'vue'
+
+import SendPanel from '@/features/send-artifact/ui/SendPanel.vue'
+import { useListView } from '@/features/view-list/model/useListView'
+import { useLocale } from '@/shared/i18n/useLocale'
+import AppShell from '@/widgets/app-shell/ui/AppShell.vue'
+import RvButton from '@/shared/ui/RvButton.vue'
+import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
+
+const route = useRoute()
+const { t } = useLocale()
+
+const listId = computed(() => {
+  const value = route.params.id
+  return typeof value === 'string' ? value : ''
+})
+const outputId = computed(() => {
+  const value = route.params.output
+  return typeof value === 'string' ? value : ''
+})
+
+const view = useListView(() => listId.value)
+
+const output = computed(
+  () => view.outputs.value.find((entry) => entry.id === outputId.value) ?? null,
+)
+const target = computed(
+  () =>
+    view.catalog.value?.targets.find(
+      (entry) => entry.id === output.value?.targetID,
+    ) ?? null,
+)
+
+useHead({
+  title: computed(
+    () => `${t('shell.product')} · ${t('send.title').toLowerCase()}`,
+  ),
+})
+
+onMounted(async () => {
+  await view.initialize()
+  if (outputId.value !== '') view.selectOutput(outputId.value)
+})
+</script>
+
+<template>
+  <AppShell>
+    <RvStateNotice
+      v-if="view.state.value === 'loading'"
+      live
+      :title="t('list.loading')"
+      tone="busy"
+    />
+    <RvStateNotice
+      v-else-if="
+        view.state.value === 'missing' ||
+        view.state.value === 'failed' ||
+        output === null
+      "
+      :body="t('list.missing.body')"
+      live
+      :title="t('list.missing')"
+      tone="failed"
+    >
+      <template #action>
+        <RvButton to="/" variant="secondary">{{ t('action.back') }}</RvButton>
+      </template>
+    </RvStateNotice>
+    <RvStateNotice
+      v-else-if="output.latest === null"
+      :title="t('library.noArtifact')"
+      tone="waiting"
+    >
+      <template #action>
+        <RvButton :to="`/lists/${listId}`" variant="secondary">
+          {{ t('send.back') }}
+        </RvButton>
+      </template>
+    </RvStateNotice>
+    <SendPanel
+      v-else
+      :artifact-id="output.latest.id"
+      :list-id="listId"
+      :list-name="view.list.value?.name ?? ''"
+      :target="target"
+      :target-id="output.targetID"
+    />
+  </AppShell>
+</template>

@@ -1,0 +1,25 @@
+id: cloudflare
+title: Cloudflare
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: cloudflare.com
+    component: web
+    source: manual
+sources:
+  - id: itdoginfo
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/cloudflare.lst
+      format: text
+      class: community
+  - id: v2fly
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/cloudflare
+      format: domain-list
+      class: community

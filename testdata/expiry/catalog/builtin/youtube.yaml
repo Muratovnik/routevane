@@ -1,0 +1,16 @@
+id: youtube
+title: YouTube
+components:
+  playback:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: youtube.com
+    component: playback
+    source: manual
+sources:
+  - id: dns-playback
+    type: dns
+    component: playback
+    config:
+      names: [youtube.expiry.test]

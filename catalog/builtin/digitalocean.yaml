@@ -1,0 +1,18 @@
+id: digitalocean
+title: DigitalOcean
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: digitalocean.com
+    component: web
+    source: manual
+sources:
+  - id: itdoginfo
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/digitalocean.lst
+      format: text
+      class: community

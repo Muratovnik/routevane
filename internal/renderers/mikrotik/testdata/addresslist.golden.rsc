@@ -1,0 +1,12 @@
+# routevane mikrotik-address-list-rsc-v1
+/ip firewall address-list
+remove [find list=routevane4]
+add address=192.0.2.0/24 list=routevane4
+add address=198.51.100.0/24 list=routevane4
+add address=i.ytimg.com list=routevane4
+add address=www.youtube.com list=routevane4
+/ipv6 firewall address-list
+remove [find list=routevane6]
+add address=2001:db8::/32 list=routevane6
+add address=i.ytimg.com list=routevane6
+add address=www.youtube.com list=routevane6

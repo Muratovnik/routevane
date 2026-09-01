@@ -1,0 +1,55 @@
+# Go
+/routing-agent
+/routing-agent.exe
+*.test
+*.out
+/coverage/
+
+# Frontend
+/web/node_modules/
+/web/.nuxt/
+/web/.output/
+/web/dist/
+/web/coverage/
+
+# Generated Nuxt public output embedded by the Go HTTP boundary. The tracked
+# marker keeps the package compilable until tools/dev.ps1 generates and syncs it.
+/internal/infrastructure/httpapi/ui/*
+!/internal/infrastructure/httpapi/ui/
+!/internal/infrastructure/httpapi/ui/routevane-ui.marker
+
+# Runtime state
+/data/
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Tool caches
+/.cache/
+/.tools/
+__pycache__/
+
+# Agent-local state
+/.agents/local/
+/.claude/settings.json
+/.claude/settings.local.json
+/.codex/config.toml
+/.codex/workflow.toml
+/.env
+/.env.production
+/.private/
+/AGENTS.local.md
+/.codex-log/
+/.serena/
+# Agent working output: review reports and scratch files. Untracked but unignored,
+# it showed up in every status listing and was one `git add -A` from the history.
+/tmp/
+/docs/plans/private/
+/private.key
+
+# Editors and OS
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db

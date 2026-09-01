@@ -1,0 +1,18 @@
+id: openwrt
+profile_key: openwrt-nftset-conf-v1
+title: OpenWrt
+title_en: OpenWrt
+kind: router
+renderer: openwrt-nftset-conf
+constraints:
+  supports_domain_exact: false
+  supports_domain_suffix: true
+  supports_dynamic_dns_set: true
+  supports_ipv4: false
+  supports_ipv6: false
+  supports_prefixes: false
+  max_rules: 4096
+  max_artifact_size: 262144
+renderer_options: []
+manual_installation_hint: Создайте наборы nftables routevane4 и routevane6 в таблице inet fw4, добавьте правила маршрутизации для их участников, скопируйте файл в /etc/dnsmasq.d/ и перезапустите dnsmasq.
+manual_installation_hint_en: Create the routevane4 and routevane6 nftables sets in the inet fw4 table, add routing rules for their members, copy the file into /etc/dnsmasq.d/ and restart dnsmasq.

@@ -1,0 +1,8 @@
+id: music
+title: Музыка
+services:
+  - spotify
+  - soundcloud
+  - deezer
+  - tidal
+  - lastfm

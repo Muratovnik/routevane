@@ -1,0 +1,217 @@
+name: release
+
+# A pushed annotated tag is the only publication trigger. The same source
+# commit must pass every gate, build every archive, and survive native smoke
+# tests before the workflow receives publication permissions.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  VERSION: ${{ github.ref_name }}
+  EXPECTED_SHA: ${{ github.sha }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+      - name: Bind the annotated SemVer tag to the checked-out event SHA
+        shell: pwsh
+        run: >-
+          python tools/release_gate.py --version "$env:VERSION"
+          --expected-sha "$env:EXPECTED_SHA"
+          --notes (Join-Path $env:RUNNER_TEMP 'release-notes.md')
+      - name: Audit public history, owner policy, and commit subjects
+        shell: pwsh
+        run: |
+          python .github/relkit.pyz audit --history --owner
+          if ($LASTEXITCODE -ne 0) { throw 'public history audit failed' }
+          python tools/check_commit_message.py --history
+          if ($LASTEXITCODE -ne 0) { throw 'commit policy failed' }
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.0
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install locked web and browser dependencies
+        shell: pwsh
+        run: |
+          Push-Location web
+          try {
+            npm ci
+            if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
+            npx playwright install --with-deps chromium
+            if ($LASTEXITCODE -ne 0) { throw 'Chromium install failed' }
+          } finally {
+            Pop-Location
+          }
+      - name: Run the canonical, race, and browser gates
+        shell: pwsh
+        run: |
+          ./tools/dev.ps1 install-hooks
+          ./tools/dev.ps1 check
+          go test -race -shuffle=on ./...
+          if ($LASTEXITCODE -ne 0) { throw 'race detector failed' }
+          ./tools/dev.ps1 test-browser
+      - name: Build and structurally verify every release archive
+        shell: pwsh
+        run: ./tools/dev.ps1 release -Version "$env:VERSION"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-bundle
+          path: .cache/release
+          if-no-files-found: error
+          retention-days: 1
+
+  native-smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux-amd64
+            binary: routing-agent
+          - runner: ubuntu-24.04-arm
+            platform: linux-arm64
+            binary: routing-agent
+          - runner: windows-latest
+            platform: windows-amd64
+            binary: routing-agent.exe
+          - runner: windows-11-arm
+            platform: windows-arm64
+            binary: routing-agent.exe
+          - runner: macos-15
+            platform: darwin-arm64
+            binary: routing-agent
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-bundle
+          path: .cache/release
+      - name: Execute the native archive
+        shell: pwsh
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          BINARY_NAME: ${{ matrix.binary }}
+        run: |
+          $Stem = "routevane-$env:VERSION-$env:PLATFORM"
+          $Archive = Join-Path '.cache/release' "$Stem.zip"
+          $VerifyRoot = Join-Path $env:RUNNER_TEMP "routevane-native-$env:PLATFORM"
+          Expand-Archive -LiteralPath $Archive -DestinationPath $VerifyRoot
+          $Binary = Join-Path (Join-Path $VerifyRoot $Stem) $env:BINARY_NAME
+          if (-not $IsWindows) { chmod +x $Binary }
+          $Reported = (& $Binary version).Trim()
+          if ($Reported -ne "routevane $env:VERSION") { throw "version = $Reported" }
+
+  publish:
+    needs: native-smoke
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-bundle
+          path: .cache/release
+      - name: Revalidate the publication identity and notes
+        shell: pwsh
+        run: >-
+          python tools/release_gate.py --version "$env:VERSION"
+          --expected-sha "$env:EXPECTED_SHA"
+          --notes (Join-Path $env:RUNNER_TEMP 'release-notes.md')
+      - name: Revalidate transferred checksums
+        shell: pwsh
+        run: |
+          $Lines = Get-Content -LiteralPath '.cache/release/SHA256SUMS'
+          foreach ($Line in $Lines) {
+            if ($Line -notmatch '^([0-9a-f]{64})\s{2}(.+)$') { throw "invalid checksum line: $Line" }
+            $Path = Join-Path '.cache/release' $Matches[2]
+            $Actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($Actual -ne $Matches[1]) { throw "checksum mismatch: $($Matches[2])" }
+          }
+      - name: Attest release provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: |
+            .cache/release/*.zip
+            .cache/release/SHA256SUMS
+      - name: Attest the archive SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: .cache/release/SHA256SUMS
+          sbom-path: .cache/release/SBOM.spdx.json
+      - name: Verify provenance and SBOM attestations before publication
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Signer = "$env:GITHUB_REPOSITORY/.github/workflows/release.yml"
+          $Archives = @(Get-ChildItem -LiteralPath '.cache/release' -Filter '*.zip' -File)
+          foreach ($Archive in $Archives) {
+            gh attestation verify $Archive.FullName --repo $env:GITHUB_REPOSITORY --signer-workflow $Signer --source-digest $env:EXPECTED_SHA --source-ref $env:GITHUB_REF
+            if ($LASTEXITCODE -ne 0) { throw "provenance verification failed: $($Archive.Name)" }
+            gh attestation verify $Archive.FullName --repo $env:GITHUB_REPOSITORY --signer-workflow $Signer --source-digest $env:EXPECTED_SHA --source-ref $env:GITHUB_REF --predicate-type 'https://spdx.dev/Document/v2.3'
+            if ($LASTEXITCODE -ne 0) { throw "SBOM verification failed: $($Archive.Name)" }
+          }
+          gh attestation verify '.cache/release/SHA256SUMS' --repo $env:GITHUB_REPOSITORY --signer-workflow $Signer --source-digest $env:EXPECTED_SHA --source-ref $env:GITHUB_REF
+          if ($LASTEXITCODE -ne 0) { throw 'checksum provenance verification failed' }
+      - name: Create a complete draft release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $Assets = @(Get-ChildItem -LiteralPath '.cache/release' -Filter '*.zip' -File | Sort-Object Name | ForEach-Object FullName)
+          $Assets += (Resolve-Path -LiteralPath '.cache/release/SHA256SUMS').Path
+          gh release create $env:VERSION --verify-tag --draft --title $env:VERSION --notes-file (Join-Path $env:RUNNER_TEMP 'release-notes.md') @Assets
+          if ($LASTEXITCODE -ne 0) { throw 'draft release creation failed' }
+      - name: Verify uploaded asset digests and publish the draft
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $View = gh release view $env:VERSION --json assets,isDraft,tagName | ConvertFrom-Json
+          if (-not $View.isDraft -or $View.tagName -ne $env:VERSION) { throw 'release is not the expected draft' }
+          $LocalAssets = @(Get-ChildItem -LiteralPath '.cache/release' -Filter '*.zip' -File)
+          $LocalAssets += Get-Item -LiteralPath '.cache/release/SHA256SUMS'
+          if ($View.assets.Count -ne $LocalAssets.Count) { throw 'draft asset inventory mismatch' }
+          foreach ($Local in $LocalAssets) {
+            $Remote = @($View.assets | Where-Object name -eq $Local.Name)
+            $Digest = 'sha256:' + (Get-FileHash -LiteralPath $Local.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($Remote.Count -ne 1 -or $Remote[0].digest -ne $Digest) { throw "draft asset digest mismatch: $($Local.Name)" }
+          }
+          gh release edit $env:VERSION --draft=false
+          if ($LASTEXITCODE -ne 0) { throw 'draft publication failed' }
+          $Published = gh release view $env:VERSION --json isDraft,isImmutable,tagName | ConvertFrom-Json
+          if ($Published.isDraft -or -not $Published.isImmutable) {
+            throw 'published release is not immutable; enable release immutability before releasing'
+          }
+          gh release verify $env:VERSION
+          if ($LASTEXITCODE -ne 0) { throw 'immutable release attestation verification failed' }

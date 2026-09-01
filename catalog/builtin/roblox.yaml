@@ -1,0 +1,25 @@
+id: roblox
+title: Roblox
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: roblox.com
+    component: web
+    source: manual
+sources:
+  - id: itdoginfo
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/roblox.lst
+      format: text
+      class: community
+  - id: v2fly
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/roblox
+      format: domain-list
+      class: community

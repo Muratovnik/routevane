@@ -1,0 +1,9 @@
+id: ai
+title: ИИ-ассистенты
+services:
+  - chatgpt
+  - claude
+  - google-ai
+  - perplexity
+  - deepseek
+  - grok

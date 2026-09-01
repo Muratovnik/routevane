@@ -1,0 +1,21 @@
+<script setup lang="ts">
+import { computed } from 'vue'
+
+import ListLibraryView from '@/features/list-library/ui/ListLibraryView.vue'
+import { useLocale } from '@/shared/i18n/useLocale'
+import AppShell from '@/widgets/app-shell/ui/AppShell.vue'
+
+const { t } = useLocale()
+
+useHead({
+  title: computed(
+    () => `${t('shell.product')} · ${t('lists.title').toLowerCase()}`,
+  ),
+})
+</script>
+
+<template>
+  <AppShell>
+    <ListLibraryView />
+  </AppShell>
+</template>

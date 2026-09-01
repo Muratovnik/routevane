@@ -1,0 +1,22 @@
+id: youtube
+title: YouTube
+components:
+  playback:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: youtube.com
+    component: playback
+    source: manual
+sources:
+  - id: dns-playback
+    type: dns
+    component: playback
+    config:
+      names: [youtube.two-formats.test]
+  - id: official-ranges
+    type: http
+    component: playback
+    config:
+      url: https://example.com/ranges.txt
+      format: text

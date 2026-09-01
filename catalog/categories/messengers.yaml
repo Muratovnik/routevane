@@ -1,0 +1,8 @@
+id: messengers
+title: Мессенджеры
+services:
+  - telegram
+  - discord
+  - signal
+  - whatsapp
+  - viber

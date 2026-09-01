@@ -1,0 +1,97 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color: var(--rv-color-ink);
+  font-family: var(--rv-font-sans);
+  font-size: 100%;
+  background: var(--rv-color-canvas);
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-width: 0;
+  margin: 0;
+  font-size: var(--rv-text-interface);
+  line-height: var(--rv-leading-normal);
+  caret-color: var(--rv-color-accent);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+h1,
+h2,
+h3,
+p,
+dd,
+dl,
+ul,
+ol,
+figure {
+  margin: 0;
+}
+
+ul,
+ol {
+  padding: 0;
+  list-style: none;
+}
+
+/* The focus ring is a role, not a per-component decision: two device pixels of
+ * ring plus an offset so it stays visible on a filled control. */
+:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: var(--rv-focus-offset);
+}
+
+a {
+  text-underline-offset: 0.18em;
+  text-decoration-thickness: var(--rv-border-hair);
+}
+
+table,
+time,
+input[type='number'] {
+  font-variant-numeric: tabular-nums;
+}
+
+* {
+  scrollbar-color: var(--rv-color-rule-strong) transparent;
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: var(--rv-space-2);
+  height: var(--rv-space-2);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--rv-color-rule-strong);
+  border: 0.125rem solid transparent;
+  border-radius: var(--rv-radius-md);
+  background-clip: padding-box;
+}
+
+::selection {
+  color: var(--rv-color-ink);
+  background: var(--rv-color-accent-quiet);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

@@ -1,0 +1,198 @@
+.list {
+  display: grid;
+  gap: var(--rv-space-8);
+  width: 100%;
+}
+
+.list__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-4) var(--rv-space-6);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.list__header-tools {
+  display: flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+}
+
+.list__breadcrumb {
+  margin-bottom: calc(-1 * var(--rv-space-4));
+}
+
+.list__breadcrumb-link {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+  text-decoration: none;
+}
+
+.list__breadcrumb-link:hover {
+  color: var(--rv-color-ink);
+  text-decoration: underline;
+}
+
+.list__breadcrumb-link:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: var(--rv-focus-offset);
+}
+
+.list__title {
+  font-size: var(--rv-text-page);
+  line-height: var(--rv-leading-tight);
+  letter-spacing: var(--rv-tracking-title);
+  overflow-wrap: anywhere;
+}
+
+.list__section-title {
+  display: flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+  font-size: var(--rv-text-section);
+}
+
+.list__section {
+  display: grid;
+  gap: var(--rv-space-4);
+  padding-top: var(--rv-space-4);
+  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.list__section--drawer {
+  padding-top: var(--rv-space-4);
+}
+
+.list__secret {
+  display: grid;
+  gap: var(--rv-space-4);
+  padding: var(--rv-space-5);
+  background: var(--rv-color-surface);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-md);
+}
+
+/* The link is long and monospaced. It wraps inside its own box rather than
+   widening the page, and its box does not change height when revealed. */
+.list__secret-value {
+  padding: var(--rv-space-2) var(--rv-space-3);
+  font-size: var(--rv-text-dense);
+  font-family: var(--rv-font-mono);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  background: var(--rv-color-canvas);
+  border-radius: var(--rv-radius-sm);
+}
+
+.list__secret-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-2);
+  align-items: center;
+}
+
+.list__secret-gone {
+  color: var(--rv-color-ink-tertiary);
+  font-size: var(--rv-text-dense);
+}
+
+.list__panel {
+  display: grid;
+  gap: var(--rv-space-6);
+}
+
+.list__technical {
+  display: grid;
+  gap: var(--rv-space-3);
+}
+
+.list__prose {
+  max-width: var(--rv-measure-prose);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-interface);
+}
+
+.list__counts {
+  display: grid;
+  gap: var(--rv-space-1);
+}
+
+.list__count {
+  display: flex;
+  gap: var(--rv-space-3);
+  justify-content: space-between;
+  padding: var(--rv-space-2) 0;
+  font-size: var(--rv-text-dense);
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+/* A route can carry hundreds of rules. The ledger scrolls inside its own box so
+   opening diagnostics does not turn the page into a mile of rows. */
+.list__rules {
+  display: grid;
+  gap: var(--rv-space-2);
+  max-height: 24rem;
+  padding-right: var(--rv-space-1);
+  overflow-y: auto;
+}
+
+.list__rule {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) minmax(6rem, auto) minmax(0, 1fr);
+  gap: var(--rv-space-1) var(--rv-space-3);
+  padding: var(--rv-space-2) var(--rv-space-3);
+  font-size: var(--rv-text-dense);
+  background: var(--rv-color-surface);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-sm);
+}
+
+.list__rule-state {
+  font-weight: 600;
+}
+
+.list__rule-service {
+  color: var(--rv-color-ink-muted);
+}
+
+.list__rule-value {
+  font-family: var(--rv-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.list__rule-reason {
+  grid-column: 1 / -1;
+  color: var(--rv-color-ink-tertiary);
+  font-family: var(--rv-font-mono);
+  overflow-wrap: anywhere;
+}
+
+@media (width <= 44rem) {
+  .list__rule {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A panel that describes one output says which one, but only when the list
+   feeds more than one. */
+.list__panel-scope {
+  margin-bottom: var(--rv-space-3);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}
+
+/* The schedule is four labelled choices, named by the section heading above
+   them. The control is as wide as its longest option unless it is told
+   otherwise,
+   and in a grid that intrinsic width becomes the container's minimum. */
+.list__schedule-field {
+  width: 100%;
+  max-width: var(--rv-measure-field);
+  min-width: 0;
+}
+
+.list__schedule-note {
+  margin-top: var(--rv-space-2);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}

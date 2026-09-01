@@ -1,0 +1,6 @@
+id: development
+title: Разработка
+services:
+  - jetbrains
+  - github
+  - sentry

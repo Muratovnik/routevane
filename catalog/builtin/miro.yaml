@@ -1,0 +1,18 @@
+id: miro
+title: Miro
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: miro.com
+    component: web
+    source: manual
+sources:
+  - id: iplist
+    type: http
+    component: web
+    config:
+      url: https://iplist.opencck.org/?format=text&data=cidr4&site=miro.com
+      format: text
+      class: community

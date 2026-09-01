@@ -1,0 +1,18 @@
+id: singbox
+profile_key: singbox-source-json-v1
+title: sing-box
+title_en: sing-box
+kind: app
+renderer: singbox-ruleset-json
+constraints:
+  supports_domain_exact: true
+  supports_domain_suffix: true
+  supports_dynamic_dns_set: false
+  supports_ipv4: true
+  supports_ipv6: true
+  supports_prefixes: true
+  max_rules: 8192
+  max_artifact_size: 1048576
+renderer_options: []
+manual_installation_hint: Save the file as a local sing-box source rule-set, then reference it from a rule_set entry with type local and format source.
+manual_installation_hint_en: Save the file as a local sing-box source rule-set, then reference it from a rule_set entry with type local and format source.

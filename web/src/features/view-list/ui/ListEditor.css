@@ -1,0 +1,189 @@
+.editor {
+  display: grid;
+  gap: var(--rv-space-6);
+  width: 100%;
+}
+
+.editor__field {
+  display: grid;
+  gap: var(--rv-space-3);
+  max-width: var(--rv-measure-field);
+}
+
+.editor__label {
+  padding: 0;
+  font-weight: 600;
+  font-size: var(--rv-text-section);
+}
+
+.editor__input {
+  min-height: var(--rv-control-touch);
+  padding: 0 var(--rv-space-4);
+  color: var(--rv-color-ink);
+  font: inherit;
+  background: var(--rv-color-surface);
+  border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
+  border-radius: var(--rv-radius-md);
+}
+
+.editor__input:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: var(--rv-border-hair);
+}
+
+/* The picker measures itself with a container query; shrunk to its intrinsic
+   width it would think it sits on a phone. It takes the full track even
+   inside the start-aligned composition grid. */
+.editor__services {
+  display: grid;
+  gap: var(--rv-space-3);
+  justify-self: stretch;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* The catalog opens in place, so it says what it is where it appears: without
+   a header of its own the control that closes it again would be the only sign
+   that anything opened. */
+.editor__picker-header {
+  display: flex;
+  gap: var(--rv-space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--rv-space-2);
+  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.editor__picker-title {
+  font-weight: 600;
+  font-size: var(--rv-text-interface);
+}
+
+.editor__composition {
+  display: grid;
+  gap: var(--rv-space-4);
+  justify-items: start;
+}
+
+/* What the list holds, one line per thing it holds. A collection sits above
+   the services because it is the reason some of them are there. */
+.editor__rows {
+  display: grid;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.editor__row {
+  display: flex;
+  gap: var(--rv-space-3);
+  align-items: center;
+  min-height: var(--rv-row-default);
+  padding: var(--rv-space-2) 0;
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.editor__row-copy {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: var(--rv-space-1) var(--rv-space-3);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.editor__row-copy small {
+  color: var(--rv-color-ink-tertiary);
+  font-size: var(--rv-text-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.editor__row-open,
+.editor__row-action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--rv-control-touch);
+  height: var(--rv-control-touch);
+  padding: 0;
+  color: var(--rv-color-ink-muted);
+  font: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: var(--rv-radius-sm);
+  cursor: pointer;
+}
+
+.editor__row-open .rv-icon {
+  transform: rotate(-90deg);
+}
+
+.editor__row-open:hover,
+.editor__row-action:hover {
+  color: var(--rv-color-ink);
+  background: var(--rv-color-surface-hover);
+}
+
+.editor__row-open:focus-visible,
+.editor__row-action:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: var(--rv-border-hair);
+}
+
+.editor__row-action:disabled {
+  opacity: var(--rv-disabled-opacity);
+  cursor: not-allowed;
+}
+
+.editor__visually-hidden {
+  position: absolute;
+  width: 0.0625rem;
+  height: 0.0625rem;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.editor__note {
+  max-width: var(--rv-measure-prose);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}
+
+/* A format that would refuse the draft says so where the save control is, and
+   in the warning register: the save itself stays available. */
+.editor__forecast {
+  display: grid;
+  gap: var(--rv-space-1);
+  max-width: var(--rv-measure-prose);
+  color: var(--rv-color-status-warning);
+  font-size: var(--rv-text-dense);
+}
+
+/* The bar bleeds exactly the shell's page padding (--rv-page-inline); any
+   wider and the whole document scrolls sideways. */
+.editor__actions {
+  position: sticky;
+  bottom: calc(-1 * var(--rv-space-10));
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-3);
+  align-items: center;
+  margin: 0 calc(-1 * var(--rv-page-inline)) calc(-1 * var(--rv-space-10));
+  padding: var(--rv-space-4) var(--rv-page-inline) var(--rv-space-6);
+  background: var(--rv-color-canvas);
+  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+@media (width <= 40rem) {
+  .editor__actions {
+    bottom: calc(-1 * var(--rv-space-8));
+    margin-bottom: calc(-1 * var(--rv-space-8));
+    padding-block: var(--rv-space-4) var(--rv-space-5);
+  }
+}

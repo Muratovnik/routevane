@@ -1,0 +1,7 @@
+id: ai-tools
+title: ИИ-инструменты
+services:
+  - deepl
+  - canva
+  - elevenlabs
+  - grammarly

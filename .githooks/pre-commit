@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+root=$(git rev-parse --show-toplevel)
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
+
+python "$root/tools/doctor.py"
+python "$root/.github/relkit.pyz" audit --staged
+staged=$(git -C "$root" diff --cached --name-only --diff-filter=ACMR)
+
+if printf '%s\n' "$staged" | grep -Eq '^(cmd/|internal/|go\.(mod|sum)$|tools/|\.githooks/)'; then
+  pwsh -NoLogo -NoProfile -File "$root/tools/dev.ps1" check-go
+fi
+
+if printf '%s\n' "$staged" | grep -Eq '^(web/|tools/|\.githooks/)'; then
+  pwsh -NoLogo -NoProfile -File "$root/tools/dev.ps1" check-web
+fi

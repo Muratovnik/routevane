@@ -1,0 +1,18 @@
+id: cloudfront
+title: Cloudfront
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: cloudfront.net
+    component: web
+    source: manual
+sources:
+  - id: itdoginfo
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/cloudfront.lst
+      format: text
+      class: community

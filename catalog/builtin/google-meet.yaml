@@ -1,0 +1,18 @@
+id: google-meet
+title: Google Meet
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: meet.google.com
+    component: web
+    source: manual
+sources:
+  - id: itdoginfo
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/itdoginfo/allow-domains/main/Services/google_meet.lst
+      format: text
+      class: community

@@ -1,0 +1,16 @@
+id: keenetic
+profile_key: keenetic-bat-ipv4-v1
+title: Keenetic
+kind: router
+renderer: keenetic-route-bat
+constraints:
+  supports_domain_exact: false
+  supports_domain_suffix: false
+  supports_dynamic_dns_set: false
+  supports_ipv4: true
+  supports_ipv6: false
+  supports_prefixes: true
+  max_rules: 1024
+  max_artifact_size: 131072
+renderer_options: []
+manual_installation_hint: Upload the generated BAT file in the Keenetic routing settings.

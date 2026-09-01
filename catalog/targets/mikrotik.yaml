@@ -1,0 +1,18 @@
+id: mikrotik
+profile_key: mikrotik-address-list-rsc-v1
+title: MikroTik
+title_en: MikroTik
+kind: router
+renderer: mikrotik-address-list-rsc
+constraints:
+  supports_domain_exact: true
+  supports_domain_suffix: false
+  supports_dynamic_dns_set: false
+  supports_ipv4: true
+  supports_ipv6: true
+  supports_prefixes: true
+  max_rules: 4096
+  max_artifact_size: 262144
+renderer_options: []
+manual_installation_hint: Загрузите файл на роутер, выполните /import, затем сопоставьте списки адресов routevane4 и routevane6 в правиле маршрутизации или mangle, выбирающем нужный интерфейс.
+manual_installation_hint_en: Upload the file to the router, run /import, then match the routevane4 and routevane6 address lists in the routing or mangle rule that selects the interface you need.

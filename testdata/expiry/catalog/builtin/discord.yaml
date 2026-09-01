@@ -1,0 +1,16 @@
+id: discord
+title: Discord
+components:
+  client:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: discord.com
+    component: client
+    source: manual
+sources:
+  - id: dns-client
+    type: dns
+    component: client
+    config:
+      names: [discord.expiry.test]

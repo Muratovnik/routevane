@@ -1,0 +1,18 @@
+id: amnezia
+profile_key: amnezia-split-tunnel-json-v1
+title: AmneziaVPN
+title_en: AmneziaVPN
+kind: app
+renderer: amnezia-split-tunnel-json
+constraints:
+  supports_domain_exact: true
+  supports_domain_suffix: false
+  supports_dynamic_dns_set: false
+  supports_ipv4: true
+  supports_ipv6: false
+  supports_prefixes: true
+  max_rules: 4096
+  max_artifact_size: 262144
+renderer_options: []
+manual_installation_hint: В клиенте AmneziaVPN откройте раздельное туннелирование, импортируйте файл через меню и выберите, заменить список сайтов или добавить к существующему.
+manual_installation_hint_en: In the AmneziaVPN client open split tunneling, import the file from the menu, and choose whether to replace the site list or add to the existing one.

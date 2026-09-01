@@ -1,0 +1,18 @@
+id: steam
+title: Steam
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: steampowered.com
+    component: web
+    source: manual
+sources:
+  - id: v2fly
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/steam
+      format: domain-list
+      class: community

@@ -1,0 +1,17 @@
+id: example
+title: Example
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: example.com
+    component: web
+    source: manual
+sources:
+  - id: dns-main
+    type: dns
+    component: web
+    config:
+      names:
+        - example.com

@@ -1,0 +1,10 @@
+{
+  "target_id": "keenetic",
+  "profile_key": "keenetic-bat-ipv4-v1",
+  "services": ["alpha", "beta"],
+  "rules": [
+    {"kind": "ipv4", "value": "192.0.2.9", "service": "beta", "component": "web"},
+    {"kind": "prefix4", "value": "10.0.0.0/24", "service": "alpha", "component": "web"},
+    {"kind": "ipv4", "value": "192.0.2.1", "service": "alpha", "component": "web"}
+  ]
+}

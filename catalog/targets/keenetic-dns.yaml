@@ -1,0 +1,20 @@
+id: keenetic-dns
+profile_key: keenetic-fqdn-group-v1
+title: Keenetic (по доменам)
+title_en: Keenetic (domain-based)
+kind: router
+renderer: keenetic-fqdn-group
+constraints:
+  supports_domain_exact: false
+  supports_domain_suffix: true
+  supports_dynamic_dns_set: true
+  supports_ipv4: true
+  supports_ipv6: true
+  supports_prefixes: true
+  max_rules: 38400
+  max_artifact_size: 262144
+  max_entries_per_list: 300
+  max_lists: 128
+renderer_options: []
+manual_installation_hint: Требуется KeeneticOS 5.0 или новее. Откройте командную строку роутера и выполните команды из файла — они создают группы имён с префиксом routevane-. Затем на странице «Маршрутизация — DNS-Based Routes» выберите нужный интерфейс для каждой группы; клиент должен использовать роутер как DNS-сервер. Вставка файла добавляет и обновляет, но не удаляет — группа routevane-, которой больше нет в списке, останется на роутере, пока вы не удалите её сами или не включите отправку на устройство, которая вычищает лишнее.
+manual_installation_hint_en: Requires KeeneticOS 5.0 or newer. Open the router command line and run the commands from the file — they create name groups with the routevane- prefix. Then on the Routing — DNS-Based Routes page choose the interface for each group; the client must use the router as its DNS server. Pasting the file adds and updates but never deletes — a routevane- group that is no longer in the list stays on the router until you remove it yourself or enable delivery to the device, which clears the leftovers.

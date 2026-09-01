@@ -1,0 +1,18 @@
+[
+  {
+    "hostname": "192.0.2.0/24",
+    "ips": []
+  },
+  {
+    "hostname": "198.51.100.0/24",
+    "ips": []
+  },
+  {
+    "hostname": "i.ytimg.com",
+    "ips": []
+  },
+  {
+    "hostname": "www.youtube.com",
+    "ips": []
+  }
+]

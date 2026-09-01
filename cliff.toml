@@ -1,0 +1,68 @@
+# Changelog generation. The rendered result is edited by hand before it is committed:
+# git-cliff writes the routine lines from the commit subjects, and the releaser adds the
+# Highlights paragraph and expands any breaking change into prose. That hybrid is the
+# policy, not a shortcut - a generated commit dump is not a changelog for humans.
+#
+#   npx --yes git-cliff@2.13.1 --unreleased --tag vX.Y.Z    render the entry being cut
+#   npx --yes git-cliff@2.13.1 --latest                     re-render the entry of the newest tag
+#
+# The version is pinned exactly rather than left at @latest because 2.13.0 was a broken
+# publish that never reached npm: newest tag and installable are not the same question.
+#
+# Links are written out rather than resolved through git-cliff's remote integration.
+# That integration exists to add pull-request numbers this project has none of - every
+# commit reaches the default branch directly - and naming the repository in a
+# [remote.github] section here would be actively worse: doing so sets is_custom, and
+# git-cliff then calls the GitHub API on every run even when the template asks nothing
+# of it, which turns a local render into a rate-limited network step. The host and path
+# below are the module path from go.mod, which plugin authors already import; a
+# repository published anywhere else would have to change that path first, and this
+# file with it.
+
+[changelog]
+header = ""
+# The Vue layout: a version heading that links the comparison against the previous tag,
+# one section per commit group, and one line per commit ending in a link to it. The
+# first release has no previous tag to compare against, so its heading links the tag.
+body = """
+{% if version -%}
+{% if previous.version -%}
+## [{{ version | trim_start_matches(pat="v") }}](https://github.com/Muratovnik/routevane/compare/{{ previous.version }}...{{ version }}) ({{ timestamp | date(format="%Y-%m-%d") }})
+{% else -%}
+## [{{ version | trim_start_matches(pat="v") }}](https://github.com/Muratovnik/routevane/releases/tag/{{ version }}) ({{ timestamp | date(format="%Y-%m-%d") }})
+{% endif -%}
+{% else -%}
+## [Unreleased]
+{% endif -%}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message }} ([{{ commit.id | truncate(length=7, end="") }}](https://github.com/Muratovnik/routevane/commit/{{ commit.id }}))
+{%- endfor %}
+{% endfor %}
+"""
+footer = ""
+trim = true
+
+[git]
+conventional_commits = true
+# A subject that does not parse is dropped rather than listed raw: the commit-msg hook and
+# the commit-policy CI job already reject one, so an unconventional subject here would be a
+# commit that predates them, not news for a reader.
+filter_unconventional = true
+filter_commits = true
+protect_breaking_commits = true
+# The comment markers only order the sections; the template strips them. A breaking change
+# is matched before its type so it lands in its own section, where the releaser replaces
+# the generated one-liner with what a user has to do about it.
+commit_parsers = [
+  { message = "^chore\\(release\\)", skip = true },
+  { breaking = true, group = "<!-- 0 -->BREAKING CHANGES" },
+  { message = "^feat", group = "<!-- 1 -->Features" },
+  { message = "^fix", group = "<!-- 2 -->Bug Fixes" },
+  { message = "^perf", group = "<!-- 3 -->Performance Improvements" },
+  { message = "^revert", group = "<!-- 4 -->Reverts" },
+  { message = ".*", skip = true },
+]
+tag_pattern = "v[0-9]*"
+sort_commits = "oldest"

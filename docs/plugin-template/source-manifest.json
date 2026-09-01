@@ -1,0 +1,13 @@
+{
+  "name": "example-source",
+  "version": "0.1.0",
+  "protocol_version": 1,
+  "kind": "source",
+  "permissions": ["observe_names"],
+  "executable": "example-source",
+  "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+  "source": {
+    "type": "example-source",
+    "revision": "example-source-v1"
+  }
+}

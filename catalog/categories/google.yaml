@@ -1,0 +1,6 @@
+id: google
+title: Google
+services:
+  - google-ai
+  - google-play
+  - google-meet

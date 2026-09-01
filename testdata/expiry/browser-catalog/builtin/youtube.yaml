@@ -1,0 +1,20 @@
+id: youtube
+title: YouTube
+components:
+  playback:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: youtube.com
+    component: playback
+    source: manual
+  - kind: ipv4
+    value: 192.0.2.10
+    component: playback
+    source: manual
+sources:
+  - id: dns-playback
+    type: dns
+    component: playback
+    config:
+      names: [localhost]

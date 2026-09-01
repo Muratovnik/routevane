@@ -1,0 +1,33 @@
+[exposure]
+private_paths = [
+  ".agents/local",
+  ".private",
+  "docs/plans/private",
+]
+private_files = [
+  ".claude/settings.json",
+  ".claude/settings.local.json",
+  ".codex/config.toml",
+  ".codex/workflow.toml",
+  "AGENTS.local.md",
+]
+private_suffixes = [".local.md", ".override.md"]
+required_ignores = [
+  ".agents/local/private.md",
+  ".claude/settings.json",
+  ".claude/settings.local.json",
+  ".codex/config.toml",
+  ".codex/workflow.toml",
+  ".env",
+  ".env.production",
+  ".private/manifest.json",
+  "AGENTS.local.md",
+  "docs/plans/private/note.md",
+  "private.key",
+]
+allowed_identities = ["Nikolai Muratov <el.muratovnik@gmail.com>"]
+allowed_users = ["...", "name"]
+forbid_ai_attribution = true
+forbid_internal_planning = true
+forbid_machine_observations = true
+betterleaks_config = ".betterleaks.toml"

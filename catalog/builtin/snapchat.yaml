@@ -1,0 +1,18 @@
+id: snapchat
+title: Snapchat
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: snapchat.com
+    component: web
+    source: manual
+sources:
+  - id: iplist
+    type: http
+    component: web
+    config:
+      url: https://iplist.opencck.org/?format=text&data=cidr4&site=snapchat.com
+      format: text
+      class: community

@@ -1,0 +1,69 @@
+title = "Routevane secret scanning"
+betterleaksMinVersion = "1.8.1"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "The scanner configuration contains only reviewed fixture patterns"
+targetRules = ["generic-password", "generic-api-key", "generic-credential-uri"]
+paths = ['''(?:^|/)\.betterleaks\.toml$''']
+
+[[allowlists]]
+description = "The Keenetic profile key is a public renderer/version identifier"
+targetRules = ["generic-api-key"]
+regexTarget = "match"
+regexes = ['''\bkeenetic-bat-ipv4-v1\b''']
+
+[[allowlists]]
+description = "Sing-box test proves that password-bearing candidates are rejected"
+targetRules = ["generic-password"]
+regexTarget = "line"
+paths = ['''internal/deployers/singboxlocal/singboxlocal_test\.go''']
+regexes = ['''Password:\s*"secret"''']
+
+[[allowlists]]
+description = "Keenetic authentication fixtures never leave the loopback test server"
+targetRules = ["generic-password", "generic-credential-uri"]
+regexTarget = "line"
+paths = ['''internal/deployers/keenetic/keenetic_test\.go''']
+regexes = [
+  '''devicePassword\s*=\s*"correct-horse"''',
+  '''wrong\.Password\s*=\s*"wrong-password-value"''',
+  '''http://user:password@192\.168\.1\.1''',
+]
+
+[[allowlists]]
+description = "Deployment tests use a fixed non-production password marker"
+targetRules = ["generic-password"]
+regexTarget = "line"
+paths = ['''internal/application/deploy_test\.go''']
+regexes = ['''deployTestPassword\s*=\s*"device-secret-value"''']
+
+[[allowlists]]
+description = "History audit includes the retired M8 deployment test's fixed password marker"
+targetRules = ["generic-password"]
+regexTarget = "line"
+paths = ['''cmd/routing-agent/m8_e2e_test\.go''']
+regexes = ['''m8Password\s*=\s*"device-secret-value"''']
+
+[[allowlists]]
+description = "History audit includes the retired deployment panel's literal password fixture"
+targetRules = ["generic-password"]
+regexTarget = "line"
+paths = ['''web/src/features/deploy-artifact/ui/DeployPanel\.spec\.ts''']
+regexes = ['''(?:setValue\('secret'\)|password:\s*'secret')''']
+
+[[allowlists]]
+description = "HTTP tests interpolate an in-memory fixture into a request body"
+targetRules = ["generic-password"]
+regexTarget = "line"
+paths = ['''internal/infrastructure/httpapi/httpapi_test\.go''']
+regexes = ['''"password":"`\s*\+\s*secret\s*\+\s*`"''']
+
+[[allowlists]]
+description = "Localized password field labels are user-facing copy"
+targetRules = ["generic-password"]
+regexTarget = "line"
+paths = ['''web/src/shared/i18n/messages\.ts''']
+regexes = ['''^\s*'send\.field\.password': '(?:Пароль устройства|Device password)',$''']
