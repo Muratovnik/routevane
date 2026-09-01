@@ -5,8 +5,9 @@ All notable user-facing changes are documented here. The format follows
 [Semantic Versioning](https://semver.org/). Entries are generated from the
 Conventional Commit history with [git-cliff](https://git-cliff.org) and then
 curated by hand in the Vue-like layout defined by `cliff.toml` and checked by
-the release policy in `relkit.toml`. Only `feat`, `fix`, `perf`, and
-`revert` commits appear, and a breaking change always does.
+the release policy in `relkit.toml`. Generated change bullets include only
+`feat`, `fix`, `perf`, and `revert` commits, and a breaking change always appears.
+Curated highlights may also summarize documentation and release-process updates.
 
 This file starts at the first published version. The work before it built the
 product and has no release to describe, so there are no historical entries to
@@ -17,6 +18,20 @@ breaking change raises the minor, everything else raises the patch. The
 [release policy](docs/releasing.md) states which surfaces a version protects.
 
 ## [Unreleased]
+
+## [0.1.1](https://github.com/Muratovnik/routevane/compare/v0.1.0...v0.1.1) (2026-09-01)
+
+### Highlights
+
+This maintenance release improves the installation documentation and release
+process. Application behavior, the API, CLI, and archive layout are unchanged.
+
+- Simplify the quick start, explain the included launcher, and separate download
+  verification, updates, backups, and troubleshooting into a user maintenance guide.
+  ([3190d5a](https://github.com/Muratovnik/routevane/commit/3190d5a46760808474e2fc1f1a125b6879fd221b))
+- Validate the curated Vue-like changelog entry before both building and
+  publishing a release, preserving the reviewed text and commit links.
+  ([f1a8871](https://github.com/Muratovnik/routevane/commit/f1a887161509d5ec3477bb761910bcb3420e261f))
 
 ## [0.1.0](https://github.com/Muratovnik/routevane/releases/tag/v0.1.0) (2026-09-01)
 
