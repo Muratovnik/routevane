@@ -176,7 +176,7 @@ def main() -> int:
 
     for arguments in (
         [str(ROOT / "tools/check_repository.py")],
-        ["-m", "unittest", "discover", "-s", "tools", "-p", "test_tooling.py"],
+        ["-m", "unittest", "discover", "-s", "tools", "-p", "test_*.py"],
     ):
         if subprocess.run([sys.executable, *arguments], cwd=ROOT).returncode:
             failures.append(f"repository contract failed: {' '.join(arguments)}")

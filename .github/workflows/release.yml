@@ -30,12 +30,13 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.13'
-      - name: Bind the annotated SemVer tag to the checked-out event SHA
+      - name: Bind the release identity and validate curated notes
         shell: pwsh
-        run: >-
-          python tools/release_gate.py --version "$env:VERSION"
-          --expected-sha "$env:EXPECTED_SHA"
-          --notes (Join-Path $env:RUNNER_TEMP 'release-notes.md')
+        run: |
+          python tools/release_gate.py --version "$env:VERSION" --expected-sha "$env:EXPECTED_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'release identity check failed' }
+          python .github/relkit.pyz notes "$env:VERSION" --output (Join-Path $env:RUNNER_TEMP 'release-notes.md')
+          if ($LASTEXITCODE -ne 0) { throw 'curated release notes check failed' }
       - name: Audit public history and commit subjects
         shell: pwsh
         run: |
@@ -140,10 +141,11 @@ jobs:
           path: .cache/release
       - name: Revalidate the publication identity and notes
         shell: pwsh
-        run: >-
-          python tools/release_gate.py --version "$env:VERSION"
-          --expected-sha "$env:EXPECTED_SHA"
-          --notes (Join-Path $env:RUNNER_TEMP 'release-notes.md')
+        run: |
+          python tools/release_gate.py --version "$env:VERSION" --expected-sha "$env:EXPECTED_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'release identity check failed' }
+          python .github/relkit.pyz notes "$env:VERSION" --output (Join-Path $env:RUNNER_TEMP 'release-notes.md')
+          if ($LASTEXITCODE -ne 0) { throw 'curated release notes check failed' }
       - name: Revalidate transferred checksums
         shell: pwsh
         run: |

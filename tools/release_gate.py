@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Validate the immutable tag and changelog entry used for a release."""
+"""Bind a stable annotated release tag to the checked-out event commit.
+
+Curated notes are validated and exported by release-kit's notes command.
+"""
 
 from __future__ import annotations
 
@@ -29,22 +32,7 @@ def run_git(arguments: Sequence[str]) -> str:
     return result.stdout.strip()
 
 
-def changelog_entry(text: str, version: str) -> str:
-    number = version.removeprefix("v")
-    pattern = re.compile(
-        rf"(?ms)^## \[{re.escape(number)}\][^\r\n]*(?:\r?\n|\Z).*?(?=^## |\Z)"
-    )
-    matches = list(pattern.finditer(text))
-    if len(matches) != 1:
-        raise ValueError(f"CHANGELOG.md must carry exactly one entry for {number}")
-    entry = matches[0].group(0).strip()
-    body = entry.splitlines()[1:]
-    if not any(line.strip() for line in body):
-        raise ValueError(f"CHANGELOG.md entry for {number} is empty")
-    return entry + "\n"
-
-
-def validate_release(version: str, expected_sha: str, changelog: str, git: Git = run_git) -> str:
+def validate_release(version: str, expected_sha: str, git: Git = run_git) -> None:
     if not STABLE_VERSION.fullmatch(version):
         raise ValueError("release version must be a stable SemVer tag such as v0.1.0")
     if not OBJECT_ID.fullmatch(expected_sha):
@@ -60,7 +48,6 @@ def validate_release(version: str, expected_sha: str, changelog: str, git: Git =
         raise ValueError(f"{version} resolves to {tagged_commit}, not event SHA {expected_sha}")
     if checkout_commit.lower() != expected:
         raise ValueError(f"checked-out HEAD is {checkout_commit}, not event SHA {expected_sha}")
-    return changelog_entry(changelog, version)
 
 
 def self_test() -> None:
@@ -76,36 +63,38 @@ def self_test() -> None:
     def fake_git(arguments: Sequence[str]) -> str:
         return values[tuple(arguments)]
 
-    notes = validate_release(
-        version,
-        sha,
-        "# Changelog\n\n## [Unreleased]\n\n## [0.1.0] - 2026-09-01\n\n- First release.\n",
-        fake_git,
-    )
-    assert notes.startswith("## [0.1.0]")
+    validate_release(version, sha, fake_git)
     for rejected in ("0.1.0", "v01.1.0", "v0.1.0-rc.1", "v';Get-Date;'x"):
         try:
-            validate_release(rejected, sha, "", fake_git)
+            validate_release(rejected, sha, fake_git)
         except ValueError:
             pass
         else:
             raise AssertionError(f"unsafe version was accepted: {rejected}")
 
-    values[("cat-file", "-t", ref)] = "commit"
-    try:
-        validate_release(version, sha, "## [0.1.0]\n\n- Entry.\n", fake_git)
-    except ValueError as error:
-        assert "annotated" in str(error)
-    else:
-        raise AssertionError("lightweight tag was accepted")
-    values[("cat-file", "-t", ref)] = "tag"
+    for rejected_sha in ("", "1" * 7, "g" * 40):
+        try:
+            validate_release(version, rejected_sha, fake_git)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError(f"invalid event SHA was accepted: {rejected_sha}")
 
-    try:
-        changelog_entry("## [0.1.0]\n\n## [0.1.0]\n", version)
-    except ValueError:
-        pass
-    else:
-        raise AssertionError("duplicate or empty changelog entries were accepted")
+    for key, rejected, diagnostic in (
+        (("cat-file", "-t", ref), "commit", "annotated"),
+        (("rev-parse", f"{ref}^{{commit}}"), "2" * 40, "resolves to"),
+        (("rev-parse", "HEAD"), "2" * 40, "checked-out HEAD"),
+    ):
+        previous = values[key]
+        values[key] = rejected
+        try:
+            validate_release(version, sha, fake_git)
+        except ValueError as error:
+            assert diagnostic in str(error)
+        else:
+            raise AssertionError(f"invalid release identity was accepted: {key}")
+        finally:
+            values[key] = previous
     print("release gate self-test: passed")
 
 
@@ -114,22 +103,14 @@ def main() -> int:
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--version")
     parser.add_argument("--expected-sha")
-    parser.add_argument("--changelog", type=Path, default=ROOT / "CHANGELOG.md")
-    parser.add_argument("--notes", type=Path)
     args = parser.parse_args()
 
     if args.self_test:
         self_test()
         return 0
-    if not args.version or not args.expected_sha or args.notes is None:
-        parser.error("--version, --expected-sha, and --notes are required")
-    notes = validate_release(
-        args.version,
-        args.expected_sha,
-        args.changelog.read_text(encoding="utf-8"),
-    )
-    args.notes.parent.mkdir(parents=True, exist_ok=True)
-    args.notes.write_text(notes, encoding="utf-8", newline="\n")
+    if not args.version or not args.expected_sha:
+        parser.error("--version and --expected-sha are required")
+    validate_release(args.version, args.expected_sha)
     print(f"release gate: {args.version} -> {args.expected_sha.lower()}")
     return 0
 

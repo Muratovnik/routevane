@@ -36,3 +36,7 @@ forbid_ai_attribution = true
 forbid_internal_planning = true
 forbid_machine_observations = true
 betterleaks_config = ".betterleaks.toml"
+
+[changelog]
+profile = "vue-like"
+first_version = "0.1.0"

@@ -38,8 +38,10 @@ home of a release-authoring tool.
   create --notes-file`. They are never re-rendered from the commit log at
   publish time, because that would publish the uncurated text and silently
   discard the editing pass the policy exists to require.
-- `release.yml` extracts the entry for the version being released and fails
-  before the build when the changelog does not describe it.
+- `release.yml` uses `relkit notes` to validate and extract the entry before the
+  build and again before publication. The explicit `vue-like` profile in
+  `relkit.toml` checks the final edited layout and commit links. Routevane keeps
+  its annotated-tag/source-commit checks, but does not duplicate the notes parser.
 - Write the comparison and commit links out against the module path in
   `go.mod`, which plugin authors already import, rather than resolving them
   through git-cliff's remote integration: that integration wants a token and a
@@ -68,4 +70,6 @@ hand. Nothing else in the repository refers to git-cliff.
 
 Acceptance is `npx --yes git-cliff@2.13.1 --unreleased --tag vX.Y.Z` rendering
 the entry for a release being cut, `tools/dev.ps1 check` staying green, and the
-release workflow refusing a version the changelog does not describe.
+release workflow refusing a version the changelog does not describe or whose
+edited entry violates the configured format. The maintained authoring and
+validation procedure is in [the release guide](../releasing.md#changelog-contract).

@@ -29,7 +29,7 @@ filter_commits = true
 protect_breaking_commits = true
 commit_parsers = [
   { message = "^chore\\(release\\)", skip = true },
-  { breaking = true, group = "<!-- 0 -->BREAKING CHANGES" },
+  { field = "breaking", pattern = "true", group = "<!-- 0 -->BREAKING CHANGES" },
   { message = "^feat", group = "<!-- 1 -->Features" },
   { message = "^fix", group = "<!-- 2 -->Bug Fixes" },
   { message = "^perf", group = "<!-- 3 -->Performance Improvements" },
