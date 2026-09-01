@@ -7,10 +7,27 @@ import zipfile
 from pathlib import Path
 
 from check_repository import documentation_problems, scanner_problems, supported
+from ci_browser_sandbox import sandbox_profile
 from release_archive import pack
 
 
 class RepositoryContracts(unittest.TestCase):
+    def test_ci_sandbox_profile_is_literal_and_scoped(self):
+        root = "/work/source tree"
+        browser = root + "/.cache/browsers/chromium-1234/chrome-linux64/chrome"
+        profile = sandbox_profile(browser, root, "123-1")
+        self.assertIn(f'"{browser}"', profile)
+        self.assertIn("userns,", profile)
+        for rejected in (
+            "/outside/chrome", browser.replace(".cache", ".cache-evil"),
+            browser.replace("1234", "*"), browser.replace("1234", "@{HOME}"),
+            browser + "\n", browser + '"', browser + "/../chrome", browser + "-other",
+        ):
+            with self.subTest(path=rejected), self.assertRaises(ValueError):
+                sandbox_profile(rejected, root, "123-1")
+        with self.assertRaises(ValueError):
+            sandbox_profile(browser, root, "123} profile injected")
+
     def test_fixture_exception_requires_both_path_and_content(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

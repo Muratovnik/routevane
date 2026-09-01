@@ -25,7 +25,12 @@ required_ignores = [
   "docs/plans/private/note.md",
   "private.key",
 ]
-allowed_identities = ["Nikolai Muratov <el.muratovnik@gmail.com>"]
+# The configured dependency updater publishes branches signed by GitHub.
+allowed_identities = [
+  "Nikolai Muratov <el.muratovnik@gmail.com>",
+  "dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
+  "GitHub <noreply@github.com>",
+]
 allowed_users = ["...", "name"]
 forbid_ai_attribution = true
 forbid_internal_planning = true

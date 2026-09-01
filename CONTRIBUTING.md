@@ -21,8 +21,9 @@ $env:CHROME_DEVEL_SANDBOX = '/opt/google/chrome/chrome-sandbox'
 ```
 
 Otherwise follow the [Chromium sandbox setup](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md).
-Do not disable the browser sandbox or AppArmor globally. CI verifies and uses
-the helper already supplied by its runner image; it does not change host policy.
+Do not disable the browser sandbox or AppArmor globally. On its disposable
+GitHub-hosted VM, CI instead loads an in-memory AppArmor rule for the exact
+pinned Chromium executable. The CI helper refuses to run on a developer host.
 
 ## First checkout
 
