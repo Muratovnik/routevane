@@ -16,13 +16,3 @@ Choose by task.
 | Cut and verify a release | [Releasing](releasing.md) |
 | Understand why a decision was made | [Decision index](adr/README.md) |
 | Report a vulnerability | [Security](../SECURITY.md) |
-
-## Historical material
-
-These documents are context, not current user/developer instructions. Their
-unresolved requirements are routed through [current requirements](requirements.md).
-
-- [Original implementation plan](history/implementation-plan.md)
-- [UI redesign brief, 2026-08-21](history/ui-redesign-2026-08-21.md)
-- [List/output brief, 2026-08-22](history/list-outputs-2026-08-22.md)
-- [UI audit, 2026-08-21](history/ui-audit-2026-08-21.md)

@@ -5,9 +5,8 @@ are complete for a task started at this root; do not rely on a parent workspace
 to supply ownership, safety, verification, or commit rules.
 
 Current product requirements and acceptance limits are in `docs/requirements.md`.
-The original implementation plan is historical evidence under `docs/history/`,
-not a current command source. Explicit user requests and this file govern agent
-behavior. Record a real, hard-to-reverse technical choice as an ADR.
+Explicit user requests and this file govern agent behavior. Record a real,
+hard-to-reverse technical choice as an ADR.
 
 ## Start and tools
 
@@ -105,7 +104,16 @@ invariants belong here; conditional workflows belong in a skill; mechanical
 facts belong in a validator.
 
 Each maintained document has one audience and a distinct question it answers.
-Keep the user entry point free of implementation plans and internal work history.
+Public documentation serves users, contributors, maintainers, or extension authors.
+Internal task briefs, execution plans, and audit reports belong in ignored
+`.private/`, not anywhere in the published source tree. Retention, accuracy, or
+`superseded` status alone does not justify publication. Public ADRs explain
+technical decisions; they are not a store for task transcripts or work reports.
+The current-tree gate rejects the retired `docs/history/`, `docs/plans/`, and
+`docs/audits/` locations. This path check does not replace reviewing the audience
+and purpose of documents elsewhere. Public links must work without ignored local
+files. Keep the user entry point free of implementation plans and internal work
+history.
 Link to one owner for a fact rather than maintaining contradictory copies.
 Historical status never establishes current support or acceptance.
 Before deleting a document, account for unique requirements and unresolved work;

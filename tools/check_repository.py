@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check local documentation links and shared toolchain contracts, not prose quality."""
+"""Check publication paths, documentation links and toolchain contracts, not prose quality."""
 
 from __future__ import annotations
 
@@ -13,8 +13,9 @@ from urllib.parse import unquote, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
-LINK = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
+LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 VERSION = re.compile(r"^>=([0-9]+)\.([0-9]+)\.([0-9]+) <([0-9]+)$")
+RETIRED_DOCUMENT_ROOTS = ("docs/history", "docs/plans", "docs/audits")
 
 
 def supported(version: str, requirement: str) -> bool:
@@ -27,7 +28,34 @@ def supported(version: str, requirement: str) -> bool:
     return minimum <= found and found[0] < int(match.group(4))
 
 
+def publication_path_problems(root: Path, paths: list[str]) -> list[str]:
+    failures = []
+    for relative in sorted(set(paths)):
+        source = root / relative
+        if not (source.is_file() or source.is_symlink()):
+            continue
+        normalized = Path(relative).as_posix().casefold()
+        if any(
+            normalized == retired or normalized.startswith(retired + "/")
+            for retired in RETIRED_DOCUMENT_ROOTS
+        ):
+            failures.append(
+                f"{relative}: retired working-document path cannot be published; "
+                "keep internal material in ignored .private/"
+            )
+    return failures
+
+
 def documentation_problems(root: Path, paths: list[str]) -> list[str]:
+    root = root.resolve()
+    published_files = {
+        root / path for path in paths
+        if (root / path).is_file() or (root / path).is_symlink()
+    }
+    published_targets = published_files | {
+        parent for path in published_files for parent in path.parents
+        if parent.is_relative_to(root)
+    }
     documents = {path for path in paths if path.endswith(".md") and (root / path).is_file()}
     edges: dict[str, set[str]] = {}
     failures: list[str] = []
@@ -46,6 +74,8 @@ def documentation_problems(root: Path, paths: list[str]) -> list[str]:
                     failures.append(f"{relative}:{number}: link escapes repository: {target}")
                 elif not resolved.exists():
                     failures.append(f"{relative}:{number}: missing local link: {target}")
+                elif resolved not in published_targets:
+                    failures.append(f"{relative}:{number}: local link target is not publishable: {target}")
                 else:
                     edges[relative].add(resolved.relative_to(root).as_posix())
     reachable: set[str] = set()
@@ -89,13 +119,18 @@ def scanner_problems(root: Path) -> list[str]:
 
 def main() -> int:
     paths = subprocess.check_output(
-        ["git", "ls-files", "--cached", "--others", "--exclude-standard"], cwd=ROOT, text=True
-    ).splitlines()
-    failures = documentation_problems(ROOT, paths) + version_problems(ROOT) + scanner_problems(ROOT)
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        cwd=ROOT, encoding="utf-8",
+    ).split("\0")
+    paths = [path for path in paths if path]
+    failures = (
+        publication_path_problems(ROOT, paths) + documentation_problems(ROOT, paths)
+        + version_problems(ROOT) + scanner_problems(ROOT)
+    )
     for failure in failures:
         print(f"ERROR: {failure}", file=sys.stderr)
     if not failures:
-        print("repository contracts: documentation paths and toolchain versions agree")
+        print("repository contracts: publication paths, documentation links and toolchain versions agree")
     return bool(failures)
 
 

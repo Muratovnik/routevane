@@ -59,9 +59,8 @@ inside its configured grace window can contribute explicitly degraded evidence;
 invalid/archived data is not revived
 ([source grace](adr/0006-official-feeds-and-source-grace.md)).
 
-`internal/discovery` uses chromedp and an isolated browser profile, not the
-historical plan's Playwright product driver. Its bounded CONNECT proxy validates
-every destination and redirect; Playwright supplies test browsers. Same-OS-user
+`internal/discovery` uses chromedp and an isolated browser profile. Its bounded
+CONNECT proxy validates every destination and redirect; Playwright supplies test browsers. Same-OS-user
 processes are inside the stated local trust boundary
 ([discovery boundary](adr/0007-browser-discovery-boundary.md)).
 

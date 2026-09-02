@@ -71,7 +71,6 @@ Plain `go build` does not generate the UI and can produce an API-only binary.
 Read [the repository contract](AGENTS.md), then the relevant
 [current requirements](docs/requirements.md),
 [architecture](docs/ARCHITECTURE.md), or [UI contract](docs/UI.md).
-Historical plans explain earlier choices; they are not current setup instructions.
 
 Work one user-visible slice at a time and preserve unrelated changes. Verify
 the rebuilt runtime identity, not a previously running binary.

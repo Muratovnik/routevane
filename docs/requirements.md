@@ -7,9 +7,8 @@ status: adopted
 Audience: contributors deciding what Routevane must preserve. Installation belongs
 in the [user guide](../README.md); implementation belongs in
 [architecture](ARCHITECTURE.md) and the [UI contract](UI.md).
-The original [implementation plan](history/implementation-plan.md) remains
-historical requirements evidence. This document records its current interpretation,
-including later [decisions](adr/README.md), not a claim that every proposed feature shipped.
+This document defines the current product contract and separates it from open
+work. Technical rationale belongs in the [decisions](adr/README.md).
 
 ## Product contract
 
@@ -60,12 +59,12 @@ results. Device doubles and parser tests do not prove physical-device acceptance
   delivery proves file validity, not live runtime reload.
 - Subscription fetch observation, token rotation/revocation, interface choices
   returned by device probe, and a user-facing build-history browser remain
-  follow-up requirements from the historical UI brief.
+  unimplemented.
 - Per-route exclusion of individual observed values is not implemented; route
   composition includes or excludes whole lists (ADR 0029).
 - Renaming the legacy API/Go identifiers is separate compatibility work
   (ADR 0028). Current documentation must explain the mapping meanwhile.
-- The historical scaling milestone is conditional on measured workload.
+- Scaling changes are conditional on measured workload.
   PostgreSQL, separate workers, and telemetry infrastructure are not planned
   merely to complete a checklist.
 - A local clean clone is not proof of a clean OS or hosted publication. Report

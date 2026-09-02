@@ -1,12 +1,19 @@
 """Behavioral regression tests for documentation and archive contracts."""
 
+import json
+import os
+import shutil
 import stat
+import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 
-from check_repository import documentation_problems, scanner_problems, supported
+from check_repository import (
+    documentation_problems, publication_path_problems, scanner_problems, supported,
+)
 from ci_browser_sandbox import sandbox_profile
 from release_archive import pack
 
@@ -56,6 +63,103 @@ class RepositoryContracts(unittest.TestCase):
             self.assertTrue(any("orphan.md" in p for p in problems))
             (root / "docs/guide.md").write_text("[Other](orphan.md)", encoding="utf-8")
             self.assertEqual(documentation_problems(root, paths), [])
+
+    def test_retired_document_roots_reject_every_file_type_and_case(self):
+        for relative in (
+            "docs/history/audit.md", "docs/plans/nested/brief.txt",
+            "docs/audits/screenshot.png", "DOCS/HiStOrY/payload.json", "docs/history",
+        ):
+            with self.subTest(path=relative), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = root / relative
+                source.parent.mkdir(parents=True)
+                source.write_bytes(b"fixture")
+                problems = publication_path_problems(root, [relative])
+                self.assertEqual(len(problems), 1)
+                self.assertIn("retired working-document path", problems[0])
+                source.unlink()
+                self.assertEqual(publication_path_problems(root, [relative]), [])
+
+    def test_public_decisions_and_similar_directory_names_are_not_retired(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            paths = [
+                "docs/adr/0001-audit-trail.md", "docs/historical-formats.md",
+                "docs/plans-guide/example.txt", "docs/audits-format.md",
+            ]
+            for relative in paths:
+                source = root / relative
+                source.parent.mkdir(parents=True, exist_ok=True)
+                source.write_text("fixture", encoding="utf-8")
+            self.assertEqual(publication_path_problems(root, paths), [])
+
+    def test_links_and_images_cannot_depend_on_unpublished_local_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            (root / ".private").mkdir()
+            (root / ".private/audit.md").write_text("private", encoding="utf-8")
+            (root / ".private/screenshot.png").write_bytes(b"fixture")
+            readme = root / "README.md"
+            for target in (
+                "[Local](.private/audit.md)", "[Local](.private/)",
+                "![Screenshot](.private/screenshot.png)",
+                "[Local](%2Eprivate/audit.md)",
+            ):
+                with self.subTest(link=target):
+                    readme.write_text(target, encoding="utf-8")
+                    problems = documentation_problems(root, ["README.md"])
+                    self.assertEqual(len(problems), 1)
+                    self.assertIn("local link target is not publishable", problems[0])
+            (root / "examples").mkdir()
+            (root / "examples/config.json").write_text("{}", encoding="utf-8")
+            readme.write_text("[Examples](examples/) [Root](./)", encoding="utf-8")
+            self.assertEqual(documentation_problems(root, ["README.md", "examples/config.json"]), [])
+
+    def test_repository_command_checks_candidates_without_rejecting_old_index_entries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ("tools", "web", "docs/history", "docs/adr", ".private"):
+                (root / name).mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(Path(__file__).with_name("check_repository.py"), root / "tools/check_repository.py")
+            engines = {"node": ">=24.19.0 <25", "npm": ">=11.17.0 <12"}
+            (root / "web/package.json").write_text(
+                json.dumps({"engines": engines, "packageManager": "npm@11.17.0"}), encoding="utf-8",
+            )
+            (root / "web/package-lock.json").write_text(
+                json.dumps({"packages": {"": {"engines": engines}}}), encoding="utf-8",
+            )
+            (root / ".node-version").write_text("24.19.0\n", encoding="utf-8")
+            (root / ".betterleaks.toml").write_text("", encoding="utf-8")
+            (root / ".gitignore").write_text(".private/\n", encoding="utf-8")
+            (root / "docs/adr/README.md").write_text("# Decisions\n", encoding="utf-8")
+            report_relative = "docs/history/аудит.md"
+            report = root / report_relative
+            report.write_text("---\nstatus: superseded\n---\n# Internal report\n", encoding="utf-8")
+            readme = root / "README.md"
+            readme.write_text(f"[Decisions](docs/adr/README.md) [Report]({report_relative})", encoding="utf-8")
+            env = {key: value for key, value in os.environ.items()
+                   if key not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_PREFIX", "GIT_COMMON_DIR")}
+            env["PYTHONIOENCODING"] = "utf-8"
+
+            def run(*command):
+                return subprocess.run(command, cwd=root, env=env, capture_output=True, encoding="utf-8")
+
+            self.assertEqual(run("git", "init", "--quiet").returncode, 0)
+            for tracked in (False, True):
+                with self.subTest(tracked=tracked):
+                    if tracked:
+                        self.assertEqual(run("git", "add", "--", report_relative).returncode, 0)
+                    result = run(sys.executable, "tools/check_repository.py")
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn("retired working-document path", result.stderr)
+            report.rename(root / ".private/audit.md")
+            readme.write_text("[Decisions](docs/adr/README.md)", encoding="utf-8")
+            result = run(sys.executable, "tools/check_repository.py")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            readme.write_text("[Decisions](docs/adr/README.md) [Private](.private/audit.md)", encoding="utf-8")
+            result = run(sys.executable, "tools/check_repository.py")
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("local link target is not publishable", result.stderr)
 
     def test_archive_preserves_executable_modes_on_every_build_host(self):
         with tempfile.TemporaryDirectory() as directory:
