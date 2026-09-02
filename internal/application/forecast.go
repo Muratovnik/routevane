@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/Muratovnik/routevane/internal/domain"
+	"github.com/Muratovnik/routevane/internal/planner"
 )
 
 // CompositionForecast is what one target would receive from a composition that
@@ -26,6 +27,44 @@ type CompositionForecast struct {
 	// and deduplicates format-identical rules, and that saving belongs to the
 	// file rather than to any one service.
 	PerService []ServiceRuleForecast `json:"per_service"`
+	Overlaps   CompositionOverlaps   `json:"overlaps"`
+}
+
+type OverlapValue struct {
+	RuleKind domain.RuleKind `json:"rule_kind"`
+	Value    string          `json:"value"`
+	Services []string        `json:"services"`
+}
+
+type CompositionOverlap struct {
+	Kind     string        `json:"kind"`
+	Entry    OverlapValue  `json:"entry"`
+	Covering *OverlapValue `json:"covering,omitempty"`
+}
+
+// CompositionOverlaps is a bounded explanation, not a count of saved rules.
+// Truncation applies to details; only ProjectedRules describes the whole file.
+type CompositionOverlaps struct {
+	Items     []CompositionOverlap `json:"items"`
+	Truncated bool                 `json:"truncated"`
+}
+
+func forecastOverlaps(plan domain.RoutingPlan) CompositionOverlaps {
+	const detailLimit = 100
+	analysis := planner.AnalyzeRuleOverlaps(plan.Rules, detailLimit)
+	result := CompositionOverlaps{Items: make([]CompositionOverlap, 0, len(analysis.Items)), Truncated: analysis.Truncated}
+	value := func(entry planner.OverlapValue) OverlapValue {
+		return OverlapValue{RuleKind: entry.RuleKind, Value: entry.Value, Services: entry.Services}
+	}
+	for _, item := range analysis.Items {
+		mapped := CompositionOverlap{Kind: item.Kind, Entry: value(item.Entry)}
+		if item.Covering != nil {
+			covering := value(*item.Covering)
+			mapped.Covering = &covering
+		}
+		result.Items = append(result.Items, mapped)
+	}
+	return result
 }
 
 // ServiceRuleForecast is one service's share of a forecast plan.
@@ -125,6 +164,7 @@ func (s *PublicationService) forecastTarget(ctx context.Context, list List, targ
 		TargetID: target.ID, MaximumRules: maximum, ProjectedRules: projected,
 		Fits:       maximum == 0 || projected <= maximum,
 		PerService: rulesPerService(prepared.Plan),
+		Overlaps:   forecastOverlaps(prepared.Plan),
 	}, nil
 }
 

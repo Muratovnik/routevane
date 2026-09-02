@@ -2272,6 +2272,182 @@ function cardRow(card: Locator, value: string): Locator {
  * format's projected size is read from the same list, because that is where it
  * is stated.
  */
+test('the forecast explains overlaps in create and edit without rewriting the library', async ({
+  page,
+}) => {
+  test.setTimeout(90000)
+  const headers = { 'X-Routevane-Request': '1' }
+  const ids: string[] = []
+  for (const [title, domains, values] of [
+    ['Overlap Alpha', ['shared.example', 'alpha.example'], ['192.0.2.0/24']],
+    ['Overlap Beta', ['shared.example', 'beta.example'], ['192.0.2.1']],
+    ['Overlap Gamma', ['gamma.example'], ['198.51.100.9']],
+  ] as const) {
+    const created = await page.request.post(`${origin}/v1/services`, {
+      headers,
+      data: { title, domains },
+    })
+    expect(created.status()).toBe(201)
+    const { service } = (await created.json()) as { service: { id: string } }
+    ids.push(service.id)
+    if (values.length > 0)
+      expect(
+        (
+          await page.request.post(
+            `${origin}/v1/services/${service.id}/domains`,
+            { headers, data: { values, verdict: 'include' } },
+          )
+        ).ok(),
+      ).toBe(true)
+    expect(
+      (
+        await page.request.post(`${origin}/v1/services/${service.id}/refresh`, {
+          headers,
+          data: {},
+        })
+      ).ok(),
+    ).toBe(true)
+  }
+  const beforeRoutes = await (
+    await page.request.get(`${origin}/v1/lists`)
+  ).text()
+  const beforeContents = await Promise.all(
+    ids.map(async (id) =>
+      (await page.request.get(`${origin}/v1/services/${id}/contents`)).text(),
+    ),
+  )
+  let inspecting = true
+  const writes: string[] = []
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname
+    if (inspecting && request.method() === 'POST' && path !== forecastPath)
+      writes.push(path)
+  })
+  await page.goto(`${origin}/lists/new`)
+  async function select(index: number, title: string, checked: boolean) {
+    await page.getByRole('searchbox', { name: 'Find a list' }).fill(title)
+    await page.locator(`input[value="${ids[index]}"]`).setChecked(checked)
+  }
+  await select(0, 'Overlap Alpha', true)
+  await select(1, 'Overlap Beta', true)
+  await chooseFormat(page, /sing-box/)
+  const disclosure = page.locator('details').filter({
+    has: page.locator('summary').filter({ hasText: 'List overlaps' }),
+  })
+  await expect(disclosure).toBeVisible()
+  await expect(
+    disclosure.getByText('shared.example', { exact: true }),
+  ).not.toBeVisible()
+  await disclosure.locator('summary').focus()
+  await page.keyboard.press('Enter')
+  await expect(disclosure).toContainText('file forecast — 5 entries')
+  await expect(disclosure.locator('.overlaps__item')).toHaveCount(2)
+  await expect(
+    disclosure.getByRole('link', { name: 'Overlap Alpha' }).first(),
+  ).toHaveAttribute('href', `/library#list=${ids[0]}`)
+  await expect(disclosure).toContainText('192.0.2.0/24')
+  for (const width of [320, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 1000 })
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true)
+    const axe = await new AxeBuilder({ page }).analyze()
+    expect(
+      axe.violations.filter(
+        (item) => item.impact === 'serious' || item.impact === 'critical',
+      ),
+    ).toEqual([])
+    await page.screenshot({
+      path: join(reviewRoot, `overlaps-create-${width}.png`),
+      fullPage: true,
+    })
+  }
+  let fail = false
+  let release = () => {}
+  let held: Promise<void> | undefined
+  await page.route(`**${forecastPath}`, async (route) => {
+    if (held !== undefined) await held
+    if (fail)
+      await route.fulfill({
+        status: 503,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'unavailable' }),
+      })
+    else await route.continue()
+  })
+  try {
+    held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await select(2, 'Overlap Gamma', true)
+    await expect(disclosure).toContainText('previous result')
+    await expect(disclosure).toContainText('file forecast — 5 entries')
+    const recalculated = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === forecastPath,
+    )
+    release()
+    held = undefined
+    const recalculatedResponse = await recalculated
+    expect(
+      recalculatedResponse.status(),
+      await recalculatedResponse.text(),
+    ).toBe(200)
+    await expect(disclosure).toContainText('file forecast — 7 entries')
+    fail = true
+    await select(2, 'Overlap Gamma', false)
+    await expect(disclosure).toContainText('Overlaps are not known yet')
+    await expect(disclosure.locator('.overlaps__items')).toHaveCount(0)
+    fail = false
+    await disclosure.getByRole('button', { name: 'Retry', exact: true }).click()
+    await expect(disclosure).toContainText('file forecast — 5 entries')
+    await select(2, 'Overlap Gamma', true)
+    await select(1, 'Overlap Beta', false)
+    await expect(disclosure).toContainText('No identical rules or containment')
+    await select(1, 'Overlap Beta', true)
+    await select(2, 'Overlap Gamma', false)
+    await expect(disclosure).toContainText('file forecast — 5 entries')
+  } finally {
+    release()
+  }
+  expect(writes).toEqual([])
+  expect(await (await page.request.get(`${origin}/v1/lists`)).text()).toBe(
+    beforeRoutes,
+  )
+  for (const [index, id] of ids.entries())
+    expect(
+      await (
+        await page.request.get(`${origin}/v1/services/${id}/contents`)
+      ).text(),
+    ).toBe(beforeContents[index])
+  inspecting = false
+  const built = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/v1\/outputs\/[a-f0-9]{32}\/build$/.test(
+        new URL(response.url()).pathname,
+      ),
+  )
+  await page.getByRole('button', { name: 'Create and prepare' }).click()
+  expect((await built).ok()).toBe(true)
+  await page.getByRole('tab', { name: 'Contents', exact: true }).click()
+  const editor = page.locator('.editor')
+  const editorDisclosure = editor
+    .locator('details')
+    .filter({ hasText: 'List overlaps' })
+  await editorDisclosure.locator('summary').click()
+  await expect(editorDisclosure).toContainText('file forecast — 5 entries')
+  await expect(editorDisclosure.locator('.overlaps__item')).toHaveCount(2)
+  await expect(
+    editor.getByRole('button', { name: 'Save and rebuild', exact: true }),
+  ).toBeDisabled()
+  expect(errors).toEqual([])
+  assertProductAlive()
+})
+
 function formatList(page: Page): Locator {
   return page.getByRole('listbox')
 }

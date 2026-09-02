@@ -49,6 +49,12 @@ Sections, addressable by URL:
    under the field; a pair that cannot build is refused before it exists,
    with a fitting format named and switchable in one click. The forecast
    guards — an unknown forecast never blocks creation.
+   A collapsed **List overlaps / Пересечения списков** disclosure explains
+   identical typed rules and cross-list containment from that same forecast
+   plan. It names the format and the contributing lists; owner links open the
+   library in another tab. A retained answer is marked as updating, an
+   unavailable answer offers retry, and at most 100 details are shown with
+   explicit truncation. These relations are not a claim of device-rule savings.
 3. `/lists/{listId}` — **The route page.** One object with its facets as tabs:
    Contents · Connection · File · Diagnostics; the active tab and the
    first-setup handoff travel in the URL hash (`#tab=…&setup=…`) because the
@@ -59,7 +65,9 @@ Sections, addressable by URL:
    control drawn as a bin, never as a cross — a cross means "close", and the
    catalog picker that opens beneath the rows behind «Добавить списки» has
    its own header and its own «Скрыть»; choosing is the composer's job and
-   reviewing is this page's. Save
+   reviewing is this page's.
+   The overlap disclosure uses the first connection's format, like the row
+   weights, and names that connection explicitly. Save
    is enabled only once the draft differs from the stored route, cancel
    restores it, and an output the draft would overflow is warned about beside
    the save action without blocking it. **The picker selects and writes nothing else** (ADR 0029). Every

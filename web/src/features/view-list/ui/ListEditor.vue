@@ -13,6 +13,7 @@ import {
 import { useCompositionForecast } from '@/entities/list-composition/model/forecast'
 import ServiceDetailDialog from '@/entities/list-composition/ui/ServiceDetailDialog.vue'
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
+import CompositionOverlaps from '@/entities/list-composition/ui/CompositionOverlaps.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { CategoryDetail, ServiceDetail } from '@/shared/api/catalog'
 import type { ListComposition } from '@/shared/api/lists'
@@ -348,6 +349,15 @@ function reset(): void {
         />
       </fieldset>
     </section>
+
+    <CompositionOverlaps
+      v-if="resolved.length > 1 && props.outputs[0] !== undefined"
+      :forecast="forecast.forTarget(props.outputs[0].targetID)"
+      :pending="forecast.pending.value"
+      :services="props.services"
+      :target-title="props.outputs[0].title"
+      @retry="forecast.request(draftComposition, resolved, forecastTargets)"
+    />
 
     <p class="editor__note">{{ t('list.edit.note') }}</p>
 

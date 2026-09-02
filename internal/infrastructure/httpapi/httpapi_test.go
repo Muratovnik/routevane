@@ -273,6 +273,7 @@ func (f *fakeBackend) ForecastComposition(_ context.Context, composition applica
 		if !ok {
 			return nil, errors.New("invalid forecast target")
 		}
+		forecast.Overlaps = application.CompositionOverlaps{Items: []application.CompositionOverlap{}}
 		forecasts = append(forecasts, forecast)
 	}
 	return forecasts, nil
@@ -919,8 +920,8 @@ func TestCompositionForecastAnswersEveryRequestedTargetWithItsOwnNumbers(t *test
 	server.Handler().ServeHTTP(response, mutationRequest(t, "/v1/lists/preview",
 		`{"services":["youtube","twitch"],"categories":["video"],"exclusions":["vimeo"],"service_domains":{"youtube":["custom.example"]},"targets":["keenetic","singbox"]}`))
 	const want = `{"targets":[` +
-		`{"target_id":"keenetic","maximum_rules":1024,"projected_rules":1742,"fits":false,"per_service":[{"service_id":"twitch","rules":1230},{"service_id":"youtube","rules":512}]},` +
-		`{"target_id":"singbox","maximum_rules":8192,"projected_rules":1742,"fits":true,"per_service":[{"service_id":"twitch","rules":1230},{"service_id":"youtube","rules":512}]}` +
+		`{"target_id":"keenetic","maximum_rules":1024,"projected_rules":1742,"fits":false,"per_service":[{"service_id":"twitch","rules":1230},{"service_id":"youtube","rules":512}],"overlaps":{"items":[],"truncated":false}},` +
+		`{"target_id":"singbox","maximum_rules":8192,"projected_rules":1742,"fits":true,"per_service":[{"service_id":"twitch","rules":1230},{"service_id":"youtube","rules":512}],"overlaps":{"items":[],"truncated":false}}` +
 		`]}` + "\n"
 	if response.Code != http.StatusOK || response.Body.String() != want {
 		t.Fatalf("code=%d body=%s want=%s", response.Code, response.Body.String(), want)

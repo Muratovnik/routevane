@@ -27,6 +27,27 @@ export const localeNames: Record<Locale, string> = {
 }
 
 const ru: Dictionary = {
+  'overlaps.title': 'Пересечения списков',
+  'overlaps.loading': 'Считаем пересечения…',
+  'overlaps.stale': 'Обновляем расчёт; ниже предыдущий результат.',
+  'overlaps.unavailable': 'Пересечения пока неизвестны',
+  'overlaps.unavailable.body':
+    'Не удалось получить прогноз для этого состава. Повторите расчёт.',
+  'overlaps.projection': '{target}: прогноз файла — {count} записей.',
+  'overlaps.meaning':
+    'Одинаковые правила и покрытие показаны отдельно от размера файла. Формат определяет, какие записи объединяются.',
+  'overlaps.empty': 'Между списками нет одинаковых правил или покрытия.',
+  'overlaps.duplicate': 'Одинаковое правило',
+  'overlaps.covered': 'Покрытие другим списком',
+  'overlaps.covering': 'Покрывается правилом',
+  'overlaps.truncated':
+    'Показаны первые {count} пересечений. Есть ещё; сузьте состав для подробного разбора.',
+  'overlaps.rule.domain_exact': 'Только этот домен',
+  'overlaps.rule.domain_suffix': 'Домен и поддомены',
+  'overlaps.rule.ipv4': 'IPv4-адрес',
+  'overlaps.rule.ipv6': 'IPv6-адрес',
+  'overlaps.rule.prefix4': 'IPv4-сеть',
+  'overlaps.rule.prefix6': 'IPv6-сеть',
   'shell.product': 'Routevane',
   'shell.nav': 'Разделы',
   'shell.nav.library': 'Маршруты',
@@ -671,6 +692,28 @@ const ru: Dictionary = {
 }
 
 const en: Dictionary = {
+  'overlaps.title': 'List overlaps',
+  'overlaps.loading': 'Calculating overlaps…',
+  'overlaps.stale':
+    'Updating the calculation; the previous result is shown below.',
+  'overlaps.unavailable': 'Overlaps are not known yet',
+  'overlaps.unavailable.body':
+    'The forecast for this composition could not be read. Try the calculation again.',
+  'overlaps.projection': '{target}: file forecast — {count} entries.',
+  'overlaps.meaning':
+    'Identical rules and containment are separate from file size. The format determines which entries are combined.',
+  'overlaps.empty': 'No identical rules or containment between these lists.',
+  'overlaps.duplicate': 'Identical rule',
+  'overlaps.covered': 'Covered by another list',
+  'overlaps.covering': 'Covered by rule',
+  'overlaps.truncated':
+    'Showing the first {count} overlaps. There are more; narrow the composition to inspect them.',
+  'overlaps.rule.domain_exact': 'Only this domain',
+  'overlaps.rule.domain_suffix': 'Domain and subdomains',
+  'overlaps.rule.ipv4': 'IPv4 address',
+  'overlaps.rule.ipv6': 'IPv6 address',
+  'overlaps.rule.prefix4': 'IPv4 network',
+  'overlaps.rule.prefix6': 'IPv6 network',
   'shell.product': 'Routevane',
   'shell.nav': 'Sections',
   'shell.nav.library': 'Routes',

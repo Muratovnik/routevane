@@ -144,6 +144,70 @@ const draft = {
   serviceDomains: {},
 }
 
+describe('forecast overlap contract', () => {
+  const entry = {
+    rule_kind: 'domain_suffix',
+    value: 'shared.example',
+    services: ['alpha', 'beta'],
+  }
+  it('keeps typed ownership and the explicit detail limit', async () => {
+    answer(
+      forecastPayload({
+        overlaps: { items: [{ kind: 'duplicate', entry }], truncated: true },
+      }),
+    )
+    const result = await previewComposition(draft)
+    expect(result[0]?.overlaps).toEqual({
+      items: [
+        {
+          kind: 'duplicate',
+          entry: {
+            ruleKind: 'domain_suffix',
+            value: 'shared.example',
+            services: ['alpha', 'beta'],
+          },
+        },
+      ],
+      truncated: true,
+    })
+  })
+  it('refuses missing truncation, self-coverage and malformed relations', async () => {
+    for (const overlaps of [
+      { items: [] },
+      { items: [{ kind: 'similar', entry }], truncated: false },
+      {
+        items: [
+          { kind: 'duplicate', entry: { ...entry, services: ['alpha'] } },
+        ],
+        truncated: false,
+      },
+      {
+        items: [
+          {
+            kind: 'covered',
+            entry: { ...entry, services: ['alpha'] },
+            covering: entry,
+          },
+        ],
+        truncated: false,
+      },
+      { items: [{ kind: 'covered', entry }], truncated: false },
+      {
+        items: Array.from({ length: 101 }, () => ({
+          kind: 'duplicate',
+          entry,
+        })),
+        truncated: true,
+      },
+    ]) {
+      answer(forecastPayload({ overlaps }))
+      await expect(previewComposition(draft)).rejects.toBeInstanceOf(
+        RoutevaneAPIError,
+      )
+    }
+  })
+})
+
 function requirementsPayload(requirements: Record<string, unknown>): unknown {
   return {
     targets: [

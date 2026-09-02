@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue'
 
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
+import CompositionOverlaps from '@/entities/list-composition/ui/CompositionOverlaps.vue'
 import { useCreateList } from '@/features/create-list/model/useCreateList'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { ChoiceGroup } from '@/shared/ui/kinds'
@@ -187,6 +188,18 @@ async function submit(): Promise<void> {
           tone="warning"
         />
       </div>
+
+      <CompositionOverlaps
+        v-if="
+          setup.resolvedServiceIDs.value.length > 1 &&
+          setup.selectedTargetID.value !== ''
+        "
+        :forecast="setup.selectedForecast.value"
+        :pending="setup.forecastPending.value"
+        :services="setup.services.value"
+        :target-title="setup.selectedTargetTitle.value"
+        @retry="setup.retryForecast"
+      />
 
       <div class="create__submit">
         <RvStateNotice

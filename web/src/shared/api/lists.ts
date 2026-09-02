@@ -113,6 +113,22 @@ export type ForecastService = {
   rules: number
 }
 
+export type OverlapValue = {
+  ruleKind:
+    'domain_exact' | 'domain_suffix' | 'ipv4' | 'ipv6' | 'prefix4' | 'prefix6'
+  value: string
+  services: string[]
+}
+
+export type CompositionOverlap =
+  | { kind: 'duplicate'; entry: OverlapValue; covering?: undefined }
+  | { kind: 'covered'; entry: OverlapValue; covering: OverlapValue }
+
+export type CompositionOverlaps = {
+  items: CompositionOverlap[]
+  truncated: boolean
+}
+
 export type TargetForecast = {
   targetID: string
   // Zero means the format states no bound, which is a different fact from a
@@ -125,6 +141,8 @@ export type TargetForecast = {
   fits: boolean
   // Every resolved service, including the ones that contribute nothing.
   perService: ForecastService[]
+  // Missing on an older server means unknown, never "no overlaps".
+  overlaps?: CompositionOverlaps
 }
 
 /**
@@ -343,6 +361,50 @@ const forecastServiceSchema = v.pipe(
   })),
 )
 
+const overlapValueSchema = v.pipe(
+  fields({
+    rule_kind: v.picklist([
+      'domain_exact',
+      'domain_suffix',
+      'ipv4',
+      'ipv6',
+      'prefix4',
+      'prefix6',
+    ]),
+    value: text,
+    services: v.pipe(texts, v.minLength(1)),
+  }),
+  v.transform((value): OverlapValue => ({
+    ruleKind: value.rule_kind,
+    value: value.value,
+    services: value.services,
+  })),
+)
+
+const overlapSchema = v.union([
+  v.pipe(
+    fields({ kind: v.literal('duplicate'), entry: overlapValueSchema }),
+    v.check((item) => new Set(item.entry.services).size > 1),
+  ),
+  v.pipe(
+    fields({
+      kind: v.literal('covered'),
+      entry: overlapValueSchema,
+      covering: overlapValueSchema,
+    }),
+    v.check(
+      (item) =>
+        item.entry.services.length === 1 &&
+        item.covering.services.every((id) => !item.entry.services.includes(id)),
+    ),
+  ),
+])
+
+const overlapsSchema = fields({
+  items: v.pipe(v.array(overlapSchema), v.maxLength(100)),
+  truncated: v.boolean(),
+})
+
 const forecastSchema = v.pipe(
   fields({
     target_id: text,
@@ -350,6 +412,7 @@ const forecastSchema = v.pipe(
     projected_rules: count,
     fits: v.boolean(),
     per_service: v.array(forecastServiceSchema),
+    overlaps: v.optional(overlapsSchema),
   }),
   v.transform((forecast): TargetForecast => ({
     targetID: forecast.target_id,
@@ -357,6 +420,7 @@ const forecastSchema = v.pipe(
     projectedRules: forecast.projected_rules,
     fits: forecast.fits,
     perService: forecast.per_service,
+    ...(forecast.overlaps === undefined ? {} : { overlaps: forecast.overlaps }),
   })),
 )
 

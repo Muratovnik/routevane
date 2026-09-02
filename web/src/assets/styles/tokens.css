@@ -127,6 +127,7 @@
   --rv-dialog-panel-width: 34rem;
   --rv-dialog-panel-height: 40rem;
   --rv-editor-min-height: 14rem;
+  --rv-analysis-height: 24rem;
 
   /* A menu, a select list or a combobox list is a viewport overlay: it starts
      at least as wide as a readable label and never grows past a screenful. */

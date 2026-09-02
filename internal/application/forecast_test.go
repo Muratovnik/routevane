@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -221,5 +222,46 @@ func TestForecastWritesNothing(t *testing.T) {
 	}
 	if len(store.writes) != 0 || len(store.attempts) != 0 {
 		t.Fatalf("a refused forecast wrote through %v / %#v", store.writes, store.attempts)
+	}
+}
+
+func TestForecastOverlapUsesOnlyThePreparedCutoffAndDistinctLists(t *testing.T) {
+	store := &forecastGuardStore{publicationFakeStore: &publicationFakeStore{}}
+	files := &publicationFakeFiles{}
+	service := forecastTestService(t, store, files)
+	service.config.Categories["other"] = domain.CategoryDefinition{ID: "other", Services: []string{"youtube"}}
+	ctx := context.Background()
+	read := func(composition ListComposition) CompositionForecast {
+		t.Helper()
+		result, err := service.ForecastComposition(ctx, composition, []string{"unbounded"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return result[0]
+	}
+	a := read(ListComposition{Services: []string{"youtube"}})
+	b := read(ListComposition{Services: []string{"discord"}})
+	ab := read(ListComposition{Services: []string{"youtube", "discord"}, Categories: []string{"video", "other"}})
+	if len(a.Overlaps.Items) != 0 || len(b.Overlaps.Items) != 0 || ab.Overlaps.Truncated || len(ab.Overlaps.Items) != 1 {
+		t.Fatalf("a=%#v b=%#v ab=%#v", a, b, ab)
+	}
+	item := ab.Overlaps.Items[0]
+	if item.Kind != "duplicate" || item.Entry.Value != "198.51.100.8" || !slices.Equal(item.Entry.Services, []string{"discord", "youtube"}) {
+		t.Fatalf("overlap=%#v", item)
+	}
+	if !reflect.DeepEqual(a, read(ListComposition{Services: []string{"youtube"}})) || !reflect.DeepEqual(b, read(ListComposition{Services: []string{"discord"}})) {
+		t.Fatal("combined preview changed an individual list")
+	}
+	if got := read(ListComposition{Categories: []string{"video", "other"}}); len(got.Overlaps.Items) != 0 {
+		t.Fatal("one list selected through two categories overlaps itself")
+	}
+	cutoff := service.config.Clock.Now().Add(2 * time.Hour)
+	service.config.Clock = ClockFunc(func() time.Time { return cutoff })
+	expired := read(ListComposition{Services: []string{"youtube", "discord"}})
+	if len(expired.Overlaps.Items) != 0 || expired.ProjectedRules != 3 {
+		t.Fatalf("expired evidence entered overlap/projection: %#v", expired)
+	}
+	if len(store.writes) != 0 || files.puts != 0 {
+		t.Fatal("overlap preview wrote state or artifacts")
 	}
 }

@@ -79,6 +79,7 @@ function unobserved(reason: unknown): boolean {
  */
 export function useCompositionForecast(delay = settleDelay) {
   const forecasts = ref<TargetForecast[]>([])
+  const pending = ref(false)
   // True only while sources are being read for a forecast. It explains a wait;
   // it never gates anything.
   const observing = ref(false)
@@ -110,11 +111,15 @@ export function useCompositionForecast(delay = settleDelay) {
   }
 
   async function read(next: Ask, retried: boolean): Promise<void> {
-    const outcome = await attemptRead(next)
-    // A draft that was already read once and still cannot be weighed is a
-    // draft this surface has no forecast for. It says so by saying nothing.
-    if (retried || outcome !== 'unread') return
-    await observeThenRetry(next)
+    try {
+      const outcome = await attemptRead(next)
+      // A draft that was already read once and still cannot be weighed is a
+      // draft this surface has no forecast for. It says so by saying nothing.
+      if (retried || outcome !== 'unread') return
+      await observeThenRetry(next)
+    } finally {
+      if (next.attempt === issued) pending.value = false
+    }
   }
 
   async function observeThenRetry(next: Ask): Promise<void> {
@@ -146,6 +151,7 @@ export function useCompositionForecast(delay = settleDelay) {
     targets: string[] = [],
   ): void {
     issued += 1
+    pending.value = resolved.length > 0
     if (resolved.length === 0) {
       ask.cancel()
       forecasts.value = []
@@ -156,6 +162,7 @@ export function useCompositionForecast(delay = settleDelay) {
 
   function forget(): void {
     issued += 1
+    pending.value = false
     ask.cancel()
     forecasts.value = []
   }
@@ -165,5 +172,5 @@ export function useCompositionForecast(delay = settleDelay) {
     ask.cancel()
   })
 
-  return { forTarget, forecasts, forget, observing, request }
+  return { forTarget, forecasts, forget, observing, pending, request }
 }

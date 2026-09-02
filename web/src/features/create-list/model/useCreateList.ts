@@ -267,6 +267,9 @@ export function useCreateList() {
     initialize,
     name,
     observing: forecast.observing,
+    forecastPending: forecast.pending,
+    retryForecast: () =>
+      forecast.request(composition.value, resolvedServiceIDs.value),
     registerCatalog,
     resolvedServiceIDs,
     selectedCategoryIDs,

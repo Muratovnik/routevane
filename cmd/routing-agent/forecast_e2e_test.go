@@ -113,8 +113,8 @@ func TestServeForecastsACompositionBeforeItIsCreated(t *testing.T) {
 
 	forecast := postJSON(t, origin+"/v1/lists/preview", `{"services":["alpha","beta"],"targets":["pocket","keenetic"]}`)
 	const want = `{"targets":[` +
-		`{"target_id":"keenetic","maximum_rules":1024,"projected_rules":2,"fits":true,"per_service":[{"service_id":"alpha","rules":1},{"service_id":"beta","rules":1}]},` +
-		`{"target_id":"pocket","maximum_rules":1,"projected_rules":2,"fits":false,"per_service":[{"service_id":"alpha","rules":1},{"service_id":"beta","rules":1}]}` +
+		`{"target_id":"keenetic","maximum_rules":1024,"projected_rules":2,"fits":true,"per_service":[{"service_id":"alpha","rules":1},{"service_id":"beta","rules":1}],"overlaps":{"items":[],"truncated":false}},` +
+		`{"target_id":"pocket","maximum_rules":1,"projected_rules":2,"fits":false,"per_service":[{"service_id":"alpha","rules":1},{"service_id":"beta","rules":1}],"overlaps":{"items":[],"truncated":false}}` +
 		`]}` + "\n"
 	if string(forecast) != want {
 		t.Fatalf("forecast = %s\nwant     = %s", forecast, want)
