@@ -45,6 +45,10 @@ package-manager permission for browser system libraries. No user browser profile
 is used. Do not approve arbitrary dependency install scripts: approvals are
 version-pinned in package.json.
 
+`doctor` checks workflow YAML with the parser already pinned in `go.mod`; its
+first run may populate the Go module/build caches. It needs no extra Python
+package or installed frontend dependencies.
+
 Client settings are not build prerequisites. Ignored preferences and personal
 skills are not inspected as repository source. `.codex/config.toml` and
 `.claude/settings.json` are ignored by default here, but reviewed portable shared

@@ -99,7 +99,7 @@ function Invoke-GoSecurity {
 }
 
 function Invoke-GoCheck {
-    $GoRoots = @('cmd', 'sdk', 'examples' | ForEach-Object { Join-Path $RepositoryRoot $_ })
+    $GoRoots = @('cmd', 'sdk', 'examples', 'tools' | ForEach-Object { Join-Path $RepositoryRoot $_ })
     $InternalRoot = Join-Path $RepositoryRoot 'internal'
     if (Test-Path -LiteralPath $InternalRoot -PathType Container) {
         $GoRoots += $InternalRoot
@@ -539,7 +539,7 @@ try {
             Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'))
         }
         'format' {
-            $GoRoots = @('cmd', 'sdk', 'examples' | ForEach-Object { Join-Path $RepositoryRoot $_ })
+            $GoRoots = @('cmd', 'sdk', 'examples', 'tools' | ForEach-Object { Join-Path $RepositoryRoot $_ })
             if (Test-Path -LiteralPath (Join-Path $RepositoryRoot 'internal')) { $GoRoots += (Join-Path $RepositoryRoot 'internal') }
             $GoFiles = Get-ChildItem -LiteralPath $GoRoots -Filter '*.go' -File -Recurse | ForEach-Object { $_.FullName }
             Invoke-Checked $GoFmtExecutable (@('-w') + $GoFiles)
