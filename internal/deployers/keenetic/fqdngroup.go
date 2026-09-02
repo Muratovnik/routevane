@@ -68,6 +68,11 @@ func (d *FQDNDeployer) Probe(ctx context.Context, connection application.Connect
 	if err := session.requireInterface(ctx, info.Interface); err != nil {
 		return info, err
 	}
+	// Refuse incompatible route policy at probe, before the lifecycle reaches
+	// backup/deploy/rollback. Deploy reads again to catch subsequent drift.
+	if _, _, err := session.ownedGroups(ctx); err != nil {
+		return info, err
+	}
 	info.ProfileKey = keeneticdns.Version
 	return info, nil
 }
@@ -332,6 +337,7 @@ func (s *session) ownedGroups(ctx context.Context) (map[string][]string, map[str
 	var attached []struct {
 		Group     string `json:"group"`
 		Interface string `json:"interface"`
+		Reject    bool   `json:"reject"`
 	}
 	if err := s.command(ctx, "/rci/dns-proxy/route", nil, &attached); err != nil {
 		return nil, nil, err
@@ -342,7 +348,16 @@ func (s *session) ownedGroups(ctx context.Context) (map[string][]string, map[str
 		if !ownedGroupName(name) {
 			continue
 		}
-		routes[name] = strings.TrimSpace(route.Interface)
+		// This artifact creates non-exclusive routes. An exclusive route is
+		// different policy, not an idempotent match to silently keep or replace.
+		attached := strings.TrimSpace(route.Interface)
+		if route.Reject || attached == "" {
+			return nil, nil, fmt.Errorf("%w: unsupported route for group %q", ErrDeviceAnswer, name)
+		}
+		if previous, exists := routes[name]; exists && previous != attached {
+			return nil, nil, fmt.Errorf("%w: ambiguous route for group %q", ErrDeviceAnswer, name)
+		}
+		routes[name] = attached
 	}
 	return groups, routes, nil
 }

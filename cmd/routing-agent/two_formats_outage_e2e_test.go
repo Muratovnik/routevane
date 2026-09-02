@@ -197,6 +197,39 @@ func TestPublishesOneProfileInTwoPracticallyDifferentFormatsAndSurvivesAFeedOuta
 	if third := downloadArtifact(t, origin, routerBuild.Artifact.ID); string(third.body) != string(router.body) {
 		t.Fatalf("published artifacts must stay immutable: %s", third.body)
 	}
+	// With both sources unavailable and their grace exhausted, an address-only
+	// candidate is empty. Refuse it without moving the last-good publication.
+	resolver.set(nil)
+	now = now.Add(48 * time.Hour)
+	if failed := postGuarded(t, origin+"/v1/lists/"+listID+"/refresh"); failed.status != http.StatusUnprocessableEntity {
+		t.Fatalf("all-source outage refresh=%d %s", failed.status, failed.body)
+	}
+	if failed := postGuarded(t, origin+"/v1/outputs/"+routerOutput+"/build"); failed.status != http.StatusUnprocessableEntity {
+		t.Fatalf("empty candidate was accepted: %d %s", failed.status, failed.body)
+	}
+	var detail struct {
+		Outputs []struct {
+			ID     string `json:"id"`
+			Latest struct {
+				ID string `json:"id"`
+			} `json:"latest"`
+		} `json:"outputs"`
+	}
+	if err := json.Unmarshal(httpGet(t, origin+"/v1/lists/"+listID, nil).body, &detail); err != nil {
+		t.Fatal(err)
+	}
+	latest := ""
+	for _, output := range detail.Outputs {
+		if output.ID == routerOutput {
+			latest = output.Latest.ID
+		}
+	}
+	if latest != expiredBuild.Artifact.ID {
+		t.Fatalf("failed candidate moved publication: latest=%s", latest)
+	}
+	if retained := downloadArtifact(t, origin, expiredBuild.Artifact.ID); retained.status != http.StatusOK || string(retained.body) != string(expired.body) {
+		t.Fatal("all-source outage changed the last-good artifact")
+	}
 }
 
 // addOutput binds an existing list to one more format. Two devices sharing

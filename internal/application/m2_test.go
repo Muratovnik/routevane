@@ -235,6 +235,27 @@ func TestBuildServicesParsedOutputExcludesStaleAndInjectedBroadMetadata(t *testi
 	}
 }
 
+func TestBuildServicesFreshEvidenceSurvivesAnExpiredSightingOfTheSameAddress(t *testing.T) {
+	now := time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC)
+	definition := m2Definition("example")
+	fresh := m2Sighting("example", "192.0.2.1", now.Add(time.Hour))
+	stale := fresh
+	stale.SourceID = "old-source"
+	stale.ValidUntil = now
+	for _, sightings := range [][]domain.Sighting{{stale, fresh}, {fresh, stale}} {
+		store := &m2Store{snapshots: map[string]PlanningSnapshot{"example": m2Snapshot(definition, sightings)}}
+		output := &m2Output{}
+		_, err := BuildServices(context.Background(), []domain.ServiceDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, keenetic.Renderer{}, output, ClockFunc(func() time.Time { return now }))
+		if err != nil {
+			t.Fatal(err)
+		}
+		parsed, err := keenetic.Parse(output.payload)
+		if err != nil || len(parsed) != 1 || parsed[0].Prefix.String() != "192.0.2.1/32" {
+			t.Fatalf("fresh evidence was lost: parsed=%#v err=%v", parsed, err)
+		}
+	}
+}
+
 func TestPreflightRejectsStaleAndInjectedSemanticHash(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	definition := m2Definition("example")

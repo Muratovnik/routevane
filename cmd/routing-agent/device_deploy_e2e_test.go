@@ -7,11 +7,13 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -38,6 +40,10 @@ type fakeKeeneticDevice struct {
 	restores      int
 	drift         bool
 	bodies        []string
+	backupRoutes  map[string]string
+	partialState  map[string]string
+	failAfterAdd  bool
+	cancelApply   context.CancelFunc
 }
 
 func newFakeKeeneticDevice() *fakeKeeneticDevice {
@@ -94,14 +100,28 @@ func (d *fakeKeeneticDevice) handler() http.Handler {
 			writeDeviceJSON(w, map[string]any{"route": routes})
 		case r.URL.Path == "/ci/startup-config" && r.Method == http.MethodGet:
 			d.mu.Lock()
-			config := append([]byte(nil), d.config...)
+			// Give each captured state distinct configuration bytes. Restore below
+			// accepts those exact bytes, never the union of before and partial apply.
+			var snapshot strings.Builder
+			snapshot.WriteString("! startup-config\nsystem hostname router\n")
+			for _, key := range slices.Sorted(maps.Keys(d.routes)) {
+				parts := strings.SplitN(key, "/", 2)
+				snapshot.WriteString("ip route " + parts[0] + " " + parts[1] + " " + d.routes[key] + "\n")
+			}
+			d.config = []byte(snapshot.String())
+			d.backupRoutes = maps.Clone(d.routes)
+			config := slices.Clone(d.config)
 			d.mu.Unlock()
 			_, _ = w.Write(config)
 		case r.URL.Path == "/ci/startup-config" && r.Method == http.MethodPost:
 			d.mu.Lock()
-			d.config = []byte(body)
+			if body != string(d.config) {
+				d.mu.Unlock()
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 			d.restores++
-			d.routes = map[string]string{}
+			d.routes = maps.Clone(d.backupRoutes)
 			d.mu.Unlock()
 			w.WriteHeader(http.StatusOK)
 		case r.URL.Path == "/rci/system/configuration/save":
@@ -138,6 +158,14 @@ func (d *fakeKeeneticDevice) apply(w http.ResponseWriter, body string) {
 			delete(d.routes, network+"/"+mask)
 		} else {
 			d.routes[network+"/"+mask] = attached
+		}
+		if d.failAfterAdd && !remove {
+			d.partialState = maps.Clone(d.routes)
+			if d.cancelApply != nil {
+				d.cancelApply()
+			}
+			answers = append(answers, map[string]any{"status": []map[string]any{{"status": "error", "code": "partial.write"}}})
+			break
 		}
 		answers = append(answers, map[string]any{"status": []map[string]any{{"status": "message", "code": "route.applied"}}})
 	}
@@ -302,6 +330,75 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 		if strings.Contains(body, devicePassword) {
 			t.Fatalf("the credential was sent to the device in cleartext: %s", body)
 		}
+	}
+}
+
+func TestPartialDeviceWriteRestoresTheExactBeforeStateEvenAfterCancellation(t *testing.T) {
+	for _, cancelCaller := range []bool{false, true} {
+		t.Run(map[bool]string{false: "device rejection", true: "caller cancellation"}[cancelCaller], func(t *testing.T) {
+			catalog := filepath.Join("..", "..", "testdata", "expiry", "catalog")
+			data := filepath.Join(t.TempDir(), "data")
+			now := time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC)
+			resolver := &hostAddressResolver{}
+			resolver.set(map[string][]string{"youtube.expiry.test": {"192.0.2.10"}, "discord.expiry.test": {"198.51.100.20"}})
+			origin, stop, done, stderr := startServeServerWithHostResolver(t, catalog, data, resolver, func() time.Time { return now })
+			defer func() {
+				stop()
+				if code := <-done; code != 0 {
+					t.Errorf("serve=%d %s", code, stderr.String())
+				}
+			}()
+			listID, outputID, _ := createListOutput(t, origin, "Recovery", "keenetic", "youtube", "discord")
+			build := refreshAndBuild(t, origin, listID, outputID)
+			beforeArtifact := downloadArtifact(t, origin, build.Artifact.ID)
+			device := newFakeKeeneticDevice()
+			before := map[string]string{"192.0.2.99/255.255.255.255": deviceInterfaceName, "203.0.113.7/255.255.255.255": "ISP"}
+			device.routes = maps.Clone(before)
+			device.failAfterAdd = true
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if cancelCaller {
+				device.cancelApply = cancel
+			}
+			server := httptest.NewServer(device.handler())
+			defer server.Close()
+			deps := runtimeDeps{Resolver: resolver, DeviceDialer: redirectDialer{target: server.Listener.Addr().String()}, Now: func() time.Time { return now }, Context: ctx}
+			args := []string{"deploy", "--artifact", build.Artifact.ID, "--target", "keenetic", "--device", "http://192.168.1.1", "--user", deviceUser, "--interface", deviceInterfaceName, "--catalog-dir", catalog, "--data-dir", data, "--confirm"}
+			t.Setenv(DevicePasswordVariable, devicePassword)
+			stdout, deployStderr := &syncBuffer{}, &syncBuffer{}
+			if code := runWithDeps(stdout, deployStderr, args, deps); code == 0 {
+				t.Fatal("partial write reported success")
+			}
+			var report deployReport
+			if err := json.Unmarshal([]byte(stdout.String()), &report); err != nil {
+				t.Fatalf("report=%s error=%v", stdout.String(), err)
+			}
+			if report.Applied || !report.RolledBack {
+				t.Fatalf("recovery=%#v stderr=%s", report, deployStderr.String())
+			}
+			device.mu.Lock()
+			after, partial, restores := maps.Clone(device.routes), maps.Clone(device.partialState), device.restores
+			device.mu.Unlock()
+			if maps.Equal(partial, before) || partial["192.0.2.10/255.255.255.255"] == "" && partial["198.51.100.20/255.255.255.255"] == "" {
+				t.Fatalf("fixture never partially installed a new destination: %v", partial)
+			}
+			if partial["203.0.113.7/255.255.255.255"] != "ISP" || !maps.Equal(after, before) || restores != 1 {
+				t.Fatalf("recovery accumulated or lost state: before=%v partial=%v after=%v restores=%d", before, partial, after, restores)
+			}
+			if cancelCaller && ctx.Err() == nil {
+				t.Fatal("the caller never cancelled")
+			}
+			if afterArtifact := downloadArtifact(t, origin, build.Artifact.ID); !slices.Equal(beforeArtifact.body, afterArtifact.body) {
+				t.Fatal("device failure changed the publication")
+			}
+			steps := []string{}
+			for _, event := range report.Events {
+				steps = append(steps, event.Step+":"+event.Outcome)
+			}
+			if strings.Join(steps, ",") != "probe:success,backup:success,deploy:failed,rollback:success" {
+				t.Fatalf("events=%v", steps)
+			}
+		})
 	}
 }
 

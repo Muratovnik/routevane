@@ -358,9 +358,17 @@ The first call changes nothing. A confirmed deployment probes the firmware,
 refuses an incompatible one before touching the device, stores and verifies a
 configuration backup, installs exactly the artifact's routes on the named
 interface, reads the device's route table back, and rolls back from that backup
-if verification fails. A route on another interface is never touched and a
-repeated deployment changes nothing. Every step is recorded with its outcome and
-duration; no credential appears in the record.
+if deployment or verification fails. Reconciliation leaves routes on other
+interfaces alone, and a repeated deployment changes nothing. Every step is
+recorded with its outcome and duration; no credential appears in the record.
+
+Keenetic rollback uploads the complete captured configuration, not a scoped
+route delta. Avoid concurrent router changes during delivery: unrelated changes
+made after the backup may also be undone. Physical recovery remains unverified.
+Use an interface ID such as `Wireguard0`, not its description. For DNS-based
+delivery, an exclusive (`reject=true`) or ambiguously attached Routevane group
+is refused before reconciliation; an omitted `reject` or `reject=false` is
+accepted. No automatic conversion of the router's routing policy is performed.
 
 For unattended delivery, register the device under **Connections** with every
 non-secret connection field its deployer requests (Keenetic includes the route
