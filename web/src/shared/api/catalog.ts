@@ -351,11 +351,13 @@ export function loadServiceContents(
   )
 }
 
-export async function refreshService(serviceID: string): Promise<void> {
-  await postJSON(
+export type ServiceRefresh = { skippedEntries: number }
+
+export function refreshService(serviceID: string): Promise<ServiceRefresh> {
+  return postJSON(
     `/v1/services/${encodeURIComponent(serviceID)}/refresh`,
     {},
-    parseAcknowledgement,
+    parseServiceRefresh,
   )
 }
 
@@ -636,3 +638,10 @@ const parseServiceInUse: Decoder<ListReference[]> = decode(
 const parseServices: Decoder<Omit<Catalog, 'targets'>> = decode(servicesSchema)
 const parseTargets: Decoder<TargetOption[]> = decode(targetsSchema)
 const parseAcknowledgement: Decoder<true> = decode(acknowledged)
+
+const parseServiceRefresh: Decoder<ServiceRefresh> = decode(
+  v.pipe(
+    fields({ refresh: fields({ skipped_entries: v.optional(count, 0) }) }),
+    v.transform(({ refresh }) => ({ skippedEntries: refresh.skipped_entries })),
+  ),
+)

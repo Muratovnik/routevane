@@ -58,7 +58,8 @@ function json(payload: unknown, status = 200): Response {
 
 function stubPreview(preview?: () => Promise<Response>) {
   const fetchMock = vi.fn((input: unknown) => {
-    if (String(input).endsWith('/refresh')) return Promise.resolve(json({}))
+    if (String(input).endsWith('/refresh'))
+      return Promise.resolve(json({ refresh: {} }))
     return (preview ?? (() => Promise.resolve(json(forecastPayload))))()
   })
   vi.stubGlobal('fetch', fetchMock)

@@ -285,6 +285,12 @@ const ru: Dictionary = {
   'serviceCard.source.custom': 'Ваш фид',
   'serviceCard.refresh': 'Обновить из источников',
   'serviceCard.refresh.busy': 'Обновляем…',
+  'serviceCard.refresh.skipped': {
+    one: 'Пропущено записей источников: {count}',
+    few: 'Пропущено записей источников: {count}',
+    many: 'Пропущено записей источников: {count}',
+    other: 'Пропущено записей источников: {count}',
+  },
   'serviceCard.observing': 'Читаем источники…',
   'serviceCard.refresh.failed':
     'Не удалось обновить из источников. Прежние данные не тронуты — повторите позже.',
@@ -913,6 +919,10 @@ const en: Dictionary = {
   'serviceCard.source.custom': 'Your feed',
   'serviceCard.refresh': 'Refresh from sources',
   'serviceCard.refresh.busy': 'Refreshing…',
+  'serviceCard.refresh.skipped': {
+    one: '{count} source entry skipped',
+    other: '{count} source entries skipped',
+  },
   'serviceCard.observing': 'Reading the sources…',
   'serviceCard.refresh.failed':
     'The sources could not be refreshed. The previous data is untouched — try again later.',

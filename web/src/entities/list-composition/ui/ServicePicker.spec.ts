@@ -87,7 +87,7 @@ function contentsResponse(observed = true): Response {
 }
 
 function acceptedResponse(): Response {
-  return json({})
+  return json({ refresh: {} })
 }
 
 /**

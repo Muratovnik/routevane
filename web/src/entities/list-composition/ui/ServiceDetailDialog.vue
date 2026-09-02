@@ -103,6 +103,7 @@ const actionError = ref('')
 // Reading the sources is reported where the reading is asked for — the card —
 // while editing which sources there are is reported inside their own panel.
 const refreshError = ref('')
+const refreshSkipped = ref(0)
 const sourceError = ref('')
 const importStatus = ref('')
 const addValuesOpen = ref(false)
@@ -192,6 +193,7 @@ watch(
     domainsError.value = ''
     actionError.value = ''
     refreshError.value = ''
+    refreshSkipped.value = 0
     sourceError.value = ''
     importStatus.value = ''
     addValuesOpen.value = false
@@ -266,10 +268,13 @@ async function runRefresh(automatic: boolean): Promise<void> {
   refreshing.value = true
   observing.value = automatic
   refreshError.value = ''
+  refreshSkipped.value = 0
   try {
-    await refreshService(service.id)
+    const result = await refreshService(service.id)
     const loaded = await loadServiceContents(service.id)
     applyContents(request, loaded)
+    if (request === contentsRequest)
+      refreshSkipped.value = result.skippedEntries
   } catch {
     if (request === contentsRequest)
       refreshError.value = t('serviceCard.refresh.failed')
@@ -841,6 +846,13 @@ function onOpenChange(open: boolean): void {
             role="status"
           >
             {{ importStatus }}
+          </p>
+          <p
+            v-if="refreshSkipped > 0"
+            class="service-card__muted"
+            role="status"
+          >
+            {{ tc('serviceCard.refresh.skipped', refreshSkipped) }}
           </p>
         </template>
 

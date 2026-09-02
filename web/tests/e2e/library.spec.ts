@@ -2276,6 +2276,86 @@ function formatList(page: Page): Locator {
   return page.getByRole('listbox')
 }
 
+test('source skips are visible without changing routes, and clear after a clean refresh', async ({
+  page,
+}) => {
+  const headers = { 'X-Routevane-Request': '1' }
+  const created = await page.request.post(`${origin}/v1/services`, {
+    headers,
+    data: { title: 'Source diagnostic fixture', domains: ['notice.example'] },
+  })
+  expect(created.ok()).toBe(true)
+  const { service } = (await created.json()) as { service: { id: string } }
+  const before = await (await page.request.get(`${origin}/v1/lists`)).text()
+  let skipped = 1
+  let failed = false
+  await page.route(`**/v1/services/${service.id}/refresh`, async (route) => {
+    await route.fulfill({
+      status: failed ? 422 : 200,
+      contentType: 'application/json',
+      body: JSON.stringify(
+        failed
+          ? { error: 'source unavailable' }
+          : { refresh: { skipped_entries: skipped } },
+      ),
+    })
+  })
+  try {
+    await page.goto(`${origin}/library#list=${service.id}`)
+    const card = page.getByRole('dialog', {
+      name: 'Source diagnostic fixture',
+      exact: true,
+    })
+    const refresh = card.getByRole('button', { name: 'Refresh from sources' })
+    await refresh.focus()
+    await page.keyboard.press('Enter')
+    const status = card
+      .getByRole('status')
+      .filter({ hasText: '1 source entry skipped' })
+    await expect(status).toBeVisible()
+    for (const width of [320, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 })
+      await expect(status).toBeVisible()
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true)
+      const accessibility = await new AxeBuilder({ page }).analyze()
+      expect(
+        accessibility.violations.filter(
+          (item) => item.impact === 'serious' || item.impact === 'critical',
+        ),
+      ).toEqual([])
+    }
+    failed = true
+    await refresh.click()
+    await expect(card.getByRole('alert')).toContainText(
+      'The sources could not be refreshed',
+    )
+    await expect(
+      card.getByText('notice.example', { exact: true }),
+    ).toBeVisible()
+    await expect(status).toHaveCount(0)
+    failed = false
+    skipped = 0
+    await refresh.click()
+    await expect(card.getByRole('alert')).toHaveCount(0)
+    await expect(status).toHaveCount(0)
+    expect(await (await page.request.get(`${origin}/v1/lists`)).text()).toBe(
+      before,
+    )
+    await page.keyboard.press('Escape')
+    await expect(card).toBeHidden()
+  } finally {
+    const removed = await page.request.post(
+      `${origin}/v1/services/${service.id}/remove`,
+      { headers, data: {} },
+    )
+    expect(removed.status()).toBe(204)
+  }
+})
+
 async function openFormats(page: Page): Promise<Locator> {
   await page.locator('.rv-combobox__toggle').click()
   await expect(formatList(page)).toBeVisible()

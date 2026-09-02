@@ -1,0 +1,18 @@
+id: kinopub
+title: Kinopub
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: kino.pub
+    component: web
+    source: manual
+sources:
+  - id: v2fly
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/kinopub
+      format: domain-list
+      class: community

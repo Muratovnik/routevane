@@ -98,7 +98,9 @@ function stubNetwork(overrides: Network = {}) {
         overrides.preview ?? (() => Promise.resolve(json(forecastPayload)))
       )()
     if (path.endsWith('/refresh'))
-      return (overrides.refresh ?? (() => Promise.resolve(json({}))))()
+      return (
+        overrides.refresh ?? (() => Promise.resolve(json({ refresh: {} })))
+      )()
     return Promise.reject(new Error(`unexpected request ${path}`))
   })
   vi.stubGlobal('fetch', fetchMock)
@@ -367,7 +369,7 @@ describe('CreateList forecast', () => {
     })
     const fetchMock = stubNetwork({
       preview: () => Promise.resolve(unobserved()),
-      refresh: () => held.then(() => json({})),
+      refresh: () => held.then(() => json({ refresh: {} })),
     })
     const wrapper = mountComposer()
     await flushPromises()

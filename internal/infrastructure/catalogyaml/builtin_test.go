@@ -136,3 +136,35 @@ func TestShippedCursorStaysBoundedToItsOwnDomains(t *testing.T) {
 		t.Fatal("Cursor must be discoverable in Development")
 	}
 }
+
+func TestShippedAdditionalDomainListsHaveOnlyTheirOwnSource(t *testing.T) {
+	catalog, err := Load(context.Background(), filepath.Join(repositoryRoot(t), "catalog"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, candidate := range []struct{ id, title, seed, category string }{
+		{"github-copilot", "GitHub Copilot", "githubcopilot.com", "development"},
+		{"twitch", "Twitch", "twitch.tv", "video"},
+		{"kinopub", "Kinopub", "kino.pub", "video"},
+	} {
+		t.Run(candidate.id, func(t *testing.T) {
+			service, found := catalog.Service(candidate.id)
+			if !found || service.Title != candidate.title {
+				t.Fatalf("missing list %s: %#v", candidate.id, service)
+			}
+			if len(service.Seeds) != 1 || service.Seeds[0].Value != candidate.seed || service.Seeds[0].Kind != domain.RuleDomainSuffix || service.Seeds[0].SourceClass != domain.SourceManual {
+				t.Fatalf("unexpected seeds: %#v", service.Seeds)
+			}
+			if len(service.Sources) != 1 {
+				t.Fatalf("unexpected sources: %#v", service.Sources)
+			}
+			source := service.Sources[0]
+			if source.ID != "v2fly" || source.Type != domain.SourceHTTP || source.Class != domain.SourceCommunity || source.Format != domain.FeedFormatDomainList || source.URL != "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/"+candidate.id {
+				t.Fatalf("source = %#v", source)
+			}
+			if !slices.Contains(catalog.Categories[candidate.category].Services, candidate.id) {
+				t.Fatalf("missing %s membership", candidate.category)
+			}
+		})
+	}
+}

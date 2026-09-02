@@ -5,3 +5,5 @@ services:
   - tiktok
   - hdrezka
   - netflix
+  - twitch
+  - kinopub

@@ -5,3 +5,4 @@ services:
   - github
   - sentry
   - cursor
+  - github-copilot

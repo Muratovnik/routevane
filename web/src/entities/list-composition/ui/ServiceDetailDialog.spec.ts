@@ -129,6 +129,43 @@ describe('ServiceDetailDialog', () => {
     document.body.innerHTML = ''
   })
 
+  it('reports skipped source entries in both languages and clears them on recovery', async () => {
+    let skipped = 2
+    let failed = false
+    stubAPI({
+      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'POST /v1/services/discord/refresh': () =>
+        failed
+          ? json({ error: 'unavailable' }, 422)
+          : json({ refresh: { skipped_entries: skipped } }),
+    })
+    const wrapper = mountCard({ mode: 'library' })
+    await flushPromises()
+    clickByText(card(), 'Refresh from sources')
+    await flushPromises()
+    expect(card().textContent).toContain('2 source entries skipped')
+    useLocale().setLocale('ru')
+    await flushPromises()
+    expect(card().textContent).toContain('Пропущено записей источников: 2')
+    useLocale().setLocale('en')
+    await flushPromises()
+    failed = true
+    clickByText(card(), 'Refresh from sources')
+    await flushPromises()
+    expect(card().textContent).toContain('The sources could not be refreshed')
+    expect(card().querySelectorAll('.service-card__rows li')).toHaveLength(4)
+    expect(card().textContent).not.toContain('source entries skipped')
+    failed = false
+    skipped = 0
+    clickByText(card(), 'Refresh from sources')
+    await flushPromises()
+    expect(card().textContent).not.toContain('source entries skipped')
+    expect(card().textContent).not.toContain(
+      'The sources could not be refreshed',
+    )
+    wrapper.unmount()
+  })
+
   /**
    * Composing reads the list (ADR 0029) and writes nothing at all. A row is
    * the value and where it came from: the card has no way to take one entry

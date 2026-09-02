@@ -93,6 +93,24 @@ Use `--catalog-dir` and `--data-dir` on `refresh`, `build`, `doctor`, and `run`
 to select alternate roots. File and directory modes are restricted where POSIX permissions apply;
 Windows `chmod` is not presented as an ACL isolation boundary.
 
+### Curated domain feeds
+
+Shipped lists declare third-party curation as `community`, not as the vendor's
+official publication. `format: domain-list` collects v2fly domain names,
+including names prefixed with `full:`, and Routevane uses them as suffix rules
+(the named host **and its subdomains**). This is destination discovery, not an
+exact translation of the upstream ruleset. Patterns and remote includes are
+not expanded. Refresh reports `skipped_entries`; the list card shows the count
+after reading a source that contained unsupported or invalid entries.
+
+GitHub Copilot is separate from GitHub. Its upstream feed includes two
+telemetry hosts tagged `@ads`; Routevane retains those destinations and does not
+interpret that tag as a filtering policy. Twitch imports only the named CDN
+hosts, not the whole `cloudfront.net` domain or provider networks. Kinopub
+imports supported names only: its regular-expression entry is skipped, so the
+list does not claim to cover every dynamically named CDN host. See
+[the catalogue policy](adr/0015-external-lists-as-catalog-material.md).
+
 ## Manual Keenetic file build and import
 
 Refresh every service whose current observations should enter the file, then

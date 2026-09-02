@@ -226,8 +226,29 @@ describe('the shape of a value', () => {
       RoutevaneAPIError,
     )
 
-    answer({})
-    await expect(refreshService('discord')).resolves.toBeUndefined()
+    answer({ refresh: {} })
+    await expect(refreshService('discord')).resolves.toEqual({
+      skippedEntries: 0,
+    })
+  })
+
+  it('preserves skipped source entries and refuses malformed counts', async () => {
+    answer({ refresh: { skipped_entries: 2 } })
+    await expect(refreshService('kinopub')).resolves.toEqual({
+      skippedEntries: 2,
+    })
+    for (const payload of [
+      {},
+      { refresh: [] },
+      { refresh: { skipped_entries: -1 } },
+      { refresh: { skipped_entries: 1.5 } },
+      { refresh: { skipped_entries: '1' } },
+    ]) {
+      answer(payload)
+      await expect(refreshService('kinopub')).rejects.toBeInstanceOf(
+        RoutevaneAPIError,
+      )
+    }
   })
 })
 

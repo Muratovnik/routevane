@@ -1,0 +1,18 @@
+id: twitch
+title: Twitch
+components:
+  web:
+    required: true
+seeds:
+  - kind: domain_suffix
+    value: twitch.tv
+    component: web
+    source: manual
+sources:
+  - id: v2fly
+    type: http
+    component: web
+    config:
+      url: https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/twitch
+      format: domain-list
+      class: community
