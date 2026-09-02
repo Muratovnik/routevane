@@ -30,11 +30,14 @@
 /.tools/
 __pycache__/
 
+# Optional client preferences are local by default. Reviewed, portable shared
+# settings can be deliberately added; settings.local.json stays private.
+/.claude/settings.json
+/.codex/config.toml
+
 # Agent-local state
 /.agents/local/
-/.claude/settings.json
 /.claude/settings.local.json
-/.codex/config.toml
 /.codex/workflow.toml
 /.env
 /.env.production
@@ -42,6 +45,8 @@ __pycache__/
 /AGENTS.local.md
 /.codex-log/
 /.serena/
+/.impeccable/
+/.playwright-mcp/
 # Agent working output: review reports and scratch files. Untracked but unignored,
 # it showed up in every status listing and was one `git add -A` from the history.
 /tmp/

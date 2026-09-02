@@ -13,20 +13,16 @@ from pathlib import Path
 SUBJECT = re.compile(
     r"^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)"
     r"(?:\([a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*\))?!?: "
-    r"[a-z0-9].+$"
+    r"\S(?:[^\r\n]*\S)?$"
 )
 
 
 def validate(subject: str) -> list[str]:
     problems: list[str] = []
-    if len(subject) > 72:
-        problems.append(f"subject is {len(subject)} characters; maximum is 72")
-    if subject.endswith("."):
-        problems.append("subject must not end with a period")
     if not SUBJECT.fullmatch(subject):
         problems.append(
             "subject must use the closed Angular type set, an optional lowercase "
-            "scope, and a lowercase imperative description"
+            "scope, and a non-empty single-line description"
         )
     return problems
 

@@ -14,7 +14,10 @@ hard-to-reverse technical choice as an ADR.
   and running processes before structural changes.
 - Workstation services, planning bindings, memory, task routing, and personal
   data sources are user-scoped. This repository does not install or register
-  them and must work from a clean clone without project client configuration.
+  them and must work from a clean clone without personal client configuration.
+  Optional ignored local preferences are allowed and must not affect repository
+  gates. Reviewed shared client settings may be published when portable and free
+  of secrets, personal bindings, and mandatory workstation services.
 - `.agents/` owns the project rules and canonical project skills. The tracked
   `.claude/skills/` files are discovery-only adapters that require the matching
   canonical skill to be read completely; `CLAUDE.md` imports this root contract.
@@ -96,7 +99,7 @@ Do not bypass hooks or add machine authorship or vendor trailers.
 
 ## Documentation
 
-Documents under `docs/` declare `status: draft | adopted | superseded` in
+Public documents under `docs/` declare `status: draft | adopted | superseded` in
 frontmatter. Public documents do not carry owner planning-item ids;
 `docs/README.md` files, when present, describe a directory and are exempt.
 Historical explanation belongs in an ADR or the task summary; always-on
@@ -109,17 +112,23 @@ Internal task briefs, execution plans, and audit reports belong in ignored
 `.private/`, not anywhere in the published source tree. Retention, accuracy, or
 `superseded` status alone does not justify publication. Public ADRs explain
 technical decisions; they are not a store for task transcripts or work reports.
-The current-tree gate rejects the retired `docs/history/`, `docs/plans/`, and
-`docs/audits/` locations. This path check does not replace reviewing the audience
-and purpose of documents elsewhere. Public links must work without ignored local
-files. Keep the user entry point free of implementation plans and internal work
-history.
+The current-tree gate rejects the known withdrawn working documents at their
+former paths, not every document in a similarly named directory. Review audience
+and purpose regardless of filename; a path check cannot establish either.
+Public links must work without ignored local files. Keep the user entry point
+free of implementation plans and internal work history.
 Link to one owner for a fact rather than maintaining contradictory copies.
 Historical status never establishes current support or acceptance.
 Before deleting a document, account for unique requirements and unresolved work;
 before removing a file, inspect its consumers, generated status and data ownership.
 A prerelease verdict must cover file/document ownership and the documented clean
 user/developer paths as well as code gates. Report untested environments explicitly.
+
+Check each restriction against its protected outcome, audience, and lifecycle.
+Distinguish local presence, a required dependency, inclusion in source, and release
+publication. A prohibition at one boundary does not apply automatically to the
+others. Test both a legitimate case that must pass and the violation that must fail;
+do not turn historical cleanup names or prose keywords into general policy.
 
 ## Response style
 

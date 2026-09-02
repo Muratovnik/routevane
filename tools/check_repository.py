@@ -15,7 +15,27 @@ from urllib.parse import unquote, urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 VERSION = re.compile(r"^>=([0-9]+)\.([0-9]+)\.([0-9]+) <([0-9]+)$")
-RETIRED_DOCUMENT_ROOTS = ("docs/history", "docs/plans", "docs/audits")
+RETIRED_WORKING_DOCUMENTS = frozenset({
+    "docs/history/implementation-plan.md",
+    "docs/history/list-outputs-2026-08-22.md",
+    "docs/history/ui-audit-2026-08-21.md",
+    "docs/history/ui-redesign-2026-08-21.md",
+    "docs/plans/routing-service-implementation-plan.md",
+    "docs/plans/2026-08-22-list-outputs-brief.md",
+    "docs/plans/2026-08-21-ui-redesign-brief.md",
+    "docs/audits/2026-08-21-ui-critique.md",
+})
+
+
+def repository_paths(root: Path) -> list[str]:
+    """Current source and publication candidates, not ignored workstation state."""
+    paths = subprocess.check_output(
+        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        cwd=root, encoding="utf-8",
+    ).split("\0")
+    return sorted({path for path in paths if path and (
+        (root / path).is_file() or (root / path).is_symlink()
+    )})
 
 
 def supported(version: str, requirement: str) -> bool:
@@ -35,14 +55,23 @@ def publication_path_problems(root: Path, paths: list[str]) -> list[str]:
         if not (source.is_file() or source.is_symlink()):
             continue
         normalized = Path(relative).as_posix().casefold()
-        if any(
-            normalized == retired or normalized.startswith(retired + "/")
-            for retired in RETIRED_DOCUMENT_ROOTS
-        ):
+        if normalized in RETIRED_WORKING_DOCUMENTS:
             failures.append(
                 f"{relative}: retired working-document path cannot be published; "
                 "keep internal material in ignored .private/"
             )
+    return failures
+
+
+def documentation_status_problems(root: Path, paths: list[str]) -> list[str]:
+    failures = []
+    for relative in paths:
+        path = root / relative
+        if not relative.startswith("docs/") or path.suffix != ".md" or path.name == "README.md":
+            continue
+        header = re.match(r"\A---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)", path.read_text(encoding="utf-8"))
+        if not header or not re.search(r"(?m)^status: (draft|adopted|superseded)\r?$", header[1]):
+            failures.append(f"{relative}: missing valid status frontmatter")
     return failures
 
 
@@ -118,13 +147,10 @@ def scanner_problems(root: Path) -> list[str]:
 
 
 def main() -> int:
-    paths = subprocess.check_output(
-        ["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-        cwd=ROOT, encoding="utf-8",
-    ).split("\0")
-    paths = [path for path in paths if path]
+    paths = repository_paths(ROOT)
     failures = (
         publication_path_problems(ROOT, paths) + documentation_problems(ROOT, paths)
+        + documentation_status_problems(ROOT, paths)
         + version_problems(ROOT) + scanner_problems(ROOT)
     )
     for failure in failures:

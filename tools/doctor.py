@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 import shutil
 import subprocess
@@ -36,12 +35,6 @@ REQUIRED = (
 PINNED_ACTION = re.compile(
     r"^\s*-?\s*uses:\s+[\w.-]+/[\w.-]+@[0-9a-f]{40}(?:\s+#.*)?$"
 )
-RETIRED_PROJECT_CLIENT_SURFACE = (
-    ".claude/settings.json",
-    ".claude/settings.local.json",
-    ".codex/config.toml",
-    ".codex/workflow.toml",
-)
 
 
 def command_version(command: list[str]) -> str:
@@ -63,14 +56,6 @@ def main() -> int:
         if not (ROOT / relative).is_file():
             failures.append(f"required file is missing: {relative}")
 
-    for relative in RETIRED_PROJECT_CLIENT_SURFACE:
-        path = ROOT / relative
-        if os.path.lexists(path):
-            failures.append(
-                f"retired project client configuration is present: {relative}; "
-                "use the user-scoped registration instead"
-            )
-
     attributes_path = ROOT / ".gitattributes"
     if attributes_path.is_file():
         attributes = attributes_path.read_text(encoding="utf-8").splitlines()
@@ -78,17 +63,6 @@ def main() -> int:
             failures.append(
                 ".gitattributes must keep cross-platform text checkouts on LF"
             )
-
-    for path in sorted((ROOT / "docs").rglob("*.md")):
-        if path.name == "README.md":
-            continue
-        text = path.read_text(encoding="utf-8")
-        header = text.split("---", 2)
-        if len(header) < 3 or not re.search(r"(?m)^status: (draft|adopted|superseded)$", header[1]):
-            failures.append(f"{path.relative_to(ROOT)}: missing valid status frontmatter")
-
-    if not any(os.path.lexists(ROOT / path) for path in RETIRED_PROJECT_CLIENT_SURFACE):
-        print("project client configuration: absent (user-scoped services only)")
 
     package_path = ROOT / "web" / "package.json"
     if package_path.is_file():

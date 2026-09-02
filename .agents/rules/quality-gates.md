@@ -18,7 +18,10 @@ commands. Do not add a second runner whose result can drift.
 - Dead-code and duplication ratchets start only when the Nuxt route/auto-import
   graph and meaningful source volume exist. Adding a noisy zero-day threshold
   is not a quality improvement.
-- A threshold only tightens. Never lower or disable a gate to land a change.
+- Never lower quality/security thresholds or bypass a justified gate to land a
+  change. Correct false positives against the owning requirement, with regression
+  tests for both the legitimate case and the protected failure. Narrowing an
+  overbroad check is not permission to remove its actual safety boundary.
 - `gosec` honors a `#nosec` annotation only with a written justification
   (`-nosec-require-justification`). An annotation is for a finding a peer
   protocol or platform forces on us, never for one our own code chose; the

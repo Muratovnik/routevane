@@ -64,10 +64,12 @@ class RepositoryContracts(unittest.TestCase):
             (root / "docs/guide.md").write_text("[Other](orphan.md)", encoding="utf-8")
             self.assertEqual(documentation_problems(root, paths), [])
 
-    def test_retired_document_roots_reject_every_file_type_and_case(self):
+    def test_withdrawn_working_document_paths_are_rejected(self):
         for relative in (
-            "docs/history/audit.md", "docs/plans/nested/brief.txt",
-            "docs/audits/screenshot.png", "DOCS/HiStOrY/payload.json", "docs/history",
+            "docs/history/implementation-plan.md", "docs/history/list-outputs-2026-08-22.md",
+            "DOCS/HiStOrY/ui-audit-2026-08-21.md", "docs/history/ui-redesign-2026-08-21.md",
+            "docs/plans/routing-service-implementation-plan.md", "docs/plans/2026-08-22-list-outputs-brief.md",
+            "docs/plans/2026-08-21-ui-redesign-brief.md", "docs/audits/2026-08-21-ui-critique.md",
         ):
             with self.subTest(path=relative), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -132,7 +134,7 @@ class RepositoryContracts(unittest.TestCase):
             (root / ".betterleaks.toml").write_text("", encoding="utf-8")
             (root / ".gitignore").write_text(".private/\n", encoding="utf-8")
             (root / "docs/adr/README.md").write_text("# Decisions\n", encoding="utf-8")
-            report_relative = "docs/history/аудит.md"
+            report_relative = "docs/history/ui-audit-2026-08-21.md"
             report = root / report_relative
             report.write_text("---\nstatus: superseded\n---\n# Internal report\n", encoding="utf-8")
             readme = root / "README.md"

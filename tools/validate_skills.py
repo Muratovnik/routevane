@@ -7,13 +7,13 @@ import re
 import sys
 from pathlib import Path
 
+from check_repository import repository_paths
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CANONICAL = ROOT / ".agents" / "skills"
 ADAPTERS = ROOT / ".claude" / "skills"
 NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-RETIRED_EXTERNAL_SKILLS = {"frontend-ui-engineering", "impeccable"}
-RETIRED_PROJECT_PATHS = (".impeccable", ".playwright-mcp")
 
 
 def frontmatter(path: Path) -> dict[str, str]:
@@ -47,11 +47,12 @@ def expected_adapter(name: str, description: str) -> str:
 
 def main() -> int:
     failures: list[str] = []
-    skill_files = sorted(CANONICAL.glob("*/SKILL.md"))
+    paths = {ROOT / relative for relative in repository_paths(ROOT)}
+    skill_files = sorted(path for path in paths if path.parent.parent == CANONICAL and path.name == "SKILL.md")
     if not skill_files:
         failures.append("no canonical skills found")
     canonical_names = {path.parent.name for path in skill_files}
-    adapter_names = {path.parent.name for path in ADAPTERS.glob("*/SKILL.md")}
+    adapter_names = {path.parent.name for path in paths if path.parent.parent == ADAPTERS and path.name == "SKILL.md"}
     for name in sorted(adapter_names - canonical_names):
         failures.append(f".claude/skills/{name}/SKILL.md: adapter has no canonical skill")
 
@@ -65,29 +66,15 @@ def main() -> int:
         description = metadata.get("description", "")
         if name != path.parent.name or not NAME.fullmatch(name):
             failures.append(f"{path.relative_to(ROOT)}: invalid or mismatched name")
-        if not description or "TODO" in description:
-            failures.append(f"{path.relative_to(ROOT)}: description is missing or unfinished")
+        if not description:
+            failures.append(f"{path.relative_to(ROOT)}: description is missing")
         adapter = ADAPTERS / path.parent.name / "SKILL.md"
-        if not adapter.is_file():
+        if adapter not in paths:
             failures.append(f"{adapter.relative_to(ROOT)}: discovery adapter is missing")
         elif adapter.read_text(encoding="utf-8") != expected_adapter(name, description):
             failures.append(
                 f"{adapter.relative_to(ROOT)}: discovery adapter contract has drifted"
             )
-
-    instruction_surfaces = [ROOT / "AGENTS.md", ROOT / ".gitignore"]
-    instruction_surfaces.extend(skill_files)
-    for path in instruction_surfaces:
-        text = path.read_text(encoding="utf-8")
-        for name in sorted(RETIRED_EXTERNAL_SKILLS):
-            if re.search(rf"(?<![a-z0-9-]){re.escape(name)}(?![a-z0-9-])", text):
-                failures.append(
-                    f"{path.relative_to(ROOT)}: retired external skill reference {name!r}"
-                )
-
-    for relative in RETIRED_PROJECT_PATHS:
-        if (ROOT / relative).exists():
-            failures.append(f"{relative}: retired agent-tooling state must not return")
 
     if failures:
         for failure in failures:

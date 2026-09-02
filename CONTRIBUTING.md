@@ -45,6 +45,16 @@ package-manager permission for browser system libraries. No user browser profile
 is used. Do not approve arbitrary dependency install scripts: approvals are
 version-pinned in package.json.
 
+Client settings are not build prerequisites. Ignored preferences and personal
+skills are not inspected as repository source. `.codex/config.toml` and
+`.claude/settings.json` are ignored by default here, but reviewed portable shared
+settings may be deliberately committed. Their project scope is documented by
+[OpenAI](https://learn.chatgpt.com/docs/config-file/config-advanced#project-config-files-codexconfigtoml)
+and [Anthropic](https://code.claude.com/docs/en/settings#share-settings-with-your-team).
+Keep personal overrides, credentials, workstation paths, and internal reports
+private. Publication audits still reject the private paths declared in `relkit.toml`;
+an ignored local file does not belong in a source archive or public documentation link.
+
 A deprecated transitive npm package warning is not an instruction to install a
 different version or approve scripts. Investigate an audit failure; the security
 gate must remain green.
