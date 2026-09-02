@@ -40,3 +40,34 @@ betterleaks_config = ".betterleaks.toml"
 [changelog]
 profile = "vue-like"
 first_version = "0.1.0"
+
+[release]
+repository = "Muratovnik/routevane"
+remote = "origin"
+workflow = ".github/workflows/release.yml"
+required_jobs = ["build", "native-smoke (ubuntu-24.04, linux-amd64)", "native-smoke (ubuntu-24.04-arm, linux-arm64)", "native-smoke (windows-latest, windows-amd64)", "native-smoke (windows-11-arm, windows-arm64)", "native-smoke (macos-15, darwin-arm64)", "publish"]
+# The first numbered changelog entry is the prepared version. The tag remains
+# the binary's version source; there is no second product version file to sync.
+version_file = "CHANGELOG.md"
+version_pattern = '\A[\s\S]*?^## \[([0-9]+\.[0-9]+\.[0-9]+)\]'
+changelog = "CHANGELOG.md"
+assets = [
+  "routevane-{tag}-darwin-arm64.zip",
+  "routevane-{tag}-linux-amd64.zip",
+  "routevane-{tag}-linux-arm64.zip",
+  "routevane-{tag}-windows-amd64.zip",
+  "routevane-{tag}-windows-arm64.zip",
+  "SHA256SUMS",
+]
+checksum_file = "SHA256SUMS"
+checks = [
+  ["pwsh", "-NoLogo", "-NoProfile", "-File", "tools/dev.ps1", "check"],
+  ["pwsh", "-NoLogo", "-NoProfile", "-File", "tools/dev.ps1", "test-browser"],
+]
+smoke = [["{python}", "tools/release_smoke.py", "--assets", "{assets}", "--version", "{tag}", "--temp-dir", "{temp}"]]
+smoke_platforms = ["linux", "darwin", "win32"]
+timeout = 3600
+command_timeout = 1800
+require_guard = true
+owner_audit = true
+# Only the new tag is pushed. Push a reviewed source branch separately if wanted.

@@ -9,6 +9,7 @@ import http.client
 import json
 import os
 import platform
+import re
 import signal
 import socket
 import stat
@@ -17,6 +18,27 @@ import tempfile
 import time
 import zipfile
 from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SUPPORTED = {"linux-amd64", "linux-arm64", "windows-amd64", "windows-arm64", "darwin-arm64"}
+
+
+def native_target() -> str:
+    machines = {"amd64": "amd64", "x86_64": "amd64", "arm64": "arm64", "aarch64": "arm64"}
+    systems = {"Windows": "windows", "Linux": "linux", "Darwin": "darwin"}
+    target = f"{systems.get(platform.system(), 'unsupported')}-{machines.get(platform.machine().lower(), 'unsupported')}"
+    if target not in SUPPORTED:
+        raise ValueError(f"no shipped native archive for {platform.system()}/{platform.machine()}")
+    return target
+
+
+def archive_for(assets: Path, version: str, target: str) -> Path:
+    if not re.fullmatch(r"v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version):
+        raise ValueError("downloaded release smoke requires a stable vX.Y.Z version")
+    if target not in SUPPORTED:
+        raise ValueError(f"no shipped archive for {target}")
+    return assets / f"routevane-{version}-{target}.zip"
 
 
 def request(port: int, path: str) -> tuple[dict[str, str], bytes]:
@@ -54,14 +76,19 @@ def stop(process: subprocess.Popen) -> None:
         process.wait(timeout=5)
 
 
-def smoke(archive_path: Path, version: str, target: str) -> None:
-    machine = platform.machine().lower()
-    arch = "arm64" if machine in ("arm64", "aarch64") else "amd64"
-    system = {"Windows": "windows", "Linux": "linux", "Darwin": "darwin"}[platform.system()]
-    if target != f"{system}-{arch}":
-        raise ValueError(f"native smoke requested {target} on {system}-{arch}")
+def smoke(archive_path: Path, version: str, target: str, temp_dir: Path | None = None) -> None:
+    native = native_target()
+    if target != native:
+        raise ValueError(f"native smoke requested {target} on {native}")
+    # Standalone runs stay in the project too; a coordinator supplies its owned
+    # project-local scratch directory explicitly, not an inherited system TEMP.
+    scratch = temp_dir if temp_dir is not None else ROOT / "tmp"
+    for item in (scratch, *scratch.parents):
+        if item.is_symlink() or (item.exists() and getattr(item.stat(), "st_file_attributes", 0) & 0x400):
+            raise ValueError(f"linked smoke temporary directory: {item}")
+    scratch.mkdir(parents=True, exist_ok=True)
     # Spaces exercise the same quoting the user's extracted folder may require.
-    with tempfile.TemporaryDirectory(prefix="routevane release smoke ") as directory:
+    with tempfile.TemporaryDirectory(prefix="routevane release smoke ", dir=scratch) as directory:
         root = Path(directory).resolve()
         with zipfile.ZipFile(archive_path) as archive:
             for entry in archive.infolist():
@@ -129,10 +156,19 @@ def smoke(archive_path: Path, version: str, target: str) -> None:
     print(f"archive SHA256: {digest}; task-owned process and data cleaned")
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--archive", type=Path, required=True)
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--archive", type=Path)
+    source.add_argument("--assets", type=Path, help="Verified release assets; select the native archive")
     parser.add_argument("--version", required=True)
-    parser.add_argument("--platform", required=True)
-    arguments = parser.parse_args()
-    smoke(arguments.archive.resolve(strict=True), arguments.version, arguments.platform)
+    parser.add_argument("--platform", help="Optional assertion of the native platform")
+    parser.add_argument("--temp-dir", type=Path, help="Owned scratch directory (default: project tmp/)")
+    arguments = parser.parse_args(argv)
+    target = arguments.platform or native_target()
+    archive = arguments.archive or archive_for(arguments.assets, arguments.version, target)
+    smoke(archive.resolve(strict=True), arguments.version, target, arguments.temp_dir)
+
+
+if __name__ == "__main__":
+    main()

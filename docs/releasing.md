@@ -18,45 +18,90 @@ The tagged source is the release identity. `tools/dev.ps1 release` derives it fr
 `git describe` and stamps it into the binary, so the tag is the single source
 and `routing-agent version` reports it back.
 
-Cutting a release (replace `v0.1.1` below with the new version; never reuse a
+## Managed release
+
+The vendored release-kit provides `release plan`, `release run` and
+`release resume`. This integration is experimental until a separately approved
+new tag completes the whole publication flow. Existing releases without a
+coordinator receipt cannot be adopted as unfinished runs or republished.
+
+Prerequisites are a normal full-history checkout (not a linked worktree), GitHub
+CLI 2.98.0 or newer, locked developer/browser dependencies, current project hooks
+and the maintainer's private owner policy. The active tag workflow must publish
+immutable releases with provenance for all five archives and `SHA256SUMS`.
+The host must have a shipped native archive (macOS requires ARM64).
+
+Cutting a release (replace `vX.Y.Z` below with an agreed new version; never reuse a
 published tag):
 
 1. For the repository's first release, enable **Release immutability** in
    GitHub's repository settings. The workflow refuses to accept a published
    release that GitHub does not report as immutable.
-2. Gates green: `pwsh -File tools/dev.ps1 check` and
-   `pwsh -File tools/dev.ps1 test-browser`.
+2. Agree the version and intended changes. `relkit.toml` binds preparation to the
+   first numbered changelog entry; the build continues to stamp the Git tag.
 3. Render the entry, then curate it by hand — a short Highlights paragraph for
    a minor, and prose for anything breaking. Paste the result into
    `CHANGELOG.md` below `## [Unreleased]` and above the previous release:
 
    ```powershell
-   npx --yes git-cliff@2.13.1 --unreleased --tag v0.1.1
+   npx --yes git-cliff@2.13.1 --unreleased --tag vX.Y.Z
    ```
 
    Validate the edited entry, preserving the generated commit links:
 
    ```powershell
    New-Item -ItemType Directory -Force tmp | Out-Null
-   python .github/relkit.pyz notes v0.1.1 --output tmp/release-notes.md
+   python .github/relkit.pyz notes vX.Y.Z --output tmp/release-notes.md
    ```
 
    A nonzero exit blocks the release. `audit` alone does not check release notes.
 
-4. Commit as `chore(release): v0.1.1` after the staged audit. The history audit
+4. Commit as `chore(release): vX.Y.Z` after the staged audit. The history audit
    requires a clean worktree, including the curated changelog.
-5. Run `python .github/relkit.pyz audit --history --owner` against that commit
-   before the first public push and before creating the annotated tag. The tag
-   is the publication trigger, so do not create or push it until the gates pass.
-6. Push the tag. The release workflow binds the annotated stable SemVer tag to
+5. Review `python .github/relkit.pyz release plan vX.Y.Z`: exact commit, previous
+   tag, notes, assets, workflow/jobs and plan SHA-256. Only the new tag is configured
+   for push; no branch or other refs are pushed. The tag still exposes every commit
+   reachable from it. Local and remote tags must agree: reconcile drift explicitly,
+   never rewrite a tag or guess the predecessor from generator output.
+6. After explicit authorization of that exact publication, run:
+
+   ```powershell
+   python .github/relkit.pyz release run vX.Y.Z --publish --plan-hash REVIEWED_SHA256
+   ```
+
+   The command runs `tools/dev.ps1 check`, `tools/dev.ps1 test-browser`, worktree
+   and history/owner audits and the guard check before creating an annotated tag
+   and pushing its exact ref. Existing Git hooks still run. No automatic commit,
+   stash, force-push, hook bypass or repository-setting change is performed.
+
+   The release workflow binds the annotated stable SemVer tag to
    the event SHA, validates and exports the same curated entry before building
    and again before publication, reruns the canonical, race, browser, history
    and commit gates, builds and structurally verifies all five archives, and
    executes each archive on a native GitHub runner. It then signs provenance and SBOM attestations,
    verifies them, uploads a draft, compares every uploaded digest, and publishes
    the complete immutable release.
-7. Download the archive and follow the verification below, then complete the
-   [quick start](../README.md#download-and-start) with fresh data.
+7. The coordinator observes the tag's exact successful workflow run and configured
+   jobs, then downloads the exact six assets. It checks notes, sizes, digests, the
+   checksum manifest, immutable-release signatures and provenance bound to the
+   same repository, source commit, workflow and CI attempt. It selects this host's
+   archive and runs `tools/release_smoke.py` from pinned source: real launcher,
+   version, health, embedded UI, catalog, fresh data and process cleanup. CI covers
+   the other native platforms.
+
+After an interruption, inspect the diagnostics and continue with
+`python .github/relkit.pyz release resume vX.Y.Z --publish`. Use the same checkout
+and release-kit version. Resume reconciles the server first; it does not recreate
+releases, repair drafts or rerun CI. A manually reviewed newer CI attempt requires
+`--accept-ci-attempt N`. New local edits after the push remain separate and untouched.
+Publication may already have succeeded when verification fails; never delete or
+overwrite that release as automatic recovery.
+
+Receipts/logs stay in `.git/relkit/releases/vX.Y.Z/`, scratch in `.git/relkit/tmp/`.
+Success cleans owned downloads and snapshots; retained unowned files are reported.
+Standalone archive smoke uses ignored `tmp/`. No diagnostic or backup may be placed
+outside the project without explicit agreement on its exact path. A local rehearsal
+is not live publication acceptance and grants no permission to push.
 
 ## Changelog contract
 
@@ -76,20 +121,24 @@ may contain explanatory prose and migration examples without commit links.
 writing anything. Use `--output`, not shell redirection, to preserve an existing
 notes file when validation fails. The exported text is not regenerated or
 reworded. Review still owns factual completeness and whether each linked commit
-belongs to this release; the format check cannot establish either.
+belongs to this release; the standalone format check cannot establish either.
+The coordinator additionally validates Git boundaries and supplied ordinary change
+links, while editorial completeness remains a review responsibility.
 
 If a draft repeats an earlier release or omits the previous version's comparison
 link, stop and check the checkout's tags and repository ownership. Render again
 from a clean clone owned by the current user if necessary; do not simply change
 the heading to make incorrect release boundaries pass validation.
 
-When upgrading `.github/relkit.pyz`, adopt a reviewed deterministic artifact and
-run the canonical gate, which exercises the shipped command with the actual
-policy and invalid-note fixtures. After reviewing the artifact/configuration
-change, refresh and verify this repository's owner guard with
-`python .github/relkit.pyz protect install` and
-`python .github/relkit.pyz protect check`, then run the clean history/owner audit.
-Do not replace the user-scoped hook dispatcher from this repository.
+When upgrading `.github/relkit.pyz`, first use `python .github/relkit.pyz update
+--dry-run`, review the artifact and owned-guard digests, then repeat with `--yes`
+only after approving those changes. A reviewed local development artifact uses
+`--artifact PATH --sha256 EXPECTED_SHA256` in both commands. The updater retains
+its rollback backup under `.git/relkit-update-*/` and leaves the global dispatcher
+unchanged. Run the canonical gate, which exercises the shipped command with the
+real policy and invalid-note fixtures. Separately reviewed policy/manual artifact
+changes require `update --refresh-guard --dry-run`, then `update --refresh-guard
+--yes` and `protect check`. The upgrade does not enable new config or publish.
 
 ## Verify a download
 
