@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -106,5 +107,32 @@ func TestDiagnosticExampleFixtureStaysOutOfTheProductCatalog(t *testing.T) {
 	}
 	if service.Sources[0].Type != domain.SourceDNS || len(service.Sources[0].Names) != 1 {
 		t.Fatalf("diagnostic fixture source = %#v", service.Sources[0])
+	}
+}
+
+func TestShippedCursorStaysBoundedToItsOwnDomains(t *testing.T) {
+	catalog, err := Load(context.Background(), filepath.Join(repositoryRoot(t), "catalog"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, found := catalog.Service("cursor")
+	if !found || service.Title != "Cursor" {
+		t.Fatalf("Cursor is missing from the shipped library: %#v", service)
+	}
+	if len(service.Components) != 1 || service.Components[0] != (domain.ComponentDefinition{ID: "web", Required: true}) {
+		t.Fatalf("Cursor components = %#v", service.Components)
+	}
+	if len(service.Seeds) != 1 || service.Seeds[0].Kind != domain.RuleDomainSuffix || service.Seeds[0].Value != "cursor.com" || service.Seeds[0].SourceClass != domain.SourceManual {
+		t.Fatalf("Cursor seeds = %#v", service.Seeds)
+	}
+	if len(service.Sources) != 1 {
+		t.Fatalf("Cursor must not pull infrastructure or process sources: %#v", service.Sources)
+	}
+	source := service.Sources[0]
+	if source.ID != "v2fly" || source.Type != domain.SourceHTTP || source.Class != domain.SourceCommunity || source.ComponentID != "web" || source.Format != domain.FeedFormatDomainList || source.URL != "https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/cursor" {
+		t.Fatalf("Cursor source = %#v", source)
+	}
+	if !slices.Contains(catalog.Categories["development"].Services, "cursor") {
+		t.Fatal("Cursor must be discoverable in Development")
 	}
 }
