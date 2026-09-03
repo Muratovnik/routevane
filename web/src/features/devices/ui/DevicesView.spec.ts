@@ -122,6 +122,8 @@ describe('DevicesView prerequisite audit', () => {
     option?.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }))
     await flushPromises()
 
+    expect(wrapper.text()).not.toContain('Fill in this field')
+
     await wrapper.get('#device-name').setValue('Draft router')
     await wrapper.get('#device-address').setValue('http://192.168.1.2')
     expect(
@@ -144,6 +146,7 @@ describe('DevicesView prerequisite audit', () => {
     expect(wrapper.find('#device-account').exists()).toBe(true)
     expect(wrapper.find('#device-interface').exists()).toBe(true)
     await wrapper.get('#device-interface').setValue('Wireguard0')
+    await wrapper.get('#device-account').trigger('blur')
     expect(
       wrapper.get<HTMLButtonElement>('button[type="submit"]').element.disabled,
     ).toBe(true)

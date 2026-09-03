@@ -36,6 +36,10 @@ const address = ref('')
 const account = ref('')
 const interfaceName = ref('')
 const confirmation = ref('')
+const nameTouched = ref(false)
+const addressTouched = ref(false)
+const accountTouched = ref(false)
+const interfaceTouched = ref(false)
 
 const selectedRequirements = computed(
   () =>
@@ -100,6 +104,10 @@ watch(targetID, () => {
   address.value = ''
   account.value = ''
   interfaceName.value = ''
+  nameTouched.value = false
+  addressTouched.value = false
+  accountTouched.value = false
+  interfaceTouched.value = false
 })
 
 // The credential is held in this field for exactly as long as it takes to send
@@ -117,15 +125,27 @@ const canRegister = computed(
     (!showInterface.value || interfaceName.value.trim() !== ''),
 )
 
-const fieldError = (value: string, required: boolean): string | undefined =>
-  required && value.trim() === '' ? t('devices.validation.required') : undefined
+const fieldError = (
+  value: string,
+  required: boolean,
+  touched: boolean,
+): string | undefined =>
+  required && touched && value.trim() === ''
+    ? t('devices.validation.required')
+    : undefined
 
 onMounted(() => {
   void devices.initialize()
 })
 
 async function submit(): Promise<void> {
-  if (!canRegister.value) return
+  if (!canRegister.value) {
+    nameTouched.value = true
+    addressTouched.value = true
+    accountTouched.value = true
+    interfaceTouched.value = true
+    return
+  }
   const done = await devices.register(
     targetID.value,
     name.value.trim(),
@@ -388,7 +408,7 @@ async function onEnable(id: string): Promise<void> {
 
         <RvField
           v-if="targetID !== ''"
-          :error="fieldError(name, true)"
+          :error="fieldError(name, true, nameTouched)"
           input-id="device-name"
           :label="t('devices.field.name')"
         >
@@ -399,13 +419,15 @@ async function onEnable(id: string): Promise<void> {
               :disabled="devices.busy.value"
               input-id="device-name"
               :invalid="invalid"
+              maxlength="120"
+              @blur="nameTouched = true"
             />
           </template>
         </RvField>
 
         <RvField
           v-if="targetID !== ''"
-          :error="fieldError(address, true)"
+          :error="fieldError(address, true, addressTouched)"
           input-id="device-address"
           :label="addressLabel"
         >
@@ -416,14 +438,16 @@ async function onEnable(id: string): Promise<void> {
               :disabled="devices.busy.value"
               input-id="device-address"
               :invalid="invalid"
+              maxlength="512"
               :placeholder="addressPlaceholder"
+              @blur="addressTouched = true"
             />
           </template>
         </RvField>
 
         <RvField
           v-if="showAccount"
-          :error="fieldError(account, true)"
+          :error="fieldError(account, true, accountTouched)"
           input-id="device-account"
           :label="accountLabel"
         >
@@ -434,13 +458,15 @@ async function onEnable(id: string): Promise<void> {
               :disabled="devices.busy.value"
               input-id="device-account"
               :invalid="invalid"
+              maxlength="120"
+              @blur="accountTouched = true"
             />
           </template>
         </RvField>
 
         <RvField
           v-if="showInterface"
-          :error="fieldError(interfaceName, true)"
+          :error="fieldError(interfaceName, true, interfaceTouched)"
           :hint="interfaceHint"
           input-id="device-interface"
           :label="interfaceLabel"
@@ -452,6 +478,8 @@ async function onEnable(id: string): Promise<void> {
               :disabled="devices.busy.value"
               input-id="device-interface"
               :invalid="invalid"
+              maxlength="120"
+              @blur="interfaceTouched = true"
             />
           </template>
         </RvField>

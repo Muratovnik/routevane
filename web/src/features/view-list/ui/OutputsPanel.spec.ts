@@ -76,4 +76,34 @@ describe('OutputsPanel connection readiness', () => {
     expect(wrapper.text()).toContain('Turn on route refresh')
     wrapper.unmount()
   })
+
+  it('does not invent automatic readiness for a manual-only output', () => {
+    const wrapper = render({ deployable: () => false })
+    expect(wrapper.text()).not.toContain('Choose a connection')
+    expect(wrapper.text()).not.toContain('Automatic delivery configured')
+    wrapper.unmount()
+  })
+
+  it('does not report readiness on an archived route', () => {
+    const wrapper = render({
+      archived: true,
+      devices: [
+        {
+          id: 'device-1',
+          targetID: 'keenetic',
+          targetTitle: 'Keenetic',
+          name: 'Home router',
+          address: 'http://192.168.1.1',
+          account: 'admin',
+          interfaceName: 'Wireguard0',
+          autoDeliver: true,
+          deployable: true,
+        },
+      ],
+      outputs: [{ ...output, deviceID: 'device-1' }],
+    })
+    expect(wrapper.text()).not.toContain('Automatic delivery configured')
+    expect(wrapper.text()).not.toContain('Ready: new versions')
+    wrapper.unmount()
+  })
 })

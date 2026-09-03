@@ -208,6 +208,7 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
               </div>
               <span v-else>—</span>
               <RvStatus
+                v-if="props.deployable(output) && !props.archived"
                 class="outputs__readiness"
                 :label="readinessLabel(output)"
                 :tone="
