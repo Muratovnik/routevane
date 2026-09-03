@@ -19,6 +19,42 @@ breaking change raises the minor, everything else raises the patch. The
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/Muratovnik/routevane/compare/v0.1.1...v0.1.2) (2026-09-03)
+
+### Highlights
+
+This release makes list loading and error recovery clearer, explains rules shared
+by multiple lists, and expands the built-in catalog. Maintainers also get a
+hot-reload development workflow and the managed release process with relkit 0.12.1.
+
+### Features
+
+- **release:** Use a managed release workflow with reviewed publication plans,
+  resumable receipts, and verification of the published artifacts.
+  ([916ee32](https://github.com/Muratovnik/routevane/commit/916ee32de88ded45d73d86c01024bb44b29a6e11))
+- **catalog:** Add a bounded Cursor domain list.
+  ([2f557ea](https://github.com/Muratovnik/routevane/commit/2f557eabd4f5a6b9c70088c58c11c8093752ddf8))
+- **catalog:** Add GitHub Copilot, Twitch, and Kinopub domain lists.
+  ([74d2d37](https://github.com/Muratovnik/routevane/commit/74d2d37d744025e6a6bce1dbafb90e12a50cea6d))
+- **forecast:** Explain cross-list rule overlaps before building a route.
+  ([6922895](https://github.com/Muratovnik/routevane/commit/692289523dc493fe825e9d7cc2572beac817dacd))
+- **dev:** Add hot reload for the frontend and backend during local development.
+  ([d0a5ddb](https://github.com/Muratovnik/routevane/commit/d0a5ddb25c14e96f75d7a9e2d74b0fbc43b83f4c))
+
+### Bug Fixes
+
+- **docs:** Keep internal work records out of the public source tree.
+  ([00afeeb](https://github.com/Muratovnik/routevane/commit/00afeeb41d8e519594c44d035ccf74d735e14df0))
+- **tooling:** Apply repository restrictions at their intended publication boundaries.
+  ([6cd88dd](https://github.com/Muratovnik/routevane/commit/6cd88dd3782fabb62cd9f0a1d160abaecdfadef3))
+- **tooling:** Parse workflow action references as YAML when checking pinned actions.
+  ([894844c](https://github.com/Muratovnik/routevane/commit/894844c827a5efededeeef844ca72e6db0a1f29e))
+- **keenetic:** Reject ambiguous DNS route snapshots instead of accepting uncertain state.
+  ([bab1010](https://github.com/Muratovnik/routevane/commit/bab10100ebfb787e87cd700ee93f2cc73b3e0ae4))
+- **ui:** Keep partial list contents readable during loading, expose recoverable errors,
+  and prevent unavailable actions from appearing ready to use.
+  ([32803af](https://github.com/Muratovnik/routevane/commit/32803af9178e061c2f0cb84ae730b6951e7152bc))
+
 ## [0.1.1](https://github.com/Muratovnik/routevane/compare/v0.1.0...v0.1.1) (2026-09-01)
 
 ### Highlights
