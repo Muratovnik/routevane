@@ -1,5 +1,5 @@
 @echo off
-rem Developer shortcut: build and run Routevane from this source checkout.
+rem Developer shortcut: Nuxt HMR and automatic Go rebuilds from this checkout.
 rem See CONTRIBUTING.md. Downloaded releases have their own start-routevane.cmd.
 setlocal
 cd /d "%~dp0"
@@ -12,13 +12,7 @@ if errorlevel 1 (
     echo See CONTRIBUTING.md, or use a downloaded release instead.
     goto :failed
 )
-pwsh -NoLogo -NoProfile -File "tools\dev.ps1" doctor
-if errorlevel 1 goto :failed
-if not exist "web\node_modules" (
-    pwsh -NoLogo -NoProfile -File "tools\dev.ps1" setup
-    if errorlevel 1 goto :failed
-)
-pwsh -NoLogo -NoProfile -File "tools\dev.ps1" up -Port "%ROUTEVANE_PORT%"
+pwsh -NoLogo -NoProfile -File "tools\dev.ps1" dev -Port "%ROUTEVANE_PORT%"
 if errorlevel 1 goto :failed
 exit /b 0
 :failed

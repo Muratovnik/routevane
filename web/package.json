@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "npm run typecheck && nuxt generate",
-    "dev": "nuxt dev",
+    "dev": "python ../tools/dev_server.py",
     "format": "prettier . --write",
     "generate": "npm run build",
     "lint": "eslint . --max-warnings 0",
@@ -23,6 +23,7 @@
     "postinstall": "nuxt prepare",
     "preview": "nuxt preview",
     "test:browser": "playwright test",
+    "test:dev": "playwright test --config playwright.dev.config.ts",
     "test:unit": "vitest run",
     "typecheck": "nuxt typecheck",
     "check": "npm run typecheck && npm run lint && npm run lint:styles && npm run lint:format && npm run test:unit && npm run build"

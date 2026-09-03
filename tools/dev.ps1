@@ -2,9 +2,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('setup', 'setup-browser', 'up', 'release', 'doctor', 'format', 'check-go', 'check-web', 'security', 'build', 'check', 'test-browser', 'install-hooks')]
+    [ValidateSet('setup', 'setup-browser', 'dev', 'up', 'release', 'doctor', 'format', 'check-go', 'check-web', 'security', 'build', 'check', 'test-browser', 'install-hooks')]
     [string]$Command = 'check',
-    # up only: the port the local service listens on, and an escape hatch for
+    # dev/up: the port the local interface listens on, and an escape hatch for
     # an environment where opening a browser is unwanted.
     [int]$Port = 8765,
     [switch]$NoBrowser,
@@ -552,6 +552,17 @@ try {
             Invoke-GoSecurity
         }
         'build' { Invoke-ProductBuild | Out-Null }
+        'dev' {
+            if (-not (Test-Path -LiteralPath (Join-Path $RepositoryRoot 'web/node_modules') -PathType Container)) {
+                Invoke-Checked 'pwsh' @('-NoLogo', '-NoProfile', '-File', $PSCommandPath, 'setup')
+            }
+            $DevArguments = @((Join-Path $RepositoryRoot 'tools/dev_server.py'), '--port', "$Port", '--go', $GoExecutable)
+            if ($NoBrowser) { $DevArguments += '--no-browser' }
+            # Keep native console signal delivery: piping the supervisor into
+            # Out-Host lets PowerShell terminate it before it can stop children.
+            & python @DevArguments
+            if ($LASTEXITCODE -ne 0) { throw "Development session failed with exit code ${LASTEXITCODE}" }
+        }
         'release' { Invoke-ReleaseBuild | Out-Null }
         'up' {
             $Origin = "http://127.0.0.1:${Port}"
@@ -587,7 +598,10 @@ try {
             Get-RoutevaneBrowserPath | Out-Null
             Invoke-ProductBuild | Out-Null
             Push-Location (Join-Path $RepositoryRoot 'web')
-            try { Invoke-Checked 'npm' @('run', 'test:browser') } finally { Pop-Location }
+            try {
+                Invoke-Checked 'npm' @('run', 'test:browser')
+                Invoke-Checked 'npm' @('run', 'test:dev')
+            } finally { Pop-Location }
             # The discovery browser is the same owned dependency the web gate
             # uses, so its Go tests belong to this command rather than to the
             # default gate, which must not require a browser binary.

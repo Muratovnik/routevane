@@ -65,15 +65,50 @@ gate must remain green.
 
 ## Run and build
 
+For everyday development, run from the repository root:
+
+```powershell
+pwsh -NoLogo -NoProfile -File tools/dev.ps1 dev
+```
+
+On Windows, double-click **dev.cmd** or run `./dev.cmd`. After dependency
+setup, `npm run dev` from `web/` starts the same development session.
+The UI opens at `http://127.0.0.1:8765`:
+
+- Vue and CSS edits use Nuxt/Vite hot module replacement; no Go or static UI
+  rebuild is needed. Template/style edits normally preserve the current draft.
+- Go source, `go.mod`, `go.sum`, and catalog edits trigger a debounced backend
+  rebuild/restart. Compilation errors stay in the terminal while the previous
+  backend keeps running; saving a corrected file retries automatically.
+  Reload or repeat the UI action to see changed backend behavior.
+- The UI proxies `/v1` and `/health` to a separate, automatically selected
+  loopback API port. Use the printed UI address, not the backend's embedded UI.
+  The proxy checks the UI Host and Origin before translating them; production
+  Host/Origin checks and CORS behavior are unchanged.
+- Development data lives in `.cache/dev-data/`, separate from the ordinary
+  application's `data/`. It survives restarts; preserve it if you want to keep
+  your development routes when cleaning `.cache/`.
+- Ctrl+C stops both owned servers. An occupied UI port is an error, not permission
+  to reuse or terminate another process. Use `dev -Port 9000` or `./dev.cmd 9000`
+  to choose a different port; `dev -NoBrowser` skips opening the browser.
+
+The existing Python toolchain supervises the two processes and watches only Go
+and catalog inputs; the pinned Nuxt/Vite toolchain owns frontend watching and
+its [development proxy](https://vite.dev/config/server-options#server-proxy).
+No additional watcher installation or production-only security exception is needed.
+Stop the dev session before running build/check/browser gates, which also use
+Nuxt's generated working directories. Dev mode is local-only, not a deployment.
+
+To verify the shipped, embedded UI or build the standalone executable:
+
 ```powershell
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 up
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 build
 ```
 
 `up` builds the embedded UI and binary, starts the service, and opens the page.
-Use `-Port 9000` or `-NoBrowser` when needed; stop with Ctrl+C.
-On Windows, **dev.cmd** is a convenience shortcut for this source-build path,
-not a release launcher.
+It has no hot reload. Use `-Port 9000` or `-NoBrowser` when needed; stop with Ctrl+C.
+Downloaded releases keep their separate `start-routevane.cmd` launcher.
 
 The binary is written to `.cache/build/`. Runtime state goes to `data/`;
 reports and browser binaries go below `.cache/`, and browser test artifacts
@@ -89,7 +124,10 @@ Read [the repository contract](AGENTS.md), then the relevant
 Work one user-visible slice at a time and preserve unrelated changes. Verify
 the rebuilt runtime identity, not a previously running binary.
 The complete gate is `tools/dev.ps1 check`; browser-facing changes also require
-`tools/dev.ps1 test-browser`. Linux CI additionally runs the race detector.
+`tools/dev.ps1 test-browser`. This includes both the embedded-product browser
+suite and `npm run test:dev`: real API reads/writes, HMR without losing a draft,
+failed Go compilation/recovery, and process cleanup against throwaway data.
+Linux CI additionally runs the race detector.
 The gates validate code and mechanical repository contracts; they do not replace
 the file/audience and end-user review required for a prerelease.
 

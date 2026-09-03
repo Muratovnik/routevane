@@ -1,4 +1,20 @@
+import { createDevProxy } from './dev-proxy'
+
 export default defineNuxtConfig({
+  $development: {
+    devServer: { host: '127.0.0.1', port: 8765 },
+    vite: {
+      server: {
+        cors: false,
+        proxy: process.env.ROUTEVANE_DEV_API_ORIGIN
+          ? createDevProxy(
+              process.env.ROUTEVANE_DEV_API_ORIGIN,
+              process.env.ROUTEVANE_DEV_UI_ORIGIN ?? 'http://127.0.0.1:8765',
+            )
+          : {},
+      },
+    },
+  },
   ssr: false,
   app: {
     head: {

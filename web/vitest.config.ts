@@ -12,6 +12,6 @@ export default defineConfig({
   },
   test: {
     environment: 'happy-dom',
-    include: ['src/**/*.spec.ts'],
+    include: ['src/**/*.spec.ts', 'dev-proxy.spec.ts'],
   },
 })
