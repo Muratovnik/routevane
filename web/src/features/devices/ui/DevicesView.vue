@@ -6,8 +6,10 @@ import { localizedTargetTitle } from '@/shared/api/catalog'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { ChoiceOption } from '@/shared/ui/kinds'
 import RvButton from '@/shared/ui/RvButton.vue'
+import RvField from '@/shared/ui/RvField.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
+import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
 const { locale, t, tor } = useLocale()
 const devices = useDevices()
@@ -33,6 +35,7 @@ const name = ref('')
 const address = ref('')
 const account = ref('')
 const interfaceName = ref('')
+const confirmation = ref('')
 
 const selectedRequirements = computed(
   () =>
@@ -67,6 +70,14 @@ const interfaceLabel = computed(() =>
     selectedRequirements.value?.interfaceLabel ?? t('devices.field.interface'),
   ),
 )
+const accountLabel = computed(() =>
+  tor(`deploy.field.account.${targetID.value}`, t('devices.field.account')),
+)
+const interfaceHint = computed(() => {
+  const key = `deploy.field.interface.${targetID.value}.hint`
+  const value = tor(key, '')
+  return value === key ? '' : value
+})
 
 function needsCredential(device: { targetID: string }): boolean {
   return (
@@ -102,8 +113,12 @@ const canRegister = computed(
     targetID.value !== '' &&
     name.value.trim() !== '' &&
     address.value.trim() !== '' &&
+    (!showAccount.value || account.value.trim() !== '') &&
     (!showInterface.value || interfaceName.value.trim() !== ''),
 )
+
+const fieldError = (value: string, required: boolean): string | undefined =>
+  required && value.trim() === '' ? t('devices.validation.required') : undefined
 
 onMounted(() => {
   void devices.initialize()
@@ -119,6 +134,14 @@ async function submit(): Promise<void> {
     interfaceName.value.trim(),
   )
   if (done) {
+    const target = devices.targets.value.find(
+      (candidate) => candidate.id === targetID.value,
+    )
+    confirmation.value = t(
+      target?.kind === 'router'
+        ? 'devices.registered.router'
+        : 'devices.registered.other',
+    )
     name.value = ''
     address.value = ''
     account.value = ''
@@ -134,6 +157,14 @@ async function onEnable(id: string): Promise<void> {
   const done = await devices.enable(id, credential)
   credentials.value = { ...credentials.value, [id]: '' }
   if (!done) return
+  const target = devices.targets.value.find(
+    (candidate) => candidate.id === device.targetID,
+  )
+  confirmation.value = t(
+    target?.kind === 'router'
+      ? 'devices.auto.enabled.next.router'
+      : 'devices.auto.enabled.next.other',
+  )
 }
 </script>
 
@@ -162,6 +193,11 @@ async function onEnable(id: string): Promise<void> {
     </RvStateNotice>
 
     <template v-else>
+      <RvStateNotice
+        v-if="confirmation !== ''"
+        :title="confirmation"
+        tone="ready"
+      />
       <RvStateNotice
         v-if="!devices.catalogAvailable.value"
         :body="t('devices.catalog.failed.body')"
@@ -334,87 +370,91 @@ async function onEnable(id: string): Promise<void> {
             )
           }}
         </p>
-        <label class="devices__field-label" for="device-target">
-          {{ t('devices.field.target') }}
-        </label>
-        <div class="devices__field">
-          <RvSelect
-            v-model="targetID"
-            :disabled="devices.busy.value"
-            input-id="device-target"
-            :options="targetChoices"
-            :placeholder="t('devices.field.target.pick')"
-          />
-        </div>
+        <RvField input-id="device-target" :label="t('devices.field.target')">
+          <template #default="{ describedBy, invalid }">
+            <div class="devices__field">
+              <RvSelect
+                v-model="targetID"
+                :described-by="describedBy"
+                :disabled="devices.busy.value"
+                input-id="device-target"
+                :invalid="invalid"
+                :options="targetChoices"
+                :placeholder="t('devices.field.target.pick')"
+              />
+            </div>
+          </template>
+        </RvField>
 
-        <label
+        <RvField
           v-if="targetID !== ''"
-          class="devices__field-label"
-          for="device-name"
+          :error="fieldError(name, true)"
+          input-id="device-name"
+          :label="t('devices.field.name')"
         >
-          {{ t('devices.field.name') }}
-        </label>
-        <input
-          v-if="targetID !== ''"
-          id="device-name"
-          v-model="name"
-          class="devices__input"
-          :disabled="devices.busy.value"
-          maxlength="120"
-          type="text"
-        />
+          <template #default="{ describedBy, invalid }">
+            <RvTextInput
+              v-model="name"
+              :described-by="describedBy"
+              :disabled="devices.busy.value"
+              input-id="device-name"
+              :invalid="invalid"
+            />
+          </template>
+        </RvField>
 
-        <label
+        <RvField
           v-if="targetID !== ''"
-          class="devices__field-label"
-          for="device-address"
+          :error="fieldError(address, true)"
+          input-id="device-address"
+          :label="addressLabel"
         >
-          {{ addressLabel }}
-        </label>
-        <input
-          v-if="targetID !== ''"
-          id="device-address"
-          v-model="address"
-          class="devices__input"
-          :disabled="devices.busy.value"
-          maxlength="512"
-          :placeholder="addressPlaceholder"
-          type="text"
-        />
+          <template #default="{ describedBy, invalid }">
+            <RvTextInput
+              v-model="address"
+              :described-by="describedBy"
+              :disabled="devices.busy.value"
+              input-id="device-address"
+              :invalid="invalid"
+              :placeholder="addressPlaceholder"
+            />
+          </template>
+        </RvField>
 
-        <label
+        <RvField
           v-if="showAccount"
-          class="devices__field-label"
-          for="device-account"
+          :error="fieldError(account, true)"
+          input-id="device-account"
+          :label="accountLabel"
         >
-          {{ t('devices.field.account') }}
-        </label>
-        <input
-          v-if="showAccount"
-          id="device-account"
-          v-model="account"
-          class="devices__input"
-          :disabled="devices.busy.value"
-          maxlength="120"
-          type="text"
-        />
+          <template #default="{ describedBy, invalid }">
+            <RvTextInput
+              v-model="account"
+              :described-by="describedBy"
+              :disabled="devices.busy.value"
+              input-id="device-account"
+              :invalid="invalid"
+            />
+          </template>
+        </RvField>
 
-        <label
+        <RvField
           v-if="showInterface"
-          class="devices__field-label"
-          for="device-interface"
+          :error="fieldError(interfaceName, true)"
+          :hint="interfaceHint"
+          input-id="device-interface"
+          :label="interfaceLabel"
         >
-          {{ interfaceLabel }}
-        </label>
-        <input
-          v-if="showInterface"
-          id="device-interface"
-          v-model="interfaceName"
-          class="devices__input"
-          :disabled="devices.busy.value"
-          maxlength="120"
-          type="text"
-        />
+          <template #default="{ describedBy, invalid }">
+            <RvTextInput
+              v-model="interfaceName"
+              :described-by="describedBy"
+              :disabled="devices.busy.value"
+              input-id="device-interface"
+              :invalid="invalid"
+            />
+          </template>
+        </RvField>
 
         <RvButton :disabled="!canRegister" type="submit" variant="primary">
           {{ t('devices.add.submit') }}

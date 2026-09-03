@@ -9,21 +9,14 @@ import type { ExportFormat } from '@/shared/api/exports'
 import { legacyImportedOrdinal } from '@/shared/lib/legacyList'
 import { listPageHash, parseListPageHash } from '@/shared/lib/listHash'
 import { useSurfacePreferences } from '@/shared/model/useSurfacePreferences'
-import type { ListComposition, RefreshInterval } from '@/shared/api/lists'
-import type {
-  ChoiceOption,
-  Fact,
-  MenuItem,
-  StatusTone,
-  TabItem,
-} from '@/shared/ui/kinds'
+import type { ListComposition } from '@/shared/api/lists'
+import type { Fact, MenuItem, StatusTone, TabItem } from '@/shared/ui/kinds'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvCodeBlock from '@/shared/ui/RvCodeBlock.vue'
 import RvCopyButton from '@/shared/ui/RvCopyButton.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvMenu from '@/shared/ui/RvMenu.vue'
-import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import RvStatus from '@/shared/ui/RvStatus.vue'
 import RvTabs from '@/shared/ui/RvTabs.vue'
@@ -173,29 +166,6 @@ const facts = computed<Fact[]>(() => {
     }
   }
   return items
-})
-
-// Following the settings is a rule of its own, so it carries a name of its own
-// on the screen and becomes the server's empty interval at the boundary. A
-// blank value would read as "nothing chosen", which this control never is.
-const followSettings = 'default'
-
-const scheduleOptions = computed<ChoiceOption[]>(() => [
-  { label: t('list.schedule.default'), value: followSettings },
-  { label: t('settings.refresh.off'), value: 'off' },
-  { label: t('settings.refresh.daily'), value: 'daily' },
-  { label: t('settings.refresh.weekly'), value: 'weekly' },
-])
-
-const schedule = computed<string>({
-  get: () => {
-    const interval = view.schedule.value?.interval ?? ''
-    return interval === '' ? followSettings : interval
-  },
-  set: (value) => {
-    const interval = value === followSettings ? '' : value
-    void view.setSchedule(interval as RefreshInterval)
-  },
 })
 
 const technicalFacts = computed<Fact[]>(() => {
@@ -577,32 +547,6 @@ async function onListMenu(key: string): Promise<void> {
         />
         <RvFacts v-else-if="facts.length > 0" :items="facts" />
         <section
-          v-if="view.schedule.value !== null && !view.archived.value"
-          aria-labelledby="list-schedule"
-          class="list__section list__section--panel"
-        >
-          <h2 id="list-schedule" class="list__section-title">
-            {{ t('list.schedule') }}
-          </h2>
-          <div class="list__schedule-field">
-            <RvSelect
-              v-model="schedule"
-              :disabled="view.busy.value"
-              input-id="list-schedule-select"
-              labelled-by="list-schedule"
-              :options="scheduleOptions"
-              :placeholder="t('list.schedule.default')"
-            />
-          </div>
-          <p
-            v-if="view.schedule.value.lastRefreshFailed"
-            class="list__schedule-note"
-            role="status"
-          >
-            {{ t('list.schedule.failedNote') }}
-          </p>
-        </section>
-        <section
           v-if="expert && technicalFacts.length > 0"
           aria-labelledby="list-technical"
           class="list__technical"
@@ -628,12 +572,14 @@ async function onListMenu(key: string): Promise<void> {
           :devices="view.devices.value"
           :list-id="listId"
           :outputs="view.outputs.value"
+          :schedule="view.schedule.value"
           :selected-id="view.selectedOutputID.value"
           :target-groups="view.targetGroups.value"
           :target-title="view.targetTitle"
           @bind="onBind"
           @bind-device="view.bindDevice"
           @select="view.selectOutput"
+          @set-schedule="view.setSchedule"
         />
       </div>
 

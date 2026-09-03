@@ -67,19 +67,20 @@ const ru: Dictionary = {
   'devices.requirements.dependency':
     'Регистрация и включение автоотправки недоступны, пока параметры подключения не прочитаны.',
   'devices.requirements.reading': 'Читаем параметры подключения…',
-  'devices.empty': 'Устройств пока нет',
+  'devices.empty': 'Подключений пока нет',
   'devices.empty.body':
     'Добавьте роутер или приложение, чтобы отправлять файлы прямо на него.',
-  'devices.add': 'Добавить устройство',
-  'devices.add.submit': 'Добавить',
+  'devices.add': 'Добавить подключение',
+  'devices.add.submit': 'Сохранить',
   'devices.field.target': 'Устройство или приложение',
   'devices.field.target.pick': 'Выберите устройство или приложение',
-  'devices.field.name': 'Название',
+  'devices.field.name': 'Название подключения',
   'devices.field.address': 'Адрес',
-  'devices.field.account': 'Учётная запись',
+  'devices.field.account': 'Логин',
   'devices.field.interface': 'Интерфейс',
-  'devices.forget': 'Забыть устройство',
-  'devices.manualOnly': 'Файл для этого устройства устанавливается вручную.',
+  'devices.forget': 'Забыть подключение',
+  'devices.manualOnly': 'Файл для этого подключения устанавливается вручную.',
+  'devices.validation.required': 'Заполните поле',
   'devices.auto.label': 'Пароль',
   'devices.auto.enable': 'Включить автоотправку',
   'devices.auto.disable': 'Выключить автоотправку',
@@ -94,6 +95,14 @@ const ru: Dictionary = {
   'devices.work.failed': 'Действие не выполнено',
   'devices.work.failed.body':
     'Сервис отклонил запрос. Проверьте поля и повторите.',
+  'devices.registered.router':
+    'Роутер сохранён. Включите автоотправку, если хотите обновлять его без ручной загрузки.',
+  'devices.registered.other':
+    'Подключение сохранено. Включите автоотправку, если хотите обновлять его без ручной загрузки.',
+  'devices.auto.enabled.next.router':
+    'Автоотправка включена. Осталось выбрать этот роутер в маршруте.',
+  'devices.auto.enabled.next.other':
+    'Автоотправка включена. Осталось выбрать это подключение в маршруте.',
 
   'shell.nav.settings': 'Настройки',
   'shell.skip': 'Перейти к содержимому',
@@ -574,6 +583,12 @@ const ru: Dictionary = {
   'outputs.device.ready': 'автоотправка включена',
   'outputs.device.disabled': 'включите автоотправку в Подключениях',
   'outputs.device.detach': 'Отвязать',
+  'outputs.readiness.choose': 'Выберите подключение',
+  'outputs.readiness.auto': 'Включите автоотправку в Подключениях',
+  'outputs.readiness.refresh': 'Включите обновление маршрута',
+  'outputs.readiness.ready': 'Автоотправка настроена',
+  'outputs.readiness.ready.router':
+    'Готово: новые версии будут уходить на роутер после обновления',
   'outputs.download': 'Скачать',
   'outputs.download.aria': 'Скачать файл для {target}',
   'outputs.send': 'Отправить',
@@ -609,8 +624,14 @@ const ru: Dictionary = {
   'deploy.field.address.keenetic': 'Адрес устройства',
   'deploy.field.address.keenetic-dns': 'Адрес устройства',
   'deploy.field.address.singbox': 'Путь к конфигурации sing-box',
-  'deploy.field.interface.keenetic': 'Интерфейс устройства',
-  'deploy.field.interface.keenetic-dns': 'Интерфейс устройства',
+  'deploy.field.account.keenetic': 'Логин роутера',
+  'deploy.field.account.keenetic-dns': 'Логин роутера',
+  'deploy.field.interface.keenetic': 'Интерфейс для маршрутов',
+  'deploy.field.interface.keenetic-dns': 'Интерфейс для маршрутов',
+  'deploy.field.interface.keenetic.hint':
+    'Например, Wireguard0 — ID подключения/интерфейса Keenetic.',
+  'deploy.field.interface.keenetic-dns.hint':
+    'Например, Wireguard0 — ID подключения/интерфейса Keenetic.',
   'send.address.invalid': 'Ожидается адрес вида {example}.',
   'send.review': 'Проверить данные',
   'send.review.busy': 'Проверяем…',
@@ -752,19 +773,20 @@ const en: Dictionary = {
   'devices.requirements.dependency':
     'Registration and turning on automatic delivery are unavailable until connection requirements are read.',
   'devices.requirements.reading': 'Reading connection requirements…',
-  'devices.empty': 'No devices yet',
+  'devices.empty': 'No connections yet',
   'devices.empty.body':
     'Add a router or an application to send files straight to it.',
-  'devices.add': 'Add a device',
-  'devices.add.submit': 'Add',
+  'devices.add': 'Add a connection',
+  'devices.add.submit': 'Save',
   'devices.field.target': 'Device or application',
   'devices.field.target.pick': 'Choose a device or application',
-  'devices.field.name': 'Name',
+  'devices.field.name': 'Connection name',
   'devices.field.address': 'Address',
-  'devices.field.account': 'Account',
+  'devices.field.account': 'Login',
   'devices.field.interface': 'Interface',
-  'devices.forget': 'Forget this device',
-  'devices.manualOnly': 'A file for this device is installed by hand.',
+  'devices.forget': 'Forget this connection',
+  'devices.manualOnly': 'A file for this connection is installed by hand.',
+  'devices.validation.required': 'Fill in this field',
   'devices.auto.label': 'Password',
   'devices.auto.enable': 'Turn on automatic delivery',
   'devices.auto.disable': 'Turn off automatic delivery',
@@ -780,6 +802,14 @@ const en: Dictionary = {
   'devices.work.failed': 'That did not go through',
   'devices.work.failed.body':
     'The service refused the request. Check the fields and try again.',
+  'devices.registered.router':
+    'Router saved. Turn on automatic delivery if you want updates without manual upload.',
+  'devices.registered.other':
+    'Connection saved. Turn on automatic delivery if you want updates without manual upload.',
+  'devices.auto.enabled.next.router':
+    'Automatic delivery is on. All that remains is choosing this router in a route.',
+  'devices.auto.enabled.next.other':
+    'Automatic delivery is on. All that remains is choosing this connection in a route.',
 
   'shell.nav.settings': 'Settings',
   'shell.skip': 'Skip to content',
@@ -1239,6 +1269,12 @@ const en: Dictionary = {
   'outputs.device.ready': 'automatic delivery on',
   'outputs.device.disabled': 'turn on automatic delivery in Connections',
   'outputs.device.detach': 'Detach',
+  'outputs.readiness.choose': 'Choose a connection',
+  'outputs.readiness.auto': 'Turn on automatic delivery in Connections',
+  'outputs.readiness.refresh': 'Turn on route refresh',
+  'outputs.readiness.ready': 'Automatic delivery configured',
+  'outputs.readiness.ready.router':
+    'Ready: new versions will go to the router after the route refreshes',
   'outputs.download': 'Download',
   'outputs.download.aria': 'Download the file for {target}',
   'outputs.send': 'Send',
@@ -1274,8 +1310,14 @@ const en: Dictionary = {
   'deploy.field.address.keenetic': 'Device address',
   'deploy.field.address.keenetic-dns': 'Device address',
   'deploy.field.address.singbox': 'Path to the sing-box configuration',
-  'deploy.field.interface.keenetic': 'Device interface',
-  'deploy.field.interface.keenetic-dns': 'Device interface',
+  'deploy.field.account.keenetic': 'Router login',
+  'deploy.field.account.keenetic-dns': 'Router login',
+  'deploy.field.interface.keenetic': 'Interface for routes',
+  'deploy.field.interface.keenetic-dns': 'Interface for routes',
+  'deploy.field.interface.keenetic.hint':
+    'For example, Wireguard0 — the Keenetic connection/interface ID.',
+  'deploy.field.interface.keenetic-dns.hint':
+    'For example, Wireguard0 — the Keenetic connection/interface ID.',
   'send.address.invalid': 'Expected an address like {example}.',
   'send.review': 'Check the details',
   'send.review.busy': 'Checking…',

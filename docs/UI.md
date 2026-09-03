@@ -112,8 +112,13 @@ Sections, addressable by URL:
    submenus instead of forming one long flat list.
    Adding another connection on the Connection tab creates the output and
    publishes it in one move, because a format with no file is a promise the
-   screen cannot keep. Automatic delivery is primary when a deployer exists;
-   subscription and manual download remain available connection methods.
+   screen cannot keep. The route refresh rule is configured on this tab beside
+   its outputs; Settings supplies only the global default. Each output names
+   its next unmet delivery condition — choose a connection, turn on automatic
+   delivery, turn on route refresh, or ready — using the persisted output,
+   connection, and schedule facts. Automatic delivery is primary when a
+   deployer exists; subscription and manual download remain available
+   connection methods.
 4. `/library` — **Lists / Списки.** The library: what a list holds and which
    category holds it, for every route at once (ADR 0029). The same
    master-detail geometry as the picker with no checkboxes, because nothing
@@ -136,12 +141,17 @@ Sections, addressable by URL:
    has a deployer, and the by-hand path always stated below it.
 6. `/connections` — **Connections / Подключения** (ADR 0027; `/devices`
    redirects here). One section answers «куда»: registered devices and
-   applications first, with the catalog-backed registration form, and the
-   reference of supported devices and formats collapsed beneath them. The
-   words «цель», «вывод» and «потребитель» do not appear on any surface: a
-   route feeds *connections*, each made of a device or application and its
-   format. If a catalog dependency is unavailable, the screen keeps known
-   devices readable and states exactly which actions cannot be trusted yet.
+   applications first, with the catalog-backed «Добавить подключение» form.
+   Router login and route-interface fields are required when the selected
+   deployer needs them; the interface help names the Keenetic ID format. A
+   saved connection does not send anything. After registration the screen says
+   what remains before unattended delivery, and after opt-in it points to
+   choosing that connection in a route. The reference of supported devices
+   and formats is collapsed beneath them. The words «цель», «вывод» and
+   «потребитель» do not appear on any surface: a route feeds *connections*,
+   each made of a device or application and its format. If a catalog dependency
+   is unavailable, the screen keeps known devices readable and states exactly
+   which actions cannot be trusted yet.
 7. `/settings` — **Настройки.** Language, theme (system/dark/light), detail
    mode, and the server's address. Preferences live here, not in the chrome.
 

@@ -754,15 +754,7 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   // light the control up from a line the pointer merely crossed. A `<label for>`
   // forwards its own `:hover` to the control it names, which is how the whole
   // width of that line was lighting up the select underneath it.
-  const scheduleTrigger = page.locator('#list-schedule-select')
-  await expect(scheduleTrigger).toBeVisible()
-  const scheduleGround = async (): Promise<string> =>
-    scheduleTrigger.evaluate((node) => getComputedStyle(node).backgroundColor)
-  const atRest = await scheduleGround()
-  await page.locator('#list-schedule').hover()
-  expect(await scheduleGround()).toBe(atRest)
-  await scheduleTrigger.hover()
-  expect(await scheduleGround()).toBe(atRest)
+  await expect(page.locator('#list-schedule-select')).toHaveCount(0)
 
   // The subscription link is shown masked: the raw secret is not in the DOM,
   // not in any request, until the operator asks for it.
@@ -789,6 +781,15 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   // The file is read only when the operator opens it, and what is shown is
   // byte-for-byte what the device receives.
   await tablist.getByRole('tab', { name: 'Connection' }).click()
+  const scheduleTrigger = page.locator('#list-schedule-select')
+  await expect(scheduleTrigger).toBeVisible()
+  const scheduleGround = async (): Promise<string> =>
+    scheduleTrigger.evaluate((node) => getComputedStyle(node).backgroundColor)
+  const atRest = await scheduleGround()
+  await page.locator('#list-schedule').hover()
+  expect(await scheduleGround()).toBe(atRest)
+  await scheduleTrigger.hover()
+  expect(await scheduleGround()).toBe(atRest)
   const artifactPath = new URL(
     (await page
       .getByRole('row')

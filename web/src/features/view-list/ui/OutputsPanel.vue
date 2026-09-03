@@ -5,6 +5,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import type { TargetOption } from '@/shared/api/catalog'
 import type { DeviceCard } from '@/shared/api/devices'
 import type { OutputCard } from '@/shared/api/outputs'
+import type { RefreshInterval, Schedule } from '@/shared/api/lists'
 import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/kinds'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
@@ -23,6 +24,7 @@ const props = defineProps<{
   devices: DeviceCard[]
   listId: string
   outputs: OutputCard[]
+  schedule: Schedule | null
   selectedId: string
   targetGroups: { kind: string; targets: TargetOption[] }[]
   // What to call a format here. The catalog owns the words and the page owns
@@ -34,6 +36,7 @@ const emit = defineEmits<{
   bind: [targetID: string]
   bindDevice: [outputID: string, deviceID: string]
   select: [outputID: string]
+  setSchedule: [interval: RefreshInterval]
 }>()
 
 const { dateTime, t } = useLocale()
@@ -66,6 +69,47 @@ function deviceChoices(output: OutputCard): ChoiceOption[] {
       label: `${device.name} · ${t(device.autoDeliver ? 'outputs.device.ready' : 'outputs.device.disabled')}`,
       value: device.id,
     }))
+}
+
+const followSettings = 'default'
+const scheduleOptions = computed<ChoiceOption[]>(() => [
+  { label: t('list.schedule.default'), value: followSettings },
+  { label: t('settings.refresh.off'), value: 'off' },
+  { label: t('settings.refresh.daily'), value: 'daily' },
+  { label: t('settings.refresh.weekly'), value: 'weekly' },
+])
+
+const scheduleValue = computed<string>({
+  get: () => {
+    const interval = props.schedule?.interval ?? ''
+    return interval === '' ? followSettings : interval
+  },
+  set: (value) => {
+    emit(
+      'setSchedule',
+      (value === followSettings ? '' : value) as RefreshInterval,
+    )
+  },
+})
+
+function readiness(
+  output: OutputCard,
+): 'choose' | 'auto' | 'refresh' | 'ready' {
+  if (output.deviceID === '') return 'choose'
+  const device = props.devices.find(
+    (candidate) => candidate.id === output.deviceID,
+  )
+  if (device?.autoDeliver !== true) return 'auto'
+  if ((props.schedule?.effective ?? 'off') === 'off') return 'refresh'
+  return 'ready'
+}
+
+function readinessLabel(output: OutputCard): string {
+  const state = readiness(output)
+  if (state === 'ready' && output.targetKind === 'router') {
+    return t('outputs.readiness.ready.router')
+  }
+  return t(`outputs.readiness.${state}`)
 }
 
 // Devices and applications stay named runs: a format is looked for by the kind
@@ -163,6 +207,17 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
                 </RvButton>
               </div>
               <span v-else>—</span>
+              <RvStatus
+                class="outputs__readiness"
+                :label="readinessLabel(output)"
+                :tone="
+                  readiness(output) === 'ready'
+                    ? 'ready'
+                    : readiness(output) === 'choose'
+                      ? 'waiting'
+                      : 'warning'
+                "
+              />
             </td>
             <td class="outputs__cell-updated">
               <span class="outputs__updated">
@@ -209,6 +264,33 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
         </tbody>
       </table>
     </div>
+
+    <section
+      v-if="props.schedule !== null && !props.archived"
+      aria-labelledby="list-schedule"
+      class="outputs__schedule"
+    >
+      <h2 id="list-schedule" class="outputs__section-title">
+        {{ t('list.schedule') }}
+      </h2>
+      <div class="outputs__schedule-field">
+        <RvSelect
+          v-model="scheduleValue"
+          :disabled="props.busy"
+          input-id="list-schedule-select"
+          labelled-by="list-schedule"
+          :options="scheduleOptions"
+          :placeholder="t('list.schedule.default')"
+        />
+      </div>
+      <p
+        v-if="props.schedule.lastRefreshFailed"
+        class="outputs__schedule-note"
+        role="status"
+      >
+        {{ t('list.schedule.failedNote') }}
+      </p>
+    </section>
 
     <form v-if="!props.archived" class="outputs__add" @submit.prevent="add">
       <label class="outputs__add-label" for="outputs-target">

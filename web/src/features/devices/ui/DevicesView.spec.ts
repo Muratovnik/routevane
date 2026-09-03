@@ -143,8 +143,12 @@ describe('DevicesView prerequisite audit', () => {
     )
     expect(wrapper.find('#device-account').exists()).toBe(true)
     expect(wrapper.find('#device-interface').exists()).toBe(true)
-    await wrapper.get('#device-account').setValue('admin')
     await wrapper.get('#device-interface').setValue('Wireguard0')
+    expect(
+      wrapper.get<HTMLButtonElement>('button[type="submit"]').element.disabled,
+    ).toBe(true)
+    expect(wrapper.text()).toContain('Fill in this field')
+    await wrapper.get('#device-account').setValue('admin')
     expect(
       wrapper.get<HTMLButtonElement>('button[type="submit"]').element.disabled,
     ).toBe(false)
