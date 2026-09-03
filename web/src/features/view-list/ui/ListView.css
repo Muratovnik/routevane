@@ -1,7 +1,9 @@
 .list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--rv-space-8);
   width: 100%;
+  min-width: 0;
 }
 
 .list__header {
@@ -98,6 +100,7 @@
 
 .list__panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--rv-space-6);
 }
 

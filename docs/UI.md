@@ -87,8 +87,12 @@ Sections, addressable by URL:
    before or after selection — a full-height right-side sheet, one modal
    `RvDialog` portalled to the document body: it locks the page scroll behind
    it, traps focus, returns it on close, and stays whole over a page scrolled
-   to any position. The table fills the sheet; the sheet has no empty band
-   between the last row and the footer. The card opens straight on its
+   to any position. The table's scroll area fills the sheet down to the footer;
+   its rows keep their natural height and align at the top, including when a
+   filter leaves one row. A long table has no separate empty band between its
+   scroll area and the footer. When enlarged controls need more height, the
+   card body also scrolls rather than collapsing the table or clipping actions.
+   The card opens straight on its
    destination table, with a filter field above it: catalog seeds, operator
    additions and the stored source observations as rows — domains, then IP
    addresses, then networks — each naming only its origin by name

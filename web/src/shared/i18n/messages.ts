@@ -63,7 +63,10 @@ const ru: Dictionary = {
     'Сохранённые устройства показаны, но новое пока нельзя добавить.',
   'devices.requirements.failed': 'Параметры подключения не загружены',
   'devices.requirements.failed.body':
-    'Устройства доступны, но подсказки для автоматической отправки могут быть неполными.',
+    'Устройства доступны. Повторите чтение, чтобы зарегистрировать подключение или включить автоотправку.',
+  'devices.requirements.dependency':
+    'Регистрация и включение автоотправки недоступны, пока параметры подключения не прочитаны.',
+  'devices.requirements.reading': 'Читаем параметры подключения…',
   'devices.empty': 'Устройств пока нет',
   'devices.empty.body':
     'Добавьте роутер или приложение, чтобы отправлять файлы прямо на него.',
@@ -246,6 +249,11 @@ const ru: Dictionary = {
   'lists.failed': 'Списки недоступны',
   'lists.failed.body':
     'Локальный сервис не ответил. Проверьте, что Routevane запущен.',
+  'lists.stale': 'Изменение сохранено, но списки не перечитаны',
+  'lists.stale.body':
+    'Показана прежняя копия каталога. Повторите чтение, чтобы увидеть сохранённое изменение; запись повторно не отправится.',
+  'lists.refresh': 'Перечитать списки',
+  'lists.refresh.busy': 'Читаем списки…',
   'lists.addCategory': 'Своя категория',
   'lists.addList': 'Свой список',
   'lists.category.empty': 'В этой категории пока нет списков.',
@@ -313,8 +321,10 @@ const ru: Dictionary = {
     other: 'Пропущено записей источников: {count}',
   },
   'serviceCard.observing': 'Читаем источники…',
-  'serviceCard.refresh.failed':
-    'Не удалось обновить из источников. Прежние данные не тронуты — повторите позже.',
+  'serviceCard.refresh.ready': 'Источники прочитаны',
+  'serviceCard.refresh.waiting': 'Источники ещё не читались',
+  'serviceCard.refresh.none': 'Нет автоматических источников',
+  'serviceCard.refresh.failed.compact': 'Не обновлено; записи сохранены',
   'serviceCard.action.failed': 'Не удалось применить изменение. Повторите.',
   'serviceCard.feed.add': 'Добавить источник',
   'serviceCard.feed.url': 'Адрес фида',
@@ -334,8 +344,6 @@ const ru: Dictionary = {
   'serviceCard.domains.info': 'Что в этой таблице',
   'serviceCard.domains.intro':
     'Домены, IP-адреса и сети. Выключенная строка не попадёт в файлы при следующей пересборке.',
-  'serviceCard.domains.unobserved':
-    'Источники ещё не читались — показаны только постоянные записи.',
   'serviceCard.domains.count': {
     few: '{count} записи включено',
     many: '{count} записей включено',
@@ -579,6 +587,10 @@ const ru: Dictionary = {
   'outputs.add.none': 'Все доступные форматы уже добавлены.',
 
   'send.title': 'Отправка на устройство',
+  'send.route.failed': 'Маршрут недоступен',
+  'send.route.failed.body': 'Не удалось прочитать маршрут. Повторите запрос.',
+  'send.connection.missing': 'Подключение не найдено',
+  'send.connection.missing.body': 'В этом маршруте нет такого подключения.',
   'send.for': 'Маршрут: {name}',
   'send.status.idle': 'Не применялось',
   'send.status.planning': 'Проверяем данные',
@@ -662,6 +674,13 @@ const ru: Dictionary = {
   'settings.refresh.daily': 'Раз в сутки',
   'settings.refresh.weekly': 'Раз в неделю',
   'settings.refresh.note': 'Правило для маршрутов, у которых нет своего.',
+  'settings.refresh.reading': 'Читаем правило обновления…',
+  'settings.refresh.read.failed': 'Не удалось прочитать правило обновления.',
+  'settings.refresh.read.failed.body':
+    'Значение сервера неизвестно. Повторите чтение, чтобы изменить расписание.',
+  'settings.refresh.read.failed.stale':
+    'Показано последнее подтверждённое значение. Повторите чтение, чтобы проверить изменения.',
+  'settings.refresh.refreshing': 'Обновляем правило обновления…',
   'settings.refresh.failed': 'Не удалось сохранить правило обновления.',
   'settings.refresh.saving': 'Сохраняем правило…',
   'settings.runtime.address': 'Адрес',
@@ -729,7 +748,10 @@ const en: Dictionary = {
     'Saved devices are still shown, but a new one cannot be added yet.',
   'devices.requirements.failed': 'Connection requirements unavailable',
   'devices.requirements.failed.body':
-    'Devices are available, but automatic-delivery hints may be incomplete.',
+    'Devices are available. Retry the read to register a connection or turn on automatic delivery.',
+  'devices.requirements.dependency':
+    'Registration and turning on automatic delivery are unavailable until connection requirements are read.',
+  'devices.requirements.reading': 'Reading connection requirements…',
   'devices.empty': 'No devices yet',
   'devices.empty.body':
     'Add a router or an application to send files straight to it.',
@@ -902,6 +924,11 @@ const en: Dictionary = {
   'lists.failed': 'Lists are unavailable',
   'lists.failed.body':
     'The local service did not answer. Check that Routevane is running.',
+  'lists.stale': 'Saved, but the lists were not reread',
+  'lists.stale.body':
+    'The previous catalog copy remains visible. Retry the read to see the saved change; the write will not be sent again.',
+  'lists.refresh': 'Refresh lists',
+  'lists.refresh.busy': 'Reading lists…',
   'lists.addCategory': 'Custom category',
   'lists.addList': 'Custom list',
   'lists.category.empty': 'This category holds no lists yet.',
@@ -967,8 +994,10 @@ const en: Dictionary = {
     other: '{count} source entries skipped',
   },
   'serviceCard.observing': 'Reading the sources…',
-  'serviceCard.refresh.failed':
-    'The sources could not be refreshed. The previous data is untouched — try again later.',
+  'serviceCard.refresh.ready': 'Sources read',
+  'serviceCard.refresh.waiting': 'Sources not read yet',
+  'serviceCard.refresh.none': 'No automatic sources',
+  'serviceCard.refresh.failed.compact': 'Refresh failed; entries kept',
   'serviceCard.action.failed': 'The change could not be applied. Try again.',
   'serviceCard.feed.add': 'Add a source',
   'serviceCard.feed.url': 'Feed address',
@@ -988,8 +1017,6 @@ const en: Dictionary = {
   'serviceCard.domains.info': 'What this table holds',
   'serviceCard.domains.intro':
     'Domains, IP addresses and networks. A switched-off row leaves the files on the next rebuild.',
-  'serviceCard.domains.unobserved':
-    'The sources have not been read yet — only the standing entries are shown.',
   'serviceCard.domains.count': {
     one: '{count} entry on',
     other: '{count} entries on',
@@ -1225,6 +1252,10 @@ const en: Dictionary = {
   'outputs.add.none': 'Every available format is already added.',
 
   'send.title': 'Send to device',
+  'send.route.failed': 'Route is unavailable',
+  'send.route.failed.body': 'Could not load this route. Retry the request.',
+  'send.connection.missing': 'Connection not found',
+  'send.connection.missing.body': 'This route does not have that connection.',
   'send.for': 'Route: {name}',
   'send.status.idle': 'Not applied',
   'send.status.planning': 'Checking the details',
@@ -1308,6 +1339,13 @@ const en: Dictionary = {
   'settings.refresh.daily': 'Daily',
   'settings.refresh.weekly': 'Weekly',
   'settings.refresh.note': 'The rule for routes that have none of their own.',
+  'settings.refresh.reading': 'Reading the refresh rule…',
+  'settings.refresh.read.failed': 'The refresh rule could not be read.',
+  'settings.refresh.read.failed.body':
+    'The server value is unknown. Retry the read before changing the schedule.',
+  'settings.refresh.read.failed.stale':
+    'The last confirmed value is shown. Retry the read to check for changes.',
+  'settings.refresh.refreshing': 'Refreshing the refresh rule…',
   'settings.refresh.failed': 'The refresh rule could not be saved.',
   'settings.refresh.saving': 'Saving the rule…',
   'settings.runtime.address': 'Address',

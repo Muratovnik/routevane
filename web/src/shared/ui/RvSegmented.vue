@@ -24,7 +24,19 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
-function select(value: string): void {
+function select(value: string, event: Event): void {
+  // Native activation checks a radio before change fires. Restore the controlled
+  // value even when its owner defers or rejects the change: an unchanged prop
+  // alone does not cause Vue to patch the browser's optimistic checked state.
+  const input = event.currentTarget
+  if (input instanceof HTMLInputElement) {
+    input
+      .closest('fieldset')
+      ?.querySelectorAll<HTMLInputElement>('input[type="radio"]')
+      .forEach((radio) => {
+        radio.checked = radio.value === props.modelValue
+      })
+  }
   if (props.disabled) return
   if (value !== props.modelValue) emit('update:modelValue', value)
 }
@@ -48,7 +60,7 @@ function select(value: string): void {
           :name="name"
           type="radio"
           :value="option.value"
-          @change="select(option.value)"
+          @change="select(option.value, $event)"
         />
         <span>{{ option.label }}</span>
       </label>

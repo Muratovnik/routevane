@@ -38,48 +38,80 @@ useHead({
   ),
 })
 
-onMounted(async () => {
+async function reload(): Promise<void> {
   await view.initialize()
-  if (outputId.value !== '') view.selectOutput(outputId.value)
-})
+  if (view.state.value === 'ready' && outputId.value !== '')
+    view.selectOutput(outputId.value)
+}
+
+onMounted(reload)
 </script>
 
 <template>
   <AppShell>
-    <RvStateNotice
-      v-if="view.state.value === 'loading'"
-      live
-      :title="t('list.loading')"
-      tone="busy"
-    />
-    <RvStateNotice
-      v-else-if="
-        view.state.value === 'missing' ||
-        view.state.value === 'failed' ||
-        output === null
+    <section
+      v-if="
+        view.state.value !== 'ready' ||
+        output === null ||
+        output.latest === null
       "
-      :body="t('list.missing.body')"
-      live
-      :title="t('list.missing')"
-      tone="failed"
+      aria-labelledby="send-entry-title"
+      class="send-entry"
     >
-      <template #action>
-        <RvButton to="/" variant="secondary">{{ t('action.back') }}</RvButton>
-      </template>
-    </RvStateNotice>
-    <RvStateNotice
-      v-else-if="output.latest === null"
-      :title="t('library.noArtifact')"
-      tone="waiting"
-    >
-      <template #action>
-        <RvButton :to="`/lists/${listId}`" variant="secondary">
-          {{ t('send.back') }}
-        </RvButton>
-      </template>
-    </RvStateNotice>
+      <h1 id="send-entry-title" class="send-entry__title">
+        {{ t('send.title') }}
+      </h1>
+      <RvStateNotice
+        v-if="view.state.value === 'loading'"
+        live
+        :title="t('list.loading')"
+        tone="busy"
+      />
+      <RvStateNotice
+        v-else-if="view.state.value === 'failed'"
+        :body="t('send.route.failed.body')"
+        live
+        :title="t('send.route.failed')"
+        tone="failed"
+      >
+        <template #action>
+          <RvButton @click="reload">{{ t('action.retry') }}</RvButton>
+        </template>
+      </RvStateNotice>
+      <RvStateNotice
+        v-else-if="view.state.value === 'missing'"
+        :body="t('list.missing.body')"
+        live
+        :title="t('list.missing')"
+        tone="failed"
+      >
+        <template #action>
+          <RvButton to="/" variant="secondary">{{ t('action.back') }}</RvButton>
+        </template>
+      </RvStateNotice>
+      <RvStateNotice
+        v-else-if="output === null"
+        :body="t('send.connection.missing.body')"
+        live
+        :title="t('send.connection.missing')"
+        tone="failed"
+      >
+        <template #action>
+          <RvButton :to="`/lists/${listId}`" variant="secondary">{{
+            t('send.back')
+          }}</RvButton>
+        </template>
+      </RvStateNotice>
+      <RvStateNotice v-else :title="t('library.noArtifact')" tone="waiting">
+        <template #action>
+          <RvButton :to="`/lists/${listId}`" variant="secondary">
+            {{ t('send.back') }}
+          </RvButton>
+        </template>
+      </RvStateNotice>
+    </section>
     <SendPanel
-      v-else
+      v-else-if="output !== null && output.latest !== null"
       :artifact-id="output.latest.id"
       :list-id="listId"
       :list-name="view.list.value?.name ?? ''"
@@ -88,3 +120,16 @@ onMounted(async () => {
     />
   </AppShell>
 </template>
+
+<style scoped>
+.send-entry {
+  display: grid;
+  gap: var(--rv-space-6);
+}
+
+.send-entry__title {
+  font-weight: 700;
+  font-size: var(--rv-text-page);
+  line-height: var(--rv-leading-tight);
+}
+</style>

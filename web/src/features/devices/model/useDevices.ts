@@ -16,6 +16,7 @@ import {
 
 export type DevicesState = 'loading' | 'ready' | 'failed'
 export type DevicesWork = 'idle' | 'working' | 'failed'
+export type RequirementsState = 'unknown' | 'loading' | 'ready' | 'failed'
 
 /**
  * The devices this operator installed, as opposed to the formats this product
@@ -33,36 +34,74 @@ export function useDevices() {
   const deployableTargets = ref<DeployableTarget[]>([])
   const catalogAvailable = ref(false)
   const deploymentCatalogAvailable = ref(false)
+  const requirementsState = ref<RequirementsState>('unknown')
   const state = ref<DevicesState>('loading')
   const work = ref<DevicesWork>('idle')
+  let deviceRead = false
+  let initializeRequest = 0
+  let requirementsRequest = 0
 
   const busy = computed(() => work.value === 'working')
   const targets = computed(() => catalog.value?.targets ?? [])
 
+  // Requirements are a separate read from the device registry. `ready` means
+  // this tab has a current authoritative answer; an empty deployable list is a
+  // successful answer that a target has no deployer, not an unknown failure.
   async function initialize(): Promise<void> {
-    state.value = 'loading'
-    catalog.value = null
-    deployableTargets.value = []
-    catalogAvailable.value = false
-    deploymentCatalogAvailable.value = false
+    const request = ++initializeRequest
+    const requirements = ++requirementsRequest
+    if (!deviceRead) state.value = 'loading'
+    requirementsState.value = 'loading'
     const [loaded, loadedCatalog, loadedDeployables] = await Promise.allSettled(
       [loadDevices(), loadCatalog(), loadDeployableTargets()],
     )
+    if (request !== initializeRequest) return
     if (loadedCatalog.status === 'fulfilled') {
       catalog.value = loadedCatalog.value
       catalogAvailable.value = true
+    } else {
+      catalogAvailable.value = false
     }
-    if (loadedDeployables.status === 'fulfilled') {
+    if (
+      loadedDeployables.status === 'fulfilled' &&
+      requirements === requirementsRequest
+    ) {
       deployableTargets.value = loadedDeployables.value
       deploymentCatalogAvailable.value = true
+      requirementsState.value = 'ready'
+    } else if (requirements === requirementsRequest) {
+      deploymentCatalogAvailable.value = false
+      requirementsState.value = 'failed'
     }
     if (loaded.status === 'rejected') {
-      state.value = 'failed'
+      if (!deviceRead) state.value = 'failed'
       return
     }
     devices.value = loaded.value.devices
     secretStoreAvailable.value = loaded.value.secretStoreAvailable
     state.value = 'ready'
+    deviceRead = true
+  }
+
+  async function retryRequirements(): Promise<boolean> {
+    // A dependency retry must not blank either the known device cards or the
+    // draft fields owned by the view. Only this endpoint is called here.
+    if (requirementsState.value === 'loading') return false
+    const request = ++requirementsRequest
+    requirementsState.value = 'loading'
+    try {
+      const loaded = await loadDeployableTargets()
+      if (request !== requirementsRequest) return false
+      deployableTargets.value = loaded
+      deploymentCatalogAvailable.value = true
+      requirementsState.value = 'ready'
+      return true
+    } catch {
+      if (request !== requirementsRequest) return false
+      deploymentCatalogAvailable.value = false
+      requirementsState.value = 'failed'
+      return false
+    }
   }
 
   async function run(action: () => Promise<unknown>): Promise<boolean> {
@@ -86,6 +125,7 @@ export function useDevices() {
     account: string,
     interfaceName: string,
   ): Promise<boolean> {
+    if (requirementsState.value !== 'ready') return Promise.resolve(false)
     return run(() =>
       registerDevice(targetID, name, address, account, interfaceName),
     )
@@ -101,6 +141,16 @@ export function useDevices() {
    * back: the surface can say that a credential is held, and nothing more.
    */
   function enable(id: string, credential: string): Promise<boolean> {
+    const device = devices.value.find((candidate) => candidate.id === id)
+    if (
+      requirementsState.value !== 'ready' ||
+      device === undefined ||
+      !device.deployable ||
+      !deployableTargets.value.some(
+        (target) => target.targetID === device.targetID,
+      )
+    )
+      return Promise.resolve(false)
     return run(() => enableAutoDelivery(id, credential))
   }
 
@@ -119,6 +169,8 @@ export function useDevices() {
     forget,
     initialize,
     register,
+    requirementsState,
+    retryRequirements,
     secretStoreAvailable,
     state,
     targets,

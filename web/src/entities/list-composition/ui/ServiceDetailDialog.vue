@@ -205,6 +205,12 @@ watch(
     feedURL.value = ''
     feedFormat.value = 'text'
     saving.value = false
+    // A switch/close invalidates any request from the previous card. Keep the
+    // new card's loading state independent of that stale promise; its finally
+    // block is generation-guarded below so an old response cannot clear this
+    // card's state.
+    refreshing.value = false
+    observing.value = false
     contents.value = null
     contentsState.value = 'idle'
     autoObserved = false
@@ -227,6 +233,9 @@ async function openContents(serviceID: string): Promise<void> {
     return
   }
   if (shouldObserve()) {
+    // The card may have closed or switched while the contents request was in
+    // flight. Do not let a late first read start source work for another card.
+    if (request !== contentsRequest) return
     autoObserved = true
     await runRefresh(true)
   }
@@ -259,6 +268,13 @@ function onRefreshSources(): Promise<void> {
   return runRefresh(false)
 }
 
+// The composing flow has no source-editing controls, but an automatic read is
+// still recoverable in place. Its retry is the same read as the library button;
+// it never changes route membership or opens the library editor.
+function onRetryRefresh(): Promise<void> {
+  return runRefresh(composing.value)
+}
+
 // One read of the sources, whether the card asked for it or the operator did.
 // A failed read never removes the rows already on the table.
 async function runRefresh(automatic: boolean): Promise<void> {
@@ -277,10 +293,15 @@ async function runRefresh(automatic: boolean): Promise<void> {
       refreshSkipped.value = result.skippedEntries
   } catch {
     if (request === contentsRequest)
-      refreshError.value = t('serviceCard.refresh.failed')
+      refreshError.value = t('serviceCard.refresh.failed.compact')
   } finally {
-    refreshing.value = false
-    observing.value = false
+    // Closing or switching cards invalidates this generation. In particular,
+    // an old request must not clear a newer card's busy state or hide its
+    // retry action.
+    if (request === contentsRequest) {
+      refreshing.value = false
+      observing.value = false
+    }
   }
 }
 
@@ -730,13 +751,6 @@ function onOpenChange(open: boolean): void {
           </strong>
         </div>
 
-        <p
-          v-if="contents !== null && !contents.observed"
-          class="service-card__muted"
-        >
-          {{ t('serviceCard.domains.unobserved') }}
-        </p>
-
         <RvStateNotice
           v-if="contentsState === 'loading'"
           live
@@ -761,22 +775,64 @@ function onOpenChange(open: boolean): void {
         </RvStateNotice>
 
         <template v-else-if="contents !== null">
-          <RvStateNotice
-            v-if="observing"
-            live
-            :title="t('serviceCard.observing')"
-            tone="busy"
-          />
           <p v-if="actionError !== ''" class="service-card__error" role="alert">
             {{ actionError }}
           </p>
-          <p
-            v-if="refreshError !== ''"
-            class="service-card__error"
-            role="alert"
+
+          <!-- Source reads keep one compact, reserved status row. The retry
+               control is present but invisible until an error so the filter
+               and the known rows do not move when the answer changes. -->
+          <div
+            class="service-card__refresh-status"
+            :role="refreshError !== '' ? 'alert' : 'status'"
           >
-            {{ refreshError }}
-          </p>
+            <RvStatus
+              v-if="observing"
+              class="service-card__refresh-indicator"
+              :label="t('serviceCard.observing')"
+              tone="busy"
+            />
+            <RvStatus
+              v-else-if="refreshing"
+              class="service-card__refresh-indicator"
+              :label="t('serviceCard.refresh.busy')"
+              tone="busy"
+            />
+            <RvStatus
+              v-else-if="refreshError !== ''"
+              class="service-card__refresh-indicator"
+              :label="refreshError"
+              tone="failed"
+            />
+            <RvStatus
+              v-else-if="sources.length === 0"
+              class="service-card__refresh-indicator"
+              :label="t('serviceCard.refresh.none')"
+              tone="waiting"
+            />
+            <RvStatus
+              v-else-if="contents?.observed === true"
+              class="service-card__refresh-indicator"
+              :label="t('serviceCard.refresh.ready')"
+              tone="ready"
+            />
+            <RvStatus
+              v-else
+              class="service-card__refresh-indicator"
+              :label="t('serviceCard.refresh.waiting')"
+              tone="waiting"
+            />
+            <RvButton
+              class="service-card__refresh-retry"
+              :aria-hidden="refreshError === '' ? 'true' : undefined"
+              :disabled="refreshError === '' || refreshing"
+              size="compact"
+              type="button"
+              @click="onRetryRefresh"
+            >
+              {{ t('action.retry') }}
+            </RvButton>
+          </div>
 
           <div class="service-card__toolbar">
             <label class="service-card__filter">
@@ -1088,6 +1144,7 @@ function onOpenChange(open: boolean): void {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow-y: auto;
 }
 
 .service-card__section {
@@ -1111,7 +1168,7 @@ function onOpenChange(open: boolean): void {
   flex: 1;
   flex-direction: column;
   gap: var(--rv-space-4);
-  min-height: 0;
+  min-height: min-content;
 }
 
 .service-card__heading {
@@ -1177,6 +1234,32 @@ function onOpenChange(open: boolean): void {
 .service-card__error {
   color: var(--rv-color-status-failed);
   font-size: var(--rv-text-dense);
+}
+
+/* Source reads are a compact fact beside the table. Keeping the retry slot in
+   the row even while it is hidden means loading, failure and recovery share
+   the same geometry; the row itself can still grow for translated or zoomed
+   copy instead of clipping it. */
+.service-card__refresh-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--rv-space-3);
+  align-items: center;
+  min-width: 0;
+  min-height: var(--rv-control-touch);
+}
+
+.service-card__refresh-indicator {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.service-card__refresh-retry {
+  flex: none;
+}
+
+.service-card__refresh-retry[aria-hidden='true'] {
+  visibility: hidden;
 }
 
 .service-card__aside {
@@ -1285,6 +1368,8 @@ function onOpenChange(open: boolean): void {
    the sheet actually has, which is what keeps the footer off an empty band. */
 .service-card__rows {
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
   max-height: var(--rv-picker-height);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -1297,7 +1382,12 @@ function onOpenChange(open: boolean): void {
 .service-card__section--fill .service-card__rows {
   flex: 1;
   max-height: none;
-  min-height: 0;
+
+  /* Keep a usable table when enlarged controls consume the sheet. Size
+     containment excludes the entire list from the section's intrinsic height;
+     the body can then scroll its controls without replacing the table scroll. */
+  min-height: calc(var(--rv-row-default) * 2);
+  contain: size;
 }
 
 .service-card__rows li {

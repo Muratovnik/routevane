@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 
+import { useSettings } from '@/features/settings/model/useSettings'
 import type { RefreshInterval } from '@/shared/api/lists'
-import { loadSettings, saveDefaultRefreshInterval } from '@/shared/api/settings'
 import { useLocale } from '@/shared/i18n/useLocale'
 import { localeNames, type Locale } from '@/shared/i18n/messages'
 import {
@@ -10,10 +10,13 @@ import {
   type Appearance,
   type DetailMode,
 } from '@/shared/model/useSurfacePreferences'
+import RvButton from '@/shared/ui/RvButton.vue'
 import RvSegmented from '@/shared/ui/RvSegmented.vue'
+import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 
 const { locale, setLocale, t } = useLocale()
 const preferences = useSurfacePreferences()
+const settings = useSettings()
 
 const localeOptions = computed(() =>
   (Object.keys(localeNames) as Locale[]).map((value) => ({
@@ -37,45 +40,18 @@ const origin = computed(() =>
   typeof window === 'undefined' ? '127.0.0.1' : window.location.host,
 )
 
-// The refresh rule is the server's, not this browser's: the process acts on it
-// whether or not anyone has a tab open. It is read and written over the API for
-// that reason, and a failed write says so rather than leaving the control
-// showing a value nothing stored.
-const refreshInterval = ref<RefreshInterval>('off')
-const refreshState = ref<'loading' | 'ready' | 'saving' | 'failed'>('loading')
-let refreshRequest = 0
-
 const refreshOptions = computed(() => [
   { label: t('settings.refresh.off'), value: 'off' },
   { label: t('settings.refresh.daily'), value: 'daily' },
   { label: t('settings.refresh.weekly'), value: 'weekly' },
 ])
 
-onMounted(async () => {
-  try {
-    refreshInterval.value = (await loadSettings()).refreshInterval || 'off'
-    refreshState.value = 'ready'
-  } catch {
-    refreshState.value = 'failed'
-  }
+onMounted(() => {
+  void settings.initialize()
 })
 
 async function onRefreshInterval(value: string): Promise<void> {
-  if (refreshState.value === 'loading' || refreshState.value === 'saving')
-    return
-  const request = ++refreshRequest
-  const previous = refreshInterval.value
-  refreshInterval.value = value as RefreshInterval
-  refreshState.value = 'saving'
-  try {
-    await saveDefaultRefreshInterval(value as RefreshInterval)
-    if (request !== refreshRequest) return
-    refreshState.value = 'ready'
-  } catch {
-    if (request !== refreshRequest) return
-    refreshInterval.value = previous
-    refreshState.value = 'failed'
-  }
+  await settings.setRefreshInterval(value as RefreshInterval)
 }
 
 function onLocale(value: string): void {
@@ -135,23 +111,46 @@ function onMode(value: string): void {
       <h2 id="settings-refresh" class="settings__section-title">
         {{ t('settings.refresh') }}
       </h2>
+      <RvStateNotice
+        v-if="settings.readState.value === 'failed'"
+        :body="
+          t(
+            settings.refreshInterval.value === null
+              ? 'settings.refresh.read.failed.body'
+              : 'settings.refresh.read.failed.stale',
+          )
+        "
+        live
+        :title="t('settings.refresh.read.failed')"
+        tone="warning"
+      >
+        <template #action>
+          <RvButton @click="settings.retry">{{ t('action.retry') }}</RvButton>
+        </template>
+      </RvStateNotice>
       <div class="settings__rows">
         <div class="settings__row">
           <RvSegmented
-            :disabled="refreshState === 'loading' || refreshState === 'saving'"
+            :disabled="!settings.canChange.value"
             :label="t('settings.refresh.label')"
-            :model-value="refreshInterval"
+            :model-value="settings.refreshInterval.value ?? ''"
             name="rv-refresh-interval"
             :options="refreshOptions"
             @update:model-value="onRefreshInterval"
           />
           <p class="settings__note" role="status">
             {{
-              refreshState === 'failed'
+              settings.writeState.value === 'failed'
                 ? t('settings.refresh.failed')
-                : refreshState === 'saving'
+                : settings.writeState.value === 'saving'
                   ? t('settings.refresh.saving')
-                  : t('settings.refresh.note')
+                  : settings.readState.value === 'loading'
+                    ? t(
+                        settings.refreshInterval.value === null
+                          ? 'settings.refresh.reading'
+                          : 'settings.refresh.refreshing',
+                      )
+                    : t('settings.refresh.note')
             }}
           </p>
         </div>

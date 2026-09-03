@@ -76,6 +76,15 @@ function needsCredential(device: { targetID: string }): boolean {
   )
 }
 
+function hasKnownRequirements(targetID: string): boolean {
+  return (
+    devices.requirementsState.value === 'ready' &&
+    devices.deployableTargets.value.some(
+      (target) => target.targetID === targetID,
+    )
+  )
+}
+
 watch(targetID, () => {
   address.value = ''
   account.value = ''
@@ -89,6 +98,7 @@ const credentials = ref<Record<string, string>>({})
 const canRegister = computed(
   () =>
     !devices.busy.value &&
+    devices.requirementsState.value === 'ready' &&
     targetID.value !== '' &&
     name.value.trim() !== '' &&
     address.value.trim() !== '' &&
@@ -166,14 +176,28 @@ async function onEnable(id: string): Promise<void> {
       </RvStateNotice>
       <RvStateNotice
         v-else-if="!devices.deploymentCatalogAvailable.value"
-        :body="t('devices.requirements.failed.body')"
-        :title="t('devices.requirements.failed')"
-        tone="warning"
+        :body="
+          devices.requirementsState.value === 'loading'
+            ? undefined
+            : t('devices.requirements.failed.body')
+        "
+        :title="
+          t(
+            devices.requirementsState.value === 'loading'
+              ? 'devices.requirements.reading'
+              : 'devices.requirements.failed',
+          )
+        "
+        :tone="
+          devices.requirementsState.value === 'loading' ? 'busy' : 'warning'
+        "
       >
         <template #action>
-          <RvButton @click="devices.initialize">{{
-            t('action.retry')
-          }}</RvButton>
+          <RvButton
+            :disabled="devices.requirementsState.value === 'loading'"
+            @click="devices.retryRequirements"
+            >{{ t('action.retry') }}</RvButton
+          >
         </template>
       </RvStateNotice>
       <RvStateNotice
@@ -204,7 +228,8 @@ async function onEnable(id: string): Promise<void> {
               <p class="devices__meta">
                 {{
                   t(
-                    needsCredential(device)
+                    hasKnownRequirements(device.targetID) &&
+                      needsCredential(device)
                       ? 'devices.auto.on'
                       : 'devices.auto.on.noCredential',
                   )
@@ -221,6 +246,7 @@ async function onEnable(id: string): Promise<void> {
             <div
               v-else-if="
                 device.deployable &&
+                hasKnownRequirements(device.targetID) &&
                 (devices.secretStoreAvailable.value || !needsCredential(device))
               "
               class="devices__row"
@@ -267,6 +293,14 @@ async function onEnable(id: string): Promise<void> {
                 }}
               </p>
             </div>
+            <p
+              v-else-if="
+                device.deployable && devices.requirementsState.value !== 'ready'
+              "
+              class="devices__meta"
+            >
+              {{ t('devices.requirements.dependency') }}
+            </p>
             <p v-else-if="device.deployable" class="devices__meta">
               {{ t('devices.auto.unavailable') }}
             </p>
@@ -288,6 +322,18 @@ async function onEnable(id: string): Promise<void> {
         @submit.prevent="submit"
       >
         <h2 class="devices__section-title">{{ t('devices.add') }}</h2>
+        <p
+          v-if="devices.requirementsState.value !== 'ready'"
+          class="devices__meta"
+        >
+          {{
+            t(
+              devices.requirementsState.value === 'loading'
+                ? 'devices.requirements.reading'
+                : 'devices.requirements.dependency',
+            )
+          }}
+        </p>
         <label class="devices__field-label" for="device-target">
           {{ t('devices.field.target') }}
         </label>

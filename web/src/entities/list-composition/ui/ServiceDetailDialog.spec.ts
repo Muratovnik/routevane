@@ -25,7 +25,13 @@ function json(payload: unknown, status = 200): Response {
   })
 }
 
-function contentsResponse(): Response {
+function contentsResponse(
+  observed = true,
+  sources = [
+    { id: 'itdoginfo', type: 'http', custom: false, enabled: true },
+    { id: 'v2fly', type: 'http', custom: false, enabled: false },
+  ],
+): Response {
   return json({
     service_id: 'discord',
     rows: [
@@ -49,15 +55,12 @@ function contentsResponse(): Response {
       },
       { value: '198.51.100.7', kind: 'ip', origin: 'iplist', enabled: true },
     ],
-    sources: [
-      { id: 'itdoginfo', type: 'http', custom: false, enabled: true },
-      { id: 'v2fly', type: 'http', custom: false, enabled: false },
-    ],
-    observed: true,
+    sources,
+    observed,
   })
 }
 
-function stubAPI(routes: Record<string, () => Response>) {
+function stubAPI(routes: Record<string, () => Response | Promise<Response>>) {
   const calls: { body: string | null; key: string }[] = []
   const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
     const key = `${init?.method ?? 'GET'} ${String(input)}`
@@ -152,7 +155,7 @@ describe('ServiceDetailDialog', () => {
     failed = true
     clickByText(card(), 'Refresh from sources')
     await flushPromises()
-    expect(card().textContent).toContain('The sources could not be refreshed')
+    expect(card().textContent).toContain('Refresh failed; entries kept')
     expect(card().querySelectorAll('.service-card__rows li')).toHaveLength(4)
     expect(card().textContent).not.toContain('source entries skipped')
     failed = false
@@ -160,9 +163,122 @@ describe('ServiceDetailDialog', () => {
     clickByText(card(), 'Refresh from sources')
     await flushPromises()
     expect(card().textContent).not.toContain('source entries skipped')
-    expect(card().textContent).not.toContain(
-      'The sources could not be refreshed',
-    )
+    expect(card().textContent).not.toContain('Refresh failed; entries kept')
+    wrapper.unmount()
+  })
+
+  it('recovers an automatic source read in compose without changing membership', async () => {
+    let refreshAttempts = 0
+    const { keys } = stubAPI({
+      'GET /v1/services/discord/contents': () =>
+        contentsResponse(refreshAttempts > 1),
+      'POST /v1/services/discord/refresh': () => {
+        refreshAttempts += 1
+        return refreshAttempts === 1
+          ? json({ error: 'source unavailable' }, 503)
+          : json({ refresh: { skipped_entries: 0 } })
+      },
+    })
+    const wrapper = mountCard({
+      included: false,
+      mode: 'compose',
+      pending: true,
+    })
+    await flushPromises()
+
+    const panel = card()
+    // The initial contents remain in place when the automatic read fails, and
+    // the same card now offers an in-context retry even though compose has no
+    // source-editing controls.
+    expect(panel.querySelectorAll('.service-card__rows li')).toHaveLength(4)
+    expect(panel.querySelector('input[type="search"]')).not.toBeNull()
+    expect(panel.querySelector('.service-card__membership')).not.toBeNull()
+    expect(panel.textContent).toContain('Refresh failed; entries kept')
+    expect(
+      [...panel.querySelectorAll('button')].find((button) =>
+        button.textContent?.includes('Retry'),
+      ),
+    ).not.toBeUndefined()
+    expect(wrapper.emitted('include')).toBeUndefined()
+
+    clickByText(panel, 'Retry')
+    await flushPromises()
+
+    expect(refreshAttempts).toBe(2)
+    expect(keys()).toEqual([
+      'GET /v1/services/discord/contents',
+      'POST /v1/services/discord/refresh',
+      'POST /v1/services/discord/refresh',
+      'GET /v1/services/discord/contents',
+    ])
+    expect(panel.querySelector('[role="alert"]')).toBeNull()
+    expect(panel.querySelectorAll('.service-card__rows li')).toHaveLength(4)
+    expect(wrapper.emitted('include')).toBeUndefined()
+    wrapper.unmount()
+  })
+
+  it('keeps manual refresh pending and does not claim a read for source-less lists', async () => {
+    let releaseRefresh!: () => void
+    const pendingRefresh = new Promise<Response>((resolve) => {
+      releaseRefresh = () => resolve(json({ refresh: { skipped_entries: 0 } }))
+    })
+    const { keys } = stubAPI({
+      'GET /v1/services/discord/contents': () => contentsResponse(true),
+      'POST /v1/services/discord/refresh': () => pendingRefresh,
+    })
+    const wrapper = mountCard({ mode: 'library' })
+    await flushPromises()
+    const panel = card()
+    clickByText(panel, 'Refresh from sources')
+    await flushPromises()
+    expect(panel.textContent).toContain('Refreshing…')
+    expect(panel.textContent).not.toContain('Sources read')
+    releaseRefresh()
+    await flushPromises()
+    expect(panel.textContent).toContain('Sources read')
+    expect(keys()).toEqual([
+      'GET /v1/services/discord/contents',
+      'POST /v1/services/discord/refresh',
+      'GET /v1/services/discord/contents',
+    ])
+    wrapper.unmount()
+
+    const noSources = {
+      ...discord,
+      sourceCount: 0,
+      sources: [],
+    }
+    stubAPI({
+      'GET /v1/services/discord/contents': () => contentsResponse(true, []),
+    })
+    const noSourceWrapper = mountCard({ mode: 'compose', service: noSources })
+    await flushPromises()
+    expect(card().textContent).toContain('No automatic sources')
+    expect(card().textContent).not.toContain('Sources read')
+    noSourceWrapper.unmount()
+  })
+
+  it('ignores a late contents response after the card closes', async () => {
+    let resolveContents!: (response: Response) => void
+    const pendingContents = new Promise<Response>((resolve) => {
+      resolveContents = resolve
+    })
+    const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
+      const key = `${init?.method ?? 'GET'} ${String(input)}`
+      if (key === 'GET /v1/services/discord/contents') return pendingContents
+      return Promise.resolve(json({ error: 'unrouted' }, 500))
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const wrapper = mountCard({ included: false, mode: 'compose' })
+    await flushPromises()
+    await wrapper.setProps({ service: null })
+    await flushPromises()
+    resolveContents(contentsResponse())
+    await flushPromises()
+
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
 

@@ -409,4 +409,236 @@ describe('ListLibraryView', () => {
     expect(card.querySelector('.service-card__membership')).toBeNull()
     wrapper.unmount()
   })
+
+  it('library audit: keeps a committed create stale until a GET-only retry confirms its row', async () => {
+    const created = {
+      custom: true,
+      id: 'custom-stale-create',
+      services: [],
+      title: 'Saved while offline',
+    }
+    let reads = 0
+    const { calls } = stubAPI({
+      'GET /v1/services': () => {
+        reads += 1
+        if (reads === 2) return json({ error: 'catalog unavailable' }, 503)
+        return catalogResponse(
+          reads >= 3 ? [...categories, created] : categories,
+        )
+      },
+      'GET /v1/targets': () => json({ targets: [] }),
+      'POST /v1/categories': () => json({ category: created }, 201),
+    })
+    const wrapper = mountLibrary()
+    await flushPromises()
+
+    clickByText(wrapper.element as HTMLElement, 'Custom category')
+    await flushPromises()
+    const panel = dialog()
+    const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
+    expect(field).not.toBeNull()
+    field!.value = created.title
+    field!.dispatchEvent(new Event('input', { bubbles: true }))
+    clickByText(panel, 'Create')
+    await flushPromises()
+
+    // The POST landed exactly once, but the retained copy cannot contain the
+    // new row. The form is closed so its old input is not a resubmit prompt.
+    expect(
+      calls.filter((call) => call.key === 'POST /v1/categories'),
+    ).toHaveLength(1)
+    expect(panel.isConnected).toBe(false)
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(wrapper.text()).toContain('Saved, but the lists were not reread')
+    expect(wrapper.get('.lists__details-title').text()).toBe('Communication')
+    expect(wrapper.text()).not.toContain('Saved while offline')
+
+    // Recovery is only GET. Once it confirms the category, the saved identity
+    // completes selection; no second POST is sent.
+    clickByText(wrapper.element as HTMLElement, 'Refresh lists')
+    await flushPromises()
+    expect(
+      calls.filter((call) => call.key === 'POST /v1/categories'),
+    ).toHaveLength(1)
+    expect(wrapper.get('.lists__details-title').text()).toBe(
+      'Saved while offline',
+    )
+    expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
+    wrapper.unmount()
+  })
+
+  it('library audit: preserves the category input when the write itself fails', async () => {
+    const { calls } = stubAPI({
+      ...catalogRoutes(),
+      'POST /v1/categories': () =>
+        json({ error: 'catalog unavailable while writing' }, 503),
+    })
+    const wrapper = mountLibrary()
+    await flushPromises()
+
+    clickByText(wrapper.element as HTMLElement, 'Custom category')
+    await flushPromises()
+    const panel = dialog()
+    const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
+    expect(field).not.toBeNull()
+    field!.value = 'Keep this draft'
+    field!.dispatchEvent(new Event('input', { bubbles: true }))
+    clickByText(panel, 'Create')
+    await flushPromises()
+
+    expect(
+      calls.filter((call) => call.key === 'POST /v1/categories'),
+    ).toHaveLength(1)
+    expect(
+      dialog().querySelector<HTMLInputElement>('#lists-category-title')?.value,
+    ).toBe('Keep this draft')
+    expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
+    wrapper.unmount()
+  })
+
+  it('library audit: closes a committed stale rename and updates it on GET retry', async () => {
+    const renamed = categories.map((category) =>
+      category.id === 'custom-home'
+        ? { ...category, title: 'Renamed later' }
+        : category,
+    )
+    let reads = 0
+    const { calls } = stubAPI({
+      'GET /v1/services': () => {
+        reads += 1
+        if (reads === 2) return json({ error: 'catalog unavailable' }, 503)
+        return catalogResponse(reads >= 3 ? renamed : categories)
+      },
+      'GET /v1/targets': () => json({ targets: [] }),
+      'POST /v1/categories/custom-home/update': () =>
+        json({ category: renamed[2] }),
+    })
+    const wrapper = mountLibrary()
+    await flushPromises()
+    await openCategory(wrapper, 'Домашние')
+    await openMenu(wrapper, 'Actions for category Домашние')
+    menuItem('Rename')?.click()
+    await flushPromises()
+    const panel = dialog()
+    const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
+    expect(field).not.toBeNull()
+    field!.value = 'Renamed later'
+    field!.dispatchEvent(new Event('input', { bubbles: true }))
+    clickByText(panel, 'Save')
+    await flushPromises()
+
+    expect(panel.isConnected).toBe(false)
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(wrapper.get('.lists__details-title').text()).toBe('Домашние')
+    expect(wrapper.text()).toContain('Saved, but the lists were not reread')
+    expect(
+      calls.filter(
+        (call) => call.key === 'POST /v1/categories/custom-home/update',
+      ),
+    ).toHaveLength(1)
+
+    clickByText(wrapper.element as HTMLElement, 'Refresh lists')
+    await flushPromises()
+    expect(wrapper.get('.lists__details-title').text()).toBe('Renamed later')
+    expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
+    expect(
+      calls.filter(
+        (call) => call.key === 'POST /v1/categories/custom-home/update',
+      ),
+    ).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('library audit: closes a committed stale category deletion on a safe row', async () => {
+    let reads = 0
+    const remaining = categories.filter((entry) => entry.id !== 'custom-home')
+    const { calls } = stubAPI({
+      'GET /v1/services': () => {
+        reads += 1
+        if (reads === 2) return json({ error: 'catalog unavailable' }, 503)
+        return catalogResponse(reads >= 3 ? remaining : categories)
+      },
+      'GET /v1/targets': () => json({ targets: [] }),
+      'POST /v1/categories/custom-home/remove': () =>
+        new Response(null, { status: 204 }),
+    })
+    const wrapper = mountLibrary()
+    await flushPromises()
+    await openCategory(wrapper, 'Домашние')
+    await openMenu(wrapper, 'Actions for category Домашние')
+    menuItem('Delete the category')?.click()
+    await flushPromises()
+    const panel = dialog()
+    expect(panel.isConnected).toBe(true)
+    clickByText(panel, 'Delete')
+    await flushPromises()
+
+    expect(panel.isConnected).toBe(false)
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(wrapper.get('.lists__details-title').text()).toBe('Uncategorized')
+    expect(wrapper.get('.lists__groups').text()).toContain('Домашние')
+    expect(wrapper.text()).toContain('Saved, but the lists were not reread')
+    expect(
+      calls.filter(
+        (call) => call.key === 'POST /v1/categories/custom-home/remove',
+      ),
+    ).toHaveLength(1)
+
+    clickByText(wrapper.element as HTMLElement, 'Refresh lists')
+    await flushPromises()
+    expect(wrapper.get('.lists__details-title').text()).toBe('Uncategorized')
+    expect(wrapper.get('.lists__groups').text()).not.toContain('Домашние')
+    expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
+    expect(
+      calls.filter(
+        (call) => call.key === 'POST /v1/categories/custom-home/remove',
+      ),
+    ).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it('library audit: keeps a stale detach visible until GET confirms membership', async () => {
+    const detached = categories.map((category) =>
+      category.id === 'communication'
+        ? { ...category, services: ['telegram'] }
+        : category,
+    )
+    let reads = 0
+    const { calls } = stubAPI({
+      'GET /v1/services': () => {
+        reads += 1
+        if (reads === 2) return json({ error: 'catalog unavailable' }, 503)
+        return catalogResponse(reads >= 3 ? detached : categories)
+      },
+      'GET /v1/targets': () => json({ targets: [] }),
+      'POST /v1/categories/communication/update': () =>
+        json({ category: detached[0] }),
+    })
+    const wrapper = mountLibrary()
+    await flushPromises()
+    await openCategory(wrapper, 'Communication')
+    await openMenu(wrapper, 'Actions for list Discord')
+    menuItem('Remove from the category')?.click()
+    await flushPromises()
+
+    expect(wrapper.get('.lists__pane-body').text()).toContain('Discord')
+    expect(wrapper.text()).toContain('Saved, but the lists were not reread')
+    expect(
+      calls.filter(
+        (call) => call.key === 'POST /v1/categories/communication/update',
+      ),
+    ).toHaveLength(1)
+
+    clickByText(wrapper.element as HTMLElement, 'Refresh lists')
+    await flushPromises()
+    expect(wrapper.get('.lists__pane-body').text()).not.toContain('Discord')
+    expect(wrapper.get('.lists__pane-body').text()).toContain('Telegram')
+    expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
+    expect(
+      calls.filter(
+        (call) => call.key === 'POST /v1/categories/communication/update',
+      ),
+    ).toHaveLength(1)
+    wrapper.unmount()
+  })
 })

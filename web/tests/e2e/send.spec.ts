@@ -9,7 +9,10 @@ import {
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
+
+import { dictionaries } from '../../src/shared/i18n/messages'
 
 import {
   assertPortBindable,
@@ -71,15 +74,18 @@ const formatNames: Record<string, RegExp> = {
 async function publishList(
   page: Page,
   targetID: string,
+  language: 'en' | 'ru' = 'en',
 ): Promise<{ listId: string; outputId: string }> {
   await page.goto(`${origin}/lists/new`)
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: 'New route',
+      name: message(language, 'create.title'),
     }),
   ).toBeVisible()
-  await page.getByRole('searchbox', { name: 'Find a list' }).fill('youtube')
+  await page
+    .getByRole('searchbox', { name: message(language, 'create.search') })
+    .fill('youtube')
   await page.locator('input[value="youtube"]').check()
   await page.locator('.rv-combobox__toggle').click()
   await page.getByRole('option', { name: formatNames[targetID] }).click()
@@ -91,7 +97,9 @@ async function publishList(
         new URL(candidate.url()).pathname,
       ),
   )
-  await page.getByRole('button', { name: 'Create and prepare' }).click()
+  await page
+    .getByRole('button', { name: message(language, 'create.submit') })
+    .click()
   await page.waitForURL(/\/lists\/[a-f0-9]{32}(?:[#?].*)?$/)
   await expect(
     page.getByRole('heading', { level: 1, name: 'YouTube' }),
@@ -105,6 +113,12 @@ async function publishList(
   // bind — create, refresh, build, reload — to actually finish.
   await expect(page.locator('#outputs-target')).toBeEnabled()
   return { listId, outputId: outputPayload.output.id }
+}
+
+function message(language: 'en' | 'ru', key: string): string {
+  const value = dictionaries[language][key]
+  if (typeof value !== 'string') throw new Error(`Not a string message: ${key}`)
+  return value
 }
 
 test.beforeAll(async () => {
@@ -319,8 +333,157 @@ test('the send screen builds its form from the deployer and applies the file loc
   )
 })
 
+for (const language of ['en', 'ru'] as const) {
+  test.describe(`send recovery ${language}`, () => {
+    test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
+    const copy = (key: string): string => message(language, key)
+    test('send entry distinguishes unavailable, missing route, missing connection and missing file', async ({
+      page,
+    }) => {
+      test.setTimeout(180000)
+      async function auditEntry(): Promise<void> {
+        const previous = page.viewportSize()
+        for (const width of [320, 768, 1024, 1440]) {
+          await page.setViewportSize({ width, height: 900 })
+          expect(
+            await page.evaluate(
+              () =>
+                document.documentElement.scrollWidth <=
+                document.documentElement.clientWidth,
+            ),
+          ).toBe(true)
+          expect(
+            (
+              await new AxeBuilder({ page })
+                .withTags([
+                  'wcag2a',
+                  'wcag2aa',
+                  'wcag21a',
+                  'wcag21aa',
+                  'wcag22aa',
+                ])
+                .analyze()
+            ).violations,
+          ).toEqual([])
+        }
+        if (previous !== null) await page.setViewportSize(previous)
+      }
+      const { listId, outputId } = await publishList(page, 'singbox', language)
+      const listURL = `${origin}/lists/${listId}`
+      const detailURL = `${origin}/v1/lists/${listId}`
+      let unavailable = true
+      let pendingRead: (() => void) | undefined
+      const mutations: string[] = []
+      page.on('request', (request) => {
+        if (request.method() !== 'GET') mutations.push(request.url())
+      })
+      await page.route(detailURL, async (route) => {
+        if (unavailable) {
+          await route.fulfill({
+            status: 500,
+            json: { error: 'controlled read failure' },
+          })
+          return
+        }
+        await new Promise<void>((resolveRead) => {
+          pendingRead = resolveRead
+        })
+        await route.continue()
+      })
+      await page
+        .locator('main')
+        .getByRole('button', {
+          name: copy('library.menu').replace('{name}', 'YouTube'),
+          exact: true,
+        })
+        .click()
+      await page
+        .locator('.rv-menu__panel:visible')
+        .getByRole('menuitem', {
+          name: copy('library.sendTarget').replace('{target}', 'sing-box'),
+        })
+        .click()
+      await page.waitForURL(`${listURL}/send/${outputId}`)
+      await expect(
+        page.getByText(copy('send.route.failed'), { exact: true }),
+      ).toBeVisible()
+      await expect(
+        page.getByText(copy('list.missing'), { exact: true }),
+      ).toHaveCount(0)
+      await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
+      await expect(page.getByRole('main')).toHaveCount(1)
+      await auditEntry()
+      unavailable = false
+      await page
+        .getByRole('button', { name: copy('action.retry'), exact: true })
+        .click()
+      await expect(
+        page.getByText(copy('list.loading'), { exact: true }),
+      ).toBeVisible()
+      await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
+      await auditEntry()
+      await expect.poll(() => pendingRead !== undefined).toBe(true)
+      pendingRead!()
+      await expect(page.locator('#send-device')).toBeVisible()
+      await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
+      await page.unroute(detailURL)
+
+      const missingID = '0'.repeat(32)
+      await page.goto(`${listURL}/send/${missingID}`)
+      await expect(
+        page.getByText(copy('send.connection.missing'), { exact: true }),
+      ).toBeVisible()
+      await expect(page.getByRole('main').getByRole('link')).toHaveAttribute(
+        'href',
+        `/lists/${listId}`,
+      )
+      await expect(
+        page.getByText(copy('list.missing'), { exact: true }),
+      ).toHaveCount(0)
+
+      await auditEntry()
+      await page.route(detailURL, async (route) => {
+        const response = await route.fetch()
+        const payload = (await response.json()) as {
+          outputs: { id: string; latest: unknown }[]
+        }
+        const output = payload.outputs.find(
+          (candidate) => candidate.id === outputId,
+        )
+        expect(output).toBeDefined()
+        output!.latest = null
+        await route.fulfill({ response, json: payload })
+      })
+      await page.goto(`${listURL}/send/${outputId}`)
+      await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
+      await expect(
+        page.getByText(copy('library.noArtifact'), { exact: true }),
+      ).toBeVisible()
+      await expect(page.locator('#send-device')).toHaveCount(0)
+      await page.unroute(detailURL)
+
+      await auditEntry()
+      const absentResponse = page.waitForResponse(
+        `${origin}/v1/lists/${missingID}`,
+      )
+      await page.goto(`${origin}/lists/${missingID}/send/${outputId}`)
+      expect((await absentResponse).status()).toBe(404)
+      await expect(
+        page.getByText(copy('list.missing'), { exact: true }),
+      ).toBeVisible()
+      await expect(
+        page.getByRole('button', { name: copy('action.retry'), exact: true }),
+      ).toHaveCount(0)
+      await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
+      await auditEntry()
+      expect(mutations).toEqual([])
+    })
+  })
+}
+
 // A format nothing can install automatically still has a send screen: it says
 // so in words and offers the manual path instead of an unusable form.
+
 test('a target without a deployer is offered the manual path only', async ({
   page,
 }) => {

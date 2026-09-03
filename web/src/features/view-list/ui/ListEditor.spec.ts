@@ -287,6 +287,39 @@ describe('ListEditor', () => {
     wrapper.unmount()
   })
 
+  it('cancels the edited name and composition without saving and closes the picker', async () => {
+    stubPreview()
+    const wrapper = mountEditor()
+    await flushPromises()
+    const storedRows = wrapper
+      .findAll('.editor__row-copy')
+      .map((row) => row.text())
+    await wrapper.get('#editor-name').setValue('Unsaved name')
+    const remove = buttonByLabel(wrapper, 'Remove Communication from the route')
+    expect(remove).toBeDefined()
+    await remove!.trigger('click')
+    await buttonByText(wrapper, 'Add lists')?.trigger('click')
+    expect(
+      wrapper.findAll('.editor__row-copy').map((row) => row.text()),
+    ).not.toEqual(storedRows)
+    expect(wrapper.get('.editor__services').attributes('style')).toBeUndefined()
+    const cancel = buttonByText(wrapper, 'Cancel')
+    expect(cancel).toBeDefined()
+    await cancel!.trigger('click')
+    expect(
+      (wrapper.get('#editor-name').element as HTMLInputElement).value,
+    ).toBe('Chat and video')
+    expect(
+      wrapper.findAll('.editor__row-copy').map((row) => row.text()),
+    ).toEqual(storedRows)
+    expect(wrapper.get('.editor__services').attributes('style')).toBe(
+      'display: none;',
+    )
+    expect(wrapper.emitted('save')).toBeUndefined()
+    expect(buttonByText(wrapper, 'Cancel')).toBeUndefined()
+    wrapper.unmount()
+  })
+
   it('stops following a category when its row is removed', async () => {
     stubPreview()
     const wrapper = mountEditor()

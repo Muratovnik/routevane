@@ -14,6 +14,8 @@ import { fileURLToPath } from 'node:url'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
+import { dictionaries } from '../../src/shared/i18n/messages'
+
 import {
   assertPortBindable,
   delay,
@@ -1937,116 +1939,392 @@ test('the server refresh setting cannot race while a write is pending', async ({
   await expect(segment(page, 'Off').locator('input')).toBeChecked()
 })
 
-test('every section passes the accessibility gates', async ({ page }) => {
-  test.setTimeout(180000)
-  // Every screen is audited before anything is asserted, so one screen's
-  // regression cannot hide another's.
-  const violations: AuditFinding[] = []
-  await mkdir(reviewRoot, { recursive: true })
+for (const language of ['en', 'ru'] as const) {
+  test.describe(`failure recovery ${language}`, () => {
+    test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
+    const copy = (key: string): string => {
+      const value = dictionaries[language][key]
+      if (typeof value !== 'string')
+        throw new Error(`Not a string message: ${key}`)
+      return value
+    }
+    test('prerequisite audit: devices remain readable while requirements retry', async ({
+      page,
+    }) => {
+      test.setTimeout(120000)
+      const headers = { Origin: origin, 'X-Routevane-Request': '1' }
+      const created = await page.request.post(`${origin}/v1/devices`, {
+        data: {
+          account: 'admin',
+          address: 'http://192.168.1.1',
+          interface: 'Wireguard0',
+          name: 'Requirements retry fixture',
+          target_id: 'keenetic',
+        },
+        headers,
+      })
+      expect(created.ok()).toBe(true)
+      const deviceID = ((await created.json()) as { device: { id: string } })
+        .device.id
+      let reads = 0
+      let failRequirements = true
+      await page.route('**/v1/deployments/targets', async (route) => {
+        reads += 1
+        if (failRequirements) {
+          await route.fulfill({
+            body: JSON.stringify({ error: 'temporarily unavailable' }),
+            contentType: 'application/json',
+            status: 503,
+          })
+          return
+        }
+        await route.continue()
+      })
 
-  await page.goto(`${origin}/lists/new`)
-  await expect(
-    page.getByRole('heading', {
-      level: 1,
-      name: 'New route',
-    }),
-  ).toBeVisible()
-  await page
-    .getByRole('button', { name: 'Open the contents of list Discord' })
-    .click()
-  const serviceDialog = page.getByRole('dialog', { name: 'Discord' })
-  await expect(
-    serviceDialog.getByRole('heading', { name: 'List contents' }),
-  ).toBeVisible()
-  // The card reads its sources when it opens, so the audit is taken once the
-  // observed rows have landed: the busy notice and the full table are both in
-  // the same pass.
-  await expect(serviceDialog.getByText('dns-client').first()).toBeVisible({
-    timeout: 60000,
+      try {
+        await page.goto(`${origin}/connections`)
+        await expect(
+          page.getByText(copy('devices.requirements.failed')),
+        ).toBeVisible()
+        await expect(page.getByText('Requirements retry fixture')).toBeVisible()
+        await expect(
+          page.getByRole('button', { name: copy('devices.auto.enable') }),
+        ).toHaveCount(0)
+
+        expect(
+          await auditWidths(page, `${language}-requirements-failed`),
+        ).toEqual([])
+        const beforeRetry = reads
+        failRequirements = false
+        await page
+          .locator('.devices')
+          .getByRole('button', { name: copy('action.retry') })
+          .click()
+        await expect(page.locator('#device-target')).toBeEnabled()
+        await page.locator('#device-target').click()
+        await page.getByRole('option', { name: 'Keenetic' }).click()
+        await expect(page.locator('#device-account')).toBeVisible()
+        await expect(page.locator('#device-interface')).toBeVisible()
+        expect(reads).toBe(beforeRetry + 1)
+      } finally {
+        await page.unroute('**/v1/deployments/targets')
+        const forgotten = await page.request.post(
+          `${origin}/v1/devices/${deviceID}/forget`,
+          { data: {}, headers },
+        )
+        expect(forgotten.ok()).toBe(true)
+      }
+    })
+
+    test('prerequisite audit: settings keeps the schedule unknown until retry succeeds', async ({
+      page,
+    }) => {
+      let reads = 0
+      await page.route('**/v1/settings', async (route) => {
+        if (route.request().method() !== 'GET') {
+          await route.continue()
+          return
+        }
+        reads += 1
+        if (reads === 1) {
+          await route.fulfill({
+            body: JSON.stringify({ error: 'temporarily unavailable' }),
+            contentType: 'application/json',
+            status: 503,
+          })
+          return
+        }
+        await route.fulfill({
+          body: JSON.stringify({ refresh_interval: 'daily' }),
+          contentType: 'application/json',
+          status: 200,
+        })
+      })
+
+      try {
+        await page.goto(`${origin}/settings`)
+        await expect(
+          page.getByText(copy('settings.refresh.read.failed')),
+        ).toBeVisible()
+        await expect(
+          page.locator('input[name="rv-refresh-interval"]').nth(0),
+        ).not.toBeChecked()
+        await expect(
+          page.locator('input[name="rv-locale"]').first(),
+        ).toBeEnabled()
+        await expect(
+          page.locator('input[name="rv-appearance"]').first(),
+        ).toBeEnabled()
+
+        expect(await auditWidths(page, `${language}-settings-failed`)).toEqual(
+          [],
+        )
+        await page.getByRole('button', { name: copy('action.retry') }).click()
+        await expect(
+          page.locator('input[name="rv-refresh-interval"]').nth(1),
+        ).toBeChecked()
+        expect(reads).toBe(2)
+      } finally {
+        await page.unroute('**/v1/settings')
+      }
+    })
+
+    test('library audit: a committed category waits for GET recovery without a second write', async ({
+      page,
+    }) => {
+      test.setTimeout(120000)
+      const headers = { 'X-Routevane-Request': '1' }
+      const categoryTitle = `Stale browser ${Date.now()}`
+      let failCatalogRead = false
+      let categoryID = ''
+      const categoryWrites: string[] = []
+
+      page.on('request', (request) => {
+        if (
+          request.method() === 'POST' &&
+          new URL(request.url()).pathname === '/v1/categories'
+        )
+          categoryWrites.push(request.url())
+      })
+      await page.route('**/v1/services', async (route) => {
+        if (route.request().method() === 'GET' && failCatalogRead) {
+          failCatalogRead = false
+          await route.fulfill({
+            status: 503,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'catalog temporarily unavailable' }),
+          })
+          return
+        }
+        await route.continue()
+      })
+
+      try {
+        await page.goto(`${origin}/library`)
+        await expect(
+          page.getByRole('heading', { level: 1, name: copy('lists.title') }),
+        ).toBeVisible()
+        await page
+          .getByRole('button', { name: copy('lists.addCategory') })
+          .click()
+        const form = page.getByRole('dialog', {
+          name: copy('lists.category.new'),
+        })
+        await form.getByLabel(copy('lists.category.field')).fill(categoryTitle)
+
+        const created = page.waitForResponse(
+          (response) =>
+            response.request().method() === 'POST' &&
+            new URL(response.url()).pathname === '/v1/categories',
+        )
+        failCatalogRead = true
+        await form
+          .getByRole('button', {
+            exact: true,
+            name: copy('lists.category.create'),
+          })
+          .click()
+        const createdResponse = await created
+        expect(createdResponse.status()).toBe(201)
+        categoryID = (
+          (await createdResponse.json()) as { category: { id: string } }
+        ).category.id
+
+        await expect(form).toBeHidden()
+        await expect(page.getByRole('status')).toContainText(
+          copy('lists.stale'),
+        )
+        await expect(
+          page.locator('.lists__details').getByRole('heading', {
+            name: copy('category.communication'),
+          }),
+        ).toBeVisible()
+        expect(categoryWrites).toHaveLength(1)
+
+        expect(await auditWidths(page, `${language}-library-stale`)).toEqual([])
+        await page.getByRole('button', { name: copy('lists.refresh') }).click()
+        await expect(
+          page.locator('.lists__details').getByRole('heading', {
+            name: categoryTitle,
+          }),
+        ).toBeVisible()
+        await expect(
+          page.getByRole('status').filter({ hasText: copy('lists.stale') }),
+        ).toHaveCount(0)
+        expect(categoryWrites).toHaveLength(1)
+        assertProductAlive()
+      } finally {
+        failCatalogRead = false
+        await page.unroute('**/v1/services')
+        if (categoryID !== '') {
+          const removed = await page.request.post(
+            `${origin}/v1/categories/${categoryID}/remove`,
+            { headers, data: { lists: 'detach' } },
+          )
+          expect(removed.status()).toBe(204)
+        }
+      }
+    })
   })
-  violations.push(...(await audit(page, 'service-card')))
-  await serviceDialog.getByRole('button', { name: 'Close' }).last().click()
-  await page.getByRole('searchbox', { name: 'Find a list' }).fill('youtube')
-  await expect(page.locator('input[value="youtube"]')).toBeVisible()
-  violations.push(...(await audit(page, 'builder')))
-  await assertNoOverflow(page, 'builder')
-  await page.screenshot({
-    path: join(reviewRoot, 'builder.png'),
-    fullPage: true,
+}
+
+test('the accessibility helper detects undersized adjacent targets and accepts the valid control', async ({
+  page,
+}) => {
+  await page.setContent(`<!doctype html><html lang="en"><head><title>Target size control</title>
+    <style>button { width: 12px; height: 12px; padding: 0; margin: 0; border: 0; vertical-align: top; }</style>
+    </head><body><main><h1>Target size control</h1><button aria-label="First"></button><button aria-label="Second"></button></main></body></html>`)
+  expect(
+    (await audit(page, 'invalid-target-control')).some(
+      (finding) => finding.rule === 'target-size',
+    ),
+  ).toBe(true)
+  await page.locator('button').evaluateAll((buttons) => {
+    for (const button of buttons) {
+      button.style.width = '24px'
+      button.style.height = '24px'
+    }
   })
-
-  await page.locator('input[value="youtube"]').check()
-  await chooseFormat(page, /Keenetic/)
-  await page.getByRole('button', { name: 'Create and prepare' }).click()
-  await page.waitForURL(
-    new RegExp(`^${escapeRegExp(origin)}/lists/[a-f0-9]{32}.*$`),
-  )
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'YouTube' }),
-  ).toBeVisible()
-
-  // The route audit is taken with an output bound and its subscription block
-  // showing, so the outputs table and the secret disclosure are covered too.
-  await expect(
-    page.getByRole('heading', { name: 'Subscription link · Keenetic' }),
-  ).toBeVisible()
-  violations.push(...(await audit(page, 'list')))
-  await assertNoOverflow(page, 'list')
-  await page.screenshot({ path: join(reviewRoot, 'list.png'), fullPage: true })
-
-  await page.getByRole('link', { name: 'Routes' }).first().click()
-  await expect(
-    page.getByRole('link', { exact: true, name: 'YouTube' }),
-  ).toBeVisible()
-  violations.push(...(await audit(page, 'library')))
-  await assertNoOverflow(page, 'library')
-  await page.screenshot({
-    path: join(reviewRoot, 'library.png'),
-    fullPage: true,
-  })
-
-  await page.goto(`${origin}/library`)
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Lists' }),
-  ).toBeVisible()
-  // The section is audited with a category open, because the pane is where its
-  // rows and their menus live.
-  await openLibraryCategory(page, 'Communication')
-  violations.push(...(await audit(page, 'lists')))
-  await assertNoOverflow(page, 'lists')
-  await page.screenshot({ path: join(reviewRoot, 'lists.png'), fullPage: true })
-
-  await page.goto(`${origin}/connections`)
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Connections' }),
-  ).toBeVisible()
-  // The catalog is audited open: a disclosure hides its contents from the
-  // sweep exactly as it hides them from the operator.
-  await page.locator('.rv-disclosure__summary').click()
-  await expect(
-    page.getByRole('row').filter({ hasText: 'Keenetic' }),
-  ).toBeVisible()
-  violations.push(...(await audit(page, 'connections')))
-  await assertNoOverflow(page, 'connections')
-  await page.screenshot({
-    path: join(reviewRoot, 'connections.png'),
-    fullPage: true,
-  })
-
-  await page.goto(`${origin}/settings`)
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Settings' }),
-  ).toBeVisible()
-  violations.push(...(await audit(page, 'settings')))
-  await assertNoOverflow(page, 'settings')
-  await page.screenshot({
-    path: join(reviewRoot, 'settings.png'),
-    fullPage: true,
-  })
-
-  expect(violations).toEqual([])
-  assertProductAlive()
+  expect(await auditWidths(page, 'valid-target-control')).toEqual([])
 })
+
+for (const language of ['en', 'ru'] as const) {
+  test.describe(`accessibility ${language}`, () => {
+    test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
+    test('every section passes the accessibility gates', async ({ page }) => {
+      test.setTimeout(300000)
+      const copy = (key: string): string => {
+        const value = dictionaries[language][key]
+        if (typeof value !== 'string')
+          throw new Error(`Missing text for ${key}`)
+        return value
+      }
+      // Every screen is audited before anything is asserted, so one screen's
+      // regression cannot hide another's.
+      const violations: AuditFinding[] = []
+      await mkdir(reviewRoot, { recursive: true })
+
+      await page.goto(`${origin}/lists/new`)
+      await expect(
+        page.getByRole('heading', {
+          level: 1,
+          name: copy('create.title'),
+        }),
+      ).toBeVisible()
+      await page
+        .getByRole('button', {
+          name: copy('serviceDetail.open.aria').replace('{service}', 'Discord'),
+        })
+        .click()
+      const serviceDialog = page.getByRole('dialog', { name: 'Discord' })
+      await expect(
+        serviceDialog.getByRole('heading', {
+          name: copy('serviceCard.domains'),
+        }),
+      ).toBeVisible()
+      // The card reads its sources when it opens, so the audit is taken once the
+      // observed rows have landed: the busy notice and the full table are both in
+      // the same pass.
+      await expect(serviceDialog.getByText('dns-client').first()).toBeVisible({
+        timeout: 60000,
+      })
+      violations.push(...(await auditWidths(page, `${language}-service-card`)))
+      await serviceDialog
+        .getByRole('button', { name: copy('action.close') })
+        .last()
+        .click()
+      await page
+        .getByRole('searchbox', { name: copy('create.search') })
+        .fill('youtube')
+      await expect(page.locator('input[value="youtube"]')).toBeVisible()
+      violations.push(...(await auditWidths(page, `${language}-builder`)))
+      await page.screenshot({
+        path: join(reviewRoot, `${language}-builder.png`),
+        fullPage: true,
+      })
+
+      await page.locator('input[value="youtube"]').check()
+      await chooseFormat(page, /Keenetic/)
+      await page.getByRole('button', { name: copy('create.submit') }).click()
+      await page.waitForURL(
+        new RegExp(`^${escapeRegExp(origin)}/lists/[a-f0-9]{32}.*$`),
+      )
+      await expect(
+        page.getByRole('heading', { level: 1, name: 'YouTube' }),
+      ).toBeVisible()
+
+      // The route audit is taken with an output bound and its subscription block
+      // showing, so the outputs table and the secret disclosure are covered too.
+      await expect(
+        page.getByRole('heading', {
+          name: copy('list.subscription').replace('{target}', 'Keenetic'),
+        }),
+      ).toBeVisible()
+      const createdRoutePath = new URL(page.url()).pathname
+      violations.push(...(await auditWidths(page, `${language}-list`)))
+      await page.screenshot({
+        path: join(reviewRoot, `${language}-list.png`),
+        fullPage: true,
+      })
+
+      await page
+        .getByRole('link', { name: copy('library.title') })
+        .first()
+        .click()
+      await expect(page.locator(`a[href="${createdRoutePath}"]`)).toBeVisible()
+      violations.push(...(await auditWidths(page, `${language}-library`)))
+      await page.screenshot({
+        path: join(reviewRoot, `${language}-library.png`),
+        fullPage: true,
+      })
+
+      await page.goto(`${origin}/library`)
+      await expect(
+        page.getByRole('heading', { level: 1, name: copy('lists.title') }),
+      ).toBeVisible()
+      // The section is audited with a category open, because the pane is where its
+      // rows and their menus live.
+      await openLibraryCategory(page, copy('category.communication'))
+      violations.push(...(await auditWidths(page, `${language}-lists`)))
+      await page.screenshot({
+        path: join(reviewRoot, `${language}-lists.png`),
+        fullPage: true,
+      })
+
+      await page.goto(`${origin}/connections`)
+      await expect(
+        page.getByRole('heading', {
+          level: 1,
+          name: copy('connections.title'),
+        }),
+      ).toBeVisible()
+      // The catalog is audited open: a disclosure hides its contents from the
+      // sweep exactly as it hides them from the operator.
+      await page.locator('.rv-disclosure__summary').click()
+      await expect(
+        page.getByRole('row').filter({ hasText: 'Keenetic' }),
+      ).toBeVisible()
+      violations.push(...(await auditWidths(page, `${language}-connections`)))
+      await page.screenshot({
+        path: join(reviewRoot, `${language}-connections.png`),
+        fullPage: true,
+      })
+
+      await page.goto(`${origin}/settings`)
+      await expect(
+        page.getByRole('heading', { level: 1, name: copy('settings.title') }),
+      ).toBeVisible()
+      violations.push(...(await auditWidths(page, `${language}-settings`)))
+      await page.screenshot({
+        path: join(reviewRoot, `${language}-settings.png`),
+        fullPage: true,
+      })
+
+      expect(violations).toEqual([])
+      assertProductAlive()
+    })
+  })
+}
 
 // The hidden actions column header once escaped `.library__scroll` and
 // stretched the document at 320px; the scroll box is its containing block now,
@@ -2507,7 +2785,7 @@ test('source skips are visible without changing routes, and clear after a clean 
     failed = true
     await refresh.click()
     await expect(card.getByRole('alert')).toContainText(
-      'The sources could not be refreshed',
+      'Refresh failed; entries kept',
     )
     await expect(
       card.getByText('notice.example', { exact: true }),
@@ -2531,6 +2809,436 @@ test('source skips are visible without changing routes, and clear after a clean 
     expect(removed.status()).toBe(204)
   }
 })
+
+for (const language of ['en', 'ru'] as const) {
+  test.describe(`card regression ${language}`, () => {
+    test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
+    const copy = (key: string): string => {
+      const value = dictionaries[language][key]
+      if (typeof value !== 'string')
+        throw new Error(`Not a string message: ${key}`)
+      return value
+    }
+    test('card audit: filtered rows stay dense in compose and library cards', async ({
+      page,
+    }) => {
+      test.setTimeout(180000)
+      const headers = { 'X-Routevane-Request': '1' }
+      const title = 'Card geometry fixture'
+      const longValue = `long.${Array.from({ length: 18 }, () => 'value').join('.')}.example`
+      const domains = [
+        'match-one.example',
+        'match-two.example',
+        longValue,
+        ...Array.from({ length: 37 }, (_, index) => `row-${index}.example`),
+      ]
+      const created = await page.request.post(`${origin}/v1/services`, {
+        headers,
+        data: { domains, title },
+      })
+      expect(created.status()).toBe(201)
+      const { service } = (await created.json()) as { service: { id: string } }
+
+      try {
+        await page.goto(`${origin}/lists/new`)
+        await page
+          .getByRole('searchbox', { name: copy('create.search') })
+          .fill(title)
+        await page
+          .getByRole('button', {
+            name: copy('serviceDetail.open.aria').replace('{service}', title),
+          })
+          .click()
+        const compose = page.getByRole('dialog', { name: title, exact: true })
+        await expect(
+          compose.getByRole('heading', { name: copy('serviceCard.domains') }),
+        ).toBeVisible()
+        const rows = compose.locator('.service-card__rows')
+        await expect(rows.locator('li')).toHaveCount(domains.length)
+        await page.evaluate(() => document.fonts.ready.then(() => true))
+
+        // At both the narrow audit width and a wide sheet, filtered rows stay at
+        // the table's leading edge. The short row is the reference for the long
+        // value, so the assertion follows the natural typography at that width.
+        const filter = compose.getByRole('searchbox', {
+          name: copy('serviceCard.filter'),
+        })
+        for (const width of [320, 1919]) {
+          await page.setViewportSize({ width, height: 900 })
+          await filter.fill('')
+          await expect(rows.locator('li')).toHaveCount(domains.length)
+          const normalRowBox = await rows
+            .locator('li')
+            .filter({ hasText: 'match-one.example' })
+            .boundingBox()
+          expect(normalRowBox).not.toBeNull()
+          const referenceHeight = normalRowBox!.height
+          await filter.fill('match-one.example')
+          await expect(rows.locator('li')).toHaveCount(1)
+          const oneRowsBox = await rows.boundingBox()
+          const oneRowBox = await rows.locator('li').first().boundingBox()
+          expect(oneRowsBox).not.toBeNull()
+          expect(oneRowBox).not.toBeNull()
+          expect(
+            (oneRowBox?.y ?? 0) - (oneRowsBox?.y ?? 0),
+          ).toBeLessThanOrEqual(2)
+          expect(
+            Math.abs(oneRowBox!.height - referenceHeight),
+            JSON.stringify({
+              width,
+              referenceHeight,
+              filteredHeight: oneRowBox!.height,
+            }),
+          ).toBeLessThanOrEqual(1)
+          await page.screenshot({
+            path: join(reviewRoot, `${language}-card-one-${width}.png`),
+          })
+
+          await filter.fill('match-')
+          await expect(rows.locator('li')).toHaveCount(2)
+          for (const row of await rows.locator('li').all()) {
+            expect(
+              Math.abs((await row.boundingBox())!.height - referenceHeight),
+            ).toBeLessThanOrEqual(1)
+          }
+          await filter.fill('long')
+          await expect(rows.locator('li')).toHaveCount(1)
+          const longRowBox = await rows.locator('li').first().boundingBox()
+          if (width === 320)
+            expect(longRowBox?.height ?? 0).toBeGreaterThan(referenceHeight)
+
+          await filter.fill('no-such-card-entry')
+          await expect(rows.locator('li')).toHaveCount(0)
+          await expect(
+            compose.getByText(copy('serviceCard.filter.empty')),
+          ).toBeVisible()
+          await filter.fill('')
+          await expect(rows.locator('li')).toHaveCount(domains.length)
+        }
+        await expect(compose.locator('.rv-dialog__footer')).toBeVisible()
+        await compose
+          .getByRole('button', { name: copy('action.close') })
+          .last()
+          .click()
+
+        // The same dense table and long-value wrapping apply in the library flow;
+        // it has no route footer because it owns the list rather than membership.
+        await page.goto(`${origin}/library#list=${service.id}`)
+        const library = page.getByRole('dialog', { name: title, exact: true })
+        await expect(
+          library.getByRole('heading', { name: copy('serviceCard.domains') }),
+        ).toBeVisible()
+        const libraryFilter = library.getByRole('searchbox', {
+          name: copy('serviceCard.filter'),
+        })
+        const libraryRows = library.locator('.service-card__rows')
+        await expect(libraryRows.locator('li')).toHaveCount(domains.length)
+        await page.evaluate(() => document.fonts.ready.then(() => true))
+        const normalLibraryRow = await libraryRows
+          .locator('li')
+          .filter({ hasText: 'match-two.example' })
+          .boundingBox()
+        await libraryFilter.fill('match-two.example')
+        await expect(libraryRows.locator('li')).toHaveCount(1)
+        const libraryRowsBox = await libraryRows.boundingBox()
+        const libraryRowBox = await libraryRows
+          .locator('li')
+          .first()
+          .boundingBox()
+        expect(libraryRowsBox).not.toBeNull()
+        expect(libraryRowBox).not.toBeNull()
+        expect(
+          Math.abs(libraryRowBox!.height - normalLibraryRow!.height),
+        ).toBeLessThanOrEqual(1)
+        expect(
+          (libraryRowBox?.y ?? 0) - (libraryRowsBox?.y ?? 0),
+        ).toBeLessThanOrEqual(2)
+        await expect(library.locator('.rv-dialog__footer')).toHaveCount(0)
+        // Text-only resizing is independent of pixel density. Double the
+        // computed root font, keeping the viewport fixed, then restore it.
+        await page.setViewportSize({ width: 768, height: 900 })
+        const originalFontSize = await page.evaluate(() => {
+          const root = document.documentElement
+          const previous = root.style.fontSize
+          root.style.fontSize = `${Number.parseFloat(getComputedStyle(root).fontSize) * 2}px`
+          return previous
+        })
+        try {
+          expect(await fits(page)).toBe(true)
+          await expect(libraryFilter).toBeVisible()
+          await expect(libraryRows.locator('li')).toHaveCount(1)
+          const row = libraryRows.locator('li').first()
+          expect(
+            await libraryRows.evaluate((element) => element.clientHeight),
+          ).toBeGreaterThanOrEqual((await row.boundingBox())!.height)
+          // A body scroll is the fallback when enlarged controls leave too
+          // little room. DOM presence is not enough: reach the row by wheel,
+          // then by the normal tab sequence, including the final delete action.
+          await page.mouse.move(600, 700)
+          await page.mouse.wheel(0, 1200)
+          await expect(row).toBeInViewport({ ratio: 1 })
+          await libraryFilter.press('Tab')
+          await page.keyboard.press('Tab')
+          await expect(row.getByRole('checkbox')).toBeFocused()
+          await expect(row).toBeInViewport({ ratio: 1 })
+          await page.keyboard.press('Tab')
+          const remove = library.getByRole('button', {
+            name: copy('serviceCard.remove'),
+            exact: true,
+          })
+          await expect(remove).toBeFocused()
+          await expect(remove).toBeInViewport({ ratio: 1 })
+          await remove.click({ trial: true })
+          await page.screenshot({
+            path: join(reviewRoot, `${language}-card-text-200.png`),
+          })
+          expect(await audit(page, `${language}-card-text-200`)).toEqual([])
+        } finally {
+          await page.evaluate((size) => {
+            document.documentElement.style.fontSize = size
+          }, originalFontSize)
+        }
+      } finally {
+        const removed = await page.request.post(
+          `${origin}/v1/services/${service.id}/remove`,
+          { headers, data: {} },
+        )
+        expect(removed.status()).toBe(204)
+      }
+    })
+
+    test('settings audit: native selection stays confirmed through failed and successful writes', async ({
+      page,
+    }) => {
+      let release!: () => void
+      let hold = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      let writes = 0
+      await page.route('**/v1/settings', (route) =>
+        route.fulfill({ json: { refresh_interval: 'daily' } }),
+      )
+      await page.route('**/v1/settings/update', async (route) => {
+        writes += 1
+        expect(route.request().postDataJSON()).toEqual({
+          refresh_interval: 'weekly',
+        })
+        await hold
+        await route.fulfill(
+          writes === 1
+            ? { status: 503, json: { error: 'unavailable' } }
+            : { json: { refresh_interval: 'weekly' } },
+        )
+      })
+      await page.goto(`${origin}/settings`)
+      const daily = page.locator(
+        'input[name="rv-refresh-interval"][value="daily"]',
+      )
+      const weekly = page.locator(
+        'input[name="rv-refresh-interval"][value="weekly"]',
+      )
+      const weeklyLabel = page.locator('label').filter({ has: weekly })
+      await expect(daily).toBeChecked()
+      for (const success of [false, true]) {
+        await weeklyLabel.click()
+        await expect(
+          page
+            .getByRole('status')
+            .filter({ hasText: copy('settings.refresh.saving') }),
+        ).toBeVisible()
+        await expect(daily).toBeChecked()
+        await expect(weekly).not.toBeChecked()
+        await expect(daily).toBeDisabled()
+        await expect(
+          page.locator('.rv-segmented__option--active').filter({ has: daily }),
+        ).toBeVisible()
+        release()
+        await expect(daily).toBeEnabled()
+        await expect(daily).toBeChecked({ checked: !success })
+        await expect(weekly).toBeChecked({ checked: success })
+        if (!success) {
+          await expect(
+            page
+              .getByRole('status')
+              .filter({ hasText: copy('settings.refresh.failed') }),
+          ).toBeVisible()
+          hold = new Promise<void>((resolve) => {
+            release = resolve
+          })
+        }
+      }
+      expect(writes).toBe(2)
+    })
+
+    test('card audit: compose source reads retry in place without a route write', async ({
+      page,
+    }) => {
+      test.setTimeout(60000)
+      page.setDefaultTimeout(15000)
+      const headers = { 'X-Routevane-Request': '1' }
+      const title = 'Card source retry fixture'
+      const created = await page.request.post(`${origin}/v1/services`, {
+        headers,
+        data: { domains: ['retry.example'], title },
+      })
+      expect(created.status()).toBe(201)
+      const { service } = (await created.json()) as { service: { id: string } }
+      const source = await page.request.post(
+        `${origin}/v1/services/${service.id}/sources`,
+        {
+          headers,
+          data: { format: 'text', url: 'https://feed.example/retry.txt' },
+        },
+      )
+      expect(source.ok()).toBe(true)
+      const contentsResponse = await page.request.get(
+        `${origin}/v1/services/${service.id}/contents`,
+      )
+      expect(contentsResponse.ok()).toBe(true)
+      const contents = (await contentsResponse.json()) as {
+        observed: boolean
+        rows: unknown[]
+        service_id: string
+        sources: { enabled: boolean }[]
+      }
+      expect(contents.sources.some((entry) => entry.enabled)).toBe(true)
+
+      let refreshCalls = 0
+      let releaseFirstRefresh!: () => void
+      const firstRefreshHeld = new Promise<void>((resolve) => {
+        releaseFirstRefresh = resolve
+      })
+      await page.route(
+        `**/v1/services/${service.id}/contents`,
+        async (route) => {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              ...contents,
+              observed: refreshCalls > 1,
+            }),
+          })
+        },
+      )
+      await page.route(
+        `**/v1/services/${service.id}/refresh`,
+        async (route) => {
+          refreshCalls += 1
+          if (refreshCalls === 1) {
+            await firstRefreshHeld
+            await route.fulfill({
+              status: 503,
+              contentType: 'application/json',
+              body: JSON.stringify({ error: 'source unavailable' }),
+            })
+            return
+          }
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ refresh: { skipped_entries: 0 } }),
+          })
+        },
+      )
+
+      try {
+        await page.setViewportSize({ width: 320, height: 900 })
+        const beforeRoutes = await (
+          await page.request.get(`${origin}/v1/lists`)
+        ).text()
+        await page.goto(`${origin}/lists/new`)
+        await page
+          .getByRole('searchbox', { name: copy('create.search') })
+          .fill(title)
+        await page
+          .getByRole('button', {
+            name: copy('servicePicker.configure.aria').replace(
+              '{category}',
+              copy('servicePicker.other'),
+            ),
+          })
+          .click()
+        await page
+          .getByRole('button', {
+            name: copy('serviceDetail.open.aria').replace('{service}', title),
+          })
+          .click()
+        const card = page.getByRole('dialog', { name: title, exact: true })
+        await expect(
+          card.getByRole('heading', { name: copy('serviceCard.domains') }),
+        ).toBeVisible()
+        await expect(
+          card.getByText(copy('serviceCard.observing')),
+        ).toBeVisible()
+        const pendingFilterBox = await card
+          .getByRole('searchbox', { name: copy('serviceCard.filter') })
+          .boundingBox()
+        expect(pendingFilterBox).not.toBeNull()
+        await page.screenshot({
+          path: join(reviewRoot, `${language}-card-pending-320.png`),
+        })
+        await test.step('audit held source read at every width', async () => {
+          expect(await auditWidths(page, `${language}-card-pending`)).toEqual(
+            [],
+          )
+        })
+        releaseFirstRefresh()
+        await expect(card.getByRole('alert')).toContainText(
+          copy('serviceCard.refresh.failed.compact'),
+        )
+        const failedFilterBox = await card
+          .getByRole('searchbox', { name: copy('serviceCard.filter') })
+          .boundingBox()
+        expect(failedFilterBox).not.toBeNull()
+        expect(
+          Math.abs((failedFilterBox?.y ?? 0) - (pendingFilterBox?.y ?? 0)),
+        ).toBeLessThanOrEqual(1)
+        await expect(
+          card.getByRole('button', { name: copy('action.retry'), exact: true }),
+        ).toBeVisible()
+        expect(await auditWidths(page, `${language}-card-failed`)).toEqual([])
+        await page.screenshot({
+          path: join(reviewRoot, `${language}-card-failed-320.png`),
+        })
+        const filter = card.getByRole('searchbox', {
+          name: copy('serviceCard.filter'),
+        })
+        await filter.fill('retry.example')
+        await expect(card.locator('.service-card__rows li')).toHaveCount(1)
+        await card
+          .getByRole('button', { name: copy('action.retry'), exact: true })
+          .click()
+        await expect(card.getByRole('alert')).toHaveCount(0)
+        await expect(
+          card.getByText(copy('serviceCard.refresh.ready')),
+        ).toBeVisible()
+        const recoveredFilterBox = await card
+          .getByRole('searchbox', { name: copy('serviceCard.filter') })
+          .boundingBox()
+        expect(recoveredFilterBox).not.toBeNull()
+        expect(
+          Math.abs((recoveredFilterBox?.y ?? 0) - (pendingFilterBox?.y ?? 0)),
+        ).toBeLessThanOrEqual(1)
+        await expect(filter).toHaveValue('retry.example')
+        await expect(card.locator('.service-card__rows li')).toHaveCount(1)
+        expect(refreshCalls).toBe(2)
+        expect(
+          await (await page.request.get(`${origin}/v1/lists`)).text(),
+        ).toBe(beforeRoutes)
+      } finally {
+        releaseFirstRefresh()
+        await page.unroute(`**/v1/services/${service.id}/contents`)
+        await page.unroute(`**/v1/services/${service.id}/refresh`)
+        const removed = await page.request.post(
+          `${origin}/v1/services/${service.id}/remove`,
+          { headers, data: {} },
+        )
+        expect(removed.status()).toBe(204)
+      }
+    })
+  })
+}
 
 async function openFormats(page: Page): Promise<Locator> {
   await page.locator('.rv-combobox__toggle').click()
@@ -2581,7 +3289,7 @@ type AuditFinding = {
 
 async function audit(page: Page, screen: string): Promise<AuditFinding[]> {
   const result = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze()
   return result.violations.map((violation) => ({
     detail:
@@ -2590,6 +3298,81 @@ async function audit(page: Page, screen: string): Promise<AuditFinding[]> {
     screen,
     targets: violation.nodes.flatMap((node) => node.target.map(String)),
   }))
+}
+
+async function auditWidths(
+  page: Page,
+  screen: string,
+): Promise<AuditFinding[]> {
+  const findings: AuditFinding[] = []
+  const previous = page.viewportSize()
+  for (const width of [320, 768, 1024, 1440]) {
+    await page.setViewportSize({ height: 900, width })
+    if (!(await fits(page))) {
+      await page.screenshot({
+        path: join(reviewRoot, `${screen}-${width}-overflow.png`),
+        fullPage: true,
+      })
+      const bounds = await page.locator('main *').evaluateAll((elements) =>
+        elements.flatMap((element) => {
+          const rect = element.getBoundingClientRect()
+          return rect.right > document.documentElement.clientWidth &&
+            rect.width > 0
+            ? [
+                {
+                  tag: element.tagName,
+                  className: element.className,
+                  left: rect.left,
+                  right: rect.right,
+                  width: rect.width,
+                },
+              ]
+            : []
+        }),
+      )
+      await test.info().attach(`${screen}-${width}-overflow`, {
+        body: JSON.stringify(bounds),
+        contentType: 'application/json',
+      })
+      await writeFile(
+        join(reviewRoot, `${screen}-${width}-overflow.json`),
+        JSON.stringify(bounds, null, 2),
+      )
+    }
+    expect(await fits(page), `${screen} overflows at ${width}px`).toBe(true)
+    findings.push(...(await audit(page, `${screen}-${width}`)))
+    const smallControls = await page
+      .locator('button:not(:disabled), a.rv-button, .rv-segmented__option')
+      .evaluateAll((controls) =>
+        controls.flatMap((control) => {
+          const bounds = control.getBoundingClientRect()
+          const style = getComputedStyle(control)
+          if (
+            bounds.width === 0 ||
+            bounds.height === 0 ||
+            style.visibility === 'hidden'
+          )
+            return []
+          return bounds.width < 24 || bounds.height < 24
+            ? [
+                {
+                  label:
+                    control.getAttribute('aria-label') ??
+                    control.textContent?.trim(),
+                  width: bounds.width,
+                  height: bounds.height,
+                },
+              ]
+            : []
+        }),
+      )
+    expect(
+      smallControls,
+      `${screen} actionable targets below 24px at ${width}px`,
+    ).toEqual([])
+  }
+  if (previous !== null) await page.setViewportSize(previous)
+  return findings
 }
 
 async function assertNoOverflow(page: Page, screen: string): Promise<void> {

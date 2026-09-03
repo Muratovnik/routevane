@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
 import ServiceDetailDialog from '@/entities/list-composition/ui/ServiceDetailDialog.vue'
 import { useListLibrary } from '@/features/list-library/model/useListLibrary'
@@ -56,6 +56,10 @@ const mobilePane = ref<'collections' | 'details'>('collections')
 const categoryForm = ref<'closed' | 'create' | 'rename'>('closed')
 const categoryTitle = ref('')
 const categoryTitleTouched = ref(false)
+// A category created while the catalog is stale cannot be selected from the
+// retained copy. Keep its server identity until a successful GET confirms that
+// the row exists, then complete the selection.
+const pendingCategoryID = ref('')
 const pickingList = ref(false)
 const pickedListID = ref('')
 const removingCategory = ref(false)
@@ -126,7 +130,12 @@ const categoryActions = computed<MenuItem[]>(() => {
   const category = activeRow.value?.category ?? null
   if (category === null) return []
   const items: MenuItem[] = [
-    { icon: 'plus', key: 'add', label: t('lists.category.addList') },
+    {
+      disabled: library.stale.value,
+      icon: 'plus',
+      key: 'add',
+      label: t('lists.category.addList'),
+    },
   ]
   if (category.custom) {
     items.push({
@@ -148,7 +157,11 @@ const categoryActions = computed<MenuItem[]>(() => {
 const listActions = computed<MenuItem[]>(() => {
   const items: MenuItem[] = []
   if ((activeRow.value?.category ?? null) !== null)
-    items.push({ key: 'detach', label: t('lists.list.detach') })
+    items.push({
+      disabled: library.stale.value,
+      key: 'detach',
+      label: t('lists.list.detach'),
+    })
   items.push({
     icon: 'trash',
     key: 'remove',
@@ -188,6 +201,13 @@ onMounted(() => {
   void library.initialize()
 })
 
+watch(
+  () => library.stale.value,
+  (isStale, wasStale) => {
+    if (wasStale && !isStale) settlePendingCategory()
+  },
+)
+
 function select(categoryID: string): void {
   activeCategoryID.value = categoryID
   library.clearRefusal()
@@ -209,6 +229,7 @@ function openService(serviceID: string): void {
 }
 
 function startCreateService(): void {
+  if (library.stale.value) return
   activeServiceID.value = ''
   creatingService.value = true
 }
@@ -231,15 +252,39 @@ function writeLocation(): void {
 }
 
 function startCreateCategory(): void {
+  if (library.stale.value) return
   categoryTitle.value = ''
   categoryTitleTouched.value = false
   categoryForm.value = 'create'
+}
+
+function committed(status: string): boolean {
+  return status === 'saved' || status === 'stale'
+}
+
+function settlePendingCategory(): void {
+  const created = pendingCategoryID.value
+  if (created === '' || library.stale.value) return
+  pendingCategoryID.value = ''
+  if (rows.value.some((entry) => entry.id === created)) {
+    select(created)
+    return
+  }
+  // A successful read is authoritative. If the server omitted the created
+  // row, stay on an existing safe context instead of writing a bogus URL.
+  if (!rows.value.some((entry) => entry.id === activeCategoryID.value))
+    select(rows.value[0]?.id ?? uncategorizedID)
+}
+
+async function retryLibraryRead(): Promise<void> {
+  if (await library.refresh()) settlePendingCategory()
 }
 
 function onCategoryAction(key: string): void {
   const category = activeRow.value?.category ?? null
   if (category === null || library.busy.value) return
   if (key === 'add') {
+    if (library.stale.value) return
     pickedListID.value = ''
     pickingList.value = true
     return
@@ -259,7 +304,7 @@ function onCategoryAction(key: string): void {
 
 function onListAction(service: ServiceDetail, key: string): void {
   const category = activeRow.value?.category ?? null
-  if (key === 'detach' && category !== null) {
+  if (key === 'detach' && category !== null && !library.stale.value) {
     void library.detachList(category, service.id)
     return
   }
@@ -278,29 +323,39 @@ async function submitCategoryTitle(): Promise<void> {
   const category = activeRow.value?.category ?? null
   if (categoryForm.value === 'rename') {
     if (category === null) return
-    if (await library.renameCategory(category.id, title))
-      categoryForm.value = 'closed'
+    const result = await library.renameCategory(category.id, title)
+    if (committed(result.status)) categoryForm.value = 'closed'
     return
   }
-  const created = await library.addCategory(title)
-  if (created === '') return
+  if (library.stale.value) return
+  const result = await library.addCategory(title)
+  if (!committed(result.status) || result.value === undefined) return
   categoryForm.value = 'closed'
-  // A category made to be filled has to be the one on screen.
-  select(created)
+  if (result.status === 'saved') {
+    // A category made to be filled has to be the one on screen.
+    select(result.value.id)
+  } else {
+    // The write is committed, but this old copy cannot contain the new row.
+    // Retry GET completes the selection without repeating the POST.
+    pendingCategoryID.value = result.value.id
+  }
 }
 
 async function submitPickedList(): Promise<void> {
   const category = activeRow.value?.category ?? null
   if (category === null || pickedListID.value === '') return
-  if (await library.addList(category, pickedListID.value))
-    pickingList.value = false
+  const result = await library.addList(category, pickedListID.value)
+  if (committed(result.status)) pickingList.value = false
 }
 
 async function confirmRemoveCategory(): Promise<void> {
   const category = activeRow.value?.category ?? null
   if (category === null) return
-  if (await library.deleteCategory(category.id, categoryLists.value)) {
+  const result = await library.deleteCategory(category.id, categoryLists.value)
+  if (committed(result.status)) {
     removingCategory.value = false
+    // The uncategorized row is a computed safe context and remains valid even
+    // while the deleted category is still present in the retained copy.
     select(uncategorizedID)
   }
 }
@@ -308,7 +363,8 @@ async function confirmRemoveCategory(): Promise<void> {
 async function confirmRemoveService(): Promise<void> {
   const service = removingService.value
   if (service === null) return
-  if (await library.deleteList(service.id)) {
+  const result = await library.deleteList(service.id)
+  if (committed(result.status)) {
     removingService.value = null
     if (activeServiceID.value === service.id) closeService()
   }
@@ -358,136 +414,152 @@ function onServiceUpdated(): void {
       </template>
     </RvStateNotice>
 
-    <div
-      v-else
-      class="lists__workspace"
-      :class="`lists__workspace--${mobilePane}`"
-    >
-      <section aria-labelledby="lists-categories" class="lists__collections">
-        <header class="lists__pane-header">
-          <h2 id="lists-categories">{{ t('servicePicker.collections') }}</h2>
-        </header>
-        <ul class="lists__groups">
-          <li
-            v-for="entry in rows"
-            :key="entry.id"
-            class="lists__group"
-            :class="{ 'lists__group--active': activeRow?.id === entry.id }"
-          >
-            <button
-              :aria-current="activeRow?.id === entry.id ? 'true' : undefined"
-              class="lists__category"
-              type="button"
-              @click="showCategory(entry.id)"
-            >
-              <span class="lists__category-copy">
-                <strong>{{ entry.label }}</strong>
-                <small>{{
-                  tc('create.category.size', entry.members.length)
-                }}</small>
-              </span>
-              <RvIcon class="lists__category-mark" name="chevron" />
-            </button>
-          </li>
-        </ul>
-        <footer class="lists__collections-footer">
-          <RvButton
-            :disabled="library.busy.value"
-            size="compact"
-            type="button"
-            variant="quiet"
-            @click="startCreateCategory"
-          >
-            <RvIcon name="plus" />
-            {{ t('lists.addCategory') }}
-          </RvButton>
-        </footer>
-      </section>
-
-      <section
-        v-if="activeRow !== null"
-        aria-labelledby="lists-details-title"
-        class="lists__details"
+    <template v-else>
+      <RvStateNotice
+        v-if="library.stale.value"
+        :body="t('lists.stale.body')"
+        class="lists__notice"
+        live
+        :title="t('lists.stale')"
+        tone="warning"
       >
-        <header class="lists__details-header">
-          <button class="lists__back" type="button" @click="showCollections">
-            <RvIcon name="chevron" />
-            {{ t('servicePicker.back') }}
-          </button>
-          <h2 id="lists-details-title" class="lists__details-title">
-            {{ activeRow.label }}
-          </h2>
-          <strong class="lists__details-count">
-            {{ tc('create.category.size', activeRow.members.length) }}
-          </strong>
-          <RvMenu
-            v-if="categoryActions.length > 0"
-            :items="categoryActions"
-            :label="t('lists.category.menu', { category: activeRow.label })"
-            @select="onCategoryAction"
-          />
-        </header>
-        <div class="lists__pane-body">
-          <RvStateNotice
-            v-if="paneRefusal !== null"
-            :body="
-              paneRefusal.kind === 'inUse'
-                ? t('lists.category.inUse.body', {
-                    routes: paneRefusal.routes.join(', '),
-                  })
-                : t('lists.category.failed.body')
-            "
-            class="lists__notice"
-            live
-            :title="
-              paneRefusal.kind === 'inUse'
-                ? t('lists.category.inUse')
-                : t('lists.category.failed')
-            "
-            tone="failed"
-          />
-          <ul class="lists__members">
+        <template #action>
+          <RvButton :disabled="library.busy.value" @click="retryLibraryRead">
+            {{
+              library.refreshing.value
+                ? t('lists.refresh.busy')
+                : t('lists.refresh')
+            }}
+          </RvButton>
+        </template>
+      </RvStateNotice>
+      <div class="lists__workspace" :class="`lists__workspace--${mobilePane}`">
+        <section aria-labelledby="lists-categories" class="lists__collections">
+          <header class="lists__pane-header">
+            <h2 id="lists-categories">{{ t('servicePicker.collections') }}</h2>
+          </header>
+          <ul class="lists__groups">
             <li
-              v-for="service in activeRow.members"
-              :key="service.id"
-              class="lists__list-row"
+              v-for="entry in rows"
+              :key="entry.id"
+              class="lists__group"
+              :class="{ 'lists__group--active': activeRow?.id === entry.id }"
             >
-              <span class="lists__list-name">{{ service.title }}</span>
               <button
-                :aria-label="
-                  t('serviceDetail.open.aria', { service: service.title })
-                "
-                class="lists__open"
+                :aria-current="activeRow?.id === entry.id ? 'true' : undefined"
+                class="lists__category"
                 type="button"
-                @click="openService(service.id)"
+                @click="showCategory(entry.id)"
               >
-                <RvIcon name="chevron" />
+                <span class="lists__category-copy">
+                  <strong>{{ entry.label }}</strong>
+                  <small>{{
+                    tc('create.category.size', entry.members.length)
+                  }}</small>
+                </span>
+                <RvIcon class="lists__category-mark" name="chevron" />
               </button>
-              <RvMenu
-                :items="listActions"
-                :label="t('lists.list.menu', { list: service.title })"
-                @select="onListAction(service, $event)"
-              />
             </li>
           </ul>
-          <p v-if="activeRow.members.length === 0" class="lists__empty">
-            {{ t('lists.category.empty') }}
-          </p>
-        </div>
-        <footer class="lists__details-footer">
-          <RvButton
-            :disabled="library.busy.value"
-            size="compact"
-            type="button"
-            variant="quiet"
-            @click="startCreateService"
-          >
-            <RvIcon name="plus" />
-            {{ t('lists.addList') }}
-          </RvButton>
-        </footer>
-      </section>
-    </div>
+          <footer class="lists__collections-footer">
+            <RvButton
+              :disabled="library.busy.value || library.stale.value"
+              size="compact"
+              type="button"
+              variant="quiet"
+              @click="startCreateCategory"
+            >
+              <RvIcon name="plus" />
+              {{ t('lists.addCategory') }}
+            </RvButton>
+          </footer>
+        </section>
+
+        <section
+          v-if="activeRow !== null"
+          aria-labelledby="lists-details-title"
+          class="lists__details"
+        >
+          <header class="lists__details-header">
+            <button class="lists__back" type="button" @click="showCollections">
+              <RvIcon name="chevron" />
+              {{ t('servicePicker.back') }}
+            </button>
+            <h2 id="lists-details-title" class="lists__details-title">
+              {{ activeRow.label }}
+            </h2>
+            <strong class="lists__details-count">
+              {{ tc('create.category.size', activeRow.members.length) }}
+            </strong>
+            <RvMenu
+              v-if="categoryActions.length > 0"
+              :items="categoryActions"
+              :label="t('lists.category.menu', { category: activeRow.label })"
+              @select="onCategoryAction"
+            />
+          </header>
+          <div class="lists__pane-body">
+            <RvStateNotice
+              v-if="paneRefusal !== null"
+              :body="
+                paneRefusal.kind === 'inUse'
+                  ? t('lists.category.inUse.body', {
+                      routes: paneRefusal.routes.join(', '),
+                    })
+                  : t('lists.category.failed.body')
+              "
+              class="lists__notice"
+              live
+              :title="
+                paneRefusal.kind === 'inUse'
+                  ? t('lists.category.inUse')
+                  : t('lists.category.failed')
+              "
+              tone="failed"
+            />
+            <ul class="lists__members">
+              <li
+                v-for="service in activeRow.members"
+                :key="service.id"
+                class="lists__list-row"
+              >
+                <span class="lists__list-name">{{ service.title }}</span>
+                <button
+                  :aria-label="
+                    t('serviceDetail.open.aria', { service: service.title })
+                  "
+                  class="lists__open"
+                  type="button"
+                  @click="openService(service.id)"
+                >
+                  <RvIcon name="chevron" />
+                </button>
+                <RvMenu
+                  :items="listActions"
+                  :label="t('lists.list.menu', { list: service.title })"
+                  @select="onListAction(service, $event)"
+                />
+              </li>
+            </ul>
+            <p v-if="activeRow.members.length === 0" class="lists__empty">
+              {{ t('lists.category.empty') }}
+            </p>
+          </div>
+          <footer class="lists__details-footer">
+            <RvButton
+              :disabled="library.busy.value || library.stale.value"
+              size="compact"
+              type="button"
+              variant="quiet"
+              @click="startCreateService"
+            >
+              <RvIcon name="plus" />
+              {{ t('lists.addList') }}
+            </RvButton>
+          </footer>
+        </section>
+      </div>
+    </template>
 
     <RvDialog
       :close-label="t('action.close')"
@@ -510,7 +582,10 @@ function onServiceUpdated(): void {
             <RvTextInput
               v-model="categoryTitle"
               :described-by="describedBy"
-              :disabled="library.busy.value"
+              :disabled="
+                library.busy.value ||
+                (library.stale.value && categoryForm === 'create')
+              "
               input-id="lists-category-title"
               :invalid="invalid"
             />
@@ -522,7 +597,10 @@ function onServiceUpdated(): void {
           {{ t('action.cancel') }}
         </RvButton>
         <RvButton
-          :disabled="library.busy.value"
+          :disabled="
+            library.busy.value ||
+            (library.stale.value && categoryForm === 'create')
+          "
           variant="primary"
           @click="submitCategoryTitle"
         >
@@ -546,7 +624,7 @@ function onServiceUpdated(): void {
         <RvCombobox
           v-if="pickableLists.length > 0"
           v-model="pickedListID"
-          :disabled="library.busy.value"
+          :disabled="library.busy.value || library.stale.value"
           :empty-label="t('lists.category.pick.empty')"
           input-id="lists-category-list"
           :options="pickableLists"
@@ -562,7 +640,9 @@ function onServiceUpdated(): void {
           {{ t('action.cancel') }}
         </RvButton>
         <RvButton
-          :disabled="library.busy.value || pickedListID === ''"
+          :disabled="
+            library.busy.value || library.stale.value || pickedListID === ''
+          "
           variant="primary"
           @click="submitPickedList"
         >
