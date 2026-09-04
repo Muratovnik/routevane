@@ -480,6 +480,15 @@ func normalizedServiceTuning(serviceID string, tuning ServiceTuning) (ServiceTun
 	}
 	tuning.Includes = domain.StableStrings(tuning.Includes)
 	tuning.Excludes = domain.StableStrings(tuning.Excludes)
+	included := make(map[string]struct{}, len(tuning.Includes))
+	for _, value := range tuning.Includes {
+		included[value] = struct{}{}
+	}
+	for _, value := range tuning.Excludes {
+		if _, both := included[value]; both {
+			return ServiceTuning{}, fmt.Errorf("destination %q is both included and excluded for %q", value, serviceID)
+		}
+	}
 	slices.SortFunc(tuning.CustomSources, func(a, b CustomSource) int { return cmp.Compare(a.ID, b.ID) })
 	return tuning, nil
 }

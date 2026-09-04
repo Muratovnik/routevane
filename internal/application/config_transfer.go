@@ -910,7 +910,8 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		}
 	}
 	seen := map[string]bool{}
-	for i, v := range d.CustomServices {
+	for i := range d.CustomServices {
+		v := &d.CustomServices[i]
 		p := fmt.Sprintf("custom_services/%d", i)
 		if seen[v.Ref] {
 			return transferError("duplicate_key", p+"/ref")
@@ -919,27 +920,38 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		if !strings.HasPrefix(v.Ref, customServiceIDPrefix) {
 			return transferError("invalid_shape", p+"/ref")
 		}
-		if _, _, err := validCustomServiceInput(v.Title, v.Domains); err != nil {
+		title, domains, err := validCustomServiceInput(v.Title, v.Domains)
+		if err != nil {
 			return transferError("invalid_shape", p)
 		}
+		v.Title, v.Domains = title, domains
 		services[v.Ref] = true
 	}
 	seen = map[string]bool{}
 	if len(d.Memberships) > maxTransferRows {
 		return transferError("limit_exceeded", "memberships")
 	}
-	for i, v := range d.CustomCategories {
+	for i := range d.CustomCategories {
+		v := &d.CustomCategories[i]
 		p := fmt.Sprintf("custom_categories/%d", i)
 		if seen[v.Ref] {
 			return transferError("duplicate_key", p+"/ref")
 		}
 		seen[v.Ref] = true
-		if !strings.HasPrefix(v.Ref, CustomCategoryIDPrefix) || strings.TrimSpace(v.Title) == "" {
+		title, ok := validCategoryTitle(v.Title)
+		if !strings.HasPrefix(v.Ref, CustomCategoryIDPrefix) || !ok {
 			return transferError("invalid_shape", p)
 		}
+		v.Title = title
 		categories[v.Ref] = true
 	}
+	seenRemovals := map[string]bool{}
 	for i, v := range d.Removals {
+		key := string(v.Kind) + "\x00" + v.ID
+		if seenRemovals[key] {
+			return transferError("duplicate_key", fmt.Sprintf("removals/%d", i))
+		}
+		seenRemovals[key] = true
 		if _, local := s.config.LocalServiceIDs[v.ID]; local || localCategories[v.ID] {
 			return transferError("local_catalog_dependency", fmt.Sprintf("removals/%d/id", i))
 		}

@@ -360,10 +360,14 @@ func TestConfigTransferValidatesEffectiveCompositionsBeforeApply(t *testing.T) {
 
 func TestConfigTransferNormalizesValidRouteDomainsBeforeApply(t *testing.T) {
 	store := &publicationFakeStore{}
-	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x49}, 256)))
+	entropy := append(bytes.Repeat([]byte{0x49}, 8), bytes.Repeat([]byte{0x4a}, 8)...)
+	entropy = append(entropy, bytes.Repeat([]byte{0x4b}, 32)...)
+	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(entropy))
 	payload, err := json.Marshal(ConfigTransferDocument{
 		Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff},
-		Routes: []TransferRoute{{Ref: "route-1", Name: " Route ", Services: []string{"example"}, ServiceDomains: map[string][]string{"example": {"WWW.Example.COM."}}, RefreshInterval: RefreshOff}},
+		CustomServices:   []TransferCustomService{{Ref: "custom-service-1", Title: " Custom service ", Domains: []string{"CUSTOM.Example.COM."}}},
+		CustomCategories: []TransferCustomCategory{{Ref: "custom-category-1", Title: " Custom category "}},
+		Routes:           []TransferRoute{{Ref: "route-1", Name: " Route ", Services: []string{"example"}, ServiceDomains: map[string][]string{"example": {"WWW.Example.COM."}}, RefreshInterval: RefreshOff}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -385,6 +389,13 @@ func TestConfigTransferNormalizesValidRouteDomainsBeforeApply(t *testing.T) {
 	}
 	if name := state.(*transferFakeState).applied.Document.Routes[0].Name; name != "Route" {
 		t.Fatalf("persisted route name = %q", name)
+	}
+	applied := state.(*transferFakeState).applied.Document
+	if service := applied.CustomServices[0]; service.Title != "Custom service" || len(service.Domains) != 1 || service.Domains[0] != "custom.example.com" {
+		t.Fatalf("persisted custom service = %#v", service)
+	}
+	if title := applied.CustomCategories[0].Title; title != "Custom category" {
+		t.Fatalf("persisted custom category title = %q", title)
 	}
 }
 
@@ -444,5 +455,54 @@ func TestConfigTransferAllowsAnExplicitlyUnboundOutput(t *testing.T) {
 	}
 	if _, _, err := service.PreviewConfigTransfer(payload, nil); err != nil {
 		t.Fatalf("unbound output was refused: %v", err)
+	}
+}
+
+func TestConfigTransferRejectsDocumentsThatWouldCollideInStorage(t *testing.T) {
+	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x4c}, 256)))
+	base := ConfigTransferDocument{Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff}}
+	for _, tc := range []struct {
+		name, code, path string
+		mutate           func(*ConfigTransferDocument)
+	}{
+		{
+			name: "same destination included and excluded", code: "config_transfer_invalid_shape", path: "tunings/0",
+			mutate: func(d *ConfigTransferDocument) {
+				d.Tunings = []TransferTuning{{ServiceRef: "example", Includes: []string{"conflict.example"}, Excludes: []string{"conflict.example"}}}
+			},
+		},
+		{
+			name: "duplicate catalog removal", code: "config_transfer_duplicate_key", path: "removals/1",
+			mutate: func(d *ConfigTransferDocument) {
+				d.Removals = []TransferRemoval{{Kind: RemovalService, ID: "example"}, {Kind: RemovalService, ID: "example"}}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			document := base
+			tc.mutate(&document)
+			payload, err := json.Marshal(document)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, _, err = service.PreviewConfigTransfer(payload, nil)
+			var transfer TransferError
+			if !errors.As(err, &transfer) || transfer.Code != tc.code || transfer.Path != tc.path {
+				t.Fatalf("preview error = %#v", err)
+			}
+		})
+	}
+
+	for _, document := range []ConfigTransferDocument{
+		{Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff}, Tunings: []TransferTuning{{ServiceRef: "example", Includes: []string{"included.example"}}}},
+		{Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff}, Removals: []TransferRemoval{{Kind: RemovalService, ID: "example"}}},
+	} {
+		payload, err := json.Marshal(document)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := service.PreviewConfigTransfer(payload, nil); err != nil {
+			t.Fatalf("valid storage-key neighbor was refused: %v", err)
+		}
 	}
 }
