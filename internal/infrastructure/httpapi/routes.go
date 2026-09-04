@@ -90,7 +90,15 @@ var routes = map[string]routeSpec{
 			h.createCustomService(w, r)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"services": h.backend.Services(), "service_details": h.backend.ServiceDetails(), "categories": h.backend.Categories()})
+		priority, err := h.backend.DefaultPriority(r.Context())
+		if err != nil {
+			h.backendError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"services": h.backend.Services(), "service_details": h.backend.ServiceDetails(), "categories": h.backend.Categories(), "default_priority": priority})
+	}},
+	"services.priority": {path: "/v1/services/priority", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.setDefaultPriority(w, r)
 	}},
 	"services.preview": {path: "/v1/services/{id}/preview", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.previewService(w, r, r.PathValue("id"))

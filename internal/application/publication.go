@@ -211,6 +211,16 @@ type PublicationRepository interface {
 	ArtifactBuild(context.Context, string) (ArtifactBuildRecord, error)
 }
 
+// LibraryPriorityRepository is the optional persistence seam for the
+// library-wide default ordering. It is deliberately separate from
+// PublicationRepository so existing in-memory repositories and import-only
+// callers are not forced to manufacture a global preference they do not use.
+// The SQLite implementation stores this in its dedicated global table.
+type LibraryPriorityRepository interface {
+	DefaultPriority(context.Context) ([]string, error)
+	SetDefaultPriority(context.Context, []string) error
+}
+
 // SetOutputDevice attaches one registered device to an output, or detaches it
 // when device is nil. A target mismatch is refused before storage: format and
 // device kind are an invariant of the connection, not a deploy-time guess.
@@ -452,6 +462,120 @@ func (s *PublicationService) validComposition(requested ListComposition) (ListCo
 	return composition, nil
 }
 
+// validCompositionWithDefaultPriority gives newly-created or forecast-only
+// compositions the current library ordering when the request leaves priority
+// empty. Explicit non-empty priority remains route-local and is validated by
+// validComposition unchanged. Existing stored routes never pass through this
+// helper, so a later library reorder cannot rewrite them.
+func (s *PublicationService) validCompositionWithDefaultPriority(ctx context.Context, requested ListComposition) (ListComposition, error) {
+	composition, err := s.validComposition(requested)
+	if err != nil || len(requested.Priority) != 0 {
+		return composition, err
+	}
+	resolved := s.resolveComposition(ListComposition{
+		Services: composition.Services, Categories: composition.Categories,
+		Exclusions: composition.Exclusions,
+	})
+	global, err := s.DefaultPriority(ctx)
+	if err != nil {
+		return ListComposition{}, err
+	}
+	priority, err := normalizePriority(filterKnownPriority(global, resolved), resolved)
+	if err != nil {
+		return ListComposition{}, err
+	}
+	composition.Priority = priority
+	return composition, nil
+}
+
+// DefaultPriority returns the live library order. Stored ids that no longer
+// resolve are dropped, known ids retain their persisted order, and current
+// catalog ids not yet stored are appended in canonical order. An older or
+// in-memory repository without the optional seam naturally falls back to the
+// same canonical order.
+func (s *PublicationService) DefaultPriority(ctx context.Context) ([]string, error) {
+	available := s.Services()
+	stored := []string(nil)
+	if repo, ok := s.config.Store.(LibraryPriorityRepository); ok {
+		var err error
+		stored, err = repo.DefaultPriority(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("read default priority: %w", err)
+		}
+	}
+	return mergePriority(stored, available), nil
+}
+
+// SetDefaultPriority replaces the library order transactionally after
+// requiring exactly one full permutation of the currently available service
+// ids. A stale or missing id is a request error rather than an implicit
+// cleanup; removed rows may remain in storage for future catalog recovery.
+func (s *PublicationService) SetDefaultPriority(ctx context.Context, priority []string) error {
+	available := s.Services()
+	if !validPriorityPermutation(priority, available) {
+		return fmt.Errorf("invalid default priority")
+	}
+	repo, ok := s.config.Store.(LibraryPriorityRepository)
+	if !ok {
+		return fmt.Errorf("default priority storage unavailable")
+	}
+	if err := repo.SetDefaultPriority(ctx, append([]string(nil), priority...)); err != nil {
+		return fmt.Errorf("write default priority: %w", err)
+	}
+	return nil
+}
+
+func mergePriority(stored, available []string) []string {
+	known := make(map[string]struct{}, len(available))
+	for _, id := range available {
+		known[id] = struct{}{}
+	}
+	ordered := make([]string, 0, len(available))
+	seen := make(map[string]struct{}, len(available))
+	for _, id := range stored {
+		if _, ok := known[id]; !ok {
+			continue
+		}
+		if _, duplicate := seen[id]; duplicate {
+			continue
+		}
+		seen[id] = struct{}{}
+		ordered = append(ordered, id)
+	}
+	for _, id := range available {
+		if _, present := seen[id]; present {
+			continue
+		}
+		seen[id] = struct{}{}
+		ordered = append(ordered, id)
+	}
+	return ordered
+}
+
+func validPriorityPermutation(priority, available []string) bool {
+	if len(priority) != len(available) {
+		return false
+	}
+	known := make(map[string]struct{}, len(available))
+	for _, id := range available {
+		known[id] = struct{}{}
+	}
+	seen := make(map[string]struct{}, len(priority))
+	for _, id := range priority {
+		if domain.ValidateSlug(id) != nil {
+			return false
+		}
+		if _, ok := known[id]; !ok {
+			return false
+		}
+		if _, duplicate := seen[id]; duplicate {
+			return false
+		}
+		seen[id] = struct{}{}
+	}
+	return len(seen) == len(known)
+}
+
 func normalizePriority(requested, resolved []string) ([]string, error) {
 	available := make(map[string]struct{}, len(resolved))
 	for _, id := range resolved {
@@ -628,7 +752,7 @@ func (s *PublicationService) CreateList(ctx context.Context, name string, reques
 	if !ok {
 		return List{}, fmt.Errorf("invalid list name")
 	}
-	composition, err := s.validComposition(requested)
+	composition, err := s.validCompositionWithDefaultPriority(ctx, requested)
 	if err != nil {
 		return List{}, err
 	}

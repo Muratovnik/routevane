@@ -143,6 +143,9 @@ export type Catalog = {
   serviceDetails: ServiceDetail[]
   categories: CategoryDetail[]
   targets: TargetOption[]
+  // Older binaries may omit the field; current servers always state the
+  // complete library-wide order beside the service collection.
+  defaultPriority?: string[]
 }
 
 export async function loadCatalog(): Promise<Catalog> {
@@ -152,6 +155,24 @@ export async function loadCatalog(): Promise<Catalog> {
   ])
   return { ...services, targets }
 }
+
+// saveDefaultPriority sends one complete service permutation and reads the
+// server's normalized order back. Validation of membership and transactionality
+// belongs to the application boundary, not this shared transport helper.
+export async function saveDefaultPriority(
+  priority: string[],
+): Promise<string[]> {
+  const saved = await postJSON(
+    '/v1/services/priority',
+    { default_priority: priority },
+    parseDefaultPriority,
+  )
+  invalidateCatalogCache()
+  return saved
+}
+
+// Alias kept for callers that name the operation after the HTTP verb.
+export const setDefaultPriority = saveDefaultPriority
 
 // The catalog changes only when this tab writes a custom service or the
 // process restarts, so one session-scoped copy saves a network round trip on
@@ -579,12 +600,32 @@ const servicesSchema = v.pipe(
     services: texts,
     service_details: v.array(serviceDetailSchema),
     categories: v.array(categorySchema),
+    default_priority: v.optional(texts),
+  }),
+  v.check((catalog) => {
+    if (catalog.default_priority === undefined) return true
+    if (catalog.default_priority.length !== catalog.services.length)
+      return false
+    const available = new Set(catalog.services)
+    return (
+      available.size === catalog.services.length &&
+      new Set(catalog.default_priority).size === available.size &&
+      catalog.default_priority.every((serviceID) => available.has(serviceID))
+    )
   }),
   v.transform((catalog): Omit<Catalog, 'targets'> => ({
     services: catalog.services,
     serviceDetails: catalog.service_details,
     categories: catalog.categories,
+    ...(catalog.default_priority === undefined
+      ? {}
+      : { defaultPriority: catalog.default_priority }),
   })),
+)
+
+const defaultPrioritySchema = v.pipe(
+  fields({ default_priority: texts }),
+  v.transform((value): string[] => value.default_priority),
 )
 
 const targetSchema = v.pipe(
@@ -636,6 +677,7 @@ const parseServiceInUse: Decoder<ListReference[]> = decode(
   inUseSchema('list in use'),
 )
 const parseServices: Decoder<Omit<Catalog, 'targets'>> = decode(servicesSchema)
+const parseDefaultPriority: Decoder<string[]> = decode(defaultPrioritySchema)
 const parseTargets: Decoder<TargetOption[]> = decode(targetsSchema)
 const parseAcknowledgement: Decoder<true> = decode(acknowledged)
 

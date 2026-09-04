@@ -134,6 +134,14 @@ export type CompositionOverlap =
 export type CompositionOverlaps = {
   items: CompositionOverlap[]
   truncated: boolean
+  // Newer servers state one row for every selected service. It is optional in
+  // the type so an older binary's bounded overlap response remains readable.
+  summary?: OverlapSummary[]
+}
+
+export type OverlapSummary = {
+  serviceID: string
+  overlaps: string[]
 }
 
 export type TargetForecast = {
@@ -411,10 +419,55 @@ const overlapSchema = v.union([
   ),
 ])
 
-const overlapsSchema = fields({
-  items: v.pipe(v.array(overlapSchema), v.maxLength(100)),
-  truncated: v.boolean(),
-})
+const overlapSummarySchema = v.pipe(
+  fields({ service_id: text, overlaps: texts }),
+  v.check(
+    (row) =>
+      !row.overlaps.includes(row.service_id) &&
+      new Set(row.overlaps).size === row.overlaps.length &&
+      row.overlaps.every(
+        (serviceID, index) =>
+          index === 0 || row.overlaps[index - 1]! < serviceID,
+      ),
+  ),
+  v.transform((row): OverlapSummary => ({
+    serviceID: row.service_id,
+    overlaps: row.overlaps,
+  })),
+)
+
+const overlapsSchema = v.pipe(
+  fields({
+    items: v.pipe(v.array(overlapSchema), v.maxLength(100)),
+    truncated: v.boolean(),
+    summary: v.optional(v.array(overlapSummarySchema)),
+  }),
+  v.check((overlaps) => {
+    const summary = overlaps.summary
+    if (summary === undefined) return true
+    const byService = new Map(summary.map((row) => [row.serviceID, row]))
+    if (byService.size !== summary.length) return false
+    if (
+      !summary.every(
+        (row, index) =>
+          index === 0 || summary[index - 1]!.serviceID < row.serviceID,
+      )
+    ) {
+      return false
+    }
+    return summary.every((row) =>
+      row.overlaps.every(
+        (other) =>
+          byService.get(other)?.overlaps.includes(row.serviceID) ?? false,
+      ),
+    )
+  }),
+  v.transform((overlaps): CompositionOverlaps => ({
+    items: overlaps.items,
+    truncated: overlaps.truncated,
+    ...(overlaps.summary === undefined ? {} : { summary: overlaps.summary }),
+  })),
+)
 
 const forecastSchema = v.pipe(
   fields({

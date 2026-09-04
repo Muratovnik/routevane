@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 11
+const CurrentSchemaVersion = 12
 
 type migration struct {
 	version int
@@ -517,6 +517,16 @@ CREATE TABLE list_service_priorities (
     PRIMARY KEY (list_id, service_id),
     UNIQUE (list_id, position)
 ) WITHOUT ROWID, STRICT;
+`}, {version: 12, sql: `
+-- The library-wide default order is distinct from route-local list priority.
+-- It is a sparse preference: stale service ids may remain stored, while reads
+-- filter them and append currently available catalog ids canonically.
+CREATE TABLE library_service_priorities (
+    service_id TEXT NOT NULL CHECK (length(service_id) BETWEEN 1 AND 64),
+    position INTEGER NOT NULL CHECK (position BETWEEN 0 AND 127),
+    PRIMARY KEY (service_id),
+    UNIQUE (position)
+) WITHOUT ROWID, STRICT;
 `}}
 
 var requiredTables = []string{
@@ -538,6 +548,7 @@ var requiredTables = []string{
 	"list_exclusions",
 	"list_service_domains",
 	"list_service_priorities",
+	"library_service_priorities",
 	"outputs",
 	"output_attempts",
 	"effective_profiles",
@@ -552,35 +563,36 @@ var requiredTables = []string{
 }
 
 var requiredColumns = map[string][]string{
-	"schema_migrations":        {"version", "applied_at_ns"},
-	"resources":                {"id", "kind", "normalized_value", "ip_version", "created_at_ns"},
-	"sightings":                {"id", "service_id", "component_id", "resource_id", "source_id", "source_class", "source_revision", "first_seen_ns", "last_seen_ns", "valid_until_ns", "ttl_seconds", "observation_count", "metadata_json", "invalid"},
-	"relations":                {"id", "source_resource_id", "relation_type", "target_resource_id", "service_id", "component_id", "first_seen_ns", "last_seen_ns", "valid_until_ns", "source_id", "source_revision", "invalid"},
-	"source_runs":              {"id", "service_id", "source_id", "source_revision", "started_at_ns", "completed_at_ns", "status", "sighting_count", "relation_count", "error_code"},
-	"effective_profiles":       {"profile_key", "service_id", "target_id", "renderer_id", "catalog_revision", "config_json", "updated_at_ns"},
-	"settings":                 {"key", "value", "updated_at_ns"},
-	"lists":                    {"id", "name", "refresh_interval", "last_refreshed_at_ns", "last_refresh_failed", "archived_at_ns", "created_at_ns", "updated_at_ns"},
-	"devices":                  {"id", "target_id", "name", "address", "account", "auto_deliver", "created_at_ns", "updated_at_ns", "interface"},
-	"catalog_removals":         {"kind", "id", "removed_at"},
-	"custom_categories":        {"id", "title", "created_at_ns", "updated_at_ns"},
-	"category_memberships":     {"category_id", "service_id", "state", "updated_at_ns"},
-	"custom_services":          {"id", "title", "domains_json", "created_at_ns", "updated_at_ns"},
-	"custom_sources":           {"id", "service_id", "url", "format", "created_at_ns", "updated_at_ns"},
-	"service_disabled_sources": {"service_id", "source_id"},
-	"service_domain_verdicts":  {"service_id", "domain", "verdict"},
-	"list_services":            {"list_id", "service_id"},
-	"list_categories":          {"list_id", "category_id"},
-	"list_exclusions":          {"list_id", "service_id"},
-	"list_service_domains":     {"list_id", "service_id", "domains_json"},
-	"list_service_priorities":  {"list_id", "service_id", "position"},
-	"managed_route_scopes":     {"id", "endpoint", "target_id", "interface", "retired_at_ns", "created_at_ns", "updated_at_ns"},
-	"managed_routes":           {"scope_id", "prefix", "created_by_routevane", "description"},
-	"managed_route_claims":     {"scope_id", "output_id", "prefix", "description", "labels_json"},
-	"outputs":                  {"id", "list_id", "target_id", "profile_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id"},
-	"output_attempts":          {"id", "output_id", "status", "code", "projected_rules", "maximum_rules", "artifact_id", "completed_at_ns"},
-	"plan_snapshots":           {"id", "output_id", "routing_plan_hash", "routing_plan_json", "policy_version", "catalog_revision", "observation_cutoff_ns", "created_at_ns", "status"},
-	"artifact_builds":          {"id", "output_id", "plan_snapshot_id", "renderer_id", "renderer_version", "artifact_hash", "artifact_path", "size_bytes", "content_type", "content_created_at_ns", "validation_status", "status"},
-	"subscriptions":            {"output_id", "token_id", "token_hash", "created_at_ns"},
+	"schema_migrations":          {"version", "applied_at_ns"},
+	"resources":                  {"id", "kind", "normalized_value", "ip_version", "created_at_ns"},
+	"sightings":                  {"id", "service_id", "component_id", "resource_id", "source_id", "source_class", "source_revision", "first_seen_ns", "last_seen_ns", "valid_until_ns", "ttl_seconds", "observation_count", "metadata_json", "invalid"},
+	"relations":                  {"id", "source_resource_id", "relation_type", "target_resource_id", "service_id", "component_id", "first_seen_ns", "last_seen_ns", "valid_until_ns", "source_id", "source_revision", "invalid"},
+	"source_runs":                {"id", "service_id", "source_id", "source_revision", "started_at_ns", "completed_at_ns", "status", "sighting_count", "relation_count", "error_code"},
+	"effective_profiles":         {"profile_key", "service_id", "target_id", "renderer_id", "catalog_revision", "config_json", "updated_at_ns"},
+	"settings":                   {"key", "value", "updated_at_ns"},
+	"lists":                      {"id", "name", "refresh_interval", "last_refreshed_at_ns", "last_refresh_failed", "archived_at_ns", "created_at_ns", "updated_at_ns"},
+	"devices":                    {"id", "target_id", "name", "address", "account", "auto_deliver", "created_at_ns", "updated_at_ns", "interface"},
+	"catalog_removals":           {"kind", "id", "removed_at"},
+	"custom_categories":          {"id", "title", "created_at_ns", "updated_at_ns"},
+	"category_memberships":       {"category_id", "service_id", "state", "updated_at_ns"},
+	"custom_services":            {"id", "title", "domains_json", "created_at_ns", "updated_at_ns"},
+	"custom_sources":             {"id", "service_id", "url", "format", "created_at_ns", "updated_at_ns"},
+	"service_disabled_sources":   {"service_id", "source_id"},
+	"service_domain_verdicts":    {"service_id", "domain", "verdict"},
+	"list_services":              {"list_id", "service_id"},
+	"list_categories":            {"list_id", "category_id"},
+	"list_exclusions":            {"list_id", "service_id"},
+	"list_service_domains":       {"list_id", "service_id", "domains_json"},
+	"list_service_priorities":    {"list_id", "service_id", "position"},
+	"library_service_priorities": {"service_id", "position"},
+	"managed_route_scopes":       {"id", "endpoint", "target_id", "interface", "retired_at_ns", "created_at_ns", "updated_at_ns"},
+	"managed_routes":             {"scope_id", "prefix", "created_by_routevane", "description"},
+	"managed_route_claims":       {"scope_id", "output_id", "prefix", "description", "labels_json"},
+	"outputs":                    {"id", "list_id", "target_id", "profile_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id"},
+	"output_attempts":            {"id", "output_id", "status", "code", "projected_rules", "maximum_rules", "artifact_id", "completed_at_ns"},
+	"plan_snapshots":             {"id", "output_id", "routing_plan_hash", "routing_plan_json", "policy_version", "catalog_revision", "observation_cutoff_ns", "created_at_ns", "status"},
+	"artifact_builds":            {"id", "output_id", "plan_snapshot_id", "renderer_id", "renderer_version", "artifact_hash", "artifact_path", "size_bytes", "content_type", "content_created_at_ns", "validation_status", "status"},
+	"subscriptions":              {"output_id", "token_id", "token_hash", "created_at_ns"},
 }
 
 // requiredForeignKeys names every parent relation the publication and delivery

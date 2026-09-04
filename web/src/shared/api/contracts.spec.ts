@@ -10,6 +10,7 @@ import {
   refreshService,
   removeCategory,
   removeService,
+  saveDefaultPriority,
   serviceInUse,
   updateCategory,
 } from './catalog'
@@ -171,6 +172,27 @@ describe('forecast overlap contract', () => {
       truncated: true,
     })
   })
+  it('decodes complete service adjacency separately from capped details', async () => {
+    answer(
+      forecastPayload({
+        overlaps: {
+          items: [],
+          truncated: true,
+          summary: [
+            { service_id: 'alpha', overlaps: ['beta'] },
+            { service_id: 'beta', overlaps: ['alpha'] },
+            { service_id: 'solo', overlaps: [] },
+          ],
+        },
+      }),
+    )
+    const result = await previewComposition(draft)
+    expect(result[0]?.overlaps?.summary).toEqual([
+      { serviceID: 'alpha', overlaps: ['beta'] },
+      { serviceID: 'beta', overlaps: ['alpha'] },
+      { serviceID: 'solo', overlaps: [] },
+    ])
+  })
   it('refuses missing truncation, self-coverage and malformed relations', async () => {
     for (const overlaps of [
       { items: [] },
@@ -198,6 +220,37 @@ describe('forecast overlap contract', () => {
           entry,
         })),
         truncated: true,
+      },
+      {
+        items: [],
+        truncated: false,
+        summary: [{ service_id: 'alpha', overlaps: ['alpha'] }],
+      },
+      {
+        items: [],
+        truncated: false,
+        summary: [{ service_id: 'alpha', overlaps: ['beta', 'beta'] }],
+      },
+      {
+        items: [],
+        truncated: false,
+        summary: [{ service_id: 'alpha', overlaps: ['zeta', 'beta'] }],
+      },
+      {
+        items: [],
+        truncated: false,
+        summary: [
+          { service_id: 'alpha', overlaps: ['beta'] },
+          { service_id: 'beta', overlaps: [] },
+        ],
+      },
+      {
+        items: [],
+        truncated: false,
+        summary: [
+          { service_id: 'beta', overlaps: [] },
+          { service_id: 'beta', overlaps: [] },
+        ],
       },
     ]) {
       answer(forecastPayload({ overlaps }))
@@ -855,6 +908,29 @@ describe('the server states its fields, the screen reads its own', () => {
         },
       ],
     })
+  })
+
+  it('reads and saves the complete library default priority', async () => {
+    answer({
+      services: ['discord', 'youtube'],
+      service_details: [],
+      categories: [],
+      default_priority: ['youtube', 'discord'],
+    })
+    answer({ targets: [] })
+    await expect(loadCatalog()).resolves.toMatchObject({
+      defaultPriority: ['youtube', 'discord'],
+    })
+
+    answer({ default_priority: ['discord', 'youtube'] })
+    await expect(saveDefaultPriority(['discord', 'youtube'])).resolves.toEqual([
+      'discord',
+      'youtube',
+    ])
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/v1/services/priority')
+    expect((fetchMock.mock.calls[2]?.[1] as RequestInit).body).toBe(
+      JSON.stringify({ default_priority: ['discord', 'youtube'] }),
+    )
   })
 
   // Ownership is not optional. A category with no `custom` leaves the surface

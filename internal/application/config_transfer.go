@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -20,9 +21,11 @@ import (
 const transferCodePrefix = "config_transfer_"
 
 const (
-	ConfigTransferVersion         = "config-transfer-v1.2"
-	configTransferOmissionVersion = "config-transfer-v1.1"
-	configTransferLegacyVersion   = "config-transfer-v1.0"
+	ConfigTransferVersion               = "config-transfer-v1.3"
+	configTransferPriorityVersion       = "config-transfer-v1.3"
+	configTransferOmissionVersion       = "config-transfer-v1.2"
+	configTransferLegacyOmissionVersion = "config-transfer-v1.1"
+	configTransferLegacyVersion         = "config-transfer-v1.0"
 	// ConfigTransferMaxBytes covers the current bounded product maximum with
 	// headroom: 200 routes can each carry at most 512 253-byte local domains,
 	// while the other largest collections are 16,384 membership/verdict rows,
@@ -88,6 +91,10 @@ type ConfigTransferPreview struct {
 
 type TransferSettings struct {
 	RefreshInterval RefreshInterval `json:"refresh_interval"`
+	// DefaultPriority is the portable library-wide order. It is omitted by
+	// older documents and then falls back to canonical catalog order on import.
+	// Custom-service ids are rewritten to document-local refs during export.
+	DefaultPriority []string `json:"default_priority,omitempty"`
 }
 type TransferCustomService struct {
 	Ref, Title string
@@ -388,8 +395,18 @@ func (s *PublicationService) ExportConfigTransfer(ctx context.Context) ([]byte, 
 		return nil, fmt.Errorf("export configuration: %w", err)
 	}
 	doc.Version = ConfigTransferVersion
+	// A repository may not know the live catalog (and therefore cannot filter
+	// stale rows). Always project this field through the application accessor so
+	// the writer preserves known stored order, drops removed ids and appends
+	// current ids canonically before portable reference remapping.
+	priority, priorityErr := s.DefaultPriority(ctx)
+	if priorityErr != nil {
+		return nil, priorityErr
+	}
+	doc.Settings.DefaultPriority = priority
 	omitCustomSources(&doc)
 	canonicalizeTransferReferences(&doc)
+	s.completeTransferDefaultPriority(&doc)
 	if err := s.validateTransferShape(&doc, nil); err != nil {
 		return nil, err
 	}
@@ -562,7 +579,7 @@ func (s *PublicationService) validateTransfer(payload []byte, validateDevice fun
 		return ConfigTransferDocument{}, transferError("invalid_json", "version")
 	}
 	_, hasOmissionMetadata := top["omitted_custom_sources"]
-	if version != ConfigTransferVersion && version != configTransferOmissionVersion && version != configTransferLegacyVersion {
+	if version != ConfigTransferVersion && version != configTransferOmissionVersion && version != configTransferLegacyOmissionVersion && version != configTransferLegacyVersion {
 		return ConfigTransferDocument{}, transferError("unsupported_version", "version")
 	}
 	if version == configTransferLegacyVersion && hasOmissionMetadata {
@@ -573,6 +590,17 @@ func (s *PublicationService) validateTransfer(payload []byte, validateDevice fun
 	}
 	if version != configTransferLegacyVersion && strings.TrimSpace(string(top["omitted_custom_sources"])) == "null" {
 		return ConfigTransferDocument{}, transferError("invalid_shape", "omitted_custom_sources")
+	}
+	if version == configTransferPriorityVersion {
+		var settings map[string]json.RawMessage
+		if raw := top["settings"]; raw != nil {
+			if err := json.Unmarshal(raw, &settings); err != nil || settings == nil {
+				return ConfigTransferDocument{}, transferError("invalid_json", "settings")
+			}
+			if value, present := settings["default_priority"]; present && strings.TrimSpace(string(value)) == "null" {
+				return ConfigTransferDocument{}, transferError("invalid_shape", "settings/default_priority")
+			}
+		}
 	}
 	var doc ConfigTransferDocument
 	if err := strictUnmarshal(payload, &doc); err != nil {
@@ -814,6 +842,9 @@ func canonicalizeTransferReferences(d *ConfigTransferDocument) {
 		}
 		route.ServiceDomains = domains
 	}
+	for i := range d.Settings.DefaultPriority {
+		d.Settings.DefaultPriority[i] = service(d.Settings.DefaultPriority[i])
+	}
 	for i := range d.Outputs {
 		output := &d.Outputs[i]
 		output.RouteRef = routeRefs[output.RouteRef]
@@ -822,6 +853,68 @@ func canonicalizeTransferReferences(d *ConfigTransferDocument) {
 		}
 	}
 	canonicalizeTransfer(d)
+}
+
+// completeTransferDefaultPriority fills custom-service refs that a repository
+// export may not know how to order (for example, an older repository adapter
+// that predates the global table). The live application accessor normally
+// already supplies them; appending here keeps the v1.3 writer a full
+// permutation without inventing an order for unrelated catalog ids.
+func (s *PublicationService) completeTransferDefaultPriority(d *ConfigTransferDocument) {
+	if d.Version != ConfigTransferVersion || d.Settings.DefaultPriority == nil {
+		return
+	}
+	removed := make(map[string]struct{}, len(d.Removals))
+	for _, removal := range d.Removals {
+		if removal.Kind == RemovalService {
+			removed[removal.ID] = struct{}{}
+		}
+	}
+	allowed := make(map[string]struct{}, len(s.config.Definitions)+len(d.CustomServices))
+	for id := range s.config.Definitions {
+		if _, local := s.config.LocalServiceIDs[id]; !local {
+			if _, gone := removed[id]; gone {
+				continue
+			}
+			allowed[id] = struct{}{}
+		}
+	}
+	for _, service := range d.CustomServices {
+		allowed[service.Ref] = struct{}{}
+	}
+	ordered := make([]string, 0, len(allowed))
+	seen := make(map[string]struct{}, len(allowed))
+	for _, id := range d.Settings.DefaultPriority {
+		if _, ok := allowed[id]; !ok {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		ordered = append(ordered, id)
+		seen[id] = struct{}{}
+	}
+	for _, id := range slices.Sorted(maps.Keys(s.config.Definitions)) {
+		if _, local := s.config.LocalServiceIDs[id]; local {
+			continue
+		}
+		if _, gone := removed[id]; gone {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		ordered = append(ordered, id)
+		seen[id] = struct{}{}
+	}
+	for _, service := range d.CustomServices {
+		if _, ok := seen[service.Ref]; ok {
+			continue
+		}
+		ordered = append(ordered, service.Ref)
+		seen[service.Ref] = struct{}{}
+	}
+	d.Settings.DefaultPriority = ordered
 }
 
 func nilSlices(d *ConfigTransferDocument) {
@@ -1033,6 +1126,12 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		}
 	}
 	effectiveServices, effectiveCategories, members := s.transferCompositionCatalog(*d, services, categories)
+	if d.Version == configTransferPriorityVersion && d.Settings.DefaultPriority != nil {
+		available := slices.Sorted(maps.Keys(effectiveServices))
+		if !validPriorityPermutation(d.Settings.DefaultPriority, available) {
+			return transferError("invalid_shape", "settings/default_priority")
+		}
+	}
 	seen = map[string]bool{}
 	for i := range d.Routes {
 		r := &d.Routes[i]

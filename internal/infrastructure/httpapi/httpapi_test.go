@@ -35,6 +35,8 @@ type fakeBackend struct {
 	deployErr      error
 
 	defaultInterval    application.RefreshInterval
+	defaultPriority    []string
+	defaultPriorityErr error
 	storedCredential   string
 	archived           bool
 	createdComposition application.ListComposition
@@ -82,6 +84,19 @@ func (f *fakeBackend) ApplyConfigTransfer(_ context.Context, digest string, payl
 }
 
 func (f *fakeBackend) Services() []string { return []string{"example"} }
+func (f *fakeBackend) DefaultPriority(context.Context) ([]string, error) {
+	if f.defaultPriority == nil {
+		return []string{"example"}, nil
+	}
+	return append([]string(nil), f.defaultPriority...), nil
+}
+func (f *fakeBackend) SetDefaultPriority(_ context.Context, priority []string) error {
+	if f.defaultPriorityErr != nil {
+		return f.defaultPriorityErr
+	}
+	f.defaultPriority = append([]string(nil), priority...)
+	return nil
+}
 func (f *fakeBackend) ServiceDetails() []application.ServiceDetail {
 	return []application.ServiceDetail{{
 		ID: "example", Title: "Example", Categories: []string{"diagnostic"},
@@ -652,6 +667,49 @@ func TestServicesAndBuildUseBoundedSafeDTOs(t *testing.T) {
 	body := buildResponse.Body.String()
 	if buildResponse.Code != http.StatusOK || strings.Contains(body, `"routing_plan":`) || strings.Contains(body, "RAW-PLAN-CANARY") || !strings.Contains(body, `"partial_coverage":true`) || !strings.Contains(body, `"content_created_at"`) || !strings.Contains(body, `"validation_status":"valid"`) {
 		t.Fatalf("build response=%d %s", buildResponse.Code, body)
+	}
+}
+
+func TestDefaultPriorityHTTPContractIsReadWrittenAndGuarded(t *testing.T) {
+	backend := testBackend()
+	backend.defaultPriority = []string{"example"}
+	server, err := New("http://127.0.0.1:8765", backend, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	read := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/services", nil)
+	read.RemoteAddr = "127.0.0.1:1"
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, read)
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"default_priority":["example"]`) {
+		t.Fatalf("GET services code=%d body=%s", response.Code, response.Body.String())
+	}
+
+	write := mutationRequest(t, "/v1/services/priority", `{"default_priority":["example"]}`)
+	response = httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, write)
+	if response.Code != http.StatusOK || response.Body.String() != `{"default_priority":["example"]}`+"\n" {
+		t.Fatalf("POST priority code=%d body=%s", response.Code, response.Body.String())
+	}
+	if !reflect.DeepEqual(backend.defaultPriority, []string{"example"}) {
+		t.Fatalf("stored priority=%#v", backend.defaultPriority)
+	}
+
+	backend.defaultPriorityErr = errors.New("invalid default priority")
+	invalid := mutationRequest(t, "/v1/services/priority", `{"default_priority":[]}`)
+	response = httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, invalid)
+	if response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid priority code=%d body=%s", response.Code, response.Body.String())
+	}
+
+	unguarded := mutationRequest(t, "/v1/services/priority", `{"default_priority":["example"]}`)
+	unguarded.Header.Del("X-Routevane-Request")
+	response = httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, unguarded)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("unguarded priority code=%d body=%s", response.Code, response.Body.String())
 	}
 }
 
@@ -1444,6 +1502,7 @@ var everyAPIPath = []struct {
 	{"/v1/config-transfer/preview", "config-transfer.preview"},
 	{"/v1/config-transfer/apply", "config-transfer.apply"},
 	{"/v1/services", "services.collection"},
+	{"/v1/services/priority", "services.priority"},
 	{"/v1/services/example/preview", "services.preview"},
 	{"/v1/services/custom-1234567890abcdef/update", "services.update"},
 	{"/v1/services/example/remove", "services.remove"},

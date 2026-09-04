@@ -43,6 +43,8 @@ type Backend interface {
 	PreviewConfigTransfer([]byte) (application.ConfigTransferPreview, error)
 	ApplyConfigTransfer(context.Context, string, []byte) (application.ConfigTransferCounts, error)
 	Services() []string
+	DefaultPriority(context.Context) ([]string, error)
+	SetDefaultPriority(context.Context, []string) error
 	ServiceDetails() []application.ServiceDetail
 	PreviewService(context.Context, string) (application.ServicePreview, error)
 	// Custom services are the operator-defined part of the catalog: created

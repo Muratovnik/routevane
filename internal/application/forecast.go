@@ -47,12 +47,23 @@ type CompositionOverlap struct {
 type CompositionOverlaps struct {
 	Items     []CompositionOverlap `json:"items"`
 	Truncated bool                 `json:"truncated"`
+	// Summary is the complete undirected service adjacency graph. Unlike Items,
+	// it is not capped: a forecast with many diagnostic relations still names
+	// every service pair that overlaps.
+	Summary []CompositionOverlapSummary `json:"summary,omitempty"`
+}
+
+// CompositionOverlapSummary is one stable row of the overlap adjacency graph.
+// Overlaps never contains ServiceID itself.
+type CompositionOverlapSummary struct {
+	ServiceID string   `json:"service_id"`
+	Overlaps  []string `json:"overlaps"`
 }
 
 func forecastOverlaps(plan domain.RoutingPlan) CompositionOverlaps {
 	const detailLimit = 100
 	analysis := planner.AnalyzeRuleOverlaps(plan.Rules, detailLimit)
-	result := CompositionOverlaps{Items: make([]CompositionOverlap, 0, len(analysis.Items)), Truncated: analysis.Truncated}
+	result := CompositionOverlaps{Items: make([]CompositionOverlap, 0, len(analysis.Items)), Truncated: analysis.Truncated, Summary: make([]CompositionOverlapSummary, 0, len(plan.Services))}
 	value := func(entry planner.OverlapValue) OverlapValue {
 		return OverlapValue{RuleKind: entry.RuleKind, Value: entry.Value, Services: entry.Services}
 	}
@@ -63,6 +74,21 @@ func forecastOverlaps(plan domain.RoutingPlan) CompositionOverlaps {
 			mapped.Covering = &covering
 		}
 		result.Items = append(result.Items, mapped)
+	}
+	// The planner summary contains only services that participated in a
+	// relation. Forecasts must state one row for every selected service,
+	// including a service that contributed zero rules, so construct rows in the
+	// plan's canonical service order and fill absent adjacency with an empty set.
+	byService := make(map[string][]string, len(analysis.Summary))
+	for _, row := range analysis.Summary {
+		byService[row.ServiceID] = append([]string(nil), row.Overlaps...)
+	}
+	for _, serviceID := range plan.Services {
+		overlaps := byService[serviceID]
+		if overlaps == nil {
+			overlaps = []string{}
+		}
+		result.Summary = append(result.Summary, CompositionOverlapSummary{ServiceID: serviceID, Overlaps: overlaps})
 	}
 	return result
 }
@@ -85,7 +111,7 @@ func (s *PublicationService) ForecastComposition(ctx context.Context, requested 
 	// The composition passes exactly the checks list creation applies, so a
 	// forecast can never describe a composition the product would then refuse to
 	// store, and a composition resolving to nothing is refused here by name.
-	composition, err := s.validComposition(requested)
+	composition, err := s.validCompositionWithDefaultPriority(ctx, requested)
 	if err != nil {
 		return nil, err
 	}

@@ -128,6 +128,24 @@ func TestRuleOverlapsNeverListsTheCoveredOwnerAsItsOwnCover(t *testing.T) {
 	}
 }
 
+func TestRuleOverlapsSummaryIsCompleteWhenDetailsTruncate(t *testing.T) {
+	rules := make([]domain.RouteRule, 0, 202)
+	for i := 0; i < 101; i++ {
+		value := fmt.Sprintf("host-%03d.example", i)
+		rules = append(rules,
+			overlapTestRule(t, domain.RuleDomainSuffix, value, "alpha"),
+			overlapTestRule(t, domain.RuleDomainSuffix, value, "beta"),
+		)
+	}
+	got := AnalyzeRuleOverlaps(rules, 100)
+	if !got.Truncated || len(got.Items) != 100 {
+		t.Fatalf("details=%d truncated=%v", len(got.Items), got.Truncated)
+	}
+	if len(got.Summary) != 2 || !slices.Equal(got.Summary[0].Overlaps, []string{"beta"}) || !slices.Equal(got.Summary[1].Overlaps, []string{"alpha"}) {
+		t.Fatalf("summary=%#v", got.Summary)
+	}
+}
+
 // An independent pairwise oracle exercises the indexed prefix search, including
 // address-family boundaries; no input ordering or analysis mutates the plan.
 func FuzzRuleOverlapPrefixContainment(f *testing.F) {

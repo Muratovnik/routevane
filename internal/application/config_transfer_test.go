@@ -63,6 +63,49 @@ func TestConfigTransferExportUsesTransferLocalReferences(t *testing.T) {
 	}
 }
 
+func TestConfigTransferExportCarriesAndRemapsDefaultPriority(t *testing.T) {
+	store := &publicationFakeStore{}
+	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x52}, 256)))
+	custom, err := service.CreateCustomService(context.Background(), "Private", []string{"private.example"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.globalPriority = []string{custom.ID, "example", "stale"}
+	transferFakeStates.Store(store, &transferFakeState{document: ConfigTransferDocument{
+		Settings:       TransferSettings{RefreshInterval: RefreshOff},
+		CustomServices: []TransferCustomService{{Ref: custom.ID, Title: custom.Title, Domains: custom.Domains}},
+	}})
+	t.Cleanup(func() { transferFakeStates.Delete(store) })
+
+	payload, err := service.ExportConfigTransfer(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got ConfigTransferDocument
+	if err := json.Unmarshal(payload, &got); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"custom-service-1", "example"}; !slices.Equal(got.Settings.DefaultPriority, want) {
+		t.Fatalf("default priority=%#v, want %#v", got.Settings.DefaultPriority, want)
+	}
+}
+
+func TestConfigTransferExportDropsCatalogServicesRemovedFromTheLibrary(t *testing.T) {
+	store := &publicationFakeStore{}
+	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x53}, 256)))
+	if err := service.RemoveService(context.Background(), "example"); err != nil {
+		t.Fatal(err)
+	}
+	transferFakeStates.Store(store, &transferFakeState{document: ConfigTransferDocument{
+		Settings: TransferSettings{RefreshInterval: RefreshOff},
+		Removals: []TransferRemoval{{Kind: RemovalService, ID: "example"}},
+	}})
+	t.Cleanup(func() { transferFakeStates.Delete(store) })
+	if _, err := service.ExportConfigTransfer(context.Background()); err != nil {
+		t.Fatalf("removed catalog export: %v", err)
+	}
+}
+
 func TestConfigTransferExportOmitsEveryCustomSourceAndItsDisabledReference(t *testing.T) {
 	store := &publicationFakeStore{}
 	transferFakeStates.Store(store, &transferFakeState{document: ConfigTransferDocument{
@@ -129,7 +172,7 @@ func TestConfigTransferRejectsDuplicateKeysAtEveryDepth(t *testing.T) {
 
 func TestConfigTransferRejectsAnImportedCustomSourceURL(t *testing.T) {
 	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x43}, 256)))
-	for _, version := range []string{configTransferLegacyVersion, configTransferOmissionVersion, ConfigTransferVersion} {
+	for _, version := range []string{configTransferLegacyVersion, configTransferLegacyOmissionVersion, configTransferOmissionVersion, ConfigTransferVersion} {
 		document := map[string]any{
 			"version": version, "settings": TransferSettings{RefreshInterval: RefreshOff},
 			"tunings": []TransferTuning{{ServiceRef: "example", CustomSources: []TransferCustomSource{{Ref: "custom-source-1", URL: "https://secret.example.test/token/SENTINEL/feed?format=json", Format: "text"}}}},
@@ -177,6 +220,11 @@ func TestConfigTransferLegacyVersionHasNoOmissionMetadata(t *testing.T) {
 	_, _, err = service.PreviewConfigTransfer(currentWithNull, nil)
 	if !errors.As(err, &transfer) || transfer.Code != "config_transfer_invalid_shape" || transfer.Path != "omitted_custom_sources" {
 		t.Fatalf("current transfer with null omission metadata = %#v", err)
+	}
+	currentPriorityNull := []byte(`{"version":"config-transfer-v1.3","settings":{"refresh_interval":"off","default_priority":null},"omitted_custom_sources":0}`)
+	_, _, err = service.PreviewConfigTransfer(currentPriorityNull, nil)
+	if !errors.As(err, &transfer) || transfer.Code != "config_transfer_invalid_shape" || transfer.Path != "settings/default_priority" {
+		t.Fatalf("current transfer with null default priority = %#v", err)
 	}
 }
 

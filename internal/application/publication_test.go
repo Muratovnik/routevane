@@ -17,17 +17,18 @@ import (
 )
 
 type publicationFakeStore struct {
-	collisions int
-	creates    []NewOutput
-	tokenID    string
-	tokenHash  [32]byte
-	attempts   []OutputAttempt
-	list       List
-	output     Output
-	published  []PublicationCandidate
-	settings   map[string]string
-	custom     map[string]CustomService
-	tunings    map[string]ServiceTuning
+	collisions     int
+	creates        []NewOutput
+	tokenID        string
+	tokenHash      [32]byte
+	attempts       []OutputAttempt
+	list           List
+	output         Output
+	published      []PublicationCandidate
+	settings       map[string]string
+	globalPriority []string
+	custom         map[string]CustomService
+	tunings        map[string]ServiceTuning
 	// categories and memberships hold the operator's category overlay the way
 	// the real store holds it: a title row per created category, and one
 	// verdict row per disagreement with the shipped catalog.
@@ -287,6 +288,15 @@ func (s *publicationFakeStore) PutSetting(_ context.Context, key, value string, 
 		s.settings = map[string]string{}
 	}
 	s.settings[key] = value
+	return nil
+}
+
+func (s *publicationFakeStore) DefaultPriority(context.Context) ([]string, error) {
+	return append([]string(nil), s.globalPriority...), nil
+}
+
+func (s *publicationFakeStore) SetDefaultPriority(_ context.Context, priority []string) error {
+	s.globalPriority = append([]string(nil), priority...)
 	return nil
 }
 

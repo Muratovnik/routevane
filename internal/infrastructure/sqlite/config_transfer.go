@@ -30,6 +30,21 @@ func (s *Store) ExportConfigTransfer(ctx context.Context) (application.ConfigTra
 	} else if err != sql.ErrNoRows {
 		return d, fmt.Errorf("read transfer settings: %w", err)
 	}
+	rows, err := tx.QueryContext(ctx, "SELECT service_id FROM library_service_priorities ORDER BY position ASC")
+	if err != nil {
+		return d, fmt.Errorf("read transfer default priority: %w", err)
+	}
+	for rows.Next() {
+		var serviceID string
+		if err := rows.Scan(&serviceID); err != nil {
+			_ = rows.Close()
+			return d, fmt.Errorf("read transfer default priority: %w", err)
+		}
+		d.Settings.DefaultPriority = append(d.Settings.DefaultPriority, serviceID)
+	}
+	if err := rows.Close(); err != nil {
+		return d, fmt.Errorf("read transfer default priority: %w", err)
+	}
 	if err := exportCustomServices(ctx, tx, &d); err != nil {
 		return d, err
 	}
@@ -332,9 +347,6 @@ func (s *Store) ApplyConfigTransfer(ctx context.Context, a application.ConfigTra
 	}
 	now := a.AppliedAt.UTC().UnixNano()
 	d := a.Document
-	if _, err := tx.ExecContext(ctx, "INSERT INTO settings(key,value,updated_at_ns) VALUES(?,?,?)", application.SettingRefreshInterval, d.Settings.RefreshInterval, now); err != nil {
-		return err
-	}
 	serviceID := func(ref string) string {
 		if id := a.CustomServiceIDs[ref]; id != "" {
 			return id
@@ -346,6 +358,16 @@ func (s *Store) ApplyConfigTransfer(ctx context.Context, a application.ConfigTra
 			return id
 		}
 		return ref
+	}
+	if _, err := tx.ExecContext(ctx, "INSERT INTO settings(key,value,updated_at_ns) VALUES(?,?,?)", application.SettingRefreshInterval, d.Settings.RefreshInterval, now); err != nil {
+		return err
+	}
+	if d.Version == application.ConfigTransferVersion {
+		for position, ref := range d.Settings.DefaultPriority {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO library_service_priorities(service_id,position) VALUES(?,?)", serviceID(ref), position); err != nil {
+				return err
+			}
+		}
 	}
 	for _, v := range d.CustomServices {
 		raw, _ := json.Marshal(v.Domains)

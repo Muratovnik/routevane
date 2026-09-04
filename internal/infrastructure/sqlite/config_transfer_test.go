@@ -14,7 +14,7 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 	store := categoryTestStore(t)
 	document := application.ConfigTransferDocument{
 		Version:  application.ConfigTransferVersion,
-		Settings: application.TransferSettings{RefreshInterval: application.RefreshOff},
+		Settings: application.TransferSettings{RefreshInterval: application.RefreshOff, DefaultPriority: []string{"custom-service-1"}},
 		CustomServices: []application.TransferCustomService{{
 			Ref: "custom-service-1", Title: "Private", Domains: []string{"private.example"},
 		}},
@@ -49,6 +49,13 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 	}
 	if got := countRows(t, store, "SELECT count(*) FROM outputs WHERE latest_artifact_id IS NOT NULL OR previous_artifact_id IS NOT NULL"); got != 0 {
 		t.Fatalf("import restored %d publication pointer(s)", got)
+	}
+	var priorityService string
+	if err := store.db.QueryRow("SELECT service_id FROM library_service_priorities WHERE position=0").Scan(&priorityService); err != nil {
+		t.Fatalf("read transferred default priority: %v", err)
+	}
+	if priorityService != "custom-"+strings.Repeat("a", 16) {
+		t.Fatalf("transferred default priority=%q", priorityService)
 	}
 	stored, err := store.List(context.Background(), strings.Repeat("b", 32))
 	if err != nil || len(stored.Priority) != 1 || stored.Priority[0] != "custom-"+strings.Repeat("a", 16) {
