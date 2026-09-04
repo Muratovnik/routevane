@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { useSettings } from '@/features/settings/model/useSettings'
+import ConfigTransferPanel from '@/features/settings/ui/ConfigTransferPanel.vue'
 import type { RefreshInterval } from '@/shared/api/lists'
 import { useLocale } from '@/shared/i18n/useLocale'
 import { localeNames, type Locale } from '@/shared/i18n/messages'
@@ -17,6 +19,7 @@ import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 const { locale, setLocale, t } = useLocale()
 const preferences = useSurfacePreferences()
 const settings = useSettings()
+const router = useRouter()
 
 const localeOptions = computed(() =>
   (Object.keys(localeNames) as Locale[]).map((value) => ({
@@ -64,6 +67,12 @@ function onAppearance(value: string): void {
 
 function onMode(value: string): void {
   preferences.setMode(value as DetailMode)
+}
+
+function onConfigTransferApplied(): void {
+  // Routes are server-owned. Landing on their shelf creates a fresh read from
+  // the imported state instead of keeping any pre-import rows in this view.
+  void router.push('/')
 }
 </script>
 
@@ -166,6 +175,8 @@ function onMode(value: string): void {
         <span class="settings__mono">{{ origin }}</span>
       </p>
     </section>
+
+    <ConfigTransferPanel @applied="onConfigTransferApplied" />
   </section>
 </template>
 

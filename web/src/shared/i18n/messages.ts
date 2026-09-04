@@ -705,6 +705,76 @@ const ru: Dictionary = {
   'settings.refresh.failed': 'Не удалось сохранить правило обновления.',
   'settings.refresh.saving': 'Сохраняем правило…',
   'settings.runtime.address': 'Адрес',
+  'configTransfer.title': 'Перенос конфигурации',
+  'configTransfer.download': 'Скачать конфигурацию',
+  'configTransfer.download.busy': 'Скачиваем…',
+  'configTransfer.download.failed': 'Не удалось скачать конфигурацию.',
+  'configTransfer.file.label': 'Выберите файл .json',
+  'configTransfer.file.limit': 'Не больше 16 МБ.',
+  'configTransfer.boundary':
+    'Импорт работает только в пустой установке. Пароли, токены и история в файл не входят.',
+  'configTransfer.afterImport':
+    'После переноса введите пароли устройств; автодоставка останется выключенной. Подключения нужно опубликовать заново и создать новые подписки.',
+  'configTransfer.reading': 'Читаем конфигурацию…',
+  'configTransfer.preview': 'Проверить перенос',
+  'configTransfer.preview.busy': 'Проверяем перенос…',
+  'configTransfer.preview.title': 'Будет перенесено',
+  'configTransfer.count.customLists': {
+    one: '{count} свой список',
+    few: '{count} своих списка',
+    many: '{count} своих списков',
+    other: '{count} своего списка',
+  },
+  'configTransfer.count.customCategories': {
+    one: '{count} своя категория',
+    few: '{count} своих категории',
+    many: '{count} своих категорий',
+    other: '{count} своей категории',
+  },
+  'configTransfer.count.customSources': {
+    one: '{count} свой источник',
+    few: '{count} своих источника',
+    many: '{count} своих источников',
+    other: '{count} своего источника',
+  },
+  'configTransfer.count.routes': {
+    one: '{count} маршрут',
+    few: '{count} маршрута',
+    many: '{count} маршрутов',
+    other: '{count} маршрута',
+  },
+  'configTransfer.count.devices': {
+    one: '{count} устройство',
+    few: '{count} устройства',
+    many: '{count} устройств',
+    other: '{count} устройства',
+  },
+  'configTransfer.count.outputs': {
+    one: '{count} подключение',
+    few: '{count} подключения',
+    many: '{count} подключений',
+    other: '{count} подключения',
+  },
+  'configTransfer.warning.devices_require_credentials':
+    'Для перенесённых устройств нужны пароли.',
+  'configTransfer.warning.automatic_delivery_disabled':
+    'Автодоставка останется выключенной.',
+  'configTransfer.warning.outputs_require_publication':
+    'Опубликуйте подключения заново и создайте новые подписки.',
+  'configTransfer.failure.fileType': 'Выберите файл .json.',
+  'configTransfer.failure.fileSize': 'Файл больше 16 МБ.',
+  'configTransfer.failure.fileRead': 'Не удалось прочитать конфигурацию.',
+  'configTransfer.failure.preview': 'Не удалось проверить конфигурацию.',
+  'configTransfer.apply.review': 'Проверить и применить',
+  'configTransfer.apply': 'Применить перенос',
+  'configTransfer.apply.busy': 'Применяем…',
+  'configTransfer.apply.failed': 'Не удалось применить перенос.',
+  'configTransfer.confirm.title':
+    'Добавить проверенную конфигурацию в эту пустую установку?',
+  'configTransfer.confirm.description':
+    'Импорт доступен только в пустой установке.',
+  'configTransfer.confirm.body':
+    'Импортируем только то, что показано в проверке. Пароли, токены и история не будут импортированы.',
 
   'error.notFound': 'Локальный сервис не нашёл эти данные.',
   'error.unavailable': 'Файл сейчас недоступен. Повторите позже.',
@@ -1391,6 +1461,64 @@ const en: Dictionary = {
   'settings.refresh.failed': 'The refresh rule could not be saved.',
   'settings.refresh.saving': 'Saving the rule…',
   'settings.runtime.address': 'Address',
+  'configTransfer.title': 'Configuration transfer',
+  'configTransfer.download': 'Download configuration',
+  'configTransfer.download.busy': 'Downloading…',
+  'configTransfer.download.failed': 'The configuration was not downloaded.',
+  'configTransfer.file.label': 'Choose a .json file',
+  'configTransfer.file.limit': 'Up to 16 MB.',
+  'configTransfer.boundary':
+    'Import works only in an empty installation. Passwords, tokens, and history are not in the file.',
+  'configTransfer.afterImport':
+    'Enter device passwords after import; automatic delivery stays off. Publish connections normally and create new subscriptions.',
+  'configTransfer.reading': 'Reading configuration…',
+  'configTransfer.preview': 'Preview transfer',
+  'configTransfer.preview.busy': 'Checking transfer…',
+  'configTransfer.preview.title': 'Will be imported',
+  'configTransfer.count.customLists': {
+    one: '{count} custom list',
+    other: '{count} custom lists',
+  },
+  'configTransfer.count.customCategories': {
+    one: '{count} custom category',
+    other: '{count} custom categories',
+  },
+  'configTransfer.count.customSources': {
+    one: '{count} custom source',
+    other: '{count} custom sources',
+  },
+  'configTransfer.count.routes': {
+    one: '{count} route',
+    other: '{count} routes',
+  },
+  'configTransfer.count.devices': {
+    one: '{count} device',
+    other: '{count} devices',
+  },
+  'configTransfer.count.outputs': {
+    one: '{count} connection',
+    other: '{count} connections',
+  },
+  'configTransfer.warning.devices_require_credentials':
+    'Imported devices need their passwords.',
+  'configTransfer.warning.automatic_delivery_disabled':
+    'Automatic delivery stays off.',
+  'configTransfer.warning.outputs_require_publication':
+    'Publish connections again and create new subscriptions.',
+  'configTransfer.failure.fileType': 'Choose a .json file.',
+  'configTransfer.failure.fileSize': 'The file is larger than 16 MB.',
+  'configTransfer.failure.fileRead': 'The configuration could not be read.',
+  'configTransfer.failure.preview': 'The configuration could not be checked.',
+  'configTransfer.apply.review': 'Review and apply',
+  'configTransfer.apply': 'Apply transfer',
+  'configTransfer.apply.busy': 'Applying…',
+  'configTransfer.apply.failed': 'The transfer could not be applied.',
+  'configTransfer.confirm.title':
+    'Add the reviewed configuration to this empty installation?',
+  'configTransfer.confirm.description':
+    'Import is available only in an empty installation.',
+  'configTransfer.confirm.body':
+    'Only the reviewed configuration will be imported. Passwords, tokens, and history will not be imported.',
 
   'error.notFound': 'The local service did not find this data.',
   'error.unavailable': 'The file is unavailable right now. Try again later.',
