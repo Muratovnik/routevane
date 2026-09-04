@@ -182,7 +182,10 @@ async function apply(): Promise<void> {
         v-if="transfer.preview.value.warnings.length > 0"
         class="config-transfer__warnings"
       >
-        <li v-for="warning in transfer.preview.value.warnings" :key="warning">
+        <li
+          v-for="(warning, index) in transfer.preview.value.warnings"
+          :key="`${warning}-${index}`"
+        >
           {{ t(`configTransfer.warning.${warning}`) }}
         </li>
       </ul>
