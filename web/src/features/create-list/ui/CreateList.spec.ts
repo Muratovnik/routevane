@@ -196,6 +196,7 @@ describe('CreateList forecast', () => {
         categories: [],
         exclusions: [],
         service_domains: {},
+        priority: ['limit-fixture'],
       }),
     ])
 
@@ -252,6 +253,7 @@ describe('CreateList forecast', () => {
         categories: [],
         exclusions: [],
         service_domains: {},
+        priority: ['limit-fixture', 'discord'],
       }),
     ])
     wrapper.unmount()

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -106,15 +107,15 @@ func TestConfigTransferExportOmitsEveryCustomSourceAndItsDisabledReference(t *te
 
 func TestConfigTransferRejectsDuplicateKeysAtEveryDepth(t *testing.T) {
 	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x43}, 256)))
-	valid := `{"version":"config-transfer-v1.1","settings":{"refresh_interval":"off"},"omitted_custom_sources":0}`
+	valid := `{"version":"config-transfer-v1.2","settings":{"refresh_interval":"off"},"omitted_custom_sources":0}`
 	if _, _, err := service.PreviewConfigTransfer([]byte(valid), nil); err != nil {
 		t.Fatalf("valid neighbor: %v", err)
 	}
 	for _, tc := range []struct {
 		name, document, path string
 	}{
-		{"top level", `{"version":"config-transfer-v1.1","version":"config-transfer-v1.1","settings":{"refresh_interval":"off"}}`, "/version"},
-		{"nested", `{"version":"config-transfer-v1.1","settings":{"refresh_interval":"off","refresh_interval":"daily"}}`, "/settings/refresh_interval"},
+		{"top level", `{"version":"config-transfer-v1.2","version":"config-transfer-v1.2","settings":{"refresh_interval":"off"}}`, "/version"},
+		{"nested", `{"version":"config-transfer-v1.2","settings":{"refresh_interval":"off","refresh_interval":"daily"}}`, "/settings/refresh_interval"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, _, err := service.PreviewConfigTransfer([]byte(tc.document), nil)
@@ -128,12 +129,12 @@ func TestConfigTransferRejectsDuplicateKeysAtEveryDepth(t *testing.T) {
 
 func TestConfigTransferRejectsAnImportedCustomSourceURL(t *testing.T) {
 	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x43}, 256)))
-	for _, version := range []string{configTransferLegacyVersion, ConfigTransferVersion} {
+	for _, version := range []string{configTransferLegacyVersion, configTransferOmissionVersion, ConfigTransferVersion} {
 		document := map[string]any{
 			"version": version, "settings": TransferSettings{RefreshInterval: RefreshOff},
 			"tunings": []TransferTuning{{ServiceRef: "example", CustomSources: []TransferCustomSource{{Ref: "custom-source-1", URL: "https://secret.example.test/token/SENTINEL/feed?format=json", Format: "text"}}}},
 		}
-		if version == ConfigTransferVersion {
+		if version != configTransferLegacyVersion {
 			document["omitted_custom_sources"] = 0
 		}
 		payload, err := json.Marshal(document)
@@ -154,6 +155,10 @@ func TestConfigTransferLegacyVersionHasNoOmissionMetadata(t *testing.T) {
 	if _, _, err := service.PreviewConfigTransfer(clean, nil); err != nil {
 		t.Fatalf("clean legacy transfer: %v", err)
 	}
+	previous := []byte(`{"version":"config-transfer-v1.1","settings":{"refresh_interval":"off"},"omitted_custom_sources":0}`)
+	if _, _, err := service.PreviewConfigTransfer(previous, nil); err != nil {
+		t.Fatalf("v1.1 transfer: %v", err)
+	}
 	for _, value := range []string{"0", "1"} {
 		withNewField := []byte(`{"version":"config-transfer-v1.0","settings":{"refresh_interval":"off"},"omitted_custom_sources":` + value + `}`)
 		_, _, err := service.PreviewConfigTransfer(withNewField, nil)
@@ -162,13 +167,13 @@ func TestConfigTransferLegacyVersionHasNoOmissionMetadata(t *testing.T) {
 			t.Fatalf("legacy transfer with v1.1 field %s = %#v", value, err)
 		}
 	}
-	currentWithoutField := []byte(`{"version":"config-transfer-v1.1","settings":{"refresh_interval":"off"}}`)
+	currentWithoutField := []byte(`{"version":"config-transfer-v1.2","settings":{"refresh_interval":"off"}}`)
 	_, _, err := service.PreviewConfigTransfer(currentWithoutField, nil)
 	var transfer TransferError
 	if !errors.As(err, &transfer) || transfer.Code != "config_transfer_invalid_shape" || transfer.Path != "omitted_custom_sources" {
 		t.Fatalf("current transfer without omission metadata = %#v", err)
 	}
-	currentWithNull := []byte(`{"version":"config-transfer-v1.1","settings":{"refresh_interval":"off"},"omitted_custom_sources":null}`)
+	currentWithNull := []byte(`{"version":"config-transfer-v1.2","settings":{"refresh_interval":"off"},"omitted_custom_sources":null}`)
 	_, _, err = service.PreviewConfigTransfer(currentWithNull, nil)
 	if !errors.As(err, &transfer) || transfer.Code != "config_transfer_invalid_shape" || transfer.Path != "omitted_custom_sources" {
 		t.Fatalf("current transfer with null omission metadata = %#v", err)
@@ -218,7 +223,7 @@ func TestConfigTransferEntryPointsEnforceTheSharedSizeBoundary(t *testing.T) {
 
 func TestConfigTransferRejectsInvalidUTF8(t *testing.T) {
 	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x43}, 256)))
-	payload := append([]byte(`{"version":"config-transfer-v1.1","settings":{"refresh_interval":"off"},"custom_services":[{"ref":"custom-service-1","title":"`), 0xff)
+	payload := append([]byte(`{"version":"config-transfer-v1.2","settings":{"refresh_interval":"off"},"custom_services":[{"ref":"custom-service-1","title":"`), 0xff)
 	payload = append(payload, []byte(`","domains":["example.test"]}]}`)...)
 	_, _, err := service.PreviewConfigTransfer(payload, nil)
 	var transfer TransferError
@@ -299,7 +304,7 @@ func TestConfigTransferApplyAcceptsItsOwnDigestAfterAnotherPreview(t *testing.T)
 func TestConfigTransferApplyRequiresTheExactPreviewedText(t *testing.T) {
 	store := &publicationFakeStore{}
 	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x47}, 256)))
-	previewed := []byte(`{"version":"config-transfer-v1.1","settings":{"refresh_interval":"off"},"omitted_custom_sources":0}`)
+	previewed := []byte(`{"version":"config-transfer-v1.2","settings":{"refresh_interval":"off"},"omitted_custom_sources":0}`)
 	preview, _, err := service.PreviewConfigTransfer(previewed, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -367,7 +372,7 @@ func TestConfigTransferNormalizesValidRouteDomainsBeforeApply(t *testing.T) {
 		Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff},
 		CustomServices:   []TransferCustomService{{Ref: "custom-service-1", Title: " Custom service ", Domains: []string{"CUSTOM.Example.COM."}}},
 		CustomCategories: []TransferCustomCategory{{Ref: "custom-category-1", Title: " Custom category "}},
-		Routes:           []TransferRoute{{Ref: "route-1", Name: " Route ", Services: []string{"example"}, ServiceDomains: map[string][]string{"example": {"WWW.Example.COM."}}, RefreshInterval: RefreshOff}},
+		Routes:           []TransferRoute{{Ref: "route-1", Name: " Route ", Services: []string{"example"}, Priority: []string{"example"}, ServiceDomains: map[string][]string{"example": {"WWW.Example.COM."}}, RefreshInterval: RefreshOff}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -389,6 +394,9 @@ func TestConfigTransferNormalizesValidRouteDomainsBeforeApply(t *testing.T) {
 	}
 	if name := state.(*transferFakeState).applied.Document.Routes[0].Name; name != "Route" {
 		t.Fatalf("persisted route name = %q", name)
+	}
+	if got := state.(*transferFakeState).applied.Document.Routes[0].Priority; !slices.Equal(got, []string{"example"}) {
+		t.Fatalf("persisted route priority = %#v", got)
 	}
 	applied := state.(*transferFakeState).applied.Document
 	if service := applied.CustomServices[0]; service.Title != "Custom service" || len(service.Domains) != 1 || service.Domains[0] != "custom.example.com" {

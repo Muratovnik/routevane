@@ -469,6 +469,7 @@ function onServiceUpdated(): void {
           </ul>
           <footer class="lists__collections-footer">
             <RvButton
+              block
               :disabled="library.busy.value || library.stale.value"
               size="compact"
               type="button"
@@ -556,6 +557,7 @@ function onServiceUpdated(): void {
           </div>
           <footer class="lists__details-footer">
             <RvButton
+              block
               :disabled="library.busy.value || library.stale.value"
               size="compact"
               type="button"

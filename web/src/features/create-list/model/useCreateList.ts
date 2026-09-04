@@ -1,6 +1,10 @@
 import { computed, ref, watch } from 'vue'
 
-import { resolvedComposition } from '@/entities/list-composition/model/composition'
+import {
+  cloneComposition,
+  normalizeComposition,
+  resolvedComposition,
+} from '@/entities/list-composition/model/composition'
 import { useCompositionForecast } from '@/entities/list-composition/model/forecast'
 import {
   loadCatalogCached,
@@ -53,6 +57,7 @@ export function useCreateList() {
     categories: [],
     exclusions: [],
     serviceDomains: {},
+    priority: [],
   })
   const selectedServiceIDs = computed(() => composition.value.services)
   const selectedCategoryIDs = computed(() => composition.value.categories)
@@ -202,6 +207,14 @@ export function useCreateList() {
     name.value = value
   }
 
+  function setPriority(ids: string[]): void {
+    if (busy.value) return
+    composition.value = normalizeComposition(
+      { ...cloneComposition(composition.value), priority: ids },
+      categories.value,
+    )
+  }
+
   /**
    * registerCatalog replaces the whole copy this screen holds rather than
    * patching it: a membership change reaches services, categories and the
@@ -269,7 +282,7 @@ export function useCreateList() {
     observing: forecast.observing,
     forecastPending: forecast.pending,
     retryForecast: () =>
-      forecast.request(composition.value, resolvedServiceIDs.value),
+      forecast.retry(composition.value, resolvedServiceIDs.value),
     registerCatalog,
     resolvedServiceIDs,
     selectedCategoryIDs,
@@ -279,6 +292,7 @@ export function useCreateList() {
     selectedTargetTitle,
     services,
     setName,
+    setPriority,
     setTarget,
     suggestedTarget,
     suggestedTargetTitle,

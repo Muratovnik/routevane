@@ -87,18 +87,17 @@ func TestForecastAnswersAnOverflowingTargetWithItsNumbers(t *testing.T) {
 	if got.ProjectedRules != 4 {
 		t.Fatalf("projected = %d, want the renderer's own count of 4", got.ProjectedRules)
 	}
-	wantPerService := []ServiceRuleForecast{{ServiceID: "discord", Rules: 2}, {ServiceID: "youtube", Rules: 3}}
+	wantPerService := []ServiceRuleForecast{{ServiceID: "discord", Rules: 2}, {ServiceID: "youtube", Rules: 2}}
 	if !reflect.DeepEqual(got.PerService, wantPerService) {
 		t.Fatalf("per service = %#v, want %#v", got.PerService, wantPerService)
 	}
-	// The shares sum to more than the projection because the renderer collapses
-	// the address both services carry. Reporting the sum as the projection is
-	// exactly the arithmetic error this endpoint exists to stop.
+	// Priority assigns the shared address to Discord before projection, so the
+	// per-service shares now describe the same finished plan the device receives.
 	sum := 0
 	for _, share := range got.PerService {
 		sum += share.Rules
 	}
-	if sum != 5 || sum <= got.ProjectedRules {
+	if sum != 4 || sum != got.ProjectedRules {
 		t.Fatalf("per service sum = %d, projected = %d", sum, got.ProjectedRules)
 	}
 }

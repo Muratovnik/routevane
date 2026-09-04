@@ -20,6 +20,7 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 		}},
 		Routes: []application.TransferRoute{{
 			Ref: "route-1", Name: "Private", Services: []string{"custom-service-1"},
+			Priority:       []string{"custom-service-1"},
 			ServiceDomains: map[string][]string{}, RefreshInterval: application.RefreshDaily,
 		}},
 		Devices: []application.TransferDevice{{
@@ -48,6 +49,10 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 	}
 	if got := countRows(t, store, "SELECT count(*) FROM outputs WHERE latest_artifact_id IS NOT NULL OR previous_artifact_id IS NOT NULL"); got != 0 {
 		t.Fatalf("import restored %d publication pointer(s)", got)
+	}
+	stored, err := store.List(context.Background(), strings.Repeat("b", 32))
+	if err != nil || len(stored.Priority) != 1 || stored.Priority[0] != "custom-"+strings.Repeat("a", 16) {
+		t.Fatalf("transferred priority=%#v err=%v", stored.Priority, err)
 	}
 	if err := store.ApplyConfigTransfer(context.Background(), apply); !isTransferCode(err, "config_transfer_destination_not_empty") {
 		t.Fatalf("second apply error = %v", err)

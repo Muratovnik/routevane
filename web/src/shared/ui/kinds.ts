@@ -44,6 +44,7 @@ export type IconName =
   | 'copy'
   | 'dots'
   | 'download'
+  | 'drag'
   | 'edit'
   | 'external'
   | 'file'

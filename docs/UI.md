@@ -49,14 +49,16 @@ Sections, addressable by URL:
    under the field; a pair that cannot build is refused before it exists,
    with a fitting format named and switchable in one click. The forecast
    guards — an unknown forecast never blocks creation.
-   A collapsed **List overlaps / Пересечения списков** disclosure explains
-   identical typed rules and cross-list containment from that same forecast
-   plan. It names the format and the contributing lists, explains that one
-   owner should keep the entry, and links directly to every list that can be
-   edited. The warning also states that a library edit affects every route
-   using that list. A retained answer is marked as updating, an
-   unavailable answer offers retry, and at most 100 details are shown with
-   explicit truncation. These relations are not a claim of device-rule savings.
+   The resolved lists also form a route-local priority order. Rows can be
+   dragged by their handles or moved with the up/down keys; when two lists name
+   the same destination, the higher one owns it. A new member of a live
+   category is appended after the saved order. A broader lower-priority network
+   remains when removing it would lose addresses unique to that list.
+   A collapsed **How overlaps are resolved / Как разрешаются пересечения**
+   disclosure names the format and reports whether the forecast found a
+   relation, but never turns hundreds of destinations into a manual cleanup
+   queue. A retained answer is marked as updating and an unavailable answer
+   offers a real source reread and retry.
 3. `/lists/{listId}` — **The route page.** One object with its facets as tabs:
    Contents · Connection · File · Diagnostics; the active tab and the
    first-setup handoff travel in the URL hash (`#tab=…&setup=…`) because the
@@ -68,8 +70,10 @@ Sections, addressable by URL:
    catalog picker that opens beneath the rows behind «Добавить списки» has
    its own header and its own «Скрыть»; choosing is the composer's job and
    reviewing is this page's.
-   The overlap disclosure uses the first connection's format, like the row
-   weights, and names that connection explicitly. Save
+   Resolved list rows are shown in their saved priority order and can be
+   reordered by drag handle or keyboard. The overlap disclosure uses the first
+   connection's format, like the row weights, names that connection explicitly,
+   and explains the automatic winner rule. Save
    is enabled only once the draft differs from the stored route, cancel
    restores it, and an output the draft would overflow is warned about beside
    the save action without blocking it. **The picker selects and writes nothing else** (ADR 0029). Every
@@ -86,7 +90,8 @@ Sections, addressable by URL:
    категория», no «Свой список» and no bin on a row: those change the library,
    and the library is its own section.
    A list's chevron opens its **list card** (ADR 0025, ADR 0026, ADR 0029)
-   before or after selection — a full-height right-side sheet, one modal
+   before or after selection — a full-height right-side sheet up to the shared
+   64rem working width, one modal
    `RvDialog` portalled to the document body: it locks the page scroll behind
    it, traps focus, returns it on close, and stays whole over a page scrolled
    to any position. The table's scroll area fills the sheet down to the footer;
@@ -137,7 +142,8 @@ Sections, addressable by URL:
    «Удалить список». Deleting a list or a category a route names directly is
    refused with those routes named; removing a list _from a category_ is
    allowed to change what a route carries, because that is what naming a
-   category means. This card has no footer: no route is in question. The two
+   category means. «Своя категория» and «Свой список» occupy the full width of
+   their respective footers. This card has no footer: no route is in question. The two
    panes use the available viewport height and dense operational rows instead
    of clipping a short table inside an otherwise empty page. While the library
    is writing or a list is reading its sources, conflicting menus, switches,

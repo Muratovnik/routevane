@@ -99,6 +99,7 @@ func (s *PublicationService) ForecastComposition(ctx context.Context, requested 
 	list := List{
 		Services: composition.Services, Categories: composition.Categories,
 		Exclusions: composition.Exclusions, ServiceDomains: composition.ServiceDomains,
+		Priority: composition.Priority,
 	}
 	forecasts := make([]CompositionForecast, 0, len(targets))
 	for _, targetID := range targets {
@@ -164,7 +165,7 @@ func (s *PublicationService) forecastTarget(ctx context.Context, list List, targ
 		TargetID: target.ID, MaximumRules: maximum, ProjectedRules: projected,
 		Fits:       maximum == 0 || projected <= maximum,
 		PerService: rulesPerService(prepared.Plan),
-		Overlaps:   forecastOverlaps(prepared.Plan),
+		Overlaps:   prepared.compositionOverlaps,
 	}, nil
 }
 

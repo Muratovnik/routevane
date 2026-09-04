@@ -20,8 +20,9 @@ import (
 const transferCodePrefix = "config_transfer_"
 
 const (
-	ConfigTransferVersion       = "config-transfer-v1.1"
-	configTransferLegacyVersion = "config-transfer-v1.0"
+	ConfigTransferVersion         = "config-transfer-v1.2"
+	configTransferOmissionVersion = "config-transfer-v1.1"
+	configTransferLegacyVersion   = "config-transfer-v1.0"
 	// ConfigTransferMaxBytes covers the current bounded product maximum with
 	// headroom: 200 routes can each carry at most 512 253-byte local domains,
 	// while the other largest collections are 16,384 membership/verdict rows,
@@ -252,6 +253,7 @@ func (v *TransferTuning) UnmarshalJSON(b []byte) error {
 type TransferRoute struct {
 	Ref, Name                        string
 	Services, Categories, Exclusions []string
+	Priority                         []string
 	ServiceDomains                   map[string][]string
 	RefreshInterval                  RefreshInterval
 	Archived                         bool
@@ -264,6 +266,7 @@ func (v TransferRoute) MarshalJSON() ([]byte, error) {
 		Services        []string            `json:"services"`
 		Categories      []string            `json:"categories"`
 		Exclusions      []string            `json:"exclusions"`
+		Priority        []string            `json:"priority"`
 		ServiceDomains  map[string][]string `json:"service_domains"`
 		RefreshInterval RefreshInterval     `json:"refresh_interval"`
 		Archived        bool                `json:"archived"`
@@ -280,6 +283,7 @@ func (v *TransferRoute) UnmarshalJSON(b []byte) error {
 		Services        []string            `json:"services"`
 		Categories      []string            `json:"categories"`
 		Exclusions      []string            `json:"exclusions"`
+		Priority        []string            `json:"priority"`
 		ServiceDomains  map[string][]string `json:"service_domains"`
 		RefreshInterval RefreshInterval     `json:"refresh_interval"`
 		Archived        bool                `json:"archived"`
@@ -558,16 +562,16 @@ func (s *PublicationService) validateTransfer(payload []byte, validateDevice fun
 		return ConfigTransferDocument{}, transferError("invalid_json", "version")
 	}
 	_, hasOmissionMetadata := top["omitted_custom_sources"]
-	if version != ConfigTransferVersion && version != configTransferLegacyVersion {
+	if version != ConfigTransferVersion && version != configTransferOmissionVersion && version != configTransferLegacyVersion {
 		return ConfigTransferDocument{}, transferError("unsupported_version", "version")
 	}
 	if version == configTransferLegacyVersion && hasOmissionMetadata {
 		return ConfigTransferDocument{}, transferError("unsupported_version", "version")
 	}
-	if version == ConfigTransferVersion && !hasOmissionMetadata {
+	if version != configTransferLegacyVersion && !hasOmissionMetadata {
 		return ConfigTransferDocument{}, transferError("invalid_shape", "omitted_custom_sources")
 	}
-	if version == ConfigTransferVersion && strings.TrimSpace(string(top["omitted_custom_sources"])) == "null" {
+	if version != configTransferLegacyVersion && strings.TrimSpace(string(top["omitted_custom_sources"])) == "null" {
 		return ConfigTransferDocument{}, transferError("invalid_shape", "omitted_custom_sources")
 	}
 	var doc ConfigTransferDocument
@@ -712,6 +716,9 @@ func canonicalizeTransfer(d *ConfigTransferDocument) {
 		r.Services = domain.StableStrings(r.Services)
 		r.Categories = domain.StableStrings(r.Categories)
 		r.Exclusions = domain.StableStrings(r.Exclusions)
+		if r.Priority == nil {
+			r.Priority = []string{}
+		}
 		if r.ServiceDomains == nil {
 			r.ServiceDomains = map[string][]string{}
 		}
@@ -797,6 +804,9 @@ func canonicalizeTransferReferences(d *ConfigTransferDocument) {
 		}
 		for j := range route.Exclusions {
 			route.Exclusions[j] = service(route.Exclusions[j])
+		}
+		for j := range route.Priority {
+			route.Priority[j] = service(route.Priority[j])
 		}
 		domains := make(map[string][]string, len(route.ServiceDomains))
 		for id, values := range route.ServiceDomains {
@@ -1042,7 +1052,9 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		if !r.RefreshInterval.valid() {
 			return transferError("invalid_shape", p+"/refresh_interval")
 		}
-		for _, id := range append(append([]string{}, r.Services...), r.Exclusions...) {
+		serviceReferences := append(append([]string{}, r.Services...), r.Exclusions...)
+		serviceReferences = append(serviceReferences, r.Priority...)
+		for _, id := range serviceReferences {
 			if _, local := s.config.LocalServiceIDs[id]; local {
 				return transferError("local_catalog_dependency", p)
 			}
@@ -1058,12 +1070,16 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 				return transferError("catalog_reference_missing", p)
 			}
 		}
-		composition := ListComposition{r.Services, r.Categories, r.Exclusions, r.ServiceDomains}
+		composition := ListComposition{
+			Services: r.Services, Categories: r.Categories,
+			Exclusions: r.Exclusions, ServiceDomains: r.ServiceDomains,
+			Priority: r.Priority,
+		}
 		validated, err := validTransferComposition(composition, effectiveServices, effectiveCategories, members)
 		if err != nil {
 			return transferError("invalid_reference", p)
 		}
-		r.Services, r.Categories, r.Exclusions, r.ServiceDomains = validated.Services, validated.Categories, validated.Exclusions, validated.ServiceDomains
+		r.Services, r.Categories, r.Exclusions, r.ServiceDomains, r.Priority = validated.Services, validated.Categories, validated.Exclusions, validated.ServiceDomains, validated.Priority
 	}
 	seen = map[string]bool{}
 	for i, v := range d.Devices {
@@ -1234,7 +1250,11 @@ func validTransferComposition(c ListComposition, services, categories map[string
 	if err != nil {
 		return ListComposition{}, err
 	}
-	return ListComposition{Services: serviceIDs, Categories: categoryIDs, Exclusions: exclusions, ServiceDomains: serviceDomains}, nil
+	priority, err := normalizePriority(c.Priority, resolved)
+	if err != nil {
+		return ListComposition{}, err
+	}
+	return ListComposition{Services: serviceIDs, Categories: categoryIDs, Exclusions: exclusions, ServiceDomains: serviceDomains, Priority: priority}, nil
 }
 func containsRoute(v []TransferRoute, ref string) bool {
 	for _, x := range v {

@@ -558,6 +558,7 @@ async function onListMenu(key: string): Promise<void> {
           :service-domains="view.list.value.serviceDomains"
           :name="displayName"
           :outputs="editorOutputs"
+          :priority="view.list.value.priority"
           :selected="view.list.value.services"
           :selected-categories="view.list.value.categories"
           :services="view.catalog.value?.serviceDetails ?? []"

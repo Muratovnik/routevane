@@ -38,6 +38,10 @@ type List struct {
 	Categories     []string            `json:"categories"`
 	Exclusions     []string            `json:"exclusions"`
 	ServiceDomains map[string][]string `json:"service_domains,omitempty"`
+	// Priority names the currently resolved services from highest to lowest.
+	// Category references remain live; services they gain later are appended by
+	// resolution rather than making an old route invalid.
+	Priority []string `json:"priority"`
 	// RefreshInterval is this list's own scheduling rule, empty when it follows
 	// the service-wide default. The two are kept apart on purpose: a list that
 	// never disagreed follows the default as it changes.
@@ -65,6 +69,7 @@ type ListComposition struct {
 	Categories     []string            `json:"categories"`
 	Exclusions     []string            `json:"exclusions"`
 	ServiceDomains map[string][]string `json:"service_domains,omitempty"`
+	Priority       []string            `json:"priority"`
 }
 
 // Output binds one list to one renderer format. It owns the subscription and
@@ -439,7 +444,40 @@ func (s *PublicationService) validComposition(requested ListComposition) (ListCo
 		return ListComposition{}, err
 	}
 	composition.ServiceDomains = serviceDomains
+	priority, err := normalizePriority(requested.Priority, resolved)
+	if err != nil {
+		return ListComposition{}, err
+	}
+	composition.Priority = priority
 	return composition, nil
+}
+
+func normalizePriority(requested, resolved []string) ([]string, error) {
+	available := make(map[string]struct{}, len(resolved))
+	for _, id := range resolved {
+		available[id] = struct{}{}
+	}
+	ordered := make([]string, 0, len(resolved))
+	seen := make(map[string]struct{}, len(resolved))
+	for _, id := range requested {
+		if domain.ValidateSlug(id) != nil {
+			return nil, fmt.Errorf("invalid list priority")
+		}
+		if _, ok := available[id]; !ok {
+			return nil, fmt.Errorf("invalid list priority")
+		}
+		if _, duplicate := seen[id]; duplicate {
+			return nil, fmt.Errorf("invalid list priority")
+		}
+		seen[id] = struct{}{}
+		ordered = append(ordered, id)
+	}
+	for _, id := range resolved {
+		if _, present := seen[id]; !present {
+			ordered = append(ordered, id)
+		}
+	}
+	return ordered, nil
 }
 
 // normalizeServiceDomains validates the editable, list-local domain set. A key
@@ -517,12 +555,37 @@ func (s *PublicationService) resolveComposition(composition ListComposition) []s
 		}
 		kept = append(kept, id)
 	}
-	return domain.StableStrings(kept)
+	resolved = domain.StableStrings(kept)
+	priority, err := normalizePriority(
+		filterKnownPriority(composition.Priority, resolved),
+		resolved,
+	)
+	if err != nil {
+		return resolved
+	}
+	return priority
+}
+
+// Stored priority may name a service that a live category no longer carries.
+// That stale position disappears on read; newly carried services are appended
+// by normalizePriority after every still-relevant position.
+func filterKnownPriority(priority, resolved []string) []string {
+	available := make(map[string]struct{}, len(resolved))
+	for _, id := range resolved {
+		available[id] = struct{}{}
+	}
+	kept := make([]string, 0, len(priority))
+	for _, id := range priority {
+		if _, ok := available[id]; ok {
+			kept = append(kept, id)
+		}
+	}
+	return kept
 }
 
 // ResolvedServices is what a list publishes right now.
 func (s *PublicationService) ResolvedServices(list List) []string {
-	return s.resolveComposition(ListComposition{Services: list.Services, Categories: list.Categories, Exclusions: list.Exclusions})
+	return s.resolveComposition(ListComposition{Services: list.Services, Categories: list.Categories, Exclusions: list.Exclusions, Priority: list.Priority})
 }
 
 // MissingCategories names the references a list holds that the catalog no
@@ -578,7 +641,7 @@ func (s *PublicationService) CreateList(ctx context.Context, name string, reques
 		if err != nil {
 			return List{}, fmt.Errorf("generate list identity: %w", err)
 		}
-		list := List{ID: id, Name: cleanName, Services: composition.Services, Categories: composition.Categories, Exclusions: composition.Exclusions, ServiceDomains: composition.ServiceDomains, CreatedAt: now, UpdatedAt: now}
+		list := List{ID: id, Name: cleanName, Services: composition.Services, Categories: composition.Categories, Exclusions: composition.Exclusions, ServiceDomains: composition.ServiceDomains, Priority: composition.Priority, CreatedAt: now, UpdatedAt: now}
 		if err := s.config.Store.CreateList(ctx, list); err != nil {
 			if errors.Is(err, ErrIdentityCollision) {
 				continue
@@ -624,7 +687,7 @@ func (s *PublicationService) UpdateList(ctx context.Context, id, name string, re
 	// renaming a list never resets when it last refreshed.
 	updated := List{
 		ID: current.ID, Name: cleanName,
-		Services: composition.Services, Categories: composition.Categories, Exclusions: composition.Exclusions, ServiceDomains: composition.ServiceDomains,
+		Services: composition.Services, Categories: composition.Categories, Exclusions: composition.Exclusions, ServiceDomains: composition.ServiceDomains, Priority: composition.Priority,
 		RefreshInterval: current.RefreshInterval, LastRefreshedAt: current.LastRefreshedAt, LastRefreshFailed: current.LastRefreshFailed,
 		CreatedAt: current.CreatedAt, UpdatedAt: now,
 	}

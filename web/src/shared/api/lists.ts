@@ -25,6 +25,12 @@ export type ListComposition = {
   categories: string[]
   exclusions: string[]
   serviceDomains: Record<string, string[]>
+  /**
+   * Resolved list ids in descending ownership priority. It is stored beside
+   * the live category references: a category may change later, so readers
+   * append newly resolved ids after the order the operator already chose.
+   */
+  priority?: string[]
 }
 
 // A list is the unit the operator works with: a name and a composition, with no
@@ -99,6 +105,7 @@ export function createList(
       categories: composition.categories,
       exclusions: composition.exclusions,
       service_domains: composition.serviceDomains,
+      priority: composition.priority ?? [],
     },
     parseListEnvelope,
   )
@@ -134,12 +141,12 @@ export type TargetForecast = {
   // Zero means the format states no bound, which is a different fact from a
   // bound that happens to be large.
   maximumRules: number
-  // The total the build would produce. Per-service shares overlap where two
-  // services name the same destination, so they can add up to more than this;
-  // the total is stated rather than derived for exactly that reason.
+  // The total the build would produce after route-local priority assigns safe
+  // overlaps to their winning list.
   projectedRules: number
   fits: boolean
-  // Every resolved service, including the ones that contribute nothing.
+  // Every resolved service, including one whose rules all belong to a
+  // higher-priority list.
   perService: ForecastService[]
   // Missing on an older server means unknown, never "no overlaps".
   overlaps?: CompositionOverlaps
@@ -168,6 +175,7 @@ export function previewComposition(
       categories: composition.categories,
       exclusions: composition.exclusions,
       service_domains: composition.serviceDomains,
+      priority: composition.priority ?? [],
       ...(targets.length === 0 ? {} : { targets }),
     },
     parseForecasts,
@@ -187,6 +195,7 @@ export function updateList(
       categories: composition.categories,
       exclusions: composition.exclusions,
       service_domains: composition.serviceDomains,
+      priority: composition.priority ?? [],
     },
     parseListEnvelope,
   )
@@ -256,6 +265,7 @@ const listEntries = {
   categories: texts,
   exclusions: texts,
   service_domains: serviceDomainsSchema,
+  priority: v.optional(texts, []),
   refresh_interval: refreshRule,
   last_refreshed_at: optionalTimestamp,
   last_refresh_failed: optionalFlag,
@@ -274,6 +284,7 @@ function asRouteList(list: v.InferOutput<typeof listShape>): RouteList {
     categories: list.categories,
     exclusions: list.exclusions,
     serviceDomains: list.service_domains,
+    priority: list.priority,
     refreshInterval: list.refresh_interval,
     lastRefreshedAt: list.last_refreshed_at,
     lastRefreshFailed: list.last_refresh_failed,

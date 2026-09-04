@@ -127,6 +127,7 @@ type ListCard struct {
 	Categories     []string            `json:"categories"`
 	Exclusions     []string            `json:"exclusions"`
 	ServiceDomains map[string][]string `json:"service_domains,omitempty"`
+	Priority       []string            `json:"priority"`
 	// Resolved is what the list publishes right now: named services plus every
 	// category's members, minus exclusions, deduplicated. A screen shows this
 	// and can still explain it, because the stored parts are here too.
@@ -264,7 +265,7 @@ func (s *PublicationService) ListCards(ctx context.Context) ([]ListCard, error) 
 	for _, list := range lists {
 		card := ListCard{
 			ID: list.ID, Name: list.Name,
-			Services: list.Services, Categories: list.Categories, Exclusions: list.Exclusions, ServiceDomains: list.ServiceDomains,
+			Services: list.Services, Categories: list.Categories, Exclusions: list.Exclusions, ServiceDomains: list.ServiceDomains, Priority: list.Priority,
 			Resolved: s.ResolvedServices(list), MissingCategories: s.MissingCategories(list),
 			ArchivedAt: list.ArchivedAt,
 			CreatedAt:  list.CreatedAt, UpdatedAt: list.UpdatedAt,

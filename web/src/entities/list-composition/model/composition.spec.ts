@@ -4,6 +4,7 @@ import { reactive } from 'vue'
 import {
   categorySelectionState,
   compositionSignature,
+  moveCompositionPriority,
   resolvedComposition,
   toggleCompositionCategory,
   toggleCompositionService,
@@ -40,6 +41,7 @@ describe('list composition selection', () => {
     expect(selected).toEqual({
       categories: ['communication'],
       exclusions: [],
+      priority: ['discord', 'telegram'],
       serviceDomains: {},
       services: [],
     })
@@ -53,6 +55,7 @@ describe('list composition selection', () => {
     const category = {
       categories: ['communication'],
       exclusions: [],
+      priority: ['discord', 'telegram'],
       serviceDomains: {},
       services: [],
     }
@@ -64,12 +67,13 @@ describe('list composition selection', () => {
     )
 
     expect(withoutDiscord.exclusions).toEqual(['discord'])
+    expect(withoutDiscord.priority).toEqual(['telegram'])
     expect(resolvedComposition(withoutDiscord, categories)).toEqual([
       'telegram',
     ])
     expect(
       toggleCompositionService(withoutDiscord, categories, 'discord'),
-    ).toEqual(category)
+    ).toEqual({ ...category, priority: ['telegram', 'discord'] })
   })
 
   it('keeps a hand-picked service independent of unrelated collections', () => {
@@ -77,6 +81,7 @@ describe('list composition selection', () => {
       {
         categories: [],
         exclusions: [],
+        priority: [],
         serviceDomains: {},
         services: [],
       },
@@ -91,9 +96,9 @@ describe('list composition selection', () => {
 
     expect(withCollection.services).toEqual(['youtube'])
     expect(resolvedComposition(withCollection, categories)).toEqual([
+      'youtube',
       'discord',
       'telegram',
-      'youtube',
     ])
   })
 
@@ -122,6 +127,7 @@ describe('list composition selection', () => {
     expect(full).toEqual({
       categories: ['communication'],
       exclusions: [],
+      priority: ['discord', 'telegram'],
       serviceDomains: {},
       services: [],
     })
@@ -133,15 +139,15 @@ describe('list composition selection', () => {
     ).toEqual({
       categories: [],
       exclusions: [],
+      priority: [],
       serviceDomains: {},
       services: [],
     })
   })
 })
 
-// What a composition selects is the fact; the order it was written down in is
-// not. Everything that asks "has this changed?" has to agree with that, or a
-// save control lights up for a rewrite of the same list.
+// Selection arrays are sets, while priority is an operator-owned order.
+// Everything that asks "has this changed?" must preserve that distinction.
 describe('composition identity', () => {
   it('reads two writings of the same selection as one', () => {
     const written = {
@@ -185,6 +191,31 @@ describe('composition identity', () => {
         categories,
       ),
     )
+    expect(compositionSignature(base, categories)).not.toBe(
+      compositionSignature(
+        { ...base, priority: ['telegram', 'discord'] },
+        categories,
+      ),
+    )
+  })
+
+  it('keeps explicit priority and appends a newly carried list', () => {
+    const composition = {
+      categories: ['communication'],
+      exclusions: [],
+      priority: ['telegram', 'discord'],
+      serviceDomains: {},
+      services: ['youtube'],
+    }
+
+    expect(resolvedComposition(composition, categories)).toEqual([
+      'telegram',
+      'discord',
+      'youtube',
+    ])
+    expect(
+      moveCompositionPriority(composition, categories, 2, 0).priority,
+    ).toEqual(['youtube', 'telegram', 'discord'])
   })
 
   // Components hand these helpers reactive state, and the structured-clone

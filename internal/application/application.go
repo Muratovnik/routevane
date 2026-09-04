@@ -246,8 +246,9 @@ type BuildOutput interface {
 // PreparedPlan is the immutable handoff between coherent planning/preflight
 // and rendering. Callers may encode Plan before invoking an untrusted renderer.
 type PreparedPlan struct {
-	Plan   domain.RoutingPlan
-	Target domain.TargetProfile
+	Plan                domain.RoutingPlan
+	Target              domain.TargetProfile
+	compositionOverlaps CompositionOverlaps
 }
 
 // PrepareServices reads all selected services at one cutoff and completes

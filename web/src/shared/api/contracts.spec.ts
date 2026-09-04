@@ -742,6 +742,7 @@ describe('the server states its fields, the screen reads its own', () => {
   it('renames every field a list card carries', async () => {
     answer(
       listPayload({
+        priority: ['discord'],
         service_domains: { discord: ['discord.com'] },
         last_refreshed_at: '2026-08-20T11:00:00Z',
         last_refresh_failed: true,
@@ -756,6 +757,7 @@ describe('the server states its fields, the screen reads its own', () => {
         services: ['discord'],
         categories: [],
         exclusions: [],
+        priority: ['discord'],
         serviceDomains: { discord: ['discord.com'] },
         refreshInterval: '',
         lastRefreshedAt: '2026-08-20T11:00:00Z',

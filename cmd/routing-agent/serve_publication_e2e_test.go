@@ -224,7 +224,7 @@ func createListOutput(t *testing.T, origin, name, targetID string, services ...s
 			ID string `json:"id"`
 		} `json:"list"`
 	}
-	body := postJSON(t, origin+"/v1/lists", `{"name":`+strconv.Quote(name)+`,"services":`+string(encoded)+`}`)
+	body := postJSON(t, origin+"/v1/lists", `{"name":`+strconv.Quote(name)+`,"services":`+string(encoded)+`,"priority":`+string(encoded)+`}`)
 	if err := json.Unmarshal(body, &listResponse); err != nil {
 		t.Fatalf("create list=%s: %v", body, err)
 	}

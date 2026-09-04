@@ -91,6 +91,27 @@ func TestAGrowingCategoryReachesTheListWithoutAnEdit(t *testing.T) {
 	}
 }
 
+func TestPrioritySurvivesLiveCategoryChanges(t *testing.T) {
+	service := categoryTestService(t)
+	list := listWith(nil, []string{"games"}, nil)
+	list.Priority = []string{"roblox", "discord"}
+	if joined(service.ResolvedServices(list)) != "roblox,discord" {
+		t.Fatalf("resolved before = %v", service.ResolvedServices(list))
+	}
+	service.config.Categories["games"] = domain.CategoryDefinition{
+		ID: "games", Title: "Игры", Services: []string{"discord", "roblox", "youtube"},
+	}
+	if joined(service.ResolvedServices(list)) != "roblox,discord,youtube" {
+		t.Fatalf("resolved after growth = %v", service.ResolvedServices(list))
+	}
+	service.config.Categories["games"] = domain.CategoryDefinition{
+		ID: "games", Title: "Игры", Services: []string{"roblox", "youtube"},
+	}
+	if joined(service.ResolvedServices(list)) != "roblox,youtube" {
+		t.Fatalf("resolved after removal = %v", service.ResolvedServices(list))
+	}
+}
+
 // A category that left the catalog must not fail the read or silently shrink
 // the list without saying so.
 func TestAVanishedCategoryIsReportedRatherThanHidden(t *testing.T) {
@@ -118,6 +139,9 @@ func TestCompositionValidation(t *testing.T) {
 		{"nothing at all", ListComposition{}, false},
 		{"named and excluded", ListComposition{Services: []string{"youtube"}, Exclusions: []string{"youtube"}}, false},
 		{"everything excluded", ListComposition{Categories: []string{"communication"}, Exclusions: []string{"discord"}}, false},
+		{"priority", ListComposition{Categories: []string{"games"}, Priority: []string{"roblox", "discord"}}, true},
+		{"duplicate priority", ListComposition{Categories: []string{"games"}, Priority: []string{"roblox", "roblox"}}, false},
+		{"foreign priority", ListComposition{Categories: []string{"games"}, Priority: []string{"youtube"}}, false},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

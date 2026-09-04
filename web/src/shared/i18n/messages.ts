@@ -27,20 +27,20 @@ export const localeNames: Record<Locale, string> = {
 }
 
 const ru: Dictionary = {
-  'overlaps.title': 'Пересечения списков',
-  'overlaps.loading': 'Считаем пересечения…',
+  'overlaps.title': 'Как разрешаются пересечения',
+  'overlaps.loading': 'Обновляем прогноз файла…',
   'overlaps.stale': 'Обновляем расчёт; ниже предыдущий результат.',
   'overlaps.unavailable': 'Пересечения пока неизвестны',
   'overlaps.unavailable.body':
     'Не удалось получить прогноз для этого состава. Повторите расчёт.',
   'overlaps.projection': '{target}: прогноз файла — {count} записей.',
   'overlaps.meaning':
-    'В готовом файле одинаковые записи объединятся, а более широкая сеть может заменить входящие в неё адреса.',
-  'overlaps.resolve.title': 'Как убрать пересечение',
+    'Совпавшая запись относится к списку, который стоит выше в приоритете. Если нижний список содержит более широкую сеть, она сохраняется: иначе пропадут уникальные адреса.',
+  'overlaps.resolve.title': 'Ничего разбирать вручную не нужно',
   'overlaps.resolve.body':
-    'Оставьте запись в одном списке. Откройте остальные списки по ссылкам ниже и выключите в них эту запись.',
-  'overlaps.resolve.scope':
-    'Изменение списка повлияет на все маршруты, где он используется.',
+    'Routevane применит порядок списков при сохранении и сборке маршрута.',
+  'overlaps.resolve.scope': 'Порядок действует только в этом маршруте.',
+  'overlaps.found': 'Пересечения найдены и будут разрешены автоматически.',
   'overlaps.openList': 'Открыть «{list}»',
   'overlaps.empty': 'Между списками нет одинаковых правил или покрытия.',
   'overlaps.duplicate': 'Одинаковое правило',
@@ -537,6 +537,8 @@ const ru: Dictionary = {
     'соседние правила объединены без потерь',
   'list.diagnostics.reason.source_degraded':
     'использованы сохранённые данные источника',
+  'list.diagnostics.reason.lower_priority_overlap':
+    'правило принадлежит списку с более высоким приоритетом',
   'list.diagnostics.reason.special_use_destination':
     'служебный или локальный адрес',
   'list.diagnostics.reason.prefix_too_wide': 'сетевой префикс слишком широк',
@@ -579,6 +581,11 @@ const ru: Dictionary = {
   'list.composition.hide': 'Скрыть',
   'list.composition.hide.aria': 'Скрыть каталог',
   'list.composition.remove.aria': 'Убрать {service} из маршрута',
+  'list.priority.title': 'Приоритет списков',
+  'list.priority.body':
+    'При пересечении запись останется за списком выше. Перетащите строки за маркер; с клавиатуры используйте стрелки вверх и вниз.',
+  'list.priority.move.aria':
+    'Изменить приоритет списка {list}, позиция {position}',
   'list.forecast.overflow': '{target}: ≈ {count} из {max} — не вместится',
 
   'outputs.empty': 'Подключений пока нет',
@@ -820,8 +827,8 @@ const ru: Dictionary = {
 }
 
 const en: Dictionary = {
-  'overlaps.title': 'List overlaps',
-  'overlaps.loading': 'Calculating overlaps…',
+  'overlaps.title': 'How overlaps are resolved',
+  'overlaps.loading': 'Updating the file forecast…',
   'overlaps.stale':
     'Updating the calculation; the previous result is shown below.',
   'overlaps.unavailable': 'Overlaps are not known yet',
@@ -829,11 +836,12 @@ const en: Dictionary = {
     'The forecast for this composition could not be read. Try the calculation again.',
   'overlaps.projection': '{target}: file forecast — {count} entries.',
   'overlaps.meaning':
-    'The finished file merges identical entries, and a broader network may replace addresses inside it.',
-  'overlaps.resolve.title': 'How to remove an overlap',
+    'A matching entry belongs to the list with the higher priority. A wider network from a lower list remains when removing it would lose unique addresses.',
+  'overlaps.resolve.title': 'No manual cleanup is required',
   'overlaps.resolve.body':
-    'Keep the entry in one list. Open the other lists below and turn that entry off in each of them.',
-  'overlaps.resolve.scope': 'Changing a list affects every route that uses it.',
+    'Routevane applies the list order when the route is saved and built.',
+  'overlaps.resolve.scope': 'The order applies only to this route.',
+  'overlaps.found': 'Overlaps were found and will be resolved automatically.',
   'overlaps.openList': 'Open “{list}”',
   'overlaps.empty': 'No identical rules or containment between these lists.',
   'overlaps.duplicate': 'Identical rule',
@@ -1308,6 +1316,8 @@ const en: Dictionary = {
   'list.diagnostics.reason.lossless_collapsed':
     'adjacent rules combined without loss',
   'list.diagnostics.reason.source_degraded': 'using saved source data',
+  'list.diagnostics.reason.lower_priority_overlap':
+    'the rule belongs to a higher-priority list',
   'list.diagnostics.reason.special_use_destination':
     'special-use or local address',
   'list.diagnostics.reason.prefix_too_wide': 'network prefix is too broad',
@@ -1350,6 +1360,11 @@ const en: Dictionary = {
   'list.composition.hide': 'Hide',
   'list.composition.hide.aria': 'Hide the catalog',
   'list.composition.remove.aria': 'Remove {service} from the route',
+  'list.priority.title': 'List priority',
+  'list.priority.body':
+    'When entries overlap, the higher list owns the entry. Drag rows by the handle; use the up and down arrow keys from the keyboard.',
+  'list.priority.move.aria':
+    'Change priority of list {list}, position {position}',
   'list.forecast.overflow': '{target}: ≈ {count} of {max} — will not fit',
 
   'outputs.empty': 'No connections yet',

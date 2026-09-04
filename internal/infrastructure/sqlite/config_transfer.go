@@ -242,6 +242,21 @@ func exportRoutes(ctx context.Context, q *sql.Tx, d *application.ConfigTransferD
 			return err
 		}
 	}
+	rows, err = q.QueryContext(ctx, "SELECT list_id,service_id FROM list_service_priorities ORDER BY list_id,position")
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var id, serviceID string
+		if err := rows.Scan(&id, &serviceID); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		by[id].Priority = append(by[id].Priority, serviceID)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
 	rows, err = q.QueryContext(ctx, "SELECT list_id,service_id,domains_json FROM list_service_domains ORDER BY list_id,service_id")
 	if err != nil {
 		return err
@@ -397,6 +412,11 @@ func (s *Store) ApplyConfigTransfer(ctx context.Context, a application.ConfigTra
 		}
 		for _, x := range v.Exclusions {
 			if _, err := tx.ExecContext(ctx, "INSERT INTO list_exclusions(list_id,service_id) VALUES(?,?)", id, serviceID(x)); err != nil {
+				return err
+			}
+		}
+		for position, x := range v.Priority {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO list_service_priorities(list_id,service_id,position) VALUES(?,?,?)", id, serviceID(x), position); err != nil {
 				return err
 			}
 		}

@@ -25,6 +25,11 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 - Separate global library editing from per-route selection. Permit library
   removal only when stored routes are not broken. Routes are archived, not
   destructively deleted; published history remains available.
+- Preserve a route-local list priority. Equal destinations belong to the first
+  list; a lower-priority rule wholly covered by a higher list is omitted, while
+  a broader lower-priority rule stays when it contributes unique addresses.
+  Category references remain live and append newly resolved lists after the
+  stored order.
 - Show secrets only at their deliberate point of use. Subscription issuance
   follows first publication; stored hashes cannot recover the original token.
 - Device changes require explicit authority, a compatible target, verified

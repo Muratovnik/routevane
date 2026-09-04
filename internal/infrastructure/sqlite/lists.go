@@ -35,21 +35,21 @@ func validSlugSet(values []string) bool {
 	return true
 }
 
-// normalizedComposition returns the three stored parts in canonical order, or
-// false when any of them is malformed, duplicated, contradictory, or when the
-// composition names nothing at all.
-func normalizedComposition(list application.List) (services, categories, exclusions []string, ok bool) {
+// normalizedComposition returns the unordered references in canonical order
+// and the priority in operator order. It refuses malformed, duplicate or
+// contradictory values and a composition that names nothing at all.
+func normalizedComposition(list application.List) (services, categories, exclusions, priority []string, ok bool) {
 	services = domain.StableStrings(list.Services)
 	categories = domain.StableStrings(list.Categories)
 	exclusions = domain.StableStrings(list.Exclusions)
 	if len(services) != len(list.Services) || len(categories) != len(list.Categories) || len(exclusions) != len(list.Exclusions) {
-		return nil, nil, nil, false
+		return nil, nil, nil, nil, false
 	}
 	if !validSlugSet(services) || !validSlugSet(categories) || !validSlugSet(exclusions) {
-		return nil, nil, nil, false
+		return nil, nil, nil, nil, false
 	}
 	if len(services)+len(categories) == 0 {
-		return nil, nil, nil, false
+		return nil, nil, nil, nil, false
 	}
 	named := make(map[string]struct{}, len(services))
 	for _, id := range services {
@@ -57,17 +57,28 @@ func normalizedComposition(list application.List) (services, categories, exclusi
 	}
 	for _, id := range exclusions {
 		if _, both := named[id]; both {
-			return nil, nil, nil, false
+			return nil, nil, nil, nil, false
 		}
 	}
-	return services, categories, exclusions, true
+	seenPriority := make(map[string]struct{}, len(list.Priority))
+	for _, id := range list.Priority {
+		if domain.ValidateSlug(id) != nil {
+			return nil, nil, nil, nil, false
+		}
+		if _, duplicate := seenPriority[id]; duplicate {
+			return nil, nil, nil, nil, false
+		}
+		seenPriority[id] = struct{}{}
+		priority = append(priority, id)
+	}
+	return services, categories, exclusions, priority, true
 }
 
-// writeComposition replaces the three membership tables of one list inside the
+// writeComposition replaces every membership table of one list inside the
 // caller's transaction. Exclusions go in last because the trigger that refuses
 // a service which is both named and excluded fires on either insert, and the
 // named set is the one the caller asked for.
-func writeComposition(ctx context.Context, tx *sql.Tx, listID string, services, categories, exclusions []string) error {
+func writeComposition(ctx context.Context, tx *sql.Tx, listID string, services, categories, exclusions, priority []string) error {
 	writes := []struct {
 		statement string
 		values    []string
@@ -81,6 +92,11 @@ func writeComposition(ctx context.Context, tx *sql.Tx, listID string, services, 
 			if _, err := tx.ExecContext(ctx, write.statement, listID, value); err != nil {
 				return fmt.Errorf("write list composition: %w", err)
 			}
+		}
+	}
+	for position, serviceID := range priority {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO list_service_priorities(list_id,service_id,position) VALUES(?,?,?)`, listID, serviceID, position); err != nil {
+			return fmt.Errorf("write list priority: %w", err)
 		}
 	}
 	return nil
@@ -132,6 +148,7 @@ func clearComposition(ctx context.Context, tx *sql.Tx, listID string) error {
 		`DELETE FROM list_categories WHERE list_id=?`,
 		`DELETE FROM list_exclusions WHERE list_id=?`,
 		`DELETE FROM list_service_domains WHERE list_id=?`,
+		`DELETE FROM list_service_priorities WHERE list_id=?`,
 	} {
 		if _, err := tx.ExecContext(ctx, statement, listID); err != nil {
 			return fmt.Errorf("replace list composition: %w", err)
@@ -141,7 +158,7 @@ func clearComposition(ctx context.Context, tx *sql.Tx, listID string) error {
 }
 
 func (s *Store) CreateList(ctx context.Context, list application.List) error {
-	services, categories, exclusions, ok := normalizedComposition(list)
+	services, categories, exclusions, priority, ok := normalizedComposition(list)
 	if !validID(list.ID) || list.Name == "" || len([]rune(list.Name)) > 120 || list.CreatedAt.IsZero() || list.UpdatedAt.IsZero() || !ok {
 		return fmt.Errorf("invalid list")
 	}
@@ -167,7 +184,7 @@ func (s *Store) CreateList(ctx context.Context, list application.List) error {
 	if _, err := tx.ExecContext(ctx, `INSERT INTO lists(id,name,created_at_ns,updated_at_ns) VALUES(?,?,?,?)`, list.ID, list.Name, list.CreatedAt.UTC().UnixNano(), list.UpdatedAt.UTC().UnixNano()); err != nil {
 		return fail(fmt.Errorf("insert list: %w", err))
 	}
-	if err := writeComposition(ctx, tx, list.ID, services, categories, exclusions); err != nil {
+	if err := writeComposition(ctx, tx, list.ID, services, categories, exclusions, priority); err != nil {
 		return fail(err)
 	}
 	if err := writeServiceDomains(ctx, tx, list.ID, list.ServiceDomains); err != nil {
@@ -250,6 +267,11 @@ func (s *Store) readComposition(ctx context.Context, list *application.List) err
 		}
 		*read.into = values
 	}
+	priority, err := s.compositionPart(ctx, `SELECT service_id FROM list_service_priorities WHERE list_id=? ORDER BY position ASC LIMIT 128`, list.ID)
+	if err != nil {
+		return err
+	}
+	list.Priority = priority
 	return nil
 }
 
@@ -310,7 +332,7 @@ func (s *Store) Lists(ctx context.Context) ([]application.List, error) {
 }
 
 func (s *Store) UpdateList(ctx context.Context, list application.List) error {
-	services, categories, exclusions, ok := normalizedComposition(list)
+	services, categories, exclusions, priority, ok := normalizedComposition(list)
 	if !validID(list.ID) || list.Name == "" || len([]rune(list.Name)) > 120 || list.UpdatedAt.IsZero() || !ok {
 		return fmt.Errorf("invalid list")
 	}
@@ -334,7 +356,7 @@ func (s *Store) UpdateList(ctx context.Context, list application.List) error {
 	if err := clearComposition(ctx, tx, list.ID); err != nil {
 		return fail(err)
 	}
-	if err := writeComposition(ctx, tx, list.ID, services, categories, exclusions); err != nil {
+	if err := writeComposition(ctx, tx, list.ID, services, categories, exclusions, priority); err != nil {
 		return fail(err)
 	}
 	if err := writeServiceDomains(ctx, tx, list.ID, list.ServiceDomains); err != nil {

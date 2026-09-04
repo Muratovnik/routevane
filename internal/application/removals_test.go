@@ -288,7 +288,7 @@ func TestRemovingAListChangesWhatARouteNamingItsCategoryWouldBuild(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantBefore := []ServiceRuleForecast{{ServiceID: "discord", Rules: 2}, {ServiceID: "youtube", Rules: 3}}
+	wantBefore := []ServiceRuleForecast{{ServiceID: "discord", Rules: 2}, {ServiceID: "youtube", Rules: 2}}
 	if len(before) != 1 || !reflect.DeepEqual(before[0].PerService, wantBefore) {
 		t.Fatalf("forecast before = %#v", before)
 	}

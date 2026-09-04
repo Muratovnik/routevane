@@ -1029,7 +1029,7 @@ func TestCreateListPassesListLocalDomainOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := mutationRequest(t, "/v1/lists", `{"name":"Example","services":["example"],"service_domains":{"example":["custom.example"]}}`)
+	request := mutationRequest(t, "/v1/lists", `{"name":"Example","services":["example"],"priority":["example"],"service_domains":{"example":["custom.example"]}}`)
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusCreated {
@@ -1038,6 +1038,9 @@ func TestCreateListPassesListLocalDomainOverrides(t *testing.T) {
 	want := map[string][]string{"example": {"custom.example"}}
 	if !reflect.DeepEqual(backend.createdComposition.ServiceDomains, want) {
 		t.Fatalf("composition=%#v", backend.createdComposition)
+	}
+	if !reflect.DeepEqual(backend.createdComposition.Priority, []string{"example"}) {
+		t.Fatalf("priority=%#v", backend.createdComposition.Priority)
 	}
 }
 
@@ -1054,7 +1057,7 @@ func TestCompositionForecastAnswersEveryRequestedTargetWithItsOwnNumbers(t *test
 	}
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, mutationRequest(t, "/v1/lists/preview",
-		`{"services":["youtube","twitch"],"categories":["video"],"exclusions":["vimeo"],"service_domains":{"youtube":["custom.example"]},"targets":["keenetic","singbox"]}`))
+		`{"services":["youtube","twitch"],"categories":["video"],"exclusions":["vimeo"],"priority":["twitch","youtube"],"service_domains":{"youtube":["custom.example"]},"targets":["keenetic","singbox"]}`))
 	const want = `{"targets":[` +
 		`{"target_id":"keenetic","maximum_rules":1024,"projected_rules":1742,"fits":false,"per_service":[{"service_id":"twitch","rules":1230},{"service_id":"youtube","rules":512}],"overlaps":{"items":[],"truncated":false}},` +
 		`{"target_id":"singbox","maximum_rules":8192,"projected_rules":1742,"fits":true,"per_service":[{"service_id":"twitch","rules":1230},{"service_id":"youtube","rules":512}],"overlaps":{"items":[],"truncated":false}}` +
@@ -1067,7 +1070,7 @@ func TestCompositionForecastAnswersEveryRequestedTargetWithItsOwnNumbers(t *test
 	// one it is about to create.
 	wantComposition := application.ListComposition{
 		Services: []string{"youtube", "twitch"}, Categories: []string{"video"}, Exclusions: []string{"vimeo"},
-		ServiceDomains: map[string][]string{"youtube": {"custom.example"}},
+		ServiceDomains: map[string][]string{"youtube": {"custom.example"}}, Priority: []string{"twitch", "youtube"},
 	}
 	if !reflect.DeepEqual(backend.forecastComposition, wantComposition) {
 		t.Fatalf("composition=%#v", backend.forecastComposition)

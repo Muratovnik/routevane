@@ -44,8 +44,8 @@ func TestBaselineSchemaServesEffectiveProfile(t *testing.T) {
 }
 
 // A list stores what the operator said, not what it resolves to: the named
-// services, the referenced categories and the exclusions all survive a write
-// and a read unchanged.
+// services, the referenced categories, exclusions and ownership priority all
+// survive a write and a read unchanged.
 func TestListCompositionRoundTripsEveryPart(t *testing.T) {
 	store, err := Open(context.Background(), newDataRoot(t))
 	if err != nil {
@@ -58,6 +58,7 @@ func TestListCompositionRoundTripsEveryPart(t *testing.T) {
 		Services:       []string{"youtube"},
 		Categories:     []string{"video", "communication"},
 		Exclusions:     []string{"discord"},
+		Priority:       []string{"youtube", "telegram"},
 		ServiceDomains: map[string][]string{"youtube": {}},
 		CreatedAt:      now, UpdatedAt: now,
 	}
@@ -70,7 +71,8 @@ func TestListCompositionRoundTripsEveryPart(t *testing.T) {
 	}
 	if !equalStringSlices(stored.Services, []string{"youtube"}) ||
 		!equalStringSlices(stored.Categories, []string{"communication", "video"}) ||
-		!equalStringSlices(stored.Exclusions, []string{"discord"}) {
+		!equalStringSlices(stored.Exclusions, []string{"discord"}) ||
+		!equalStringSlices(stored.Priority, []string{"youtube", "telegram"}) {
 		t.Fatalf("stored=%#v", stored)
 	}
 	if domains, ok := stored.ServiceDomains["youtube"]; !ok || len(domains) != 0 {
@@ -78,6 +80,7 @@ func TestListCompositionRoundTripsEveryPart(t *testing.T) {
 	}
 
 	stored.ServiceDomains = map[string][]string{"youtube": {"youtu.be", "youtube.com"}}
+	stored.Priority = []string{"telegram", "youtube"}
 	stored.UpdatedAt = now.Add(time.Minute)
 	if err := store.UpdateList(context.Background(), stored); err != nil {
 		t.Fatal(err)
@@ -88,6 +91,9 @@ func TestListCompositionRoundTripsEveryPart(t *testing.T) {
 	}
 	if !equalStringSlices(updated.ServiceDomains["youtube"], []string{"youtu.be", "youtube.com"}) {
 		t.Fatalf("updated domain override lost: %#v", updated.ServiceDomains)
+	}
+	if !equalStringSlices(updated.Priority, []string{"telegram", "youtube"}) {
+		t.Fatalf("updated priority lost: %#v", updated.Priority)
 	}
 }
 

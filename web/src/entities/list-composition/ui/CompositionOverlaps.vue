@@ -10,15 +10,12 @@ import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 const props = defineProps<{
   forecast: TargetForecast | null
   pending: boolean
-  services: { id: string; title: string }[]
   targetTitle: string
 }>()
 const emit = defineEmits<{ retry: [] }>()
 const { t, formatNumber } = useLocale()
 const open = ref(false)
 const analysis = computed(() => props.forecast?.overlaps)
-const title = (id: string) =>
-  props.services.find((service) => service.id === id)?.title ?? id
 </script>
 
 <template>
@@ -58,70 +55,18 @@ const title = (id: string) =>
       <p v-if="analysis.items.length === 0" class="overlaps__note">
         {{ t('overlaps.empty') }}
       </p>
-      <template v-else>
-        <p class="overlaps__note">{{ t('overlaps.meaning') }}</p>
-        <div class="overlaps__guide">
-          <strong>{{ t('overlaps.resolve.title') }}</strong>
-          <p>{{ t('overlaps.resolve.body') }}</p>
-          <small>{{ t('overlaps.resolve.scope') }}</small>
-        </div>
-        <ul :aria-label="t('overlaps.title')" class="overlaps__items">
-          <li
-            v-for="(item, index) in analysis.items"
-            :key="index"
-            class="overlaps__item"
-          >
-            <strong>{{ t(`overlaps.${item.kind}`) }}</strong>
-            <div
-              v-for="(entry, side) in item.covering === undefined
-                ? [item.entry]
-                : [item.entry, item.covering]"
-              :key="side"
-              class="overlaps__value"
-            >
-              <span v-if="side === 1" class="overlaps__note">{{
-                t('overlaps.covering')
-              }}</span>
-              <span class="overlaps__note">{{
-                t(`overlaps.rule.${entry.ruleKind}`)
-              }}</span>
-              <code class="overlaps__address">{{ entry.value }}</code>
-              <span class="overlaps__owners">
-                <a
-                  v-for="id in entry.services"
-                  :key="id"
-                  :href="`/library#list=${encodeURIComponent(id)}`"
-                  rel="noopener noreferrer"
-                  target="_blank"
-                  >{{ t('overlaps.openList', { list: title(id) }) }}</a
-                >
-              </span>
-            </div>
-          </li>
-        </ul>
-      </template>
-      <p v-if="analysis.truncated" class="overlaps__note" role="status">
-        {{
-          t('overlaps.truncated', {
-            count: formatNumber(analysis.items.length),
-          })
-        }}
-      </p>
+      <p v-else class="overlaps__note">{{ t('overlaps.found') }}</p>
     </template>
+    <p class="overlaps__note">{{ t('overlaps.meaning') }}</p>
+    <div class="overlaps__guide">
+      <strong>{{ t('overlaps.resolve.title') }}</strong>
+      <p>{{ t('overlaps.resolve.body') }}</p>
+      <small>{{ t('overlaps.resolve.scope') }}</small>
+    </div>
   </RvDisclosure>
 </template>
 
 <style scoped>
-.overlaps__items {
-  display: grid;
-  gap: var(--rv-space-4);
-  max-block-size: var(--rv-analysis-height);
-  margin: 0;
-  padding: var(--rv-space-1);
-  overflow: auto;
-  list-style: none;
-}
-
 .overlaps__guide {
   display: grid;
   gap: var(--rv-space-2);
@@ -146,37 +91,8 @@ const title = (id: string) =>
   font-size: var(--rv-text-meta);
 }
 
-.overlaps__item {
-  display: grid;
-  gap: var(--rv-space-3);
-  padding-bottom: var(--rv-space-4);
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
-}
-
-.overlaps__value {
-  display: grid;
-  gap: var(--rv-space-1);
-  overflow-wrap: anywhere;
-}
-
 .overlaps__note {
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-interface);
-}
-
-.overlaps__address {
-  font-family: var(--rv-font-mono);
-  font-size: var(--rv-text-interface);
-}
-
-.overlaps__owners {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-2) var(--rv-space-4);
-  font-size: var(--rv-text-interface);
-}
-
-.overlaps__owners a {
-  color: var(--rv-color-accent-ink);
 }
 </style>

@@ -459,6 +459,7 @@ describe('Routevane local API decoders', () => {
         categories: ['video'],
         exclusions: [],
         service_domains: {},
+        priority: [],
       }),
     })
 
@@ -664,6 +665,7 @@ describe('composition forecast', () => {
         categories: ['video'],
         exclusions: [],
         service_domains: {},
+        priority: [],
         targets: ['keenetic', 'limited-fixture'],
       }),
     })

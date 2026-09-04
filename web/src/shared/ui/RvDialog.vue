@@ -141,7 +141,9 @@ const sheetContentProps = computed(() => ({
 
 const sheetUI = computed(() => ({
   overlay: ['rv-dialog__scrim', nested.value ? 'rv-dialog__scrim--nested' : ''],
-  content: 'rv-dialog rv-dialog--sheet',
+  // Cancels Nuxt UI's compact `max-w-md`; Routevane's token owns the working
+  // width below and Tailwind Merge removes the conflicting utility.
+  content: 'max-w-none rv-dialog rv-dialog--sheet',
   header: 'rv-dialog__header',
   wrapper: 'rv-dialog__heading',
   title: 'rv-dialog__title',
@@ -257,19 +259,16 @@ const sheetUI = computed(() => ({
 .rv-dialog--sheet {
   inset: 0 0 0 auto;
   width: min(var(--rv-dialog-width), 100%);
+  max-width: 100%;
   height: 100dvh;
   border-left: var(--rv-border-hair) solid var(--rv-color-rule);
-  translate: 0 0;
-  transition: translate var(--rv-motion-normal) var(--rv-motion-ease-out);
 }
 
-/* USlideover remains responsible for the sheet, focus, dismissal and scroll
-   lock. Its Reka 2.10.x exit keyframe writes animation-fill-mode inline, so the
-   facade supplies the same right-edge entrance as a CSP-safe CSS transition. */
-@starting-style {
-  .rv-dialog--sheet {
-    translate: 100% 0;
-  }
+/* USlideover owns focus, dismissal and scroll lock. Its state attribute gives
+   this facade a CSP-safe entrance without inline animation styles. */
+.rv-dialog--sheet[data-state='open'] {
+  animation: rv-dialog-sheet-in var(--rv-motion-normal)
+    var(--rv-motion-ease-out);
 }
 
 /* One bounded decision: centred, no taller than it needs to be, and never
@@ -349,6 +348,16 @@ const sheetUI = computed(() => ({
   }
 }
 
+@keyframes rv-dialog-sheet-in {
+  from {
+    translate: 100% 0;
+  }
+
+  to {
+    translate: 0 0;
+  }
+}
+
 .rv-dialog__body {
   display: grid;
   align-content: start;
@@ -388,6 +397,12 @@ const sheetUI = computed(() => ({
     height: 100dvh;
     border: 0;
     border-radius: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rv-dialog--sheet[data-state='open'] {
+    animation-duration: 1ms;
   }
 }
 </style>

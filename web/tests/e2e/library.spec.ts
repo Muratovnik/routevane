@@ -240,6 +240,30 @@ test('the library starts empty and shelves the route the composer creates and pu
   await page.locator('input[value="youtube"]').check()
   await expect(page.getByText('2 lists in the route')).toBeVisible()
 
+  // Priority is the route's overlap policy. The first row is dragged below the
+  // second here, while the same handle also exposes arrow-key reordering.
+  const priorityRows = page.locator('.priority-list__item')
+  await expect(priorityRows).toHaveCount(2)
+  await expect(priorityRows.nth(0)).toHaveAttribute('data-id', 'discord')
+  const dragHandle = priorityRows.nth(0).locator('.priority-list__handle')
+  await dragHandle.scrollIntoViewIfNeeded()
+  const from = await dragHandle.boundingBox()
+  const to = await priorityRows.nth(1).boundingBox()
+  if (from === null || to === null)
+    throw new Error('Priority rows have no geometry')
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(from.x + from.width / 2 + 4, from.y + from.height, {
+    steps: 4,
+  })
+  await page.waitForTimeout(50)
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height + 8, {
+    steps: 16,
+  })
+  await page.waitForTimeout(100)
+  await page.mouse.up()
+  await expect(priorityRows.nth(0)).toHaveAttribute('data-id', 'youtube')
+
   // The name is proposed from what was picked.
   const nameInput = page.locator('#create-name')
   await expect(nameInput).toHaveValue('Discord, YouTube')
@@ -308,6 +332,7 @@ test('the library starts empty and shelves the route the composer creates and pu
       categories: [],
       exclusions: [],
       service_domains: {},
+      priority: ['youtube', 'discord'],
     }),
   ])
 
@@ -379,9 +404,9 @@ test('the library starts empty and shelves the route the composer creates and pu
   await expect(
     row.getByRole('link', { exact: true, name: 'Discord, YouTube' }),
   ).toHaveAttribute('href', `/lists/${listID}`)
-  // The name already states the composition here, so the row does not repeat
-  // it in a second line.
-  await expect(row.locator('.library__services')).toHaveCount(0)
+  // The route name keeps the original proposal, while the second line makes
+  // the changed priority visible on the shelf.
+  await expect(row.locator('.library__services')).toHaveText('YouTube, Discord')
   await expect(row.locator('.library__cell-outputs')).toHaveText('Keenetic')
   await expect(row.locator('.library__cell-outputs')).not.toContainText('BAT')
   await expect(row.getByRole('button')).toHaveCount(1)
@@ -439,7 +464,7 @@ test('the library starts empty and shelves the route the composer creates and pu
   // out beside it, and its card opens from that row rather than from a catalog
   // the operator has to search through again.
   const compositionRow = listPage
-    .locator('.editor__row')
+    .locator('.priority-list__item')
     .filter({ hasText: 'Discord' })
   await expect(
     compositionRow.getByRole('button', {
@@ -675,7 +700,7 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
   await opener.focus()
   await expect(opener).toBeFocused()
 
-  // Install the transition observer before the state change that creates the
+  // Install the animation observer before the state change that creates the
   // portalled sheet. This makes the midpoint oracle independent of a 200 ms
   // polling race while still testing the browser's real CSS transition.
   await page.evaluate(() => {
@@ -687,28 +712,28 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
     probe.promise = new Promise((resolve) => {
       const onStart = (event: Event) => {
         if (
-          !(event instanceof TransitionEvent) ||
-          event.propertyName !== 'translate' ||
+          !(event instanceof AnimationEvent) ||
+          event.animationName !== 'rv-dialog-sheet-in' ||
           !(event.target instanceof HTMLElement) ||
           !event.target.matches('.rv-dialog--sheet')
         )
           return
-        document.removeEventListener('transitionstart', onStart, true)
-        const transition = event.target
+        document.removeEventListener('animationstart', onStart, true)
+        const animation = event.target
           .getAnimations()
-          .find((animation) => animation.constructor.name === 'CSSTransition')
-        const duration = transition?.effect?.getTiming().duration
-        if (transition === undefined || typeof duration !== 'number')
-          throw new Error('Sheet transition did not expose numeric timing')
-        transition.pause()
-        transition.currentTime = duration / 2
-        probe.animation = transition
+          .find((candidate) => candidate.constructor.name === 'CSSAnimation')
+        const duration = animation?.effect?.getTiming().duration
+        if (animation === undefined || typeof duration !== 'number')
+          throw new Error('Sheet animation did not expose numeric timing')
+        animation.pause()
+        animation.currentTime = duration / 2
+        probe.animation = animation
         requestAnimationFrame(() => {
           const box = event.target.getBoundingClientRect()
           resolve({ left: box.left, right: box.right, width: box.width })
         })
       }
-      document.addEventListener('transitionstart', onStart, true)
+      document.addEventListener('animationstart', onStart, true)
     })
     Reflect.set(window, '__routevaneSheetTransitionProbe', probe)
   })
@@ -720,7 +745,7 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
     card.getByRole('searchbox', { name: 'Search the contents' }),
   ).toBeFocused()
 
-  // USlideover supplies the real sheet. Its CSP-safe facade transition begins
+  // USlideover supplies the real sheet. Its CSP-safe facade animation begins
   // beyond the right edge; pause it at its midpoint to prove that movement is
   // perceptible, then let it settle before asserting final geometry.
   const viewport = page.viewportSize()
@@ -749,6 +774,7 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
   // Wholly inside the screen, whatever the page behind it is doing.
   const box = await card.boundingBox()
   expect(box).not.toBeNull()
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(1000)
   expect(box?.x ?? -1).toBeGreaterThanOrEqual(0)
   expect(box?.y ?? -1).toBeGreaterThanOrEqual(0)
   expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
@@ -784,9 +810,20 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
   ).toBe(true)
 
   // Closing hands the page back exactly where it was left.
-  expect(
-    await card.evaluate((element) => getComputedStyle(element).animationName),
-  ).toBe('none')
+  await expect
+    .poll(() =>
+      card.evaluate((element) =>
+        element
+          .getAnimations()
+          .some(
+            (animation) =>
+              animation.constructor.name === 'CSSAnimation' &&
+              (animation.playState === 'running' ||
+                animation.playState === 'paused'),
+          ),
+      ),
+    )
+    .toBe(false)
   const closeControl = card.getByRole('button', { name: 'Close' })
   await expect(closeControl).toBeEnabled()
   const settledClose = await page.evaluate(
@@ -834,7 +871,7 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
     .not.toBe('hidden')
   expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(scrolled)
 
-  // Reduced motion keeps the same final geometry but collapses the transition
+  // Reduced motion keeps the same final geometry but collapses the animation
   // to the global near-zero duration.
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await opener.click()
@@ -848,7 +885,7 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
     .toBeLessThanOrEqual((viewport?.width ?? 0) + 1)
   const reducedDuration = await card.evaluate((element) =>
     getComputedStyle(element)
-      .transitionDuration.split(',')
+      .animationDuration.split(',')
       .map((duration) =>
         duration.endsWith('ms')
           ? Number.parseFloat(duration)
@@ -876,25 +913,25 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
     const promise = new Promise<QuickCloseResult>((resolve, reject) => {
       const onStart = (event: Event) => {
         if (
-          !(event instanceof TransitionEvent) ||
-          event.propertyName !== 'translate' ||
+          !(event instanceof AnimationEvent) ||
+          event.animationName !== 'rv-dialog-sheet-in' ||
           !(event.target instanceof HTMLElement) ||
           !event.target.matches('.rv-dialog--sheet')
         )
           return
-        document.removeEventListener('transitionstart', onStart, true)
+        document.removeEventListener('animationstart', onStart, true)
 
         const sheet = event.target
-        const transition = sheet
+        const animation = sheet
           .getAnimations()
-          .find((animation) => animation.constructor.name === 'CSSTransition')
-        const duration = transition?.effect?.getTiming().duration
-        if (transition === undefined || typeof duration !== 'number') {
-          reject(new Error('Quick-close transition has no numeric timing'))
+          .find((candidate) => candidate.constructor.name === 'CSSAnimation')
+        const duration = animation?.effect?.getTiming().duration
+        if (animation === undefined || typeof duration !== 'number') {
+          reject(new Error('Quick-close animation has no numeric timing'))
           return
         }
-        transition.pause()
-        transition.currentTime = duration / 2
+        animation.pause()
+        animation.currentTime = duration / 2
 
         requestAnimationFrame(() => {
           const close =
@@ -910,9 +947,9 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
             width: box.width,
           }
           const progressBeforeClose =
-            transition.effect?.getComputedTiming().progress ?? null
-          transition.play()
-          const playStateBeforeClose = transition.playState
+            animation.effect?.getComputedTiming().progress ?? null
+          animation.play()
+          const playStateBeforeClose = animation.playState
 
           let finished = false
           let clickStarted = Number.NaN
@@ -944,7 +981,7 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
           close.click()
         })
       }
-      document.addEventListener('transitionstart', onStart, true)
+      document.addEventListener('animationstart', onStart, true)
     })
     Reflect.set(window, '__routevaneQuickCloseProbe', { promise })
   })
@@ -1044,11 +1081,9 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   await expect(page.locator('#editor-name')).toHaveValue('Discord, YouTube')
   // The contents tab states the composition itself, one row per list, and keeps
   // the catalog behind the control that adds to it.
-  await expect(page.locator('main').locator('.editor__row')).toHaveCount(2)
-  await expect(page.locator('main').locator('.editor__row')).toContainText([
-    'Discord',
-    'YouTube',
-  ])
+  const routePriority = page.locator('main').locator('.priority-list__item')
+  await expect(routePriority).toHaveCount(2)
+  await expect(routePriority).toContainText(['Discord', 'YouTube'])
 
   // Refresh belongs to Connection. The inactive panel stays mounted for stable
   // state, but its control must not leak into the Contents tab.
@@ -1134,10 +1169,13 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   expect((await snapshotResponse).status()).toBe(200)
   const counts = page.locator('.list__counts')
   await expect(counts).toContainText('Discord')
-  await expect(counts).toContainText('YouTube')
+  await expect(counts).not.toContainText('YouTube')
   await expect(counts).toContainText('1 rule')
   const diagnosticsPanel = page.locator('#rv-panel-diagnostics')
   await expect(diagnosticsPanel).toContainText('Excluded')
+  await expect(diagnosticsPanel).toContainText(
+    'the rule belongs to a higher-priority list',
+  )
   await expect(diagnosticsPanel).toContainText('not supported by this format')
   await expect(diagnosticsPanel).not.toContainText('unsupported_by_target')
 
@@ -1198,6 +1236,7 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
         categories: [],
         exclusions: [],
         service_domains: {},
+        priority: ['discord', 'youtube'],
       }),
       path: `/v1/lists/${listId}/update`,
     },
@@ -1513,6 +1552,20 @@ test('an operator category carries its lists into a route and is kept while a ro
     firstCategoryBox?.height ?? Number.POSITIVE_INFINITY,
   ).toBeLessThanOrEqual(56)
 
+  for (const [footer, label] of [
+    ['.lists__collections-footer', 'Custom category'],
+    ['.lists__details-footer', 'Custom list'],
+  ] as const) {
+    const footerBox = await page.locator(footer).boundingBox()
+    const buttonBox = await page
+      .locator(footer)
+      .getByRole('button', { name: label })
+      .boundingBox()
+    expect(buttonBox?.width ?? 0).toBeGreaterThan(
+      (footerBox?.width ?? Number.POSITIVE_INFINITY) * 0.9,
+    )
+  }
+
   await page.getByRole('button', { name: 'Custom category' }).click()
   const categoryForm = page.getByRole('dialog', { name: 'New category' })
   // The panel opens with the keyboard in its field, so typing starts there
@@ -1580,7 +1633,7 @@ test('an operator category carries its lists into a route and is kept while a ro
   await expect(carried).toHaveCount(1)
   await expect(carried).toContainText('1 list')
   await expect(
-    page.locator('.editor__row').filter({ hasText: 'Discord' }),
+    page.locator('.priority-list__item').filter({ hasText: 'Discord' }),
   ).toHaveCount(1)
 
   const routeURL = page.url()
@@ -1620,7 +1673,7 @@ test('an operator category carries its lists into a route and is kept while a ro
     page.locator('.editor__row').filter({ hasText: 'Домашние' }),
   ).toHaveCount(0)
   await expect(
-    page.locator('.editor__row').filter({ hasText: 'YouTube' }),
+    page.locator('.priority-list__item').filter({ hasText: 'YouTube' }),
   ).toHaveCount(1)
 
   // Nothing names it now, so it goes — and the list it held keeps the category
@@ -2932,20 +2985,24 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   await select(1, 'Overlap Beta', true)
   await chooseFormat(page, /sing-box/)
   const disclosure = page.locator('.rv-disclosure').filter({
-    has: page.getByRole('button', { name: 'List overlaps' }),
+    has: page.getByRole('button', { name: 'How overlaps are resolved' }),
   })
   await expect(disclosure).toBeVisible()
   await expect(
-    disclosure.getByText('shared.example', { exact: true }),
+    disclosure.getByText('No manual cleanup is required'),
   ).not.toBeVisible()
-  await disclosure.getByRole('button', { name: 'List overlaps' }).focus()
+  await disclosure
+    .getByRole('button', { name: 'How overlaps are resolved' })
+    .focus()
   await page.keyboard.press('Enter')
-  await expect(disclosure).toContainText('file forecast — 5 entries')
-  await expect(disclosure.locator('.overlaps__item')).toHaveCount(2)
+  await expect(disclosure).toContainText('file forecast — 4 entries')
+  await expect(disclosure).toContainText(
+    'Overlaps were found and will be resolved automatically.',
+  )
   await expect(
-    disclosure.getByRole('link', { name: /Overlap Alpha/ }).first(),
-  ).toHaveAttribute('href', `/library#list=${ids[0]}`)
-  await expect(disclosure).toContainText('192.0.2.0/24')
+    disclosure.getByText('No manual cleanup is required'),
+  ).toBeVisible()
+  await expect(disclosure.locator('.overlaps__item')).toHaveCount(0)
   for (const width of [320, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 })
     expect(
@@ -2983,7 +3040,7 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     })
     await select(2, 'Overlap Gamma', true)
     await expect(disclosure).toContainText('previous result')
-    await expect(disclosure).toContainText('file forecast — 5 entries')
+    await expect(disclosure).toContainText('file forecast — 4 entries')
     const recalculated = page.waitForResponse(
       (response) => new URL(response.url()).pathname === forecastPath,
     )
@@ -2994,20 +3051,20 @@ test('the forecast explains overlaps in create and edit without rewriting the li
       recalculatedResponse.status(),
       await recalculatedResponse.text(),
     ).toBe(200)
-    await expect(disclosure).toContainText('file forecast — 7 entries')
+    await expect(disclosure).toContainText('file forecast — 6 entries')
     fail = true
     await select(2, 'Overlap Gamma', false)
     await expect(disclosure).toContainText('Overlaps are not known yet')
-    await expect(disclosure.locator('.overlaps__items')).toHaveCount(0)
+    await expect(disclosure.locator('.overlaps__item')).toHaveCount(0)
     fail = false
     await disclosure.getByRole('button', { name: 'Retry', exact: true }).click()
-    await expect(disclosure).toContainText('file forecast — 5 entries')
+    await expect(disclosure).toContainText('file forecast — 4 entries')
     await select(2, 'Overlap Gamma', true)
     await select(1, 'Overlap Beta', false)
     await expect(disclosure).toContainText('No identical rules or containment')
     await select(1, 'Overlap Beta', true)
     await select(2, 'Overlap Gamma', false)
-    await expect(disclosure).toContainText('file forecast — 5 entries')
+    await expect(disclosure).toContainText('file forecast — 4 entries')
   } finally {
     release()
   }
@@ -3034,11 +3091,14 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   await page.getByRole('tab', { name: 'Contents', exact: true }).click()
   const editor = page.locator('.editor')
   const editorDisclosure = editor.locator('.rv-disclosure').filter({
-    has: page.getByRole('button', { name: 'List overlaps' }),
+    has: page.getByRole('button', { name: 'How overlaps are resolved' }),
   })
-  await editorDisclosure.getByRole('button', { name: 'List overlaps' }).click()
-  await expect(editorDisclosure).toContainText('file forecast — 5 entries')
-  await expect(editorDisclosure.locator('.overlaps__item')).toHaveCount(2)
+  await editorDisclosure
+    .getByRole('button', { name: 'How overlaps are resolved' })
+    .click()
+  await expect(editorDisclosure).toContainText('file forecast — 4 entries')
+  await expect(editorDisclosure).toContainText('No manual cleanup is required')
+  await expect(editorDisclosure.locator('.overlaps__item')).toHaveCount(0)
   await expect(
     editor.getByRole('button', { name: 'Save and rebuild', exact: true }),
   ).toBeDisabled()
@@ -3299,9 +3359,9 @@ for (const language of ['en', 'ru'] as const) {
         const libraryRows = library.locator('.service-card__rows')
         await expect(libraryRows.locator('li')).toHaveCount(domains.length)
 
-        // A real UButton owns the refresh pending state. Exactly one progress
-        // mark remains visible, while every dismissal path stays unavailable
-        // until the refresh has a result.
+        // The action remains recognizable while one separate status line owns
+        // the pending message. Every dismissal path stays unavailable until
+        // the refresh has a result.
         let releaseRefresh!: () => void
         const refreshHeld = new Promise<void>((resolve) => {
           releaseRefresh = resolve
@@ -3326,13 +3386,15 @@ for (const language of ['en', 'ru'] as const) {
           .last()
         try {
           await refresh.click()
-          await expect(refresh).toHaveAttribute('aria-busy', 'true')
+          await expect(refresh).not.toHaveAttribute('aria-busy', 'true')
           await expect(refresh).toBeDisabled()
-          await expect(refresh.locator('.rv-button__spinner')).toHaveCount(1)
+          await expect(refresh.locator('.rv-button__spinner')).toHaveCount(0)
           await expect(
-            refresh.locator('[data-slot="leadingIcon"]'),
-          ).toHaveCount(0)
-          await expect(refresh.locator('.rv-icon')).toHaveCount(0)
+            library.getByText(copy('serviceCard.refresh.busy'), {
+              exact: true,
+            }),
+          ).toHaveCount(1)
+          await expect(refresh.locator('.rv-icon')).toHaveCount(1)
           await refresh.click({ force: true })
           await page.evaluate(
             () =>

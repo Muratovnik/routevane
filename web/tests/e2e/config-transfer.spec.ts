@@ -163,13 +163,13 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
     (tuning) => tuning.service_ref === 'youtube',
   )
   expect(portable.omitted_custom_sources).toBe(1)
-  expect(portable.version).toBe('config-transfer-v1.1')
+  expect(portable.version).toBe('config-transfer-v1.2')
   expect(youtubeTuning?.custom_sources).toEqual([])
   expect(youtubeTuning?.disabled_sources).toEqual(['dns-playback'])
 
   const topDuplicate = rawTransfer.replace(
     '{',
-    '{"version":"config-transfer-v1.1",',
+    '{"version":"config-transfer-v1.2",',
   )
   const nestedDuplicate = rawTransfer.replace(
     '"settings":{',

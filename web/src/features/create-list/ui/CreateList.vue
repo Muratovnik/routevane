@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
 import CompositionOverlaps from '@/entities/list-composition/ui/CompositionOverlaps.vue'
+import CompositionPriorityList from '@/entities/list-composition/ui/CompositionPriorityList.vue'
 import { useCreateList } from '@/features/create-list/model/useCreateList'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { ChoiceGroup } from '@/shared/ui/kinds'
@@ -75,6 +76,14 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
 // it, because it is the number the create button is judged against.
 const chosenForecast = computed(() =>
   forecastLabel(setup.selectedTargetID.value),
+)
+
+const priorityItems = computed(() =>
+  setup.resolvedServiceIDs.value.map((id) => ({
+    id,
+    title:
+      setup.services.value.find((service) => service.id === id)?.title ?? id,
+  })),
 )
 
 const chosenTarget = computed<string>({
@@ -151,17 +160,31 @@ async function submit(): Promise<void> {
         />
       </div>
 
-      <fieldset class="create__services" :disabled="setup.busy.value">
-        <legend class="create__legend">{{ t('create.services') }}</legend>
-        <ServicePicker
-          v-model="setup.composition.value"
-          :categories="setup.categories.value"
-          :disabled="setup.busy.value"
-          :list-name="setup.name.value"
-          pending
-          :services="setup.services.value"
-        />
-      </fieldset>
+      <section
+        aria-labelledby="create-services-title"
+        class="create__services"
+        role="group"
+      >
+        <h2 id="create-services-title" class="create__legend">
+          {{ t('create.services') }}
+        </h2>
+        <div class="create__services-body">
+          <ServicePicker
+            v-model="setup.composition.value"
+            :categories="setup.categories.value"
+            :disabled="setup.busy.value"
+            :list-name="setup.name.value"
+            pending
+            :services="setup.services.value"
+          />
+          <CompositionPriorityList
+            v-if="priorityItems.length > 1"
+            :disabled="setup.busy.value"
+            :items="priorityItems"
+            @reorder="setup.setPriority"
+          />
+        </div>
+      </section>
 
       <div class="create__target">
         <label class="create__target-label" for="create-target">
@@ -196,7 +219,6 @@ async function submit(): Promise<void> {
         "
         :forecast="setup.selectedForecast.value"
         :pending="setup.forecastPending.value"
-        :services="setup.services.value"
         :target-title="setup.selectedTargetTitle.value"
         @retry="setup.retryForecast"
       />

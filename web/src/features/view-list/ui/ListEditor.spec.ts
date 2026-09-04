@@ -71,6 +71,7 @@ function mountEditor(
     outputs: typeof outputs
     busy: boolean
     exclusions: string[]
+    priority: string[]
     serviceDomains: Record<string, string[]>
   }> = {},
 ) {
@@ -101,6 +102,10 @@ function buttonByText(wrapper: ReturnType<typeof mountEditor>, text: string) {
   return wrapper.findAll('button').find((button) => button.text() === text)
 }
 
+function rowCopies(wrapper: ReturnType<typeof mountEditor>) {
+  return wrapper.findAll('.editor__row-copy, .priority-list__copy')
+}
+
 describe('ListEditor', () => {
   beforeEach(() => {
     vi.useFakeTimers()
@@ -120,8 +125,7 @@ describe('ListEditor', () => {
 
     // The category is a reason some lists are here, so it is named above them
     // rather than mixed in with them.
-    const rows = wrapper.findAll('.editor__row')
-    expect(rows.map((row) => row.get('.editor__row-copy').text())).toEqual([
+    expect(rowCopies(wrapper).map((row) => row.text())).toEqual([
       'Communication2 lists',
       'Discord',
       'Telegram',
@@ -140,8 +144,8 @@ describe('ListEditor', () => {
     // What opened says so where it opened, and it is put away from the same
     // place. Closing it changes nothing about the draft it was opened over.
     const before = wrapper
-      .findAll('.editor__row')
-      .map((row) => row.get('.editor__row-copy').text())
+      .findAll('.editor__row-copy, .priority-list__copy')
+      .map((row) => row.text())
     expect(wrapper.get('.editor__picker-title').text()).toBe('Add lists')
     await buttonByLabel(wrapper, 'Hide the catalog')?.trigger('click')
 
@@ -151,8 +155,8 @@ describe('ListEditor', () => {
     expect(buttonByText(wrapper, 'Add lists')).toBeDefined()
     expect(
       wrapper
-        .findAll('.editor__row')
-        .map((row) => row.get('.editor__row-copy').text()),
+        .findAll('.editor__row-copy, .priority-list__copy')
+        .map((row) => row.text()),
     ).toEqual(before)
     wrapper.unmount()
   })
@@ -175,11 +179,12 @@ describe('ListEditor', () => {
         categories: ['communication'],
         exclusions: [],
         service_domains: {},
+        priority: [],
         targets: ['keenetic', 'limited-fixture'],
       }),
     })
 
-    const rows = wrapper.findAll('.editor__row')
+    const rows = rowCopies(wrapper)
     expect(rows[1]?.text()).toContain('≈ 3 rules')
     expect(rows[3]?.text()).toContain('≈ 1 rule')
 
@@ -244,9 +249,9 @@ describe('ListEditor', () => {
     await buttonByLabel(wrapper, 'Remove Discord from the route')?.trigger(
       'click',
     )
-    expect(
-      wrapper.findAll('.editor__row').map((row) => row.text()),
-    ).not.toContain(expect.stringContaining('Discord'))
+    expect(rowCopies(wrapper).map((row) => row.text())).not.toContain(
+      expect.stringContaining('Discord'),
+    )
 
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('save')?.at(-1)).toEqual([
@@ -257,6 +262,7 @@ describe('ListEditor', () => {
         // The category still carries Discord, so taking it out is recorded as
         // a standing exception rather than by freezing the members.
         exclusions: ['discord'],
+        priority: ['telegram', 'youtube'],
         serviceDomains: {},
       },
     ])
@@ -292,7 +298,7 @@ describe('ListEditor', () => {
     const wrapper = mountEditor()
     await flushPromises()
     const storedRows = wrapper
-      .findAll('.editor__row-copy')
+      .findAll('.editor__row-copy, .priority-list__copy')
       .map((row) => row.text())
     await wrapper.get('#editor-name').setValue('Unsaved name')
     const remove = buttonByLabel(wrapper, 'Remove Communication from the route')
@@ -310,7 +316,9 @@ describe('ListEditor', () => {
       (wrapper.get('#editor-name').element as HTMLInputElement).value,
     ).toBe('Chat and video')
     expect(
-      wrapper.findAll('.editor__row-copy').map((row) => row.text()),
+      wrapper
+        .findAll('.editor__row-copy, .priority-list__copy')
+        .map((row) => row.text()),
     ).toEqual(storedRows)
     expect(wrapper.get('.editor__services').attributes('style')).toBe(
       'display: none;',
@@ -330,15 +338,33 @@ describe('ListEditor', () => {
       'Remove Communication from the route',
     )?.trigger('click')
 
-    expect(
-      wrapper.findAll('.editor__row-copy').map((row) => row.text()),
-    ).toEqual(['YouTube'])
+    expect(rowCopies(wrapper).map((row) => row.text())).toEqual(['YouTube'])
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('save')?.at(-1)?.[1]).toEqual({
       services: ['youtube'],
       categories: [],
       exclusions: [],
+      priority: ['youtube'],
       serviceDomains: {},
+    })
+    wrapper.unmount()
+  })
+
+  it('saves the priority changed with the keyboard drag handle', async () => {
+    stubPreview()
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    const handle = buttonByLabel(
+      wrapper,
+      'Change priority of list Discord, position 1',
+    )
+    expect(handle).toBeDefined()
+    await handle!.trigger('keydown', { key: 'ArrowDown' })
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.at(-1)?.[1]).toMatchObject({
+      priority: ['telegram', 'discord', 'youtube'],
     })
     wrapper.unmount()
   })

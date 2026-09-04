@@ -101,6 +101,7 @@ describe('RvDialog', () => {
         side: String,
         title: String,
         transition: Boolean,
+        ui: Object,
       },
       setup(_props, { slots }) {
         return () => h('div', { 'data-library-sheet': '' }, slots.body?.())
@@ -124,6 +125,8 @@ describe('RvDialog', () => {
       title: 'Google AI',
       transition: false,
     })
+    const ui = sheet.props('ui') as { content?: string } | undefined
+    expect(ui?.content).toContain('max-w-none')
     await wrapper.setProps({ open: false })
     expect(sheet.props('transition')).toBe(false)
     expect(wrapper.text()).toBe('')

@@ -324,7 +324,7 @@ func TestAMembershipChangeReachesTheNextForecastAndPlan(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantPerService := []ServiceRuleForecast{{ServiceID: "discord", Rules: 2}, {ServiceID: "youtube", Rules: 3}}
+	wantPerService := []ServiceRuleForecast{{ServiceID: "discord", Rules: 2}, {ServiceID: "youtube", Rules: 2}}
 	if len(after) != 1 || !reflect.DeepEqual(after[0].PerService, wantPerService) {
 		t.Fatalf("forecast after = %#v", after)
 	}

@@ -41,7 +41,7 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 	}
 	read := func(selected []string) []application.CompositionForecast {
 		t.Helper()
-		body, _ := json.Marshal(map[string]any{"services": selected, "targets": []string{"keenetic-dns", "singbox"}})
+		body, _ := json.Marshal(map[string]any{"services": selected, "priority": selected, "targets": []string{"keenetic-dns", "singbox"}})
 		var result struct {
 			Targets []application.CompositionForecast `json:"targets"`
 		}
@@ -72,10 +72,7 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 		if forecast.Overlaps.Truncated || len(a[i].Overlaps.Items) != 0 || len(b[i].Overlaps.Items) != 0 {
 			t.Fatalf("forecast=%#v", forecast)
 		}
-		wantCount, wantRelations := 6, 2
-		if forecast.TargetID == "singbox" {
-			wantCount, wantRelations = 5, 2
-		}
+		wantCount, wantRelations := 4, 2
 		if forecast.ProjectedRules != wantCount || len(forecast.Overlaps.Items) != wantRelations {
 			t.Fatalf("forecast=%#v", forecast)
 		}
@@ -91,8 +88,9 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 				t.Fatalf("coverage=%#v", coverage)
 			}
 		}
-		// Publishing afterward proves the forecast against real bytes. Keenetic
-		// keeps the shared domain in both service groups; sing-box deduplicates it.
+		// Publishing afterward proves the forecast against real bytes. Both
+		// renderers receive the same priority-resolved plan: the first service owns
+		// the shared domain and its broader network covers the second service's IP.
 		listID, outputID, _ := createListOutput(t, origin, "Overlap route", forecast.TargetID, ids...)
 		built := guardedRefreshAndBuild(t, origin, listID, outputID)
 		payload := downloadArtifact(t, origin, built.Artifact.ID).body

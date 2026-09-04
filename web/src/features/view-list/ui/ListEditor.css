@@ -122,12 +122,6 @@
   transform: rotate(-90deg);
 }
 
-.editor__row-open:hover,
-.editor__row-action:hover {
-  color: var(--rv-color-ink);
-  background: var(--rv-color-surface-hover);
-}
-
 .editor__row-open:focus-visible,
 .editor__row-action:focus-visible {
   outline: var(--rv-border-mark) solid var(--rv-color-focus);
@@ -137,6 +131,12 @@
 .editor__row-action:disabled {
   opacity: var(--rv-disabled-opacity);
   cursor: not-allowed;
+}
+
+.editor__row-open:hover,
+.editor__row-action:hover:not(:disabled) {
+  color: var(--rv-color-ink);
+  background: var(--rv-color-surface-hover);
 }
 
 .editor__visually-hidden {

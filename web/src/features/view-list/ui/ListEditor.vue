@@ -14,6 +14,7 @@ import { useCompositionForecast } from '@/entities/list-composition/model/foreca
 import ServiceDetailDialog from '@/entities/list-composition/ui/ServiceDetailDialog.vue'
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
 import CompositionOverlaps from '@/entities/list-composition/ui/CompositionOverlaps.vue'
+import CompositionPriorityList from '@/entities/list-composition/ui/CompositionPriorityList.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { CategoryDetail, ServiceDetail } from '@/shared/api/catalog'
 import type { ListComposition } from '@/shared/api/lists'
@@ -29,6 +30,7 @@ const props = defineProps<{
   selectedCategories: string[]
   exclusions: string[]
   serviceDomains: Record<string, string[]>
+  priority?: string[]
   // What this list already publishes, already named in the operator's
   // language. The editor asks the server what the draft would weigh in these
   // formats; with none bound there is nothing to weigh it against.
@@ -48,6 +50,7 @@ function storedComposition(): ListComposition {
     categories: props.selectedCategories,
     exclusions: props.exclusions,
     serviceDomains: props.serviceDomains,
+    priority: props.priority ?? [],
   })
 }
 
@@ -110,13 +113,14 @@ const categoryRows = computed(() =>
 )
 
 const serviceRows = computed(() =>
-  resolved.value
-    .map((id) => ({
-      id,
-      title: props.services.find((service) => service.id === id)?.title ?? id,
-      weight: weights.value.get(id) ?? null,
-    }))
-    .sort((left, right) => left.title.localeCompare(right.title)),
+  resolved.value.map((id) => ({
+    id,
+    note:
+      weights.value.get(id) === undefined
+        ? undefined
+        : tc('create.forecast.rules', weights.value.get(id) ?? 0),
+    title: props.services.find((service) => service.id === id)?.title ?? id,
+  })),
 )
 
 // A format that would refuse this draft says so beside the save control. It
@@ -173,6 +177,14 @@ function removeService(serviceID: string): void {
   )
 }
 
+function setPriority(ids: string[]): void {
+  if (props.busy) return
+  draftComposition.value = normalizeComposition(
+    { ...cloneComposition(draftComposition.value), priority: ids },
+    props.categories,
+  )
+}
+
 /**
  * Removing a collection removes the reference itself, so the list stops
  * following it rather than freezing today's members. An exclusion only means
@@ -188,6 +200,7 @@ function removeCategory(categoryID: string): void {
     ),
     exclusions: [...draftComposition.value.exclusions],
     serviceDomains: draftComposition.value.serviceDomains,
+    priority: [...(draftComposition.value.priority ?? [])],
   }
   const carried = categoryServices(next, props.categories)
   next.exclusions = next.exclusions.filter((id) => carried.has(id))
@@ -252,7 +265,7 @@ function reset(): void {
       >
         {{ t('list.composition.empty') }}
       </p>
-      <ul v-else class="editor__rows">
+      <ul v-if="categoryRows.length > 0" class="editor__rows">
         <li
           v-for="row in categoryRows"
           :key="`category-${row.id}`"
@@ -274,38 +287,38 @@ function reset(): void {
             <RvIcon name="trash" />
           </button>
         </li>
-        <li
-          v-for="row in serviceRows"
-          :key="`service-${row.id}`"
-          class="editor__row"
-        >
-          <span class="editor__row-copy">
-            <strong>{{ row.title }}</strong>
-            <small v-if="row.weight !== null">
-              {{ tc('create.forecast.rules', row.weight) }}
-            </small>
-          </span>
-          <button
-            :aria-label="t('serviceDetail.open.aria', { service: row.title })"
-            class="editor__row-open"
-            type="button"
-            @click="openService(row.id)"
-          >
-            <RvIcon name="chevron" />
-          </button>
-          <button
-            :aria-label="
-              t('list.composition.remove.aria', { service: row.title })
-            "
-            class="editor__row-action"
-            :disabled="props.busy"
-            type="button"
-            @click="removeService(row.id)"
-          >
-            <RvIcon name="trash" />
-          </button>
-        </li>
       </ul>
+
+      <CompositionPriorityList
+        v-if="serviceRows.length > 0"
+        :disabled="props.busy"
+        :items="serviceRows"
+        @reorder="setPriority"
+      >
+        <template #actions="{ item: row }">
+          <template v-if="row !== undefined">
+            <button
+              :aria-label="t('serviceDetail.open.aria', { service: row.title })"
+              class="editor__row-open"
+              type="button"
+              @click="openService(row.id)"
+            >
+              <RvIcon name="chevron" />
+            </button>
+            <button
+              :aria-label="
+                t('list.composition.remove.aria', { service: row.title })
+              "
+              class="editor__row-action"
+              :disabled="props.busy"
+              type="button"
+              @click="removeService(row.id)"
+            >
+              <RvIcon name="trash" />
+            </button>
+          </template>
+        </template>
+      </CompositionPriorityList>
 
       <RvButton
         v-if="!pickerOpen"
@@ -354,9 +367,8 @@ function reset(): void {
       v-if="resolved.length > 1 && props.outputs[0] !== undefined"
       :forecast="forecast.forTarget(props.outputs[0].targetID)"
       :pending="forecast.pending.value"
-      :services="props.services"
       :target-title="props.outputs[0].title"
-      @retry="forecast.request(draftComposition, resolved, forecastTargets)"
+      @retry="forecast.retry(draftComposition, resolved, forecastTargets)"
     />
 
     <p class="editor__note">{{ t('list.edit.note') }}</p>

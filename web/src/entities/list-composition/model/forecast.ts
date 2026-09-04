@@ -160,6 +160,17 @@ export function useCompositionForecast(delay = settleDelay) {
     void ask({ attempt: issued, composition, resolved, targets })
   }
 
+  // An explicit retry is new operator intent. Let it read the sources again;
+  // the session guard above is only for automatic retries inside one attempt.
+  function retry(
+    composition: ListComposition,
+    resolved: string[],
+    targets: string[] = [],
+  ): void {
+    for (const id of resolved) observedForForecast.delete(id)
+    request(composition, resolved, targets)
+  }
+
   function forget(): void {
     issued += 1
     pending.value = false
@@ -172,5 +183,5 @@ export function useCompositionForecast(delay = settleDelay) {
     ask.cancel()
   })
 
-  return { forTarget, forecasts, forget, observing, pending, request }
+  return { forTarget, forecasts, forget, observing, pending, request, retry }
 }

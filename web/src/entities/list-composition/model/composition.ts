@@ -15,7 +15,14 @@ export function resolvedComposition(
     for (const serviceID of category?.services ?? []) resolved.add(serviceID)
   }
   for (const id of composition.exclusions) resolved.delete(id)
-  return [...resolved].sort()
+  const remaining = [...resolved].sort()
+  const ordered: string[] = []
+  for (const id of composition.priority ?? []) {
+    if (!resolved.has(id) || ordered.includes(id)) continue
+    ordered.push(id)
+    resolved.delete(id)
+  }
+  return [...ordered, ...remaining.filter((id) => resolved.has(id))]
 }
 
 export function categoryServices(
@@ -115,7 +122,14 @@ export function normalizeComposition(
     exclusions: [...new Set(composition.exclusions)].sort(),
     serviceDomains: {},
   }
-  const included = new Set(resolvedComposition(normalized, categories))
+  const includedIDs = resolvedComposition(normalized, categories)
+  const included = new Set(includedIDs)
+  normalized.priority = [...new Set(composition.priority ?? [])].filter((id) =>
+    included.has(id),
+  )
+  for (const id of includedIDs) {
+    if (!normalized.priority.includes(id)) normalized.priority.push(id)
+  }
   for (const [serviceID, domains] of Object.entries(
     composition.serviceDomains ?? {},
   )) {
@@ -141,6 +155,7 @@ export function compositionSignature(
     normalized.services,
     normalized.categories,
     normalized.exclusions,
+    normalized.priority,
     Object.keys(normalized.serviceDomains)
       .sort()
       .map((id) => [id, normalized.serviceDomains[id]]),
@@ -162,5 +177,31 @@ export function cloneComposition(
     categories: toRaw(source.categories),
     exclusions: toRaw(source.exclusions),
     serviceDomains: toRaw(source.serviceDomains ?? {}),
+    priority: toRaw(source.priority ?? []),
   })
+}
+
+/** Move one resolved list without changing how the route references it. */
+export function moveCompositionPriority(
+  composition: ListComposition,
+  categories: CategoryDetail[],
+  from: number,
+  to: number,
+): ListComposition {
+  const ordered = resolvedComposition(composition, categories)
+  if (
+    from < 0 ||
+    to < 0 ||
+    from >= ordered.length ||
+    to >= ordered.length ||
+    from === to
+  )
+    return cloneComposition(composition)
+  const [moved] = ordered.splice(from, 1)
+  if (moved === undefined) return cloneComposition(composition)
+  ordered.splice(to, 0, moved)
+  return normalizeComposition(
+    { ...cloneComposition(composition), priority: ordered },
+    categories,
+  )
 }

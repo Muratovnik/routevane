@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 10
+const CurrentSchemaVersion = 11
 
 type migration struct {
 	version int
@@ -505,6 +505,18 @@ ALTER TABLE managed_route_claims ADD COLUMN description TEXT NOT NULL DEFAULT ''
 -- the same conservative byte ceiling as an immutable plan snapshot.
 ALTER TABLE managed_route_claims ADD COLUMN labels_json TEXT NOT NULL DEFAULT '[]'
     CHECK (length(CAST(labels_json AS BLOB)) BETWEEN 2 AND 4194304 AND json_valid(labels_json) AND json_type(labels_json)='array');
+`}, {version: 11, sql: `
+-- A route's resolved services have an operator-owned priority independent of
+-- whether each service was named directly or arrived through a live category.
+-- Existing routes have no rows and therefore retain their canonical service-id
+-- order until the operator chooses another one.
+CREATE TABLE list_service_priorities (
+    list_id TEXT NOT NULL REFERENCES lists(id),
+    service_id TEXT NOT NULL CHECK (length(service_id) BETWEEN 1 AND 64),
+    position INTEGER NOT NULL CHECK (position BETWEEN 0 AND 127),
+    PRIMARY KEY (list_id, service_id),
+    UNIQUE (list_id, position)
+) WITHOUT ROWID, STRICT;
 `}}
 
 var requiredTables = []string{
@@ -525,6 +537,7 @@ var requiredTables = []string{
 	"list_categories",
 	"list_exclusions",
 	"list_service_domains",
+	"list_service_priorities",
 	"outputs",
 	"output_attempts",
 	"effective_profiles",
@@ -559,6 +572,7 @@ var requiredColumns = map[string][]string{
 	"list_categories":          {"list_id", "category_id"},
 	"list_exclusions":          {"list_id", "service_id"},
 	"list_service_domains":     {"list_id", "service_id", "domains_json"},
+	"list_service_priorities":  {"list_id", "service_id", "position"},
 	"managed_route_scopes":     {"id", "endpoint", "target_id", "interface", "retired_at_ns", "created_at_ns", "updated_at_ns"},
 	"managed_routes":           {"scope_id", "prefix", "created_by_routevane", "description"},
 	"managed_route_claims":     {"scope_id", "output_id", "prefix", "description", "labels_json"},
@@ -573,17 +587,18 @@ var requiredColumns = map[string][]string{
 // chains depend on. A schema that lost one would still answer every read and
 // accept an orphan or retain a forgotten device on the next write.
 var requiredForeignKeys = map[string][]string{
-	"plan_snapshots":       {"outputs"},
-	"artifact_builds":      {"outputs"},
-	"subscriptions":        {"outputs"},
-	"list_services":        {"lists"},
-	"list_categories":      {"lists"},
-	"list_exclusions":      {"lists"},
-	"list_service_domains": {"lists"},
-	"outputs":              {"lists", "devices"},
-	"output_attempts":      {"outputs"},
-	"managed_routes":       {"managed_route_scopes"},
-	"managed_route_claims": {"managed_routes", "outputs"},
+	"plan_snapshots":          {"outputs"},
+	"artifact_builds":         {"outputs"},
+	"subscriptions":           {"outputs"},
+	"list_services":           {"lists"},
+	"list_categories":         {"lists"},
+	"list_exclusions":         {"lists"},
+	"list_service_domains":    {"lists"},
+	"list_service_priorities": {"lists"},
+	"outputs":                 {"lists", "devices"},
+	"output_attempts":         {"outputs"},
+	"managed_routes":          {"managed_route_scopes"},
+	"managed_route_claims":    {"managed_routes", "outputs"},
 }
 
 var requiredTriggers = []string{

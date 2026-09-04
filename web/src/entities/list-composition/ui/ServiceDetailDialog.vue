@@ -753,18 +753,13 @@ function onOpenChange(open: boolean): void {
           <template v-if="curating">
             <RvButton
               :disabled="refreshing || contentsState !== 'ready'"
-              :loading="refreshing"
               size="compact"
               type="button"
               variant="quiet"
               @click="onRefreshSources"
             >
-              <RvIcon v-if="!refreshing" name="refresh" />
-              {{
-                refreshing
-                  ? t('serviceCard.refresh.busy')
-                  : t('serviceCard.refresh')
-              }}
+              <RvIcon name="refresh" />
+              {{ t('serviceCard.refresh') }}
             </RvButton>
             <RvButton
               :disabled="interactionBusy"
@@ -834,15 +829,16 @@ function onOpenChange(open: boolean): void {
             :role="refreshError !== '' ? 'alert' : 'status'"
           >
             <RvStatus
-              v-if="observing"
+              v-if="refreshing"
               class="service-card__refresh-indicator"
-              :label="t('serviceCard.observing')"
+              :label="
+                t(
+                  observing
+                    ? 'serviceCard.observing'
+                    : 'serviceCard.refresh.busy',
+                )
+              "
               tone="busy"
-            />
-            <span
-              v-else-if="refreshing"
-              aria-hidden="true"
-              class="service-card__refresh-indicator"
             />
             <RvStatus
               v-else-if="refreshError !== ''"

@@ -39,16 +39,12 @@ const props = {
   forecast,
   pending: false,
   targetTitle: 'sing-box',
-  services: [
-    { id: 'alpha', title: 'Alpha list' },
-    { id: 'beta', title: 'Beta list' },
-  ],
 }
 
 describe('CompositionOverlaps', () => {
   afterEach(() => useLocale().setLocale('en'))
 
-  it('keeps destinations behind deliberate inspection and names the format and owners', async () => {
+  it('explains automatic resolution without asking the operator to inspect every destination', async () => {
     const wrapper = mount(CompositionOverlaps, { props })
     const trigger = wrapper.get<HTMLButtonElement>('.rv-disclosure__summary')
     expect(trigger.attributes('aria-expanded')).toBe('false')
@@ -56,18 +52,15 @@ describe('CompositionOverlaps', () => {
     await trigger.trigger('click')
     expect(trigger.attributes('aria-expanded')).toBe('true')
     expect(wrapper.text()).toContain('sing-box: file forecast — 5 entries.')
-    expect(wrapper.text()).toContain('How to remove an overlap')
-    expect(wrapper.text()).toContain('Identical rule')
-    expect(wrapper.text()).toContain('Covered by another list')
-    expect(wrapper.text()).toContain('IPv6 network')
-    const owner = wrapper.get('a[href="/library#list=alpha"]')
-    expect(owner.text()).toBe('Open “Alpha list”')
-    expect(owner.attributes('target')).toBe('_blank')
-    expect(wrapper.get('ul').attributes('tabindex')).toBeUndefined()
+    expect(wrapper.text()).toContain('Overlaps were found')
+    expect(wrapper.text()).toContain('No manual cleanup is required')
+    expect(wrapper.text()).toContain('higher priority')
+    expect(wrapper.find('a').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('shared.example')
     useLocale().setLocale('ru')
     await wrapper.vm.$nextTick()
-    expect(wrapper.text()).toContain('Пересечения списков')
-    expect(wrapper.text()).toContain('IPv6-сеть')
+    expect(wrapper.text()).toContain('Как разрешаются пересечения')
+    expect(wrapper.text()).toContain('Ничего разбирать вручную не нужно')
     wrapper.unmount()
   })
 
@@ -75,10 +68,8 @@ describe('CompositionOverlaps', () => {
     const wrapper = mount(CompositionOverlaps, { props })
     await wrapper.setProps({ pending: true })
     expect(wrapper.text()).toContain('previous result')
-    expect(wrapper.text()).toContain('shared.example')
     await wrapper.setProps({ pending: false, forecast: null })
     expect(wrapper.text()).toContain('Overlaps are not known yet')
-    expect(wrapper.text()).not.toContain('shared.example')
     const retry = wrapper
       .findAll('button')
       .find((button) => button.text().includes('Retry'))
@@ -93,7 +84,7 @@ describe('CompositionOverlaps', () => {
     wrapper.unmount()
   })
 
-  it('states the detail bound without inventing a total or savings', () => {
+  it('does not render the server detail cap as a cleanup queue', () => {
     const wrapper = mount(CompositionOverlaps, {
       props: {
         ...props,
@@ -103,11 +94,9 @@ describe('CompositionOverlaps', () => {
         },
       },
     })
-    expect(wrapper.text()).toContain(
-      'Showing the first 2 overlaps. There are more',
-    )
     expect(wrapper.text()).toContain('file forecast — 5 entries')
-    expect(wrapper.text()).not.toContain('saved')
+    expect(wrapper.text()).toContain('resolved automatically')
+    expect(wrapper.text()).not.toContain('Showing the first')
     wrapper.unmount()
   })
 })

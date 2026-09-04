@@ -237,6 +237,10 @@ func (s *PublicationService) prepareList(ctx context.Context, list List, target 
 	if err != nil {
 		return PreparedPlan{}, time.Time{}, err
 	}
+	// Keep the source-list relationship visible to forecasts even though the
+	// finished plan below has already assigned every overlap to its winner.
+	prepared.compositionOverlaps = forecastOverlaps(prepared.Plan)
+	planner.ApplyServicePriority(&prepared.Plan, services)
 	applyRouteLabels(&prepared.Plan, routeLabelsByService(definitions, s.mergedCategories()))
 	planner.CanonicalizePlan(&prepared.Plan)
 	prepared.Plan.SemanticHash = planner.SemanticHash(prepared.Plan, target)

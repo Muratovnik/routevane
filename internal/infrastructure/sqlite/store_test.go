@@ -99,6 +99,7 @@ func TestMigrationFailureRollsBackAndNewerSchemaFailsClosed(t *testing.T) {
 // for version-nine claims. Empty legacy descriptions remain safe and a later
 // publication can fill them from its immutable plan snapshot.
 func TestVersionNineManagedRouteOwnershipMigratesWithEmptyDescriptions(t *testing.T) {
+	const previousVersion = 9
 	root := newDataRoot(t)
 	path := filepath.Join(root, DatabaseName)
 	db, err := sql.Open("sqlite", path)
@@ -107,11 +108,11 @@ func TestVersionNineManagedRouteOwnershipMigratesWithEmptyDescriptions(t *testin
 	}
 	db.SetMaxOpenConns(1)
 	previous := &Store{db: db, path: path}
-	if err := previous.initialize(context.Background(), migrations[:CurrentSchemaVersion-1]); err == nil {
+	if err := previous.initialize(context.Background(), migrations[:previousVersion]); err == nil {
 		t.Fatal("a database short of the current version was accepted")
 	}
 	var version int
-	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != CurrentSchemaVersion-1 {
+	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != previousVersion {
 		t.Fatalf("version=%d err=%v", version, err)
 	}
 	populate := []string{

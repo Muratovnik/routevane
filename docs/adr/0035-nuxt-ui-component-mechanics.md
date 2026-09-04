@@ -39,12 +39,12 @@ decision is meant to stop owning.
   supplies its CSP-safe entrance transition. The bounded centred panel remains
   on the existing Reka dialog during incremental migration.
 - The sheet keeps a translating entrance on the `RvDialog` facade but does not
-  enable the component's stateful keyframes. Reka UI 2.10.3 writes
+  enable the component's own stateful keyframes. Reka UI 2.10.3 writes
   `animation-fill-mode` to the element at the end of an exit animation, which
   violates Routevane's strict `style-src 'self'` policy. Until the upstream
-  primitive stops mutating inline styles, a CSS transition entrance and an
-  immediate exit preserve the CSP without weakening it; USlideover still owns
-  focus return, dismissal and scroll locking.
+  primitive stops mutating inline styles, packaged CSS keyed by the primitive's
+  open `data-state` and an immediate exit preserve motion and the CSP without
+  weakening it; USlideover still owns focus return, dismissal and scroll locking.
 - Nuxt UI's font and color-mode modules are disabled. Routevane continues to
   own local font stacks, theme selection and all `--rv-*` semantic tokens. A
   small CSS bridge maps Nuxt UI roles to those tokens; feature code does not
@@ -57,6 +57,9 @@ decision is meant to stop owning.
 - Adoption is incremental. A raw control is replaced when its owning flow is
   changed and the facade has regression coverage; installing the library does
   not authorize an unrelated whole-interface rewrite.
+- Route priority dragging uses VueUse's maintained SortableJS integration.
+  Routevane owns the row styling and an equivalent keyboard action; SortableJS
+  owns pointer/touch reordering and its drag lifecycle.
 
 ## Consequences
 
