@@ -1,91 +1,64 @@
 <script setup lang="ts">
-import { computed, resolveComponent, type Component } from 'vue'
+import { computed } from 'vue'
 
-/**
- * The only button in the product.
- *
- * One primitive rather than a set of look-alike classes per feature: a download
- * link and a submit control differ in element, not in appearance, and that
- * distinction stays honest here instead of in each screen's stylesheet.
- */
 const props = defineProps<{
   block?: boolean
   disabled?: boolean
   href?: string
   loading?: boolean
   loadingLabel?: string
-  /**
-   * `default` is the height every field on the surface has, so a button beside
-   * an input lines up with it. `compact` is the denser row control used inside
-   * tables and card rows.
-   */
   size?: 'compact' | 'default'
   to?: string
   type?: 'button' | 'submit'
   variant?: 'primary' | 'secondary' | 'quiet'
 }>()
 
-const element = computed<string | Component>(() => {
-  if (props.href !== undefined) return 'a'
-  if (props.to !== undefined) return resolveComponent('NuxtLink')
-  return 'button'
-})
-
-const attributes = computed<Record<string, unknown>>(() => {
-  if (props.href !== undefined)
-    return {
-      'aria-disabled': props.disabled === true || props.loading === true,
-      href: props.href,
-    }
-  if (props.to !== undefined)
-    return {
-      'aria-disabled': props.disabled === true || props.loading === true,
-      to: props.to,
-    }
-  return {
-    disabled: props.disabled === true || props.loading === true,
-    type: props.type ?? 'button',
-  }
-})
-
-function guardDisabledLink(event: MouseEvent): void {
-  if (
-    (props.href !== undefined || props.to !== undefined) &&
-    (props.disabled === true || props.loading === true)
-  ) {
-    event.preventDefault()
-    event.stopImmediatePropagation()
-  }
-}
+const unavailable = computed(
+  () => props.disabled === true || props.loading === true,
+)
 </script>
 
 <template>
-  <component
-    :is="element"
+  <!-- Nuxt UI owns element selection, disabled-link navigation guards, async
+       loading semantics and keyboard behavior. Feature code keeps this stable
+       facade and the Routevane visual language. -->
+  <UButton
     class="rv-button"
     :class="[
       `rv-button--${variant ?? 'secondary'}`,
       `rv-button--${size ?? 'default'}`,
       { 'rv-button--block': block === true },
     ]"
+    color="neutral"
+    variant="link"
+    :block="block"
+    :disabled="unavailable"
+    :external="href !== undefined"
+    :loading="loading"
+    :href="href"
+    :to="href === undefined ? to : undefined"
+    :type="type ?? 'button'"
+    :ui="{
+      base: 'disabled:opacity-100 aria-disabled:opacity-100',
+    }"
     :aria-busy="loading === true ? 'true' : undefined"
     :aria-label="loading === true ? loadingLabel : undefined"
-    v-bind="attributes"
-    @click.capture="guardDisabledLink"
   >
-    <span
-      v-if="loading === true"
-      aria-hidden="true"
-      class="rv-button__spinner"
-    />
+    <template #leading>
+      <span
+        v-if="loading === true"
+        aria-hidden="true"
+        class="rv-button__spinner"
+      />
+    </template>
     <slot />
-  </component>
+  </UButton>
 </template>
 
-<style scoped>
-/* One control height across the surface: a button, a text field, a select
-   trigger and a search box are the same height, because a row that mixes them
-   is the common case and a row of mismatched boxes is what it looks like. */
+<!-- UButton forwards the facade class through ULink to its final native root;
+     that deep boundary cannot retain Vue's component scope marker. These
+     globally unique rv-button classes therefore own the facade styling. -->
+<style>
 .rv-button {
   display: inline-flex;
   gap: var(--rv-space-2);
@@ -97,6 +70,7 @@ function guardDisabledLink(event: MouseEvent): void {
   font-weight: 600;
   font-size: var(--rv-text-interface);
   font-family: inherit;
+  line-height: inherit;
   text-align: center;
   text-decoration: none;
   background: transparent;
@@ -104,8 +78,6 @@ function guardDisabledLink(event: MouseEvent): void {
   border-radius: var(--rv-radius-md);
   cursor: pointer;
   transition:
-    color var(--rv-motion-fast) var(--rv-motion-ease-out),
-    background var(--rv-motion-fast) var(--rv-motion-ease-out),
     border-color var(--rv-motion-fast) var(--rv-motion-ease-out),
     transform var(--rv-motion-fast) var(--rv-motion-ease-out);
 }
@@ -129,40 +101,43 @@ function guardDisabledLink(event: MouseEvent): void {
   width: 100%;
 }
 
-.rv-button--primary {
+.rv-button.rv-button--primary {
   color: var(--rv-color-ink-inverted);
   background: var(--rv-color-accent);
 }
 
-.rv-button--primary:hover:not(:disabled) {
+.rv-button.rv-button--primary:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--rv-color-accent-ink);
 }
 
-.rv-button--secondary {
+.rv-button.rv-button--secondary {
   background: var(--rv-color-surface-muted);
   border-color: var(--rv-color-rule-strong);
 }
 
-.rv-button--secondary:hover:not(:disabled) {
+.rv-button.rv-button--secondary:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--rv-color-surface-hover);
 }
 
-.rv-button--quiet {
+.rv-button.rv-button--quiet {
   color: var(--rv-color-ink-muted);
 }
 
-.rv-button--quiet:hover:not(:disabled) {
+.rv-button.rv-button--quiet:hover:not(:disabled, [aria-disabled='true']) {
   color: var(--rv-color-ink);
   background: var(--rv-color-surface-muted);
 }
 
 .rv-button:disabled,
 .rv-button[aria-disabled='true'] {
-  opacity: 0.5;
+  color: var(--rv-color-ink);
+  background: var(--rv-color-surface-muted);
+  border-color: var(--rv-color-rule-strong);
+  opacity: 1;
   cursor: not-allowed;
 }
 
-.rv-button:active:not(:disabled) {
+.rv-button:active:not(:disabled, [aria-disabled='true']) {
   transform: translateY(var(--rv-border-hair));
 }
 

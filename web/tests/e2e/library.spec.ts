@@ -131,7 +131,12 @@ test('the library starts empty and shelves the route the composer creates and pu
     // surface reads any refusal as "no forecast": it says nothing and blocks
     // nothing, which is what the rest of this walkthrough proves.
     if (message.location().url.includes(forecastPath)) return
-    if (message.type() === 'error') consoleErrors.push(message.text())
+    if (message.type() === 'error') {
+      const location = message.location()
+      consoleErrors.push(
+        `${message.text()} @ ${location.url}:${location.lineNumber}:${location.columnNumber}`,
+      )
+    }
   })
   page.on('pageerror', (error) => pageErrors.push(error.message))
 
@@ -163,7 +168,6 @@ test('the library starts empty and shelves the route the composer creates and pu
   await expect(
     page.getByRole('heading', { level: 1, name: 'New route' }),
   ).toBeVisible()
-
   // Nothing can be prepared before both the contents and their first
   // connection are chosen, so the primary action cannot create a
   // half-configured result.
@@ -351,9 +355,20 @@ test('the library starts empty and shelves the route the composer creates and pu
   const outputRow = page.getByRole('row').filter({ hasText: 'Keenetic' })
   await expect(outputRow).toContainText('Router')
   await expect(outputRow).toContainText('.bat')
-  await expect(
-    outputRow.getByRole('link', { name: 'Download the file for Keenetic' }),
-  ).toHaveAttribute('href', /^\/v1\/artifacts\/[a-f0-9]{32}$/)
+  const artifactLink = outputRow.getByRole('link', {
+    name: 'Download the file for Keenetic',
+  })
+  await expect(artifactLink).toHaveAttribute(
+    'href',
+    /^\/v1\/artifacts\/[a-f0-9]{32}$/,
+  )
+  expect(await artifactLink.evaluate((element) => element.tagName)).toBe('A')
+  const artifactPath = await artifactLink.getAttribute('href')
+  expect(artifactPath).not.toBeNull()
+  const directDownload = page.waitForEvent('download')
+  await artifactLink.click()
+  expect((await directDownload).suggestedFilename()).toMatch(/\.bat$/)
+
   await expect(outputRow.getByRole('link', { name: 'Send' })).toBeVisible()
 
   // The breadcrumb returns to the shelf, which now holds the new row.
@@ -623,11 +638,24 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
   page,
 }) => {
   test.setTimeout(120000)
+  const cspErrors: string[] = []
+  page.on('console', (message) => {
+    if (
+      message.type() === 'error' &&
+      /content security policy|refused to (?:apply|execute).*inline/i.test(
+        message.text(),
+      )
+    )
+      cspErrors.push(message.text())
+  })
   await page.setViewportSize({ height: 640, width: 1280 })
   await page.goto(`${origin}/lists/new`)
   await expect(
     page.getByRole('heading', { level: 1, name: 'New route' }),
   ).toBeVisible()
+  const logo = page.locator('.shell__product-mark')
+  const logoBeforeScroll = await logo.boundingBox()
+  expect(logoBeforeScroll).not.toBeNull()
 
   // The page is scrolled before the card opens. The click below would scroll
   // its own target into view, so the position the card must preserve is the
@@ -639,13 +667,86 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
   await opener.scrollIntoViewIfNeeded()
   const scrolled = await page.evaluate(() => Math.round(window.scrollY))
   expect(scrolled).toBeGreaterThan(0)
+  const logoAfterScroll = await logo.boundingBox()
+  expect(logoAfterScroll).not.toBeNull()
+  expect(logoAfterScroll?.width).toBeCloseTo(logoBeforeScroll?.width ?? 0, 2)
+  expect(logoAfterScroll?.height).toBeCloseTo(logoBeforeScroll?.height ?? 0, 2)
+
+  await opener.focus()
+  await expect(opener).toBeFocused()
+
+  // Install the transition observer before the state change that creates the
+  // portalled sheet. This makes the midpoint oracle independent of a 200 ms
+  // polling race while still testing the browser's real CSS transition.
+  await page.evaluate(() => {
+    type Probe = {
+      animation?: Animation
+      promise: Promise<{ left: number; right: number; width: number }>
+    }
+    const probe = {} as Probe
+    probe.promise = new Promise((resolve) => {
+      const onStart = (event: Event) => {
+        if (
+          !(event instanceof TransitionEvent) ||
+          event.propertyName !== 'translate' ||
+          !(event.target instanceof HTMLElement) ||
+          !event.target.matches('.rv-dialog--sheet')
+        )
+          return
+        document.removeEventListener('transitionstart', onStart, true)
+        const transition = event.target
+          .getAnimations()
+          .find((animation) => animation.constructor.name === 'CSSTransition')
+        const duration = transition?.effect?.getTiming().duration
+        if (transition === undefined || typeof duration !== 'number')
+          throw new Error('Sheet transition did not expose numeric timing')
+        transition.pause()
+        transition.currentTime = duration / 2
+        probe.animation = transition
+        requestAnimationFrame(() => {
+          const box = event.target.getBoundingClientRect()
+          resolve({ left: box.left, right: box.right, width: box.width })
+        })
+      }
+      document.addEventListener('transitionstart', onStart, true)
+    })
+    Reflect.set(window, '__routevaneSheetTransitionProbe', probe)
+  })
 
   await opener.click()
   const card = page.getByRole('dialog', { exact: true, name: 'Discord' })
   await expect(card).toBeVisible()
+  await expect(
+    card.getByRole('searchbox', { name: 'Search the contents' }),
+  ).toBeFocused()
+
+  // USlideover supplies the real sheet. Its CSP-safe facade transition begins
+  // beyond the right edge; pause it at its midpoint to prove that movement is
+  // perceptible, then let it settle before asserting final geometry.
+  const viewport = page.viewportSize()
+  const midpoint = await page.evaluate(async () => {
+    const probe = Reflect.get(window, '__routevaneSheetTransitionProbe') as {
+      promise: Promise<{ left: number; right: number; width: number }>
+    }
+    return await probe.promise
+  })
+  expect(midpoint.left).toBeGreaterThan((viewport?.width ?? 0) - midpoint.width)
+  expect(midpoint.right).toBeGreaterThan(viewport?.width ?? 0)
+  await page.evaluate(() => {
+    const probe = Reflect.get(window, '__routevaneSheetTransitionProbe') as {
+      animation?: Animation
+    }
+    probe.animation?.play()
+  })
+  await expect
+    .poll(async () => {
+      const entering = await card.boundingBox()
+      if (entering === null) return Number.POSITIVE_INFINITY
+      return entering.x + entering.width
+    })
+    .toBeLessThanOrEqual((viewport?.width ?? 0) + 1)
 
   // Wholly inside the screen, whatever the page behind it is doing.
-  const viewport = page.viewportSize()
   const box = await card.boundingBox()
   expect(box).not.toBeNull()
   expect(box?.x ?? -1).toBeGreaterThanOrEqual(0)
@@ -666,13 +767,212 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
   await page.mouse.wheel(0, -600)
   expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(scrolled)
 
+  // The library primitive owns a modal focus loop. Both ends wrap inside the
+  // real USlideover, and close returns to the external opener.
+  const focusable = card.locator(
+    'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  )
+  await focusable.first().focus()
+  await page.keyboard.press('Shift+Tab')
+  expect(
+    await card.evaluate((element) => element.contains(document.activeElement)),
+  ).toBe(true)
+  await focusable.last().focus()
+  await page.keyboard.press('Tab')
+  expect(
+    await card.evaluate((element) => element.contains(document.activeElement)),
+  ).toBe(true)
+
   // Closing hands the page back exactly where it was left.
+  expect(
+    await card.evaluate((element) => getComputedStyle(element).animationName),
+  ).toBe('none')
+  const closeControl = card.getByRole('button', { name: 'Close' })
+  await expect(closeControl).toBeEnabled()
+  const settledClose = await page.evaluate(
+    () =>
+      new Promise<{ latency: number; removed: boolean }>((resolve) => {
+        const sheet = document.querySelector<HTMLElement>('.rv-dialog--sheet')
+        const close =
+          sheet?.querySelector<HTMLButtonElement>('.rv-dialog__close')
+        if (sheet === null || close === null)
+          throw new Error('Settled sheet close controls are unavailable')
+
+        let finished = false
+        let clickStarted = Number.NaN
+        const finish = (removed: boolean) => {
+          if (finished) return
+          finished = true
+          observer.disconnect()
+          window.clearTimeout(deadline)
+          resolve({
+            latency: performance.now() - clickStarted,
+            removed,
+          })
+        }
+        const observer = new MutationObserver(() => {
+          if (!sheet.isConnected) finish(true)
+        })
+        observer.observe(document.body, { childList: true, subtree: true })
+        const deadline = window.setTimeout(() => finish(false), 1_000)
+        close.addEventListener(
+          'click',
+          () => {
+            clickStarted = performance.now()
+          },
+          { capture: true, once: true },
+        )
+        close.click()
+      }),
+  )
+  expect(settledClose.removed).toBe(true)
+  expect(settledClose.latency).toBeLessThan(150)
+  await expect(card).toBeHidden()
+  await expect(opener).toBeFocused()
+  await expect
+    .poll(() => page.evaluate(() => getComputedStyle(document.body).overflow))
+    .not.toBe('hidden')
+  expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(scrolled)
+
+  // Reduced motion keeps the same final geometry but collapses the transition
+  // to the global near-zero duration.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await opener.click()
+  await expect(card).toBeVisible()
+  await expect
+    .poll(async () => {
+      const reduced = await card.boundingBox()
+      if (reduced === null) return Number.POSITIVE_INFINITY
+      return reduced.x + reduced.width
+    })
+    .toBeLessThanOrEqual((viewport?.width ?? 0) + 1)
+  const reducedDuration = await card.evaluate((element) =>
+    getComputedStyle(element)
+      .transitionDuration.split(',')
+      .map((duration) =>
+        duration.endsWith('ms')
+          ? Number.parseFloat(duration)
+          : Number.parseFloat(duration) * 1000,
+      )
+      .reduce((longest, duration) => Math.max(longest, duration), 0),
+  )
+  expect(reducedDuration).toBeLessThanOrEqual(1)
   await card.getByRole('button', { name: 'Close' }).click()
   await expect(card).toBeHidden()
-  expect(
-    await page.evaluate(() => getComputedStyle(document.body).overflow),
-  ).not.toBe('hidden')
+  await expect(opener).toBeFocused()
   expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(scrolled)
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+
+  // A quick dismissal during the entrance has no matching exit animation and
+  // must not revive the CSP-unsafe runtime style writer.
+  await page.evaluate(() => {
+    type QuickCloseResult = {
+      latency: number
+      midpoint: { left: number; right: number; width: number }
+      playStateBeforeClose: AnimationPlayState
+      progressBeforeClose: number | null
+      removed: boolean
+    }
+    const promise = new Promise<QuickCloseResult>((resolve, reject) => {
+      const onStart = (event: Event) => {
+        if (
+          !(event instanceof TransitionEvent) ||
+          event.propertyName !== 'translate' ||
+          !(event.target instanceof HTMLElement) ||
+          !event.target.matches('.rv-dialog--sheet')
+        )
+          return
+        document.removeEventListener('transitionstart', onStart, true)
+
+        const sheet = event.target
+        const transition = sheet
+          .getAnimations()
+          .find((animation) => animation.constructor.name === 'CSSTransition')
+        const duration = transition?.effect?.getTiming().duration
+        if (transition === undefined || typeof duration !== 'number') {
+          reject(new Error('Quick-close transition has no numeric timing'))
+          return
+        }
+        transition.pause()
+        transition.currentTime = duration / 2
+
+        requestAnimationFrame(() => {
+          const close =
+            sheet.querySelector<HTMLButtonElement>('.rv-dialog__close')
+          if (close === null) {
+            reject(new Error('Quick-close control is unavailable'))
+            return
+          }
+          const box = sheet.getBoundingClientRect()
+          const midpoint = {
+            left: box.left,
+            right: box.right,
+            width: box.width,
+          }
+          const progressBeforeClose =
+            transition.effect?.getComputedTiming().progress ?? null
+          transition.play()
+          const playStateBeforeClose = transition.playState
+
+          let finished = false
+          let clickStarted = Number.NaN
+          const finish = (removed: boolean) => {
+            if (finished) return
+            finished = true
+            observer.disconnect()
+            window.clearTimeout(deadline)
+            resolve({
+              latency: performance.now() - clickStarted,
+              midpoint,
+              playStateBeforeClose,
+              progressBeforeClose,
+              removed,
+            })
+          }
+          const observer = new MutationObserver(() => {
+            if (!sheet.isConnected) finish(true)
+          })
+          observer.observe(document.body, { childList: true, subtree: true })
+          const deadline = window.setTimeout(() => finish(false), 1_000)
+          close.addEventListener(
+            'click',
+            () => {
+              clickStarted = performance.now()
+            },
+            { capture: true, once: true },
+          )
+          close.click()
+        })
+      }
+      document.addEventListener('transitionstart', onStart, true)
+    })
+    Reflect.set(window, '__routevaneQuickCloseProbe', { promise })
+  })
+  await opener.click()
+  const quickClose = await page.evaluate(async () => {
+    const probe = Reflect.get(window, '__routevaneQuickCloseProbe') as {
+      promise: Promise<{
+        latency: number
+        midpoint: { left: number; right: number; width: number }
+        playStateBeforeClose: AnimationPlayState
+        progressBeforeClose: number | null
+        removed: boolean
+      }>
+    }
+    return await probe.promise
+  })
+  expect(quickClose.midpoint.left).toBeGreaterThan(
+    (viewport?.width ?? 0) - quickClose.midpoint.width,
+  )
+  expect(quickClose.midpoint.right).toBeGreaterThan(viewport?.width ?? 0)
+  expect(quickClose.progressBeforeClose).toBeGreaterThan(0)
+  expect(quickClose.progressBeforeClose).toBeLessThan(1)
+  expect(quickClose.playStateBeforeClose).toBe('running')
+  expect(quickClose.removed).toBe(true)
+  expect(quickClose.latency).toBeLessThan(150)
+  await expect(card).toBeHidden()
+  await expect(opener).toBeFocused()
+  expect(cspErrors).toEqual([])
 
   await page.setViewportSize({ height: 900, width: 1280 })
   assertProductAlive()
@@ -2805,7 +3105,7 @@ test('source skips are visible without changing routes, and clear after a clean 
     failed = true
     await refresh.click()
     await expect(card.getByRole('alert')).toContainText(
-      'Refresh failed; entries kept',
+      dictionaries.en['serviceCard.refresh.failed.generic'] as string,
     )
     await expect(
       card.getByText('notice.example', { exact: true }),
@@ -2819,6 +3119,9 @@ test('source skips are visible without changing routes, and clear after a clean 
     expect(await (await page.request.get(`${origin}/v1/lists`)).text()).toBe(
       before,
     )
+    await expect(
+      card.getByRole('button', { name: 'Close' }).last(),
+    ).toBeEnabled()
     await page.keyboard.press('Escape')
     await expect(card).toBeHidden()
   } finally {
@@ -2858,6 +3161,14 @@ for (const language of ['en', 'ru'] as const) {
       })
       expect(created.status()).toBe(201)
       const { service } = (await created.json()) as { service: { id: string } }
+      const disabled = await page.request.post(
+        `${origin}/v1/services/${service.id}/domains`,
+        {
+          headers,
+          data: { values: ['row-36.example'], verdict: 'exclude' },
+        },
+      )
+      expect(disabled.status()).toBe(200)
 
       try {
         await page.goto(`${origin}/lists/new`)
@@ -2875,6 +3186,40 @@ for (const language of ['en', 'ru'] as const) {
         ).toBeVisible()
         const rows = compose.locator('.service-card__rows')
         await expect(rows.locator('li')).toHaveCount(domains.length)
+        const disabledLibraryRow = rows
+          .locator('li')
+          .filter({ hasText: 'row-36.example' })
+        await expect(disabledLibraryRow).toHaveClass(
+          /service-card__row--disabled/,
+        )
+        await expect(
+          disabledLibraryRow.getByText(
+            copy('serviceCard.domains.disabledInLibrary'),
+          ),
+        ).toBeVisible()
+        await expect(disabledLibraryRow).toHaveCSS('opacity', '1')
+        const previousTheme = await page.evaluate(() =>
+          document.documentElement.getAttribute('data-rv-theme'),
+        )
+        try {
+          for (const theme of ['dark', 'light']) {
+            await page.evaluate(
+              (value) =>
+                document.documentElement.setAttribute('data-rv-theme', value),
+              theme,
+            )
+            await page.waitForTimeout(150)
+            expect(
+              await audit(page, `${language}-disabled-library-row-${theme}`),
+            ).toEqual([])
+          }
+        } finally {
+          await page.evaluate((value) => {
+            if (value === null)
+              document.documentElement.removeAttribute('data-rv-theme')
+            else document.documentElement.setAttribute('data-rv-theme', value)
+          }, previousTheme)
+        }
         await page.evaluate(() => document.fonts.ready.then(() => true))
 
         // At both the narrow audit width and a wide sheet, filtered rows stay at
@@ -2953,6 +3298,64 @@ for (const language of ['en', 'ru'] as const) {
         })
         const libraryRows = library.locator('.service-card__rows')
         await expect(libraryRows.locator('li')).toHaveCount(domains.length)
+
+        // A real UButton owns the refresh pending state. Exactly one progress
+        // mark remains visible, while every dismissal path stays unavailable
+        // until the refresh has a result.
+        let releaseRefresh!: () => void
+        const refreshHeld = new Promise<void>((resolve) => {
+          releaseRefresh = resolve
+        })
+        let refreshRequests = 0
+        const refreshPath = `**/v1/services/${service.id}/refresh`
+        await page.route(refreshPath, async (route) => {
+          refreshRequests += 1
+          await refreshHeld
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ refresh: { skipped_entries: 0 } }),
+          })
+        })
+        const refresh = library
+          .locator('.service-card__heading > .rv-button')
+          .first()
+        await expect(refresh).toHaveAccessibleName(copy('serviceCard.refresh'))
+        const libraryClose = library
+          .getByRole('button', { name: copy('action.close') })
+          .last()
+        try {
+          await refresh.click()
+          await expect(refresh).toHaveAttribute('aria-busy', 'true')
+          await expect(refresh).toBeDisabled()
+          await expect(refresh.locator('.rv-button__spinner')).toHaveCount(1)
+          await expect(
+            refresh.locator('[data-slot="leadingIcon"]'),
+          ).toHaveCount(0)
+          await expect(refresh.locator('.rv-icon')).toHaveCount(0)
+          await refresh.click({ force: true })
+          await page.evaluate(
+            () =>
+              new Promise<void>((resolve) =>
+                requestAnimationFrame(() => resolve()),
+              ),
+          )
+          expect(refreshRequests).toBe(1)
+          await expect(libraryClose).toBeDisabled()
+          await page.keyboard.press('Escape')
+          await expect(library).toBeVisible()
+          await page
+            .locator('.rv-dialog__scrim')
+            .last()
+            .dispatchEvent('pointerdown')
+          await expect(library).toBeVisible()
+        } finally {
+          releaseRefresh()
+        }
+        await expect(refresh).not.toHaveAttribute('aria-busy', 'true')
+        await expect(refresh).toBeEnabled()
+        await page.unroute(refreshPath)
+
         await page.evaluate(() => document.fonts.ready.then(() => true))
         const normalLibraryRow = await libraryRows
           .locator('li')
@@ -3018,6 +3421,47 @@ for (const language of ['en', 'ru'] as const) {
             document.documentElement.style.fontSize = size
           }, originalFontSize)
         }
+
+        // Saving the custom title is the third owner of the same busy
+        // invariant (after initial read and refresh). Keep the server write
+        // pending and prove close, Escape and scrim cannot abandon it.
+        let releaseSave!: () => void
+        const saveHeld = new Promise<void>((resolve) => {
+          releaseSave = resolve
+        })
+        const savePath = `**/v1/services/${service.id}/update`
+        const renamedTitle = `${title} renamed`
+        await page.route(savePath, async (route) => {
+          await saveHeld
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              service: { id: service.id, title: renamedTitle, domains },
+            }),
+          })
+        })
+        const save = library.getByRole('button', {
+          name: copy('serviceCard.title.save'),
+        })
+        try {
+          await library.locator('#service-title').fill(renamedTitle)
+          await save.click()
+          await expect(save).toHaveAttribute('aria-busy', 'true')
+          await expect(save.locator('.rv-button__spinner')).toHaveCount(1)
+          await expect(libraryClose).toBeDisabled()
+          await page.keyboard.press('Escape')
+          await expect(page.locator('.rv-dialog--sheet')).toBeVisible()
+          await page
+            .locator('.rv-dialog__scrim')
+            .last()
+            .dispatchEvent('pointerdown')
+          await expect(page.locator('.rv-dialog--sheet')).toBeVisible()
+        } finally {
+          releaseSave()
+        }
+        await expect(save).not.toHaveAttribute('aria-busy', 'true')
+        await page.unroute(savePath)
       } finally {
         const removed = await page.request.post(
           `${origin}/v1/services/${service.id}/remove`,
@@ -3124,6 +3568,11 @@ for (const language of ['en', 'ru'] as const) {
       expect(contents.sources.some((entry) => entry.enabled)).toBe(true)
 
       let refreshCalls = 0
+      let contentsCalls = 0
+      let releaseInitialContents!: () => void
+      const initialContentsHeld = new Promise<void>((resolve) => {
+        releaseInitialContents = resolve
+      })
       let releaseFirstRefresh!: () => void
       const firstRefreshHeld = new Promise<void>((resolve) => {
         releaseFirstRefresh = resolve
@@ -3131,6 +3580,8 @@ for (const language of ['en', 'ru'] as const) {
       await page.route(
         `**/v1/services/${service.id}/contents`,
         async (route) => {
+          contentsCalls += 1
+          if (contentsCalls === 1) await initialContentsHeld
           await route.fulfill({
             status: 200,
             contentType: 'application/json',
@@ -3185,12 +3636,35 @@ for (const language of ['en', 'ru'] as const) {
           })
           .click()
         const card = page.getByRole('dialog', { name: title, exact: true })
+        const close = card
+          .getByRole('button', { name: copy('action.close') })
+          .last()
+        await expect(
+          card.getByText(copy('serviceCard.loading'), { exact: true }),
+        ).toBeVisible()
+        await expect(close).toBeDisabled()
+        await page.keyboard.press('Escape')
+        await expect(card).toBeVisible()
+        await page
+          .locator('.rv-dialog__scrim')
+          .last()
+          .dispatchEvent('pointerdown')
+        await expect(card).toBeVisible()
+        releaseInitialContents()
         await expect(
           card.getByRole('heading', { name: copy('serviceCard.domains') }),
         ).toBeVisible()
         await expect(
           card.getByText(copy('serviceCard.observing')),
         ).toBeVisible()
+        await expect(close).toBeDisabled()
+        await page.keyboard.press('Escape')
+        await expect(card).toBeVisible()
+        await page
+          .locator('.rv-dialog__scrim')
+          .last()
+          .dispatchEvent('pointerdown')
+        await expect(card).toBeVisible()
         const pendingFilterBox = await card
           .getByRole('searchbox', { name: copy('serviceCard.filter') })
           .boundingBox()
@@ -3205,7 +3679,7 @@ for (const language of ['en', 'ru'] as const) {
         })
         releaseFirstRefresh()
         await expect(card.getByRole('alert')).toContainText(
-          copy('serviceCard.refresh.failed.compact'),
+          copy('serviceCard.refresh.failed.generic'),
         )
         const failedFilterBox = await card
           .getByRole('searchbox', { name: copy('serviceCard.filter') })
@@ -3247,6 +3721,7 @@ for (const language of ['en', 'ru'] as const) {
           await (await page.request.get(`${origin}/v1/lists`)).text(),
         ).toBe(beforeRoutes)
       } finally {
+        releaseInitialContents()
         releaseFirstRefresh()
         await page.unroute(`**/v1/services/${service.id}/contents`)
         await page.unroute(`**/v1/services/${service.id}/refresh`)
@@ -3439,7 +3914,10 @@ async function waitForAuthenticatedRoot(): Promise<void> {
             `listener identity mismatch: got ${digest ?? 'missing'}, want ${expectedUIDigest}`,
           )
         }
-        if (!(await response.text()).includes('<div id="__nuxt">')) {
+        // Nuxt UI adds its isolation class to the application root. The root
+        // identity is the id; optional framework-owned attributes are not part
+        // of Routevane's server handshake.
+        if (!/<div\s+id="__nuxt"(?:\s|>)/.test(await response.text())) {
           throw new Error('listener did not return the generated Routevane UI')
         }
         return

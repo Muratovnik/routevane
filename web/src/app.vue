@@ -1,3 +1,5 @@
 <template>
-  <NuxtPage />
+  <UApp :toaster="null">
+    <NuxtPage />
+  </UApp>
 </template>

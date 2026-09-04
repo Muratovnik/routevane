@@ -1,5 +1,19 @@
 import { createDevProxy } from './dev-proxy'
 
+function disableNuxtUIColorRuntime(
+  _options: Record<string, never>,
+  nuxt: { options: { plugins: ({ src?: string } | string)[] } },
+): void {
+  // Routevane's palette is static and token-owned. Nuxt UI otherwise injects
+  // the same generated palette twice at runtime, which strict style-src blocks.
+  nuxt.options.plugins = nuxt.options.plugins.filter((plugin) => {
+    const source = typeof plugin === 'string' ? plugin : plugin.src
+    return !/\/runtime\/plugins\/colors(?:\.js)?$/.test(
+      source?.replaceAll('\\', '/') ?? '',
+    )
+  })
+}
+
 export default defineNuxtConfig({
   $development: {
     devServer: { host: '127.0.0.1', port: 8765 },
@@ -24,7 +38,11 @@ export default defineNuxtConfig({
   },
   compatibilityDate: '2026-08-20',
   components: [{ path: '~/shared/ui', pathPrefix: false }],
-  css: ['~/assets/styles/tokens.css', '~/assets/styles/global.css'],
+  css: [
+    '~/assets/styles/nuxt-ui.css',
+    '~/assets/styles/tokens.css',
+    '~/assets/styles/global.css',
+  ],
   devtools: { enabled: false },
   experimental: {
     // The entry import map makes every chunk reference "#entry", which the CSP
@@ -34,7 +52,13 @@ export default defineNuxtConfig({
     // keep every _nuxt file content-addressed.
     entryImportMap: false,
   },
-  modules: ['@nuxt/eslint'],
+  modules: ['@nuxt/eslint', '@nuxt/ui', disableNuxtUIColorRuntime],
+  ui: {
+    // Routevane ships its own local font stack and theme switch. Do not let a
+    // component dependency add network font metadata or a second color owner.
+    fonts: false,
+    colorMode: false,
+  },
   srcDir: 'src/',
   typescript: {
     strict: true,

@@ -1,0 +1,23 @@
+/* stylelint-disable import-notation, custom-property-pattern -- third-party build and token contracts */
+@import 'tailwindcss';
+@import '@nuxt/ui';
+
+/* Nuxt UI owns interaction mechanics; Routevane remains the visual theme.
+ * Keeping this bridge before tokens and product CSS lets the stable Rv*
+ * facades map library components onto the existing roles without leaking
+ * utility classes into feature code. */
+:root {
+  --ui-primary: var(--rv-color-accent);
+  --ui-radius: var(--rv-radius-md);
+  --ui-text: var(--rv-color-ink);
+  --ui-text-muted: var(--rv-color-ink-muted);
+  --ui-text-dimmed: var(--rv-color-ink-tertiary);
+  --ui-bg: var(--rv-color-canvas);
+  --ui-bg-muted: var(--rv-color-surface-muted);
+  --ui-bg-elevated: var(--rv-color-surface);
+  --ui-bg-accented: var(--rv-color-surface-hover);
+  --ui-border: var(--rv-color-rule);
+  --ui-border-muted: var(--rv-color-rule);
+  --ui-border-accented: var(--rv-color-rule-strong);
+}
+/* stylelint-enable import-notation, custom-property-pattern */

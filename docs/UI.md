@@ -298,10 +298,12 @@ size, space, radius or duration.
 `web/src/shared/ui` owns the primitives: `RvButton`, `RvStatus`, `RvStateNotice`,
 `RvFacts`, `RvField`, `RvTextInput`, `RvTextarea`, `RvSegmented`, `RvTabs`,
 `RvDialog`, `RvSelect`, `RvCombobox`, `RvMenu`, `RvInfoTip`, `RvIcon`,
-`RvDisclosure`, `RvFilePicker`, `RvCopyButton`, `RvCodeBlock`. Overlays — dialogs, menus,
-popovers, selects and comboboxes — are headless Reka UI primitives wrapped
-once here and styled only with the tokens; a feature never imports Reka
-directly, and no native `<select>` or `<dialog>` remains. Every control that
+`RvDisclosure`, `RvFilePicker`, `RvCopyButton`, `RvCodeBlock`. Nuxt UI supplies
+the styled interaction mechanics behind `RvButton` and the full-height sheet
+variant of `RvDialog`; remaining overlays use headless Reka UI primitives.
+Both libraries are wrapped once here and themed with Routevane tokens: a
+feature never imports `U*` or Reka components directly, and no native
+`<select>` or `<dialog>` remains. Every control that
 sits in a row with a text field shares its height (`--rv-control-touch`), and
 a field drawn as a bordered wrapper around an input — the combobox, a search
 box — lets the wrapper own that height rather than the input inside it, or it

@@ -48,6 +48,7 @@ const Host = defineComponent({
           onUpdate: undefined,
           open: this.open,
           title: 'Discord',
+          variant: 'panel',
           'onUpdate:open': (value: boolean) => {
             this.open = value
           },
@@ -90,6 +91,42 @@ describe('RvDialog', () => {
     host = null
     document.body.style.overflow = ''
     document.body.innerHTML = ''
+  })
+
+  it('delegates the sheet to Nuxt UI without its CSP-unsafe keyframes', async () => {
+    const USlideoverStub = defineComponent({
+      props: {
+        dismissible: Boolean,
+        open: Boolean,
+        side: String,
+        title: String,
+        transition: Boolean,
+      },
+      setup(_props, { slots }) {
+        return () => h('div', { 'data-library-sheet': '' }, slots.body?.())
+      },
+    })
+    const wrapper = mount(RvDialog, {
+      props: {
+        closeLabel: 'Close',
+        open: true,
+        title: 'Google AI',
+      },
+      global: { components: { USlideover: USlideoverStub } },
+    })
+    host = wrapper
+
+    const sheet = wrapper.getComponent(USlideoverStub)
+    expect(sheet.props()).toMatchObject({
+      dismissible: true,
+      open: true,
+      side: 'right',
+      title: 'Google AI',
+      transition: false,
+    })
+    await wrapper.setProps({ open: false })
+    expect(sheet.props('transition')).toBe(false)
+    expect(wrapper.text()).toBe('')
   })
 
   // The page behind a modal must not move, and it must be exactly as it was
@@ -228,6 +265,7 @@ describe('RvDialog', () => {
         dismissible: false,
         open: true,
         title: 'Deleting list',
+        variant: 'panel',
       },
       slots: { default: 'Deleting…' },
       global: { stubs: { RvIcon: true } },
@@ -268,6 +306,7 @@ describe('RvDialog', () => {
               closeLabel: 'Close',
               open: this.sheet,
               title: 'Discord',
+              variant: 'panel',
               'onUpdate:open': (value: boolean) => {
                 this.sheet = value
               },

@@ -47,3 +47,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0032: persist exact Keenetic static-route ownership](./0032-persist-exact-keenetic-static-route-ownership.md) | adopted |
 | [ADR 0033: portable configuration transfers use fresh identities](./0033-portable-configuration-transfers.md) | adopted |
 | [ADR 0034: Keenetic route descriptions come from plan provenance](./0034-keenetic-route-descriptions-from-plan-provenance.md) | adopted |
+| [ADR 0035: Nuxt UI supplies interactive component mechanics](./0035-nuxt-ui-component-mechanics.md) | adopted |

@@ -1,10 +1,44 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent, h } from 'vue'
 
 import { invalidateCatalogCache } from '@/shared/api/catalog'
 import { useLocale } from '@/shared/i18n/useLocale'
 
 import ServiceDetailDialog from './ServiceDetailDialog.vue'
+
+const UButtonStub = defineComponent({
+  inheritAttrs: false,
+  props: { disabled: Boolean, href: String, to: String, type: String },
+  setup(props, { attrs, slots }) {
+    return () =>
+      h(
+        props.href !== undefined || props.to !== undefined ? 'a' : 'button',
+        {
+          ...attrs,
+          disabled: props.disabled,
+          href: props.disabled ? undefined : (props.href ?? props.to),
+          type: props.type,
+        },
+        [slots.leading?.(), slots.default?.()],
+      )
+  },
+})
+
+const USlideoverStub = defineComponent({
+  props: { open: Boolean, title: String },
+  setup(props, { slots }) {
+    return () =>
+      props.open
+        ? h('div', { role: 'dialog' }, [
+            h('h2', props.title),
+            slots.close?.(),
+            slots.body?.(),
+            slots.footer?.(),
+          ])
+        : null
+  },
+})
 
 const discord = {
   categories: ['communication'],
@@ -117,7 +151,10 @@ function mountCard(
   return mount(ServiceDetailDialog, {
     attachTo: document.body,
     props: { service: discord, ...props },
-    global: { stubs: { RvIcon: true } },
+    global: {
+      components: { UButton: UButtonStub, USlideover: USlideoverStub },
+      stubs: { RvIcon: true },
+    },
   })
 }
 
@@ -139,7 +176,7 @@ describe('ServiceDetailDialog', () => {
       'GET /v1/services/discord/contents': () => contentsResponse(),
       'POST /v1/services/discord/refresh': () =>
         failed
-          ? json({ error: 'unavailable' }, 422)
+          ? json({ error: 'operation failed', code: 'source_unavailable' }, 422)
           : json({ refresh: { skipped_entries: skipped } }),
     })
     const wrapper = mountCard({ mode: 'library' })
@@ -155,7 +192,7 @@ describe('ServiceDetailDialog', () => {
     failed = true
     clickByText(card(), 'Refresh from sources')
     await flushPromises()
-    expect(card().textContent).toContain('Refresh failed; entries kept')
+    expect(card().textContent).toContain('Sources unavailable. Entries kept.')
     expect(card().querySelectorAll('.service-card__rows li')).toHaveLength(4)
     expect(card().textContent).not.toContain('source entries skipped')
     failed = false
@@ -193,7 +230,7 @@ describe('ServiceDetailDialog', () => {
     expect(panel.querySelectorAll('.service-card__rows li')).toHaveLength(4)
     expect(panel.querySelector('input[type="search"]')).not.toBeNull()
     expect(panel.querySelector('.service-card__membership')).not.toBeNull()
-    expect(panel.textContent).toContain('Refresh failed; entries kept')
+    expect(panel.textContent).toContain('Unknown refresh error. Entries kept.')
     expect(
       [...panel.querySelectorAll('button')].find((button) =>
         button.textContent?.includes('Retry'),
@@ -306,6 +343,9 @@ describe('ServiceDetailDialog', () => {
     // library still stands behind it.
     expect(panel.querySelectorAll('.service-card__rows li')).toHaveLength(4)
     expect(row(panel, '198.51.100.7').textContent).toContain('iplist')
+    const disabled = row(panel, 'old.discord.media')
+    expect(disabled.classList).toContain('service-card__row--disabled')
+    expect(disabled.textContent).toContain('Disabled in library')
     // Not one of them carries a control.
     expect(
       panel.querySelectorAll('.service-card__rows input[type="checkbox"]'),

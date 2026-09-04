@@ -339,7 +339,11 @@ const ru: Dictionary = {
   'serviceCard.refresh.ready': 'Источники прочитаны',
   'serviceCard.refresh.waiting': 'Источники ещё не читались',
   'serviceCard.refresh.none': 'Нет автоматических источников',
-  'serviceCard.refresh.failed.compact': 'Не обновлено; записи сохранены',
+  'serviceCard.refresh.failed.source':
+    'Источники недоступны. Записи сохранены.',
+  'serviceCard.refresh.failed.generic':
+    'Причина сбоя неизвестна. Записи сохранены.',
+  'serviceCard.domains.disabledInLibrary': 'Отключено в библиотеке',
   'serviceCard.action.failed': 'Не удалось применить изменение. Повторите.',
   'serviceCard.feed.add': 'Добавить источник',
   'serviceCard.feed.url': 'Адрес фида',
@@ -1116,7 +1120,9 @@ const en: Dictionary = {
   'serviceCard.refresh.ready': 'Sources read',
   'serviceCard.refresh.waiting': 'Sources not read yet',
   'serviceCard.refresh.none': 'No automatic sources',
-  'serviceCard.refresh.failed.compact': 'Refresh failed; entries kept',
+  'serviceCard.refresh.failed.source': 'Sources unavailable. Entries kept.',
+  'serviceCard.refresh.failed.generic': 'Unknown refresh error. Entries kept.',
+  'serviceCard.domains.disabledInLibrary': 'Disabled in library',
   'serviceCard.action.failed': 'The change could not be applied. Try again.',
   'serviceCard.feed.add': 'Add a source',
   'serviceCard.feed.url': 'Feed address',

@@ -151,7 +151,11 @@ const sections = computed<
   display: block;
   flex: 0 0 auto;
   width: var(--rv-brand-mark-size);
-  aspect-ratio: 176 / 206;
+  min-width: var(--rv-brand-mark-size);
+  max-width: var(--rv-brand-mark-size);
+  height: var(--rv-brand-mark-size);
+  min-height: var(--rv-brand-mark-size);
+  max-height: var(--rv-brand-mark-size);
   background-color: currentColor;
   mask-image: url('/routevane-logo.svg');
   mask-position: center;

@@ -133,18 +133,64 @@ function updateOpen(open: boolean): void {
   if (!open && !canDismiss.value) return
   emit('update:open', open)
 }
+
+const sheetContentProps = computed(() => ({
+  onCloseAutoFocus,
+  onOpenAutoFocus,
+}))
+
+const sheetUI = computed(() => ({
+  overlay: ['rv-dialog__scrim', nested.value ? 'rv-dialog__scrim--nested' : ''],
+  content: 'rv-dialog rv-dialog--sheet',
+  header: 'rv-dialog__header',
+  wrapper: 'rv-dialog__heading',
+  title: 'rv-dialog__title',
+  description: 'rv-dialog__description',
+  body: ['rv-dialog__body', props.fill === true ? 'rv-dialog__body--fill' : ''],
+  footer: 'rv-dialog__footer',
+}))
 </script>
 
 <template>
-  <DialogRoot :open="open" @update:open="updateOpen">
+  <USlideover
+    v-if="(variant ?? 'sheet') === 'sheet'"
+    :open="open"
+    :title="title"
+    :description="description"
+    :dismissible="canDismiss"
+    :content="sheetContentProps"
+    :ui="sheetUI"
+    :close="true"
+    :transition="false"
+    side="right"
+    @update:open="updateOpen"
+  >
+    <template #close>
+      <button
+        :aria-label="closeLabel"
+        class="rv-dialog__close"
+        :disabled="!canDismiss"
+        type="button"
+      >
+        <RvIcon name="close" />
+      </button>
+    </template>
+    <template #body>
+      <slot />
+    </template>
+    <template v-if="$slots.footer" #footer>
+      <slot name="footer" />
+    </template>
+  </USlideover>
+
+  <DialogRoot v-else :open="open" @update:open="updateOpen">
     <DialogPortal>
       <DialogOverlay
         class="rv-dialog__scrim"
         :class="{ 'rv-dialog__scrim--nested': nested }"
       />
       <DialogContent
-        class="rv-dialog"
-        :class="`rv-dialog--${variant ?? 'sheet'}`"
+        class="rv-dialog rv-dialog--panel"
         v-bind="describedBy"
         @close-auto-focus="onCloseAutoFocus"
         @open-auto-focus="onOpenAutoFocus"
@@ -180,14 +226,12 @@ function updateOpen(open: boolean): void {
   </DialogRoot>
 </template>
 
-<style scoped>
+<style>
 .rv-dialog__scrim {
   position: fixed;
   z-index: 5;
   inset: 0;
   background: var(--rv-color-scrim);
-  animation: rv-dialog-scrim-in var(--rv-motion-normal)
-    var(--rv-motion-ease-out);
 }
 
 /* One dimming per stack: a panel opened over a sheet darkens nothing twice. The
@@ -215,8 +259,17 @@ function updateOpen(open: boolean): void {
   width: min(var(--rv-dialog-width), 100%);
   height: 100dvh;
   border-left: var(--rv-border-hair) solid var(--rv-color-rule);
-  animation: rv-dialog-sheet-in var(--rv-motion-normal)
-    var(--rv-motion-ease-out);
+  translate: 0 0;
+  transition: translate var(--rv-motion-normal) var(--rv-motion-ease-out);
+}
+
+/* USlideover remains responsible for the sheet, focus, dismissal and scroll
+   lock. Its Reka 2.10.x exit keyframe writes animation-fill-mode inline, so the
+   facade supplies the same right-edge entrance as a CSP-safe CSS transition. */
+@starting-style {
+  .rv-dialog--sheet {
+    translate: 100% 0;
+  }
 }
 
 /* One bounded decision: centred, no taller than it needs to be, and never
@@ -280,26 +333,14 @@ function updateOpen(open: boolean): void {
   cursor: pointer;
 }
 
-.rv-dialog__close:hover {
-  color: var(--rv-color-ink);
-  background: var(--rv-color-surface-hover);
-}
-
 .rv-dialog__close:disabled {
   opacity: var(--rv-disabled-opacity);
   cursor: not-allowed;
 }
 
-@keyframes rv-dialog-scrim-in {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes rv-dialog-sheet-in {
-  from {
-    box-shadow: var(--rv-shadow-panel);
-  }
+.rv-dialog__close:hover:not(:disabled) {
+  color: var(--rv-color-ink);
+  background: var(--rv-color-surface-hover);
 }
 
 @keyframes rv-dialog-panel-in {

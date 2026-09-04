@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import {
   addServiceSource,
@@ -16,6 +16,7 @@ import {
   type ServiceContentsRow,
   type ServiceDetail,
 } from '@/shared/api/catalog'
+import { RoutevaneAPIError } from '@/shared/api/http'
 import { useLocale } from '@/shared/i18n/useLocale'
 import {
   normalizeDomain,
@@ -98,6 +99,7 @@ const batchLimit = 1024
 
 const contents = ref<ServiceContents | null>(null)
 const contentsState = ref<'idle' | 'loading' | 'ready' | 'failed'>('idle')
+const filterInput = ref<HTMLInputElement | null>(null)
 const refreshing = ref(false)
 const observing = ref(false)
 const actionError = ref('')
@@ -229,6 +231,18 @@ watch(
   { immediate: true },
 )
 
+// USlideover moves focus as soon as the sheet mounts. During the first source
+// read the filter does not exist yet, so move focus once it appears only when
+// the keyboard is still on the sheet's own fallback control.
+watch(contentsState, async (state) => {
+  if (state !== 'ready' || props.service === null) return
+  await nextTick()
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  const input = filterInput.value
+  if (input === null) return
+  input.focus()
+})
+
 async function openContents(serviceID: string): Promise<void> {
   const request = ++contentsRequest
   contentsState.value = 'loading'
@@ -301,9 +315,15 @@ async function runRefresh(automatic: boolean): Promise<void> {
     applyContents(request, loaded)
     if (request === contentsRequest)
       refreshSkipped.value = result.skippedEntries
-  } catch {
-    if (request === contentsRequest)
-      refreshError.value = t('serviceCard.refresh.failed.compact')
+  } catch (error) {
+    if (request === contentsRequest) {
+      refreshError.value =
+        error instanceof RoutevaneAPIError &&
+        error.status === 422 &&
+        error.code === 'source_unavailable'
+          ? t('serviceCard.refresh.failed.source')
+          : t('serviceCard.refresh.failed.generic')
+    }
   } finally {
     // Closing or switching cards invalidates this generation. In particular,
     // an old request must not clear a newer card's busy state or hide its
@@ -600,20 +620,21 @@ function sourceLabel(id: string, type: string): string {
 }
 
 function requestClose(): void {
+  if (interactionBusy.value) return
   contentsRequest += 1
   sourcesOpen.value = false
   emit('close')
 }
 
 function onOpenChange(open: boolean): void {
-  if (!open) requestClose()
+  if (!open && !interactionBusy.value) requestClose()
 }
 </script>
 
 <template>
   <RvDialog
     :close-label="t('action.close')"
-    :dismissible="!saving"
+    :dismissible="!interactionBusy"
     :fill="service !== null && creating !== true"
     :open="active"
     :title="service === null ? t('serviceCard.new') : service.title"
@@ -738,7 +759,7 @@ function onOpenChange(open: boolean): void {
               variant="quiet"
               @click="onRefreshSources"
             >
-              <RvIcon name="refresh" />
+              <RvIcon v-if="!refreshing" name="refresh" />
               {{
                 refreshing
                   ? t('serviceCard.refresh.busy')
@@ -818,11 +839,10 @@ function onOpenChange(open: boolean): void {
               :label="t('serviceCard.observing')"
               tone="busy"
             />
-            <RvStatus
+            <span
               v-else-if="refreshing"
+              aria-hidden="true"
               class="service-card__refresh-indicator"
-              :label="t('serviceCard.refresh.busy')"
-              tone="busy"
             />
             <RvStatus
               v-else-if="refreshError !== ''"
@@ -867,6 +887,7 @@ function onOpenChange(open: boolean): void {
                 {{ t('serviceCard.filter') }}
               </span>
               <input
+                ref="filterInput"
                 v-model="filter"
                 class="service-card__filter-input"
                 :placeholder="t('serviceCard.filter')"
@@ -891,8 +912,16 @@ function onOpenChange(open: boolean): void {
                on this row could not take an observed rule out of this route —
                and it must not pretend to. Excluding one value from one route is
                a feature of its own, with its own model. -->
-          <ul class="service-card__rows">
-            <li v-for="row in visibleRows" :key="row.value">
+          <ul
+            class="service-card__rows"
+            :aria-label="composing ? t('serviceCard.domains') : undefined"
+            :tabindex="composing ? 0 : undefined"
+          >
+            <li
+              v-for="row in visibleRows"
+              :key="row.value"
+              :class="{ 'service-card__row--disabled': !row.enabled }"
+            >
               <label v-if="curating" class="service-card__switch">
                 <input
                   :checked="row.enabled"
@@ -908,6 +937,9 @@ function onOpenChange(open: boolean): void {
               <span v-else class="service-card__row-copy service-card__entry">
                 <span class="service-card__value">{{ row.value }}</span>
                 <small>{{ originLabel(row) }}</small>
+                <small v-if="!row.enabled" class="service-card__row-state">
+                  {{ t('serviceCard.domains.disabledInLibrary') }}
+                </small>
               </span>
             </li>
           </ul>
@@ -963,7 +995,7 @@ function onOpenChange(open: boolean): void {
         <small v-if="pending">{{ t('serviceCard.pending') }}</small>
       </p>
       <RvButton
-        :disabled="disabled"
+        :disabled="interactionBusy"
         variant="primary"
         @click="emit('include', included !== true)"
       >
@@ -1277,7 +1309,10 @@ function onOpenChange(open: boolean): void {
   gap: var(--rv-space-3);
   align-items: center;
   min-width: 0;
-  min-height: var(--rv-control-touch);
+
+  /* Reserve two compact lines in every state. A concise refusal and its Retry
+     control then replace the pending/ready fact without moving the filter. */
+  min-height: calc(var(--rv-control-touch) + var(--rv-space-5));
 }
 
 .service-card__refresh-indicator {
@@ -1596,6 +1631,23 @@ function onOpenChange(open: boolean): void {
 .service-card__membership small {
   color: var(--rv-color-ink-tertiary);
   font-size: var(--rv-text-meta);
+}
+
+/* Disabled library values remain fully opaque so their value, origin and
+   state each keep AA contrast. Text, rather than faded containment, carries
+   the distinction for every theme. */
+.service-card__row--disabled {
+  color: var(--rv-color-ink-muted);
+}
+
+.service-card__row--disabled .service-card__value,
+.service-card__row--disabled .service-card__row-copy small {
+  color: var(--rv-color-ink-muted);
+}
+
+.service-card__row--disabled .service-card__row-state {
+  color: var(--rv-color-ink);
+  font-weight: 600;
 }
 
 @media (width <= 36rem) {
