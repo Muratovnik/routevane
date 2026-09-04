@@ -38,7 +38,7 @@ Published history is immutable
 ([ADR 0029](adr/0029-composing-is-per-route-and-the-library-is-its-own-flow.md)).
 
 SQLite WAL stores observations, source revisions/health, composition, device
-metadata, settings, attempts, subscription hashes, and publication records.
+metadata, managed-route claims, settings, attempts, subscription hashes, and publication records.
 Migrations validate the prior schema; the former profile schema has a dedicated,
 backed-up import path. A data-root OS lock prevents competing serving/scheduler
 processes. `doctor` inspects the database without migration or repair.
@@ -113,6 +113,14 @@ Recovery has its own bounded context, detached from request cancellation
 ([rollback](adr/0020-a-rollback-outlives-the-request-that-triggered-it.md)).
 Device transports accept validated local-network destinations; local sing-box
 delivery uses a declared file path and reaches no network.
+
+Keenetic static-route ownership is persisted per output and exact
+endpoint/target/interface scope. The application computes additions and
+authorized removals; the deployer observes and applies them without depending on
+SQLite. A route is removable only after its last claim disappears and the ledger
+says Routevane created it. Missing or retired ownership is additive and preserves
+unknown same-interface routes
+([exact ownership](adr/0032-persist-exact-keenetic-static-route-ownership.md)).
 
 Manual credentials arrive through the CLI environment or the local API request.
 They are not persisted by the deployment call. Unattended credentials are stored

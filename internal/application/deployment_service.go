@@ -37,10 +37,11 @@ type ArtifactSource interface {
 // that cannot store a backup or cannot resolve an artifact must fail at
 // composition rather than half-way through a device change.
 type DeploymentConfig struct {
-	Artifacts ArtifactSource
-	Deployers DeployerRegistry
-	Backups   BackupStore
-	Clock     Clock
+	Artifacts     ArtifactSource
+	Deployers     DeployerRegistry
+	Backups       BackupStore
+	ManagedRoutes ManagedRouteRepository
+	Clock         Clock
 }
 
 // DeploymentService turns one published artifact plus one connection into an
@@ -172,8 +173,10 @@ func (s *DeploymentService) Deploy(ctx context.Context, command DeployCommand) (
 		return DeployResult{}, fmt.Errorf("%w: plan snapshot %q carries no routing plan hash", ErrDeployComposition, payload.Artifact.PlanSnapshotID)
 	}
 	request := DeployRequest{
-		Target:     target,
-		Connection: command.Connection,
+		Target:        target,
+		Connection:    command.Connection,
+		OutputID:      payload.Artifact.OutputID,
+		ManagedRoutes: s.config.ManagedRoutes,
 		Artifact: DeployArtifact{
 			ArtifactID:      payload.Artifact.ID,
 			RendererID:      payload.Artifact.RendererID,
@@ -185,6 +188,35 @@ func (s *DeploymentService) Deploy(ctx context.Context, command DeployCommand) (
 		},
 	}
 	return DeployToDevice(ctx, request, s.config.Deployers, s.config.Backups, s.config.Clock)
+}
+
+// RetireManagedRoutes revokes deletion authority for one stored connection
+// identity without contacting or mutating the device. A later deployment to
+// that address starts from an empty, additive ledger.
+func (s *DeploymentService) RetireManagedRoutes(ctx context.Context, targetID string, connection Connection) error {
+	if s.config.ManagedRoutes == nil {
+		return nil
+	}
+	target, err := s.config.Artifacts.TargetProfile(targetID)
+	if err != nil {
+		return err
+	}
+	deployer, registered := s.config.Deployers[target.RendererID]
+	if !registered || deployer == nil {
+		return fmt.Errorf("%w: %q", ErrDeployerUnavailable, target.RendererID)
+	}
+	managed, ok := deployer.(ManagedRouteDeployer)
+	if !ok {
+		return nil
+	}
+	if err := deployer.ValidateStoredConnection(connection.Redacted()); err != nil {
+		return fmt.Errorf("%w: %v", ErrConnectionInvalid, err)
+	}
+	scope, err := managed.ManagedRouteScope(target, connection.Redacted())
+	if err != nil || !validManagedRouteScope(scope) {
+		return fmt.Errorf("%w: managed route scope: %v", ErrDeployComposition, err)
+	}
+	return s.config.ManagedRoutes.RetireManagedRouteOwnership(ctx, scope)
 }
 
 // resolve is the one place an artifact, a target, and a deployer are matched.

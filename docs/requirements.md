@@ -28,7 +28,9 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 - Show secrets only at their deliberate point of use. Subscription issuance
   follows first publication; stored hashes cannot recover the original token.
 - Device changes require explicit authority, a compatible target, verified
-  backup, bounded application, read-back, and recovery after failure.
+  backup, bounded application, read-back, and recovery after failure. Keenetic
+  static-route deletion additionally requires persisted exact ownership; shared,
+  pre-existing, and unrelated same-interface routes are preserved.
   Scheduled delivery additionally needs an exact output/device binding and consent.
 - Operator-installed plugins use the same validated publication/observation
   boundaries. Checksums and resource limits do not imply a hostile-code sandbox.

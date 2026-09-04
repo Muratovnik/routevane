@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"net/netip"
 	"testing"
 	"time"
 )
@@ -94,6 +95,52 @@ func TestAutomaticDeliveryUsesOnlyExplicitOptedInBindingsAndContinuesAfterFailur
 	failure := runs[0].DeliveryFailures[0]
 	if failure.OutputID != "bad-output" || failure.DeviceID != "bad" || failure.Code != "verification_failed" {
 		t.Fatalf("failure = %#v", failure)
+	}
+}
+
+func TestManualAndAutomaticDeliveryUseTheSameManagedRouteLedger(t *testing.T) {
+	artifacts := deploymentTestArtifacts()
+	artifacts.output.DeviceID = "router"
+	prefix := managedPrefix("192.0.2.10/32")
+	base := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("previous device state")}
+	deployer := &managedSpyDeployer{
+		spyDeployer: base,
+		desired:     []netip.Prefix{prefix},
+		current:     [][]netip.Prefix{nil, {prefix}, {prefix}, {prefix}},
+	}
+	ledger := &memoryManagedRoutes{}
+	deployments, err := NewDeploymentService(DeploymentConfig{
+		Artifacts: artifacts, Deployers: DeployerRegistry{deployer.ID(): deployer},
+		Backups: &memoryBackups{}, ManagedRoutes: ledger, Clock: fixedClock(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := deployments.Deploy(context.Background(), deploymentTestCommand(true)); err != nil {
+		t.Fatal(err)
+	}
+
+	devices := automaticDeviceSource{
+		devices: map[string]Device{"router": {ID: "router", Address: "http://192.168.1.1", Account: "admin", Interface: "Wireguard0", AutoDeliver: true}},
+		secrets: map[string]string{"router": deployTestPassword},
+	}
+	automatic, err := NewAutomaticDeliveryService(AutomaticDeliveryConfig{
+		Devices: devices, Deployments: deployments, Outputs: artifacts, Gate: NewDeliveryGate(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runs := automatic.Deliver(context.Background(), []ScheduledRun{{Publications: []ScheduledPublication{{
+		OutputID: deploymentOutputID, DeviceID: "router", ArtifactID: deploymentArtifactID,
+	}}}})
+	if runs[0].Delivered != 1 || len(runs[0].DeliveryFailures) != 0 {
+		t.Fatalf("automatic delivery = %#v", runs)
+	}
+	if ledger.replaces != 2 || len(ledger.state.Routes) != 1 || ledger.state.Routes[0].Prefix != prefix || !ledger.state.Routes[0].CreatedByRoutevane {
+		t.Fatalf("manual and automatic delivery did not share ownership: %#v", ledger)
+	}
+	if len(ledger.state.Claims) != 1 || ledger.state.Claims[0].OutputID != deploymentOutputID {
+		t.Fatalf("claim = %#v", ledger.state.Claims)
 	}
 }
 

@@ -518,10 +518,11 @@ func TestSupportedFirmwareComparesVersionsRatherThanStrings(t *testing.T) {
 	}
 }
 
-func TestDeployIsIdempotentAndOwnsOnlyItsInterface(t *testing.T) {
+func TestDeployWithoutALedgerIsIdempotentAndAdditive(t *testing.T) {
 	fixture := newDeviceFixture(t, "5.1.2")
-	// A route the operator added on another interface must survive untouched.
+	// With no ledger, routes on every interface are foreign and must survive.
 	fixture.device.routes["10.9.9.0/255.255.255.0"] = "ISP"
+	fixture.device.routes["10.8.8.0/255.255.255.0"] = deviceInterface
 	device, err := fixture.deployer.Probe(context.Background(), fixture.connection)
 	if err != nil {
 		t.Fatal(err)
@@ -546,14 +547,15 @@ func TestDeployIsIdempotentAndOwnsOnlyItsInterface(t *testing.T) {
 	if secondDeploys != firstDeploys || secondSaves != firstSaves {
 		t.Fatalf("a repeated deployment changed the device: batches %d->%d saves %d->%d", firstDeploys, secondDeploys, firstSaves, secondSaves)
 	}
-	if fixture.device.routeCount() != 3 {
+	if fixture.device.routeCount() != 4 {
 		t.Fatalf("route table = %#v", fixture.device.routes)
 	}
 	if fixture.device.routes["10.9.9.0/255.255.255.0"] != "ISP" {
 		t.Fatalf("a route on another interface was disturbed: %#v", fixture.device.routes)
 	}
 
-	// A different artifact removes what this deployer previously owned.
+	// A different artifact remains additive: without a persisted claim, even a
+	// route from an earlier process cannot be proven removable.
 	replacement := testArtifact(t, "203.0.113.5/32")
 	if err := fixture.deployer.Deploy(context.Background(), device, fixture.connection, replacement); err != nil {
 		t.Fatal(err)
@@ -561,8 +563,11 @@ func TestDeployIsIdempotentAndOwnsOnlyItsInterface(t *testing.T) {
 	if err := fixture.deployer.Verify(context.Background(), device, fixture.connection, replacement); err != nil {
 		t.Fatal(err)
 	}
-	if fixture.device.routeCount() != 2 {
+	if fixture.device.routeCount() != 5 {
 		t.Fatalf("route table = %#v", fixture.device.routes)
+	}
+	if fixture.device.routes["10.8.8.0/255.255.255.0"] != deviceInterface {
+		t.Fatalf("a foreign same-interface route was removed: %#v", fixture.device.routes)
 	}
 }
 

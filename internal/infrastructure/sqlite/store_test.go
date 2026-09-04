@@ -96,12 +96,13 @@ func TestMigrationFailureRollsBackAndNewerSchemaFailsClosed(t *testing.T) {
 	})
 }
 
-// An installation that predates scheduled device bindings migrates one step to
-// them and keeps everything it held, including the previous catalog overlay.
+// An installation that predates exact route ownership migrates one step to it
+// and keeps everything it held, including scheduled bindings and the previous
+// catalog overlay.
 // The runner is strictly +1, so this is the only path a stored database can
 // take; a schema that arrived any other way is refused by verifySchema rather
 // than served.
-func TestAnExistingDatabaseMigratesOneStepToScheduledDeviceBindings(t *testing.T) {
+func TestAnExistingDatabaseMigratesOneStepToManagedRouteOwnership(t *testing.T) {
 	root := newDataRoot(t)
 	path := filepath.Join(root, DatabaseName)
 	db, err := sql.Open("sqlite", path)
@@ -137,10 +138,10 @@ func TestAnExistingDatabaseMigratesOneStepToScheduledDeviceBindings(t *testing.T
 			t.Fatalf("%s: %v", statement, err)
 		}
 	}
-	for table, column := range map[string]string{"devices": "interface", "outputs": "device_id"} {
+	for _, table := range []string{"managed_route_scopes", "managed_routes", "managed_route_claims"} {
 		var present int
-		if err := db.QueryRow("SELECT count(*) FROM pragma_table_info(?) WHERE name=?", table, column).Scan(&present); err != nil || present != 0 {
-			t.Fatalf("%s.%s existed before its migration: present=%d err=%v", table, column, present, err)
+		if err := db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&present); err != nil || present != 0 {
+			t.Fatalf("%s existed before its migration: present=%d err=%v", table, present, err)
 		}
 	}
 	if err := db.Close(); err != nil {
@@ -155,11 +156,36 @@ func TestAnExistingDatabaseMigratesOneStepToScheduledDeviceBindings(t *testing.T
 	if err := verifySchema(context.Background(), store.db); err != nil {
 		t.Fatal(err)
 	}
-	for table, column := range map[string]string{"devices": "interface", "outputs": "device_id"} {
+	for _, table := range []string{"managed_route_scopes", "managed_routes", "managed_route_claims"} {
 		var present int
-		if err := store.db.QueryRow("SELECT count(*) FROM pragma_table_info(?) WHERE name=?", table, column).Scan(&present); err != nil || present != 1 {
-			t.Fatalf("%s.%s missing after migration: present=%d err=%v", table, column, present, err)
+		if err := store.db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&present); err != nil || present != 1 {
+			t.Fatalf("%s missing after migration: present=%d err=%v", table, present, err)
 		}
+	}
+	// The ownership ledger must not accept a route without a durable scope or a
+	// claim for a route that was never recorded. Both foreign keys are needed
+	// because these rows are the only authority to delete a physical route.
+	if _, err := store.db.Exec(`INSERT INTO managed_routes(scope_id,prefix,created_by_routevane) VALUES(999,'192.0.2.10/32',1)`); err == nil {
+		t.Fatal("managed route without a scope was accepted")
+	}
+	if _, err := store.db.Exec(`INSERT INTO managed_route_scopes(endpoint,target_id,interface,created_at_ns,updated_at_ns) VALUES('http://192.168.1.1','keenetic','Wireguard0',1,1)`); err != nil {
+		t.Fatal(err)
+	}
+	var managedScopeID int64
+	if err := store.db.QueryRow(`SELECT id FROM managed_route_scopes WHERE endpoint='http://192.168.1.1'`).Scan(&managedScopeID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.Exec(`INSERT INTO managed_route_claims(scope_id,output_id,prefix) VALUES(?,?,?)`, managedScopeID, "33333333333333333333333333333333", "192.0.2.10/32"); err == nil {
+		t.Fatal("managed route claim without its route was accepted")
+	}
+	if _, err := store.db.Exec(`INSERT INTO managed_routes(scope_id,prefix,created_by_routevane) VALUES(?,'192.0.2.10/32',1)`, managedScopeID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.db.Exec(`INSERT INTO managed_route_claims(scope_id,output_id,prefix) VALUES(?,?,?)`, managedScopeID, "44444444444444444444444444444444", "192.0.2.10/32"); err == nil {
+		t.Fatal("managed route claim without its output was accepted")
+	}
+	if _, err := store.db.Exec(`INSERT INTO managed_route_claims(scope_id,output_id,prefix) VALUES(?,?,?)`, managedScopeID, "33333333333333333333333333333333", "192.0.2.10/32"); err != nil {
+		t.Fatal(err)
 	}
 	var interfaceName string
 	if err := store.db.QueryRow(`SELECT interface FROM devices WHERE id='22222222222222222222222222222222'`).Scan(&interfaceName); err != nil || interfaceName != "" {

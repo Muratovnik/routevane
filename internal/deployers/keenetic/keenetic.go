@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Muratovnik/routevane/internal/application"
+	"github.com/Muratovnik/routevane/internal/domain"
 	"github.com/Muratovnik/routevane/internal/netpolicy"
 	"github.com/Muratovnik/routevane/internal/renderers/keenetic"
 )
@@ -231,41 +232,106 @@ func (d *Deployer) Backup(ctx context.Context, device application.DeviceInfo, co
 	return application.BackupPayload{Payload: payload}, nil
 }
 
-// Deploy replaces the routes this artifact owns.
-//
-// Idempotence comes from the shape of the operation, not from a comparison: the
-// deployer removes exactly the routes it previously owned on the named interface
-// and adds exactly the artifact's routes, so applying the same artifact twice
-// leaves the same device state.
+// Deploy is the fail-safe path used when no ownership repository is available.
+// It adds missing desired routes and never infers deletion authority from
+// interface membership.
 func (d *Deployer) Deploy(ctx context.Context, device application.DeviceInfo, connection application.Connection, artifact application.DeployArtifact) error {
-	prefixes, err := artifactPrefixes(artifact)
+	desired, err := d.DesiredManagedRoutes(artifact)
 	if err != nil {
 		return err
+	}
+	current, err := d.CurrentManagedRoutes(ctx, device, connection)
+	if err != nil {
+		return err
+	}
+	present := make(map[netip.Prefix]struct{}, len(current))
+	for _, prefix := range current {
+		present[prefix] = struct{}{}
+	}
+	mutation := application.ManagedRouteMutation{}
+	for _, prefix := range desired {
+		if _, exists := present[prefix]; exists {
+			continue
+		}
+		mutation.Add = append(mutation.Add, prefix)
+	}
+	return d.ApplyManagedRoutes(ctx, device, connection, mutation)
+}
+
+// ManagedRouteScope canonicalizes the durable ownership identity without
+// carrying a credential or a registration-local device ID.
+func (d *Deployer) ManagedRouteScope(target domain.TargetProfile, connection application.Connection) (application.ManagedRouteScope, error) {
+	if target.ID == "" || target.RendererID != DeployerID {
+		return application.ManagedRouteScope{}, fmt.Errorf("%w: target does not use this deployer", ErrDeviceRefused)
+	}
+	if err := d.ValidateStoredConnection(connection.Redacted()); err != nil {
+		return application.ManagedRouteScope{}, err
+	}
+	endpoint, err := netpolicy.ValidateDeviceURL(connection.URL)
+	if err != nil {
+		return application.ManagedRouteScope{}, err
+	}
+	return application.ManagedRouteScope{
+		Endpoint: strings.TrimSuffix(endpoint.String(), "/"), TargetID: target.ID,
+		Interface: strings.TrimSpace(connection.Interface),
+	}, nil
+}
+
+func (*Deployer) DesiredManagedRoutes(artifact application.DeployArtifact) ([]netip.Prefix, error) {
+	prefixes, err := artifactPrefixes(artifact)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]netip.Prefix, 0, len(prefixes))
+	for prefix := range prefixes {
+		result = append(result, prefix)
+	}
+	slices.SortFunc(result, func(a, b netip.Prefix) int { return cmp.Compare(a.String(), b.String()) })
+	return result, nil
+}
+
+func (d *Deployer) CurrentManagedRoutes(ctx context.Context, device application.DeviceInfo, connection application.Connection) ([]netip.Prefix, error) {
+	session, err := d.connect(ctx, connection)
+	if err != nil {
+		return nil, err
+	}
+	existing, err := session.ownedRoutes(ctx, device.Interface)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]netip.Prefix, 0, len(existing))
+	for prefix := range existing {
+		result = append(result, prefix)
+	}
+	slices.SortFunc(result, func(a, b netip.Prefix) int { return cmp.Compare(a.String(), b.String()) })
+	return result, nil
+}
+
+// ApplyManagedRoutes applies only the exact additions and deletions authorized
+// by the application-owned ledger.
+func (d *Deployer) ApplyManagedRoutes(ctx context.Context, device application.DeviceInfo, connection application.Connection, mutation application.ManagedRouteMutation) error {
+	seen := make(map[netip.Prefix]bool, len(mutation.Add)+len(mutation.Remove))
+	commands := make([]any, 0, len(mutation.Add)+len(mutation.Remove))
+	for _, prefix := range mutation.Remove {
+		if !prefix.IsValid() || !prefix.Addr().Is4() || prefix != prefix.Masked() || seen[prefix] {
+			return fmt.Errorf("%w: invalid managed route removal", ErrDeviceRefused)
+		}
+		seen[prefix] = true
+		commands = append(commands, routeCommand(prefix, device.Interface, true))
+	}
+	for _, prefix := range mutation.Add {
+		if !prefix.IsValid() || !prefix.Addr().Is4() || prefix != prefix.Masked() || seen[prefix] {
+			return fmt.Errorf("%w: invalid managed route addition", ErrDeviceRefused)
+		}
+		seen[prefix] = true
+		commands = append(commands, routeCommand(prefix, device.Interface, false))
+	}
+	if len(commands) == 0 {
+		return nil
 	}
 	session, err := d.connect(ctx, connection)
 	if err != nil {
 		return err
-	}
-	existing, err := session.ownedRoutes(ctx, device.Interface)
-	if err != nil {
-		return err
-	}
-	commands := make([]any, 0, len(existing)+len(prefixes))
-	for prefix := range existing {
-		if _, keep := prefixes[prefix]; keep {
-			continue
-		}
-		commands = append(commands, routeCommand(prefix, device.Interface, true))
-	}
-	for prefix := range prefixes {
-		if _, present := existing[prefix]; present {
-			continue
-		}
-		commands = append(commands, routeCommand(prefix, device.Interface, false))
-	}
-	if len(commands) == 0 {
-		// Nothing to change is a successful deployment, not a skipped one.
-		return nil
 	}
 	sortCommands(commands)
 	if err := session.batch(ctx, commands); err != nil {
@@ -274,9 +340,8 @@ func (d *Deployer) Deploy(ctx context.Context, device application.DeviceInfo, co
 	return session.command(ctx, "/rci/system/configuration/save", map[string]any{}, nil)
 }
 
-// Verify reads the device's own route table back and compares it with the
-// artifact. A deployment is only applied if the device reports exactly the
-// artifact's routes on the named interface.
+// Verify is the no-ledger verification path. Desired routes must be present,
+// but unrelated routes are accepted because their ownership is unknown.
 func (d *Deployer) Verify(ctx context.Context, device application.DeviceInfo, connection application.Connection, artifact application.DeployArtifact) error {
 	prefixes, err := artifactPrefixes(artifact)
 	if err != nil {
@@ -296,18 +361,11 @@ func (d *Deployer) Verify(ctx context.Context, device application.DeviceInfo, co
 			missing = append(missing, prefix.String())
 		}
 	}
-	extra := make([]string, 0)
-	for prefix := range existing {
-		if _, wanted := prefixes[prefix]; !wanted {
-			extra = append(extra, prefix.String())
-		}
-	}
-	if len(missing) == 0 && len(extra) == 0 {
+	if len(missing) == 0 {
 		return nil
 	}
 	slices.Sort(missing)
-	slices.Sort(extra)
-	return fmt.Errorf("%w: %d missing, %d unexpected (missing=%s unexpected=%s)", ErrDeviceAnswer, len(missing), len(extra), strings.Join(missing, ","), strings.Join(extra, ","))
+	return fmt.Errorf("%w: %d missing (missing=%s)", ErrDeviceAnswer, len(missing), strings.Join(missing, ","))
 }
 
 // Rollback restores the configuration captured before the deployment.

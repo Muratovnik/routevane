@@ -186,9 +186,9 @@ func deviceError(answer json.RawMessage) error {
 	return nil
 }
 
-// ownedRoutes reads the static routes attached to one interface. Only routes on
-// the named interface are owned by this deployer, so a route the operator added
-// elsewhere is never removed.
+// ownedRoutes is the historical name for reading every usable static route on
+// one interface. The result is observation, not ownership: deletion authority
+// comes only from the persisted exact-route ledger in the application layer.
 func (s *session) ownedRoutes(ctx context.Context, deviceInterface string) (map[netip.Prefix]struct{}, error) {
 	var configured struct {
 		Route []struct {

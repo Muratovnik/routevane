@@ -356,11 +356,15 @@ $env:ROUTEVANE_DEVICE_PASSWORD = Read-Host -AsSecureString | ConvertFrom-SecureS
 
 The first call changes nothing. A confirmed deployment probes the firmware,
 refuses an incompatible one before touching the device, stores and verifies a
-configuration backup, installs exactly the artifact's routes on the named
-interface, reads the device's route table back, and rolls back from that backup
-if deployment or verification fails. Reconciliation leaves routes on other
-interfaces alone, and a repeated deployment changes nothing. Every step is
-recorded with its outcome and duration; no credential appears in the record.
+configuration backup, reconciles the artifact's exact persisted route claims on
+the named interface, reads the device's route table back, and rolls back from
+that backup if deployment or verification fails. Routes Routevane did not create
+are preserved even on the same interface. A pre-existing desired route remains
+foreign, shared prefixes remain until their last output claim leaves, and a
+repeated deployment changes nothing. Missing ownership history is additive and
+never guesses from interface membership. Every step is recorded with its outcome
+and duration; no credential appears in the record. See
+[`ADR 0032`](adr/0032-persist-exact-keenetic-static-route-ownership.md).
 
 Keenetic rollback uploads the complete captured configuration, not a scoped
 route delta. Avoid concurrent router changes during delivery: unrelated changes
@@ -387,7 +391,8 @@ weekly refresh. The scheduler then:
 A failed format is not delivered from an older file, a failed device does not
 stop sibling outputs, and the previously published artifact remains available.
 Disabling automatic delivery deletes the stored credential; forgetting the
-device detaches it from outputs without deleting their files or subscriptions.
+device detaches it from outputs without deleting their files or subscriptions
+and retires its route-ownership scope without changing the router.
 The consent, binding, and credential-free target rules are recorded in
 [`docs/adr/0031-explicit-scheduled-device-delivery.md`](adr/0031-explicit-scheduled-device-delivery.md).
 

@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 8
+const CurrentSchemaVersion = 9
 
 type migration struct {
 	version int
@@ -463,6 +463,36 @@ ALTER TABLE devices ADD COLUMN interface TEXT NOT NULL DEFAULT '' CHECK (length(
 -- An output may name one explicit device (ADR 0013). ON DELETE SET NULL keeps
 -- the published file and subscription when the operator forgets a device.
 ALTER TABLE outputs ADD COLUMN device_id TEXT REFERENCES devices(id) ON DELETE SET NULL;
+`}, {version: 9, sql: `
+-- Exact static-route ownership is scoped to a stable endpoint, target, and
+-- interface. Retired scopes are retained so changing or forgetting a device
+-- cannot make stale claims authorize deletion if an address is reused.
+CREATE TABLE managed_route_scopes (
+    id INTEGER PRIMARY KEY,
+    endpoint TEXT NOT NULL CHECK (length(endpoint) BETWEEN 1 AND 512),
+    target_id TEXT NOT NULL CHECK (length(target_id) BETWEEN 1 AND 64),
+    interface TEXT NOT NULL CHECK (length(interface) BETWEEN 1 AND 120),
+    retired_at_ns INTEGER NOT NULL DEFAULT 0 CHECK (retired_at_ns >= 0),
+    created_at_ns INTEGER NOT NULL,
+    updated_at_ns INTEGER NOT NULL
+) STRICT;
+CREATE UNIQUE INDEX managed_route_scopes_active_idx
+ON managed_route_scopes(endpoint,target_id,interface) WHERE retired_at_ns=0;
+
+CREATE TABLE managed_routes (
+    scope_id INTEGER NOT NULL REFERENCES managed_route_scopes(id),
+    prefix TEXT NOT NULL CHECK (length(prefix) BETWEEN 3 AND 64),
+    created_by_routevane INTEGER NOT NULL CHECK (created_by_routevane IN (0,1)),
+    PRIMARY KEY (scope_id,prefix)
+) WITHOUT ROWID, STRICT;
+
+CREATE TABLE managed_route_claims (
+    scope_id INTEGER NOT NULL,
+    output_id TEXT NOT NULL REFERENCES outputs(id) CHECK (length(output_id)=32 AND output_id NOT GLOB '*[^0-9a-f]*'),
+    prefix TEXT NOT NULL CHECK (length(prefix) BETWEEN 3 AND 64),
+    PRIMARY KEY (scope_id,output_id,prefix),
+    FOREIGN KEY (scope_id,prefix) REFERENCES managed_routes(scope_id,prefix)
+) WITHOUT ROWID, STRICT;
 `}}
 
 var requiredTables = []string{
@@ -476,6 +506,9 @@ var requiredTables = []string{
 	"service_domain_verdicts",
 	"category_memberships",
 	"lists",
+	"managed_route_claims",
+	"managed_route_scopes",
+	"managed_routes",
 	"list_services",
 	"list_categories",
 	"list_exclusions",
@@ -514,6 +547,9 @@ var requiredColumns = map[string][]string{
 	"list_categories":          {"list_id", "category_id"},
 	"list_exclusions":          {"list_id", "service_id"},
 	"list_service_domains":     {"list_id", "service_id", "domains_json"},
+	"managed_route_scopes":     {"id", "endpoint", "target_id", "interface", "retired_at_ns", "created_at_ns", "updated_at_ns"},
+	"managed_routes":           {"scope_id", "prefix", "created_by_routevane"},
+	"managed_route_claims":     {"scope_id", "output_id", "prefix"},
 	"outputs":                  {"id", "list_id", "target_id", "profile_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id"},
 	"output_attempts":          {"id", "output_id", "status", "code", "projected_rules", "maximum_rules", "artifact_id", "completed_at_ns"},
 	"plan_snapshots":           {"id", "output_id", "routing_plan_hash", "routing_plan_json", "policy_version", "catalog_revision", "observation_cutoff_ns", "created_at_ns", "status"},
@@ -534,6 +570,8 @@ var requiredForeignKeys = map[string][]string{
 	"list_service_domains": {"lists"},
 	"outputs":              {"lists", "devices"},
 	"output_attempts":      {"outputs"},
+	"managed_routes":       {"managed_route_scopes"},
+	"managed_route_claims": {"managed_routes", "outputs"},
 }
 
 var requiredTriggers = []string{

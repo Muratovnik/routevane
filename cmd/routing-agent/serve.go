@@ -105,10 +105,11 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	// because it is a different decision: publication owns formats, deployment
 	// owns transports.
 	deployments, err := application.NewDeploymentService(application.DeploymentConfig{
-		Artifacts: service,
-		Deployers: deployerRegistry(deps, deployOptions{}),
-		Backups:   filesystem.BackupStore{DataRoot: root},
-		Clock:     application.ClockFunc(deps.Now),
+		Artifacts:     service,
+		Deployers:     deployerRegistry(deps, deployOptions{}),
+		Backups:       filesystem.BackupStore{DataRoot: root},
+		ManagedRoutes: store,
+		Clock:         application.ClockFunc(deps.Now),
 	})
 	if err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
@@ -137,6 +138,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		NeedsCredential:          func(id string) bool { _, ok := credentialTargets[id]; return ok },
 		NeedsInterface:           func(id string) bool { _, ok := interfaceTargets[id]; return ok },
 		ValidateStoredConnection: deployments.ValidateStoredConnection,
+		RetireManagedRoutes:      deployments.RetireManagedRoutes,
 		Clock:                    application.ClockFunc(deps.Now),
 		Entropy:                  rand.Reader,
 	})

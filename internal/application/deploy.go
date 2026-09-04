@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/netip"
 	"time"
 
 	"github.com/Muratovnik/routevane/internal/domain"
@@ -16,6 +17,7 @@ var (
 	ErrDeployFailed        = errors.New("deployment failed")
 	ErrVerifyFailed        = errors.New("deployment verification failed")
 	ErrRollbackFailed      = errors.New("rollback failed after a failed deployment")
+	ErrOwnershipPersist    = errors.New("managed route ownership could not be persisted")
 	ErrDeployerUnavailable = errors.New("no deployer registered for the target")
 	ErrConnectionInvalid   = errors.New("connection is not usable by this deployer")
 )
@@ -152,11 +154,12 @@ const rollbackBudget = 2 * time.Minute
 
 // DeployStep identities used in the audit trail.
 const (
-	StepProbe    = "probe"
-	StepBackup   = "backup"
-	StepDeploy   = "deploy"
-	StepVerify   = "verify"
-	StepRollback = "rollback"
+	StepProbe     = "probe"
+	StepBackup    = "backup"
+	StepDeploy    = "deploy"
+	StepVerify    = "verify"
+	StepOwnership = "ownership"
+	StepRollback  = "rollback"
 )
 
 // DeployEvent is one audited step. It contains identities and outcomes only:
@@ -183,6 +186,11 @@ type DeployRequest struct {
 	Target     domain.TargetProfile
 	Connection Connection
 	Artifact   DeployArtifact
+	// OutputID is the stable claim identity for an ownership-aware deployer.
+	OutputID string
+	// ManagedRoutes is optional. Without a ledger, an ownership-aware deployer
+	// remains additive and cannot infer deletion authority from an interface.
+	ManagedRoutes ManagedRouteRepository
 }
 
 // DeployToDevice applies one validated artifact in the only order that is safe:
@@ -237,6 +245,38 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 		return result, fmt.Errorf("%w: firmware %q reports profile %q, target requires %q", ErrDeviceIncompatible, device.FirmwareVersion, device.ProfileKey, request.Target.ProfileKey)
 	}
 
+	managedDeployer, supportsManagedRoutes := deployer.(ManagedRouteDeployer)
+	manageRoutes := supportsManagedRoutes && request.ManagedRoutes != nil
+	var (
+		priorOwnership ManagedRouteOwnership
+		desiredRoutes  []netip.Prefix
+		mutation       ManagedRouteMutation
+		nextOwnership  ManagedRouteOwnership
+	)
+	if manageRoutes {
+		if !isHexID(request.OutputID) {
+			return result, fmt.Errorf("%w: invalid managed route output", ErrDeployComposition)
+		}
+		scope, scopeErr := managedDeployer.ManagedRouteScope(request.Target, request.Connection.Redacted())
+		if scopeErr != nil || !validManagedRouteScope(scope) {
+			return result, fmt.Errorf("%w: managed route scope: %v", ErrDeployComposition, scopeErr)
+		}
+		priorOwnership, err = request.ManagedRoutes.ManagedRouteOwnership(ctx, scope)
+		if err != nil {
+			return result, fmt.Errorf("%w: read managed route ownership: %v", ErrDeployComposition, err)
+		}
+		if priorOwnership.Scope != scope {
+			return result, fmt.Errorf("%w: managed route scope mismatch", ErrDeployComposition)
+		}
+		if err := validateManagedRouteOwnership(priorOwnership); err != nil {
+			return result, fmt.Errorf("%w: managed route ownership: %v", ErrDeployComposition, err)
+		}
+		desiredRoutes, err = managedDeployer.DesiredManagedRoutes(request.Artifact)
+		if err != nil {
+			return result, fmt.Errorf("%w: managed route artifact: %v", ErrDeployComposition, err)
+		}
+	}
+
 	started = clock.Now()
 	backup, err := deployer.Backup(ctx, device, request.Connection)
 	record(StepBackup, started, err, backup.Ref.Hash)
@@ -257,17 +297,51 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 	result.Backup = stored
 
 	started = clock.Now()
-	deployErr := deployer.Deploy(ctx, device, request.Connection, request.Artifact)
+	var deployErr error
+	if manageRoutes {
+		var current []netip.Prefix
+		current, deployErr = managedDeployer.CurrentManagedRoutes(ctx, device, request.Connection)
+		if deployErr == nil {
+			mutation, nextOwnership, deployErr = reconcileManagedRoutes(priorOwnership, request.OutputID, desiredRoutes, current)
+		}
+		if deployErr == nil {
+			deployErr = managedDeployer.ApplyManagedRoutes(ctx, device, request.Connection, mutation)
+		}
+	} else {
+		deployErr = deployer.Deploy(ctx, device, request.Connection, request.Artifact)
+	}
 	record(StepDeploy, started, deployErr, request.Artifact.ArtifactHash)
 	if deployErr == nil {
 		started = clock.Now()
-		verifyErr := deployer.Verify(ctx, device, request.Connection, request.Artifact)
+		var verifyErr error
+		if manageRoutes {
+			var current []netip.Prefix
+			current, verifyErr = managedDeployer.CurrentManagedRoutes(ctx, device, request.Connection)
+			if verifyErr == nil {
+				verifyErr = verifyManagedRouteMutation(nextOwnership, mutation, current)
+			}
+		} else {
+			verifyErr = deployer.Verify(ctx, device, request.Connection, request.Artifact)
+		}
 		record(StepVerify, started, verifyErr, request.Artifact.RoutingPlanHash)
 		if verifyErr == nil {
-			result.Applied = true
-			return result, nil
+			if manageRoutes {
+				started = clock.Now()
+				persistErr := request.ManagedRoutes.ReplaceManagedRouteOwnership(ctx, nextOwnership)
+				record(StepOwnership, started, persistErr, request.OutputID)
+				if persistErr != nil {
+					deployErr = fmt.Errorf("%w: %v", ErrOwnershipPersist, persistErr)
+				} else {
+					result.Applied = true
+					return result, nil
+				}
+			} else {
+				result.Applied = true
+				return result, nil
+			}
+		} else {
+			deployErr = fmt.Errorf("%w: %v", ErrVerifyFailed, verifyErr)
 		}
-		deployErr = fmt.Errorf("%w: %v", ErrVerifyFailed, verifyErr)
 	}
 
 	// A failed deploy or verify always rolls back from the backup taken above.
@@ -288,6 +362,9 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 	}
 	result.RolledBack = true
 	if errors.Is(deployErr, ErrVerifyFailed) {
+		return result, deployErr
+	}
+	if errors.Is(deployErr, ErrOwnershipPersist) {
 		return result, deployErr
 	}
 	return result, fmt.Errorf("%w: deploy: %v", ErrDeployFailed, deployErr)

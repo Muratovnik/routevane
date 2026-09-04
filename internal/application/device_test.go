@@ -102,8 +102,9 @@ func deviceService(t *testing.T, secrets *fakeSecretStore) (*DeviceService, *fak
 			}
 			return nil
 		},
-		Clock:   ClockFunc(func() time.Time { return time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC) }),
-		Entropy: bytes.NewReader(bytes.Repeat([]byte{7}, 512)),
+		RetireManagedRoutes: func(context.Context, string, Connection) error { return nil },
+		Clock:               ClockFunc(func() time.Time { return time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC) }),
+		Entropy:             bytes.NewReader(bytes.Repeat([]byte{7}, 512)),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -180,7 +181,8 @@ func TestRegistrationAppliesTheDeployersStoredConnectionPolicy(t *testing.T) {
 			}
 			return nil
 		},
-		Clock: ClockFunc(time.Now), Entropy: bytes.NewReader(bytes.Repeat([]byte{1}, 64)),
+		RetireManagedRoutes: func(context.Context, string, Connection) error { return nil },
+		Clock:               ClockFunc(time.Now), Entropy: bytes.NewReader(bytes.Repeat([]byte{1}, 64)),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -193,10 +195,16 @@ func TestRegistrationAppliesTheDeployersStoredConnectionPolicy(t *testing.T) {
 	}
 }
 
-func TestChangingAConnectionRevokesConsentAndDeletesItsCredential(t *testing.T) {
+func TestChangingAConnectionRevokesConsentCredentialAndOldRouteOwnership(t *testing.T) {
 	secrets := &fakeSecretStore{available: true}
 	service, store := deviceService(t, secrets)
 	device := registered(t, service)
+	var retiredTarget string
+	var retiredConnection Connection
+	service.config.RetireManagedRoutes = func(_ context.Context, target string, connection Connection) error {
+		retiredTarget, retiredConnection = target, connection
+		return nil
+	}
 	if _, err := service.EnableAutoDelivery(context.Background(), device.ID, "password"); err != nil {
 		t.Fatal(err)
 	}
@@ -212,6 +220,9 @@ func TestChangingAConnectionRevokesConsentAndDeletesItsCredential(t *testing.T) 
 	}
 	if store.devices[0] != updated {
 		t.Fatalf("stored = %#v updated = %#v", store.devices[0], updated)
+	}
+	if retiredTarget != device.TargetID || retiredConnection.URL != device.Address || retiredConnection.Username != device.Account || retiredConnection.Interface != device.Interface || retiredConnection.Password != "" {
+		t.Fatalf("retired target=%q connection=%#v", retiredTarget, retiredConnection)
 	}
 }
 
@@ -286,6 +297,7 @@ func TestADeviceWithoutCredentialRequirementsCanOptInWithoutAStoredSecret(t *tes
 		Deployable: func(string) bool { return true }, NeedsCredential: func(string) bool { return false },
 		NeedsInterface:           func(string) bool { return false },
 		ValidateStoredConnection: func(string, Connection) error { return nil },
+		RetireManagedRoutes:      func(context.Context, string, Connection) error { return nil },
 		Clock:                    ClockFunc(time.Now), Entropy: bytes.NewReader(bytes.Repeat([]byte{1}, 64)),
 	})
 	if err != nil {
@@ -310,6 +322,7 @@ func TestADeviceWithoutADeployerCannotOptInToAutomaticDelivery(t *testing.T) {
 		Deployable: func(string) bool { return false }, NeedsCredential: func(string) bool { return false },
 		NeedsInterface:           func(string) bool { return false },
 		ValidateStoredConnection: func(string, Connection) error { return nil },
+		RetireManagedRoutes:      func(context.Context, string, Connection) error { return nil },
 		Clock:                    ClockFunc(time.Now), Entropy: bytes.NewReader(bytes.Repeat([]byte{1}, 64)),
 	})
 	if err != nil {
@@ -369,6 +382,14 @@ func TestForgettingADeviceRemovesItsCredentialFirst(t *testing.T) {
 	secrets := &fakeSecretStore{available: true}
 	service, store := deviceService(t, secrets)
 	device := registered(t, service)
+	retireCalls := 0
+	service.config.RetireManagedRoutes = func(_ context.Context, target string, connection Connection) error {
+		retireCalls++
+		if target != device.TargetID || connection.URL != device.Address || connection.Interface != device.Interface || connection.Password != "" {
+			t.Fatalf("retire target=%q connection=%#v", target, connection)
+		}
+		return nil
+	}
 	if _, err := service.EnableAutoDelivery(context.Background(), device.ID, "пароль"); err != nil {
 		t.Fatal(err)
 	}
@@ -379,12 +400,18 @@ func TestForgettingADeviceRemovesItsCredentialFirst(t *testing.T) {
 	if len(store.devices) != 1 {
 		t.Fatal("the device disappeared while its credential remained")
 	}
+	if retireCalls != 0 {
+		t.Fatal("ownership retired while the credential kept forgetting from proceeding")
+	}
 	secrets.deleteErr = nil
 	if err := service.ForgetDevice(context.Background(), device.ID); err != nil {
 		t.Fatal(err)
 	}
 	if len(store.devices) != 0 || len(secrets.secrets) != 0 {
 		t.Fatalf("devices = %#v secrets = %#v", store.devices, secrets.secrets)
+	}
+	if retireCalls != 1 {
+		t.Fatalf("retire calls = %d", retireCalls)
 	}
 }
 

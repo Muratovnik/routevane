@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/Muratovnik/routevane/internal/application"
+	"github.com/Muratovnik/routevane/internal/infrastructure/sqlite"
 )
 
 const (
@@ -39,6 +41,7 @@ type fakeKeeneticDevice struct {
 	config        []byte
 	restores      int
 	drift         bool
+	driftPrefix   string
 	bodies        []string
 	backupRoutes  map[string]string
 	partialState  map[string]string
@@ -170,9 +173,13 @@ func (d *fakeKeeneticDevice) apply(w http.ResponseWriter, body string) {
 		answers = append(answers, map[string]any{"status": []map[string]any{{"status": "message", "code": "route.applied"}}})
 	}
 	if d.drift {
-		for key := range d.routes {
-			delete(d.routes, key)
-			break
+		if d.driftPrefix != "" {
+			delete(d.routes, d.driftPrefix)
+		} else {
+			for key := range d.routes {
+				delete(d.routes, key)
+				break
+			}
 		}
 	}
 	writeDeviceJSON(w, answers)
@@ -214,6 +221,10 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 	resolver.set(map[string][]string{"youtube.expiry.test": {"192.0.2.10"}, "discord.expiry.test": {"198.51.100.20"}})
 
 	device := newFakeKeeneticDevice()
+	// One desired route and one unrelated route already exist on the selected
+	// interface. Neither is owned merely because Routevane can see it there.
+	device.routes["192.0.2.10/255.255.255.255"] = deviceInterfaceName
+	device.routes["10.9.9.0/255.255.255.0"] = deviceInterfaceName
 	deviceServer := httptest.NewServer(device.handler())
 	defer deviceServer.Close()
 
@@ -245,7 +256,7 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 	if preview.Confirmed || preview.Hint == "" {
 		t.Fatalf("preview = %#v", preview)
 	}
-	if routes, _ := device.snapshot(); routes != 0 {
+	if routes, _ := device.snapshot(); routes != 2 {
 		t.Fatalf("an unconfirmed deployment reached the device: %d routes", routes)
 	}
 
@@ -270,12 +281,18 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 	for _, event := range applied.Events {
 		steps = append(steps, event.Step+":"+event.Outcome)
 	}
-	if strings.Join(steps, ",") != "probe:success,backup:success,deploy:success,verify:success" {
+	if strings.Join(steps, ",") != "probe:success,backup:success,deploy:success,verify:success,ownership:success" {
 		t.Fatalf("audit = %v", steps)
 	}
-	if routes, _ := device.snapshot(); routes != 2 {
+	if routes, _ := device.snapshot(); routes != 3 {
 		t.Fatalf("the device holds %d routes", routes)
 	}
+	device.mu.Lock()
+	if device.routes["10.9.9.0/255.255.255.0"] != deviceInterfaceName || device.routes["192.0.2.10/255.255.255.255"] != deviceInterfaceName {
+		device.mu.Unlock()
+		t.Fatalf("foreign or pre-existing desired route was removed: %#v", device.routes)
+	}
+	device.mu.Unlock()
 	// The backup is on disk where the audit record says it is.
 	backupPath := filepath.Join(data, filepath.FromSlash(applied.Backup.Path))
 	if info, err := os.Stat(backupPath); err != nil || info.Size() != applied.Backup.SizeBytes {
@@ -287,20 +304,20 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 	if !again.Applied || again.RolledBack {
 		t.Fatalf("result = %#v", again)
 	}
-	if routes, restores := device.snapshot(); routes != 2 || restores != 0 {
+	if routes, restores := device.snapshot(); routes != 3 || restores != 0 {
 		t.Fatalf("a repeated deployment changed the device: routes=%d restores=%d", routes, restores)
 	}
+	ownershipScope := application.ManagedRouteScope{Endpoint: "http://192.168.1.1", TargetID: "keenetic", Interface: deviceInterfaceName}
+	ownershipBefore := readManagedOwnership(t, data, ownershipScope)
 
 	// A device that silently loses a route fails verification and is rolled back.
 	// One route is dropped first so the deployment has work to do; the drift then
 	// makes the device answer with less than it was told to install, which is
 	// what a partial write looks like from outside.
 	device.mu.Lock()
-	for key := range device.routes {
-		delete(device.routes, key)
-		break
-	}
+	delete(device.routes, "198.51.100.20/255.255.255.255")
 	device.drift = true
+	device.driftPrefix = "198.51.100.20/255.255.255.255"
 	device.mu.Unlock()
 	stdout, deployStderr = &syncBuffer{}, &syncBuffer{}
 	t.Setenv(DevicePasswordVariable, devicePassword)
@@ -318,6 +335,9 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 	if _, restores := device.snapshot(); restores != 1 {
 		t.Fatalf("a failed verification did not restore the backup: restores=%d", restores)
 	}
+	if ownershipAfter := readManagedOwnership(t, data, ownershipScope); !reflect.DeepEqual(ownershipAfter, ownershipBefore) {
+		t.Fatalf("failed verification changed ownership: before=%#v after=%#v", ownershipBefore, ownershipAfter)
+	}
 
 	// No credential appears in the audit record, the log, or anything the device
 	// was told beyond the challenge proof.
@@ -331,6 +351,89 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 			t.Fatalf("the credential was sent to the device in cleartext: %s", body)
 		}
 	}
+}
+
+func TestManagedRouteClaimsPreserveForeignRoutesAndShareCreatedPrefixes(t *testing.T) {
+	catalog := filepath.Join("..", "..", "testdata", "expiry", "catalog")
+	data := filepath.Join(t.TempDir(), "data")
+	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
+	resolver := &hostAddressResolver{}
+	resolver.set(map[string][]string{"youtube.expiry.test": {"192.0.2.10"}, "discord.expiry.test": {"198.51.100.20"}})
+	device := newFakeKeeneticDevice()
+	foreign := "10.9.9.0/255.255.255.0"
+	shared := "192.0.2.10/255.255.255.255"
+	discord := "198.51.100.20/255.255.255.255"
+	device.routes[foreign] = deviceInterfaceName
+	deviceServer := httptest.NewServer(device.handler())
+	defer deviceServer.Close()
+
+	origin, stop, done, stderr := startServeServerWithHostResolver(t, catalog, data, resolver, func() time.Time { return now })
+	defer func() {
+		stop()
+		if code := <-done; code != 0 {
+			t.Errorf("serve=%d %s", code, stderr.String())
+		}
+	}()
+	listA, outputA, _ := createListOutput(t, origin, "A", "keenetic", "youtube", "discord")
+	listB, outputB, _ := createListOutput(t, origin, "B", "keenetic", "youtube")
+	artifactA := refreshAndBuild(t, origin, listA, outputA).Artifact.ID
+	artifactB := refreshAndBuild(t, origin, listB, outputB).Artifact.ID
+	deps := runtimeDeps{Resolver: resolver, DeviceDialer: redirectDialer{target: deviceServer.Listener.Addr().String()}, Now: func() time.Time { return now }, Context: context.Background()}
+	args := func(artifact string) []string {
+		return []string{"deploy", "--artifact", artifact, "--target", "keenetic", "--device", "http://192.168.1.1", "--user", deviceUser, "--interface", deviceInterfaceName, "--catalog-dir", catalog, "--data-dir", data, "--confirm"}
+	}
+	deployViaCLI(t, deps, args(artifactA), devicePassword)
+	deployViaCLI(t, deps, args(artifactB), devicePassword)
+	if !fakeDeviceHasRoutes(device, foreign, shared, discord) {
+		t.Fatalf("initial shared state = %#v", device.routes)
+	}
+
+	postJSON(t, origin+"/v1/lists/"+listA+"/update", `{"name":"A","services":["discord"]}`)
+	artifactA = refreshAndBuild(t, origin, listA, outputA).Artifact.ID
+	deployViaCLI(t, deps, args(artifactA), devicePassword)
+	if !fakeDeviceHasRoutes(device, foreign, shared, discord) {
+		t.Fatalf("the first claimant removed a shared route: %#v", device.routes)
+	}
+
+	postJSON(t, origin+"/v1/lists/"+listB+"/update", `{"name":"B","services":["discord"]}`)
+	artifactB = refreshAndBuild(t, origin, listB, outputB).Artifact.ID
+	deployViaCLI(t, deps, args(artifactB), devicePassword)
+	device.mu.Lock()
+	_, sharedPresent := device.routes[shared]
+	foreignInterface := device.routes[foreign]
+	discordInterface := device.routes[discord]
+	device.mu.Unlock()
+	if sharedPresent || foreignInterface != deviceInterfaceName || discordInterface != deviceInterfaceName {
+		t.Fatalf("last-claim reconciliation = %#v", device.routes)
+	}
+}
+
+func fakeDeviceHasRoutes(device *fakeKeeneticDevice, routes ...string) bool {
+	device.mu.Lock()
+	defer device.mu.Unlock()
+	if len(device.routes) != len(routes) {
+		return false
+	}
+	for _, route := range routes {
+		if device.routes[route] != deviceInterfaceName {
+			return false
+		}
+	}
+	return true
+}
+
+func readManagedOwnership(t *testing.T, data string, scope application.ManagedRouteScope) application.ManagedRouteOwnership {
+	t.Helper()
+	store, err := sqlite.OpenExisting(context.Background(), data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	state, err := store.ManagedRouteOwnership(context.Background(), scope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return state
 }
 
 func TestPartialDeviceWriteRestoresTheExactBeforeStateEvenAfterCancellation(t *testing.T) {

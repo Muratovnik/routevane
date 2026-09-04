@@ -98,14 +98,18 @@ type DeviceConfig struct {
 	// ValidateStoredConnection applies the deployer's destination policy before
 	// non-secret connection metadata is persisted.
 	ValidateStoredConnection func(targetID string, connection Connection) error
-	Clock                    Clock
-	Entropy                  interface{ Read([]byte) (int, error) }
+	// RetireManagedRoutes revokes deletion authority for the old exact route
+	// surface when connection metadata changes or a device is forgotten. It
+	// never contacts the device.
+	RetireManagedRoutes func(context.Context, string, Connection) error
+	Clock               Clock
+	Entropy             interface{ Read([]byte) (int, error) }
 }
 
 type DeviceService struct{ config DeviceConfig }
 
 func NewDeviceService(config DeviceConfig) (*DeviceService, error) {
-	if config.Store == nil || config.Secrets == nil || config.Targets == nil || config.Deployable == nil || config.NeedsCredential == nil || config.NeedsInterface == nil || config.ValidateStoredConnection == nil || config.Clock == nil || config.Entropy == nil {
+	if config.Store == nil || config.Secrets == nil || config.Targets == nil || config.Deployable == nil || config.NeedsCredential == nil || config.NeedsInterface == nil || config.ValidateStoredConnection == nil || config.RetireManagedRoutes == nil || config.Clock == nil || config.Entropy == nil {
 		return nil, ErrDeviceComposition
 	}
 	return &DeviceService{config: config}, nil
@@ -272,6 +276,9 @@ func (s *DeviceService) UpdateDevice(ctx context.Context, id, name, address, acc
 			return Device{}, err
 		}
 		current.AutoDeliver = disabled.AutoDeliver
+		if err := s.config.RetireManagedRoutes(ctx, current.TargetID, Connection{URL: current.Address, Username: current.Account, Interface: current.Interface}); err != nil {
+			return Device{}, fmt.Errorf("retire managed routes: %w", err)
+		}
 	}
 	now := s.config.Clock.Now().UTC()
 	if now.IsZero() {
@@ -323,6 +330,9 @@ func (s *DeviceService) ForgetDevice(ctx context.Context, id string) error {
 	}
 	if err := s.config.Secrets.DeleteSecret(ctx, secretKey(device.ID)); err != nil {
 		return fmt.Errorf("remove the stored credential: %w", err)
+	}
+	if err := s.config.RetireManagedRoutes(ctx, device.TargetID, Connection{URL: device.Address, Username: device.Account, Interface: device.Interface}); err != nil {
+		return fmt.Errorf("retire managed routes: %w", err)
 	}
 	return s.config.Store.DeleteDevice(ctx, id)
 }

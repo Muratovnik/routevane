@@ -26,6 +26,9 @@ sources. That is a material verification limit, not a detail.
 
 ## Decision
 
+ADR 0032 supersedes only the two static-route ownership and exact-interface
+verification decisions below. All other decisions in this ADR remain adopted.
+
 - `netpolicy.DeviceDestination` is the narrowly named exception to the public
   unicast policy. It permits private and link-local unicast only, and continues
   to refuse loopback, the unspecified address, multicast, carrier-grade NAT, and
@@ -48,11 +51,11 @@ sources. That is a material verification limit, not a detail.
   profile key rather than an error, so the refusal names the version actually
   found. A backup must be produced, stored, read back, and hash-verified before
   a deployment starts.
-- Verification reads the device's own route table back and compares it with the
+- **Superseded for Keenetic static routes by ADR 0032:** Verification reads the device's own route table back and compares it with the
   artifact. A deployment is applied only when the device holds exactly the
   artifact's routes on the named interface; the answer names what is missing and
   what is unexpected.
-- Idempotence comes from the shape of the operation rather than a comparison of
+- **Superseded for Keenetic static routes by ADR 0032:** Idempotence comes from the shape of the operation rather than a comparison of
   timestamps: the deployer removes exactly the routes it previously owned on the
   named interface and adds exactly the artifact's routes. A route the operator
   added on another interface is never touched, and a repeated deployment issues

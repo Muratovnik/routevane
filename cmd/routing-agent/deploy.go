@@ -139,22 +139,22 @@ func runDeploy(ctx context.Context, stdout io.Writer, logger *slog.Logger, optio
 		return 2
 	}
 
-	request := application.DeployRequest{
-		Target: target,
+	deployments, err := application.NewDeploymentService(application.DeploymentConfig{
+		Artifacts: service, Deployers: deployerRegistry(deps, options),
+		Backups: filesystem.BackupStore{DataRoot: root}, ManagedRoutes: store,
+		Clock: application.ClockFunc(deps.Now),
+	})
+	if err != nil {
+		logResult(logger, "deploy", "", "", "failed", 0, started, "composition_invalid")
+		return 1
+	}
+	result, deployErr := deployments.Deploy(ctx, application.DeployCommand{
+		ArtifactID: payload.Artifact.ID,
 		Connection: application.Connection{
 			URL: options.DeviceURL, Username: options.Username, Password: password, Interface: options.Interface,
 		},
-		Artifact: application.DeployArtifact{
-			ArtifactID:      payload.Artifact.ID,
-			RendererID:      payload.Artifact.RendererID,
-			ArtifactHash:    payload.Artifact.ArtifactHash,
-			ContentType:     payload.Artifact.ContentType,
-			Payload:         payload.Payload,
-			PlanSnapshotID:  payload.Artifact.PlanSnapshotID,
-			RoutingPlanHash: payload.Artifact.ArtifactHash,
-		},
-	}
-	result, deployErr := application.DeployToDevice(ctx, request, deployerRegistry(deps, options), filesystem.BackupStore{DataRoot: root}, application.ClockFunc(deps.Now))
+		Confirm: true,
+	})
 	report.Confirmed = true
 	report.Device = result.Device
 	report.Backup = result.Backup
