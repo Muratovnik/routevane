@@ -12,6 +12,14 @@
   letter-spacing: var(--rv-tracking-title);
 }
 
+.lists__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-4);
+  align-items: center;
+  justify-content: space-between;
+}
+
 /* The composer's geometry, without the checkboxes: the category column keeps
    its place while a separate scrolling pane holds one category at a time. */
 .lists__workspace {
@@ -114,14 +122,19 @@
   background: var(--rv-color-surface-muted);
 }
 
-/* The whole row opens the category: there is nothing else to do to it here, so
-   there is nothing else to aim at. */
+.lists__category-row {
+  display: flex;
+  align-items: center;
+  padding-right: var(--rv-space-2);
+}
+
 .lists__category {
   display: flex;
   gap: var(--rv-space-3);
   align-items: center;
   justify-content: space-between;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   min-height: var(--rv-row-dense);
   padding: var(--rv-space-1) var(--rv-space-4) var(--rv-space-1)
     var(--rv-space-5);
@@ -131,10 +144,6 @@
   background: transparent;
   border: 0;
   cursor: pointer;
-}
-
-.lists__category:hover {
-  background: var(--rv-color-surface-hover);
 }
 
 .lists__category-copy {
@@ -217,6 +226,10 @@
   outline-offset: var(--rv-focus-offset);
 }
 
+.lists__category:hover:not(:disabled) {
+  background: var(--rv-color-surface-hover);
+}
+
 .lists__empty,
 .lists__form-note {
   color: var(--rv-color-ink-muted);
@@ -231,6 +244,16 @@
   display: grid;
   gap: var(--rv-space-4);
   padding: var(--rv-space-5) var(--rv-space-6);
+}
+
+.lists__priority {
+  display: grid;
+  align-content: start;
+  gap: var(--rv-space-5);
+  min-height: 0;
+  padding: var(--rv-space-5) var(--rv-space-6);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 @container (width <= 44rem) {

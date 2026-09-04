@@ -1,12 +1,15 @@
 import { computed, ref } from 'vue'
 
 import {
+  asServiceDetail,
   categoryInUse,
   createCategory,
+  createCustomService,
   invalidateCatalogCache,
   loadCatalogCached,
   removeCategory,
   removeService,
+  saveDefaultPriority,
   serviceInUse,
   updateCategory,
   type Catalog,
@@ -65,6 +68,15 @@ export function useListLibrary() {
   const categories = computed<CategoryDetail[]>(
     () => catalog.value?.categories ?? [],
   )
+  const defaultPriority = computed<string[]>(() => {
+    const serviceIDs = services.value.map((service) => service.id)
+    const available = new Set(serviceIDs)
+    const saved = (catalog.value?.defaultPriority ?? []).filter((id) =>
+      available.has(id),
+    )
+    const included = new Set(saved)
+    return [...saved, ...serviceIDs.filter((id) => !included.has(id))]
+  })
 
   async function initialize(): Promise<void> {
     if (busy.value) return
@@ -84,6 +96,95 @@ export function useListLibrary() {
 
   function clearRefusal(): void {
     refusal.value = null
+  }
+
+  /**
+   * Creation already returns the complete list identity. Add that authoritative
+   * record to the visible catalog instead of blanking the library for a GET.
+   * The API helper invalidates the shared cache, so another screen still reads
+   * the server rather than this local projection.
+   */
+  async function addCustomList(
+    title: string,
+    domains: string[],
+  ): Promise<LibraryWriteResult<ServiceDetail>> {
+    if (busy.value || stale.value) return { status: 'blocked' }
+    mutating.value = true
+    refusal.value = null
+    try {
+      const detail = asServiceDetail(await createCustomService(title, domains))
+      const current = catalog.value
+      if (current !== null) {
+        const details = new Map(
+          [...current.serviceDetails, detail].map((service) => [
+            service.id,
+            service,
+          ]),
+        )
+        // The server appends ids missing from the saved preference in
+        // canonical service-id order. Keep the saved basis untouched and sort
+        // only the live collection, so several unsaved creations produce the
+        // same merged order without a corrective refresh.
+        const serviceIDs = [...current.services, detail.id].sort()
+        catalog.value = {
+          ...current,
+          serviceDetails: serviceIDs
+            .map((id) => details.get(id))
+            .filter(
+              (service): service is ServiceDetail => service !== undefined,
+            ),
+          services: serviceIDs,
+        }
+      }
+      return { status: 'saved', value: detail }
+    } catch {
+      return { status: 'failed' }
+    } finally {
+      mutating.value = false
+    }
+  }
+
+  /** A renamed custom list is equally authoritative and needs no catalog flash. */
+  function acceptUpdatedList(detail: ServiceDetail): void {
+    const current = catalog.value
+    if (current === null) return
+    catalog.value = {
+      ...current,
+      serviceDetails: current.serviceDetails.map((service) =>
+        service.id === detail.id
+          ? {
+              ...service,
+              ...detail,
+              categories: service.categories,
+              sourceCount: service.sourceCount,
+              sources: service.sources,
+            }
+          : service,
+      ),
+    }
+  }
+
+  /**
+   * Global priority is library state, not route state. Saving replaces only the
+   * catalog's complete default permutation; existing routes are never written.
+   */
+  async function setDefaultPriority(
+    priority: string[],
+  ): Promise<LibraryWriteResult<string[]>> {
+    if (busy.value || stale.value) return { status: 'blocked' }
+    mutating.value = true
+    refusal.value = null
+    try {
+      const saved = await saveDefaultPriority(priority)
+      const current = catalog.value
+      if (current !== null)
+        catalog.value = { ...current, defaultPriority: saved }
+      return { status: 'saved', value: saved }
+    } catch {
+      return { status: 'failed' }
+    } finally {
+      mutating.value = false
+    }
   }
 
   /**
@@ -236,11 +337,14 @@ export function useListLibrary() {
   }
 
   return {
+    acceptUpdatedList,
     addCategory,
+    addCustomList,
     addList,
     busy,
     categories,
     clearRefusal,
+    defaultPriority,
     deleteCategory,
     deleteList,
     detachList,
@@ -250,6 +354,7 @@ export function useListLibrary() {
     renameCategory,
     refreshing,
     services,
+    setDefaultPriority,
     stale,
     state,
   }

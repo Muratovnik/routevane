@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 
+import CompositionPriorityList, {
+  type PriorityItem,
+} from '@/entities/list-composition/ui/CompositionPriorityList.vue'
 import ServiceDetailDialog from '@/entities/list-composition/ui/ServiceDetailDialog.vue'
 import { useListLibrary } from '@/features/list-library/model/useListLibrary'
+import LibraryListSheet from '@/features/list-library/ui/LibraryListSheet.vue'
 import type {
   CategoryDetail,
   CategoryLists,
@@ -12,7 +16,6 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import { libraryPageHash, parseLibraryPageHash } from '@/shared/lib/libraryHash'
 import type { ChoiceOption, MenuItem, SegmentOption } from '@/shared/ui/kinds'
 import RvButton from '@/shared/ui/RvButton.vue'
-import RvCombobox from '@/shared/ui/RvCombobox.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
@@ -50,21 +53,24 @@ type CategoryRow = {
 
 const activeCategoryID = ref('')
 const activeServiceID = ref('')
-const creatingService = ref(false)
 const mobilePane = ref<'collections' | 'details'>('collections')
 
 const categoryForm = ref<'closed' | 'create' | 'rename'>('closed')
+const categorySubject = ref<CategoryDetail | null>(null)
 const categoryTitle = ref('')
 const categoryTitleTouched = ref(false)
 // A category created while the catalog is stale cannot be selected from the
 // retained copy. Keep its server identity until a successful GET confirms that
 // the row exists, then complete the selection.
 const pendingCategoryID = ref('')
-const pickingList = ref(false)
-const pickedListID = ref('')
+const listSheetOpen = ref(false)
+const listSheetError = ref('')
 const removingCategory = ref(false)
 const categoryLists = ref<CategoryLists>('detach')
 const removingService = ref<ServiceDetail | null>(null)
+const priorityOpen = ref(false)
+const priorityDraft = ref<string[]>([])
+const priorityError = ref('')
 
 // The control speaks in strings; only the two answers the request has are
 // admitted back, so an unexpected value never reaches the endpoint.
@@ -126,43 +132,42 @@ const paneRefusal = computed(() =>
 // What a category can be asked to do. The catalog ships the words and the
 // operator owns what is inside; the title belongs only to a category they
 // created, and the operator may remove either kind (ADR 0029).
-const categoryActions = computed<MenuItem[]>(() => {
-  const category = activeRow.value?.category ?? null
+function categoryActions(entry: CategoryRow): MenuItem[] {
+  const category = entry.category
   if (category === null) return []
-  const items: MenuItem[] = [
-    {
-      disabled: library.stale.value || library.busy.value,
-      icon: 'plus',
-      key: 'add',
-      label: t('lists.category.addList'),
-    },
-  ]
-  if (category.custom) {
+  const items: MenuItem[] = []
+  if (category.custom)
     items.push({
       disabled: library.busy.value,
       icon: 'edit',
       key: 'rename',
       label: t('lists.category.rename'),
-      separatorBefore: true,
     })
-  }
   items.push({
     disabled: library.busy.value,
     icon: 'trash',
     key: 'remove',
     label: t('lists.category.remove'),
-    separatorBefore: !category.custom,
+    separatorBefore: items.length > 0,
   })
   return items
-})
+}
 
-const listActions = computed<MenuItem[]>(() => {
+function listActions(service: ServiceDetail): MenuItem[] {
   const items: MenuItem[] = []
+  if (service.custom === true)
+    items.push({
+      disabled: library.busy.value,
+      icon: 'edit',
+      key: 'rename',
+      label: t('lists.list.rename'),
+    })
   if ((activeRow.value?.category ?? null) !== null)
     items.push({
       disabled: library.stale.value || library.busy.value,
       key: 'detach',
       label: t('lists.list.detach'),
+      separatorBefore: items.length > 0,
     })
   items.push({
     disabled: library.busy.value,
@@ -172,7 +177,7 @@ const listActions = computed<MenuItem[]>(() => {
     separatorBefore: items.length > 0,
   })
   return items
-})
+}
 
 // Every list this category does not already hold, named the way the rows name
 // it. The combobox is the search, so the whole catalog can be offered.
@@ -184,6 +189,19 @@ const pickableLists = computed<ChoiceOption[]>(() => {
     .filter((service) => !held.has(service.id))
     .map((service) => ({ label: service.title, value: service.id }))
 })
+
+const priorityItems = computed<PriorityItem[]>(() => {
+  const details = servicesByID.value
+  return priorityDraft.value.map((id) => ({
+    id,
+    title: details.get(id)?.title ?? id,
+  }))
+})
+
+const priorityDirty = computed(
+  () =>
+    priorityDraft.value.join('\0') !== library.defaultPriority.value.join('\0'),
+)
 
 const dispositions = computed<SegmentOption[]>(() => [
   { label: t('lists.category.remove.detach'), value: 'detach' },
@@ -233,13 +251,12 @@ function openService(serviceID: string): void {
 
 function startCreateService(): void {
   if (library.stale.value) return
-  activeServiceID.value = ''
-  creatingService.value = true
+  listSheetError.value = ''
+  listSheetOpen.value = true
 }
 
 function closeService(): void {
   activeServiceID.value = ''
-  creatingService.value = false
   writeLocation()
 }
 
@@ -256,9 +273,24 @@ function writeLocation(): void {
 
 function startCreateCategory(): void {
   if (library.stale.value) return
+  library.clearRefusal()
+  categorySubject.value = null
   categoryTitle.value = ''
   categoryTitleTouched.value = false
   categoryForm.value = 'create'
+}
+
+function closeCategoryForm(): void {
+  if (library.busy.value) return
+  categoryForm.value = 'closed'
+  categorySubject.value = null
+  library.clearRefusal()
+}
+
+function closeCategoryRemoval(): void {
+  if (library.busy.value) return
+  removingCategory.value = false
+  categorySubject.value = null
 }
 
 function committed(status: string): boolean {
@@ -283,22 +315,19 @@ async function retryLibraryRead(): Promise<void> {
   if (await library.refresh()) settlePendingCategory()
 }
 
-function onCategoryAction(key: string): void {
-  const category = activeRow.value?.category ?? null
+function onCategoryAction(entry: CategoryRow, key: string): void {
+  const category = entry.category
   if (category === null || library.busy.value) return
-  if (key === 'add') {
-    if (library.stale.value) return
-    pickedListID.value = ''
-    pickingList.value = true
-    return
-  }
   if (key === 'rename') {
+    library.clearRefusal()
+    categorySubject.value = category
     categoryTitle.value = category.title
     categoryTitleTouched.value = false
     categoryForm.value = 'rename'
     return
   }
   if (key === 'remove') {
+    categorySubject.value = category
     categoryLists.value = 'detach'
     library.clearRefusal()
     removingCategory.value = true
@@ -308,6 +337,10 @@ function onCategoryAction(key: string): void {
 function onListAction(service: ServiceDetail, key: string): void {
   if (library.busy.value) return
   const category = activeRow.value?.category ?? null
+  if (key === 'rename' && service.custom === true) {
+    openService(service.id)
+    return
+  }
   if (key === 'detach' && category !== null && !library.stale.value) {
     void library.detachList(category, service.id)
     return
@@ -325,11 +358,14 @@ async function submitCategoryTitle(): Promise<void> {
   categoryTitleTouched.value = true
   const title = categoryTitle.value.trim()
   if (title === '') return
-  const category = activeRow.value?.category ?? null
+  const category = categorySubject.value
   if (categoryForm.value === 'rename') {
     if (category === null) return
     const result = await library.renameCategory(category.id, title)
-    if (committed(result.status)) categoryForm.value = 'closed'
+    if (committed(result.status)) {
+      categoryForm.value = 'closed'
+      categorySubject.value = null
+    }
     return
   }
   if (library.stale.value) return
@@ -346,22 +382,29 @@ async function submitCategoryTitle(): Promise<void> {
   }
 }
 
-async function submitPickedList(): Promise<void> {
+async function submitPickedList(serviceID: string): Promise<void> {
   const category = activeRow.value?.category ?? null
-  if (category === null || pickedListID.value === '') return
-  const result = await library.addList(category, pickedListID.value)
-  if (committed(result.status)) pickingList.value = false
+  if (category === null || serviceID === '') return
+  const result = await library.addList(category, serviceID)
+  if (committed(result.status)) {
+    listSheetOpen.value = false
+    listSheetError.value = ''
+    return
+  }
+  if (result.status === 'failed')
+    listSheetError.value = t('lists.list.attach.failed')
 }
 
 async function confirmRemoveCategory(): Promise<void> {
-  const category = activeRow.value?.category ?? null
+  const category = categorySubject.value
   if (category === null) return
   const result = await library.deleteCategory(category.id, categoryLists.value)
   if (committed(result.status)) {
     removingCategory.value = false
-    // The uncategorized row is a computed safe context and remains valid even
-    // while the deleted category is still present in the retained copy.
-    select(uncategorizedID)
+    categorySubject.value = null
+    // Only the category that was on screen needs a safe replacement. Removing
+    // another row from its overflow menu must not move the operator.
+    if (activeCategoryID.value === category.id) select(uncategorizedID)
   }
 }
 
@@ -380,18 +423,68 @@ async function confirmRemoveService(): Promise<void> {
  * after the one that created it. The computed row holds nothing, so a list made
  * there is simply a list no category claims.
  */
-async function onServiceCreated(detail: ServiceDetail): Promise<void> {
-  creatingService.value = false
-  const category = activeRow.value?.category ?? null
-  if (category === null) {
-    await library.refresh()
+async function createService(draft: {
+  domains: string[]
+  title: string
+}): Promise<void> {
+  listSheetError.value = ''
+  const created = await library.addCustomList(draft.title, draft.domains)
+  if (created.status !== 'saved' || created.value === undefined) {
+    if (created.status === 'failed')
+      listSheetError.value = t('serviceCard.save.failed')
     return
   }
-  await library.addList(category, detail.id)
+  const category = activeRow.value?.category ?? null
+  if (category === null) {
+    listSheetOpen.value = false
+    return
+  }
+  await submitPickedList(created.value.id)
 }
 
-function onServiceUpdated(): void {
-  void library.refresh()
+function onServiceUpdated(detail: ServiceDetail): void {
+  library.acceptUpdatedList(detail)
+}
+
+function closeListSheet(): void {
+  if (library.busy.value) return
+  listSheetOpen.value = false
+  listSheetError.value = ''
+}
+
+function openPriority(): void {
+  if (
+    library.state.value !== 'ready' ||
+    library.stale.value ||
+    library.busy.value
+  )
+    return
+  priorityDraft.value = [...library.defaultPriority.value]
+  priorityError.value = ''
+  priorityOpen.value = true
+}
+
+function closePriority(): void {
+  if (library.busy.value) return
+  priorityOpen.value = false
+  priorityError.value = ''
+}
+
+function reorderPriority(ids: string[]): void {
+  priorityDraft.value = ids
+  priorityError.value = ''
+}
+
+async function submitPriority(): Promise<void> {
+  if (!priorityDirty.value) return
+  const result = await library.setDefaultPriority(priorityDraft.value)
+  if (result.status === 'saved') {
+    priorityOpen.value = false
+    priorityError.value = ''
+    return
+  }
+  if (result.status === 'failed')
+    priorityError.value = t('lists.priority.failed.body')
 }
 </script>
 
@@ -399,6 +492,19 @@ function onServiceUpdated(): void {
   <section aria-labelledby="lists-title" class="lists">
     <header class="lists__header">
       <h1 id="lists-title" class="lists__title">{{ t('lists.title') }}</h1>
+      <RvButton
+        :disabled="
+          library.state.value !== 'ready' ||
+          library.busy.value ||
+          library.stale.value
+        "
+        size="compact"
+        variant="secondary"
+        @click="openPriority"
+      >
+        <RvIcon name="drag" />
+        {{ t('lists.priority.action') }}
+      </RvButton>
     </header>
 
     <RvStateNotice
@@ -450,21 +556,32 @@ function onServiceUpdated(): void {
               class="lists__group"
               :class="{ 'lists__group--active': activeRow?.id === entry.id }"
             >
-              <button
-                :aria-current="activeRow?.id === entry.id ? 'true' : undefined"
-                class="lists__category"
-                :disabled="library.busy.value"
-                type="button"
-                @click="showCategory(entry.id)"
-              >
-                <span class="lists__category-copy">
-                  <strong>{{ entry.label }}</strong>
-                  <small>{{
-                    tc('create.category.size', entry.members.length)
-                  }}</small>
-                </span>
-                <RvIcon class="lists__category-mark" name="chevron" />
-              </button>
+              <div class="lists__category-row">
+                <button
+                  :aria-current="
+                    activeRow?.id === entry.id ? 'true' : undefined
+                  "
+                  class="lists__category"
+                  :disabled="library.busy.value"
+                  type="button"
+                  @click="showCategory(entry.id)"
+                >
+                  <span class="lists__category-copy">
+                    <strong>{{ entry.label }}</strong>
+                    <small>{{
+                      tc('create.category.size', entry.members.length)
+                    }}</small>
+                  </span>
+                  <RvIcon class="lists__category-mark" name="chevron" />
+                </button>
+                <RvMenu
+                  v-if="categoryActions(entry).length > 0"
+                  :disabled="library.busy.value"
+                  :items="categoryActions(entry)"
+                  :label="t('lists.category.menu', { category: entry.label })"
+                  @select="onCategoryAction(entry, $event)"
+                />
+              </div>
             </li>
           </ul>
           <footer class="lists__collections-footer">
@@ -498,13 +615,6 @@ function onServiceUpdated(): void {
             <strong class="lists__details-count">
               {{ tc('create.category.size', activeRow.members.length) }}
             </strong>
-            <RvMenu
-              v-if="categoryActions.length > 0"
-              :disabled="library.busy.value"
-              :items="categoryActions"
-              :label="t('lists.category.menu', { category: activeRow.label })"
-              @select="onCategoryAction"
-            />
           </header>
           <div class="lists__pane-body">
             <RvStateNotice
@@ -544,8 +654,9 @@ function onServiceUpdated(): void {
                   <RvIcon name="chevron" />
                 </button>
                 <RvMenu
+                  v-if="listActions(service).length > 0"
                   :disabled="library.busy.value"
-                  :items="listActions"
+                  :items="listActions(service)"
                   :label="t('lists.list.menu', { list: service.title })"
                   @select="onListAction(service, $event)"
                 />
@@ -581,8 +692,8 @@ function onServiceUpdated(): void {
           ? t('lists.category.rename.title')
           : t('lists.category.new')
       "
-      variant="panel"
-      @update:open="categoryForm = 'closed'"
+      variant="sheet"
+      @update:open="$event === false && closeCategoryForm()"
     >
       <form class="lists__form" @submit.prevent="submitCategoryTitle">
         <RvField
@@ -603,12 +714,29 @@ function onServiceUpdated(): void {
             />
           </template>
         </RvField>
+        <RvStateNotice
+          v-if="library.refusal.value !== null"
+          :body="
+            library.refusal.value.kind === 'inUse'
+              ? t('lists.category.inUse.body', {
+                  routes: library.refusal.value.routes.join(', '),
+                })
+              : t('lists.category.failed.body')
+          "
+          live
+          :title="
+            library.refusal.value.kind === 'inUse'
+              ? t('lists.category.inUse')
+              : t('lists.category.failed')
+          "
+          tone="failed"
+        />
       </form>
       <template #footer>
         <RvButton
           :disabled="library.busy.value"
           variant="quiet"
-          @click="categoryForm = 'closed'"
+          @click="closeCategoryForm"
         >
           {{ t('action.cancel') }}
         </RvButton>
@@ -630,50 +758,16 @@ function onServiceUpdated(): void {
       </template>
     </RvDialog>
 
-    <RvDialog
-      :close-label="t('action.close')"
-      :dismissible="!library.busy.value"
-      :open="pickingList"
-      :title="t('lists.category.addList')"
-      variant="panel"
-      @update:open="pickingList = false"
-    >
-      <div class="lists__form">
-        <RvCombobox
-          v-if="pickableLists.length > 0"
-          v-model="pickedListID"
-          :disabled="library.busy.value || library.stale.value"
-          :empty-label="t('lists.category.pick.empty')"
-          input-id="lists-category-list"
-          :options="pickableLists"
-          :placeholder="t('lists.category.pick.placeholder')"
-          :loading="library.busy.value"
-          :toggle-label="t('lists.category.pick.toggle')"
-        />
-        <p v-else class="lists__form-note">
-          {{ t('lists.category.pick.none') }}
-        </p>
-      </div>
-      <template #footer>
-        <RvButton
-          :disabled="library.busy.value"
-          variant="quiet"
-          @click="pickingList = false"
-        >
-          {{ t('action.cancel') }}
-        </RvButton>
-        <RvButton
-          :disabled="
-            library.busy.value || library.stale.value || pickedListID === ''
-          "
-          :loading="library.busy.value"
-          variant="primary"
-          @click="submitPickedList"
-        >
-          {{ t('lists.category.add') }}
-        </RvButton>
-      </template>
-    </RvDialog>
+    <LibraryListSheet
+      :busy="library.busy.value"
+      :category-title="activeRow?.category?.title ?? null"
+      :error="listSheetError"
+      :existing="pickableLists"
+      :open="listSheetOpen"
+      @add="submitPickedList"
+      @close="closeListSheet"
+      @create="createService"
+    />
 
     <!-- Deleting a category asks the one question it has to ask: what becomes
          of the lists it holds. -->
@@ -683,7 +777,7 @@ function onServiceUpdated(): void {
       :open="removingCategory"
       :title="t('lists.category.remove')"
       variant="panel"
-      @update:open="removingCategory = false"
+      @update:open="$event === false && closeCategoryRemoval()"
     >
       <div class="lists__form">
         <RvSegmented
@@ -715,7 +809,7 @@ function onServiceUpdated(): void {
         <RvButton
           :disabled="library.busy.value"
           variant="quiet"
-          @click="removingCategory = false"
+          @click="closeCategoryRemoval"
         >
           {{ t('action.cancel') }}
         </RvButton>
@@ -784,15 +878,55 @@ function onServiceUpdated(): void {
     </RvDialog>
 
     <ServiceDetailDialog
-      :creating="creatingService"
       :disabled="library.busy.value"
       mode="library"
       :service="activeService"
       @close="closeService"
-      @created="onServiceCreated"
       @remove="startRemoveService"
       @updated="onServiceUpdated"
     />
+
+    <RvDialog
+      :close-label="t('action.close')"
+      :dismissible="!library.busy.value"
+      fill
+      :open="priorityOpen"
+      :title="t('lists.priority.title')"
+      variant="sheet"
+      @update:open="$event === false && closePriority()"
+    >
+      <div class="lists__priority">
+        <CompositionPriorityList
+          :disabled="library.busy.value"
+          :items="priorityItems"
+          @reorder="reorderPriority"
+        />
+        <RvStateNotice
+          v-if="priorityError !== ''"
+          :body="priorityError"
+          live
+          :title="t('lists.priority.failed')"
+          tone="failed"
+        />
+      </div>
+      <template #footer>
+        <RvButton
+          :disabled="library.busy.value"
+          variant="quiet"
+          @click="closePriority"
+        >
+          {{ t('action.cancel') }}
+        </RvButton>
+        <RvButton
+          :disabled="library.busy.value || !priorityDirty"
+          :loading="library.busy.value"
+          variant="primary"
+          @click="submitPriority"
+        >
+          {{ t('lists.priority.save') }}
+        </RvButton>
+      </template>
+    </RvDialog>
   </section>
 </template>
 

@@ -33,6 +33,7 @@ function json(payload: unknown, status = 200): Response {
 function catalogResponse(categories: CategoryFixture[]): Response {
   return json({
     categories,
+    default_priority: services.map((service) => service.id),
     service_details: services,
     services: services.map((service) => service.id),
   })
@@ -299,5 +300,94 @@ describe('library audit: write/read reconciliation', () => {
     expect(calls.filter((call) => call.includes('/v1/services'))).toHaveLength(
       1,
     )
+  })
+
+  it('saves only the complete library default order and updates it locally', async () => {
+    const calls: { body: string | null; key: string }[] = []
+    const saved = ['steam', 'discord']
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: unknown, init?: RequestInit) => {
+        const key = `${init?.method ?? 'GET'} ${String(input)}`
+        calls.push({ body: (init?.body as string | undefined) ?? null, key })
+        if (key === 'GET /v1/services')
+          return Promise.resolve(catalogResponse([initialCategory]))
+        if (key === 'GET /v1/targets') return Promise.resolve(targetResponse())
+        if (key === 'POST /v1/services/priority')
+          return Promise.resolve(json({ default_priority: saved }))
+        return Promise.resolve(json({ error: 'unrouted' }, 500))
+      }),
+    )
+
+    const library = useListLibrary()
+    await library.initialize()
+    expect(library.defaultPriority.value).toEqual(['discord', 'steam'])
+    expect((await library.setDefaultPriority(saved)).status).toBe('saved')
+    expect(library.defaultPriority.value).toEqual(saved)
+    expect(calls.at(-1)).toEqual({
+      body: JSON.stringify({ default_priority: saved }),
+      key: 'POST /v1/services/priority',
+    })
+    expect(calls.filter((call) => call.key.includes('/v1/lists'))).toHaveLength(
+      0,
+    )
+  })
+
+  it('merges multiple new lists in the same canonical order as the server', async () => {
+    const calls: string[] = []
+    const created = [
+      {
+        domains: ['later.example'],
+        id: 'custom-z-later',
+        title: 'Later',
+      },
+      {
+        domains: ['earlier.example'],
+        id: 'custom-a-earlier',
+        title: 'Earlier',
+      },
+    ]
+    let creation = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: unknown, init?: RequestInit) => {
+        const key = `${init?.method ?? 'GET'} ${String(input)}`
+        calls.push(key)
+        if (key === 'GET /v1/services')
+          return Promise.resolve(catalogResponse([initialCategory]))
+        if (key === 'GET /v1/targets') return Promise.resolve(targetResponse())
+        if (key === 'POST /v1/services') {
+          const service = created[creation]
+          creation += 1
+          return Promise.resolve(json({ service }, 201))
+        }
+        return Promise.resolve(json({ error: 'unrouted' }, 500))
+      }),
+    )
+
+    const library = useListLibrary()
+    await library.initialize()
+    const first = created[0]
+    const second = created[1]
+    expect(first).toBeDefined()
+    expect(second).toBeDefined()
+    const firstResult = await library.addCustomList(
+      first!.title,
+      first!.domains,
+    )
+    const secondResult = await library.addCustomList(
+      second!.title,
+      second!.domains,
+    )
+
+    expect(firstResult.status).toBe('saved')
+    expect(secondResult.status).toBe('saved')
+    expect(library.defaultPriority.value).toEqual([
+      'discord',
+      'steam',
+      'custom-a-earlier',
+      'custom-z-later',
+    ])
+    expect(calls.filter((call) => call === 'GET /v1/services')).toHaveLength(1)
   })
 })

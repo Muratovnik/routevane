@@ -294,11 +294,10 @@ const ru: Dictionary = {
     'Показана прежняя копия каталога. Повторите чтение, чтобы увидеть сохранённое изменение; запись повторно не отправится.',
   'lists.refresh': 'Перечитать списки',
   'lists.refresh.busy': 'Читаем списки…',
-  'lists.addCategory': 'Своя категория',
-  'lists.addList': 'Свой список',
+  'lists.addCategory': 'Новая категория',
+  'lists.addList': 'Новый список',
   'lists.category.empty': 'В этой категории пока нет списков.',
   'lists.category.menu': 'Действия с категорией {category}',
-  'lists.category.addList': 'Добавить список',
   'lists.category.add': 'Добавить',
   'lists.category.rename': 'Переименовать',
   'lists.category.rename.title': 'Переименовать категорию',
@@ -323,6 +322,14 @@ const ru: Dictionary = {
   'lists.category.inUse.body':
     'Она входит в маршруты: {routes}. Уберите её оттуда и повторите.',
   'lists.list.menu': 'Действия со списком {list}',
+  'lists.list.new': 'Новый список',
+  'lists.list.rename': 'Переименовать',
+  'lists.list.flow.label': 'Что добавить',
+  'lists.list.flow.create': 'Новый список',
+  'lists.list.flow.existing': 'Готовый список',
+  'lists.list.create': 'Создать',
+  'lists.list.attach.failed':
+    'Список создан, но добавить его в категорию не удалось. Выберите его как готовый и повторите.',
   'lists.list.detach': 'Убрать из категории',
   'lists.list.remove': 'Удалить список',
   'lists.list.remove.body': 'Список «{list}» и его записи будут удалены.',
@@ -330,6 +337,12 @@ const ru: Dictionary = {
   'lists.list.inUse': 'Список не удалён',
   'lists.list.inUse.body':
     'Он входит в маршруты: {routes}. Уберите его оттуда и повторите.',
+  'lists.priority.action': 'Порядок по умолчанию',
+  'lists.priority.title': 'Порядок списков по умолчанию',
+  'lists.priority.save': 'Сохранить порядок',
+  'lists.priority.failed': 'Порядок не сохранён',
+  'lists.priority.failed.body':
+    'Проверьте, что Routevane запущен, и повторите сохранение.',
 
   'list.breadcrumb': 'Путь',
 
@@ -1118,11 +1131,10 @@ const en: Dictionary = {
     'The previous catalog copy remains visible. Retry the read to see the saved change; the write will not be sent again.',
   'lists.refresh': 'Refresh lists',
   'lists.refresh.busy': 'Reading lists…',
-  'lists.addCategory': 'Custom category',
-  'lists.addList': 'Custom list',
+  'lists.addCategory': 'New category',
+  'lists.addList': 'New list',
   'lists.category.empty': 'This category holds no lists yet.',
   'lists.category.menu': 'Actions for category {category}',
-  'lists.category.addList': 'Add a list',
   'lists.category.add': 'Add',
   'lists.category.rename': 'Rename',
   'lists.category.rename.title': 'Rename category',
@@ -1147,6 +1159,14 @@ const en: Dictionary = {
   'lists.category.inUse.body':
     'It is part of these routes: {routes}. Remove it there and try again.',
   'lists.list.menu': 'Actions for list {list}',
+  'lists.list.new': 'New list',
+  'lists.list.rename': 'Rename',
+  'lists.list.flow.label': 'What to add',
+  'lists.list.flow.create': 'New list',
+  'lists.list.flow.existing': 'Existing list',
+  'lists.list.create': 'Create',
+  'lists.list.attach.failed':
+    'The list was created but could not be added to the category. Choose it as an existing list and retry.',
   'lists.list.detach': 'Remove from the category',
   'lists.list.remove': 'Delete the list',
   'lists.list.remove.body': 'List “{list}” and its entries are removed.',
@@ -1154,6 +1174,12 @@ const en: Dictionary = {
   'lists.list.inUse': 'The list was not deleted',
   'lists.list.inUse.body':
     'It is part of these routes: {routes}. Remove it there and try again.',
+  'lists.priority.action': 'Default order',
+  'lists.priority.title': 'Default list order',
+  'lists.priority.save': 'Save order',
+  'lists.priority.failed': 'Order not saved',
+  'lists.priority.failed.body':
+    'Check that Routevane is running and retry the save.',
 
   'list.breadcrumb': 'Path',
 

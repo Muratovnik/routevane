@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { invalidateCatalogCache } from '@/shared/api/catalog'
 import { useLocale } from '@/shared/i18n/useLocale'
+import RvDialog from '@/shared/ui/RvDialog.vue'
 
 import ListLibraryView from './ListLibraryView.vue'
 
@@ -20,9 +21,14 @@ const categories = [
 // Steam belongs to no category, which is what fills the last row.
 const services = [
   { categories: ['communication'], id: 'discord', title: 'Discord' },
-  { categories: ['communication'], id: 'telegram', title: 'Telegram' },
+  {
+    categories: ['communication'],
+    custom: true,
+    id: 'telegram',
+    title: 'Telegram',
+  },
   { categories: ['custom-home', 'video'], id: 'youtube', title: 'YouTube' },
-  { categories: [], id: 'steam', title: 'Steam' },
+  { categories: [], custom: true, id: 'steam', title: 'Steam' },
 ]
 
 function json(payload: unknown, status = 200): Response {
@@ -32,15 +38,12 @@ function json(payload: unknown, status = 200): Response {
   })
 }
 
-function catalogResponse(next = categories): Response {
+function catalogResponse(next = categories, nextServices = services): Response {
   return json({
-    services: services.map((service) => service.id),
-    service_details: services.map((service) => ({
-      categories: service.categories,
-      id: service.id,
-      title: service.title,
-    })),
+    services: nextServices.map((service) => service.id),
+    service_details: nextServices,
     categories: next,
+    default_priority: nextServices.map((service) => service.id),
   })
 }
 
@@ -105,6 +108,11 @@ function menuItem(text: string): HTMLElement | undefined {
   ].find((item) => item.textContent?.includes(text))
 }
 
+function menuText(): string {
+  const panels = document.body.querySelectorAll<HTMLElement>('[role="menu"]')
+  return panels.item(panels.length - 1)?.textContent ?? ''
+}
+
 function clickByText(scope: HTMLElement, text: string): void {
   const control = [...scope.querySelectorAll('button')].find((button) =>
     button.textContent?.includes(text),
@@ -142,6 +150,13 @@ async function openMenu(wrapper: Library, label: string): Promise<void> {
   await flushPromises()
 }
 
+function openedDialogVariant(wrapper: Library): string | undefined {
+  return wrapper
+    .findAllComponents(RvDialog)
+    .find((candidate) => candidate.props('open') === true)
+    ?.props('variant')
+}
+
 describe('ListLibraryView', () => {
   beforeEach(() => {
     useLocale().setLocale('en')
@@ -170,6 +185,106 @@ describe('ListLibraryView', () => {
     wrapper.unmount()
   })
 
+  it('offers one full-width creation action per pane and opens both in sheets', async () => {
+    stubAPI(catalogRoutes())
+    const wrapper = mountLibrary()
+    await flushPromises()
+
+    const namedButtons = (label: string) =>
+      wrapper
+        .findAll('button')
+        .filter((button) => button.text().trim() === label)
+    expect(namedButtons('New category')).toHaveLength(1)
+    expect(namedButtons('New list')).toHaveLength(1)
+    expect(namedButtons('New category')[0]?.classes()).toContain(
+      'rv-button--block',
+    )
+    expect(namedButtons('New list')[0]?.classes()).toContain('rv-button--block')
+
+    namedButtons('New category')[0]?.element.click()
+    await flushPromises()
+    expect(openedDialogVariant(wrapper)).toBe('sheet')
+    clickByText(dialog(), 'Cancel')
+    await flushPromises()
+
+    clickByText(wrapper.element as HTMLElement, 'New list')
+    await flushPromises()
+    expect(openedDialogVariant(wrapper)).toBe('sheet')
+    expect(dialog().textContent).toContain('New list')
+    expect(dialog().textContent).toContain('Existing list')
+    wrapper.unmount()
+  })
+
+  it('keeps category and list actions on their rows without a duplicate add action', async () => {
+    stubAPI(catalogRoutes())
+    const wrapper = mountLibrary()
+    await flushPromises()
+
+    // This menu belongs to an unselected built-in category. Built-in records
+    // can be removed through the server overlay, but their catalog title is not
+    // renamed and list creation stays at the pane footer.
+    await openMenu(wrapper, 'Actions for category Video')
+    expect(menuText()).toContain('Delete the category')
+    expect(menuText()).not.toContain('Rename')
+    expect(menuText()).not.toContain('Add a list')
+
+    await openCategory(wrapper, 'Communication')
+    await openMenu(wrapper, 'Actions for list Discord')
+    const builtIn = menuText()
+    expect(builtIn).toContain('Remove from the category')
+    expect(builtIn).toContain('Delete the list')
+    expect(builtIn).not.toContain('Rename')
+
+    await openMenu(wrapper, 'Actions for list Telegram')
+    const custom = menuText()
+    expect(custom).toContain('Rename')
+    expect(custom).toContain('Remove from the category')
+    expect(custom).toContain('Delete the list')
+    wrapper.unmount()
+  })
+
+  it('acts on an unselected category without moving the current pane', async () => {
+    const remaining = categories.filter((category) => category.id !== 'video')
+    const { keys } = stubAPI({
+      ...catalogRoutes(remaining),
+      'POST /v1/categories/video/remove': () =>
+        new Response(null, { status: 204 }),
+    })
+    const wrapper = mountLibrary()
+    await flushPromises()
+    expect(wrapper.get('.lists__details-title').text()).toBe('Communication')
+
+    await openMenu(wrapper, 'Actions for category Video')
+    menuItem('Delete the category')?.click()
+    await flushPromises()
+    clickByText(dialog(), 'Delete')
+    await flushPromises()
+
+    expect(keys().at(-3)).toBe('POST /v1/categories/video/remove')
+    expect(wrapper.get('.lists__details-title').text()).toBe('Communication')
+    wrapper.unmount()
+  })
+
+  it('opens a custom list rename directly from its row menu', async () => {
+    stubAPI({
+      ...catalogRoutes(),
+      'GET /v1/services/telegram/contents': () => contentsResponse('telegram'),
+    })
+    const wrapper = mountLibrary()
+    await flushPromises()
+
+    await openCategory(wrapper, 'Communication')
+    await openMenu(wrapper, 'Actions for list Telegram')
+    menuItem('Rename')?.click()
+    await flushPromises()
+
+    expect(dialog().textContent).toContain('Telegram')
+    expect(
+      dialog().querySelector<HTMLInputElement>('#service-title')?.value,
+    ).toBe('Telegram')
+    wrapper.unmount()
+  })
+
   it('creates a category and opens it', async () => {
     const created = {
       custom: true,
@@ -184,7 +299,7 @@ describe('ListLibraryView', () => {
     const wrapper = mountLibrary()
     await flushPromises()
 
-    clickByText(wrapper.element as HTMLElement, 'Custom category')
+    clickByText(wrapper.element as HTMLElement, 'New category')
     await flushPromises()
     const panel = dialog()
     const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
@@ -222,11 +337,16 @@ describe('ListLibraryView', () => {
     await flushPromises()
 
     await openCategory(wrapper, 'Video')
-    await openMenu(wrapper, 'Actions for category Video')
-    menuItem('Add a list')?.click()
+    clickByText(wrapper.element as HTMLElement, 'New list')
     await flushPromises()
 
     const panel = dialog()
+    const existing = [
+      ...panel.querySelectorAll<HTMLLabelElement>('.rv-segmented__option'),
+    ].find((option) => option.textContent?.includes('Existing list'))
+    expect(existing).toBeDefined()
+    existing?.querySelector('input')?.click()
+    await flushPromises()
     const field = panel.querySelector<HTMLInputElement>('.rv-combobox__input')
     expect(field).not.toBeNull()
     field!.focus()
@@ -243,6 +363,108 @@ describe('ListLibraryView', () => {
     expect(calls.at(-3)?.key).toBe('POST /v1/categories/video/update')
     expect(calls.at(-3)?.body).toBe(
       JSON.stringify({ services: ['youtube', 'steam'] }),
+    )
+    wrapper.unmount()
+  })
+
+  it('creates a new list in the same sheet without rereading the whole library', async () => {
+    const created = {
+      id: 'custom-created-list',
+      title: 'Local list',
+      domains: ['local.example'],
+    }
+    const { calls } = stubAPI({
+      ...catalogRoutes(),
+      'POST /v1/services': () => json({ service: created }, 201),
+    })
+    const wrapper = mountLibrary()
+    await flushPromises()
+    await openCategory(wrapper, 'Uncategorized')
+    clickByText(wrapper.element as HTMLElement, 'New list')
+    await flushPromises()
+
+    const panel = dialog()
+    expect(openedDialogVariant(wrapper)).toBe('sheet')
+    const title = panel.querySelector<HTMLInputElement>('#library-list-title')
+    const domains = panel.querySelector<HTMLTextAreaElement>(
+      '#library-list-domains',
+    )
+    expect(title).not.toBeNull()
+    expect(domains).not.toBeNull()
+    title!.value = created.title
+    title!.dispatchEvent(new Event('input', { bubbles: true }))
+    domains!.value = created.domains.join('\n')
+    domains!.dispatchEvent(new Event('input', { bubbles: true }))
+    clickByText(panel, 'Create')
+    await flushPromises()
+
+    expect(calls.at(-1)).toEqual({
+      body: JSON.stringify({ title: created.title, domains: created.domains }),
+      key: 'POST /v1/services',
+    })
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(wrapper.get('.lists__pane-body').text()).toContain(created.title)
+    wrapper.unmount()
+  })
+
+  it('saves the library default order without writing any route', async () => {
+    const saved = ['telegram', 'discord', 'youtube', 'steam']
+    const { calls } = stubAPI({
+      ...catalogRoutes(),
+      'POST /v1/services/priority': () => json({ default_priority: saved }),
+    })
+    const wrapper = mountLibrary()
+    await flushPromises()
+
+    clickByText(wrapper.element as HTMLElement, 'Default order')
+    await flushPromises()
+    const panel = dialog()
+    expect(openedDialogVariant(wrapper)).toBe('sheet')
+    const handles = panel.querySelectorAll<HTMLButtonElement>(
+      '.priority-list__handle',
+    )
+    expect(handles).toHaveLength(4)
+    handles[0]?.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }),
+    )
+    await flushPromises()
+    clickByText(panel, 'Save order')
+    await flushPromises()
+
+    expect(calls.at(-1)).toEqual({
+      body: JSON.stringify({ default_priority: saved }),
+      key: 'POST /v1/services/priority',
+    })
+    expect(calls.some((call) => call.key.includes('/v1/lists'))).toBe(false)
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('keeps a failed default order available to retry', async () => {
+    const { calls } = stubAPI({
+      ...catalogRoutes(),
+      'POST /v1/services/priority': () =>
+        json({ error: 'controlled failure' }, 503),
+    })
+    const wrapper = mountLibrary()
+    await flushPromises()
+
+    clickByText(wrapper.element as HTMLElement, 'Default order')
+    await flushPromises()
+    const panel = dialog()
+    panel
+      .querySelector<HTMLButtonElement>('.priority-list__handle')
+      ?.dispatchEvent(
+        new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }),
+      )
+    await flushPromises()
+    clickByText(panel, 'Save order')
+    await flushPromises()
+
+    expect(panel.isConnected).toBe(true)
+    expect(panel.textContent).toContain('Order not saved')
+    expect(calls.filter((call) => call.key.includes('/v1/lists'))).toHaveLength(
+      0,
     )
     wrapper.unmount()
   })
@@ -348,7 +570,7 @@ describe('ListLibraryView', () => {
   it('deletes a list, and keeps one a route still holds', async () => {
     const { calls, keys } = stubAPI({
       ...catalogRoutes(),
-      'POST /v1/services/discord/remove': () =>
+      'POST /v1/services/telegram/remove': () =>
         json(
           {
             error: 'list in use',
@@ -356,37 +578,38 @@ describe('ListLibraryView', () => {
           },
           409,
         ),
-      'POST /v1/services/telegram/remove': () =>
+      'POST /v1/services/steam/remove': () =>
         new Response(null, { status: 204 }),
     })
     const wrapper = mountLibrary()
     await flushPromises()
 
     await openCategory(wrapper, 'Communication')
-    await openMenu(wrapper, 'Actions for list Discord')
+    await openMenu(wrapper, 'Actions for list Telegram')
     menuItem('Delete the list')?.click()
     await flushPromises()
     const panel = dialog()
     expect(panel.textContent).toContain(
-      'List “Discord” and its entries are removed.',
+      'List “Telegram” and its entries are removed.',
     )
     clickByText(panel, 'Delete')
     await flushPromises()
 
-    expect(keys().at(-1)).toBe('POST /v1/services/discord/remove')
+    expect(keys().at(-1)).toBe('POST /v1/services/telegram/remove')
     expect(dialog().textContent).toContain('The list was not deleted')
     expect(dialog().textContent).toContain('Дом')
 
     // The one nothing holds goes, and the catalog is read back after it.
     clickByText(dialog(), 'Cancel')
     await flushPromises()
-    await openMenu(wrapper, 'Actions for list Telegram')
+    await openCategory(wrapper, 'Uncategorized')
+    await openMenu(wrapper, 'Actions for list Steam')
     menuItem('Delete the list')?.click()
     await flushPromises()
     clickByText(dialog(), 'Delete')
     await flushPromises()
 
-    expect(calls.at(-3)?.key).toBe('POST /v1/services/telegram/remove')
+    expect(calls.at(-3)?.key).toBe('POST /v1/services/steam/remove')
     expect(keys().slice(-2)).toEqual(['GET /v1/services', 'GET /v1/targets'])
     wrapper.unmount()
   })
@@ -398,13 +621,13 @@ describe('ListLibraryView', () => {
     })
     const { keys } = stubAPI({
       ...catalogRoutes(),
-      'POST /v1/services/discord/remove': () => pending,
+      'POST /v1/services/telegram/remove': () => pending,
     })
     const wrapper = mountLibrary()
     await flushPromises()
 
     await openCategory(wrapper, 'Communication')
-    await openMenu(wrapper, 'Actions for list Discord')
+    await openMenu(wrapper, 'Actions for list Telegram')
     menuItem('Delete the list')?.click()
     await flushPromises()
     const panel = dialog()
@@ -426,7 +649,7 @@ describe('ListLibraryView', () => {
     ).toBe(true)
     submit?.click()
     expect(
-      keys().filter((key) => key === 'POST /v1/services/discord/remove'),
+      keys().filter((key) => key === 'POST /v1/services/telegram/remove'),
     ).toHaveLength(1)
 
     finish(json({ error: 'controlled refusal' }, 503))
@@ -477,7 +700,7 @@ describe('ListLibraryView', () => {
     const wrapper = mountLibrary()
     await flushPromises()
 
-    clickByText(wrapper.element as HTMLElement, 'Custom category')
+    clickByText(wrapper.element as HTMLElement, 'New category')
     await flushPromises()
     const panel = dialog()
     const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
@@ -521,7 +744,7 @@ describe('ListLibraryView', () => {
     const wrapper = mountLibrary()
     await flushPromises()
 
-    clickByText(wrapper.element as HTMLElement, 'Custom category')
+    clickByText(wrapper.element as HTMLElement, 'New category')
     await flushPromises()
     const panel = dialog()
     const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
