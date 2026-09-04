@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 
-import { overlapServiceIDs } from '@/entities/list-composition/model/composition'
+import {
+  overlapServiceIDs,
+  serviceIdentityLabels,
+} from '@/entities/list-composition/model/composition'
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
 import CompositionPriorityList from '@/entities/list-composition/ui/CompositionPriorityList.vue'
 import { useCreateList } from '@/features/create-list/model/useCreateList'
@@ -79,22 +82,22 @@ const chosenForecast = computed(() =>
   forecastLabel(setup.selectedTargetID.value),
 )
 
+const serviceLabels = computed(() =>
+  serviceIdentityLabels(setup.services.value),
+)
+
 const priorityItems = computed(() =>
   setup.resolvedServiceIDs.value.map((id) => ({
     id,
     overlaps: overlapNames(id),
-    title:
-      setup.services.value.find((service) => service.id === id)?.title ?? id,
+    title: serviceLabels.value.get(id) ?? id,
   })),
 )
 
 function overlapNames(serviceID: string): string[] | null {
   const ids = overlapServiceIDs(setup.selectedForecast.value, serviceID)
   if (ids === null) return null
-  return ids.map(
-    (id) =>
-      setup.services.value.find((service) => service.id === id)?.title ?? id,
-  )
+  return ids.map((id) => serviceLabels.value.get(id) ?? id)
 }
 
 const chosenTarget = computed<string>({
@@ -185,6 +188,7 @@ async function submit(): Promise<void> {
             :categories="setup.categories.value"
             :disabled="setup.busy.value"
             :forecast="setup.selectedForecast.value"
+            :overlap-unavailable="setup.selectedTargetID.value === ''"
             :forecast-pending="setup.forecastPending.value"
             :list-name="setup.name.value"
             pending
@@ -195,7 +199,10 @@ async function submit(): Promise<void> {
             :disabled="setup.busy.value"
             :items="priorityItems"
             :overlap-pending="setup.forecastPending.value"
+            :overlap-unavailable="setup.selectedTargetID.value === ''"
+            :retryable="setup.selectedTargetID.value !== ''"
             @reorder="setup.setPriority"
+            @retry="setup.retryForecast"
           >
             <template #actions="{ item }">
               <button

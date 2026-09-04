@@ -407,6 +407,83 @@ describe('ListLibraryView', () => {
     wrapper.unmount()
   })
 
+  it('retries only category attachment after a list was already created', async () => {
+    const created = {
+      domains: ['local.example'],
+      id: 'custom-created-once',
+      title: 'Local list',
+    }
+    const catalogCreated = {
+      categories: ['video'],
+      custom: true,
+      domains: [{ include_subdomains: true, value: 'local.example' }],
+      id: created.id,
+      title: created.title,
+    }
+    const widened = categories.map((category) =>
+      category.id === 'video'
+        ? { ...category, services: ['youtube', created.id] }
+        : category,
+    )
+    let reads = 0
+    let attachments = 0
+    const { calls } = stubAPI({
+      'GET /v1/services': () => {
+        reads += 1
+        return catalogResponse(
+          reads > 1 ? widened : categories,
+          reads > 1 ? [...services, catalogCreated] : services,
+        )
+      },
+      'GET /v1/targets': () => json({ targets: [] }),
+      'POST /v1/services': () => json({ service: created }, 201),
+      'POST /v1/categories/video/update': () => {
+        attachments += 1
+        return attachments === 1
+          ? json({ error: 'controlled attachment failure' }, 503)
+          : json({ category: widened[1] })
+      },
+    })
+    const wrapper = mountLibrary()
+    await flushPromises()
+    await openCategory(wrapper, 'Video')
+    clickByText(wrapper.element as HTMLElement, 'New list')
+    await flushPromises()
+
+    const panel = dialog()
+    const title = panel.querySelector<HTMLInputElement>('#library-list-title')
+    const domains = panel.querySelector<HTMLTextAreaElement>(
+      '#library-list-domains',
+    )
+    expect(title).not.toBeNull()
+    expect(domains).not.toBeNull()
+    title!.value = created.title
+    title!.dispatchEvent(new Event('input', { bubbles: true }))
+    domains!.value = 'local.example'
+    domains!.dispatchEvent(new Event('input', { bubbles: true }))
+    clickByText(panel, 'Create')
+    await flushPromises()
+
+    expect(dialog().textContent).toContain(
+      'The list was created but was not added to the category.',
+    )
+    expect(
+      dialog().querySelector<HTMLInputElement>('#library-list-title'),
+    ).toBeNull()
+    clickByText(dialog(), 'Try adding again')
+    await flushPromises()
+
+    expect(
+      calls.filter((call) => call.key === 'POST /v1/services'),
+    ).toHaveLength(1)
+    expect(
+      calls.filter((call) => call.key === 'POST /v1/categories/video/update'),
+    ).toHaveLength(2)
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(wrapper.get('.lists__pane-body').text()).toContain(created.title)
+    wrapper.unmount()
+  })
+
   it('saves the library default order without writing any route', async () => {
     const saved = ['telegram', 'discord', 'youtube', 'steam']
     const { calls } = stubAPI({

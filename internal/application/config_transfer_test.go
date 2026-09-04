@@ -21,6 +21,13 @@ type transferFakeState struct {
 
 var transferFakeStates sync.Map // *publicationFakeStore -> *transferFakeState
 
+func transferSettings(priority ...string) TransferSettings {
+	return TransferSettings{
+		RefreshInterval: RefreshOff,
+		DefaultPriority: append([]string{}, priority...),
+	}
+}
+
 func (s *publicationFakeStore) ExportConfigTransfer(context.Context) (ConfigTransferDocument, error) {
 	state, _ := transferFakeStates.Load(s)
 	if state == nil {
@@ -226,6 +233,15 @@ func TestConfigTransferLegacyVersionHasNoOmissionMetadata(t *testing.T) {
 	if !errors.As(err, &transfer) || transfer.Code != "config_transfer_invalid_shape" || transfer.Path != "settings/default_priority" {
 		t.Fatalf("current transfer with null default priority = %#v", err)
 	}
+	currentPriorityMissing := []byte(`{"version":"config-transfer-v1.3","settings":{"refresh_interval":"off"},"omitted_custom_sources":0}`)
+	_, _, err = service.PreviewConfigTransfer(currentPriorityMissing, nil)
+	if !errors.As(err, &transfer) || transfer.Code != "config_transfer_invalid_shape" || transfer.Path != "settings/default_priority" {
+		t.Fatalf("current transfer without default priority = %#v", err)
+	}
+	previousWithoutPriority := []byte(`{"version":"config-transfer-v1.2","settings":{"refresh_interval":"off"},"omitted_custom_sources":0}`)
+	if _, _, err = service.PreviewConfigTransfer(previousWithoutPriority, nil); err != nil {
+		t.Fatalf("v1.2 transfer without default priority: %v", err)
+	}
 }
 
 func TestConfigTransferSizeBoundary(t *testing.T) {
@@ -284,7 +300,7 @@ func TestConfigTransferRejectsLocalCatalogDependency(t *testing.T) {
 	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x44}, 256)))
 	service.config.LocalServiceIDs = map[string]struct{}{"example": {}}
 	payload, err := json.Marshal(ConfigTransferDocument{
-		Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff},
+		Version: ConfigTransferVersion, Settings: transferSettings(),
 		Routes: []TransferRoute{{Ref: "route-1", Name: "Local", Services: []string{"example"}, ServiceDomains: map[string][]string{}, RefreshInterval: RefreshOff}},
 	})
 	if err != nil {
@@ -299,7 +315,7 @@ func TestConfigTransferRejectsLocalCatalogDependency(t *testing.T) {
 
 func TestConfigTransferBoundsPortableCollections(t *testing.T) {
 	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x45}, 256)))
-	base := ConfigTransferDocument{Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff}}
+	base := ConfigTransferDocument{Version: ConfigTransferVersion, Settings: transferSettings("example")}
 	cases := []struct {
 		name string
 		fill func(*ConfigTransferDocument)
@@ -329,11 +345,13 @@ func TestConfigTransferBoundsPortableCollections(t *testing.T) {
 func TestConfigTransferApplyAcceptsItsOwnDigestAfterAnotherPreview(t *testing.T) {
 	store := &publicationFakeStore{}
 	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x46}, 256)))
-	first, err := json.Marshal(ConfigTransferDocument{Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff}})
+	first, err := json.Marshal(ConfigTransferDocument{Version: ConfigTransferVersion, Settings: transferSettings("example")})
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := json.Marshal(ConfigTransferDocument{Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshDaily}})
+	secondSettings := transferSettings("example")
+	secondSettings.RefreshInterval = RefreshDaily
+	second, err := json.Marshal(ConfigTransferDocument{Version: ConfigTransferVersion, Settings: secondSettings})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,7 +390,7 @@ func TestConfigTransferValidatesEffectiveCompositionsBeforeApply(t *testing.T) {
 		"collection": {ID: "collection", Title: "Collection", Services: []string{"example"}},
 		"empty":      {ID: "empty", Title: "Empty"},
 	}
-	base := ConfigTransferDocument{Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff}}
+	base := ConfigTransferDocument{Version: ConfigTransferVersion, Settings: transferSettings("example")}
 	domains := make([]string, maxDomainsPerService+1)
 	for i := range domains {
 		domains[i] = fmt.Sprintf("entry-%d.example", i)
@@ -417,7 +435,7 @@ func TestConfigTransferNormalizesValidRouteDomainsBeforeApply(t *testing.T) {
 	entropy = append(entropy, bytes.Repeat([]byte{0x4b}, 32)...)
 	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(entropy))
 	payload, err := json.Marshal(ConfigTransferDocument{
-		Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff},
+		Version: ConfigTransferVersion, Settings: transferSettings("custom-service-1", "example"),
 		CustomServices:   []TransferCustomService{{Ref: "custom-service-1", Title: " Custom service ", Domains: []string{"CUSTOM.Example.COM."}}},
 		CustomCategories: []TransferCustomCategory{{Ref: "custom-category-1", Title: " Custom category "}},
 		Routes:           []TransferRoute{{Ref: "route-1", Name: " Route ", Services: []string{"example"}, Priority: []string{"example"}, ServiceDomains: map[string][]string{"example": {"WWW.Example.COM."}}, RefreshInterval: RefreshOff}},
@@ -457,7 +475,7 @@ func TestConfigTransferNormalizesValidRouteDomainsBeforeApply(t *testing.T) {
 
 func TestConfigTransferRejectsMalformedDocumentLocalReferences(t *testing.T) {
 	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x4a}, 256)))
-	base := ConfigTransferDocument{Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff}}
+	base := ConfigTransferDocument{Version: ConfigTransferVersion, Settings: transferSettings("example")}
 	for _, tc := range []struct {
 		name, path string
 		mutate     func(*ConfigTransferDocument)
@@ -502,7 +520,7 @@ func TestConfigTransferRejectsMalformedDocumentLocalReferences(t *testing.T) {
 func TestConfigTransferAllowsAnExplicitlyUnboundOutput(t *testing.T) {
 	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x4b}, 256)))
 	payload, err := json.Marshal(ConfigTransferDocument{
-		Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff},
+		Version: ConfigTransferVersion, Settings: transferSettings("example"),
 		Routes:  []TransferRoute{{Ref: "route-1", Name: "Route", Services: []string{"example"}, RefreshInterval: RefreshOff}},
 		Outputs: []TransferOutput{{Ref: "output-1", RouteRef: "route-1", TargetID: "keenetic"}},
 	})
@@ -516,7 +534,7 @@ func TestConfigTransferAllowsAnExplicitlyUnboundOutput(t *testing.T) {
 
 func TestConfigTransferRejectsDocumentsThatWouldCollideInStorage(t *testing.T) {
 	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x4c}, 256)))
-	base := ConfigTransferDocument{Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff}}
+	base := ConfigTransferDocument{Version: ConfigTransferVersion, Settings: transferSettings("example")}
 	for _, tc := range []struct {
 		name, code, path string
 		mutate           func(*ConfigTransferDocument)
@@ -550,8 +568,8 @@ func TestConfigTransferRejectsDocumentsThatWouldCollideInStorage(t *testing.T) {
 	}
 
 	for _, document := range []ConfigTransferDocument{
-		{Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff}, Tunings: []TransferTuning{{ServiceRef: "example", Includes: []string{"included.example"}}}},
-		{Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff}, Removals: []TransferRemoval{{Kind: RemovalService, ID: "example"}}},
+		{Version: ConfigTransferVersion, Settings: transferSettings("example"), Tunings: []TransferTuning{{ServiceRef: "example", Includes: []string{"included.example"}}}},
+		{Version: ConfigTransferVersion, Settings: transferSettings(), Removals: []TransferRemoval{{Kind: RemovalService, ID: "example"}}},
 	} {
 		payload, err := json.Marshal(document)
 		if err != nil {

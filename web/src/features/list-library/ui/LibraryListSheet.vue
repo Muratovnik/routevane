@@ -16,6 +16,7 @@ import RvTextarea from '@/shared/ui/RvTextarea.vue'
 const props = defineProps<{
   busy: boolean
   categoryTitle: string | null
+  createdPendingAttachment?: boolean
   error?: string
   existing: ChoiceOption[]
   open: boolean
@@ -25,6 +26,7 @@ const emit = defineEmits<{
   add: [serviceID: string]
   close: []
   create: [draft: { domains: string[]; title: string }]
+  'retry-attachment': []
 }>()
 
 const { t } = useLocale()
@@ -115,7 +117,7 @@ function submit(): void {
   >
     <form class="library-list-sheet" @submit.prevent="submit">
       <RvSegmented
-        v-if="categoryTitle !== null"
+        v-if="categoryTitle !== null && !createdPendingAttachment"
         v-model="modeValue"
         :disabled="busy"
         :label="t('lists.list.flow.label')"
@@ -123,7 +125,7 @@ function submit(): void {
         :options="modes"
       />
 
-      <template v-if="mode === 'create'">
+      <template v-if="mode === 'create' && !createdPendingAttachment">
         <RvField
           :error="titleError"
           input-id="library-list-title"
@@ -159,7 +161,7 @@ function submit(): void {
         </RvField>
       </template>
 
-      <template v-else>
+      <template v-else-if="mode === 'existing' && !createdPendingAttachment">
         <RvCombobox
           v-if="existing.length > 0"
           v-model="picked"
@@ -192,10 +194,14 @@ function submit(): void {
         :loading="busy"
         type="button"
         variant="primary"
-        @click="submit"
+        @click="createdPendingAttachment ? emit('retry-attachment') : submit()"
       >
         {{
-          mode === 'existing' ? t('lists.category.add') : t('lists.list.create')
+          createdPendingAttachment
+            ? t('lists.list.attach.retry')
+            : mode === 'existing'
+              ? t('lists.category.add')
+              : t('lists.list.create')
         }}
       </RvButton>
     </template>

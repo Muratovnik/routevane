@@ -152,6 +152,7 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
   expect(rawTransfer).not.toContain(customSourceID)
   const portable = JSON.parse(rawTransfer) as {
     omitted_custom_sources: number
+    settings: { default_priority: string[] }
     tunings: {
       custom_sources: unknown[]
       disabled_sources: string[]
@@ -163,13 +164,14 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
     (tuning) => tuning.service_ref === 'youtube',
   )
   expect(portable.omitted_custom_sources).toBe(1)
-  expect(portable.version).toBe('config-transfer-v1.2')
+  expect(portable.version).toBe('config-transfer-v1.3')
+  expect(portable.settings.default_priority).toContain('youtube')
   expect(youtubeTuning?.custom_sources).toEqual([])
   expect(youtubeTuning?.disabled_sources).toEqual(['dns-playback'])
 
   const topDuplicate = rawTransfer.replace(
     '{',
-    '{"version":"config-transfer-v1.2",',
+    '{"version":"config-transfer-v1.3",',
   )
   const nestedDuplicate = rawTransfer.replace(
     '"settings":{',
@@ -289,6 +291,12 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
   await expect(
     page.getByRole('link', { exact: true, name: 'Transferred route' }),
   ).toBeVisible()
+  const importedCatalog = (await (
+    await page.request.get(`${destinationOrigin}/v1/services`)
+  ).json()) as { default_priority: string[] }
+  expect(importedCatalog.default_priority).toEqual(
+    portable.settings.default_priority,
+  )
   const contentsResponse = await page.request.get(
     `${destinationOrigin}/v1/services/youtube/contents`,
   )

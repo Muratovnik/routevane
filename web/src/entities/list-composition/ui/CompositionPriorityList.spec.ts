@@ -42,6 +42,7 @@ describe('CompositionPriorityList', () => {
           { id: 'alpha', overlaps: ['Beta'], title: 'Alpha' },
           { id: 'beta', overlaps: null, title: 'Beta' },
         ],
+        retryable: true,
         title: 'Default priority',
       },
       global: { stubs: { RvIcon: true } },
@@ -51,8 +52,18 @@ describe('CompositionPriorityList', () => {
     expect(wrapper.text()).toContain('Library-wide order')
     expect(wrapper.text()).toContain('Overlap: Beta')
     expect(wrapper.text()).toContain('Overlaps unknown')
+    await wrapper.get('button').trigger('click')
+    expect(wrapper.emitted('retry')).toHaveLength(1)
     await wrapper.setProps({ overlapPending: true })
     expect(wrapper.text()).toContain('Calculating overlaps')
+    await wrapper.setProps({
+      overlapPending: false,
+      overlapUnavailable: true,
+    })
+    expect(wrapper.text()).toContain('Choose a format to check overlaps')
+    expect(
+      wrapper.findAll('button').some((button) => button.text() === 'Retry'),
+    ).toBe(false)
     wrapper.unmount()
   })
 

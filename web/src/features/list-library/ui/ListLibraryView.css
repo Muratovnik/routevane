@@ -214,16 +214,16 @@
   transform: rotate(-90deg);
 }
 
-.lists__open:hover {
-  color: var(--rv-color-ink);
-  background: var(--rv-color-surface-hover);
-}
-
 .lists__category:focus-visible,
 .lists__open:focus-visible,
 .lists__back:focus-visible {
   outline: var(--rv-border-mark) solid var(--rv-color-focus);
   outline-offset: var(--rv-focus-offset);
+}
+
+.lists__open:hover:not(:disabled) {
+  color: var(--rv-color-ink);
+  background: var(--rv-color-surface-hover);
 }
 
 .lists__category:hover:not(:disabled) {

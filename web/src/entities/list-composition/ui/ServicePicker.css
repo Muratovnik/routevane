@@ -146,7 +146,7 @@
   background: var(--rv-color-surface-muted);
 }
 
-.picker__row:hover {
+.picker:not(.picker--disabled) .picker__row:hover {
   background: var(--rv-color-surface-hover);
 }
 

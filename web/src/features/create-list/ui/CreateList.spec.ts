@@ -83,6 +83,7 @@ function unobserved(): Response {
 }
 
 type Network = {
+  catalog?: () => Promise<Response> | Response
   preview?: () => Promise<Response>
   refresh?: () => Promise<Response>
 }
@@ -90,7 +91,8 @@ type Network = {
 function stubNetwork(overrides: Network = {}) {
   const fetchMock = vi.fn((input: unknown) => {
     const path = String(input)
-    if (path === '/v1/services') return Promise.resolve(json(catalogPayload))
+    if (path === '/v1/services')
+      return Promise.resolve(overrides.catalog?.() ?? json(catalogPayload))
     if (path === '/v1/targets') return Promise.resolve(json(targetsPayload))
     if (path === '/v1/deployments/targets')
       return Promise.resolve(json({ targets: [] }))
@@ -249,6 +251,9 @@ describe('CreateList forecast', () => {
     expect(
       wrapper.findAll('.priority-list__item').map((row) => row.text()),
     ).toEqual(['Limit fixture', 'Discord'])
+    expect(wrapper.text()).toContain('Choose a format to check overlaps')
+    expect(wrapper.text()).not.toContain('Overlaps unknown')
+    expect(buttonWithText(wrapper, 'Retry')).toBeUndefined()
     expect(wrapper.find('.picker__row .priority-list__handle').exists()).toBe(
       false,
     )
@@ -265,6 +270,41 @@ describe('CreateList forecast', () => {
     expect(
       wrapper.findAll('.priority-list__item').map((row) => row.text()),
     ).toEqual(['Discord'])
+    wrapper.unmount()
+  })
+
+  it('adopts a reread library order until the route order is edited', async () => {
+    let priority = ['limit-fixture', 'discord']
+    stubNetwork({
+      catalog: () => json({ ...catalogPayload, default_priority: priority }),
+    })
+    const wrapper = mountComposer()
+    await flushPromises()
+    await wrapper.get('input[value="discord"]').setValue(true)
+    await wrapper.get('input[value="limit-fixture"]').setValue(true)
+    await flushPromises()
+    expect(
+      wrapper.findAll('.priority-list__item').map((row) => row.text()),
+    ).toEqual(['Limit fixture', 'Discord'])
+
+    priority = ['discord', 'limit-fixture']
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    expect(
+      wrapper.findAll('.priority-list__item').map((row) => row.text()),
+    ).toEqual(['Discord', 'Limit fixture'])
+
+    await wrapper.get('.priority-list__handle').trigger('keydown', {
+      key: 'ArrowDown',
+    })
+    expect(
+      wrapper.findAll('.priority-list__item').map((row) => row.text()),
+    ).toEqual(['Limit fixture', 'Discord'])
+    window.dispatchEvent(new Event('focus'))
+    await flushPromises()
+    expect(
+      wrapper.findAll('.priority-list__item').map((row) => row.text()),
+    ).toEqual(['Limit fixture', 'Discord'])
     wrapper.unmount()
   })
 

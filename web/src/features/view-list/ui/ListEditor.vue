@@ -7,6 +7,7 @@ import {
   normalizeComposition,
   overlapServiceIDs,
   resolvedComposition,
+  serviceIdentityLabels,
   toggleCompositionService,
 } from '@/entities/list-composition/model/composition'
 import { useCompositionForecast } from '@/entities/list-composition/model/forecast'
@@ -99,6 +100,8 @@ const firstForecast = computed(() => {
   return first === undefined ? null : forecast.forTarget(first.targetID)
 })
 
+const serviceLabels = computed(() => serviceIdentityLabels(props.services))
+
 const serviceRows = computed(() =>
   resolved.value.map((id) => ({
     id,
@@ -107,16 +110,14 @@ const serviceRows = computed(() =>
         ? undefined
         : tc('create.forecast.rules', weights.value.get(id) ?? 0),
     overlaps: overlapNames(id),
-    title: props.services.find((service) => service.id === id)?.title ?? id,
+    title: serviceLabels.value.get(id) ?? id,
   })),
 )
 
 function overlapNames(serviceID: string): string[] | null {
   const ids = overlapServiceIDs(firstForecast.value, serviceID)
   if (ids === null) return null
-  return ids.map(
-    (id) => props.services.find((service) => service.id === id)?.title ?? id,
-  )
+  return ids.map((id) => serviceLabels.value.get(id) ?? id)
 }
 
 // A format that would refuse this draft says so beside the save control. It
@@ -171,6 +172,11 @@ function setPriority(ids: string[]): void {
   )
 }
 
+function retryForecast(): void {
+  if (forecastTargets.value.length === 0) return
+  forecast.retry(draftComposition.value, resolved.value, forecastTargets.value)
+}
+
 function submit(): void {
   if (!canSave.value) return
   emit('save', draftName.value.trim(), draftComposition.value)
@@ -210,6 +216,8 @@ function reset(): void {
           :categories="props.categories"
           :disabled="props.busy"
           :forecast="firstForecast"
+          :overlap-unavailable="forecastTargets.length === 0"
+          :overlap-unavailable-label="t('list.overlap.unavailable')"
           :forecast-pending="forecast.pending.value"
           :list-name="draftName"
           :pending="dirty"
@@ -220,7 +228,11 @@ function reset(): void {
           :disabled="props.busy"
           :items="serviceRows"
           :overlap-pending="forecast.pending.value"
+          :overlap-unavailable="forecastTargets.length === 0"
+          :overlap-unavailable-label="t('list.overlap.unavailable')"
+          :retryable="forecastTargets.length > 0"
           @reorder="setPriority"
+          @retry="retryForecast"
         >
           <template #actions="{ item: row }">
             <button

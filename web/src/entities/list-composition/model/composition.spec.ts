@@ -8,6 +8,7 @@ import {
   moveCompositionPriority,
   overlapServiceIDs,
   resolvedComposition,
+  serviceIdentityLabels,
   setCompositionCategoryReference,
   toggleCompositionCategory,
   toggleCompositionService,
@@ -285,6 +286,18 @@ describe('composition identity', () => {
         'discord',
       ),
     ).toEqual([])
+  })
+
+  it('adds a stable disambiguator only when list titles collide', () => {
+    const labels = serviceIdentityLabels([
+      { categories: [], id: 'custom-alpha', title: 'Shared' },
+      { categories: [], id: 'custom-beta', title: 'Shared' },
+      { categories: [], id: 'unique', title: 'Unique' },
+    ])
+
+    expect(labels.get('custom-alpha')).toBe('Shared · custom-a…')
+    expect(labels.get('custom-beta')).toBe('Shared · custom-b…')
+    expect(labels.get('unique')).toBe('Unique')
   })
 
   // Components hand these helpers reactive state, and the structured-clone

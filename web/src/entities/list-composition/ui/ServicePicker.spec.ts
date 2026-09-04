@@ -172,6 +172,42 @@ describe('ServicePicker', () => {
     wrapper.unmount()
   })
 
+  it('disambiguates repeated list titles in rows and overlap tags', () => {
+    const repeated = [
+      { categories: [], id: 'custom-alpha', title: 'Shared' },
+      { categories: [], id: 'custom-beta', title: 'Shared' },
+    ]
+    const wrapper = mountPicker({
+      forecast: {
+        fits: true,
+        maximumRules: 10,
+        overlaps: {
+          items: [],
+          summary: [
+            { serviceID: 'custom-alpha', overlaps: ['custom-beta'] },
+            { serviceID: 'custom-beta', overlaps: ['custom-alpha'] },
+          ],
+          truncated: false,
+        },
+        perService: [],
+        projectedRules: 2,
+        targetID: 'target',
+      },
+      modelValue: {
+        ...emptyComposition,
+        priority: ['custom-alpha', 'custom-beta'],
+        services: ['custom-alpha', 'custom-beta'],
+      },
+      services: repeated,
+    })
+
+    expect(wrapper.text()).toContain('Shared · custom-a…')
+    expect(wrapper.text()).toContain('Shared · custom-b…')
+    expect(wrapper.text()).toContain('Overlap: Shared · custom-a…')
+    expect(wrapper.text()).toContain('Overlap: Shared · custom-b…')
+    wrapper.unmount()
+  })
+
   /**
    * A list in no category is not a second surface. It is the last row of the
    * same column, computed here, and it carries no membership controls because

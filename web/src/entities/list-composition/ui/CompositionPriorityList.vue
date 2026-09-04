@@ -3,6 +3,7 @@ import { useSortable } from '@vueuse/integrations/useSortable'
 import { ref, useId, useTemplateRef, watch } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
+import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 
 export type PriorityItem = {
@@ -17,10 +18,13 @@ const props = defineProps<{
   description?: string
   items: PriorityItem[]
   overlapPending?: boolean
+  overlapUnavailable?: boolean
+  overlapUnavailableLabel?: string
+  retryable?: boolean
   title?: string
 }>()
 
-const emit = defineEmits<{ reorder: [ids: string[]] }>()
+const emit = defineEmits<{ reorder: [ids: string[]]; retry: [] }>()
 const { t, tc } = useLocale()
 const list = useTemplateRef<HTMLElement>('list')
 const ordered = ref<string[]>([])
@@ -71,12 +75,23 @@ function item(id: string): PriorityItem | undefined {
   return props.items.find((entry) => entry.id === id)
 }
 
-function overlapState(): 'hidden' | 'pending' | 'unknown' {
+function overlapState(): 'hidden' | 'pending' | 'unavailable' | 'unknown' {
   if (props.items.length < 2) return 'hidden'
+  if (props.overlapUnavailable) return 'unavailable'
   if (props.overlapPending) return 'pending'
   return props.items.some((entry) => entry.overlaps === null)
     ? 'unknown'
     : 'hidden'
+}
+
+function overlapMessage(): string {
+  const state = overlapState()
+  if (state === 'pending') return t('servicePicker.overlap.pending')
+  if (state === 'unavailable')
+    return (
+      props.overlapUnavailableLabel ?? t('servicePicker.overlap.unavailable')
+    )
+  return t('servicePicker.overlap.unknown')
 }
 </script>
 
@@ -92,19 +107,23 @@ function overlapState(): 'hidden' | 'pending' | 'unknown' {
       <p :id="baseId + '-note'">
         {{ description ?? t('list.priority.body') }}
       </p>
-      <p
+      <div
         v-if="overlapState() !== 'hidden'"
         class="priority-list__overlap-state"
-        role="status"
       >
-        {{
-          t(
-            overlapState() === 'pending'
-              ? 'servicePicker.overlap.pending'
-              : 'servicePicker.overlap.unknown',
-          )
-        }}
-      </p>
+        <p role="status">
+          {{ overlapMessage() }}
+        </p>
+        <RvButton
+          v-if="overlapState() === 'unknown' && retryable"
+          :disabled="disabled"
+          size="compact"
+          variant="quiet"
+          @click="emit('retry')"
+        >
+          {{ t('action.retry') }}
+        </RvButton>
+      </div>
     </header>
     <p v-if="ordered.length === 0" class="priority-list__empty">
       {{ t('list.priority.empty') }}
@@ -201,6 +220,11 @@ function overlapState(): 'hidden' | 'pending' | 'unknown' {
 }
 
 .priority-list__overlap-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-2);
+  align-items: center;
+  justify-content: space-between;
   color: var(--rv-color-ink-tertiary);
 }
 

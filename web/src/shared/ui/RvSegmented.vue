@@ -113,7 +113,12 @@ function select(value: string, event: Event): void {
   cursor: pointer;
 }
 
-.rv-segmented__option:hover {
+.rv-segmented:disabled .rv-segmented__option {
+  opacity: var(--rv-disabled-opacity);
+  cursor: not-allowed;
+}
+
+.rv-segmented:not(:disabled) .rv-segmented__option:hover {
   color: var(--rv-color-ink);
 }
 

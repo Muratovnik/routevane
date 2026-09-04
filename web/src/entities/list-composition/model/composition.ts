@@ -1,6 +1,6 @@
 import { toRaw } from 'vue'
 
-import type { CategoryDetail } from '@/shared/api/catalog'
+import type { CategoryDetail, ServiceDetail } from '@/shared/api/catalog'
 import type { ListComposition, TargetForecast } from '@/shared/api/lists'
 
 export type CategorySelectionState = 'none' | 'partial' | 'all'
@@ -196,6 +196,47 @@ export function overlapServiceIDs(
   return (
     summary.find((entry) => entry.serviceID === serviceID)?.overlaps ?? null
   )
+}
+
+/**
+ * Titles are operator-owned and therefore are not identifiers. Keep the normal
+ * label terse, but add the shortest stable id prefix when two lists share the
+ * same title so an overlap tag can still name the row it refers to.
+ */
+export function serviceIdentityLabels(
+  services: ServiceDetail[],
+): Map<string, string> {
+  const byTitle = new Map<string, ServiceDetail[]>()
+  for (const service of services) {
+    const peers = byTitle.get(service.title) ?? []
+    peers.push(service)
+    byTitle.set(service.title, peers)
+  }
+
+  const labels = new Map<string, string>()
+  for (const service of services) {
+    const peers = byTitle.get(service.title) ?? []
+    if (peers.length < 2) {
+      labels.set(service.id, service.title)
+      continue
+    }
+    let length = 4
+    while (
+      length < service.id.length &&
+      peers.some(
+        (peer) =>
+          peer.id !== service.id &&
+          peer.id.slice(0, length) === service.id.slice(0, length),
+      )
+    )
+      length += 1
+    const prefix = service.id.slice(0, length)
+    labels.set(
+      service.id,
+      `${service.title} · ${prefix}${length < service.id.length ? '…' : ''}`,
+    )
+  }
+  return labels
 }
 
 /**

@@ -91,11 +91,24 @@ type ConfigTransferPreview struct {
 
 type TransferSettings struct {
 	RefreshInterval RefreshInterval `json:"refresh_interval"`
-	// DefaultPriority is the portable library-wide order. It is omitted by
-	// older documents and then falls back to canonical catalog order on import.
+	// DefaultPriority is the portable library-wide order. It is required by
+	// v1.3; older documents omit it and fall back to canonical catalog order.
 	// Custom-service ids are rewritten to document-local refs during export.
-	DefaultPriority []string `json:"default_priority,omitempty"`
+	DefaultPriority []string `json:"default_priority"`
 }
+
+func (s TransferSettings) MarshalJSON() ([]byte, error) {
+	type wire struct {
+		RefreshInterval RefreshInterval `json:"refresh_interval"`
+		DefaultPriority []string        `json:"default_priority"`
+	}
+	priority := append([]string{}, s.DefaultPriority...)
+	return json.Marshal(wire{
+		RefreshInterval: s.RefreshInterval,
+		DefaultPriority: priority,
+	})
+}
+
 type TransferCustomService struct {
 	Ref, Title string
 	Domains    []string
@@ -593,13 +606,16 @@ func (s *PublicationService) validateTransfer(payload []byte, validateDevice fun
 	}
 	if version == configTransferPriorityVersion {
 		var settings map[string]json.RawMessage
-		if raw := top["settings"]; raw != nil {
-			if err := json.Unmarshal(raw, &settings); err != nil || settings == nil {
-				return ConfigTransferDocument{}, transferError("invalid_json", "settings")
-			}
-			if value, present := settings["default_priority"]; present && strings.TrimSpace(string(value)) == "null" {
-				return ConfigTransferDocument{}, transferError("invalid_shape", "settings/default_priority")
-			}
+		raw := top["settings"]
+		if raw == nil {
+			return ConfigTransferDocument{}, transferError("invalid_shape", "settings")
+		}
+		if err := json.Unmarshal(raw, &settings); err != nil || settings == nil {
+			return ConfigTransferDocument{}, transferError("invalid_json", "settings")
+		}
+		value, present := settings["default_priority"]
+		if !present || strings.TrimSpace(string(value)) == "null" {
+			return ConfigTransferDocument{}, transferError("invalid_shape", "settings/default_priority")
 		}
 	}
 	var doc ConfigTransferDocument

@@ -261,6 +261,8 @@ export function useCreateList() {
    */
   function registerCatalog(next: Catalog): void {
     catalog.value = next
+    defaultPriority.value =
+      next.defaultPriority ?? next.serviceDetails.map((service) => service.id)
   }
 
   useFreshCatalog(registerCatalog, () => busy.value)

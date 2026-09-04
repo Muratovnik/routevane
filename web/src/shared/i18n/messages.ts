@@ -280,6 +280,8 @@ const ru: Dictionary = {
   'servicePicker.rules.pending': 'Считаем…',
   'servicePicker.rules.unknown': 'Нет прогноза',
   'servicePicker.overlap.pending': 'Считаем пересечения…',
+  'servicePicker.overlap.unavailable':
+    'Выберите формат, чтобы проверить пересечения',
   'servicePicker.overlap.unknown': 'Пересечения неизвестны',
   'servicePicker.overlap.none': 'Нет',
   'servicePicker.overlap.tag': 'Пересечение: {list}',
@@ -329,7 +331,8 @@ const ru: Dictionary = {
   'lists.list.flow.existing': 'Готовый список',
   'lists.list.create': 'Создать',
   'lists.list.attach.failed':
-    'Список создан, но добавить его в категорию не удалось. Выберите его как готовый и повторите.',
+    'Список создан, но не добавлен в категорию. Повторите добавление.',
+  'lists.list.attach.retry': 'Повторить добавление',
   'lists.list.detach': 'Убрать из категории',
   'lists.list.remove': 'Удалить список',
   'lists.list.remove.body': 'Список «{list}» и его записи будут удалены.',
@@ -339,6 +342,8 @@ const ru: Dictionary = {
     'Он входит в маршруты: {routes}. Уберите его оттуда и повторите.',
   'lists.priority.action': 'Порядок по умолчанию',
   'lists.priority.title': 'Порядок списков по умолчанию',
+  'lists.priority.body':
+    'Этот порядок получают новые маршруты. Уже сохранённые маршруты не изменятся.',
   'lists.priority.save': 'Сохранить порядок',
   'lists.priority.failed': 'Порядок не сохранён',
   'lists.priority.failed.body':
@@ -632,6 +637,7 @@ const ru: Dictionary = {
     other: '{count} списка',
   },
   'list.priority.empty': 'Выберите списки в таблице.',
+  'list.overlap.unavailable': 'Добавьте выход, чтобы проверить пересечения',
   'list.priority.move.aria':
     'Изменить приоритет списка {list}, позиция {position}',
   'list.forecast.overflow': '{target}: ≈ {count} из {max} — не вместится',
@@ -1117,6 +1123,7 @@ const en: Dictionary = {
   'servicePicker.rules.pending': 'Calculating…',
   'servicePicker.rules.unknown': 'No forecast',
   'servicePicker.overlap.pending': 'Calculating overlaps…',
+  'servicePicker.overlap.unavailable': 'Choose a format to check overlaps',
   'servicePicker.overlap.unknown': 'Overlaps unknown',
   'servicePicker.overlap.none': 'None',
   'servicePicker.overlap.tag': 'Overlap: {list}',
@@ -1166,7 +1173,8 @@ const en: Dictionary = {
   'lists.list.flow.existing': 'Existing list',
   'lists.list.create': 'Create',
   'lists.list.attach.failed':
-    'The list was created but could not be added to the category. Choose it as an existing list and retry.',
+    'The list was created but was not added to the category. Try adding it again.',
+  'lists.list.attach.retry': 'Try adding again',
   'lists.list.detach': 'Remove from the category',
   'lists.list.remove': 'Delete the list',
   'lists.list.remove.body': 'List “{list}” and its entries are removed.',
@@ -1176,6 +1184,8 @@ const en: Dictionary = {
     'It is part of these routes: {routes}. Remove it there and try again.',
   'lists.priority.action': 'Default order',
   'lists.priority.title': 'Default list order',
+  'lists.priority.body':
+    'New routes start with this order. Existing saved routes do not change.',
   'lists.priority.save': 'Save order',
   'lists.priority.failed': 'Order not saved',
   'lists.priority.failed.body':
@@ -1455,6 +1465,7 @@ const en: Dictionary = {
     other: '{count} lists',
   },
   'list.priority.empty': 'Choose lists in the table.',
+  'list.overlap.unavailable': 'Add an output to check overlaps',
   'list.priority.move.aria':
     'Change priority of list {list}, position {position}',
   'list.forecast.overflow': '{target}: ≈ {count} of {max} — will not fit',

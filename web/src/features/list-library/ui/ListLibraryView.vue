@@ -65,6 +65,7 @@ const categoryTitleTouched = ref(false)
 const pendingCategoryID = ref('')
 const listSheetOpen = ref(false)
 const listSheetError = ref('')
+const pendingCreatedServiceID = ref('')
 const removingCategory = ref(false)
 const categoryLists = ref<CategoryLists>('detach')
 const removingService = ref<ServiceDetail | null>(null)
@@ -252,6 +253,7 @@ function openService(serviceID: string): void {
 function startCreateService(): void {
   if (library.stale.value) return
   listSheetError.value = ''
+  pendingCreatedServiceID.value = ''
   listSheetOpen.value = true
 }
 
@@ -291,6 +293,11 @@ function closeCategoryRemoval(): void {
   if (library.busy.value) return
   removingCategory.value = false
   categorySubject.value = null
+}
+
+function closeServiceRemoval(): void {
+  if (library.busy.value) return
+  removingService.value = null
 }
 
 function committed(status: string): boolean {
@@ -387,6 +394,7 @@ async function submitPickedList(serviceID: string): Promise<void> {
   if (category === null || serviceID === '') return
   const result = await library.addList(category, serviceID)
   if (committed(result.status)) {
+    pendingCreatedServiceID.value = ''
     listSheetOpen.value = false
     listSheetError.value = ''
     return
@@ -436,10 +444,17 @@ async function createService(draft: {
   }
   const category = activeRow.value?.category ?? null
   if (category === null) {
+    pendingCreatedServiceID.value = ''
     listSheetOpen.value = false
     return
   }
+  pendingCreatedServiceID.value = created.value.id
   await submitPickedList(created.value.id)
+}
+
+async function retryCreatedServiceAttachment(): Promise<void> {
+  if (pendingCreatedServiceID.value === '') return
+  await submitPickedList(pendingCreatedServiceID.value)
 }
 
 function onServiceUpdated(detail: ServiceDetail): void {
@@ -450,6 +465,7 @@ function closeListSheet(): void {
   if (library.busy.value) return
   listSheetOpen.value = false
   listSheetError.value = ''
+  pendingCreatedServiceID.value = ''
 }
 
 function openPriority(): void {
@@ -761,12 +777,14 @@ async function submitPriority(): Promise<void> {
     <LibraryListSheet
       :busy="library.busy.value"
       :category-title="activeRow?.category?.title ?? null"
+      :created-pending-attachment="pendingCreatedServiceID !== ''"
       :error="listSheetError"
       :existing="pickableLists"
       :open="listSheetOpen"
       @add="submitPickedList"
       @close="closeListSheet"
       @create="createService"
+      @retry-attachment="retryCreatedServiceAttachment"
     />
 
     <!-- Deleting a category asks the one question it has to ask: what becomes
@@ -830,7 +848,7 @@ async function submitPriority(): Promise<void> {
       :open="removingService !== null"
       :title="t('lists.list.remove')"
       variant="panel"
-      @update:open="removingService = null"
+      @update:open="$event === false && closeServiceRemoval()"
     >
       <div class="lists__form">
         <p class="lists__form-note">
@@ -862,7 +880,7 @@ async function submitPriority(): Promise<void> {
         <RvButton
           :disabled="library.busy.value"
           variant="quiet"
-          @click="removingService = null"
+          @click="closeServiceRemoval"
         >
           {{ t('action.cancel') }}
         </RvButton>
@@ -897,8 +915,10 @@ async function submitPriority(): Promise<void> {
     >
       <div class="lists__priority">
         <CompositionPriorityList
+          :description="t('lists.priority.body')"
           :disabled="library.busy.value"
           :items="priorityItems"
+          :title="t('lists.priority.title')"
           @reorder="reorderPriority"
         />
         <RvStateNotice

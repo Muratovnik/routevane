@@ -4,6 +4,7 @@ import { computed, ref, useId } from 'vue'
 import {
   overlapServiceIDs,
   resolvedComposition,
+  serviceIdentityLabels,
   serviceIncluded,
   setCompositionCategoryReference,
   toggleCompositionService,
@@ -26,6 +27,8 @@ const props = defineProps<{
   pending?: boolean
   forecast?: TargetForecast | null
   forecastPending?: boolean
+  overlapUnavailable?: boolean
+  overlapUnavailableLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -42,6 +45,7 @@ const uncategorizedID = 'rv:uncategorized'
 const servicesByID = computed(
   () => new Map(props.services.map((service) => [service.id, service])),
 )
+const serviceLabels = computed(() => serviceIdentityLabels(props.services))
 const resolved = computed(() =>
   resolvedComposition(props.modelValue, props.categories),
 )
@@ -200,12 +204,16 @@ function overlapTitles(serviceID: string): string[] | null {
   if (ids === null) return null
   return ids
     .filter((id) => resolvedSet.value.has(id))
-    .map((id) => servicesByID.value.get(id)?.title ?? id)
+    .map((id) => serviceLabels.value.get(id) ?? id)
+}
+
+function serviceLabel(serviceID: string): string {
+  return serviceLabels.value.get(serviceID) ?? serviceID
 }
 </script>
 
 <template>
-  <div class="picker">
+  <div class="picker" :class="{ 'picker--disabled': disabled }">
     <div class="picker__toolbar">
       <label class="picker__search">
         <RvIcon name="search" />
@@ -295,7 +303,9 @@ function overlapTitles(serviceID: string): string[] | null {
             <td>
               <input
                 :aria-label="
-                  t('servicePicker.exclude.aria', { list: service.title })
+                  t('servicePicker.exclude.aria', {
+                    list: serviceLabel(service.id),
+                  })
                 "
                 checked
                 class="picker__checkbox"
@@ -306,7 +316,9 @@ function overlapTitles(serviceID: string): string[] | null {
               />
             </td>
             <th scope="row">
-              <strong class="picker__name">{{ service.title }}</strong>
+              <strong class="picker__name">{{
+                serviceLabel(service.id)
+              }}</strong>
               <span class="picker__mobile-meta">{{
                 categoryNames(service)
               }}</span>
@@ -335,11 +347,15 @@ function overlapTitles(serviceID: string): string[] | null {
                 class="picker__unknown"
               >
                 {{
-                  t(
-                    forecastPending
-                      ? 'servicePicker.overlap.pending'
-                      : 'servicePicker.overlap.unknown',
-                  )
+                  overlapUnavailable && overlapUnavailableLabel
+                    ? overlapUnavailableLabel
+                    : t(
+                        overlapUnavailable
+                          ? 'servicePicker.overlap.unavailable'
+                          : forecastPending
+                            ? 'servicePicker.overlap.pending'
+                            : 'servicePicker.overlap.unknown',
+                      )
                 }}
               </span>
               <span
@@ -352,7 +368,9 @@ function overlapTitles(serviceID: string): string[] | null {
             <td>
               <button
                 :aria-label="
-                  t('serviceDetail.open.aria', { service: service.title })
+                  t('serviceDetail.open.aria', {
+                    service: serviceLabel(service.id),
+                  })
                 "
                 class="picker__open"
                 :disabled="disabled"
@@ -379,7 +397,9 @@ function overlapTitles(serviceID: string): string[] | null {
             <td>
               <input
                 :aria-label="
-                  t('servicePicker.include.aria', { list: service.title })
+                  t('servicePicker.include.aria', {
+                    list: serviceLabel(service.id),
+                  })
                 "
                 class="picker__checkbox"
                 :disabled="disabled"
@@ -389,7 +409,9 @@ function overlapTitles(serviceID: string): string[] | null {
               />
             </td>
             <th scope="row">
-              <strong class="picker__name">{{ service.title }}</strong>
+              <strong class="picker__name">{{
+                serviceLabel(service.id)
+              }}</strong>
               <span class="picker__mobile-meta">{{
                 categoryNames(service)
               }}</span>
@@ -402,7 +424,9 @@ function overlapTitles(serviceID: string): string[] | null {
             <td>
               <button
                 :aria-label="
-                  t('serviceDetail.open.aria', { service: service.title })
+                  t('serviceDetail.open.aria', {
+                    service: serviceLabel(service.id),
+                  })
                 "
                 class="picker__open"
                 :disabled="disabled"

@@ -460,9 +460,8 @@ test('the library starts empty and shelves the route the composer creates and pu
   await expect(page.locator('#editor-name')).toHaveValue('Discord, YouTube')
   const listPage = page.locator('main')
 
-  // The route states its own composition first. Each list is a row with the way
-  // out beside it, and its card opens from that row rather than from a catalog
-  // the operator has to search through again.
+  // The editor keeps the same table-and-rail composition as creation. Selected
+  // lists stay grouped first, while the rail owns ordering and removal.
   const compositionRow = listPage
     .locator('.priority-list__item')
     .filter({ hasText: 'Discord' })
@@ -474,7 +473,14 @@ test('the library starts empty and shelves the route the composer creates and pu
   await expect(
     listPage.getByRole('button', { name: 'Remove YouTube from the route' }),
   ).toBeVisible()
-  await compositionRow
+  const editorTable = listPage.locator('.picker__table')
+  await expect(editorTable).toBeVisible()
+  await expect(editorTable.locator('.picker__group-row').first()).toContainText(
+    'Selected for the route',
+  )
+  await editorTable
+    .locator('.picker__row')
+    .filter({ hasText: 'Discord' })
     .getByRole('button', { name: 'Open the contents of list Discord' })
     .click()
   const serviceDialog = page.getByRole('dialog', {
@@ -489,58 +495,25 @@ test('the library starts empty and shelves the route the composer creates and pu
   await assertNoOverflow(page, 'service-detail')
   await serviceDialog.getByRole('button', { name: 'Close' }).click()
 
-  // The catalog is a way to add, and it opens on request rather than sitting
-  // under every route as a second copy of the composer.
-  await expect(listPage.locator('.picker__workspace')).toBeHidden()
-  await listPage.getByRole('button', { name: 'Add lists' }).click()
-  const pickerWorkspace = listPage.locator('.picker__workspace')
-  await expect(pickerWorkspace).toBeVisible()
-
-  // A list no category claims is the last row of the same column, never a
-  // second surface beside it.
-  const unclaimed = listPage.locator('.picker__group').last()
-  await expect(unclaimed).toContainText('Uncategorized')
-  await expect(unclaimed).toContainText('Limit fixture')
-  await expect(listPage.getByText('Other services')).toHaveCount(0)
-  const membersButton = listPage.getByRole('button', {
-    name: 'Show the contents of category Communication',
-  })
-  await expect(membersButton).toHaveText('')
-  await expect(membersButton).toHaveAttribute('aria-current', 'true')
-
-  // The workspace height follows the viewport, so the stability baseline is
-  // measured after the overflow sweep put the viewport back. What must not
-  // change it is the pane switch below.
-  const workspaceBox = await pickerWorkspace.boundingBox()
-  expect(workspaceBox).not.toBeNull()
-  const videoButton = listPage.getByRole('button', {
-    name: 'Show the contents of category Video',
-  })
-  await videoButton.click()
+  // Filtering narrows the table without changing composition, and an
+  // uncategorized list remains available in the same surface.
+  const editorSearch = listPage.getByRole('searchbox', { name: 'Find a list' })
+  await editorSearch.fill('Limit fixture')
   await expect(
-    listPage.getByRole('heading', { name: 'Video', exact: true }),
-  ).toBeVisible()
-  const switchedWorkspaceBox = await pickerWorkspace.boundingBox()
-  expect(switchedWorkspaceBox).not.toBeNull()
-  expect(switchedWorkspaceBox?.width).toBeCloseTo(workspaceBox?.width ?? 0)
-  expect(switchedWorkspaceBox?.height).toBeCloseTo(workspaceBox?.height ?? 0)
-  await membersButton.click()
-  await expect(
-    listPage.getByRole('heading', { name: 'Communication', exact: true }),
-  ).toBeVisible()
+    editorTable.locator('.picker__row').filter({ hasText: 'Limit fixture' }),
+  ).toHaveCount(1)
+  await editorSearch.fill('')
+
   const discord = listPage.locator('input[value="discord"]')
-  const discordRow = discord.locator('xpath=ancestor::label')
+  const discordRow = discord.locator('xpath=ancestor::tr')
   const rowHeight = await discordRow.evaluate((element) => element.clientHeight)
   await discord.uncheck()
-  await expect(discordRow).toHaveText('Discord')
-  await expect(discordRow).not.toContainText('Selected manually')
+  await expect(discordRow).toContainText('Discord')
   expect(await discordRow.evaluate((element) => element.clientHeight)).toBe(
     rowHeight,
   )
   await expect(listPage.getByText('1 list in the route')).toBeVisible()
-  await expect(
-    listPage.locator('input[value="communication"]'),
-  ).toHaveJSProperty('indeterminate', false)
+  await expect(compositionRow).toHaveCount(0)
 
   expect(consoleErrors).toEqual([])
   expect(pageErrors).toEqual([])
@@ -1398,13 +1371,7 @@ test('the composer sizes every format and refuses the pair that cannot hold the 
   )
   expect(observed.ok()).toBe(true)
   await page.goto(`${origin}/lists/new`)
-  // The fixture belongs to no category, so it lives in the last row of the
-  // column and its checkbox appears once that row is opened.
-  await page
-    .getByRole('button', {
-      name: 'Show the contents of category Uncategorized',
-    })
-    .click()
+  // The fixture belongs to no category, but still appears in the one table.
   await page.locator('input[value="limit-fixture"]').check()
 
   // Every format states what this draft would weigh in it, against its own
@@ -1474,11 +1441,6 @@ test('the composing card carries no row control and never spoils the forecast', 
 
   await page.goto(`${origin}/lists/new`)
   await page
-    .getByRole('button', {
-      name: 'Show the contents of category Uncategorized',
-    })
-    .click()
-  await page
     .getByRole('button', { name: 'Open the contents of list Limit fixture' })
     .click()
   const card = page.getByRole('dialog', { exact: true, name: 'Limit fixture' })
@@ -1518,6 +1480,55 @@ test('the composing card carries no row control and never spoils the forecast', 
   assertProductAlive()
 })
 
+test('the library default order seeds new routes without showing ordinal clutter', async ({
+  page,
+}) => {
+  const headers = { 'X-Routevane-Request': '1' }
+  const catalog = (await (
+    await page.request.get(`${origin}/v1/services`)
+  ).json()) as { default_priority: string[] }
+  const original = [...catalog.default_priority]
+
+  try {
+    await page.goto(`${origin}/library`)
+    await page.getByRole('button', { name: 'Default order' }).click()
+    const sheet = page.getByRole('dialog', { name: 'Default list order' })
+    await expect(sheet).toContainText(
+      'New routes start with this order. Existing saved routes do not change.',
+    )
+
+    const youtube = sheet
+      .locator('.priority-list__item')
+      .filter({ hasText: 'YouTube' })
+    const handle = youtube.locator('.priority-list__handle')
+    for (let index = original.indexOf('youtube'); index > 0; index -= 1)
+      await handle.press('ArrowUp')
+    await expect(sheet.locator('.priority-list__item').first()).toHaveAttribute(
+      'data-id',
+      'youtube',
+    )
+    await expect(sheet.locator('.priority-list__position')).toHaveCount(0)
+    await sheet.getByRole('button', { name: 'Save order' }).click()
+    await expect(sheet).toBeHidden()
+
+    await page.goto(`${origin}/lists/new`)
+    const search = page.getByRole('searchbox', { name: 'Find a list' })
+    await search.fill('Discord')
+    await page.locator('input[value="discord"]').check()
+    await search.fill('YouTube')
+    await page.locator('input[value="youtube"]').check()
+    const routeOrder = page.locator('.priority-list__item')
+    await expect(routeOrder.nth(0)).toHaveAttribute('data-id', 'youtube')
+    await expect(routeOrder.nth(1)).toHaveAttribute('data-id', 'discord')
+  } finally {
+    const restored = await page.request.post(`${origin}/v1/services/priority`, {
+      data: { default_priority: original },
+      headers,
+    })
+    expect(restored.ok(), await restored.text()).toBe(true)
+  }
+})
+
 /**
  * A category is the operator's as much as the catalog's (ADR 0028): they can
  * make one, fill it from the whole catalog, and every route naming it follows
@@ -1528,7 +1539,7 @@ test('the composing card carries no row control and never spoils the forecast', 
 test('an operator category carries its lists into a route and is kept while a route names it', async ({
   page,
 }) => {
-  test.setTimeout(240000)
+  test.setTimeout(60000)
   // Curating happens in its own section (ADR 0029), so the category exists
   // before the composer is opened at all.
   await page.goto(`${origin}/library`)
@@ -1553,8 +1564,8 @@ test('an operator category carries its lists into a route and is kept while a ro
   ).toBeLessThanOrEqual(56)
 
   for (const [footer, label] of [
-    ['.lists__collections-footer', 'Custom category'],
-    ['.lists__details-footer', 'Custom list'],
+    ['.lists__collections-footer', 'New category'],
+    ['.lists__details-footer', 'New list'],
   ] as const) {
     const footerBox = await page.locator(footer).boundingBox()
     const buttonBox = await page
@@ -1566,7 +1577,7 @@ test('an operator category carries its lists into a route and is kept while a ro
     )
   }
 
-  await page.getByRole('button', { name: 'Custom category' }).click()
+  await page.getByRole('button', { name: 'New category' }).click()
   const categoryForm = page.getByRole('dialog', { name: 'New category' })
   // The panel opens with the keyboard in its field, so typing starts there
   // and is not undone by a focus that arrives late.
@@ -1582,15 +1593,9 @@ test('an operator category carries its lists into a route and is kept while a ro
   const details = page.locator('.lists__details')
   await expect(details.getByRole('heading', { name: 'Домашние' })).toBeVisible()
 
-  await page
-    .getByRole('button', { name: 'Actions for category Домашние' })
-    .click()
-  await page
-    .locator('.rv-menu__panel:visible')
-    .getByRole('menuitem', { name: 'Add a list' })
-    .click()
-  const addList = page.getByRole('dialog', { name: 'Add a list' })
-  await expect(addList.getByRole('combobox')).toBeFocused()
+  await page.getByRole('button', { name: 'New list' }).click()
+  const addList = page.getByRole('dialog', { name: 'New list' })
+  await addList.getByText('Existing list', { exact: true }).click()
   await addList.getByRole('combobox').fill('Discord')
   await page.getByRole('option', { name: 'Discord' }).click()
   await addList.getByRole('button', { exact: true, name: 'Add' }).click()
@@ -1602,16 +1607,16 @@ test('an operator category carries its lists into a route and is kept while a ro
     page.getByRole('heading', { level: 1, name: 'New route' }),
   ).toBeVisible()
 
-  // Selecting a category selects the reference, so the route follows it rather
-  // than freezing today's members.
-  await page
-    .locator('.picker__group')
-    .filter({ hasText: 'Домашние' })
-    .getByRole('checkbox')
-    .check()
-  await page
-    .getByRole('button', { name: 'Show the contents of category Video' })
-    .click()
+  // A filtered category exposes an explicit live-reference choice, so the
+  // route follows it rather than freezing today's members.
+  const categoryFilter = page.getByRole('combobox', {
+    name: 'Filter by category',
+  })
+  await categoryFilter.click()
+  await page.getByRole('option', { name: 'Домашние' }).click()
+  await page.getByRole('checkbox', { name: 'Follow “Домашние”' }).check()
+  await categoryFilter.click()
+  await page.getByRole('option', { name: 'Video' }).click()
   await page.locator('input[value="youtube"]').check()
   await expect(page.locator('#create-name')).toHaveValue('Домашние, YouTube')
 
@@ -1624,14 +1629,20 @@ test('an operator category carries its lists into a route and is kept while a ro
     page.getByRole('heading', { level: 1, name: 'Домашние, YouTube' }),
   ).toBeVisible()
 
-  // The route states the category it follows, and what that category holds.
+  // The saved route still states the category reference through the filter,
+  // while the ordered rail shows the concrete list it currently contributes.
   await page
     .getByRole('tablist', { name: 'Route sections' })
     .getByRole('tab', { name: 'Contents' })
     .click()
-  const carried = page.locator('.editor__row').filter({ hasText: 'Домашние' })
-  await expect(carried).toHaveCount(1)
-  await expect(carried).toContainText('1 list')
+  const editorFilter = page.getByRole('combobox', {
+    name: 'Filter by category',
+  })
+  await editorFilter.click()
+  await page.getByRole('option', { name: 'Домашние' }).click()
+  await expect(
+    page.getByRole('checkbox', { name: 'Follow “Домашние”' }),
+  ).toBeChecked()
   await expect(
     page.locator('.priority-list__item').filter({ hasText: 'Discord' }),
   ).toHaveCount(1)
@@ -1665,13 +1676,16 @@ test('an operator category carries its lists into a route and is kept while a ro
     .getByRole('tablist', { name: 'Route sections' })
     .getByRole('tab', { name: 'Contents' })
     .click()
-  await page
-    .getByRole('button', { name: 'Remove Домашние from the route' })
-    .click()
+  const routeEditorFilter = page.getByRole('combobox', {
+    name: 'Filter by category',
+  })
+  await routeEditorFilter.click()
+  await page.getByRole('option', { name: 'Домашние' }).click()
+  await page.getByRole('checkbox', { name: 'Follow “Домашние”' }).uncheck()
   await page.getByRole('button', { name: 'Save and rebuild' }).click()
   await expect(
-    page.locator('.editor__row').filter({ hasText: 'Домашние' }),
-  ).toHaveCount(0)
+    page.getByRole('checkbox', { name: 'Follow “Домашние”' }),
+  ).not.toBeChecked()
   await expect(
     page.locator('.priority-list__item').filter({ hasText: 'YouTube' }),
   ).toHaveCount(1)
@@ -1706,7 +1720,7 @@ test('the library deletes a category with its lists, and composing offers none o
     page.getByRole('heading', { level: 1, name: 'Lists' }),
   ).toBeVisible()
 
-  await page.getByRole('button', { name: 'Custom category' }).click()
+  await page.getByRole('button', { name: 'New category' }).click()
   const categoryForm = page.getByRole('dialog', { name: 'New category' })
   await categoryForm.getByLabel('Name').fill('Черновик')
   await categoryForm
@@ -1715,11 +1729,11 @@ test('the library deletes a category with its lists, and composing offers none o
   await expect(categoryForm).toBeHidden()
 
   // A list made while a category is open joins that category.
-  await page.getByRole('button', { name: 'Custom list' }).click()
+  await page.getByRole('button', { name: 'New list' }).click()
   const newList = page.getByRole('dialog', { name: 'New list' })
   await newList.getByLabel('Name').fill('Draft fixture')
   await newList.getByLabel('Domains').fill('draft.example')
-  await newList.getByRole('button', { name: 'Create and add' }).click()
+  await newList.getByRole('button', { exact: true, name: 'Create' }).click()
   await expect(newList).toBeHidden()
   await expect(page.locator('.lists__details')).toContainText('Draft fixture')
 
@@ -1741,12 +1755,10 @@ test('the library deletes a category with its lists, and composing offers none o
   // Selection is a checkbox and nothing else: the composer has no category
   // menu, no way to make or unmake anything, and no bin on a list row.
   await page.goto(`${origin}/lists/new`)
-  await expect(page.locator('.picker__workspace')).toBeVisible()
-  for (const gone of ['Custom category', 'Custom list'])
+  await expect(page.locator('.picker__table-frame')).toBeVisible()
+  for (const gone of ['New category', 'New list'])
     await expect(page.getByRole('button', { name: gone })).toHaveCount(0)
-  await expect(
-    page.locator('.picker__workspace .rv-menu__trigger'),
-  ).toHaveCount(0)
+  await expect(page.locator('.picker .rv-menu__trigger')).toHaveCount(0)
   await expect(page.locator('.picker__service-remove')).toHaveCount(0)
   assertProductAlive()
 })
@@ -1766,7 +1778,7 @@ test('the list card fills the sheet rather than leaving a band above its footer'
   // no shipped list is edited to prove a geometry.
   await page.goto(`${origin}/library`)
   await openLibraryCategory(page, 'Uncategorized')
-  await page.getByRole('button', { name: 'Custom list' }).click()
+  await page.getByRole('button', { name: 'New list' }).click()
   const newList = page.getByRole('dialog', { name: 'New list' })
   await newList.getByLabel('Name').fill('Tall fixture')
   await newList
@@ -1776,7 +1788,7 @@ test('the list card fills the sheet rather than leaving a band above its footer'
         '\n',
       ),
     )
-  await newList.getByRole('button', { name: 'Create and add' }).click()
+  await newList.getByRole('button', { exact: true, name: 'Create' }).click()
   await expect(newList).toBeHidden()
 
   await page.goto(`${origin}/lists/new`)
@@ -2751,37 +2763,38 @@ test('the composition editor keeps its geometry across selections and shell brea
   page,
 }) => {
   await page.goto(`${origin}/lists/new`)
-  const workspace = page.locator('.picker__workspace')
+  const workspace = page.locator('.create__services-body')
+  const table = page.locator('.picker__table-frame')
   await expect(workspace).toBeVisible()
 
-  for (const width of [768, 769, 1024, 1025, 1440]) {
-    await page.setViewportSize({ height: 900, width })
-    const columns = await workspace.evaluate((element) =>
-      getComputedStyle(element).gridTemplateColumns.split(' '),
-    )
-    expect(
-      columns.length,
-      `composition workspace collapsed at ${width}px`,
-    ).toBeGreaterThanOrEqual(2)
-  }
-
-  const before = await workspace.boundingBox()
+  await page.setViewportSize({ height: 900, width: 1440 })
+  expect(
+    await workspace.evaluate(
+      (element) =>
+        getComputedStyle(element).gridTemplateColumns.split(' ').length,
+    ),
+  ).toBeGreaterThanOrEqual(2)
+  const before = await table.boundingBox()
   expect(before).not.toBeNull()
-  const configure = page.locator('.picker__configure')
-  await configure.nth(1).click()
-  const after = await workspace.boundingBox()
+  await page.locator('input[value="discord"]').check()
+  const after = await table.boundingBox()
   expect(after).not.toBeNull()
   expect(after?.x).toBeCloseTo(before?.x ?? 0)
   expect(after?.y).toBeCloseTo(before?.y ?? 0)
   expect(after?.width).toBeCloseTo(before?.width ?? 0)
   expect(after?.height).toBeCloseTo(before?.height ?? 0)
 
-  await page.setViewportSize({ height: 900, width: 320 })
-  const mobileColumns = await workspace.evaluate((element) =>
-    getComputedStyle(element).gridTemplateColumns.split(' '),
-  )
-  expect(mobileColumns).toHaveLength(1)
-  await assertNoOverflow(page, 'composition-editor')
+  for (const width of [1024, 768, 320]) {
+    await page.setViewportSize({ height: 900, width })
+    const columns = await workspace.evaluate((element) =>
+      getComputedStyle(element).gridTemplateColumns.split(' '),
+    )
+    expect(
+      columns,
+      `composition workspace did not stack at ${width}px`,
+    ).toHaveLength(1)
+    await assertNoOverflow(page, `composition-editor-${width}`)
+  }
 })
 
 test('the composition editor remains operable with text enlarged to 200%', async ({
@@ -2798,16 +2811,11 @@ test('the composition editor remains operable with text enlarged to 200%', async
       name: 'New route',
     }),
   ).toBeVisible()
-  await expect(page.locator('.picker__workspace')).toBeVisible()
+  await expect(page.locator('.picker__table-frame')).toBeVisible()
   expect(await fits(page)).toBe(true)
 
   const search = page.getByRole('searchbox', { name: 'Find a list' })
   await search.fill('Discord')
-  await page
-    .getByRole('button', {
-      name: 'Show the contents of category Communication',
-    })
-    .click()
   await page.locator('input[value="discord"]').check()
   await expect(page.getByText('1 list in the route')).toBeVisible()
   expect(await fits(page)).toBe(true)
@@ -2983,26 +2991,23 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   }
   await select(0, 'Overlap Alpha', true)
   await select(1, 'Overlap Beta', true)
+  await page.getByRole('searchbox', { name: 'Find a list' }).fill('')
   await chooseFormat(page, /sing-box/)
-  const disclosure = page.locator('.rv-disclosure').filter({
-    has: page.getByRole('button', { name: 'How overlaps are resolved' }),
-  })
-  await expect(disclosure).toBeVisible()
+  const priority = page.locator('.priority-list')
+  const alphaRow = page
+    .locator(`input[value="${ids[0]}"]`)
+    .locator('xpath=ancestor::tr')
+  const betaRow = page
+    .locator(`input[value="${ids[1]}"]`)
+    .locator('xpath=ancestor::tr')
+  await expect(alphaRow).toContainText('Overlap: Overlap Beta')
+  await expect(betaRow).toContainText('Overlap: Overlap Alpha')
   await expect(
-    disclosure.getByText('No manual cleanup is required'),
-  ).not.toBeVisible()
-  await disclosure
-    .getByRole('button', { name: 'How overlaps are resolved' })
-    .focus()
-  await page.keyboard.press('Enter')
-  await expect(disclosure).toContainText('file forecast — 4 entries')
-  await expect(disclosure).toContainText(
-    'Overlaps were found and will be resolved automatically.',
-  )
+    priority.locator(`.priority-list__item[data-id="${ids[0]}"]`),
+  ).toContainText('Overlap: Overlap Beta')
   await expect(
-    disclosure.getByText('No manual cleanup is required'),
-  ).toBeVisible()
-  await expect(disclosure.locator('.overlaps__item')).toHaveCount(0)
+    page.getByRole('button', { name: 'How overlaps are resolved' }),
+  ).toHaveCount(0)
   for (const width of [320, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 })
     expect(
@@ -3017,7 +3022,7 @@ test('the forecast explains overlaps in create and edit without rewriting the li
       ),
     ).toEqual([])
     await page.screenshot({
-      path: join(reviewRoot, `overlaps-create-${width}.png`),
+      path: join(reviewRoot, `overlap-tags-create-${width}.png`),
       fullPage: true,
     })
   }
@@ -3039,8 +3044,7 @@ test('the forecast explains overlaps in create and edit without rewriting the li
       release = resolve
     })
     await select(2, 'Overlap Gamma', true)
-    await expect(disclosure).toContainText('previous result')
-    await expect(disclosure).toContainText('file forecast — 4 entries')
+    await expect(priority.getByText('Calculating overlaps…')).toBeVisible()
     const recalculated = page.waitForResponse(
       (response) => new URL(response.url()).pathname === forecastPath,
     )
@@ -3051,20 +3055,31 @@ test('the forecast explains overlaps in create and edit without rewriting the li
       recalculatedResponse.status(),
       await recalculatedResponse.text(),
     ).toBe(200)
-    await expect(disclosure).toContainText('file forecast — 6 entries')
+    await expect(priority.getByText('Calculating overlaps…')).toBeHidden()
     fail = true
+    const failed = page.waitForResponse(
+      (response) => new URL(response.url()).pathname === forecastPath,
+    )
     await select(2, 'Overlap Gamma', false)
-    await expect(disclosure).toContainText('Overlaps are not known yet')
-    await expect(disclosure.locator('.overlaps__item')).toHaveCount(0)
+    expect((await failed).status()).toBe(503)
+    await expect(priority.getByText('Overlaps unknown')).toBeVisible()
+    const retry = priority.getByRole('button', { name: 'Retry', exact: true })
+    await expect(retry).toBeVisible()
     fail = false
-    await disclosure.getByRole('button', { name: 'Retry', exact: true }).click()
-    await expect(disclosure).toContainText('file forecast — 4 entries')
+    await retry.click()
+    await expect(
+      priority.locator(`.priority-list__item[data-id="${ids[0]}"]`),
+    ).toContainText('Overlap: Overlap Beta')
     await select(2, 'Overlap Gamma', true)
     await select(1, 'Overlap Beta', false)
-    await expect(disclosure).toContainText('No identical rules or containment')
+    await expect(
+      priority.locator(`.priority-list__item[data-id="${ids[0]}"]`),
+    ).not.toContainText('Overlap:')
     await select(1, 'Overlap Beta', true)
     await select(2, 'Overlap Gamma', false)
-    await expect(disclosure).toContainText('file forecast — 4 entries')
+    await expect(
+      priority.locator(`.priority-list__item[data-id="${ids[0]}"]`),
+    ).toContainText('Overlap: Overlap Beta')
   } finally {
     release()
   }
@@ -3090,15 +3105,12 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   expect((await built).ok()).toBe(true)
   await page.getByRole('tab', { name: 'Contents', exact: true }).click()
   const editor = page.locator('.editor')
-  const editorDisclosure = editor.locator('.rv-disclosure').filter({
-    has: page.getByRole('button', { name: 'How overlaps are resolved' }),
-  })
-  await editorDisclosure
-    .getByRole('button', { name: 'How overlaps are resolved' })
-    .click()
-  await expect(editorDisclosure).toContainText('file forecast — 4 entries')
-  await expect(editorDisclosure).toContainText('No manual cleanup is required')
-  await expect(editorDisclosure.locator('.overlaps__item')).toHaveCount(0)
+  await expect(
+    editor.locator(`.priority-list__item[data-id="${ids[0]}"]`),
+  ).toContainText('Overlap: Overlap Beta')
+  await expect(
+    editor.getByRole('button', { name: 'How overlaps are resolved' }),
+  ).toHaveCount(0)
   await expect(
     editor.getByRole('button', { name: 'Save and rebuild', exact: true }),
   ).toBeDisabled()
@@ -3528,7 +3540,22 @@ for (const language of ['en', 'ru'] as const) {
         } finally {
           releaseSave()
         }
-        await expect(save).not.toHaveAttribute('aria-busy', 'true')
+        // A successful rename changes the dialog's accessible name in place.
+        // Resolve it again by its committed identity instead of keeping the
+        // locator rooted in the obsolete title.
+        const renamedLibrary = page.getByRole('dialog', {
+          name: renamedTitle,
+          exact: true,
+        })
+        await expect(renamedLibrary).toBeVisible()
+        await expect(
+          renamedLibrary.getByRole('button', {
+            name: copy('serviceCard.title.save'),
+          }),
+        ).not.toHaveAttribute('aria-busy', 'true')
+        await expect(renamedLibrary.locator('#service-title')).toHaveValue(
+          renamedTitle,
+        )
         await page.unroute(savePath)
       } finally {
         const removed = await page.request.post(
@@ -3690,14 +3717,6 @@ for (const language of ['en', 'ru'] as const) {
         await page
           .getByRole('searchbox', { name: copy('create.search') })
           .fill(title)
-        await page
-          .getByRole('button', {
-            name: copy('servicePicker.configure.aria').replace(
-              '{category}',
-              copy('servicePicker.other'),
-            ),
-          })
-          .click()
         await page
           .getByRole('button', {
             name: copy('serviceDetail.open.aria').replace('{service}', title),
