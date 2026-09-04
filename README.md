@@ -1,5 +1,7 @@
 # Routevane
 
+<img src="web/public/routevane-logo.svg" alt="Routevane" width="56">
+
 Routevane builds routing lists for your router or VPN client. Choose services
 and categories, combine them into a route, and export it in the format your
 device uses. Refresh lists manually or on a schedule.
@@ -76,6 +78,7 @@ before applying rules to a device.
 ## Help and development
 
 - [Update, back up, or remove Routevane](docs/installation.md#updates-and-backups)
+- [Move configuration to another computer](docs/usage.md#moving-configuration-to-another-computer)
 - [CLI commands, imports, and browser-assisted discovery](docs/usage.md)
 - [Build from source and contribute](CONTRIBUTING.md)
 - [Report a bug](https://github.com/Muratovnik/routevane/issues) · [Report a security issue privately](SECURITY.md)

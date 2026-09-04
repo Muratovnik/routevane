@@ -1,5 +1,7 @@
 # Routevane
 
+<img src="web/public/routevane-logo.svg" alt="Routevane" width="56">
+
 [English documentation](README.md)
 
 Routevane создаёт списки маршрутизации для роутера или VPN-клиента. Выберите
@@ -82,6 +84,7 @@ sh ./start-routevane.sh
 ## Справка и разработка
 
 - [Обновить, создать резервную копию или удалить Routevane](docs/ru/installation.md#обновление-и-резервное-копирование)
+- [Перенести конфигурацию на другой компьютер](docs/ru/usage.md#перенос-конфигурации-на-другой-компьютер)
 - [Команды CLI, импорт и обнаружение через браузер](docs/ru/usage.md)
 - [Сборка из исходного кода и участие в проекте](CONTRIBUTING.md) (English)
 - [Сообщить об ошибке](https://github.com/Muratovnik/routevane/issues) · [Сообщить об уязвимости конфиденциально](SECURITY.md) (English)

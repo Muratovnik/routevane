@@ -283,6 +283,27 @@ Public/LAN access and separate workers remain outside this local release. Device
 deployment, browser discovery, and the external renderer/source plugin path are
 included and keep their own bounded safety boundaries.
 
+## Moving configuration to another computer
+
+Open **Settings → Configuration transfer** on the source computer and download
+the JSON file. On a fresh Routevane installation, select that file, review the
+preview, and apply it. The destination must be empty; transfer does not merge
+with an installation that already has routes, connections, or custom lists.
+
+The file contains the global refresh setting, custom lists and categories,
+source changes, routes, non-secret connection details, and output bindings. It
+does not contain router passwords, bearer subscription tokens, published
+artifacts, observations, history, backups, logs, or browser preferences. Local
+catalog discoveries are also excluded because another installation may not have
+the same files.
+
+After import, enter each device password again, publish every output to create a
+new artifact and subscription, and then enable automatic delivery where wanted.
+Imported devices always start with automatic delivery off. Preview and apply
+validate the same file digest; editing or replacing the file requires a new
+preview. This is a portable settings transfer, not a database backup. See
+[`ADR 0033`](adr/0033-portable-configuration-transfers.md).
+
 ## Adding a service by URL
 
 ```powershell
