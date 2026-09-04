@@ -1,6 +1,6 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 
 import { invalidateCatalogCache } from '@/shared/api/catalog'
 import { useLocale } from '@/shared/i18n/useLocale'
@@ -65,6 +65,8 @@ function contentsResponse(
     { id: 'itdoginfo', type: 'http', custom: false, enabled: true },
     { id: 'v2fly', type: 'http', custom: false, enabled: false },
   ],
+  enabledOverrides: Record<string, boolean> = {},
+  manual = false,
 ): Response {
   return json({
     service_id: 'discord',
@@ -73,21 +75,36 @@ function contentsResponse(
         value: 'discord.com',
         kind: 'domain',
         origin: 'catalog',
-        enabled: true,
+        enabled: enabledOverrides['discord.com'] ?? true,
       },
       {
         value: 'discord.gg',
         kind: 'domain',
         origin: 'itdoginfo',
-        enabled: true,
+        enabled: enabledOverrides['discord.gg'] ?? true,
       },
       {
         value: 'old.discord.media',
         kind: 'domain',
         origin: 'v2fly',
-        enabled: false,
+        enabled: enabledOverrides['old.discord.media'] ?? false,
       },
-      { value: '198.51.100.7', kind: 'ip', origin: 'iplist', enabled: true },
+      {
+        value: '198.51.100.7',
+        kind: 'ip',
+        origin: 'iplist',
+        enabled: enabledOverrides['198.51.100.7'] ?? true,
+      },
+      ...(manual
+        ? [
+            {
+              value: 'manual.discord.test',
+              kind: 'domain',
+              origin: 'manual',
+              enabled: enabledOverrides['manual.discord.test'] ?? true,
+            },
+          ]
+        : []),
     ],
     sources,
     observed,
@@ -165,6 +182,7 @@ describe('ServiceDetailDialog', () => {
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     document.body.innerHTML = ''
   })
@@ -420,7 +438,9 @@ describe('ServiceDetailDialog', () => {
     expect(panel.textContent).toContain('Refresh from sources')
     expect(panel.textContent).toContain('Add entries')
 
+    vi.useFakeTimers()
     switchOf(panel, 'discord.gg').click()
+    await vi.advanceTimersByTimeAsync(250)
     await flushPromises()
     expect(keys()).toEqual([
       'GET /v1/services/discord/contents',
@@ -429,6 +449,206 @@ describe('ServiceDetailDialog', () => {
     expect(calls[1]?.body).toBe(
       JSON.stringify({ values: ['discord.gg'], verdict: 'exclude' }),
     )
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
+  it('keeps entry switches optimistic and independent while writes settle', async () => {
+    let releaseFirst!: () => void
+    const firstResponse = new Promise<Response>((resolve) => {
+      releaseFirst = () =>
+        resolve(contentsResponse(true, undefined, { 'discord.gg': false }))
+    })
+    const api = stubAPI({
+      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'POST /v1/services/discord/domains': () => {
+        const body = JSON.parse(api.calls.at(-1)?.body ?? '{}') as {
+          values: string[]
+        }
+        return body.values[0] === 'discord.gg'
+          ? firstResponse
+          : Promise.resolve(
+              contentsResponse(true, undefined, {
+                [body.values[0] ?? '']: false,
+              }),
+            )
+      },
+    })
+
+    const wrapper = mountCard({ mode: 'library' })
+    await flushPromises()
+    const panel = card()
+    vi.useFakeTimers()
+    switchOf(panel, 'discord.gg').click()
+    switchOf(panel, 'discord.com').click()
+    await nextTick()
+    expect(panel.textContent).toContain('Saving change…')
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+
+    expect(switchOf(panel, 'discord.gg').checked).toBe(false)
+    expect(switchOf(panel, 'discord.com').checked).toBe(false)
+    expect(api.keys()).toEqual([
+      'GET /v1/services/discord/contents',
+      'POST /v1/services/discord/domains',
+      'POST /v1/services/discord/domains',
+    ])
+
+    // The second row's write can complete without waiting for the first one.
+    expect(switchOf(panel, 'discord.com').disabled).toBe(false)
+    const refresh = [...panel.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Refresh from sources'),
+    ) as HTMLButtonElement | undefined
+    expect(refresh?.disabled).toBe(true)
+    const remove = [...panel.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Delete the list'),
+    ) as HTMLButtonElement | undefined
+    expect(remove?.disabled).toBe(true)
+    releaseFirst()
+    await flushPromises()
+    wrapper.unmount()
+  })
+
+  it('settles an authoritative entry response without reverting another queued intent', async () => {
+    let releaseManual!: () => void
+    const manualResponse = new Promise<Response>((resolve) => {
+      releaseManual = () =>
+        resolve(contentsResponse(true, undefined, { 'discord.com': true }))
+    })
+    const api = stubAPI({
+      'GET /v1/services/discord/contents': () =>
+        contentsResponse(true, undefined, {}, true),
+      'POST /v1/services/discord/domains': () => {
+        const body = JSON.parse(api.calls.at(-1)?.body ?? '{}') as {
+          values?: string[]
+        }
+        const value = body.values?.[0]
+        return value === 'manual.discord.test'
+          ? manualResponse
+          : Promise.resolve(
+              contentsResponse(true, undefined, {
+                [value ?? '']: false,
+              }),
+            )
+      },
+    })
+
+    const wrapper = mountCard({ mode: 'library' })
+    await flushPromises()
+    const panel = card()
+    vi.useFakeTimers()
+
+    switchOf(panel, 'manual.discord.test').click()
+    await vi.advanceTimersByTimeAsync(250)
+    expect(api.keys()).toEqual([
+      'GET /v1/services/discord/contents',
+      'POST /v1/services/discord/domains',
+    ])
+
+    // A newer intent for a different row is queued while the manual-row write
+    // is in flight. Its optimistic value must survive the older response.
+    switchOf(panel, 'discord.com').click()
+    expect(switchOf(panel, 'discord.com').checked).toBe(false)
+    releaseManual()
+    await flushPromises()
+
+    const manual = [
+      ...panel.querySelectorAll<HTMLElement>('.service-card__rows li'),
+    ].find(
+      (item) =>
+        item.querySelector('.service-card__value')?.textContent ===
+        'manual.discord.test',
+    )
+    expect(manual).toBeUndefined()
+    expect(switchOf(panel, 'discord.com').checked).toBe(false)
+    expect(panel.textContent).toContain('Saving change…')
+
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+    expect(api.keys()).toEqual([
+      'GET /v1/services/discord/contents',
+      'POST /v1/services/discord/domains',
+      'POST /v1/services/discord/domains',
+    ])
+    expect(switchOf(panel, 'discord.com').checked).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('rolls back one failed entry and exposes a row-level retry', async () => {
+    let attempts = 0
+    const { keys } = stubAPI({
+      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'POST /v1/services/discord/domains': () => {
+        attempts += 1
+        return attempts === 1
+          ? Promise.resolve(json({ error: 'offline' }, 503))
+          : Promise.resolve(
+              contentsResponse(true, undefined, { 'discord.gg': false }),
+            )
+      },
+    })
+    const wrapper = mountCard({ mode: 'library' })
+    await flushPromises()
+    const panel = card()
+    vi.useFakeTimers()
+    switchOf(panel, 'discord.gg').click()
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+
+    const failed = row(panel, 'discord.gg')
+    expect(switchOf(panel, 'discord.gg').checked).toBe(true)
+    expect(failed.textContent).toContain('The change was not applied.')
+    const retry = [...failed.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Retry'),
+    )
+    expect(retry).toBeDefined()
+
+    retry?.click()
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+    expect(keys()).toEqual([
+      'GET /v1/services/discord/contents',
+      'POST /v1/services/discord/domains',
+      'POST /v1/services/discord/domains',
+    ])
+    expect(row(panel, 'discord.gg').textContent).not.toContain(
+      'The change was not applied.',
+    )
+    expect(switchOf(panel, 'discord.gg').checked).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('uses the same independent optimistic state for source switches', async () => {
+    let release!: () => void
+    const pending = new Promise<Response>((resolve) => {
+      release = () => resolve(contentsResponse())
+    })
+    stubAPI({
+      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'POST /v1/services/discord/sources/itdoginfo/update': () => pending,
+      'POST /v1/services/discord/sources/v2fly/update': () =>
+        Promise.resolve(contentsResponse()),
+    })
+    const wrapper = mountCard({ mode: 'library' })
+    await flushPromises()
+    clickByText(card(), 'Sources · 2')
+    await flushPromises()
+    const panel = card()
+    vi.useFakeTimers()
+    const inputs = panel.querySelectorAll<HTMLInputElement>(
+      '.service-card__switch input',
+    )
+    expect(inputs).toHaveLength(2)
+    inputs[0]?.click()
+    await vi.advanceTimersByTimeAsync(250)
+    await flushPromises()
+    expect(inputs[0]?.checked).toBe(false)
+    expect(panel.textContent).toContain('Saving change…')
+    expect(inputs[0]?.disabled).toBe(false)
+    expect(inputs[1]?.disabled).toBe(false)
+    release()
+    await flushPromises()
+    expect(panel.textContent).not.toContain('Saving change…')
     wrapper.unmount()
   })
 

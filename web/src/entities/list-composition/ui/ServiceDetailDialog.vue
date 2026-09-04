@@ -23,6 +23,7 @@ import {
   parseDestinationList,
 } from '@/shared/lib/destinationList'
 import { libraryPageHash } from '@/shared/lib/libraryHash'
+import { useDebouncedMutation } from '@/shared/model/useDebouncedMutation'
 import type { ChoiceOption } from '@/shared/ui/kinds'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
@@ -102,7 +103,6 @@ const contentsState = ref<'idle' | 'loading' | 'ready' | 'failed'>('idle')
 const filterInput = ref<HTMLInputElement | null>(null)
 const refreshing = ref(false)
 const observing = ref(false)
-const actionError = ref('')
 // Reading the sources is reported where the reading is asked for — the card —
 // while editing which sources there are is reported inside their own panel.
 const refreshError = ref('')
@@ -130,15 +130,15 @@ const rows = computed<ServiceContentsRow[]>(() => contents.value?.rows ?? [])
 // What the list currently offers. Both flows count the same thing: a route
 // takes the list as the library holds it.
 const enabledCount = computed(
-  () => rows.value.filter((row) => row.enabled).length,
+  () => effectiveRows.value.filter((row) => row.enabled).length,
 )
 
 // A list can stand for hundreds of destinations. The field over the table
 // narrows what is drawn by what a row says — its value and where it came from.
 const visibleRows = computed<ServiceContentsRow[]>(() => {
   const query = filter.value.trim().toLowerCase()
-  if (query === '') return rows.value
-  return rows.value.filter(
+  if (query === '') return effectiveRows.value
+  return effectiveRows.value.filter(
     (row) =>
       row.value.toLowerCase().includes(query) ||
       originLabel(row).toLowerCase().includes(query),
@@ -146,6 +146,64 @@ const visibleRows = computed<ServiceContentsRow[]>(() => {
 })
 
 const sources = computed(() => contents.value?.sources ?? [])
+
+// Entry and source switches are independent writes. The composables keep one
+// optimistic value and one request per resource key, so a slow row never
+// blocks a different row or replaces the card's verified contents.
+const entryMutations = useDebouncedMutation<boolean, ServiceContents>(
+  async (value, enabled) => {
+    const service = props.service
+    if (service === null) return undefined
+    const row = rows.value.find((candidate) => candidate.value === value)
+    const verdict: DomainVerdict = enabled
+      ? 'auto'
+      : row?.origin === 'manual'
+        ? 'auto'
+        : 'exclude'
+    return setServiceValues(service.id, [value], verdict)
+  },
+  {
+    resolve: (next, enabled, value) =>
+      next?.rows.find((candidate) => candidate.value === value)?.enabled ??
+      enabled,
+    onSuccess: ({ result }) => {
+      if (result !== undefined) reconcileMutationContents(result)
+    },
+  },
+)
+const sourceMutations = useDebouncedMutation<boolean, ServiceContents>(
+  async (sourceID, enabled) => {
+    const service = props.service
+    if (service === null) return undefined
+    return setServiceSourceEnabled(service.id, sourceID, enabled)
+  },
+  {
+    resolve: (next, enabled, sourceID) =>
+      next?.sources.find((source) => source.id === sourceID)?.enabled ??
+      enabled,
+    onSuccess: ({ result }) => {
+      if (result !== undefined) reconcileMutationContents(result)
+    },
+  },
+)
+
+const effectiveRows = computed<ServiceContentsRow[]>(() =>
+  rows.value.map((row) => {
+    const enabled = entryMutations.getValue(row.value)
+    return enabled === undefined || enabled === row.enabled
+      ? row
+      : { ...row, enabled }
+  }),
+)
+const effectiveSources = computed(() =>
+  sources.value.map((source) => {
+    const enabled = sourceMutations.getValue(source.id)
+    return enabled === undefined || enabled === source.enabled
+      ? source
+      : { ...source, enabled }
+  }),
+)
+
 // Before the contents land, the catalog entry already knows how many sources
 // the list has, so the control that opens them never starts at nothing.
 const sourceCount = computed(() =>
@@ -160,9 +218,21 @@ const feedFormats = computed<ChoiceOption[]>(() => [
   { label: t('serviceCard.feed.format.json'), value: 'json' },
 ])
 
-// Writes are serialized inside this card. A list that is still being read or
-// refreshed cannot be removed, and a second switch cannot race the first one.
+// Reads, destructive actions and dismissal stay guarded while any mutation is
+// queued or in flight. Switches use the narrower guard below so each row can
+// still accept a new last intent while another row is pending.
+const mutationPending = computed(
+  () => entryMutations.pending.value || sourceMutations.pending.value,
+)
 const interactionBusy = computed(
+  () =>
+    props.disabled === true ||
+    saving.value ||
+    refreshing.value ||
+    contentsState.value === 'loading' ||
+    mutationPending.value,
+)
+const toggleBlocked = computed(
   () =>
     props.disabled === true ||
     saving.value ||
@@ -199,11 +269,12 @@ watch(
   [() => props.service, () => props.creating],
   ([service, creating]) => {
     contentsRequest += 1
+    entryMutations.cancel()
+    sourceMutations.cancel()
     titleDraft.value = service?.title ?? ''
     titleError.value = ''
     domainsDraft.value = ''
     domainsError.value = ''
-    actionError.value = ''
     refreshError.value = ''
     refreshSkipped.value = 0
     sourceError.value = ''
@@ -249,8 +320,7 @@ async function openContents(serviceID: string): Promise<void> {
   try {
     const loaded = await loadServiceContents(serviceID)
     if (request !== contentsRequest) return
-    contents.value = loaded
-    contentsState.value = 'ready'
+    applyContents(request, loaded)
   } catch {
     if (request !== contentsRequest) return
     contentsState.value = 'failed'
@@ -285,6 +355,57 @@ function shouldObserve(): boolean {
 function applyContents(request: number, next: ServiceContents): void {
   if (request !== contentsRequest) return
   contents.value = next
+  for (const row of next.rows) entryMutations.seed(row.value, row.enabled)
+  for (const source of next.sources)
+    sourceMutations.seed(source.id, source.enabled)
+  contentsState.value = 'ready'
+}
+
+// A toggle response is authoritative for the rows and sources it observed,
+// but it must not erase another key's optimistic intent while that intent is
+// queued or in flight. Keep pending rows/sources that the response omitted so
+// their latest visible value remains available to the effective projections;
+// non-pending omissions (notably a removed manual row) settle immediately.
+function reconcileMutationContents(next: ServiceContents): void {
+  const current = contents.value
+  if (current === null) {
+    contents.value = next
+    for (const row of next.rows) entryMutations.seed(row.value, row.enabled)
+    for (const source of next.sources)
+      sourceMutations.seed(source.id, source.enabled)
+    contentsState.value = 'ready'
+    return
+  }
+
+  const authoritativeRows = new Map(
+    next.rows.map((row) => [row.value, row] as const),
+  )
+  const retainedRows = current.rows.filter(
+    (row) =>
+      entryMutations.isPending(row.value) && !authoritativeRows.has(row.value),
+  )
+  const authoritativeSources = new Map(
+    next.sources.map((source) => [source.id, source] as const),
+  )
+  const retainedSources = current.sources.filter(
+    (source) =>
+      sourceMutations.isPending(source.id) &&
+      !authoritativeSources.has(source.id),
+  )
+
+  contents.value = {
+    ...next,
+    rows: [...next.rows, ...retainedRows],
+    sources: [...next.sources, ...retainedSources],
+  }
+  for (const row of next.rows) {
+    if (!entryMutations.isPending(row.value))
+      entryMutations.seed(row.value, row.enabled)
+  }
+  for (const source of next.sources) {
+    if (!sourceMutations.isPending(source.id))
+      sourceMutations.seed(source.id, source.enabled)
+  }
   contentsState.value = 'ready'
 }
 
@@ -303,7 +424,14 @@ function onRetryRefresh(): Promise<void> {
 // A failed read never removes the rows already on the table.
 async function runRefresh(automatic: boolean): Promise<void> {
   const service = props.service
-  if (service === null || refreshing.value) return
+  if (
+    service === null ||
+    refreshing.value ||
+    mutationPending.value ||
+    saving.value ||
+    props.disabled === true
+  )
+    return
   const request = contentsRequest
   refreshing.value = true
   observing.value = automatic
@@ -335,26 +463,10 @@ async function runRefresh(automatic: boolean): Promise<void> {
   }
 }
 
-async function onToggleSource(
-  sourceID: string,
-  enabled: boolean,
-): Promise<void> {
-  const service = props.service
-  if (service === null || interactionBusy.value) return
-  const request = contentsRequest
+function onToggleSource(sourceID: string, enabled: boolean): void {
+  if (props.service === null || toggleBlocked.value) return
   sourceError.value = ''
-  saving.value = true
-  try {
-    applyContents(
-      request,
-      await setServiceSourceEnabled(service.id, sourceID, enabled),
-    )
-  } catch {
-    if (request === contentsRequest)
-      sourceError.value = t('serviceCard.action.failed')
-  } finally {
-    if (request === contentsRequest) saving.value = false
-  }
+  sourceMutations.mutate(sourceID, enabled)
 }
 
 async function onRemoveSource(sourceID: string): Promise<void> {
@@ -377,27 +489,9 @@ async function onRemoveSource(sourceID: string): Promise<void> {
 // language: switching an offered row off records an exclude; switching it back
 // on removes the standing verdict; a row the operator added and then switched
 // off is simply taken back.
-async function onToggleRow(row: ServiceContentsRow): Promise<void> {
-  const service = props.service
-  if (service === null || interactionBusy.value) return
-  let verdict: DomainVerdict = 'auto'
-  if (row.enabled) {
-    verdict = row.origin === 'manual' ? 'auto' : 'exclude'
-  }
-  const request = contentsRequest
-  actionError.value = ''
-  saving.value = true
-  try {
-    applyContents(
-      request,
-      await setServiceValues(service.id, [row.value], verdict),
-    )
-  } catch {
-    if (request === contentsRequest)
-      actionError.value = t('serviceCard.action.failed')
-  } finally {
-    if (request === contentsRequest) saving.value = false
-  }
+function onToggleRow(row: ServiceContentsRow, enabled: boolean): void {
+  if (props.service === null || toggleBlocked.value) return
+  entryMutations.mutate(row.value, enabled)
 }
 
 // The creation form still writes a custom list, which the catalog defines by
@@ -456,7 +550,7 @@ async function includeValues(
 
 async function onAddValues(): Promise<void> {
   const service = props.service
-  if (service === null || saving.value) return
+  if (service === null || interactionBusy.value) return
   const parsed = parseDestinationList(addValuesDraft.value)
   if (parsed.skipped > 0) {
     addError.value = t('serviceCard.domains.invalid', {
@@ -492,8 +586,14 @@ async function onAddValues(): Promise<void> {
 // Closing the panel drops the complaint, never the typing: an operator who
 // closes it to read the table behind finds the draft where they left it.
 function onAddValuesOpen(open: boolean): void {
+  if (!open && interactionBusy.value) return
   addValuesOpen.value = open
   if (!open) addError.value = ''
+}
+
+function onSourcesOpenChange(open: boolean): void {
+  if (!open && interactionBusy.value) return
+  sourcesOpen.value = open
 }
 
 // A routes file an operator already has is a set of destinations, so it is read
@@ -501,7 +601,7 @@ function onAddValuesOpen(open: boolean): void {
 // the destinations it named.
 async function onImportFile(file: File): Promise<void> {
   const service = props.service
-  if (service === null || saving.value) return
+  if (service === null || interactionBusy.value) return
   addError.value = ''
   importStatus.value = ''
   saving.value = true
@@ -526,7 +626,7 @@ async function onImportFile(file: File): Promise<void> {
 
 async function onAddFeed(): Promise<void> {
   const service = props.service
-  if (service === null || saving.value) return
+  if (service === null || interactionBusy.value) return
   if (feedURL.value.trim() === '') {
     feedError.value = t('serviceCard.feed.url.required')
     return
@@ -549,7 +649,8 @@ async function onAddFeed(): Promise<void> {
 
 async function onRenameCustom(): Promise<void> {
   const service = props.service
-  if (service === null || service.custom !== true || saving.value) return
+  if (service === null || service.custom !== true || interactionBusy.value)
+    return
   const title = titleDraft.value.trim()
   if (title === '') {
     titleError.value = t('serviceCard.title.invalid')
@@ -752,7 +853,7 @@ function onOpenChange(open: boolean): void {
                and the rare one opens a panel. -->
           <template v-if="curating">
             <RvButton
-              :disabled="refreshing || contentsState !== 'ready'"
+              :disabled="interactionBusy || contentsState !== 'ready'"
               size="compact"
               type="button"
               variant="quiet"
@@ -817,10 +918,6 @@ function onOpenChange(open: boolean): void {
         </RvStateNotice>
 
         <template v-else-if="contents !== null">
-          <p v-if="actionError !== ''" class="service-card__error" role="alert">
-            {{ actionError }}
-          </p>
-
           <!-- Source reads keep one compact, reserved status row. The retry
                control is present but invisible until an error so the filter
                and the known rows do not move when the answer changes. -->
@@ -867,7 +964,7 @@ function onOpenChange(open: boolean): void {
             <RvButton
               class="service-card__refresh-retry"
               :aria-hidden="refreshError === '' ? 'true' : undefined"
-              :disabled="refreshError === '' || refreshing"
+              :disabled="refreshError === '' || interactionBusy"
               size="compact"
               type="button"
               @click="onRetryRefresh"
@@ -921,9 +1018,14 @@ function onOpenChange(open: boolean): void {
               <label v-if="curating" class="service-card__switch">
                 <input
                   :checked="row.enabled"
-                  :disabled="interactionBusy"
+                  :disabled="toggleBlocked"
                   type="checkbox"
-                  @change="onToggleRow(row)"
+                  @change="
+                    onToggleRow(
+                      row,
+                      ($event.target as HTMLInputElement).checked,
+                    )
+                  "
                 />
                 <span class="service-card__row-copy">
                   <span class="service-card__value">{{ row.value }}</span>
@@ -937,6 +1039,36 @@ function onOpenChange(open: boolean): void {
                   {{ t('serviceCard.domains.disabledInLibrary') }}
                 </small>
               </span>
+              <template v-if="curating">
+                <small
+                  v-if="entryMutations.isPending(row.value)"
+                  class="service-card__row-state"
+                  role="status"
+                >
+                  {{ t('serviceCard.mutation.pending') }}
+                </small>
+                <span
+                  v-else-if="entryMutations.getState(row.value).error !== null"
+                  class="service-card__row-recovery"
+                  role="alert"
+                >
+                  <small class="service-card__row-state">
+                    {{ t('serviceCard.mutation.failed') }}
+                  </small>
+                  <button
+                    :aria-label="
+                      t('serviceCard.mutation.retry.aria', {
+                        entry: row.value,
+                      })
+                    "
+                    class="service-card__row-action"
+                    type="button"
+                    @click="entryMutations.retry(row.value)"
+                  >
+                    {{ t('serviceCard.mutation.retry') }}
+                  </button>
+                </span>
+              </template>
             </li>
           </ul>
           <p v-if="rows.length === 0" class="service-card__muted" role="status">
@@ -1007,7 +1139,7 @@ function onOpenChange(open: boolean): void {
        table it adds to stays visible behind it. -->
   <RvDialog
     :close-label="t('action.close')"
-    :dismissible="!saving"
+    :dismissible="!interactionBusy"
     :open="curating && addValuesOpen && service !== null"
     :title="t('serviceCard.domains.add')"
     variant="panel"
@@ -1028,7 +1160,7 @@ function onOpenChange(open: boolean): void {
           <RvTextarea
             v-model="addValuesDraft"
             :described-by="describedBy"
-            :disabled="saving"
+            :disabled="interactionBusy"
             input-id="service-add-entries"
             :invalid="invalid"
             :rows="6"
@@ -1039,7 +1171,7 @@ function onOpenChange(open: boolean): void {
         <RvFilePicker
           accept=".txt,.bat,.lst,.json,.csv,text/plain"
           :action-label="t('serviceCard.import')"
-          :disabled="saving"
+          :disabled="interactionBusy"
           :empty-label="t('serviceCard.import.none')"
           :hint="t('serviceCard.import.hint')"
           input-id="service-card-import"
@@ -1050,14 +1182,14 @@ function onOpenChange(open: boolean): void {
     </form>
     <template #footer>
       <RvButton
-        :disabled="saving"
+        :disabled="interactionBusy"
         variant="quiet"
         @click="onAddValuesOpen(false)"
       >
         {{ t('action.cancel') }}
       </RvButton>
       <RvButton
-        :disabled="saving"
+        :disabled="interactionBusy"
         :loading="saving"
         form="service-add-entries-form"
         type="submit"
@@ -1073,11 +1205,11 @@ function onOpenChange(open: boolean): void {
        the time. -->
   <RvDialog
     :close-label="t('action.close')"
-    :dismissible="!saving"
+    :dismissible="!interactionBusy"
     :open="curating && sourcesOpen && service !== null"
     :title="t('serviceCard.sources')"
     variant="panel"
-    @update:open="sourcesOpen = $event"
+    @update:open="onSourcesOpenChange"
   >
     <section class="service-card__section">
       <p v-if="sourceError !== ''" class="service-card__error" role="alert">
@@ -1085,11 +1217,11 @@ function onOpenChange(open: boolean): void {
       </p>
 
       <ul v-if="sources.length > 0" class="service-card__rows">
-        <li v-for="source in sources" :key="source.id">
+        <li v-for="source in effectiveSources" :key="source.id">
           <label class="service-card__switch">
             <input
               :checked="source.enabled"
-              :disabled="interactionBusy"
+              :disabled="toggleBlocked"
               type="checkbox"
               @change="
                 onToggleSource(
@@ -1107,6 +1239,30 @@ function onOpenChange(open: boolean): void {
               <small>{{ sourceLabel(source.id, source.type) }}</small>
             </span>
           </label>
+          <template v-if="sourceMutations.isPending(source.id)">
+            <small class="service-card__row-state" role="status">
+              {{ t('serviceCard.mutation.pending') }}
+            </small>
+          </template>
+          <span
+            v-else-if="sourceMutations.getState(source.id).error !== null"
+            class="service-card__row-recovery"
+            role="alert"
+          >
+            <small class="service-card__row-state">
+              {{ t('serviceCard.mutation.failed') }}
+            </small>
+            <button
+              :aria-label="
+                t('serviceCard.mutation.retry.aria', { entry: source.id })
+              "
+              class="service-card__row-action"
+              type="button"
+              @click="sourceMutations.retry(source.id)"
+            >
+              {{ t('serviceCard.mutation.retry') }}
+            </button>
+          </span>
           <button
             v-if="source.custom"
             :aria-label="
@@ -1150,7 +1306,7 @@ function onOpenChange(open: boolean): void {
             <RvTextInput
               v-model="feedURL"
               :described-by="describedBy"
-              :disabled="saving"
+              :disabled="interactionBusy"
               input-id="service-feed-url"
               :invalid="invalid"
               placeholder="https://example.com/list.txt"
@@ -1165,7 +1321,7 @@ function onOpenChange(open: boolean): void {
             <RvSelect
               v-model="feedFormat"
               :described-by="describedBy"
-              :disabled="saving"
+              :disabled="interactionBusy"
               input-id="service-feed-format"
               :options="feedFormats"
               :placeholder="t('serviceCard.feed.format')"
@@ -1174,7 +1330,7 @@ function onOpenChange(open: boolean): void {
         </RvField>
         <div class="service-card__actions">
           <RvButton
-            :disabled="saving"
+            :disabled="interactionBusy"
             size="compact"
             variant="quiet"
             @click="feedOpen = false"
@@ -1182,7 +1338,7 @@ function onOpenChange(open: boolean): void {
             {{ t('action.cancel') }}
           </RvButton>
           <RvButton
-            :disabled="saving"
+            :disabled="interactionBusy"
             :loading="saving"
             size="compact"
             type="submit"
@@ -1512,6 +1668,18 @@ function onOpenChange(open: boolean): void {
 .service-card__row-copy small {
   color: var(--rv-color-ink-tertiary);
   font-size: var(--rv-text-meta);
+}
+
+.service-card__row-recovery {
+  display: inline-flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: var(--rv-space-1) var(--rv-space-2);
+  align-items: center;
+}
+
+.service-card__row-recovery .service-card__row-state {
+  color: var(--rv-color-status-failed);
 }
 
 .service-card__value {
