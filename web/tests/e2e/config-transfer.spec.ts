@@ -177,13 +177,23 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
   )
   expect(topDuplicate).not.toBe(rawTransfer)
   expect(nestedDuplicate).not.toBe(rawTransfer)
-  await writeFile(invalidUTF8Path, new Uint8Array([0xff]))
+  await writeFile(
+    invalidUTF8Path,
+    new Uint8Array([
+      ...Buffer.from('{"label":"', 'utf8'),
+      0xff,
+      ...Buffer.from('"}', 'utf8'),
+    ]),
+  )
   await writeFile(bomPath, `\uFEFF${rawTransfer}`, 'utf8')
   await writeFile(topDuplicatePath, topDuplicate, 'utf8')
   await writeFile(nestedDuplicatePath, nestedDuplicate, 'utf8')
 
   await page.goto(`${destinationOrigin}/settings`)
   for (const invalidPath of [invalidUTF8Path, bomPath]) {
+    // Reload for each case so a previous invalid-file notice cannot make this
+    // assertion pass if the current bytes are accidentally accepted.
+    await page.goto(`${destinationOrigin}/settings`)
     await page.getByLabel('Choose a .json file').setInputFiles(invalidPath)
     await expect(
       page.getByText('The configuration could not be read.'),

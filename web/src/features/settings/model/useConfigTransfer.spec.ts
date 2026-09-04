@@ -56,6 +56,21 @@ describe('useConfigTransfer', () => {
     expect(arrayBuffer).not.toHaveBeenCalled()
   })
 
+  it('accepts a file exactly at the 64 MiB boundary', async () => {
+    const arrayBuffer = vi.fn(async () => new TextEncoder().encode('{}').buffer)
+    const transfer = useConfigTransfer()
+
+    await transfer.choose({
+      name: 'boundary.json',
+      size: 64 * 1024 * 1024,
+      arrayBuffer,
+    } as unknown as File)
+
+    expect(arrayBuffer).toHaveBeenCalledOnce()
+    expect(transfer.state.value).toBe('selected')
+    expect(transfer.canPreview.value).toBe(true)
+  })
+
   it('preserves duplicate keys through file selection and preview', async () => {
     const source =
       '{"version":"config-transfer-v1.1","settings":{"refresh_interval":"off","refresh_interval":"daily"}}'
@@ -72,7 +87,14 @@ describe('useConfigTransfer', () => {
   })
 
   it.each([
-    ['invalid UTF-8', byteFile('invalid.json', [new Uint8Array([0xff])])],
+    [
+      'invalid UTF-8',
+      byteFile('invalid.json', [
+        new TextEncoder().encode('{"label":"'),
+        new Uint8Array([0xff]),
+        new TextEncoder().encode('"}'),
+      ]),
+    ],
     [
       'UTF-8 BOM',
       byteFile('bom.json', [new Uint8Array([0xef, 0xbb, 0xbf]), '{}']),
