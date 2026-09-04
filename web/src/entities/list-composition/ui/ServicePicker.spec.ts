@@ -145,32 +145,30 @@ describe('ServicePicker', () => {
     document.body.innerHTML = ''
   })
 
-  it('edits one mixed category in a stable detail pane', async () => {
+  it('groups selected lists first and keeps search state while selection changes', async () => {
     const wrapper = mountPicker({
       modelValue: { ...emptyComposition, services: ['discord'] },
     })
 
-    const category = wrapper.get<HTMLInputElement>(
-      'input[value="communication"]',
-    ).element
-    expect(category.checked).toBe(false)
-    expect(category.indeterminate).toBe(true)
+    expect(
+      wrapper.findAll('.picker__group-row').map((row) => row.text()),
+    ).toEqual(['Selected for the route 1', 'Available lists 3'])
+    expect(
+      wrapper.findAll('.picker__row th[scope="row"]').map((row) => row.text()),
+    ).toEqual([
+      'DiscordCommunication',
+      'TelegramCommunication',
+      'YouTubeVideo, Домашние',
+      'SteamUncategorized',
+    ])
 
-    const configure = wrapper.findAll('.picker__configure')
-    expect(configure[0]?.text()).toBe('')
-    expect(configure[0]?.attributes('aria-current')).toBe('true')
-    // The pane is the category, named by the category and nothing else.
-    expect(wrapper.get('.picker__details h3').text()).toBe('Communication')
-    expect(wrapper.text()).toContain('Discord')
-    expect(wrapper.text()).not.toContain('Selected manually')
-    expect(wrapper.findAll('.picker__service small')).toHaveLength(0)
-
-    await configure[1]?.trigger('click')
-
-    expect(wrapper.get('.picker__details h3').text()).toBe('Video')
-    expect(wrapper.findAll('.picker__details')).toHaveLength(1)
-    expect(wrapper.get('.picker__details').text()).toContain('YouTube')
-    expect(wrapper.findAll('.picker__groups .picker__service')).toHaveLength(0)
+    const search = wrapper.get<HTMLInputElement>('.picker__search-input')
+    await search.setValue('steam')
+    await wrapper.get('input[value="steam"]').setValue(true)
+    expect(search.element.value).toBe('steam')
+    expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toMatchObject({
+      services: ['discord', 'steam'],
+    })
     wrapper.unmount()
   })
 
@@ -179,25 +177,29 @@ describe('ServicePicker', () => {
    * same column, computed here, and it carries no membership controls because
    * there is no category to leave.
    */
-  it('gives the lists no category claims the last row', async () => {
+  it('filters by category and exposes a separate live category reference', async () => {
     const wrapper = mountPicker()
 
-    const rows = wrapper.findAll('.picker__group')
-    expect(rows).toHaveLength(4)
-    expect(rows.at(-1)?.text()).toContain('Uncategorized')
-    expect(wrapper.text()).not.toContain('Other services')
+    wrapper
+      .findComponent({ name: 'RvSelect' })
+      .vm.$emit('update:modelValue', 'communication')
+    await wrapper.vm.$nextTick()
 
-    await wrapper.findAll('.picker__configure').at(-1)?.trigger('click')
-    const details = wrapper.get('.picker__details')
-    expect(details.get('h3').text()).toBe('Uncategorized')
-    expect(details.text()).toContain('Steam')
-    // No reference to follow, so selecting the row selects its members.
-    await wrapper
-      .get('input[value="rv:uncategorized"]')
-      .setValue(true as unknown as string)
+    expect(wrapper.findAll('.picker__row').map((row) => row.text())).toEqual([
+      expect.stringContaining('Discord'),
+      expect.stringContaining('Telegram'),
+    ])
+    const follow = wrapper.get<HTMLInputElement>(
+      '.picker__category-reference input',
+    )
+    expect(follow.attributes('aria-label')).toBeUndefined()
+    expect(wrapper.get('.picker__category-reference').text()).toContain(
+      'Follow “Communication”',
+    )
+    await follow.setValue(true)
     expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toMatchObject({
-      categories: [],
-      services: ['steam'],
+      categories: ['communication'],
+      services: [],
     })
     wrapper.unmount()
   })
@@ -223,12 +225,54 @@ describe('ServicePicker', () => {
     for (const absent of ['Custom category', 'Custom list', 'Add a list'])
       expect(words, absent).not.toContain(absent)
 
-    // Every control that is left: the search, the checkboxes, and the chevrons.
-    await wrapper.get('input[value="communication"]').setValue(true)
-    await wrapper.get('input[value="discord"]').setValue(false)
-    await wrapper.findAll('.picker__configure')[1]?.trigger('click')
+    await wrapper.get('input[value="discord"]').setValue(true)
     await flushPromises()
     expect(keys()).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('shows complete overlap tags and does not read an absent summary as none', async () => {
+    const baseForecast = {
+      fits: true,
+      maximumRules: 100,
+      perService: [
+        { rules: 3, serviceID: 'discord' },
+        { rules: 2, serviceID: 'telegram' },
+      ],
+      projectedRules: 5,
+      targetID: 'keenetic',
+    }
+    const wrapper = mountPicker({
+      forecast: {
+        ...baseForecast,
+        overlaps: {
+          items: [],
+          summary: [
+            { overlaps: ['telegram'], serviceID: 'discord' },
+            { overlaps: ['discord'], serviceID: 'telegram' },
+          ],
+          truncated: false,
+        },
+      },
+      modelValue: {
+        ...emptyComposition,
+        priority: ['discord', 'telegram'],
+        services: ['discord', 'telegram'],
+      },
+    })
+
+    expect(wrapper.findAll('.picker__row--selected')).toHaveLength(2)
+    expect(wrapper.text()).toContain('≈ 3 rules')
+    expect(wrapper.text()).toContain('Overlap: Telegram')
+    expect(wrapper.text()).toContain('Overlap: Discord')
+    await wrapper.setProps({
+      forecast: {
+        ...baseForecast,
+        overlaps: { items: [], truncated: false },
+      },
+    })
+    expect(wrapper.text()).toContain('Overlaps unknown')
+    expect(wrapper.text()).not.toContain('None')
     wrapper.unmount()
   })
 
@@ -242,7 +286,7 @@ describe('ServicePicker', () => {
     })
     const wrapper = mountPicker()
 
-    await wrapper.findAll('.picker__service-info')[0]?.trigger('click')
+    await wrapper.findAll('.picker__open')[0]?.trigger('click')
     await flushPromises()
     const card = openDialog()
 
@@ -274,7 +318,7 @@ describe('ServicePicker', () => {
     })
     const wrapper = mountPicker()
 
-    await wrapper.findAll('.picker__service-info')[0]?.trigger('click')
+    await wrapper.findAll('.picker__open')[0]?.trigger('click')
     await flushPromises()
     const card = openDialog()
     const field = card.querySelector<HTMLInputElement>(
@@ -311,7 +355,7 @@ describe('ServicePicker', () => {
     })
     const wrapper = mountPicker()
 
-    await wrapper.findAll('.picker__service-info')[0]?.trigger('click')
+    await wrapper.findAll('.picker__open')[0]?.trigger('click')
     await flushPromises()
     const card = openDialog()
     const informer = card.querySelector<HTMLButtonElement>(
@@ -341,7 +385,7 @@ describe('ServicePicker', () => {
     })
     const wrapper = mountPicker()
 
-    await wrapper.findAll('.picker__service-info')[0]?.trigger('click')
+    await wrapper.findAll('.picker__open')[0]?.trigger('click')
     await flushPromises()
     await flushPromises()
 
@@ -359,7 +403,7 @@ describe('ServicePicker', () => {
     })
     const wrapper = mountPicker()
 
-    await wrapper.findAll('.picker__service-info')[0]?.trigger('click')
+    await wrapper.findAll('.picker__open')[0]?.trigger('click')
     await flushPromises()
     clickByText(openDialog(), 'Add to route')
 
@@ -381,7 +425,7 @@ describe('ServicePicker', () => {
     })
     const wrapper = mountPicker({ listName: 'Chat and video', pending: true })
 
-    await wrapper.findAll('.picker__service-info')[0]?.trigger('click')
+    await wrapper.findAll('.picker__open')[0]?.trigger('click')
     await flushPromises()
     const card = openDialog()
 
@@ -403,7 +447,7 @@ describe('ServicePicker', () => {
     })
     const wrapper = mountPicker({ listName: 'Chat and video' })
 
-    await wrapper.findAll('.picker__service-info')[0]?.trigger('click')
+    await wrapper.findAll('.picker__open')[0]?.trigger('click')
     await flushPromises()
 
     expect(
@@ -419,7 +463,7 @@ describe('ServicePicker', () => {
     })
     const wrapper = mountPicker({ listName: '   ' })
 
-    await wrapper.findAll('.picker__service-info')[0]?.trigger('click')
+    await wrapper.findAll('.picker__open')[0]?.trigger('click')
     await flushPromises()
     const card = openDialog()
 

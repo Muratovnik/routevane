@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 
+import { overlapServiceIDs } from '@/entities/list-composition/model/composition'
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
-import CompositionOverlaps from '@/entities/list-composition/ui/CompositionOverlaps.vue'
 import CompositionPriorityList from '@/entities/list-composition/ui/CompositionPriorityList.vue'
 import { useCreateList } from '@/features/create-list/model/useCreateList'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { ChoiceGroup } from '@/shared/ui/kinds'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvCombobox from '@/shared/ui/RvCombobox.vue'
+import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 
 const emit = defineEmits<{
@@ -81,10 +82,20 @@ const chosenForecast = computed(() =>
 const priorityItems = computed(() =>
   setup.resolvedServiceIDs.value.map((id) => ({
     id,
+    overlaps: overlapNames(id),
     title:
       setup.services.value.find((service) => service.id === id)?.title ?? id,
   })),
 )
+
+function overlapNames(serviceID: string): string[] | null {
+  const ids = overlapServiceIDs(setup.selectedForecast.value, serviceID)
+  if (ids === null) return null
+  return ids.map(
+    (id) =>
+      setup.services.value.find((service) => service.id === id)?.title ?? id,
+  )
+}
 
 const chosenTarget = computed<string>({
   get: () => setup.selectedTargetID.value,
@@ -173,16 +184,34 @@ async function submit(): Promise<void> {
             v-model="setup.composition.value"
             :categories="setup.categories.value"
             :disabled="setup.busy.value"
+            :forecast="setup.selectedForecast.value"
+            :forecast-pending="setup.forecastPending.value"
             :list-name="setup.name.value"
             pending
             :services="setup.services.value"
           />
           <CompositionPriorityList
-            v-if="priorityItems.length > 1"
+            class="create__priority"
             :disabled="setup.busy.value"
             :items="priorityItems"
+            :overlap-pending="setup.forecastPending.value"
             @reorder="setup.setPriority"
-          />
+          >
+            <template #actions="{ item }">
+              <button
+                v-if="item !== undefined"
+                :aria-label="
+                  t('list.composition.remove.aria', { service: item.title })
+                "
+                class="create__priority-remove"
+                :disabled="setup.busy.value"
+                type="button"
+                @click="setup.removeService(item.id)"
+              >
+                <RvIcon name="trash" />
+              </button>
+            </template>
+          </CompositionPriorityList>
         </div>
       </section>
 
@@ -211,17 +240,6 @@ async function submit(): Promise<void> {
           tone="warning"
         />
       </div>
-
-      <CompositionOverlaps
-        v-if="
-          setup.resolvedServiceIDs.value.length > 1 &&
-          setup.selectedTargetID.value !== ''
-        "
-        :forecast="setup.selectedForecast.value"
-        :pending="setup.forecastPending.value"
-        :target-title="setup.selectedTargetTitle.value"
-        @retry="setup.retryForecast"
-      />
 
       <div class="create__submit">
         <RvStateNotice

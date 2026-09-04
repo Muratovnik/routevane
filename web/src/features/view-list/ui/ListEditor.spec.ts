@@ -103,7 +103,7 @@ function buttonByText(wrapper: ReturnType<typeof mountEditor>, text: string) {
 }
 
 function rowCopies(wrapper: ReturnType<typeof mountEditor>) {
-  return wrapper.findAll('.editor__row-copy, .priority-list__copy')
+  return wrapper.findAll('.priority-list__copy')
 }
 
 describe('ListEditor', () => {
@@ -118,46 +118,19 @@ describe('ListEditor', () => {
     vi.unstubAllGlobals()
   })
 
-  it('states what the route holds before offering the catalog', async () => {
+  it('keeps the full catalog and ordered composition visible together', async () => {
     stubPreview()
     const wrapper = mountEditor()
     await flushPromises()
 
-    // The category is a reason some lists are here, so it is named above them
-    // rather than mixed in with them.
     expect(rowCopies(wrapper).map((row) => row.text())).toEqual([
-      'Communication2 lists',
       'Discord',
       'Telegram',
       'YouTube',
     ])
-
-    // The catalog is a way to add, not the way to read what is already here.
-    expect(wrapper.get('.editor__services').attributes('style')).toBe(
-      'display: none;',
-    )
-    await buttonByText(wrapper, 'Add lists')?.trigger('click')
-    expect(wrapper.get('.editor__services').attributes('style')).toBeUndefined()
-    expect(wrapper.find('.picker').exists()).toBe(true)
+    expect(wrapper.find('.picker__table').exists()).toBe(true)
+    expect(wrapper.findAll('.picker__row--selected')).toHaveLength(3)
     expect(buttonByText(wrapper, 'Add lists')).toBeUndefined()
-
-    // What opened says so where it opened, and it is put away from the same
-    // place. Closing it changes nothing about the draft it was opened over.
-    const before = wrapper
-      .findAll('.editor__row-copy, .priority-list__copy')
-      .map((row) => row.text())
-    expect(wrapper.get('.editor__picker-title').text()).toBe('Add lists')
-    await buttonByLabel(wrapper, 'Hide the catalog')?.trigger('click')
-
-    expect(wrapper.get('.editor__services').attributes('style')).toBe(
-      'display: none;',
-    )
-    expect(buttonByText(wrapper, 'Add lists')).toBeDefined()
-    expect(
-      wrapper
-        .findAll('.editor__row-copy, .priority-list__copy')
-        .map((row) => row.text()),
-    ).toEqual(before)
     wrapper.unmount()
   })
 
@@ -185,8 +158,8 @@ describe('ListEditor', () => {
     })
 
     const rows = rowCopies(wrapper)
-    expect(rows[1]?.text()).toContain('≈ 3 rules')
-    expect(rows[3]?.text()).toContain('≈ 1 rule')
+    expect(rows[0]?.text()).toContain('≈ 3 rules')
+    expect(rows[2]?.text()).toContain('≈ 1 rule')
 
     // A format that would refuse the draft says so; saving stays available,
     // because a failed rebuild is already reported per connection.
@@ -206,7 +179,8 @@ describe('ListEditor', () => {
 
     expect(fetchMock).not.toHaveBeenCalled()
     expect(wrapper.find('.editor__forecast').exists()).toBe(false)
-    expect(wrapper.findAll('.editor__row-copy small')).toHaveLength(1)
+    expect(wrapper.findAll('.priority-list__copy small')).toHaveLength(0)
+    expect(wrapper.text()).toContain('No forecast')
     wrapper.unmount()
   })
 
@@ -293,22 +267,18 @@ describe('ListEditor', () => {
     wrapper.unmount()
   })
 
-  it('cancels the edited name and composition without saving and closes the picker', async () => {
+  it('cancels the edited name and composition without saving', async () => {
     stubPreview()
     const wrapper = mountEditor()
     await flushPromises()
     const storedRows = wrapper
-      .findAll('.editor__row-copy, .priority-list__copy')
+      .findAll('.priority-list__copy')
       .map((row) => row.text())
     await wrapper.get('#editor-name').setValue('Unsaved name')
-    const remove = buttonByLabel(wrapper, 'Remove Communication from the route')
+    const remove = buttonByLabel(wrapper, 'Remove Discord from the route')
     expect(remove).toBeDefined()
     await remove!.trigger('click')
-    await buttonByText(wrapper, 'Add lists')?.trigger('click')
-    expect(
-      wrapper.findAll('.editor__row-copy').map((row) => row.text()),
-    ).not.toEqual(storedRows)
-    expect(wrapper.get('.editor__services').attributes('style')).toBeUndefined()
+    expect(rowCopies(wrapper).map((row) => row.text())).not.toEqual(storedRows)
     const cancel = buttonByText(wrapper, 'Cancel')
     expect(cancel).toBeDefined()
     await cancel!.trigger('click')
@@ -316,13 +286,8 @@ describe('ListEditor', () => {
       (wrapper.get('#editor-name').element as HTMLInputElement).value,
     ).toBe('Chat and video')
     expect(
-      wrapper
-        .findAll('.editor__row-copy, .priority-list__copy')
-        .map((row) => row.text()),
+      wrapper.findAll('.priority-list__copy').map((row) => row.text()),
     ).toEqual(storedRows)
-    expect(wrapper.get('.editor__services').attributes('style')).toBe(
-      'display: none;',
-    )
     expect(wrapper.emitted('save')).toBeUndefined()
     expect(buttonByText(wrapper, 'Cancel')).toBeUndefined()
     wrapper.unmount()
@@ -333,10 +298,13 @@ describe('ListEditor', () => {
     const wrapper = mountEditor()
     await flushPromises()
 
-    await buttonByLabel(
-      wrapper,
-      'Remove Communication from the route',
-    )?.trigger('click')
+    wrapper
+      .findComponent({ name: 'RvSelect' })
+      .vm.$emit('update:modelValue', 'communication')
+    await wrapper.vm.$nextTick()
+    await wrapper
+      .get<HTMLInputElement>('.picker__category-reference input')
+      .setValue(false)
 
     expect(rowCopies(wrapper).map((row) => row.text())).toEqual(['YouTube'])
     await wrapper.get('form').trigger('submit')

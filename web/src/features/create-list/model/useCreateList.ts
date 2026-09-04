@@ -1,9 +1,12 @@
 import { computed, ref, watch } from 'vue'
 
 import {
+  applyDefaultPriority,
   cloneComposition,
   normalizeComposition,
   resolvedComposition,
+  serviceIncluded,
+  toggleCompositionService,
 } from '@/entities/list-composition/model/composition'
 import { useCompositionForecast } from '@/entities/list-composition/model/forecast'
 import {
@@ -65,6 +68,8 @@ export function useCreateList() {
   const nameEdited = ref(false)
   const selectedTargetID = ref('')
   const deployableIDs = ref<Set<string>>(new Set())
+  const defaultPriority = ref<string[]>([])
+  const priorityCustomized = ref(false)
 
   const services = computed<ServiceDetail[]>(
     () => catalog.value?.serviceDetails ?? [],
@@ -121,6 +126,24 @@ export function useCreateList() {
 
   watch(composition, () => {
     if (!nameEdited.value) name.value = proposedName.value
+  })
+
+  // A new route starts in the library's order. Once the operator moves a row,
+  // that route owns its snapshot and later selections append through the
+  // ordinary composition normalizer instead of rewriting the chosen order.
+  watch([resolvedServiceIDs, defaultPriority], () => {
+    if (priorityCustomized.value) return
+    const next = applyDefaultPriority(
+      composition.value,
+      categories.value,
+      defaultPriority.value,
+    )
+    if (
+      (next.priority ?? []).join('\0') ===
+      (composition.value.priority ?? []).join('\0')
+    )
+      return
+    composition.value = next
   })
 
   // Every change to the draft asks the server what it would weigh, in every
@@ -193,6 +216,9 @@ export function useCreateList() {
       return
     }
     catalog.value = loadedCatalog.value
+    defaultPriority.value =
+      loadedCatalog.value.defaultPriority ??
+      loadedCatalog.value.serviceDetails.map((service) => service.id)
     catalogState.value =
       loadedCatalog.value.serviceDetails.length === 0 ? 'empty' : 'ready'
     if (deployables.status === 'fulfilled') {
@@ -209,9 +235,20 @@ export function useCreateList() {
 
   function setPriority(ids: string[]): void {
     if (busy.value) return
+    priorityCustomized.value = true
     composition.value = normalizeComposition(
       { ...cloneComposition(composition.value), priority: ids },
       categories.value,
+    )
+  }
+
+  function removeService(id: string): void {
+    if (busy.value || !serviceIncluded(composition.value, categories.value, id))
+      return
+    composition.value = toggleCompositionService(
+      composition.value,
+      categories.value,
+      id,
     )
   }
 
@@ -284,6 +321,7 @@ export function useCreateList() {
     retryForecast: () =>
       forecast.retry(composition.value, resolvedServiceIDs.value),
     registerCatalog,
+    removeService,
     resolvedServiceIDs,
     selectedCategoryIDs,
     selectedForecast,

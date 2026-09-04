@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { reactive } from 'vue'
 
 import {
+  applyDefaultPriority,
   categorySelectionState,
   compositionSignature,
   moveCompositionPriority,
+  overlapServiceIDs,
   resolvedComposition,
+  setCompositionCategoryReference,
   toggleCompositionCategory,
   toggleCompositionService,
 } from './composition'
@@ -144,6 +147,32 @@ describe('list composition selection', () => {
       services: [],
     })
   })
+
+  it('keeps a live category reference legible while individual exclusions change', () => {
+    const followed = setCompositionCategoryReference(
+      {
+        categories: [],
+        exclusions: [],
+        serviceDomains: {},
+        services: ['discord'],
+      },
+      categories,
+      'communication',
+      true,
+    )
+    const partial = toggleCompositionService(followed, categories, 'discord')
+
+    expect(partial.categories).toEqual(['communication'])
+    expect(partial.exclusions).toEqual(['discord'])
+    expect(
+      setCompositionCategoryReference(
+        partial,
+        categories,
+        'communication',
+        false,
+      ),
+    ).toMatchObject({ categories: [], exclusions: [], services: [] })
+  })
 })
 
 // Selection arrays are sets, while priority is an operator-owned order.
@@ -216,6 +245,46 @@ describe('composition identity', () => {
     expect(
       moveCompositionPriority(composition, categories, 2, 0).priority,
     ).toEqual(['youtube', 'telegram', 'discord'])
+  })
+
+  it('orders a new draft by the library default without adding unselected lists', () => {
+    const ordered = applyDefaultPriority(
+      {
+        categories: ['communication'],
+        exclusions: [],
+        priority: ['discord', 'telegram'],
+        serviceDomains: {},
+        services: ['youtube'],
+      },
+      categories,
+      ['youtube', 'telegram', 'discord', 'missing'],
+    )
+
+    expect(ordered.priority).toEqual(['youtube', 'telegram', 'discord'])
+  })
+
+  it('distinguishes an old forecast from a confirmed empty overlap row', () => {
+    const base = {
+      fits: true,
+      maximumRules: 10,
+      perService: [],
+      projectedRules: 2,
+      targetID: 'target',
+    }
+    expect(overlapServiceIDs(base, 'discord')).toBeNull()
+    expect(
+      overlapServiceIDs(
+        {
+          ...base,
+          overlaps: {
+            items: [],
+            summary: [{ serviceID: 'discord', overlaps: [] }],
+            truncated: false,
+          },
+        },
+        'discord',
+      ),
+    ).toEqual([])
   })
 
   // Components hand these helpers reactive state, and the structured-clone

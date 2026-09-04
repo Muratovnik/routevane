@@ -9,6 +9,7 @@ import CreateList from './CreateList.vue'
 
 const catalogPayload = {
   services: ['discord', 'limit-fixture'],
+  default_priority: ['limit-fixture', 'discord'],
   service_details: [
     { id: 'discord', title: 'Discord', categories: [] },
     { id: 'limit-fixture', title: 'Limit fixture', categories: [] },
@@ -231,6 +232,39 @@ describe('CreateList forecast', () => {
     expect(wrapper.get<HTMLInputElement>('#create-name').element.value).toBe(
       'Discord',
     )
+    wrapper.unmount()
+  })
+
+  it('keeps the composition rail visible, applies the library order, and removes from it', async () => {
+    stubNetwork()
+    const wrapper = mountComposer()
+    await flushPromises()
+
+    expect(wrapper.get('.priority-list__empty').text()).toBe(
+      'Choose lists in the table.',
+    )
+    await wrapper.get('input[value="discord"]').setValue(true)
+    await wrapper.get('input[value="limit-fixture"]').setValue(true)
+    await flushPromises()
+    expect(
+      wrapper.findAll('.priority-list__item').map((row) => row.text()),
+    ).toEqual(['Limit fixture', 'Discord'])
+    expect(wrapper.find('.picker__row .priority-list__handle').exists()).toBe(
+      false,
+    )
+
+    const remove = wrapper
+      .findAll('button')
+      .find(
+        (button) =>
+          button.attributes('aria-label') ===
+          'Remove Limit fixture from the route',
+      )
+    expect(remove).toBeDefined()
+    await remove?.trigger('click')
+    expect(
+      wrapper.findAll('.priority-list__item').map((row) => row.text()),
+    ).toEqual(['Discord'])
     wrapper.unmount()
   })
 

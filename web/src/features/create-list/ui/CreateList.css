@@ -40,8 +40,46 @@
    priority control appears. */
 .create__services-body {
   display: grid;
-  gap: var(--rv-space-4);
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  gap: var(--rv-space-5);
+  align-items: start;
   min-width: 0;
+}
+
+.create__priority {
+  position: sticky;
+  top: var(--rv-space-4);
+}
+
+.create__priority-remove {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--rv-control-touch);
+  height: var(--rv-control-touch);
+  padding: 0;
+  color: var(--rv-color-ink-muted);
+  font: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: var(--rv-radius-sm);
+  cursor: pointer;
+}
+
+.create__priority-remove:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: var(--rv-border-hair);
+}
+
+.create__priority-remove:disabled {
+  opacity: var(--rv-disabled-opacity);
+  cursor: not-allowed;
+}
+
+.create__priority-remove:hover:not(:disabled) {
+  color: var(--rv-color-status-failed);
+  background: var(--rv-color-surface-hover);
 }
 
 .create__target {
@@ -109,4 +147,14 @@
   min-height: 1.25rem;
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
+}
+
+@media (width <= 64rem) {
+  .create__services-body {
+    grid-template-columns: 1fr;
+  }
+
+  .create__priority {
+    position: static;
+  }
 }

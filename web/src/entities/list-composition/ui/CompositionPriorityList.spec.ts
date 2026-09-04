@@ -8,7 +8,7 @@ import CompositionPriorityList from './CompositionPriorityList.vue'
 describe('CompositionPriorityList', () => {
   afterEach(() => useLocale().setLocale('en'))
 
-  it('states the winning order and supports keyboard reordering', async () => {
+  it('shows the composition without visible ordinals and supports keyboard reordering', async () => {
     const wrapper = mount(CompositionPriorityList, {
       props: {
         items: [
@@ -19,14 +19,40 @@ describe('CompositionPriorityList', () => {
       global: { stubs: { RvIcon: true } },
     })
 
-    expect(wrapper.text()).toContain('the higher list owns the entry')
+    expect(wrapper.text()).toContain('List order sets the priority')
     expect(
       wrapper.findAll('.priority-list__item').map((row) => row.text()),
-    ).toEqual(['1Alpha', '2Beta'])
+    ).toEqual(['Alpha', 'Beta'])
+    expect(wrapper.find('.priority-list__position').exists()).toBe(false)
+    expect(
+      wrapper.get('.priority-list__handle').attributes('aria-label'),
+    ).toContain('position 1')
     await wrapper.get('.priority-list__handle').trigger('keydown', {
       key: 'ArrowDown',
     })
     expect(wrapper.emitted('reorder')?.at(-1)).toEqual([['beta', 'alpha']])
+    wrapper.unmount()
+  })
+
+  it('shows overlap tags, an honest unknown state, and an overrideable context', async () => {
+    const wrapper = mount(CompositionPriorityList, {
+      props: {
+        description: 'Library-wide order',
+        items: [
+          { id: 'alpha', overlaps: ['Beta'], title: 'Alpha' },
+          { id: 'beta', overlaps: null, title: 'Beta' },
+        ],
+        title: 'Default priority',
+      },
+      global: { stubs: { RvIcon: true } },
+    })
+
+    expect(wrapper.text()).toContain('Default priority')
+    expect(wrapper.text()).toContain('Library-wide order')
+    expect(wrapper.text()).toContain('Overlap: Beta')
+    expect(wrapper.text()).toContain('Overlaps unknown')
+    await wrapper.setProps({ overlapPending: true })
+    expect(wrapper.text()).toContain('Calculating overlaps')
     wrapper.unmount()
   })
 

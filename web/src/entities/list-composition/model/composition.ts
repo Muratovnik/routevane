@@ -1,7 +1,7 @@
 import { toRaw } from 'vue'
 
 import type { CategoryDetail } from '@/shared/api/catalog'
-import type { ListComposition } from '@/shared/api/lists'
+import type { ListComposition, TargetForecast } from '@/shared/api/lists'
 
 export type CategorySelectionState = 'none' | 'partial' | 'all'
 
@@ -112,6 +112,31 @@ export function toggleCompositionCategory(
   return normalizeComposition(next, categories)
 }
 
+/** Set whether a draft follows one live category reference. */
+export function setCompositionCategoryReference(
+  composition: ListComposition,
+  categories: CategoryDetail[],
+  categoryID: string,
+  selected: boolean,
+): ListComposition {
+  const next = cloneComposition(composition)
+  const members =
+    categories.find((category) => category.id === categoryID)?.services ?? []
+  if (members.length === 0) return normalizeComposition(next, categories)
+
+  if (selected) {
+    if (!next.categories.includes(categoryID)) next.categories.push(categoryID)
+    next.services = next.services.filter((id) => !members.includes(id))
+    next.exclusions = next.exclusions.filter((id) => !members.includes(id))
+  } else {
+    next.categories = next.categories.filter((id) => id !== categoryID)
+    next.services = next.services.filter((id) => !members.includes(id))
+    const stillCarried = categoryServices(next, categories)
+    next.exclusions = next.exclusions.filter((id) => stillCarried.has(id))
+  }
+  return normalizeComposition(next, categories)
+}
+
 export function normalizeComposition(
   composition: ListComposition,
   categories: CategoryDetail[] = [],
@@ -137,6 +162,40 @@ export function normalizeComposition(
     normalized.serviceDomains[serviceID] = [...new Set(domains)].sort()
   }
   return normalized
+}
+
+/**
+ * Give a new draft the library's default order without turning that global
+ * preference into a live dependency. The caller decides when to stop applying
+ * it; existing routes keep using their stored priority.
+ */
+export function applyDefaultPriority(
+  composition: ListComposition,
+  categories: CategoryDetail[],
+  defaultPriority: string[],
+): ListComposition {
+  const included = new Set(resolvedComposition(composition, categories))
+  const priority = defaultPriority.filter((id) => included.delete(id))
+  priority.push(...[...included].sort())
+  return normalizeComposition(
+    { ...cloneComposition(composition), priority },
+    categories,
+  )
+}
+
+/**
+ * The summary is optional for compatibility with an older local service. A
+ * missing summary is unknown, not proof that the list has no intersections.
+ */
+export function overlapServiceIDs(
+  forecast: TargetForecast | null | undefined,
+  serviceID: string,
+): string[] | null {
+  const summary = forecast?.overlaps?.summary
+  if (summary === undefined) return null
+  return (
+    summary.find((entry) => entry.serviceID === serviceID)?.overlaps ?? null
+  )
 }
 
 /**

@@ -2,18 +2,15 @@
 import { computed, ref, watch } from 'vue'
 
 import {
-  categoryServices,
   cloneComposition,
   compositionSignature,
   normalizeComposition,
+  overlapServiceIDs,
   resolvedComposition,
-  serviceIncluded,
   toggleCompositionService,
 } from '@/entities/list-composition/model/composition'
 import { useCompositionForecast } from '@/entities/list-composition/model/forecast'
-import ServiceDetailDialog from '@/entities/list-composition/ui/ServiceDetailDialog.vue'
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
-import CompositionOverlaps from '@/entities/list-composition/ui/CompositionOverlaps.vue'
 import CompositionPriorityList from '@/entities/list-composition/ui/CompositionPriorityList.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { CategoryDetail, ServiceDetail } from '@/shared/api/catalog'
@@ -41,7 +38,7 @@ const emit = defineEmits<{
   save: [name: string, composition: ListComposition]
 }>()
 
-const { formatNumber, t, tc, tor } = useLocale()
+const { formatNumber, t, tc } = useLocale()
 const forecast = useCompositionForecast()
 
 function storedComposition(): ListComposition {
@@ -56,10 +53,6 @@ function storedComposition(): ListComposition {
 
 const draftName = ref(props.name)
 const draftComposition = ref<ListComposition>(storedComposition())
-// The picker is the way to add, not the way to read: what the list holds is
-// the rows above it, and the catalog opens only when the operator asks for it.
-const pickerOpen = ref(false)
-const activeServiceID = ref('')
 
 const resolved = computed(() =>
   resolvedComposition(draftComposition.value, props.categories),
@@ -101,16 +94,10 @@ const weights = computed<Map<string, number>>(() => {
   )
 })
 
-const categoryRows = computed(() =>
-  draftComposition.value.categories.map((id) => {
-    const detail = props.categories.find((category) => category.id === id)
-    return {
-      id,
-      label: tor(`category.${id}`, detail?.title ?? id),
-      size: detail?.services.length ?? 0,
-    }
-  }),
-)
+const firstForecast = computed(() => {
+  const first = props.outputs[0]
+  return first === undefined ? null : forecast.forTarget(first.targetID)
+})
 
 const serviceRows = computed(() =>
   resolved.value.map((id) => ({
@@ -119,9 +106,18 @@ const serviceRows = computed(() =>
       weights.value.get(id) === undefined
         ? undefined
         : tc('create.forecast.rules', weights.value.get(id) ?? 0),
+    overlaps: overlapNames(id),
     title: props.services.find((service) => service.id === id)?.title ?? id,
   })),
 )
+
+function overlapNames(serviceID: string): string[] | null {
+  const ids = overlapServiceIDs(firstForecast.value, serviceID)
+  if (ids === null) return null
+  return ids.map(
+    (id) => props.services.find((service) => service.id === id)?.title ?? id,
+  )
+}
 
 // A format that would refuse this draft says so beside the save control. It
 // does not stop the save: the operator may be fixing one format while another
@@ -142,12 +138,6 @@ const overflowLines = computed<string[]>(() => {
   return lines
 })
 
-const activeService = computed(
-  () =>
-    props.services.find((service) => service.id === activeServiceID.value) ??
-    null,
-)
-
 // Editing normalises the draft — sorted, deduplicated — while the stored list
 // arrives in whatever order the server wrote it. Comparing the two as written
 // therefore reported a change where none was made, so both sides are compared
@@ -163,10 +153,6 @@ const canSave = computed(
   () =>
     !props.busy && draftName.value.trim() !== '' && resolved.value.length > 0,
 )
-
-function includedInDraft(serviceID: string): boolean {
-  return serviceIncluded(draftComposition.value, props.categories, serviceID)
-}
 
 function removeService(serviceID: string): void {
   if (props.busy) return
@@ -185,47 +171,8 @@ function setPriority(ids: string[]): void {
   )
 }
 
-/**
- * Removing a collection removes the reference itself, so the list stops
- * following it rather than freezing today's members. An exclusion only means
- * something while something still carries the service, so the ones left
- * pointing at nothing are dropped with it.
- */
-function removeCategory(categoryID: string): void {
-  if (props.busy) return
-  const next: ListComposition = {
-    services: [...draftComposition.value.services],
-    categories: draftComposition.value.categories.filter(
-      (id) => id !== categoryID,
-    ),
-    exclusions: [...draftComposition.value.exclusions],
-    serviceDomains: draftComposition.value.serviceDomains,
-    priority: [...(draftComposition.value.priority ?? [])],
-  }
-  const carried = categoryServices(next, props.categories)
-  next.exclusions = next.exclusions.filter((id) => carried.has(id))
-  draftComposition.value = normalizeComposition(next, props.categories)
-}
-
-function openService(serviceID: string): void {
-  activeServiceID.value = serviceID
-}
-
-function closeService(): void {
-  activeServiceID.value = ''
-}
-
-// The card's footer speaks about this draft; its contents belong to the
-// service and were already persisted by the card itself.
-function onDialogInclude(add: boolean): void {
-  const service = activeService.value
-  if (service === null || includedInDraft(service.id) === add) return
-  removeService(service.id)
-}
-
 function submit(): void {
   if (!canSave.value) return
-  pickerOpen.value = false
   emit('save', draftName.value.trim(), draftComposition.value)
 }
 
@@ -234,7 +181,6 @@ function submit(): void {
 function reset(): void {
   draftName.value = props.name
   draftComposition.value = storedComposition()
-  pickerOpen.value = false
 }
 </script>
 
@@ -258,54 +204,27 @@ function reset(): void {
       <h2 id="editor-composition" class="editor__label">
         {{ t('list.composition.services') }}
       </h2>
-
-      <p
-        v-if="categoryRows.length === 0 && serviceRows.length === 0"
-        class="editor__note"
-      >
-        {{ t('list.composition.empty') }}
-      </p>
-      <ul v-if="categoryRows.length > 0" class="editor__rows">
-        <li
-          v-for="row in categoryRows"
-          :key="`category-${row.id}`"
-          class="editor__row"
+      <div class="editor__composition-body">
+        <ServicePicker
+          v-model="draftComposition"
+          :categories="props.categories"
+          :disabled="props.busy"
+          :forecast="firstForecast"
+          :forecast-pending="forecast.pending.value"
+          :list-name="draftName"
+          :pending="dirty"
+          :services="props.services"
+        />
+        <CompositionPriorityList
+          class="editor__priority"
+          :disabled="props.busy"
+          :items="serviceRows"
+          :overlap-pending="forecast.pending.value"
+          @reorder="setPriority"
         >
-          <span class="editor__row-copy">
-            <strong>{{ row.label }}</strong>
-            <small>{{ tc('create.category.size', row.size) }}</small>
-          </span>
-          <button
-            :aria-label="
-              t('list.composition.remove.aria', { service: row.label })
-            "
-            class="editor__row-action"
-            :disabled="props.busy"
-            type="button"
-            @click="removeCategory(row.id)"
-          >
-            <RvIcon name="trash" />
-          </button>
-        </li>
-      </ul>
-
-      <CompositionPriorityList
-        v-if="serviceRows.length > 0"
-        :disabled="props.busy"
-        :items="serviceRows"
-        @reorder="setPriority"
-      >
-        <template #actions="{ item: row }">
-          <template v-if="row !== undefined">
+          <template #actions="{ item: row }">
             <button
-              :aria-label="t('serviceDetail.open.aria', { service: row.title })"
-              class="editor__row-open"
-              type="button"
-              @click="openService(row.id)"
-            >
-              <RvIcon name="chevron" />
-            </button>
-            <button
+              v-if="row !== undefined"
               :aria-label="
                 t('list.composition.remove.aria', { service: row.title })
               "
@@ -317,59 +236,9 @@ function reset(): void {
               <RvIcon name="trash" />
             </button>
           </template>
-        </template>
-      </CompositionPriorityList>
-
-      <RvButton
-        v-if="!pickerOpen"
-        :disabled="props.busy"
-        type="button"
-        variant="secondary"
-        @click="pickerOpen = true"
-      >
-        <RvIcon name="plus" />
-        {{ t('list.composition.add') }}
-      </RvButton>
-
-      <fieldset
-        v-show="pickerOpen"
-        class="editor__services"
-        :disabled="props.busy"
-      >
-        <legend class="editor__visually-hidden">
-          {{ t('list.composition.add') }}
-        </legend>
-        <header class="editor__picker-header">
-          <h3 class="editor__picker-title">{{ t('list.composition.add') }}</h3>
-          <RvButton
-            :aria-label="t('list.composition.hide.aria')"
-            size="compact"
-            type="button"
-            variant="quiet"
-            @click="pickerOpen = false"
-          >
-            <RvIcon name="close" />
-            {{ t('list.composition.hide') }}
-          </RvButton>
-        </header>
-        <ServicePicker
-          v-model="draftComposition"
-          :categories="props.categories"
-          :disabled="props.busy"
-          :list-name="draftName"
-          :pending="dirty"
-          :services="props.services"
-        />
-      </fieldset>
+        </CompositionPriorityList>
+      </div>
     </section>
-
-    <CompositionOverlaps
-      v-if="resolved.length > 1 && props.outputs[0] !== undefined"
-      :forecast="forecast.forTarget(props.outputs[0].targetID)"
-      :pending="forecast.pending.value"
-      :target-title="props.outputs[0].title"
-      @retry="forecast.retry(draftComposition, resolved, forecastTargets)"
-    />
 
     <p class="editor__note">{{ t('list.edit.note') }}</p>
 
@@ -396,19 +265,6 @@ function reset(): void {
         {{ t('action.cancel') }}
       </RvButton>
     </div>
-
-    <ServiceDetailDialog
-      :disabled="props.busy"
-      :included="
-        activeService === null ? false : includedInDraft(activeService.id)
-      "
-      :list-name="draftName"
-      mode="compose"
-      :pending="dirty"
-      :service="activeService"
-      @close="closeService"
-      @include="onDialogInclude"
-    />
   </form>
 </template>
 

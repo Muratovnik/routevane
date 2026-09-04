@@ -1,75 +1,43 @@
 <script setup lang="ts">
-import { computed, ref, useId, watch } from 'vue'
+import { computed, ref, useId } from 'vue'
 
 import {
-  categorySelectionState,
+  overlapServiceIDs,
   resolvedComposition,
   serviceIncluded,
-  toggleCompositionCategory,
+  setCompositionCategoryReference,
   toggleCompositionService,
 } from '@/entities/list-composition/model/composition'
 import type { CategoryDetail, ServiceDetail } from '@/shared/api/catalog'
-import type { ListComposition } from '@/shared/api/lists'
+import type { ListComposition, TargetForecast } from '@/shared/api/lists'
 import { useLocale } from '@/shared/i18n/useLocale'
+import type { ChoiceOption } from '@/shared/ui/kinds'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvSelect from '@/shared/ui/RvSelect.vue'
 
 import ServiceDetailDialog from './ServiceDetailDialog.vue'
 
-/**
- * Choosing what a route carries (ADR 0028, ADR 0029).
- *
- * The operator sees two objects: a **category**, and the **lists** inside it. A
- * list belonging to no category is not a second surface — it is the last
- * category row, computed here rather than stored, because a list is found by
- * search or by its category and nowhere else.
- *
- * Selection is a checkbox and nothing else. What a category holds, what a list
- * holds, and whether either exists at all are the library's subject and are
- * edited in «Списки»; this surface writes nothing but the draft it was handed.
- */
 const props = defineProps<{
   modelValue: ListComposition
   services: ServiceDetail[]
   categories: CategoryDetail[]
   disabled?: boolean
-  // The route the card's footer is talking about. A draft may not be named yet,
-  // so the card is prepared for a blank one rather than promised a name.
   listName?: string
-  // Whether that route is still an unsaved draft, which is the only case where
-  // the card's footer says membership is waiting on a save.
   pending?: boolean
+  forecast?: TargetForecast | null
+  forecastPending?: boolean
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: ListComposition]
 }>()
 
-// The row for lists no category claims. It is computed from the catalog, so it
-// carries an identity no server object can collide with.
-const uncategorizedID = 'rv:uncategorized'
-
-type CategoryRow = {
-  id: string
-  label: string
-  // The category this row stands for, or null for the computed last row: the
-  // difference decides how selecting the row is stored.
-  category: CategoryDetail | null
-  // Members after the search filter — what the detail pane draws.
-  members: ServiceDetail[]
-  // Members before it, because a checkbox selects the whole category and a
-  // count states the whole category, whatever the field is narrowing.
-  all: ServiceDetail[]
-  included: number
-  state: 'none' | 'partial' | 'all'
-  preview: string
-}
-
-const { t, tc, tor } = useLocale()
+const { formatNumber, t, tc, tor } = useLocale()
 const query = ref('')
-const activeCategoryID = ref('')
+const categoryFilter = ref('all')
 const activeServiceID = ref('')
-const mobilePane = ref<'collections' | 'details'>('collections')
 const baseId = useId()
+const uncategorizedID = 'rv:uncategorized'
 
 const servicesByID = computed(
   () => new Map(props.services.map((service) => [service.id, service])),
@@ -77,153 +45,128 @@ const servicesByID = computed(
 const resolved = computed(() =>
   resolvedComposition(props.modelValue, props.categories),
 )
-const normalizedQuery = computed(() => query.value.trim().toLowerCase())
+const resolvedSet = computed(() => new Set(resolved.value))
+const categoryByID = computed(
+  () => new Map(props.categories.map((category) => [category.id, category])),
+)
+const claimed = computed(
+  () => new Set(props.categories.flatMap((category) => category.services)),
+)
 
-// Every list no category claims, in catalog order.
-const uncategorized = computed(() => {
-  const claimed = new Set(
-    props.categories.flatMap((category) => category.services),
-  )
-  return props.services.filter((service) => !claimed.has(service.id))
-})
-
-const rows = computed<CategoryRow[]>(() => {
-  const built = props.categories.map((category) =>
-    row(category.id, categoryLabel(category), category, members(category)),
-  )
-  const loose = uncategorized.value
-  if (loose.length > 0) {
-    built.push(row(uncategorizedID, t('servicePicker.other'), null, loose))
+const filterOptions = computed<ChoiceOption[]>(() => {
+  const options = [
+    { label: t('servicePicker.filter.all'), value: 'all' },
+    ...props.categories.map((category) => ({
+      label: categoryLabel(category),
+      value: category.id,
+    })),
+  ]
+  if (props.services.some((service) => !claimed.value.has(service.id))) {
+    options.push({ label: t('servicePicker.other'), value: uncategorizedID })
   }
-  return built.filter(
-    (entry) => entry.members.length > 0 || matchesLabel(entry),
-  )
+  return options
 })
 
-const activeRow = computed(
-  () => rows.value.find((entry) => entry.id === activeCategoryID.value) ?? null,
+const selectedCategory = computed(
+  () => categoryByID.value.get(categoryFilter.value) ?? null,
+)
+const followsSelectedCategory = computed(
+  () =>
+    selectedCategory.value !== null &&
+    props.modelValue.categories.includes(selectedCategory.value.id),
+)
+
+const allRows = computed<ServiceDetail[]>(() => {
+  const rows = [...props.services]
+  for (const id of resolved.value) {
+    if (!servicesByID.value.has(id))
+      rows.push({ categories: [], id, title: id })
+  }
+  return rows
+})
+
+const visibleRows = computed(() => {
+  const needle = query.value.trim().toLocaleLowerCase()
+  return allRows.value.filter((service) => {
+    const categories = serviceCategories(service)
+    const inCategory =
+      categoryFilter.value === 'all' ||
+      (categoryFilter.value === uncategorizedID
+        ? categories.length === 0
+        : categories.some((category) => category.id === categoryFilter.value))
+    if (!inCategory) return false
+    if (needle === '') return true
+    return [
+      service.id,
+      service.title,
+      ...categories.map((category) => categoryLabel(category)),
+    ].some((value) => value.toLocaleLowerCase().includes(needle))
+  })
+})
+
+const selectedRows = computed(() => {
+  const visible = new Map(
+    visibleRows.value.map((service) => [service.id, service]),
+  )
+  return resolved.value
+    .map((id) => visible.get(id))
+    .filter((service): service is ServiceDetail => service !== undefined)
+})
+const availableRows = computed(() =>
+  visibleRows.value.filter((service) => !resolvedSet.value.has(service.id)),
 )
 const activeService = computed(
   () => servicesByID.value.get(activeServiceID.value) ?? null,
 )
-
-watch(
-  rows,
-  (current) => {
-    if (current.some((entry) => entry.id === activeCategoryID.value)) return
-    activeCategoryID.value =
-      current.find((entry) => entry.state !== 'none')?.id ??
-      current[0]?.id ??
-      ''
-  },
-  { immediate: true },
+const ruleCounts = computed(
+  () =>
+    new Map(
+      (props.forecast?.perService ?? []).map((row) => [
+        row.serviceID,
+        row.rules,
+      ]),
+    ),
 )
 
-function row(
-  id: string,
-  label: string,
-  category: CategoryDetail | null,
-  all: ServiceDetail[],
-): CategoryRow {
-  const held = all.filter((service) => included(service.id)).length
-  return {
-    all,
-    category,
-    id,
-    included: held,
-    label,
-    members: visible(all, label),
-    preview: all.map((service) => service.title).join(', '),
-    state:
-      category === null
-        ? looseState(all, held)
-        : categorySelectionState(props.modelValue, props.categories, id),
-  }
+function categoryLabel(category: CategoryDetail): string {
+  return tor(`category.${category.id}`, category.title)
 }
 
-// A computed row has no reference to select, so its state is read from its
-// members rather than from a category the composition could name.
-function looseState(
-  all: ServiceDetail[],
-  included: number,
-): 'none' | 'partial' | 'all' {
-  if (all.length === 0 || included === 0) return 'none'
-  return included === all.length ? 'all' : 'partial'
+function serviceCategories(service: ServiceDetail): CategoryDetail[] {
+  return props.categories.filter((category) =>
+    category.services.includes(service.id),
+  )
+}
+
+function categoryNames(service: ServiceDetail): string {
+  const categories = serviceCategories(service)
+  return categories.length === 0
+    ? t('servicePicker.other')
+    : categories.map(categoryLabel).join(', ')
 }
 
 function included(serviceID: string): boolean {
   return serviceIncluded(props.modelValue, props.categories, serviceID)
 }
 
-function categoryLabel(category: CategoryDetail): string {
-  return tor(`category.${category.id}`, category.title)
-}
-
-function members(category: CategoryDetail): ServiceDetail[] {
-  return category.services
-    .map((id) => servicesByID.value.get(id))
-    .filter((service): service is ServiceDetail => service !== undefined)
-}
-
-// A row whose own name matches keeps all its members; otherwise the field
-// narrows to the members that match it.
-function visible(all: ServiceDetail[], label: string): ServiceDetail[] {
-  const text = normalizedQuery.value
-  if (text === '' || label.toLowerCase().includes(text)) return all
-  return all.filter(
-    (service) =>
-      service.title.toLowerCase().includes(text) ||
-      service.id.toLowerCase().includes(text),
-  )
-}
-
-function matchesLabel(entry: CategoryRow): boolean {
-  const text = normalizedQuery.value
-  return text === '' || entry.label.toLowerCase().includes(text)
-}
-
-function selectCategory(categoryID: string): void {
-  activeCategoryID.value = categoryID
-}
-
-function showCategory(categoryID: string): void {
-  selectCategory(categoryID)
-  mobilePane.value = 'details'
-}
-
-function showCollections(): void {
-  mobilePane.value = 'collections'
-}
-
-/**
- * Selecting a category selects the reference, so the route follows whatever the
- * category holds later. The computed row has no reference to follow, so it
- * selects its members one by one — the same result the operator sees, stored
- * as what it actually is.
- */
-function toggleRow(entry: CategoryRow): void {
-  selectCategory(entry.id)
-  if (entry.category !== null) {
-    emit(
-      'update:modelValue',
-      toggleCompositionCategory(props.modelValue, props.categories, entry.id),
-    )
-    return
-  }
-  const selectAll = entry.state !== 'all'
-  let next = props.modelValue
-  for (const service of entry.all) {
-    if (serviceIncluded(next, props.categories, service.id) === selectAll)
-      continue
-    next = toggleCompositionService(next, props.categories, service.id)
-  }
-  emit('update:modelValue', next)
-}
-
 function toggleService(serviceID: string): void {
   emit(
     'update:modelValue',
     toggleCompositionService(props.modelValue, props.categories, serviceID),
+  )
+}
+
+function toggleCategoryReference(event: Event): void {
+  const category = selectedCategory.value
+  if (category === null) return
+  emit(
+    'update:modelValue',
+    setCompositionCategoryReference(
+      props.modelValue,
+      props.categories,
+      category.id,
+      (event.currentTarget as HTMLInputElement).checked,
+    ),
   )
 }
 
@@ -235,16 +178,29 @@ function closeService(): void {
   activeServiceID.value = ''
 }
 
-// The card reads the list and states where it stands; the one thing it can
-// change is membership in this draft, and the draft belongs to the screen that
-// owns it.
 function onDialogInclude(add: boolean): void {
   const service = activeService.value
   if (service === null || included(service.id) === add) return
-  emit(
-    'update:modelValue',
-    toggleCompositionService(props.modelValue, props.categories, service.id),
-  )
+  toggleService(service.id)
+}
+
+function ruleLabel(serviceID: string): string {
+  const count = ruleCounts.value.get(serviceID)
+  return count === undefined
+    ? t(
+        props.forecastPending && resolvedSet.value.has(serviceID)
+          ? 'servicePicker.rules.pending'
+          : 'servicePicker.rules.unknown',
+      )
+    : tc('create.forecast.rules', count)
+}
+
+function overlapTitles(serviceID: string): string[] | null {
+  const ids = overlapServiceIDs(props.forecast, serviceID)
+  if (ids === null) return null
+  return ids
+    .filter((id) => resolvedSet.value.has(id))
+    .map((id) => servicesByID.value.get(id)?.title ?? id)
 }
 </script>
 
@@ -262,123 +218,210 @@ function onDialogInclude(add: boolean): void {
           type="search"
         />
       </label>
+      <label :for="baseId + '-category'" class="picker__visually-hidden">
+        {{ t('servicePicker.filter.label') }}
+      </label>
+      <RvSelect
+        v-model="categoryFilter"
+        class="picker__filter"
+        :disabled="disabled"
+        :input-id="baseId + '-category'"
+        :options="filterOptions"
+        :placeholder="t('servicePicker.filter.all')"
+      />
       <p class="picker__count" role="status">
         {{ tc('create.resolved', resolved.length) }}
       </p>
     </div>
 
-    <p v-if="rows.length === 0" class="picker__empty">
-      {{ t('create.noMatches', { query: query.trim() }) }}
-    </p>
+    <label v-if="selectedCategory !== null" class="picker__category-reference">
+      <input
+        :checked="followsSelectedCategory"
+        class="picker__checkbox"
+        :disabled="disabled"
+        type="checkbox"
+        @change="toggleCategoryReference"
+      />
+      <span>
+        <strong>{{
+          t('servicePicker.follow', {
+            category: categoryLabel(selectedCategory),
+          })
+        }}</strong>
+        <small>{{
+          tc('servicePicker.follow.members', selectedCategory.services.length)
+        }}</small>
+      </span>
+    </label>
 
-    <div
-      v-else
-      class="picker__workspace"
-      :class="`picker__workspace--${mobilePane}`"
-    >
-      <section
-        :aria-labelledby="baseId + '-collections'"
-        class="picker__collections"
-      >
-        <header class="picker__pane-header">
-          <h3 :id="baseId + '-collections'">
-            {{ t('servicePicker.collections') }}
-          </h3>
-        </header>
-        <ul class="picker__groups">
-          <li
-            v-for="entry in rows"
-            :key="entry.id"
-            class="picker__group"
-            :class="{
-              'picker__group--active': activeCategoryID === entry.id,
-            }"
+    <div class="picker__table-frame">
+      <table class="picker__table">
+        <thead>
+          <tr>
+            <th class="picker__choice-heading" scope="col">
+              <span class="picker__visually-hidden">{{
+                t('servicePicker.column.include')
+              }}</span>
+            </th>
+            <th scope="col">{{ t('servicePicker.column.list') }}</th>
+            <th class="picker__category-column" scope="col">
+              {{ t('servicePicker.column.category') }}
+            </th>
+            <th class="picker__rules-column" scope="col">
+              {{ t('servicePicker.column.rules') }}
+            </th>
+            <th class="picker__overlaps-column" scope="col">
+              {{ t('servicePicker.column.overlaps') }}
+            </th>
+            <th class="picker__action-heading" scope="col">
+              <span class="picker__visually-hidden">{{
+                t('servicePicker.column.open')
+              }}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody v-if="selectedRows.length > 0">
+          <tr class="picker__group-row">
+            <th colspan="6" scope="rowgroup">
+              {{ t('servicePicker.group.selected') }}
+              <small>{{ formatNumber(selectedRows.length) }}</small>
+            </th>
+          </tr>
+          <tr
+            v-for="service in selectedRows"
+            :key="`selected-${service.id}`"
+            class="picker__row picker__row--selected"
           >
-            <label class="picker__category">
+            <td>
               <input
-                :checked="entry.state === 'all'"
+                :aria-label="
+                  t('servicePicker.exclude.aria', { list: service.title })
+                "
+                checked
                 class="picker__checkbox"
                 :disabled="disabled"
-                :indeterminate.prop="entry.state === 'partial'"
                 type="checkbox"
-                :value="entry.id"
-                @change="toggleRow(entry)"
+                :value="service.id"
+                @change="toggleService(service.id)"
               />
-              <span class="picker__category-copy">
-                <span class="picker__category-title">
-                  <strong>{{ entry.label }}</strong>
-                  <small>{{ entry.included }}/{{ entry.all.length }}</small>
-                </span>
-                <small class="picker__preview">{{ entry.preview }}</small>
+            </td>
+            <th scope="row">
+              <strong class="picker__name">{{ service.title }}</strong>
+              <span class="picker__mobile-meta">{{
+                categoryNames(service)
+              }}</span>
+              <span
+                v-for="title in overlapTitles(service.id) ?? []"
+                :key="`mobile-${service.id}-${title}`"
+                class="picker__tag picker__tag--mobile"
+              >
+                {{ t('servicePicker.overlap.tag', { list: title }) }}
               </span>
-            </label>
-            <button
-              :aria-controls="baseId + '-details'"
-              :aria-current="activeCategoryID === entry.id ? 'true' : undefined"
-              :aria-label="
-                t('servicePicker.configure.aria', { category: entry.label })
-              "
-              class="picker__configure"
-              :disabled="disabled"
-              type="button"
-              @click="showCategory(entry.id)"
-            >
-              <RvIcon name="chevron" />
-            </button>
-          </li>
-        </ul>
-      </section>
-
-      <section
-        v-if="activeRow !== null"
-        :id="baseId + '-details'"
-        :aria-labelledby="baseId + '-details-title'"
-        class="picker__details"
-      >
-        <header class="picker__details-header">
-          <button class="picker__back" type="button" @click="showCollections">
-            <RvIcon name="chevron" />
-            {{ t('servicePicker.back') }}
-          </button>
-          <h3 :id="baseId + '-details-title'" class="picker__details-title">
-            {{ activeRow.label }}
-          </h3>
-          <strong class="picker__details-count">
-            {{ activeRow.included }}/{{ activeRow.all.length }}
-          </strong>
-        </header>
-        <div class="picker__pane-body">
-          <ul class="picker__members">
-            <li
-              v-for="service in activeRow.members"
-              :key="service.id"
-              class="picker__service-row"
-            >
-              <label class="picker__service">
-                <input
-                  :checked="included(service.id)"
-                  class="picker__checkbox"
-                  :disabled="disabled"
-                  type="checkbox"
-                  :value="service.id"
-                  @change="toggleService(service.id)"
-                />
-                <span>{{ service.title }}</span>
-              </label>
+            </th>
+            <td class="picker__category-column">
+              {{ categoryNames(service) }}
+            </td>
+            <td class="picker__rules-column">{{ ruleLabel(service.id) }}</td>
+            <td class="picker__overlaps-column">
+              <span
+                v-for="title in overlapTitles(service.id) ?? []"
+                :key="`${service.id}-${title}`"
+                class="picker__tag"
+              >
+                {{ t('servicePicker.overlap.tag', { list: title }) }}
+              </span>
+              <span
+                v-if="overlapTitles(service.id) === null"
+                class="picker__unknown"
+              >
+                {{
+                  t(
+                    forecastPending
+                      ? 'servicePicker.overlap.pending'
+                      : 'servicePicker.overlap.unknown',
+                  )
+                }}
+              </span>
+              <span
+                v-else-if="overlapTitles(service.id)?.length === 0"
+                class="picker__unknown"
+              >
+                {{ t('servicePicker.overlap.none') }}
+              </span>
+            </td>
+            <td>
               <button
                 :aria-label="
                   t('serviceDetail.open.aria', { service: service.title })
                 "
-                class="picker__service-info"
+                class="picker__open"
+                :disabled="disabled"
                 type="button"
                 @click="openService(service.id)"
               >
                 <RvIcon name="chevron" />
               </button>
-            </li>
-          </ul>
-        </div>
-      </section>
+            </td>
+          </tr>
+        </tbody>
+        <tbody v-if="availableRows.length > 0">
+          <tr class="picker__group-row">
+            <th colspan="6" scope="rowgroup">
+              {{ t('servicePicker.group.available') }}
+              <small>{{ formatNumber(availableRows.length) }}</small>
+            </th>
+          </tr>
+          <tr
+            v-for="service in availableRows"
+            :key="`available-${service.id}`"
+            class="picker__row"
+          >
+            <td>
+              <input
+                :aria-label="
+                  t('servicePicker.include.aria', { list: service.title })
+                "
+                class="picker__checkbox"
+                :disabled="disabled"
+                type="checkbox"
+                :value="service.id"
+                @change="toggleService(service.id)"
+              />
+            </td>
+            <th scope="row">
+              <strong class="picker__name">{{ service.title }}</strong>
+              <span class="picker__mobile-meta">{{
+                categoryNames(service)
+              }}</span>
+            </th>
+            <td class="picker__category-column">
+              {{ categoryNames(service) }}
+            </td>
+            <td class="picker__rules-column">{{ ruleLabel(service.id) }}</td>
+            <td class="picker__overlaps-column picker__unknown">—</td>
+            <td>
+              <button
+                :aria-label="
+                  t('serviceDetail.open.aria', { service: service.title })
+                "
+                class="picker__open"
+                :disabled="disabled"
+                type="button"
+                @click="openService(service.id)"
+              >
+                <RvIcon name="chevron" />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p
+        v-if="selectedRows.length === 0 && availableRows.length === 0"
+        class="picker__empty"
+      >
+        {{ t('create.noMatches', { query: query.trim() }) }}
+      </p>
     </div>
 
     <ServiceDetailDialog

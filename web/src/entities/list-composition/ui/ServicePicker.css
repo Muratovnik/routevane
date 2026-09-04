@@ -1,14 +1,14 @@
 .picker {
   display: grid;
-  gap: var(--rv-space-4);
+  gap: var(--rv-space-3);
   min-width: 0;
   container-type: inline-size;
 }
 
 .picker__toolbar {
   display: grid;
-  grid-template-columns: minmax(16rem, 30rem) minmax(0, 1fr);
-  gap: var(--rv-space-3) var(--rv-space-4);
+  grid-template-columns: minmax(14rem, 1fr) minmax(11rem, 0.55fr) auto;
+  gap: var(--rv-space-3);
   align-items: center;
 }
 
@@ -31,12 +31,8 @@
 
 .picker__search-input {
   flex: 1;
-  min-width: 0;
-
-  /* The wrapper owns the height; a minimum here would add the wrapper's
-     border on top of it and leave the field two pixels taller than the
-     controls beside it. */
   align-self: stretch;
+  min-width: 0;
   padding: 0;
   color: var(--rv-color-ink);
   font: inherit;
@@ -49,270 +45,204 @@
   color: var(--rv-color-ink-tertiary);
 }
 
+.picker__filter {
+  min-width: 0;
+}
+
 .picker__count {
-  justify-self: end;
   color: var(--rv-color-ink-muted);
   font-weight: 600;
   font-size: var(--rv-text-dense);
   white-space: nowrap;
 }
 
-.picker__workspace {
-  display: grid;
-  grid-template-columns: minmax(20rem, 0.95fr) minmax(22rem, 1.05fr);
-  height: var(--rv-picker-height);
+.picker__category-reference {
+  display: flex;
+  gap: var(--rv-space-3);
+  align-items: center;
+  min-height: var(--rv-control-touch);
+  padding: var(--rv-space-2) var(--rv-space-4);
+  background: var(--rv-color-surface-muted);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-md);
+  cursor: pointer;
+}
+
+.picker__category-reference > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-1) var(--rv-space-3);
+  align-items: baseline;
   min-width: 0;
-  overflow: hidden;
+}
+
+.picker__category-reference small {
+  color: var(--rv-color-ink-tertiary);
+  font-size: var(--rv-text-meta);
+}
+
+.picker__table-frame {
+  min-width: 0;
+  min-height: var(--rv-picker-height);
+  max-height: var(--rv-picker-height);
+  overflow: auto;
+  overscroll-behavior: contain;
   background: var(--rv-color-surface);
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-lg);
 }
 
-/* The column keeps its geometry: its header holds its row, and only the
-   categories under it scroll. */
-.picker__collections {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-width: 0;
-  min-height: 0;
+.picker__table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--rv-color-ink);
+  font-size: var(--rv-text-dense);
 }
 
-.picker__details {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-width: 0;
-  min-height: 0;
-  background: var(--rv-color-canvas);
-  border-left: var(--rv-border-hair) solid var(--rv-color-rule-strong);
+.picker__table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--rv-color-surface);
 }
 
-.picker__pane-header,
-.picker__details-header {
-  min-height: var(--rv-row-comfortable);
-  padding: var(--rv-space-3) var(--rv-space-5);
+.picker__table th,
+.picker__table td {
+  padding: var(--rv-space-3);
+  text-align: start;
+  vertical-align: middle;
   border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 
-.picker__back {
-  display: none;
+.picker__choice-heading,
+.picker__action-heading,
+.picker__row > td:first-child,
+.picker__row > td:last-child {
+  width: var(--rv-control-touch);
+  padding-inline: var(--rv-space-3);
 }
 
-.picker__pane-header {
-  display: flex;
-  align-items: center;
-}
-
-.picker__pane-header h3 {
-  font-size: var(--rv-text-interface);
-}
-
-.picker__details-header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-3);
-  align-items: center;
-}
-
-.picker__details-title {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--rv-text-interface);
-  overflow-wrap: anywhere;
-}
-
-.picker__details-count {
+.picker__group-row th {
+  padding-block: var(--rv-space-2);
   color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-dense);
+  font-weight: 600;
+  background: var(--rv-color-canvas);
+}
+
+.picker__group-row small {
+  margin-inline-start: var(--rv-space-2);
+  color: var(--rv-color-ink-tertiary);
+  font-size: var(--rv-text-meta);
   font-variant-numeric: tabular-nums;
 }
 
-.picker__groups,
-.picker__pane-body {
-  min-height: 0;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+.picker__table thead th {
+  color: var(--rv-color-ink-muted);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.picker__pane-body {
-  padding: 0 var(--rv-space-4);
-}
-
-.picker__group {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--rv-space-2);
-  align-items: center;
-  min-width: 0;
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
-}
-
-.picker__group:last-child {
-  border-bottom: 0;
-}
-
-.picker__group--active {
+.picker__row--selected {
   background: var(--rv-color-surface-muted);
 }
 
-.picker__category {
-  display: flex;
-  gap: var(--rv-space-3);
-  align-items: center;
-  min-width: 0;
-  min-height: var(--rv-row-comfortable);
-  padding: var(--rv-space-3) 0 var(--rv-space-3) var(--rv-space-5);
-  cursor: pointer;
+.picker__row:hover {
+  background: var(--rv-color-surface-hover);
 }
 
-.picker__category-copy,
-.picker__service span {
-  display: grid;
-  gap: var(--rv-space-1);
-  min-width: 0;
+.picker__row th[scope='row'] {
+  min-width: 10rem;
+  font-weight: 600;
 }
 
-.picker__category-title {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-2);
-  align-items: baseline;
+.picker__name {
+  display: block;
+  font-weight: 600;
 }
 
-.picker__category-title small,
-.picker__preview {
+.picker__category-column {
+  width: 24%;
+  color: var(--rv-color-ink-muted);
+}
+
+.picker__rules-column {
+  width: 10rem;
+  color: var(--rv-color-ink-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.picker__overlaps-column {
+  width: 28%;
+}
+
+.picker__tag {
+  display: inline-flex;
+  margin: var(--rv-space-1) var(--rv-space-1) var(--rv-space-1) 0;
+  padding: var(--rv-space-1) var(--rv-space-2);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-meta);
+  background: var(--rv-color-surface-selected);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-lg);
+}
+
+.picker__tag--mobile,
+.picker__mobile-meta {
+  display: none;
+}
+
+.picker__unknown {
   color: var(--rv-color-ink-tertiary);
   font-size: var(--rv-text-meta);
 }
 
-.picker__preview {
-  line-height: var(--rv-leading-normal);
-  overflow-wrap: anywhere;
-}
-
 .picker__checkbox {
-  flex: none;
   width: var(--rv-control-choice);
   height: var(--rv-control-choice);
   margin: 0;
   accent-color: var(--rv-color-accent);
 }
 
+.picker__open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--rv-control-touch);
+  height: var(--rv-control-touch);
+  padding: 0;
+  color: var(--rv-color-ink-muted);
+  font: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: var(--rv-radius-sm);
+  cursor: pointer;
+}
+
+.picker__open .rv-icon {
+  transform: rotate(-90deg);
+}
+
+.picker__open:disabled {
+  opacity: var(--rv-disabled-opacity);
+  cursor: not-allowed;
+}
+
+.picker__open:focus-visible,
 .picker__checkbox:focus-visible {
   outline: var(--rv-border-mark) solid var(--rv-color-focus);
   outline-offset: var(--rv-border-hair);
 }
 
-.picker__configure {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: var(--rv-control-touch);
-  height: var(--rv-control-touch);
-  margin-right: var(--rv-space-2);
-  padding: 0;
-  color: var(--rv-color-ink-muted);
-  font: inherit;
-  font-weight: 600;
-  font-size: var(--rv-text-dense);
-  background: transparent;
-  border: 0;
-  border-radius: var(--rv-radius-sm);
-  cursor: pointer;
-}
-
-.picker__configure .rv-icon,
-.picker__service-info .rv-icon {
-  transform: rotate(-90deg);
-}
-
-.picker__configure:hover {
-  color: var(--rv-color-ink);
-  background: var(--rv-color-surface-hover);
-}
-
-.picker__configure:focus-visible {
-  outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: var(--rv-border-hair);
-}
-
-.picker__configure[aria-current='true'] {
-  color: var(--rv-color-ink);
-  background: var(--rv-color-accent-quiet);
-}
-
-.picker__members {
-  display: grid;
-  align-content: start;
-}
-
-/* The name keeps the rest of the row; the one control beside it — opening the
-   card — keeps its own width. */
-.picker__service-row {
-  display: flex;
-  gap: var(--rv-space-2);
-  align-items: center;
-  min-height: var(--rv-row-comfortable);
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
-}
-
-.picker__service-row:last-child {
-  border-bottom: 0;
-}
-
-.picker__service {
-  display: flex;
-  flex: 1;
-  gap: var(--rv-space-3);
-  align-items: center;
-  min-width: 0;
-  min-height: var(--rv-control-touch);
-  padding: var(--rv-space-2);
-  font-size: var(--rv-text-interface);
-  border-radius: var(--rv-radius-md);
-  cursor: pointer;
-}
-
-.picker__service:hover {
-  background: var(--rv-color-surface-hover);
-}
-
-.picker__service-info {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: var(--rv-control-touch);
-  height: var(--rv-control-touch);
-  padding: 0;
-  color: var(--rv-color-ink-muted);
-  font: inherit;
-  font-size: var(--rv-text-dense);
-  background: transparent;
-  border: 0;
-  border-radius: var(--rv-radius-sm);
-  cursor: pointer;
-}
-
-.picker__service-info:focus-visible,
-.picker__back:focus-visible {
-  outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: var(--rv-focus-offset);
-}
-
-.picker__service-info:hover {
+.picker__open:hover:not(:disabled) {
   color: var(--rv-color-ink);
   background: var(--rv-color-surface-hover);
 }
 
 .picker__empty {
-  padding: var(--rv-space-6) var(--rv-space-4);
+  padding: var(--rv-space-8) var(--rv-space-4);
   color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-dense);
   text-align: center;
-  background: var(--rv-color-surface);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-lg);
 }
 
 .picker__visually-hidden {
@@ -325,59 +255,47 @@
 }
 
 @container (width <= 44rem) {
-  /* The search keeps its full row and the counter takes the next one, instead
-     of the two fighting for the same track. */
   .picker__toolbar {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(9rem, 0.65fr);
   }
 
   .picker__count {
-    justify-self: start;
+    grid-column: 1 / -1;
   }
 
-  .picker__workspace {
-    grid-template-columns: 1fr;
-    height: var(--rv-picker-mobile-height);
-  }
-
-  .picker__collections,
-  .picker__details {
-    height: 100%;
-  }
-
-  .picker__details {
-    border-left: 0;
-  }
-
-  .picker__workspace--collections .picker__details,
-  .picker__workspace--details .picker__collections {
+  .picker__category-column,
+  .picker__rules-column {
     display: none;
   }
 
-  .picker__back {
-    display: inline-flex;
-    flex-basis: 100%;
-    gap: var(--rv-space-2);
-    align-items: center;
-    justify-content: flex-start;
-    min-height: var(--rv-control-default);
-    padding: 0 var(--rv-space-2);
-    color: var(--rv-color-ink-muted);
-    font: inherit;
-    font-size: var(--rv-text-dense);
-    background: transparent;
-    border: 0;
-    border-radius: var(--rv-radius-sm);
-    cursor: pointer;
-  }
-
-  .picker__back .rv-icon {
-    transform: rotate(90deg);
+  .picker__mobile-meta {
+    display: block;
+    margin-top: var(--rv-space-1);
+    color: var(--rv-color-ink-tertiary);
+    font-weight: 400;
+    font-size: var(--rv-text-meta);
   }
 }
 
 @container (width <= 30rem) {
-  .picker__category {
-    padding-right: var(--rv-space-4);
+  .picker__toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .picker__count {
+    grid-column: auto;
+  }
+
+  .picker__overlaps-column {
+    display: none;
+  }
+
+  .picker__tag--mobile {
+    display: inline-flex;
+  }
+
+  .picker__table-frame {
+    min-height: var(--rv-picker-mobile-height);
+    max-height: var(--rv-picker-mobile-height);
   }
 }
