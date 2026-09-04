@@ -19,6 +19,17 @@ breaking change raises the minor, everything else raises the patch. The
 
 ## [Unreleased]
 
+## [0.1.6](https://github.com/Muratovnik/routevane/compare/v0.1.5...v0.1.6) (2026-09-04)
+
+### Highlights
+
+This release contains the Routevane 0.1.3 product changes and makes the final
+browser release check independent of platform-specific text wrapping.
+
+### Bug Fixes
+
+- **release:** Validate that a localized refresh error moves the list filter only by the message's natural wrapped height. ([5f2bcec](https://github.com/Muratovnik/routevane/commit/5f2bcec8ffa2a0d0a6a66c47115ad39414d2aa2e))
+
 ## [0.1.5](https://github.com/Muratovnik/routevane/compare/v0.1.3...v0.1.5) (2026-09-04)
 
 ### Highlights
