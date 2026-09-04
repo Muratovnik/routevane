@@ -450,12 +450,23 @@ func testArtifact(t *testing.T, prefixes ...string) application.DeployArtifact {
 func testArtifactWithLabels(t *testing.T, prefix string, owners map[string][]string) application.DeployArtifact {
 	t.Helper()
 	artifact := testArtifact(t, prefix)
+	plan := testPlanWithLabels(t, prefix, owners)
+	snapshot, err := planjson.Encode(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifact.RoutingPlanHash = plan.SemanticHash
+	artifact.PlanSnapshot = snapshot
+	return artifact
+}
+
+func testPlanWithLabels(t *testing.T, prefix string, owners map[string][]string) domain.RoutingPlan {
+	t.Helper()
 	parsed := netip.MustParsePrefix(prefix)
 	plan := domain.RoutingPlan{
 		InterfaceVersion: domain.RoutingPlanInterfaceVersion,
 		TargetID:         "keenetic", ProfileKey: keenetic.Version, PolicyVersion: planner.PolicyVersion,
 		CatalogRevision: strings.Repeat("c", 64), ObservationCutoff: time.Date(2026, 9, 4, 9, 0, 0, 0, time.UTC),
-		SemanticHash: strings.Repeat("d", 64),
 	}
 	for serviceID, labels := range owners {
 		rule, err := domain.NewPrefixRule(parsed, serviceID, "web", domain.SourceOfficial, []string{planner.ReasonOfficialRule}, []string{"catalog"})
@@ -467,13 +478,22 @@ func testArtifactWithLabels(t *testing.T, prefix string, owners map[string][]str
 		plan.Rules = append(plan.Rules, rule)
 	}
 	planner.CanonicalizePlan(&plan)
-	snapshot, err := planjson.Encode(plan)
-	if err != nil {
-		t.Fatal(err)
+	plan.SemanticHash = planner.SemanticHash(plan, testKeeneticTarget())
+	return plan
+}
+
+func testKeeneticTarget() domain.TargetProfile {
+	return domain.TargetProfile{
+		ID:         "keenetic",
+		ProfileKey: keenetic.Version,
+		RendererID: keenetic.ID,
+		Constraints: domain.TargetConstraints{
+			SupportsIPv4:     true,
+			SupportsPrefixes: true,
+			MaxRules:         keenetic.MaxLines,
+			MaxArtifactSize:  keenetic.MaxArtifactSize,
+		},
 	}
-	artifact.RoutingPlanHash = plan.SemanticHash
-	artifact.PlanSnapshot = snapshot
-	return artifact
 }
 
 func TestDesiredRoutesUnionSnapshotLabelsAndRCIWritesTheComment(t *testing.T) {
@@ -504,6 +524,27 @@ func TestDesiredRoutesUnionSnapshotLabelsAndRCIWritesTheComment(t *testing.T) {
 	current, err := fixture.deployer.CurrentManagedRoutes(context.Background(), device, fixture.connection)
 	if err != nil || len(current) != 1 || current[0].Description != want {
 		t.Fatalf("readback = %#v err=%v", current, err)
+	}
+}
+
+func TestKeeneticPlanPreflightRejectsLabelMutationWithStaleSemanticHash(t *testing.T) {
+	target := testKeeneticTarget()
+	plan := testPlanWithLabels(t, "192.0.2.0/24", map[string][]string{
+		"youtube": {"(Видео/YouTube)"},
+	})
+	if err := application.PreflightPlan(plan, target, keenetic.Renderer{}, plan.ObservationCutoff); err != nil {
+		t.Fatalf("valid plan preflight failed: %v", err)
+	}
+
+	mutated := plan
+	mutated.Rules = append([]domain.RouteRule(nil), plan.Rules...)
+	mutated.Rules[0].Labels = []string{"(Видео/Другой список)"}
+	if current := planner.SemanticHash(mutated, target); current == mutated.SemanticHash {
+		t.Fatal("label mutation did not change the semantic hash")
+	}
+	err := application.PreflightPlan(mutated, target, keenetic.Renderer{}, mutated.ObservationCutoff)
+	if !errors.Is(err, application.ErrPreflight) || !strings.Contains(err.Error(), "semantic hash") {
+		t.Fatalf("stale semantic hash preflight error = %v", err)
 	}
 }
 
