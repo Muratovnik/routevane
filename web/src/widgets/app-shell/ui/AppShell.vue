@@ -64,7 +64,10 @@ const sections = computed<
   <div class="shell">
     <a class="shell__skip" href="#content">{{ t('shell.skip') }}</a>
     <header class="shell__side">
-      <p class="shell__product">{{ t('shell.product') }}</p>
+      <p class="shell__product">
+        <span aria-hidden="true" class="shell__product-mark" />
+        <span>{{ t('shell.product') }}</span>
+      </p>
       <nav :aria-label="t('shell.nav')" class="shell__nav">
         <NuxtLink
           v-for="section in sections"
@@ -135,10 +138,25 @@ const sections = computed<
 }
 
 .shell__product {
+  display: flex;
+  gap: var(--rv-space-3);
+  align-items: center;
   padding: 0 var(--rv-space-3);
   font-weight: 700;
   font-size: var(--rv-text-module);
   letter-spacing: var(--rv-tracking-title);
+}
+
+.shell__product-mark {
+  display: block;
+  flex: 0 0 auto;
+  width: var(--rv-control-compact);
+  aspect-ratio: 176 / 206;
+  background-color: currentColor;
+  mask-image: url('/routevane-logo.svg');
+  mask-position: center;
+  mask-repeat: no-repeat;
+  mask-size: contain;
 }
 
 .shell__nav {

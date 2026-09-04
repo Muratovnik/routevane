@@ -49,6 +49,10 @@ describe('AppShell', () => {
       },
     })
     expect(document.documentElement.lang).toBe('en')
+    expect(wrapper.find('.shell__product-mark').attributes('aria-hidden')).toBe(
+      'true',
+    )
+    expect(wrapper.find('.shell__product').text()).toBe('Routevane')
 
     setLocale('ru')
     await nextTick()

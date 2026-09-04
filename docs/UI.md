@@ -298,6 +298,11 @@ one button, one status mark, one fact ledger, one icon set. Icons are hand-set
 look asks for a role or a variant, never a parallel class. A component is a
 black box: a host styles its own root class, passes props or fills a slot.
 
+The application chrome presents the Routevane wordmark beside the canonical
+mark at `/routevane-logo.svg`. The mark is decorative and never replaces the
+text name; the shell applies its semantic ink through a CSS mask so it remains
+legible in light, dark and high-contrast modes.
+
 ## Language
 
 English is the primary language and the fallback when the browser prefers a
