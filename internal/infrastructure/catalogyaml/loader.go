@@ -45,6 +45,10 @@ type Catalog struct {
 	Services       map[string]domain.ServiceDefinition
 	Categories     map[string]domain.CategoryDefinition
 	Targets        map[string]domain.TargetProfile
+	// LocalServiceIDs names entries loaded from catalog/local.  Those entries
+	// are intentionally workstation-local discoveries, so a portable settings
+	// transfer must never make a destination depend on one being present.
+	LocalServiceIDs map[string]struct{}
 }
 
 func (c Catalog) Service(id string) (domain.ServiceDefinition, bool) {
@@ -82,7 +86,7 @@ func Load(ctx context.Context, rootPath string) (Catalog, error) {
 	if err != nil {
 		return Catalog{}, fmt.Errorf("%w: catalog root", ErrInvalidCatalog)
 	}
-	services, err := loadServices(ctx, root)
+	services, localServiceIDs, err := loadServices(ctx, root)
 	if err != nil {
 		return Catalog{}, err
 	}
@@ -106,7 +110,7 @@ func Load(ctx context.Context, rootPath string) (Catalog, error) {
 	if err != nil {
 		return Catalog{}, err
 	}
-	return Catalog{Root: root, Revision: revision, TargetRevision: targetRevision, Services: services, Categories: categories, Targets: targets}, nil
+	return Catalog{Root: root, Revision: revision, TargetRevision: targetRevision, Services: services, Categories: categories, Targets: targets, LocalServiceIDs: localServiceIDs}, nil
 }
 
 // optionalYAMLFiles lists one bounded catalog subdirectory. A missing directory

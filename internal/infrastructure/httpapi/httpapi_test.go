@@ -54,10 +54,31 @@ type fakeBackend struct {
 	servicesRemoved []string
 	// categoryInUse and serviceInUse name the routes a deletion is refused
 	// with. They are separate because the two refusals carry different words.
-	categoryInUse  []application.ListReference
-	serviceInUse   []application.ListReference
-	sourceToggles  []string
-	domainVerdicts []string
+	categoryInUse   []application.ListReference
+	serviceInUse    []application.ListReference
+	sourceToggles   []string
+	domainVerdicts  []string
+	transferPayload []byte
+	transferDigest  string
+	transferErr     error
+}
+
+func (f *fakeBackend) ExportConfigTransfer(context.Context) ([]byte, error) {
+	return []byte(`{"version":"config-transfer-v1.0"}`), nil
+}
+func (f *fakeBackend) PreviewConfigTransfer(payload []byte) (application.ConfigTransferPreview, error) {
+	f.transferPayload = append([]byte(nil), payload...)
+	if f.transferErr != nil {
+		return application.ConfigTransferPreview{}, f.transferErr
+	}
+	return application.ConfigTransferPreview{Digest: "sha256:" + strings.Repeat("0", 64), CanApply: true}, nil
+}
+func (f *fakeBackend) ApplyConfigTransfer(_ context.Context, digest string, payload []byte) (application.ConfigTransferCounts, error) {
+	f.transferDigest, f.transferPayload = digest, append([]byte(nil), payload...)
+	if f.transferErr != nil {
+		return application.ConfigTransferCounts{}, f.transferErr
+	}
+	return application.ConfigTransferCounts{}, nil
 }
 
 func (f *fakeBackend) Services() []string { return []string{"example"} }
@@ -887,6 +908,58 @@ func mutationRequest(t *testing.T, path, body string) *http.Request {
 	return request
 }
 
+func TestConfigTransferHTTPContract(t *testing.T) {
+	backend := testBackend()
+	server, err := New("http://127.0.0.1:8765", backend, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	export := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/config-transfer/export", nil)
+	export.RemoteAddr = "127.0.0.1:12345"
+	exported := httptest.NewRecorder()
+	server.Handler().ServeHTTP(exported, export)
+	if exported.Code != http.StatusOK || exported.Header().Get("Cache-Control") != "no-store" || exported.Header().Get("Content-Disposition") != `attachment; filename="routevane-config.json"` {
+		t.Fatalf("export = %d headers=%v", exported.Code, exported.Header())
+	}
+
+	preview := httptest.NewRecorder()
+	server.Handler().ServeHTTP(preview, mutationRequest(t, "/v1/config-transfer/preview", `{"version":"config-transfer-v1.0"}`))
+	if preview.Code != http.StatusOK || string(backend.transferPayload) != `{"version":"config-transfer-v1.0"}` {
+		t.Fatalf("preview = %d payload=%s", preview.Code, backend.transferPayload)
+	}
+	apply := httptest.NewRecorder()
+	server.Handler().ServeHTTP(apply, mutationRequest(t, "/v1/config-transfer/apply", `{"preview_digest":"sha256:`+strings.Repeat("0", 64)+`","transfer":{"version":"config-transfer-v1.0"}}`))
+	if apply.Code != http.StatusOK || backend.transferDigest == "" || string(backend.transferPayload) != `{"version":"config-transfer-v1.0"}` {
+		t.Fatalf("apply = %d digest=%q payload=%s", apply.Code, backend.transferDigest, backend.transferPayload)
+	}
+	foreign := mutationRequest(t, "/v1/config-transfer/preview", `{}`)
+	foreign.Header.Set("Origin", "http://evil.test")
+	refused := httptest.NewRecorder()
+	server.Handler().ServeHTTP(refused, foreign)
+	if refused.Code != http.StatusForbidden {
+		t.Fatalf("foreign-origin preview = %d", refused.Code)
+	}
+}
+
+func TestConfigTransferErrorsUseVersionedCodes(t *testing.T) {
+	backend := testBackend()
+	server, err := New("http://127.0.0.1:8765", backend, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalid := httptest.NewRecorder()
+	server.Handler().ServeHTTP(invalid, mutationRequest(t, "/v1/config-transfer/apply", `{"preview_digest":`))
+	if invalid.Code != http.StatusBadRequest || !strings.Contains(invalid.Body.String(), `"code":"config_transfer_invalid_json"`) {
+		t.Fatalf("invalid preview = %d %s", invalid.Code, invalid.Body.String())
+	}
+	backend.transferErr = application.NewTransferError("preview_required", "preview_digest")
+	semantic := httptest.NewRecorder()
+	server.Handler().ServeHTTP(semantic, mutationRequest(t, "/v1/config-transfer/preview", `{}`))
+	if semantic.Code != http.StatusConflict || !strings.Contains(semantic.Body.String(), `"code":"config_transfer_preview_required"`) {
+		t.Fatalf("semantic preview = %d %s", semantic.Code, semantic.Body.String())
+	}
+}
+
 func TestCreateListPassesListLocalDomainOverrides(t *testing.T) {
 	backend := testBackend()
 	server, err := New("http://127.0.0.1:8765", backend, nil)
@@ -1301,6 +1374,9 @@ var everyAPIPath = []struct {
 }{
 	{"/", "status"},
 	{"/health", "health"},
+	{"/v1/config-transfer/export", "config-transfer.export"},
+	{"/v1/config-transfer/preview", "config-transfer.preview"},
+	{"/v1/config-transfer/apply", "config-transfer.apply"},
 	{"/v1/services", "services.collection"},
 	{"/v1/services/example/preview", "services.preview"},
 	{"/v1/services/custom-1234567890abcdef/update", "services.update"},

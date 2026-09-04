@@ -171,6 +171,38 @@ func (s *DeviceService) knownTarget(targetID string) bool {
 	return false
 }
 
+// ValidateTransferDevice applies the same target and connection boundary as a
+// hand-authored registration without reading or writing the credential store.
+// Imported devices are persisted with automatic delivery disabled.
+func (s *DeviceService) ValidateTransferDevice(candidate TransferDevice) error {
+	name, ok := validDeviceName(candidate.Name)
+	if !ok || name != candidate.Name {
+		return fmt.Errorf("invalid device name")
+	}
+	address, ok := validAddress(candidate.Address)
+	if !ok || address != candidate.Address {
+		return fmt.Errorf("invalid device address")
+	}
+	account, ok := validAccount(candidate.Account)
+	if !ok || account != candidate.Account {
+		return fmt.Errorf("invalid device account")
+	}
+	interfaceName, ok := validAccount(candidate.Interface)
+	if !ok || interfaceName != candidate.Interface {
+		return fmt.Errorf("invalid device interface")
+	}
+	if !s.knownTarget(candidate.TargetID) {
+		return fmt.Errorf("unknown target")
+	}
+	if s.config.NeedsCredential(candidate.TargetID) != (account != "") {
+		return fmt.Errorf("device account does not match target requirements")
+	}
+	if s.config.NeedsInterface(candidate.TargetID) != (interfaceName != "") {
+		return fmt.Errorf("device interface does not match target requirements")
+	}
+	return s.config.ValidateStoredConnection(candidate.TargetID, Connection{URL: address, Username: account, Interface: interfaceName})
+}
+
 // RegisterDevice records a device by hand. There is no discovery: a product
 // that scanned the network would be doing something the operator did not ask
 // for, on a network it was not invited to inspect.

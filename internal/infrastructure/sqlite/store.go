@@ -34,9 +34,10 @@ var (
 )
 
 type Store struct {
-	db                   *sql.DB
-	path                 string
-	publicationPreflight func() error
+	db                      *sql.DB
+	path                    string
+	publicationPreflight    func() error
+	configTransferPreflight func() error
 }
 
 type ProfileRecord = application.ProfileRecord

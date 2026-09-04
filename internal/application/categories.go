@@ -219,6 +219,8 @@ func (s *PublicationService) LoadCategories(ctx context.Context) error {
 // keeps the picker, the forecast, the planner and the library agreeing without
 // a second filter at each of them (ADR 0029).
 func (s *PublicationService) mergedCategory(id string) (CategoryDetail, bool) {
+	s.registryMu.RLock()
+	defer s.registryMu.RUnlock()
 	base, shipped := s.config.Categories[id]
 	s.overlay.mu.RLock()
 	created, operatorOwned := s.overlay.custom[id]

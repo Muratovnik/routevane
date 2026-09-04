@@ -112,6 +112,8 @@ func (s *PublicationService) LoadServiceTuning(ctx context.Context) error {
 }
 
 func (s *PublicationService) serviceTuning(serviceID string) ServiceTuning {
+	s.registryMu.RLock()
+	defer s.registryMu.RUnlock()
 	s.tuning.mu.RLock()
 	defer s.tuning.mu.RUnlock()
 	return s.tuning.byID[serviceID]
@@ -435,6 +437,8 @@ func (s *PublicationService) storeTuningLocked(serviceID string, tuning ServiceT
 // the readers below it. A catalog list keeps its shipped definition and simply
 // stops resolving; an operator-created one has no row left to resolve.
 func (s *PublicationService) baseDefinition(id string) (domain.ServiceDefinition, bool) {
+	s.registryMu.RLock()
+	defer s.registryMu.RUnlock()
 	if s.removedFromLibrary(RemovalService, id) {
 		return domain.ServiceDefinition{}, false
 	}

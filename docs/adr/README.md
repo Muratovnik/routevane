@@ -43,3 +43,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0029: composing is per route, and the library is its own flow](./0029-composing-is-per-route-and-the-library-is-its-own-flow.md) | adopted |
 | [ADR 0030: Go 1.27 is the native toolchain baseline](./0030-go-1-27-native-toolchain-gates.md) | adopted |
 | [ADR 0031: scheduled delivery is an explicit output-to-device binding](./0031-explicit-scheduled-device-delivery.md) | adopted |
+| [ADR 0033: portable configuration transfers use fresh identities](./0033-portable-configuration-transfers.md) | adopted |

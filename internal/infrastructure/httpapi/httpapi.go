@@ -39,6 +39,9 @@ const (
 )
 
 type Backend interface {
+	ExportConfigTransfer(context.Context) ([]byte, error)
+	PreviewConfigTransfer([]byte) (application.ConfigTransferPreview, error)
+	ApplyConfigTransfer(context.Context, string, []byte) (application.ConfigTransferCounts, error)
 	Services() []string
 	ServiceDetails() []application.ServiceDetail
 	PreviewService(context.Context, string) (application.ServicePreview, error)

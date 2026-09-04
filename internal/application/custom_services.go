@@ -139,6 +139,8 @@ func (s *PublicationService) UpdateCustomService(ctx context.Context, id, title 
 
 // customServices lists the registry in stable id order.
 func (s *PublicationService) customServices() []CustomService {
+	s.registryMu.RLock()
+	defer s.registryMu.RUnlock()
 	s.custom.mu.RLock()
 	services := make([]CustomService, 0, len(s.custom.services))
 	for _, service := range s.custom.services {

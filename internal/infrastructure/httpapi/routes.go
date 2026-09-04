@@ -64,6 +64,15 @@ var (
 // claims is a 404, so adding a path without an owner cannot ship as a silent
 // success.
 var routes = map[string]routeSpec{
+	"config-transfer.export": {path: "/v1/config-transfer/export", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.exportConfigTransfer(w, r)
+	}},
+	"config-transfer.preview": {path: "/v1/config-transfer/preview", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.previewConfigTransfer(w, r)
+	}},
+	"config-transfer.apply": {path: "/v1/config-transfer/apply", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.applyConfigTransfer(w, r)
+	}},
 	// The control surface answers every path the API does not claim, which is
 	// why its pattern is the catch-all. Whether a given path is one of its
 	// pages is decided before the route is entered.

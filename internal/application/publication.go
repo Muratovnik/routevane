@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -244,9 +245,14 @@ type PublishedArtifacts interface {
 }
 
 type PublicationConfig struct {
-	Definitions    map[string]domain.ServiceDefinition
-	Target         domain.TargetProfile
-	TargetRevision string
+	Definitions map[string]domain.ServiceDefinition
+	// LocalServiceIDs identifies definitions loaded from the local catalog.
+	// They are usable by this process, but cannot be named by an exported
+	// portable configuration because another machine has no matching catalog
+	// entry by definition.
+	LocalServiceIDs map[string]struct{}
+	Target          domain.TargetProfile
+	TargetRevision  string
 	// FeedURL validates an operator-supplied feed URL with the same boundary
 	// the catalog loader applies. It is injected by the composition so this
 	// package stays below the network layer; without it, adding feeds is
@@ -283,6 +289,9 @@ type PublicationService struct {
 	// overlay is the operator's category ownership over the catalog seed. It
 	// is read through mergedCategory and never directly.
 	overlay categoryRegistry
+	// registryMu makes a transferred custom library, tuning overlay, and
+	// category overlay appear as one generation to planner readers.
+	registryMu sync.RWMutex
 }
 
 func NewPublicationService(config PublicationConfig) (*PublicationService, error) {
@@ -326,6 +335,11 @@ func NewPublicationService(config PublicationConfig) (*PublicationService, error
 			return nil, fmt.Errorf("invalid publication composition: service %q catalog revision", id)
 		}
 		catalogRevision = definition.CatalogRevision
+	}
+	for id := range config.LocalServiceIDs {
+		if _, ok := config.Definitions[id]; !ok {
+			return nil, fmt.Errorf("invalid publication composition: local service %q", id)
+		}
 	}
 	return &PublicationService{
 		config:          config,

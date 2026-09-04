@@ -53,34 +53,38 @@ type rawSourceConfig struct {
 	Class  domain.SourceClass `yaml:"class"`
 }
 
-func loadServices(ctx context.Context, root string) (map[string]domain.ServiceDefinition, error) {
+func loadServices(ctx context.Context, root string) (map[string]domain.ServiceDefinition, map[string]struct{}, error) {
 	paths, err := catalogFiles(ctx, root)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	services := make(map[string]domain.ServiceDefinition, len(paths))
+	local := make(map[string]struct{})
 	total := int64(0)
 	for _, path := range paths {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		payload, err := boundedCatalogRead(path, MaxFileBytes, &total, MaxTotalBytes, "catalog", "catalog")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		service, err := decodeService(payload)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if _, collision := services[service.ID]; collision {
-			return nil, fmt.Errorf("%w: duplicate service id %q", ErrInvalidCatalog, service.ID)
+			return nil, nil, fmt.Errorf("%w: duplicate service id %q", ErrInvalidCatalog, service.ID)
 		}
 		services[service.ID] = service
+		if filepath.Base(filepath.Dir(path)) == LocalGroup {
+			local[service.ID] = struct{}{}
+		}
 	}
 	if len(services) == 0 {
-		return nil, fmt.Errorf("%w: catalog contains no services", ErrInvalidCatalog)
+		return nil, nil, fmt.Errorf("%w: catalog contains no services", ErrInvalidCatalog)
 	}
-	return services, nil
+	return services, local, nil
 }
 
 func catalogFiles(ctx context.Context, root string) ([]string, error) {

@@ -65,7 +65,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		return 1
 	}
 	defer store.Close()
-	service, err := application.NewPublicationService(application.PublicationConfig{Definitions: catalog.Services, Categories: catalog.Categories, Targets: targets, TargetRevision: catalog.TargetRevision, FeedURL: httpfeed.ValidateURL, Store: store, Files: filesystem.PublishedStore{DataRoot: root}, Renderers: resolved.renderers, Sources: resolved.sources, Clock: application.ClockFunc(deps.Now)})
+	service, err := application.NewPublicationService(application.PublicationConfig{Definitions: catalog.Services, LocalServiceIDs: catalog.LocalServiceIDs, Categories: catalog.Categories, Targets: targets, TargetRevision: catalog.TargetRevision, FeedURL: httpfeed.ValidateURL, Store: store, Files: filesystem.PublishedStore{DataRoot: root}, Renderers: resolved.renderers, Sources: resolved.sources, Clock: application.ClockFunc(deps.Now)})
 	if err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
 		return 1
@@ -288,6 +288,24 @@ type serveBackend struct {
 	deployments  *application.DeploymentService
 	devices      *application.DeviceService
 	deliveryGate *application.DeliveryGate
+}
+
+func (b serveBackend) ExportConfigTransfer(ctx context.Context) ([]byte, error) {
+	return b.PublicationService.ExportConfigTransfer(ctx)
+}
+
+func (b serveBackend) PreviewConfigTransfer(payload []byte) (application.ConfigTransferPreview, error) {
+	preview, _, err := b.PublicationService.PreviewConfigTransfer(payload, b.devices.ValidateTransferDevice)
+	return preview, err
+}
+
+func (b serveBackend) ApplyConfigTransfer(ctx context.Context, digest string, payload []byte) (application.ConfigTransferCounts, error) {
+	release, err := b.deliveryGate.Acquire(ctx)
+	if err != nil {
+		return application.ConfigTransferCounts{}, err
+	}
+	defer release()
+	return b.PublicationService.ApplyConfigTransfer(ctx, digest, payload, b.devices.ValidateTransferDevice)
 }
 
 func (b serveBackend) SecretStoreAvailable() bool { return b.devices.SecretStoreAvailable() }
