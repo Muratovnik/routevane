@@ -1022,9 +1022,11 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		if !validTransferReference(r.Ref, "route") {
 			return transferError("invalid_shape", p+"/ref")
 		}
-		if _, ok := validListName(r.Name); !ok {
+		name, ok := validListName(r.Name)
+		if !ok {
 			return transferError("invalid_shape", p+"/name")
 		}
+		r.Name = name
 		if !r.RefreshInterval.valid() {
 			return transferError("invalid_shape", p+"/refresh_interval")
 		}

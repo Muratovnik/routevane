@@ -363,7 +363,7 @@ func TestConfigTransferNormalizesValidRouteDomainsBeforeApply(t *testing.T) {
 	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x49}, 256)))
 	payload, err := json.Marshal(ConfigTransferDocument{
 		Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff},
-		Routes: []TransferRoute{{Ref: "route-1", Name: "Route", Services: []string{"example"}, ServiceDomains: map[string][]string{"example": {"WWW.Example.COM."}}, RefreshInterval: RefreshOff}},
+		Routes: []TransferRoute{{Ref: "route-1", Name: " Route ", Services: []string{"example"}, ServiceDomains: map[string][]string{"example": {"WWW.Example.COM."}}, RefreshInterval: RefreshOff}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -382,6 +382,9 @@ func TestConfigTransferNormalizesValidRouteDomainsBeforeApply(t *testing.T) {
 	got := state.(*transferFakeState).applied.Document.Routes[0].ServiceDomains["example"]
 	if len(got) != 1 || got[0] != "www.example.com" {
 		t.Fatalf("persisted route domains = %#v", got)
+	}
+	if name := state.(*transferFakeState).applied.Document.Routes[0].Name; name != "Route" {
+		t.Fatalf("persisted route name = %q", name)
 	}
 }
 
