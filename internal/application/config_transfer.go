@@ -385,11 +385,10 @@ func (s *PublicationService) ExportConfigTransfer(ctx context.Context) ([]byte, 
 	}
 	doc.Version = ConfigTransferVersion
 	omitCustomSources(&doc)
-	canonicalizeTransfer(&doc)
-	if err := s.validateTransferShape(doc, nil); err != nil {
+	canonicalizeTransferReferences(&doc)
+	if err := s.validateTransferShape(&doc, nil); err != nil {
 		return nil, err
 	}
-	canonicalizeTransferReferences(&doc)
 	payload, err := json.Marshal(doc)
 	if err != nil {
 		return nil, transferError("invalid_shape", "")
@@ -576,7 +575,7 @@ func (s *PublicationService) validateTransfer(payload []byte, validateDevice fun
 		return ConfigTransferDocument{}, transferError("invalid_json", "")
 	}
 	canonicalizeTransfer(&doc)
-	if err := s.validateTransferShape(doc, validateDevice); err != nil {
+	if err := s.validateTransferShape(&doc, validateDevice); err != nil {
 		return ConfigTransferDocument{}, err
 	}
 	return doc, nil
@@ -878,7 +877,7 @@ func transferPreview(d ConfigTransferDocument, digest string) ConfigTransferPrev
 	return ConfigTransferPreview{digest, true, transferCounts(d), warnings}
 }
 
-func (s *PublicationService) validateTransferShape(d ConfigTransferDocument, validateDevice func(TransferDevice) error) error {
+func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, validateDevice func(TransferDevice) error) error {
 	if len(d.CustomServices) > maxCustomServices || len(d.CustomCategories) > maxCustomCategories || len(d.Routes) > maxTransferRoutes || len(d.Devices) > maxTransferDevices || len(d.Outputs) > maxTransferOutputs {
 		return transferError("limit_exceeded", "")
 	}
@@ -1011,14 +1010,19 @@ func (s *PublicationService) validateTransferShape(d ConfigTransferDocument, val
 			return transferError("invalid_shape", p)
 		}
 	}
+	effectiveServices, effectiveCategories, members := s.transferCompositionCatalog(*d, services, categories)
 	seen = map[string]bool{}
-	for i, r := range d.Routes {
+	for i := range d.Routes {
+		r := &d.Routes[i]
 		p := fmt.Sprintf("routes/%d", i)
 		if seen[r.Ref] {
 			return transferError("duplicate_key", p+"/ref")
 		}
 		seen[r.Ref] = true
-		if len([]rune(strings.TrimSpace(r.Name))) < 1 || len([]rune(r.Name)) > maxListNameRunes {
+		if !validTransferReference(r.Ref, "route") {
+			return transferError("invalid_shape", p+"/ref")
+		}
+		if _, ok := validListName(r.Name); !ok {
 			return transferError("invalid_shape", p+"/name")
 		}
 		if !r.RefreshInterval.valid() {
@@ -1041,9 +1045,11 @@ func (s *PublicationService) validateTransferShape(d ConfigTransferDocument, val
 			}
 		}
 		composition := ListComposition{r.Services, r.Categories, r.Exclusions, r.ServiceDomains}
-		if _, err := s.validTransferComposition(composition, services, categories); err != nil {
+		validated, err := validTransferComposition(composition, effectiveServices, effectiveCategories, members)
+		if err != nil {
 			return transferError("invalid_reference", p)
 		}
+		r.Services, r.Categories, r.Exclusions, r.ServiceDomains = validated.Services, validated.Categories, validated.Exclusions, validated.ServiceDomains
 	}
 	seen = map[string]bool{}
 	for i, v := range d.Devices {
@@ -1052,6 +1058,9 @@ func (s *PublicationService) validateTransferShape(d ConfigTransferDocument, val
 			return transferError("duplicate_key", p+"/ref")
 		}
 		seen[v.Ref] = true
+		if !validTransferReference(v.Ref, "device") {
+			return transferError("invalid_shape", p+"/ref")
+		}
 		if _, ok := s.config.Targets[v.TargetID]; !ok {
 			return transferError("target_missing", p+"/target_id")
 		}
@@ -1067,6 +1076,12 @@ func (s *PublicationService) validateTransferShape(d ConfigTransferDocument, val
 			return transferError("duplicate_key", p+"/ref")
 		}
 		seen[v.Ref] = true
+		if !validTransferReference(v.Ref, "output") {
+			return transferError("invalid_shape", p+"/ref")
+		}
+		if !validTransferReference(v.RouteRef, "route") {
+			return transferError("invalid_shape", p+"/route_ref")
+		}
 		if !containsRoute(d.Routes, v.RouteRef) {
 			return transferError("invalid_reference", p+"/route_ref")
 		}
@@ -1076,6 +1091,9 @@ func (s *PublicationService) validateTransferShape(d ConfigTransferDocument, val
 		}
 		_ = target
 		if v.DeviceRef != "" {
+			if !validTransferReference(v.DeviceRef, "device") {
+				return transferError("invalid_shape", p+"/device_ref")
+			}
 			dev, ok := findDevice(d.Devices, v.DeviceRef)
 			if !ok || dev.TargetID != v.TargetID {
 				return transferError("invalid_reference", p+"/device_ref")
@@ -1090,24 +1108,119 @@ func (s *PublicationService) validateTransferShape(d ConfigTransferDocument, val
 	return nil
 }
 
-func (s *PublicationService) validTransferComposition(c ListComposition, services, categories map[string]bool) (ListComposition, error) {
-	for _, id := range c.Services {
-		if !services[id] {
+// validTransferReference accepts only the document-local identifiers emitted
+// by this format version. Keeping these out of the persistent-id grammar
+// makes it impossible to bind an imported output to a destination row by
+// accident, and makes an absent output binding unambiguous.
+func validTransferReference(value, prefix string) bool {
+	index, ok := strings.CutPrefix(value, prefix+"-")
+	if !ok || index == "" || index[0] == '0' {
+		return false
+	}
+	for _, r := range index {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// transferCompositionCatalog reproduces the post-apply catalog view while the
+// transfer document is still in memory. The SQLite transaction replaces the
+// overlay wholesale, so composition validation must use that prospective
+// overlay rather than the destination's current registries.
+func (s *PublicationService) transferCompositionCatalog(d ConfigTransferDocument, services, categories map[string]bool) (map[string]bool, map[string]bool, map[string]map[string]MembershipState) {
+	effectiveServices := make(map[string]bool, len(services))
+	for id := range services {
+		effectiveServices[id] = true
+	}
+	effectiveCategories := make(map[string]bool, len(categories))
+	for id := range categories {
+		effectiveCategories[id] = true
+	}
+	for _, removal := range d.Removals {
+		if removal.Kind == RemovalService {
+			delete(effectiveServices, removal.ID)
+		} else if removal.Kind == RemovalCategory {
+			delete(effectiveCategories, removal.ID)
+		}
+	}
+	members := make(map[string]map[string]MembershipState, len(effectiveCategories))
+	for categoryID := range effectiveCategories {
+		members[categoryID] = map[string]MembershipState{}
+		if base, ok := s.config.Categories[categoryID]; ok {
+			for _, serviceID := range base.Services {
+				members[categoryID][serviceID] = MembershipAdded
+			}
+		}
+	}
+	for _, membership := range d.Memberships {
+		if members[membership.CategoryRef] != nil {
+			members[membership.CategoryRef][membership.ServiceRef] = membership.State
+		}
+	}
+	return effectiveServices, effectiveCategories, members
+}
+
+// validTransferComposition applies the same rules as validComposition to the
+// catalog that the transfer will install. In particular, a category is not a
+// substitute for a service unless its effective memberships resolve to one.
+func validTransferComposition(c ListComposition, services, categories map[string]bool, members map[string]map[string]MembershipState) (ListComposition, error) {
+	serviceIDs := domain.StableStrings(c.Services)
+	categoryIDs := domain.StableStrings(c.Categories)
+	exclusions := domain.StableStrings(c.Exclusions)
+	if len(serviceIDs) > maxCompositionItems || len(categoryIDs) > maxCompositionItems || len(exclusions) > maxCompositionItems {
+		return ListComposition{}, errors.New("limit")
+	}
+	for _, id := range serviceIDs {
+		if domain.ValidateSlug(id) != nil || !services[id] {
 			return ListComposition{}, errors.New("service")
 		}
 	}
-	for _, id := range c.Categories {
-		if !categories[id] {
+	for _, id := range categoryIDs {
+		if domain.ValidateSlug(id) != nil || !categories[id] {
 			return ListComposition{}, errors.New("category")
 		}
 	}
-	if len(c.Services)+len(c.Categories) == 0 {
+	named := make(map[string]struct{}, len(serviceIDs))
+	for _, id := range serviceIDs {
+		named[id] = struct{}{}
+	}
+	for _, id := range exclusions {
+		if domain.ValidateSlug(id) != nil || !services[id] {
+			return ListComposition{}, errors.New("exclusion")
+		}
+		if _, both := named[id]; both {
+			return ListComposition{}, errors.New("contradiction")
+		}
+	}
+	resolved := append([]string(nil), serviceIDs...)
+	for _, categoryID := range categoryIDs {
+		for serviceID, state := range members[categoryID] {
+			if state == MembershipAdded && services[serviceID] {
+				resolved = append(resolved, serviceID)
+			}
+		}
+	}
+	excluded := make(map[string]struct{}, len(exclusions))
+	for _, id := range exclusions {
+		excluded[id] = struct{}{}
+	}
+	withoutExcluded := resolved[:0]
+	for _, id := range resolved {
+		if _, dropped := excluded[id]; !dropped {
+			withoutExcluded = append(withoutExcluded, id)
+		}
+	}
+	resolved = domain.StableStrings(withoutExcluded)
+	if len(resolved) == 0 {
 		return ListComposition{}, errors.New("empty")
 	}
-	if len(c.Services) > maxCompositionItems || len(c.Categories) > maxCompositionItems || len(c.Exclusions) > maxCompositionItems {
-		return ListComposition{}, errors.New("limit")
+	serviceDomains, err := normalizeServiceDomains(c.ServiceDomains, resolved)
+	if err != nil {
+		return ListComposition{}, err
 	}
-	return c, nil
+	return ListComposition{Services: serviceIDs, Categories: categoryIDs, Exclusions: exclusions, ServiceDomains: serviceDomains}, nil
 }
 func containsRoute(v []TransferRoute, ref string) bool {
 	for _, x := range v {

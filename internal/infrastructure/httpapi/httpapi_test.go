@@ -979,6 +979,28 @@ func TestConfigTransferHTTPRejectsAnOversizedRawDocumentBeforeTheBackend(t *test
 	}
 }
 
+func TestConfigTransferHTTPStreamsTheExactMaximumDocumentToTheBackend(t *testing.T) {
+	backend := testBackend()
+	server, err := New("http://127.0.0.1:8765", backend, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := io.LimitReader(repeatedByteReader('x'), int64(application.ConfigTransferMaxBytes))
+	request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8765/v1/config-transfer/preview", body)
+	request.RemoteAddr = "127.0.0.1:54321"
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Routevane-Request", "1")
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("maximum-sized response = %d %s", response.Code, response.Body.String())
+	}
+	if len(backend.transferPayload) != application.ConfigTransferMaxBytes {
+		t.Fatalf("backend received %d bytes, want %d", len(backend.transferPayload), application.ConfigTransferMaxBytes)
+	}
+}
+
 func TestConfigTransferErrorsUseVersionedCodes(t *testing.T) {
 	backend := testBackend()
 	server, err := New("http://127.0.0.1:8765", backend, nil)
