@@ -2,6 +2,8 @@
 
 Choose by task.
 
+> [Русская документация для пользователей](ru/README.md) — установка, обслуживание и расширенное использование. English remains the canonical documentation.
+
 | Task | Document |
 | --- | --- |
 | Download and start Routevane | [Quick start](../README.md#download-and-start) |

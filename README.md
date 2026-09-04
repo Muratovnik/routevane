@@ -8,6 +8,8 @@ It runs on your computer with a browser interface in English and Russian.
 No account or cloud service is required. Routevane prepares routing rules;
 it does not provide a VPN connection.
 
+> [Русская документация](README.ru.md) — краткое руководство, установка и расширенное использование на русском языке.
+
 ## Download and start
 
 The release is ready to run: **you do not need Go, Node.js, Python, or build tools**.
