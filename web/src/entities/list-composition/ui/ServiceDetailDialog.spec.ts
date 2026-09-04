@@ -233,6 +233,12 @@ describe('ServiceDetailDialog', () => {
     await flushPromises()
     expect(panel.textContent).toContain('Refreshing…')
     expect(panel.textContent).not.toContain('Sources read')
+    const remove = [
+      ...panel.querySelectorAll<HTMLButtonElement>('button'),
+    ].find((button) => button.textContent?.includes('Delete the list'))
+    expect(remove?.disabled).toBe(true)
+    remove?.click()
+    expect(wrapper.emitted('remove')).toBeUndefined()
     releaseRefresh()
     await flushPromises()
     expect(panel.textContent).toContain('Sources read')
@@ -395,6 +401,15 @@ describe('ServiceDetailDialog', () => {
     const wrapper = mountCard({ mode: 'library' })
     await flushPromises()
 
+    await wrapper.setProps({ disabled: true })
+    const remove = [
+      ...card().querySelectorAll<HTMLButtonElement>('button'),
+    ].find((button) => button.textContent?.includes('Delete the list'))
+    expect(remove?.disabled).toBe(true)
+    remove?.click()
+    expect(wrapper.emitted('remove')).toBeUndefined()
+
+    await wrapper.setProps({ disabled: false })
     clickByText(card(), 'Delete the list')
     await flushPromises()
 

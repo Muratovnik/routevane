@@ -5,6 +5,7 @@ import { useConfigTransfer } from '@/features/settings/model/useConfigTransfer'
 import { useLocale } from '@/shared/i18n/useLocale'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
+import RvFilePicker from '@/shared/ui/RvFilePicker.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 
 const emit = defineEmits<{ applied: [] }>()
@@ -50,13 +51,9 @@ const failureMessage = computed(() => {
   return t(`configTransfer.failure.${transfer.failure.value}`)
 })
 
-function onFileChange(event: Event): void {
-  const input = event.target
-  if (!(input instanceof HTMLInputElement)) return
-  const file = input.files?.item(0)
-  input.value = ''
+function onFileSelected(file: File): void {
   confirming.value = false
-  if (file !== null && file !== undefined) void transfer.choose(file)
+  void transfer.choose(file)
 }
 
 function requestConfirmation(): void {
@@ -79,6 +76,8 @@ async function apply(): Promise<void> {
     <div class="config-transfer__actions">
       <RvButton
         :disabled="transfer.downloadState.value === 'downloading'"
+        :loading="transfer.downloadState.value === 'downloading'"
+        :loading-label="t('configTransfer.download.busy')"
         @click="transfer.download"
       >
         {{
@@ -97,20 +96,24 @@ async function apply(): Promise<void> {
     </div>
 
     <div class="config-transfer__file">
-      <label class="config-transfer__file-label" :for="fileInputID">
+      <p class="config-transfer__file-label">
         {{ t('configTransfer.file.label') }}
-      </label>
-      <input
-        :id="fileInputID"
-        accept="application/json,.json"
-        class="config-transfer__file-input"
-        :disabled="transfer.applyState.value === 'applying'"
-        type="file"
-        @change="onFileChange"
-      />
-      <p class="config-transfer__file-note">
-        {{ t('configTransfer.file.limit') }}
       </p>
+      <RvFilePicker
+        accept="application/json,.json"
+        :action-label="
+          transfer.fileName.value === ''
+            ? t('configTransfer.file.choose')
+            : t('configTransfer.file.replace')
+        "
+        :disabled="transfer.applyState.value === 'applying'"
+        :empty-label="t('configTransfer.file.empty')"
+        :file-name="transfer.fileName.value"
+        :hint="t('configTransfer.file.limit')"
+        :input-id="fileInputID"
+        :label="t('configTransfer.file.label')"
+        @select="onFileSelected"
+      />
     </div>
 
     <p class="config-transfer__boundary">
@@ -143,13 +146,12 @@ async function apply(): Promise<void> {
       v-if="transfer.fileName.value !== ''"
       class="config-transfer__file-row"
     >
-      <span class="config-transfer__file-name">{{
-        transfer.fileName.value
-      }}</span>
       <RvButton
         :disabled="
           !transfer.canPreview.value || transfer.state.value === 'previewing'
         "
+        :loading="transfer.state.value === 'previewing'"
+        :loading-label="t('configTransfer.preview.busy')"
         @click="transfer.previewSelected"
       >
         {{
@@ -203,6 +205,7 @@ async function apply(): Promise<void> {
       v-model:open="confirming"
       :close-label="t('action.close')"
       :description="t('configTransfer.confirm.description')"
+      :dismissible="transfer.applyState.value !== 'applying'"
       :title="t('configTransfer.confirm.title')"
       variant="panel"
     >
@@ -230,6 +233,8 @@ async function apply(): Promise<void> {
         </RvButton>
         <RvButton
           :disabled="!transfer.canApply.value"
+          :loading="transfer.applyState.value === 'applying'"
+          :loading-label="t('configTransfer.apply.busy')"
           variant="primary"
           @click="apply"
         >
@@ -285,30 +290,11 @@ async function apply(): Promise<void> {
   letter-spacing: var(--rv-tracking-label);
 }
 
-.config-transfer__file-input {
-  max-width: 100%;
-  min-height: var(--rv-control-touch);
-  color: var(--rv-color-ink);
-  font: inherit;
-}
-
-.config-transfer__file-input:disabled {
-  color: var(--rv-color-ink-tertiary);
-  cursor: not-allowed;
-}
-
 .config-transfer__file-row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--rv-space-3);
   align-items: center;
-}
-
-.config-transfer__file-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-family: var(--rv-font-mono);
-  font-size: var(--rv-text-dense);
 }
 
 .config-transfer__preview-title {

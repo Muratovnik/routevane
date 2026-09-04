@@ -112,8 +112,10 @@
   --rv-control-default: 2.5rem;
   --rv-control-touch: 2.75rem;
   --rv-control-choice: 1.125rem;
+  --rv-brand-mark-size: 1.75rem;
   --rv-row-default: 3.5rem;
   --rv-row-comfortable: 4rem;
+  --rv-row-dense: 3rem;
   --rv-radius-sm: 0.25rem;
   --rv-radius-md: 0.375rem;
   --rv-radius-lg: 0.625rem;
@@ -128,6 +130,7 @@
   --rv-dialog-panel-height: 40rem;
   --rv-editor-min-height: 14rem;
   --rv-analysis-height: 24rem;
+  --rv-library-height: max(30rem, calc(100dvh - 9rem));
 
   /* A menu, a select list or a combobox list is a viewport overlay: it starts
      at least as wide as a readable label and never grows past a screenful. */
@@ -153,6 +156,8 @@
   --rv-measure-prose: 68ch;
   --rv-motion-fast: 120ms;
   --rv-motion-normal: 200ms;
+  --rv-motion-ease-out: cubic-bezier(0.25, 0, 0.4, 1);
+  --rv-motion-working: 700ms;
 
   color-scheme: dark;
 }

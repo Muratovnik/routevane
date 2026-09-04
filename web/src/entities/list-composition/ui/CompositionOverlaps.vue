@@ -60,11 +60,12 @@ const title = (id: string) =>
       </p>
       <template v-else>
         <p class="overlaps__note">{{ t('overlaps.meaning') }}</p>
-        <ul
-          :aria-label="t('overlaps.title')"
-          class="overlaps__items"
-          tabindex="0"
-        >
+        <div class="overlaps__guide">
+          <strong>{{ t('overlaps.resolve.title') }}</strong>
+          <p>{{ t('overlaps.resolve.body') }}</p>
+          <small>{{ t('overlaps.resolve.scope') }}</small>
+        </div>
+        <ul :aria-label="t('overlaps.title')" class="overlaps__items">
           <li
             v-for="(item, index) in analysis.items"
             :key="index"
@@ -92,7 +93,7 @@ const title = (id: string) =>
                   :href="`/library#list=${encodeURIComponent(id)}`"
                   rel="noopener noreferrer"
                   target="_blank"
-                  >{{ title(id) }}</a
+                  >{{ t('overlaps.openList', { list: title(id) }) }}</a
                 >
               </span>
             </div>
@@ -119,6 +120,30 @@ const title = (id: string) =>
   padding: var(--rv-space-1);
   overflow: auto;
   list-style: none;
+}
+
+.overlaps__guide {
+  display: grid;
+  gap: var(--rv-space-2);
+  padding: var(--rv-space-4);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-interface);
+  background: var(--rv-color-surface-muted);
+  border-left: var(--rv-border-mark) solid var(--rv-color-accent);
+  border-radius: var(--rv-radius-sm);
+}
+
+.overlaps__guide strong {
+  color: var(--rv-color-ink);
+}
+
+.overlaps__guide p {
+  max-width: var(--rv-measure-prose);
+}
+
+.overlaps__guide small {
+  color: var(--rv-color-ink-tertiary);
+  font-size: var(--rv-text-meta);
 }
 
 .overlaps__item {
@@ -149,5 +174,9 @@ const title = (id: string) =>
   flex-wrap: wrap;
   gap: var(--rv-space-2) var(--rv-space-4);
   font-size: var(--rv-text-interface);
+}
+
+.overlaps__owners a {
+  color: var(--rv-color-accent-ink);
 }
 </style>

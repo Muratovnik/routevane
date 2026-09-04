@@ -42,7 +42,7 @@ function render(overrides: Record<string, unknown> = {}) {
       targetTitle: (_id: string, fallback?: string) => fallback ?? 'Keenetic',
       ...overrides,
     },
-    global: { stubs: { RvIcon: true } },
+    global: { stubs: { NuxtLink: true, RvIcon: true } },
   })
 }
 
@@ -51,7 +51,8 @@ describe('OutputsPanel connection readiness', () => {
 
   it('states the next unmet condition for an unbound output', () => {
     const wrapper = render()
-    expect(wrapper.text()).toContain('Choose a connection')
+    expect(wrapper.text()).toContain('Add a connection')
+    expect(wrapper.text()).not.toContain('Device for Keenetic —')
     expect(wrapper.find('#list-schedule-select').exists()).toBe(true)
     wrapper.unmount()
   })
@@ -81,6 +82,7 @@ describe('OutputsPanel connection readiness', () => {
     const wrapper = render({ deployable: () => false })
     expect(wrapper.text()).not.toContain('Choose a connection')
     expect(wrapper.text()).not.toContain('Automatic delivery configured')
+    expect(wrapper.text()).toContain('Manual download')
     wrapper.unmount()
   })
 

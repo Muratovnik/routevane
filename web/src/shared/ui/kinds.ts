@@ -46,6 +46,7 @@ export type IconName =
   | 'download'
   | 'edit'
   | 'external'
+  | 'file'
   | 'info'
   | 'library'
   | 'plus'

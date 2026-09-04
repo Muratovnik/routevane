@@ -24,6 +24,7 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
  * opened it, and neither closes the menu.
  */
 const props = defineProps<{
+  disabled?: boolean
   items: MenuItem[]
   /** Accessible name of the trigger, e.g. "Actions for list X". */
   label: string
@@ -74,6 +75,7 @@ function onCloseAutoFocus(event: Event): void {
       :aria-label="label"
       class="rv-menu__trigger"
       :class="{ 'rv-menu__trigger--text': triggerText !== undefined }"
+      :disabled="disabled === true"
     >
       <RvIcon :name="triggerIcon ?? 'dots'" />
       <span v-if="triggerText !== undefined">{{ triggerText }}</span>
@@ -188,6 +190,11 @@ function onCloseAutoFocus(event: Event): void {
   background: var(--rv-color-surface-hover);
 }
 
+.rv-menu__trigger:disabled {
+  opacity: var(--rv-disabled-opacity);
+  cursor: not-allowed;
+}
+
 .rv-menu__trigger--text {
   gap: var(--rv-space-2);
   width: auto;
@@ -228,6 +235,13 @@ function onCloseAutoFocus(event: Event): void {
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-md);
   box-shadow: var(--rv-shadow-raised);
+  animation: rv-menu-in var(--rv-motion-fast) var(--rv-motion-ease-out);
+}
+
+@keyframes rv-menu-in {
+  from {
+    box-shadow: var(--rv-shadow-panel);
+  }
 }
 
 .rv-menu__item {

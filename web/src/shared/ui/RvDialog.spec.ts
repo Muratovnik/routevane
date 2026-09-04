@@ -220,6 +220,36 @@ describe('RvDialog', () => {
     expect(dialog()).toBeNull()
   })
 
+  it('keeps an in-flight decision open until its owner makes it dismissible', async () => {
+    const wrapper = mount(RvDialog, {
+      attachTo: document.body,
+      props: {
+        closeLabel: 'Close',
+        dismissible: false,
+        open: true,
+        title: 'Deleting list',
+      },
+      slots: { default: 'Deleting…' },
+      global: { stubs: { RvIcon: true } },
+    })
+    host = wrapper
+    await settle()
+
+    const close =
+      document.body.querySelector<HTMLButtonElement>('.rv-dialog__close')
+    expect(close?.disabled).toBe(true)
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }),
+    )
+    await settle()
+    expect(wrapper.emitted('update:open')).toBeUndefined()
+
+    await wrapper.setProps({ dismissible: true })
+    close?.click()
+    await settle()
+    expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
+  })
+
   // A panel opened over a sheet is one modal stack, and a stack has one ground.
   // Two scrims painting the same dimming made the page behind read as twice as
   // far away as it is.

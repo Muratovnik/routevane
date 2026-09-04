@@ -60,7 +60,7 @@ function contentsResponse(serviceID: string): Response {
   })
 }
 
-function stubAPI(routes: Record<string, () => Response>) {
+function stubAPI(routes: Record<string, () => Response | Promise<Response>>) {
   const calls: { body: string | null; key: string }[] = []
   const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
     const key = `${init?.method ?? 'GET'} ${String(input)}`
@@ -388,6 +388,51 @@ describe('ListLibraryView', () => {
 
     expect(calls.at(-3)?.key).toBe('POST /v1/services/telegram/remove')
     expect(keys().slice(-2)).toEqual(['GET /v1/services', 'GET /v1/targets'])
+    wrapper.unmount()
+  })
+
+  it('blocks every conflicting library action while a deletion is pending', async () => {
+    let finish!: (response: Response) => void
+    const pending = new Promise<Response>((resolve) => {
+      finish = resolve
+    })
+    const { keys } = stubAPI({
+      ...catalogRoutes(),
+      'POST /v1/services/discord/remove': () => pending,
+    })
+    const wrapper = mountLibrary()
+    await flushPromises()
+
+    await openCategory(wrapper, 'Communication')
+    await openMenu(wrapper, 'Actions for list Discord')
+    menuItem('Delete the list')?.click()
+    await flushPromises()
+    const panel = dialog()
+    clickByText(panel, 'Delete')
+    await flushPromises()
+
+    const submit = [
+      ...panel.querySelectorAll<HTMLButtonElement>('button'),
+    ].find((button) => button.textContent?.includes('Delete'))
+    expect(submit?.disabled).toBe(true)
+    expect(submit?.getAttribute('aria-busy')).toBe('true')
+    expect(
+      panel.querySelector<HTMLButtonElement>('.rv-dialog__close')?.disabled,
+    ).toBe(true)
+    expect(
+      wrapper
+        .findAll<HTMLButtonElement>('.rv-menu__trigger')
+        .every((trigger) => trigger.element.disabled),
+    ).toBe(true)
+    submit?.click()
+    expect(
+      keys().filter((key) => key === 'POST /v1/services/discord/remove'),
+    ).toHaveLength(1)
+
+    finish(json({ error: 'controlled refusal' }, 503))
+    await flushPromises()
+    expect(submit?.disabled).toBe(false)
+    expect(panel.isConnected).toBe(true)
     wrapper.unmount()
   })
 

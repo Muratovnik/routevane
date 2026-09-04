@@ -184,41 +184,55 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
               >
                 {{ t('outputs.device.label', { target: outputTitle(output) }) }}
               </label>
-              <div
-                v-if="deviceChoices(output).length > 0"
-                class="outputs__device"
-              >
-                <RvSelect
-                  :disabled="props.busy || props.archived"
-                  :input-id="`output-device-${output.id}`"
-                  :model-value="output.deviceID"
-                  :options="deviceChoices(output)"
-                  :placeholder="t('outputs.device.none')"
-                  @update:model-value="emit('bindDevice', output.id, $event)"
-                />
-                <RvButton
-                  v-if="output.deviceID !== ''"
-                  :disabled="props.busy || props.archived"
-                  size="compact"
-                  variant="quiet"
-                  @click="emit('bindDevice', output.id, '')"
+              <template v-if="props.deployable(output)">
+                <div
+                  v-if="deviceChoices(output).length > 0"
+                  class="outputs__device"
                 >
-                  {{ t('outputs.device.detach') }}
+                  <RvSelect
+                    :disabled="props.busy || props.archived"
+                    :input-id="`output-device-${output.id}`"
+                    :loading="props.busy"
+                    :model-value="output.deviceID"
+                    :options="deviceChoices(output)"
+                    :placeholder="t('outputs.device.none')"
+                    @update:model-value="emit('bindDevice', output.id, $event)"
+                  />
+                  <RvButton
+                    v-if="output.deviceID !== ''"
+                    :disabled="props.busy || props.archived"
+                    size="compact"
+                    variant="quiet"
+                    @click="emit('bindDevice', output.id, '')"
+                  >
+                    {{ t('outputs.device.detach') }}
+                  </RvButton>
+                </div>
+                <RvButton
+                  v-else
+                  size="compact"
+                  to="/connections"
+                  variant="quiet"
+                >
+                  <RvIcon name="plus" />
+                  {{ t('outputs.device.add') }}
                 </RvButton>
-              </div>
-              <span v-else>—</span>
-              <RvStatus
-                v-if="props.deployable(output) && !props.archived"
-                class="outputs__readiness"
-                :label="readinessLabel(output)"
-                :tone="
-                  readiness(output) === 'ready'
-                    ? 'ready'
-                    : readiness(output) === 'choose'
-                      ? 'waiting'
-                      : 'warning'
-                "
-              />
+                <RvStatus
+                  v-if="!props.archived && deviceChoices(output).length > 0"
+                  class="outputs__readiness"
+                  :label="readinessLabel(output)"
+                  :tone="
+                    readiness(output) === 'ready'
+                      ? 'ready'
+                      : readiness(output) === 'choose'
+                        ? 'waiting'
+                        : 'warning'
+                  "
+                />
+              </template>
+              <span v-else class="outputs__manual">
+                {{ t('outputs.device.manual') }}
+              </span>
             </td>
             <td class="outputs__cell-updated">
               <span class="outputs__updated">
@@ -280,6 +294,7 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
           :disabled="props.busy"
           input-id="list-schedule-select"
           labelled-by="list-schedule"
+          :loading="props.busy"
           :options="scheduleOptions"
           :placeholder="t('list.schedule.default')"
         />
@@ -308,11 +323,13 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
             :disabled="props.busy || props.targetGroups.length === 0"
             :groups="targetChoices"
             input-id="outputs-target"
+            :loading="props.busy"
             :placeholder="t('outputs.add.placeholder')"
           />
         </div>
         <RvButton
           :disabled="props.busy || chosenTarget === ''"
+          :loading="props.busy"
           type="submit"
           variant="secondary"
         >

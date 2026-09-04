@@ -6,6 +6,68 @@
   min-width: 0;
 }
 
+/* The first read keeps the page's final silhouette in place. No transient
+   status sentence is painted above the title and then removed a frame later. */
+.list__loading {
+  display: grid;
+  gap: var(--rv-space-8);
+  width: 100%;
+}
+
+.list__loading-line,
+.list__loading-tabs > span,
+.list__loading-panel {
+  background: var(--rv-color-surface);
+  border-radius: var(--rv-radius-sm);
+  animation: rv-list-loading var(--rv-motion-working) var(--rv-motion-ease-out)
+    infinite alternate;
+}
+
+.list__loading-line--breadcrumb {
+  width: min(var(--rv-measure-field), 45%);
+  height: var(--rv-space-3);
+}
+
+.list__loading-line--title {
+  width: min(var(--rv-measure-field), 65%);
+  height: var(--rv-space-8);
+}
+
+.list__loading-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--rv-space-3);
+  padding-bottom: var(--rv-space-3);
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.list__loading-tabs > span {
+  height: var(--rv-control-compact);
+}
+
+.list__loading-panel {
+  min-height: var(--rv-editor-min-height);
+}
+
+.list__visually-hidden {
+  position: absolute;
+  width: var(--rv-border-hair);
+  height: var(--rv-border-hair);
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+@keyframes rv-list-loading {
+  from {
+    background: var(--rv-color-surface);
+  }
+
+  to {
+    background: var(--rv-color-surface-muted);
+  }
+}
+
 .list__header {
   display: flex;
   flex-wrap: wrap;

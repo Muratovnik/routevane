@@ -1197,6 +1197,22 @@ test('an operator category carries its lists into a route and is kept while a ro
     page.getByRole('heading', { level: 1, name: 'Lists' }),
   ).toBeVisible()
 
+  // The library is an operational workspace, not a short card surrounded by
+  // unused page. Its rows stay dense while the two panes claim the available
+  // viewport height.
+  const viewport = page.viewportSize()
+  const workspaceBox = await page.locator('.lists__workspace').boundingBox()
+  const firstCategoryBox = await page
+    .locator('.lists__category')
+    .first()
+    .boundingBox()
+  expect(workspaceBox?.height ?? 0).toBeGreaterThanOrEqual(
+    Math.floor((viewport?.height ?? 0) * 0.7),
+  )
+  expect(
+    firstCategoryBox?.height ?? Number.POSITIVE_INFINITY,
+  ).toBeLessThanOrEqual(56)
+
   await page.getByRole('button', { name: 'Custom category' }).click()
   const categoryForm = page.getByRole('dialog', { name: 'New category' })
   // The panel opens with the keyboard in its field, so typing starts there
@@ -1709,7 +1725,7 @@ test('an archived route leaves the shelf, keeps its file, and comes back whole',
   await expect(shelfRow).toHaveCount(0)
   const archive = page.locator('.library__archive')
   await expect(archive).toContainText('Archive')
-  await archive.locator('summary').click()
+  await archive.locator('.rv-disclosure__summary').click()
   const archivedRow = archive
     .locator('.library__archive-row')
     .filter({ has: page.locator(`a[href="/lists/${listId}"]`) })
@@ -2615,19 +2631,19 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   await select(0, 'Overlap Alpha', true)
   await select(1, 'Overlap Beta', true)
   await chooseFormat(page, /sing-box/)
-  const disclosure = page.locator('details').filter({
-    has: page.locator('summary').filter({ hasText: 'List overlaps' }),
+  const disclosure = page.locator('.rv-disclosure').filter({
+    has: page.getByRole('button', { name: 'List overlaps' }),
   })
   await expect(disclosure).toBeVisible()
   await expect(
     disclosure.getByText('shared.example', { exact: true }),
   ).not.toBeVisible()
-  await disclosure.locator('summary').focus()
+  await disclosure.getByRole('button', { name: 'List overlaps' }).focus()
   await page.keyboard.press('Enter')
   await expect(disclosure).toContainText('file forecast — 5 entries')
   await expect(disclosure.locator('.overlaps__item')).toHaveCount(2)
   await expect(
-    disclosure.getByRole('link', { name: 'Overlap Alpha' }).first(),
+    disclosure.getByRole('link', { name: /Overlap Alpha/ }).first(),
   ).toHaveAttribute('href', `/library#list=${ids[0]}`)
   await expect(disclosure).toContainText('192.0.2.0/24')
   for (const width of [320, 768, 1024, 1440]) {
@@ -2717,10 +2733,10 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   expect((await built).ok()).toBe(true)
   await page.getByRole('tab', { name: 'Contents', exact: true }).click()
   const editor = page.locator('.editor')
-  const editorDisclosure = editor
-    .locator('details')
-    .filter({ hasText: 'List overlaps' })
-  await editorDisclosure.locator('summary').click()
+  const editorDisclosure = editor.locator('.rv-disclosure').filter({
+    has: page.getByRole('button', { name: 'List overlaps' }),
+  })
+  await editorDisclosure.getByRole('button', { name: 'List overlaps' }).click()
   await expect(editorDisclosure).toContainText('file forecast — 5 entries')
   await expect(editorDisclosure.locator('.overlaps__item')).toHaveCount(2)
   await expect(

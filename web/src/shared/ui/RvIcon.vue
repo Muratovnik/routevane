@@ -26,6 +26,7 @@ const strokes: Record<string, string[]> = {
     'M9.5 2.5h4v4',
     'M13.5 2.5 8 8',
   ],
+  file: ['M4 1.5h5l3 3v10H4v-13Z', 'M9 1.5v3h3', 'M6 8h4', 'M6 11h4'],
   info: ['M8 14.5A6.5 6.5 0 1 0 8 1.5a6.5 6.5 0 0 0 0 13Z', 'M8 7.5V11'],
   library: ['M6 4.5h7.5', 'M6 8h7.5', 'M6 11.5h7.5'],
   plus: ['M8 3v10', 'M3 8h10'],

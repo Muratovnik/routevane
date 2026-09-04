@@ -32,6 +32,8 @@ const props = defineProps<{
   groups?: ChoiceGroup[]
   inputId: string
   invalid?: boolean
+  loading?: boolean
+  loadingLabel?: string
   options?: ChoiceOption[]
   placeholder: string
   /** Accessible name of the control that opens the list from the field. */
@@ -111,7 +113,7 @@ function syncOpen(nextOpen: boolean): void {
     v-model="chosen"
     v-model:open="open"
     class="rv-combobox"
-    :disabled="disabled === true"
+    :disabled="disabled === true || loading === true"
     open-on-click
     @highlight="rememberHighlight"
     @update:open="syncOpen"
@@ -122,12 +124,19 @@ function syncOpen(nextOpen: boolean): void {
         :aria-activedescendant="open ? activeDescendant : undefined"
         :aria-describedby="describedBy"
         :aria-invalid="invalid === true ? 'true' : undefined"
+        :aria-busy="loading === true ? 'true' : undefined"
+        :aria-label="loading === true ? loadingLabel : undefined"
         class="rv-combobox__input"
         :display-value="displayValue"
         :placeholder="placeholder"
       />
       <ComboboxTrigger :aria-label="toggleLabel" class="rv-combobox__toggle">
-        <RvIcon name="chevron" />
+        <span
+          v-if="loading === true"
+          aria-hidden="true"
+          class="rv-combobox__spinner"
+        />
+        <RvIcon v-else name="chevron" />
       </ComboboxTrigger>
     </ComboboxAnchor>
 
@@ -252,6 +261,21 @@ function syncOpen(nextOpen: boolean): void {
   border-radius: var(--rv-radius-sm);
   cursor: pointer;
 }
+
+.rv-combobox__spinner {
+  width: var(--rv-control-choice);
+  height: var(--rv-control-choice);
+  border: var(--rv-border-hair) solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: rv-combobox-spin var(--rv-motion-working) linear infinite;
+}
+
+@keyframes rv-combobox-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
 </style>
 
 <!-- The panel and everything in it are styled outside the scoped block above,
@@ -277,6 +301,13 @@ function syncOpen(nextOpen: boolean): void {
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-md);
   box-shadow: var(--rv-shadow-raised);
+  animation: rv-combobox-in var(--rv-motion-fast) var(--rv-motion-ease-out);
+}
+
+@keyframes rv-combobox-in {
+  from {
+    box-shadow: var(--rv-shadow-panel);
+  }
 }
 
 .rv-combobox__list {
@@ -352,7 +383,7 @@ function syncOpen(nextOpen: boolean): void {
 }
 
 .rv-combobox__note {
-  color: var(--rv-color-ink-tertiary);
+  color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-meta);
 }
 

@@ -131,7 +131,7 @@ const categoryActions = computed<MenuItem[]>(() => {
   if (category === null) return []
   const items: MenuItem[] = [
     {
-      disabled: library.stale.value,
+      disabled: library.stale.value || library.busy.value,
       icon: 'plus',
       key: 'add',
       label: t('lists.category.addList'),
@@ -139,6 +139,7 @@ const categoryActions = computed<MenuItem[]>(() => {
   ]
   if (category.custom) {
     items.push({
+      disabled: library.busy.value,
       icon: 'edit',
       key: 'rename',
       label: t('lists.category.rename'),
@@ -146,6 +147,7 @@ const categoryActions = computed<MenuItem[]>(() => {
     })
   }
   items.push({
+    disabled: library.busy.value,
     icon: 'trash',
     key: 'remove',
     label: t('lists.category.remove'),
@@ -158,11 +160,12 @@ const listActions = computed<MenuItem[]>(() => {
   const items: MenuItem[] = []
   if ((activeRow.value?.category ?? null) !== null)
     items.push({
-      disabled: library.stale.value,
+      disabled: library.stale.value || library.busy.value,
       key: 'detach',
       label: t('lists.list.detach'),
     })
   items.push({
+    disabled: library.busy.value,
     icon: 'trash',
     key: 'remove',
     label: t('lists.list.remove'),
@@ -303,6 +306,7 @@ function onCategoryAction(key: string): void {
 }
 
 function onListAction(service: ServiceDetail, key: string): void {
+  if (library.busy.value) return
   const category = activeRow.value?.category ?? null
   if (key === 'detach' && category !== null && !library.stale.value) {
     void library.detachList(category, service.id)
@@ -312,6 +316,7 @@ function onListAction(service: ServiceDetail, key: string): void {
 }
 
 function startRemoveService(service: ServiceDetail): void {
+  if (library.busy.value) return
   library.clearRefusal()
   removingService.value = service
 }
@@ -448,6 +453,7 @@ function onServiceUpdated(): void {
               <button
                 :aria-current="activeRow?.id === entry.id ? 'true' : undefined"
                 class="lists__category"
+                :disabled="library.busy.value"
                 type="button"
                 @click="showCategory(entry.id)"
               >
@@ -493,6 +499,7 @@ function onServiceUpdated(): void {
             </strong>
             <RvMenu
               v-if="categoryActions.length > 0"
+              :disabled="library.busy.value"
               :items="categoryActions"
               :label="t('lists.category.menu', { category: activeRow.label })"
               @select="onCategoryAction"
@@ -529,12 +536,14 @@ function onServiceUpdated(): void {
                     t('serviceDetail.open.aria', { service: service.title })
                   "
                   class="lists__open"
+                  :disabled="library.busy.value"
                   type="button"
                   @click="openService(service.id)"
                 >
                   <RvIcon name="chevron" />
                 </button>
                 <RvMenu
+                  :disabled="library.busy.value"
                   :items="listActions"
                   :label="t('lists.list.menu', { list: service.title })"
                   @select="onListAction(service, $event)"
@@ -563,6 +572,7 @@ function onServiceUpdated(): void {
 
     <RvDialog
       :close-label="t('action.close')"
+      :dismissible="!library.busy.value"
       :open="categoryForm !== 'closed'"
       :title="
         categoryForm === 'rename'
@@ -593,7 +603,11 @@ function onServiceUpdated(): void {
         </RvField>
       </form>
       <template #footer>
-        <RvButton variant="quiet" @click="categoryForm = 'closed'">
+        <RvButton
+          :disabled="library.busy.value"
+          variant="quiet"
+          @click="categoryForm = 'closed'"
+        >
           {{ t('action.cancel') }}
         </RvButton>
         <RvButton
@@ -601,6 +615,7 @@ function onServiceUpdated(): void {
             library.busy.value ||
             (library.stale.value && categoryForm === 'create')
           "
+          :loading="library.busy.value"
           variant="primary"
           @click="submitCategoryTitle"
         >
@@ -615,6 +630,7 @@ function onServiceUpdated(): void {
 
     <RvDialog
       :close-label="t('action.close')"
+      :dismissible="!library.busy.value"
       :open="pickingList"
       :title="t('lists.category.addList')"
       variant="panel"
@@ -629,6 +645,7 @@ function onServiceUpdated(): void {
           input-id="lists-category-list"
           :options="pickableLists"
           :placeholder="t('lists.category.pick.placeholder')"
+          :loading="library.busy.value"
           :toggle-label="t('lists.category.pick.toggle')"
         />
         <p v-else class="lists__form-note">
@@ -636,13 +653,18 @@ function onServiceUpdated(): void {
         </p>
       </div>
       <template #footer>
-        <RvButton variant="quiet" @click="pickingList = false">
+        <RvButton
+          :disabled="library.busy.value"
+          variant="quiet"
+          @click="pickingList = false"
+        >
           {{ t('action.cancel') }}
         </RvButton>
         <RvButton
           :disabled="
             library.busy.value || library.stale.value || pickedListID === ''
           "
+          :loading="library.busy.value"
           variant="primary"
           @click="submitPickedList"
         >
@@ -655,6 +677,7 @@ function onServiceUpdated(): void {
          of the lists it holds. -->
     <RvDialog
       :close-label="t('action.close')"
+      :dismissible="!library.busy.value"
       :open="removingCategory"
       :title="t('lists.category.remove')"
       variant="panel"
@@ -687,11 +710,16 @@ function onServiceUpdated(): void {
         />
       </div>
       <template #footer>
-        <RvButton variant="quiet" @click="removingCategory = false">
+        <RvButton
+          :disabled="library.busy.value"
+          variant="quiet"
+          @click="removingCategory = false"
+        >
           {{ t('action.cancel') }}
         </RvButton>
         <RvButton
           :disabled="library.busy.value"
+          :loading="library.busy.value"
           variant="primary"
           @click="confirmRemoveCategory"
         >
@@ -702,6 +730,7 @@ function onServiceUpdated(): void {
 
     <RvDialog
       :close-label="t('action.close')"
+      :dismissible="!library.busy.value"
       :open="removingService !== null"
       :title="t('lists.list.remove')"
       variant="panel"
@@ -734,11 +763,16 @@ function onServiceUpdated(): void {
         />
       </div>
       <template #footer>
-        <RvButton variant="quiet" @click="removingService = null">
+        <RvButton
+          :disabled="library.busy.value"
+          variant="quiet"
+          @click="removingService = null"
+        >
           {{ t('action.cancel') }}
         </RvButton>
         <RvButton
           :disabled="library.busy.value"
+          :loading="library.busy.value"
           variant="primary"
           @click="confirmRemoveService"
         >

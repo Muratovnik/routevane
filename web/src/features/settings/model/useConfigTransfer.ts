@@ -53,7 +53,10 @@ export function useConfigTransfer() {
     applyState.value = 'idle'
     failure.value = ''
     document.value = null
-    fileName.value = ''
+    // The visible picker keeps the operator's choice while validation and
+    // reading run. A failure belongs to that named file, not to an anonymous
+    // state notice below an empty native control.
+    fileName.value = file.name
 
     if (!file.name.toLowerCase().endsWith('.json')) {
       failure.value = 'fileType'
@@ -78,7 +81,6 @@ export function useConfigTransfer() {
       const parsed = parseConfigTransferDocument(text)
       if (currentGeneration !== generation) return
       document.value = parsed
-      fileName.value = file.name
       state.value = 'selected'
     } catch {
       if (currentGeneration !== generation) return

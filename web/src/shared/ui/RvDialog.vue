@@ -27,30 +27,36 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
  * scrim, and the aria wiring between the panel, its title and its description.
  * Everything visible is ours.
  */
-const props = defineProps<{
-  /** What to call the control that dismisses the panel. */
-  closeLabel: string
-  /** Standing background for the panel, read out with its title. */
-  description?: string
-  /**
-   * Whether the body's content claims the panel's whole height rather than
-   * sitting at its top. The slot is then one element, and that element owns
-   * what inside it scrolls — a table that fills the sheet instead of a band of
-   * nothing between the last row and the footer.
-   */
-  fill?: boolean
-  open: boolean
-  title: string
-  /**
-   * `sheet` is the full-height working surface on the trailing edge; `panel` is
-   * a centred box for one bounded secondary decision.
-   */
-  variant?: 'sheet' | 'panel'
-}>()
+const props = withDefaults(
+  defineProps<{
+    /** What to call the control that dismisses the panel. */
+    closeLabel: string
+    /** Standing background for the panel, read out with its title. */
+    description?: string
+    dismissible?: boolean
+    /**
+     * Whether the body's content claims the panel's whole height rather than
+     * sitting at its top. The slot is then one element, and that element owns
+     * what inside it scrolls — a table that fills the sheet instead of a band of
+     * nothing between the last row and the footer.
+     */
+    fill?: boolean
+    open: boolean
+    title: string
+    /**
+     * `sheet` is the full-height working surface on the trailing edge; `panel` is
+     * a centred box for one bounded secondary decision.
+     */
+    variant?: 'sheet' | 'panel'
+  }>(),
+  { description: undefined, dismissible: true, variant: undefined },
+)
 
 const emit = defineEmits<{
   'update:open': [value: boolean]
 }>()
+
+const canDismiss = computed(() => props.dismissible !== false)
 
 // Where the keyboard was before this panel took it. The primitive returns focus
 // to a trigger element, and this dialog is opened by state rather than by one,
@@ -122,10 +128,15 @@ function onOpenAutoFocus(event: Event): void {
   event.preventDefault()
   field.focus()
 }
+
+function updateOpen(open: boolean): void {
+  if (!open && !canDismiss.value) return
+  emit('update:open', open)
+}
 </script>
 
 <template>
-  <DialogRoot :open="open" @update:open="emit('update:open', $event)">
+  <DialogRoot :open="open" @update:open="updateOpen">
     <DialogPortal>
       <DialogOverlay
         class="rv-dialog__scrim"
@@ -148,7 +159,11 @@ function onOpenAutoFocus(event: Event): void {
               {{ description }}
             </DialogDescription>
           </div>
-          <DialogClose :aria-label="closeLabel" class="rv-dialog__close">
+          <DialogClose
+            :aria-label="closeLabel"
+            class="rv-dialog__close"
+            :disabled="!canDismiss"
+          >
             <RvIcon name="close" />
           </DialogClose>
         </header>
@@ -171,6 +186,8 @@ function onOpenAutoFocus(event: Event): void {
   z-index: 5;
   inset: 0;
   background: var(--rv-color-scrim);
+  animation: rv-dialog-scrim-in var(--rv-motion-normal)
+    var(--rv-motion-ease-out);
 }
 
 /* One dimming per stack: a panel opened over a sheet darkens nothing twice. The
@@ -198,6 +215,8 @@ function onOpenAutoFocus(event: Event): void {
   width: min(var(--rv-dialog-width), 100%);
   height: 100dvh;
   border-left: var(--rv-border-hair) solid var(--rv-color-rule);
+  animation: rv-dialog-sheet-in var(--rv-motion-normal)
+    var(--rv-motion-ease-out);
 }
 
 /* One bounded decision: centred, no taller than it needs to be, and never
@@ -213,6 +232,8 @@ function onOpenAutoFocus(event: Event): void {
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-lg);
   transform: translate(-50%, -50%);
+  animation: rv-dialog-panel-in var(--rv-motion-normal)
+    var(--rv-motion-ease-out);
 }
 
 .rv-dialog__header {
@@ -262,6 +283,29 @@ function onOpenAutoFocus(event: Event): void {
 .rv-dialog__close:hover {
   color: var(--rv-color-ink);
   background: var(--rv-color-surface-hover);
+}
+
+.rv-dialog__close:disabled {
+  opacity: var(--rv-disabled-opacity);
+  cursor: not-allowed;
+}
+
+@keyframes rv-dialog-scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rv-dialog-sheet-in {
+  from {
+    box-shadow: var(--rv-shadow-panel);
+  }
+}
+
+@keyframes rv-dialog-panel-in {
+  from {
+    box-shadow: var(--rv-shadow-panel);
+  }
 }
 
 .rv-dialog__body {

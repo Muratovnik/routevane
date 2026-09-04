@@ -26,6 +26,7 @@ import type { ChoiceOption } from '@/shared/ui/kinds'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvField from '@/shared/ui/RvField.vue'
+import RvFilePicker from '@/shared/ui/RvFilePicker.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
@@ -111,7 +112,6 @@ const addValuesDraft = ref('')
 // A refusal about the batch belongs beside the field that carries it, inside
 // the panel it was typed in — not on the table behind that panel.
 const addError = ref('')
-const fileField = ref<HTMLInputElement | null>(null)
 const filter = ref('')
 const sourcesOpen = ref(false)
 const feedURL = ref('')
@@ -157,6 +157,16 @@ const feedFormats = computed<ChoiceOption[]>(() => [
   { label: t('serviceCard.feed.format.domainList'), value: 'domain-list' },
   { label: t('serviceCard.feed.format.json'), value: 'json' },
 ])
+
+// Writes are serialized inside this card. A list that is still being read or
+// refreshed cannot be removed, and a second switch cannot race the first one.
+const interactionBusy = computed(
+  () =>
+    props.disabled === true ||
+    saving.value ||
+    refreshing.value ||
+    contentsState.value === 'loading',
+)
 
 // Where this list is curated. The draft behind the card is unsaved, so the
 // other flow opens in a tab of its own rather than over it.
@@ -310,28 +320,36 @@ async function onToggleSource(
   enabled: boolean,
 ): Promise<void> {
   const service = props.service
-  if (service === null) return
+  if (service === null || interactionBusy.value) return
   const request = contentsRequest
   sourceError.value = ''
+  saving.value = true
   try {
     applyContents(
       request,
       await setServiceSourceEnabled(service.id, sourceID, enabled),
     )
   } catch {
-    sourceError.value = t('serviceCard.action.failed')
+    if (request === contentsRequest)
+      sourceError.value = t('serviceCard.action.failed')
+  } finally {
+    if (request === contentsRequest) saving.value = false
   }
 }
 
 async function onRemoveSource(sourceID: string): Promise<void> {
   const service = props.service
-  if (service === null) return
+  if (service === null || interactionBusy.value) return
   const request = contentsRequest
   sourceError.value = ''
+  saving.value = true
   try {
     applyContents(request, await removeServiceSource(service.id, sourceID))
   } catch {
-    sourceError.value = t('serviceCard.action.failed')
+    if (request === contentsRequest)
+      sourceError.value = t('serviceCard.action.failed')
+  } finally {
+    if (request === contentsRequest) saving.value = false
   }
 }
 
@@ -341,20 +359,24 @@ async function onRemoveSource(sourceID: string): Promise<void> {
 // off is simply taken back.
 async function onToggleRow(row: ServiceContentsRow): Promise<void> {
   const service = props.service
-  if (service === null) return
+  if (service === null || interactionBusy.value) return
   let verdict: DomainVerdict = 'auto'
   if (row.enabled) {
     verdict = row.origin === 'manual' ? 'auto' : 'exclude'
   }
   const request = contentsRequest
   actionError.value = ''
+  saving.value = true
   try {
     applyContents(
       request,
       await setServiceValues(service.id, [row.value], verdict),
     )
   } catch {
-    actionError.value = t('serviceCard.action.failed')
+    if (request === contentsRequest)
+      actionError.value = t('serviceCard.action.failed')
+  } finally {
+    if (request === contentsRequest) saving.value = false
   }
 }
 
@@ -454,20 +476,12 @@ function onAddValuesOpen(open: boolean): void {
   if (!open) addError.value = ''
 }
 
-function onPickFile(): void {
-  fileField.value?.click()
-}
-
 // A routes file an operator already has is a set of destinations, so it is read
 // here rather than retyped. The file never leaves the browser: what is sent is
 // the destinations it named.
-async function onImportFile(event: Event): Promise<void> {
-  const field = event.target as HTMLInputElement
-  const file = field.files?.item(0) ?? null
-  // Cleared so that choosing the same file twice is still a change.
-  field.value = ''
+async function onImportFile(file: File): Promise<void> {
   const service = props.service
-  if (file === null || service === null || saving.value) return
+  if (service === null || saving.value) return
   addError.value = ''
   importStatus.value = ''
   saving.value = true
@@ -566,7 +580,8 @@ async function onCreate(): Promise<void> {
 }
 
 function onRemove(): void {
-  if (props.service !== null) emit('remove', props.service)
+  if (props.service !== null && !interactionBusy.value)
+    emit('remove', props.service)
 }
 
 // A row is named by what it is and where it came from — the source's own name,
@@ -598,6 +613,7 @@ function onOpenChange(open: boolean): void {
 <template>
   <RvDialog
     :close-label="t('action.close')"
+    :dismissible="!saving"
     :fill="service !== null && creating !== true"
     :open="active"
     :title="service === null ? t('serviceCard.new') : service.title"
@@ -643,10 +659,15 @@ function onOpenChange(open: boolean): void {
         </template>
       </RvField>
       <div class="service-card__actions">
-        <RvButton variant="quiet" @click="requestClose">
+        <RvButton :disabled="saving" variant="quiet" @click="requestClose">
           {{ t('action.cancel') }}
         </RvButton>
-        <RvButton :disabled="saving" type="submit" variant="primary">
+        <RvButton
+          :disabled="saving"
+          :loading="saving"
+          type="submit"
+          variant="primary"
+        >
           {{ saving ? t('serviceCard.saving') : t('serviceCard.create') }}
         </RvButton>
       </div>
@@ -684,6 +705,7 @@ function onOpenChange(open: boolean): void {
           </RvField>
           <RvButton
             :disabled="saving || titleDraft.trim() === service.title"
+            :loading="saving"
             variant="secondary"
             @click="onRenameCustom"
           >
@@ -708,10 +730,12 @@ function onOpenChange(open: boolean): void {
                there are is the rare one, so the frequent one is the control
                and the rare one opens a panel. -->
           <template v-if="curating">
-            <button
-              class="service-card__quiet"
+            <RvButton
               :disabled="refreshing || contentsState !== 'ready'"
+              :loading="refreshing"
+              size="compact"
               type="button"
+              variant="quiet"
               @click="onRefreshSources"
             >
               <RvIcon name="refresh" />
@@ -720,15 +744,17 @@ function onOpenChange(open: boolean): void {
                   ? t('serviceCard.refresh.busy')
                   : t('serviceCard.refresh')
               }}
-            </button>
-            <button
-              class="service-card__quiet"
+            </RvButton>
+            <RvButton
+              :disabled="interactionBusy"
+              size="compact"
               type="button"
+              variant="quiet"
               @click="sourcesOpen = true"
             >
               <RvIcon name="settings" />
               {{ t('serviceCard.sources.open', { count: sourceCount }) }}
-            </button>
+            </RvButton>
           </template>
           <template v-else>
             <small class="service-card__fact">
@@ -849,7 +875,7 @@ function onOpenChange(open: boolean): void {
             </label>
             <RvButton
               v-if="curating"
-              :disabled="saving"
+              :disabled="interactionBusy"
               type="button"
               variant="secondary"
               @click="addValuesOpen = true"
@@ -870,7 +896,7 @@ function onOpenChange(open: boolean): void {
               <label v-if="curating" class="service-card__switch">
                 <input
                   :checked="row.enabled"
-                  :disabled="disabled"
+                  :disabled="interactionBusy"
                   type="checkbox"
                   @change="onToggleRow(row)"
                 />
@@ -917,6 +943,7 @@ function onOpenChange(open: boolean): void {
         <p v-if="curating" class="service-card__aside">
           <button
             class="service-card__link service-card__link--grave"
+            :disabled="interactionBusy"
             type="button"
             @click="onRemove"
           >
@@ -952,6 +979,7 @@ function onOpenChange(open: boolean): void {
        table it adds to stays visible behind it. -->
   <RvDialog
     :close-label="t('action.close')"
+    :dismissible="!saving"
     :open="curating && addValuesOpen && service !== null"
     :title="t('serviceCard.domains.add')"
     variant="panel"
@@ -980,35 +1008,29 @@ function onOpenChange(open: boolean): void {
         </template>
       </RvField>
       <div class="service-card__entries-import">
-        <RvButton
-          :disabled="saving"
-          size="compact"
-          variant="secondary"
-          @click="onPickFile"
-        >
-          {{ t('serviceCard.import') }}
-        </RvButton>
-        <input
-          ref="fileField"
+        <RvFilePicker
           accept=".txt,.bat,.lst,.json,.csv,text/plain"
-          :aria-label="t('serviceCard.import')"
-          class="service-card__file"
+          :action-label="t('serviceCard.import')"
           :disabled="saving"
-          tabindex="-1"
-          type="file"
-          @change="onImportFile"
+          :empty-label="t('serviceCard.import.none')"
+          :hint="t('serviceCard.import.hint')"
+          input-id="service-card-import"
+          :label="t('serviceCard.import')"
+          @select="onImportFile"
         />
-        <small class="service-card__muted">
-          {{ t('serviceCard.import.hint') }}
-        </small>
       </div>
     </form>
     <template #footer>
-      <RvButton variant="quiet" @click="onAddValuesOpen(false)">
+      <RvButton
+        :disabled="saving"
+        variant="quiet"
+        @click="onAddValuesOpen(false)"
+      >
         {{ t('action.cancel') }}
       </RvButton>
       <RvButton
         :disabled="saving"
+        :loading="saving"
         form="service-add-entries-form"
         type="submit"
         variant="primary"
@@ -1023,6 +1045,7 @@ function onOpenChange(open: boolean): void {
        the time. -->
   <RvDialog
     :close-label="t('action.close')"
+    :dismissible="!saving"
     :open="curating && sourcesOpen && service !== null"
     :title="t('serviceCard.sources')"
     variant="panel"
@@ -1038,7 +1061,7 @@ function onOpenChange(open: boolean): void {
           <label class="service-card__switch">
             <input
               :checked="source.enabled"
-              :disabled="disabled"
+              :disabled="interactionBusy"
               type="checkbox"
               @change="
                 onToggleSource(
@@ -1062,6 +1085,7 @@ function onOpenChange(open: boolean): void {
               t('serviceCard.feed.remove.aria', { source: source.url })
             "
             class="service-card__row-action"
+            :disabled="interactionBusy"
             type="button"
             @click="onRemoveSource(source.id)"
           >
@@ -1076,6 +1100,7 @@ function onOpenChange(open: boolean): void {
       <button
         v-if="!feedOpen"
         class="service-card__add"
+        :disabled="interactionBusy"
         type="button"
         @click="feedOpen = true"
       >
@@ -1120,11 +1145,17 @@ function onOpenChange(open: boolean): void {
           </template>
         </RvField>
         <div class="service-card__actions">
-          <RvButton size="compact" variant="quiet" @click="feedOpen = false">
+          <RvButton
+            :disabled="saving"
+            size="compact"
+            variant="quiet"
+            @click="feedOpen = false"
+          >
             {{ t('action.cancel') }}
           </RvButton>
           <RvButton
             :disabled="saving"
+            :loading="saving"
             size="compact"
             type="submit"
             variant="secondary"
@@ -1295,6 +1326,11 @@ function onOpenChange(open: boolean): void {
 
 .service-card__link--grave:hover {
   background: var(--rv-color-surface-hover);
+}
+
+.service-card__link:disabled {
+  opacity: var(--rv-disabled-opacity);
+  cursor: not-allowed;
 }
 
 .service-card__rename {

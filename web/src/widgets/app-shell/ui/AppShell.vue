@@ -139,18 +139,18 @@ const sections = computed<
 
 .shell__product {
   display: flex;
-  gap: var(--rv-space-3);
+  gap: var(--rv-space-2);
   align-items: center;
   padding: 0 var(--rv-space-3);
   font-weight: 700;
-  font-size: var(--rv-text-module);
+  font-size: var(--rv-text-section);
   letter-spacing: var(--rv-tracking-title);
 }
 
 .shell__product-mark {
   display: block;
   flex: 0 0 auto;
-  width: var(--rv-control-compact);
+  width: var(--rv-brand-mark-size);
   aspect-ratio: 176 / 206;
   background-color: currentColor;
   mask-image: url('/routevane-logo.svg');

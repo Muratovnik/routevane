@@ -35,7 +35,13 @@ const ru: Dictionary = {
     'Не удалось получить прогноз для этого состава. Повторите расчёт.',
   'overlaps.projection': '{target}: прогноз файла — {count} записей.',
   'overlaps.meaning':
-    'Одинаковые правила и покрытие показаны отдельно от размера файла. Формат определяет, какие записи объединяются.',
+    'В готовом файле одинаковые записи объединятся, а более широкая сеть может заменить входящие в неё адреса.',
+  'overlaps.resolve.title': 'Как убрать пересечение',
+  'overlaps.resolve.body':
+    'Оставьте запись в одном списке. Откройте остальные списки по ссылкам ниже и выключите в них эту запись.',
+  'overlaps.resolve.scope':
+    'Изменение списка повлияет на все маршруты, где он используется.',
+  'overlaps.openList': 'Открыть «{list}»',
   'overlaps.empty': 'Между списками нет одинаковых правил или покрытия.',
   'overlaps.duplicate': 'Одинаковое правило',
   'overlaps.covered': 'Покрытие другим списком',
@@ -370,6 +376,7 @@ const ru: Dictionary = {
   'serviceCard.domains.add': 'Добавить записи',
   'serviceCard.domains.submit': 'Добавить',
   'serviceCard.import': 'Импортировать файл',
+  'serviceCard.import.none': 'Файл не выбран',
   'serviceCard.import.hint':
     'Текстовый файл, JSON-массив или .bat с командами route.',
   'serviceCard.import.empty': 'В файле не нашлось ни одной записи.',
@@ -584,6 +591,8 @@ const ru: Dictionary = {
   'outputs.device.disabled': 'включите автоотправку в Подключениях',
   'outputs.device.detach': 'Отвязать',
   'outputs.readiness.choose': 'Выберите подключение',
+  'outputs.device.add': 'Добавить подключение',
+  'outputs.device.manual': 'Скачивание вручную',
   'outputs.readiness.auto': 'Включите автоотправку в Подключениях',
   'outputs.readiness.refresh': 'Включите обновление маршрута',
   'outputs.readiness.ready': 'Автоотправка настроена',
@@ -710,6 +719,9 @@ const ru: Dictionary = {
   'configTransfer.download.busy': 'Скачиваем…',
   'configTransfer.download.failed': 'Не удалось скачать конфигурацию.',
   'configTransfer.file.label': 'Выберите файл .json',
+  'configTransfer.file.empty': 'Файл не выбран',
+  'configTransfer.file.choose': 'Выбрать файл',
+  'configTransfer.file.replace': 'Заменить',
   'configTransfer.file.limit': 'Не больше 64 МБ.',
   'configTransfer.boundary':
     'Импорт работает только в пустой установке. Пароли, токены, адреса пользовательских источников и история в файл не входят.',
@@ -813,7 +825,12 @@ const en: Dictionary = {
     'The forecast for this composition could not be read. Try the calculation again.',
   'overlaps.projection': '{target}: file forecast — {count} entries.',
   'overlaps.meaning':
-    'Identical rules and containment are separate from file size. The format determines which entries are combined.',
+    'The finished file merges identical entries, and a broader network may replace addresses inside it.',
+  'overlaps.resolve.title': 'How to remove an overlap',
+  'overlaps.resolve.body':
+    'Keep the entry in one list. Open the other lists below and turn that entry off in each of them.',
+  'overlaps.resolve.scope': 'Changing a list affects every route that uses it.',
+  'overlaps.openList': 'Open “{list}”',
   'overlaps.empty': 'No identical rules or containment between these lists.',
   'overlaps.duplicate': 'Identical rule',
   'overlaps.covered': 'Covered by another list',
@@ -1134,6 +1151,7 @@ const en: Dictionary = {
   'serviceCard.domains.add': 'Add entries',
   'serviceCard.domains.submit': 'Add',
   'serviceCard.import': 'Import a file',
+  'serviceCard.import.none': 'No file selected',
   'serviceCard.import.hint':
     'A plain text file, a JSON array, or a .bat of route commands.',
   'serviceCard.import.empty': 'The file contains no recognizable entries.',
@@ -1342,6 +1360,8 @@ const en: Dictionary = {
   'outputs.device.disabled': 'turn on automatic delivery in Connections',
   'outputs.device.detach': 'Detach',
   'outputs.readiness.choose': 'Choose a connection',
+  'outputs.device.add': 'Add a connection',
+  'outputs.device.manual': 'Manual download',
   'outputs.readiness.auto': 'Turn on automatic delivery in Connections',
   'outputs.readiness.refresh': 'Turn on route refresh',
   'outputs.readiness.ready': 'Automatic delivery configured',
@@ -1468,6 +1488,9 @@ const en: Dictionary = {
   'configTransfer.download.busy': 'Downloading…',
   'configTransfer.download.failed': 'The configuration was not downloaded.',
   'configTransfer.file.label': 'Choose a .json file',
+  'configTransfer.file.empty': 'No file selected',
+  'configTransfer.file.choose': 'Choose file',
+  'configTransfer.file.replace': 'Replace',
   'configTransfer.file.limit': 'Up to 64 MB.',
   'configTransfer.boundary':
     'Import works only in an empty installation. Passwords, tokens, custom-source addresses, and history are not in the file.',

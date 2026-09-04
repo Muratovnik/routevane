@@ -36,6 +36,8 @@ const props = defineProps<{
   /** The id a field label points at; a button is a labelable element. */
   inputId: string
   invalid?: boolean
+  loading?: boolean
+  loadingLabel?: string
   /** A heading that already names this choice, when no label element does. */
   labelledBy?: string
   options?: ChoiceOption[]
@@ -64,17 +66,27 @@ const empty = computed(() =>
 </script>
 
 <template>
-  <SelectRoot v-model="chosen" :disabled="disabled === true || empty">
+  <SelectRoot
+    v-model="chosen"
+    :disabled="disabled === true || loading === true || empty"
+  >
     <SelectTrigger
       :id="inputId"
       :aria-describedby="describedBy"
       :aria-invalid="invalid === true ? 'true' : undefined"
       :aria-labelledby="labelledBy"
+      :aria-busy="loading === true ? 'true' : undefined"
+      :aria-label="loading === true ? loadingLabel : undefined"
       class="rv-select__trigger"
       :class="{ 'rv-select__trigger--invalid': invalid === true }"
     >
       <SelectValue class="rv-select__value" :placeholder="placeholder" />
-      <RvIcon class="rv-select__chevron" name="chevron" />
+      <span
+        v-if="loading === true"
+        aria-hidden="true"
+        class="rv-select__spinner"
+      />
+      <RvIcon v-else class="rv-select__chevron" name="chevron" />
     </SelectTrigger>
     <SelectPortal>
       <SelectContent
@@ -180,6 +192,22 @@ const empty = computed(() =>
   flex: none;
   color: var(--rv-color-ink-tertiary);
 }
+
+.rv-select__spinner {
+  flex: none;
+  width: var(--rv-control-choice);
+  height: var(--rv-control-choice);
+  border: var(--rv-border-hair) solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: rv-select-spin var(--rv-motion-working) linear infinite;
+}
+
+@keyframes rv-select-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
 </style>
 
 <!-- The panel and everything in it are styled outside the scoped block above,
@@ -208,6 +236,13 @@ const empty = computed(() =>
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-md);
   box-shadow: var(--rv-shadow-raised);
+  animation: rv-select-in var(--rv-motion-fast) var(--rv-motion-ease-out);
+}
+
+@keyframes rv-select-in {
+  from {
+    box-shadow: var(--rv-shadow-panel);
+  }
 }
 
 .rv-select__list {

@@ -12,6 +12,8 @@ const props = defineProps<{
   block?: boolean
   disabled?: boolean
   href?: string
+  loading?: boolean
+  loadingLabel?: string
   /**
    * `default` is the height every field on the surface has, so a button beside
    * an input lines up with it. `compact` is the denser row control used inside
@@ -30,10 +32,31 @@ const element = computed<string | Component>(() => {
 })
 
 const attributes = computed<Record<string, unknown>>(() => {
-  if (props.href !== undefined) return { href: props.href }
-  if (props.to !== undefined) return { to: props.to }
-  return { disabled: props.disabled === true, type: props.type ?? 'button' }
+  if (props.href !== undefined)
+    return {
+      'aria-disabled': props.disabled === true || props.loading === true,
+      href: props.href,
+    }
+  if (props.to !== undefined)
+    return {
+      'aria-disabled': props.disabled === true || props.loading === true,
+      to: props.to,
+    }
+  return {
+    disabled: props.disabled === true || props.loading === true,
+    type: props.type ?? 'button',
+  }
 })
+
+function guardDisabledLink(event: MouseEvent): void {
+  if (
+    (props.href !== undefined || props.to !== undefined) &&
+    (props.disabled === true || props.loading === true)
+  ) {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+  }
+}
 </script>
 
 <template>
@@ -45,8 +68,16 @@ const attributes = computed<Record<string, unknown>>(() => {
       `rv-button--${size ?? 'default'}`,
       { 'rv-button--block': block === true },
     ]"
+    :aria-busy="loading === true ? 'true' : undefined"
+    :aria-label="loading === true ? loadingLabel : undefined"
     v-bind="attributes"
+    @click.capture="guardDisabledLink"
   >
+    <span
+      v-if="loading === true"
+      aria-hidden="true"
+      class="rv-button__spinner"
+    />
     <slot />
   </component>
 </template>
@@ -73,9 +104,19 @@ const attributes = computed<Record<string, unknown>>(() => {
   border-radius: var(--rv-radius-md);
   cursor: pointer;
   transition:
-    color var(--rv-motion-fast) ease-out,
-    background var(--rv-motion-fast) ease-out,
-    border-color var(--rv-motion-fast) ease-out;
+    color var(--rv-motion-fast) var(--rv-motion-ease-out),
+    background var(--rv-motion-fast) var(--rv-motion-ease-out),
+    border-color var(--rv-motion-fast) var(--rv-motion-ease-out),
+    transform var(--rv-motion-fast) var(--rv-motion-ease-out);
+}
+
+.rv-button__spinner {
+  width: var(--rv-control-choice);
+  height: var(--rv-control-choice);
+  border: var(--rv-border-hair) solid currentcolor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: rv-button-spin var(--rv-motion-working) linear infinite;
 }
 
 .rv-button--compact {
@@ -115,8 +156,19 @@ const attributes = computed<Record<string, unknown>>(() => {
   background: var(--rv-color-surface-muted);
 }
 
-.rv-button:disabled {
+.rv-button:disabled,
+.rv-button[aria-disabled='true'] {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.rv-button:active:not(:disabled) {
+  transform: translateY(var(--rv-border-hair));
+}
+
+@keyframes rv-button-spin {
+  to {
+    transform: rotate(1turn);
+  }
 }
 </style>

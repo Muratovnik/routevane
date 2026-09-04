@@ -132,6 +132,8 @@ describe('route screen read boundaries', () => {
     routeStatus = 503
     const wrapper = renderRoute()
     expect(wrapper.text()).toContain('Loading the route')
+    expect(wrapper.get('.list__loading').attributes('aria-busy')).toBe('true')
+    expect(wrapper.find('.rv-notice').exists()).toBe(false)
     release()
     await flushPromises()
     expect(wrapper.text()).toContain('Routes are unavailable')

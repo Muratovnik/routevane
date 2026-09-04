@@ -14,9 +14,9 @@ product is actually built on. It is for interface contributors, not installation
 
 The unit of the product is the **route** (ADR 0013, named by ADR 0028): a
 stored, server-owned composition of **lists** and **categories** with no
-target of its own. A *list* is a named set of destinations — domains,
+target of its own. A _list_ is a named set of destinations — domains,
 addresses, networks — seeded by the catalog or created by the operator and
-editable either way; a *category* contains lists, ships with the catalog and
+editable either way; a _category_ contains lists, ships with the catalog and
 is edited by the operator on top of it. What a route publishes into is an
 **output** — one format, optionally one device — and an output owns its
 subscription link and its chain of published files. One route therefore feeds
@@ -51,8 +51,10 @@ Sections, addressable by URL:
    guards — an unknown forecast never blocks creation.
    A collapsed **List overlaps / Пересечения списков** disclosure explains
    identical typed rules and cross-list containment from that same forecast
-   plan. It names the format and the contributing lists; owner links open the
-   library in another tab. A retained answer is marked as updating, an
+   plan. It names the format and the contributing lists, explains that one
+   owner should keep the entry, and links directly to every list that can be
+   edited. The warning also states that a library edit affects every route
+   using that list. A retained answer is marked as updating, an
    unavailable answer offers retry, and at most 100 details are shown with
    explicit truncation. These relations are not a claim of device-rule savings.
 3. `/lists/{listId}` — **The route page.** One object with its facets as tabs:
@@ -133,9 +135,13 @@ Sections, addressable by URL:
    inside the sources dialog, and «Удалить список» — and carries a menu whose
    words separate the two acts a bin cannot: «Убрать из категории» and
    «Удалить список». Deleting a list or a category a route names directly is
-   refused with those routes named; removing a list *from a category* is
+   refused with those routes named; removing a list _from a category_ is
    allowed to change what a route carries, because that is what naming a
-   category means. This card has no footer: no route is in question.
+   category means. This card has no footer: no route is in question. The two
+   panes use the available viewport height and dense operational rows instead
+   of clipping a short table inside an otherwise empty page. While the library
+   is writing or a list is reading its sources, conflicting menus, switches,
+   deletion and dismissal stay unavailable until the result is known.
 5. `/lists/{listId}/send/{outputId}` — **Send.** An action, not a step:
    automatic applying with a plan, a backup and an audit trail when the format
    has a deployer, and the by-hand path always stated below it.
@@ -148,13 +154,14 @@ Sections, addressable by URL:
    what remains before unattended delivery, and after opt-in it points to
    choosing that connection in a route. The reference of supported devices
    and formats is collapsed beneath them. The words «цель», «вывод» and
-   «потребитель» do not appear on any surface: a route feeds *connections*,
+   «потребитель» do not appear on any surface: a route feeds _connections_,
    each made of a device or application and its format. If a catalog dependency
    is unavailable, the screen keeps known devices readable and states exactly
    which actions cannot be trusted yet.
 7. `/settings` — **Настройки.** Language, theme (system/dark/light), detail
    mode, the server's address, and portable configuration transfer. Preferences
-   live here, not in the chrome. Transfer starts with an idle file control,
+   live here, not in the chrome. Transfer starts with a product-styled file
+   surface backed by the labelled native file chooser, supports dropping a file,
    keeps the chosen file visible while reading or checking it, then shows a
    server-owned preview before enabling the confirmation. Confirmation applies
    only the bytes just previewed; selecting another file invalidates it. Read,
@@ -223,6 +230,8 @@ the thing that will happen.
 - Every screen state is `loading`, `ready`, `empty`, `degraded` or `error`, and
   every one of them says what is there or missing, why, and what to do next.
   `RvStateNotice` is that shape; a screen does not invent a sixth.
+- The first route read reserves the final page silhouette with a labelled
+  loading skeleton; it does not flash a temporary sentence above the route.
 - A status is an icon or a dot plus words — never a filled surface, never a
   colored edge stripe, and never colour alone.
 - The interface reports what it knows. A route restored from the server says the
@@ -289,7 +298,7 @@ size, space, radius or duration.
 `web/src/shared/ui` owns the primitives: `RvButton`, `RvStatus`, `RvStateNotice`,
 `RvFacts`, `RvField`, `RvTextInput`, `RvTextarea`, `RvSegmented`, `RvTabs`,
 `RvDialog`, `RvSelect`, `RvCombobox`, `RvMenu`, `RvInfoTip`, `RvIcon`,
-`RvDisclosure`, `RvCopyButton`, `RvCodeBlock`. Overlays — dialogs, menus,
+`RvDisclosure`, `RvFilePicker`, `RvCopyButton`, `RvCodeBlock`. Overlays — dialogs, menus,
 popovers, selects and comboboxes — are headless Reka UI primitives wrapped
 once here and styled only with the tokens; a feature never imports Reka
 directly, and no native `<select>` or `<dialog>` remains. Every control that

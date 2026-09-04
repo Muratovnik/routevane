@@ -366,7 +366,13 @@ function reset(): void {
     </div>
 
     <div class="editor__actions">
-      <RvButton :disabled="!canSave || !dirty" type="submit" variant="primary">
+      <RvButton
+        :disabled="!canSave || !dirty"
+        :loading="props.busy"
+        :loading-label="t('list.edit.saving')"
+        type="submit"
+        variant="primary"
+      >
         {{ props.busy ? t('list.edit.saving') : t('list.edit.save') }}
       </RvButton>
       <RvButton

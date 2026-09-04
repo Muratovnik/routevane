@@ -50,15 +50,20 @@ describe('CompositionOverlaps', () => {
 
   it('keeps destinations behind deliberate inspection and names the format and owners', async () => {
     const wrapper = mount(CompositionOverlaps, { props })
-    expect(wrapper.get('details').element.open).toBe(false)
+    const trigger = wrapper.get<HTMLButtonElement>('.rv-disclosure__summary')
+    expect(trigger.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.get('.rv-disclosure__panel').attributes('inert')).toBe('')
+    await trigger.trigger('click')
+    expect(trigger.attributes('aria-expanded')).toBe('true')
     expect(wrapper.text()).toContain('sing-box: file forecast — 5 entries.')
+    expect(wrapper.text()).toContain('How to remove an overlap')
     expect(wrapper.text()).toContain('Identical rule')
     expect(wrapper.text()).toContain('Covered by another list')
     expect(wrapper.text()).toContain('IPv6 network')
     const owner = wrapper.get('a[href="/library#list=alpha"]')
-    expect(owner.text()).toBe('Alpha list')
+    expect(owner.text()).toBe('Open “Alpha list”')
     expect(owner.attributes('target')).toBe('_blank')
-    expect(wrapper.get('ul').attributes('tabindex')).toBe('0')
+    expect(wrapper.get('ul').attributes('tabindex')).toBeUndefined()
     useLocale().setLocale('ru')
     await wrapper.vm.$nextTick()
     expect(wrapper.text()).toContain('Пересечения списков')
@@ -74,7 +79,11 @@ describe('CompositionOverlaps', () => {
     await wrapper.setProps({ pending: false, forecast: null })
     expect(wrapper.text()).toContain('Overlaps are not known yet')
     expect(wrapper.text()).not.toContain('shared.example')
-    await wrapper.get('button').trigger('click')
+    const retry = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Retry'))
+    expect(retry).toBeDefined()
+    await retry?.trigger('click')
     expect(wrapper.emitted('retry')).toHaveLength(1)
     await wrapper.setProps({
       forecast: { ...forecast, overlaps: { items: [], truncated: false } },

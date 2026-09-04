@@ -360,13 +360,31 @@ async function onListMenu(key: string): Promise<void> {
 </script>
 
 <template>
-  <section :aria-labelledby="titleID" class="list">
-    <RvStateNotice
+  <section
+    :aria-labelledby="view.state.value === 'ready' ? titleID : undefined"
+    class="list"
+  >
+    <div
       v-if="view.state.value === 'loading'"
-      live
-      :title="t('list.loading')"
-      tone="busy"
-    />
+      :aria-label="t('list.loading')"
+      aria-busy="true"
+      class="list__loading"
+      role="status"
+    >
+      <span class="list__visually-hidden">{{ t('list.loading') }}</span>
+      <span
+        aria-hidden="true"
+        class="list__loading-line list__loading-line--breadcrumb"
+      />
+      <span
+        aria-hidden="true"
+        class="list__loading-line list__loading-line--title"
+      />
+      <span aria-hidden="true" class="list__loading-tabs">
+        <span v-for="index in 4" :key="index" />
+      </span>
+      <span aria-hidden="true" class="list__loading-panel" />
+    </div>
     <RvStateNotice
       v-else-if="view.state.value === 'missing'"
       :body="t('list.missing.body')"
