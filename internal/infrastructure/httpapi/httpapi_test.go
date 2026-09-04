@@ -908,6 +908,15 @@ func mutationRequest(t *testing.T, path, body string) *http.Request {
 	return request
 }
 
+type repeatedByteReader byte
+
+func (r repeatedByteReader) Read(payload []byte) (int, error) {
+	for i := range payload {
+		payload[i] = byte(r)
+	}
+	return len(payload), nil
+}
+
 func TestConfigTransferHTTPContract(t *testing.T) {
 	backend := testBackend()
 	server, err := New("http://127.0.0.1:8765", backend, nil)
@@ -940,6 +949,33 @@ func TestConfigTransferHTTPContract(t *testing.T) {
 	server.Handler().ServeHTTP(refused, foreign)
 	if refused.Code != http.StatusForbidden {
 		t.Fatalf("foreign-origin preview = %d", refused.Code)
+	}
+}
+
+func TestConfigTransferHTTPRejectsAnOversizedRawDocumentBeforeTheBackend(t *testing.T) {
+	for _, path := range []string{"/v1/config-transfer/preview", "/v1/config-transfer/apply"} {
+		t.Run(path, func(t *testing.T) {
+			backend := testBackend()
+			server, err := New("http://127.0.0.1:8765", backend, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body := io.LimitReader(repeatedByteReader('x'), int64(application.ConfigTransferMaxBytes)+1)
+			request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8765"+path, body)
+			request.RemoteAddr = "127.0.0.1:54321"
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("X-Routevane-Request", "1")
+			request.Header.Set(configTransferDigestHeader, "sha256:"+strings.Repeat("0", 64))
+			response := httptest.NewRecorder()
+			server.Handler().ServeHTTP(response, request)
+
+			if response.Code != http.StatusRequestEntityTooLarge || !strings.Contains(response.Body.String(), `"code":"config_transfer_too_large"`) {
+				t.Fatalf("oversized response = %d %s", response.Code, response.Body.String())
+			}
+			if backend.transferPayload != nil {
+				t.Fatalf("backend received %d oversized bytes", len(backend.transferPayload))
+			}
+		})
 	}
 }
 

@@ -30,6 +30,8 @@ const destinationDataRoot = join(
 )
 const downloadRoot = join(repositoryRoot, 'tmp', 'test-artifacts', 'transfer')
 const transferPath = join(downloadRoot, 'routevane-config.json')
+const invalidUTF8Path = join(downloadRoot, 'invalid-utf8.json')
+const bomPath = join(downloadRoot, 'utf8-bom.json')
 const topDuplicatePath = join(downloadRoot, 'duplicate-top.json')
 const nestedDuplicatePath = join(downloadRoot, 'duplicate-nested.json')
 
@@ -175,10 +177,18 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
   )
   expect(topDuplicate).not.toBe(rawTransfer)
   expect(nestedDuplicate).not.toBe(rawTransfer)
+  await writeFile(invalidUTF8Path, new Uint8Array([0xff]))
+  await writeFile(bomPath, `\uFEFF${rawTransfer}`, 'utf8')
   await writeFile(topDuplicatePath, topDuplicate, 'utf8')
   await writeFile(nestedDuplicatePath, nestedDuplicate, 'utf8')
 
   await page.goto(`${destinationOrigin}/settings`)
+  for (const invalidPath of [invalidUTF8Path, bomPath]) {
+    await page.getByLabel('Choose a .json file').setInputFiles(invalidPath)
+    await expect(
+      page.getByText('The configuration could not be read.'),
+    ).toBeVisible()
+  }
   for (const [duplicatePath, duplicateKeyPath] of [
     [topDuplicatePath, '/version'],
     [nestedDuplicatePath, '/settings/refresh_interval'],

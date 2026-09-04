@@ -69,7 +69,12 @@ export function useConfigTransfer() {
     state.value = 'reading'
     try {
       const bytes = await file.arrayBuffer()
-      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+      // Keep a leading UTF-8 BOM visible to JSON validation instead of
+      // silently removing bytes from the document the server would see.
+      const text = new TextDecoder('utf-8', {
+        fatal: true,
+        ignoreBOM: true,
+      }).decode(bytes)
       const parsed = parseConfigTransferDocument(text)
       if (currentGeneration !== generation) return
       document.value = parsed

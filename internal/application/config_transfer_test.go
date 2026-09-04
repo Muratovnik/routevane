@@ -184,6 +184,37 @@ func TestConfigTransferSizeBoundary(t *testing.T) {
 	}
 }
 
+func TestConfigTransferEntryPointsEnforceTheSharedSizeBoundary(t *testing.T) {
+	assertTooLarge := func(t *testing.T, err error) {
+		t.Helper()
+		var transfer TransferError
+		if !errors.As(err, &transfer) || transfer.Code != "config_transfer_too_large" {
+			t.Fatalf("oversized transfer error = %#v", err)
+		}
+	}
+
+	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x43}, 256)))
+	oversized := bytes.Repeat([]byte{'x'}, ConfigTransferMaxBytes+1)
+	_, _, err := service.PreviewConfigTransfer(oversized, nil)
+	assertTooLarge(t, err)
+	_, err = service.ApplyConfigTransfer(context.Background(), "sha256:"+strings.Repeat("0", 64), oversized, nil)
+	assertTooLarge(t, err)
+
+	store := &publicationFakeStore{}
+	transferFakeStates.Store(store, &transferFakeState{document: ConfigTransferDocument{
+		Settings: TransferSettings{RefreshInterval: RefreshOff},
+		Devices: []TransferDevice{{
+			Ref:      "device-oversized",
+			TargetID: "keenetic",
+			Name:     strings.Repeat("x", ConfigTransferMaxBytes),
+		}},
+	}})
+	t.Cleanup(func() { transferFakeStates.Delete(store) })
+	exportService := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x44}, 256)))
+	_, err = exportService.ExportConfigTransfer(context.Background())
+	assertTooLarge(t, err)
+}
+
 func TestConfigTransferRejectsInvalidUTF8(t *testing.T) {
 	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x43}, 256)))
 	payload := append([]byte(`{"version":"config-transfer-v1.1","settings":{"refresh_interval":"off"},"custom_services":[{"ref":"custom-service-1","title":"`), 0xff)

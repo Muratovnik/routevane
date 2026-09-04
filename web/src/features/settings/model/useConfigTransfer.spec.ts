@@ -32,6 +32,10 @@ function file(name: string, body = '{}'): File {
   return new File([body], name, { type: 'application/json' })
 }
 
+function byteFile(name: string, parts: BlobPart[]): File {
+  return new File(parts, name, { type: 'application/json' })
+}
+
 beforeEach(() => {
   fetchMock.mockReset()
   vi.stubGlobal('fetch', fetchMock)
@@ -65,6 +69,22 @@ describe('useConfigTransfer', () => {
       '/v1/config-transfer/preview',
       expect.objectContaining({ body: source }),
     )
+  })
+
+  it.each([
+    ['invalid UTF-8', byteFile('invalid.json', [new Uint8Array([0xff])])],
+    [
+      'UTF-8 BOM',
+      byteFile('bom.json', [new Uint8Array([0xef, 0xbb, 0xbf]), '{}']),
+    ],
+  ])('rejects %s without rewriting or previewing it', async (_name, input) => {
+    const transfer = useConfigTransfer()
+
+    await transfer.choose(input)
+
+    expect(transfer.failure.value).toBe('fileRead')
+    expect(transfer.document.value).toBeNull()
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('does not let an apply response for a replaced file become current', async () => {
