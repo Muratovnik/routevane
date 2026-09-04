@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import http.client
 import json
 import os
@@ -18,8 +19,98 @@ import time
 import webbrowser
 from pathlib import Path
 
+if os.name == "nt":
+    from ctypes import wintypes
+
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+if os.name == "nt":
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+    JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS = 9
+
+    class _JobObjectBasicLimitInformation(ctypes.Structure):
+        _fields_ = [
+            ("PerProcessUserTimeLimit", ctypes.c_int64),
+            ("PerJobUserTimeLimit", ctypes.c_int64),
+            ("LimitFlags", wintypes.DWORD),
+            ("MinimumWorkingSetSize", ctypes.c_size_t),
+            ("MaximumWorkingSetSize", ctypes.c_size_t),
+            ("ActiveProcessLimit", wintypes.DWORD),
+            ("Affinity", ctypes.c_size_t),
+            ("PriorityClass", wintypes.DWORD),
+            ("SchedulingClass", wintypes.DWORD),
+        ]
+
+    class _IoCounters(ctypes.Structure):
+        _fields_ = [
+            ("ReadOperationCount", ctypes.c_uint64),
+            ("WriteOperationCount", ctypes.c_uint64),
+            ("OtherOperationCount", ctypes.c_uint64),
+            ("ReadTransferCount", ctypes.c_uint64),
+            ("WriteTransferCount", ctypes.c_uint64),
+            ("OtherTransferCount", ctypes.c_uint64),
+        ]
+
+    class _JobObjectExtendedLimitInformation(ctypes.Structure):
+        _fields_ = [
+            ("BasicLimitInformation", _JobObjectBasicLimitInformation),
+            ("IoInfo", _IoCounters),
+            ("ProcessMemoryLimit", ctypes.c_size_t),
+            ("JobMemoryLimit", ctypes.c_size_t),
+            ("PeakProcessMemoryUsed", ctypes.c_size_t),
+            ("PeakJobMemoryUsed", ctypes.c_size_t),
+        ]
+
+    _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    _kernel32.CreateJobObjectW.argtypes = (ctypes.c_void_p, wintypes.LPCWSTR)
+    _kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+    _kernel32.SetInformationJobObject.argtypes = (
+        wintypes.HANDLE,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        wintypes.DWORD,
+    )
+    _kernel32.SetInformationJobObject.restype = wintypes.BOOL
+    _kernel32.AssignProcessToJobObject.argtypes = (wintypes.HANDLE, wintypes.HANDLE)
+    _kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+    _kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+    _kernel32.CloseHandle.restype = wintypes.BOOL
+
+
+    class _WindowsJob:
+        """Own child process trees until this supervisor closes or exits."""
+
+        def __init__(self) -> None:
+            self.handle = _kernel32.CreateJobObjectW(None, None)
+            if not self.handle:
+                raise ctypes.WinError(ctypes.get_last_error())
+            limits = _JobObjectExtendedLimitInformation()
+            limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            if not _kernel32.SetInformationJobObject(
+                self.handle,
+                JOB_OBJECT_EXTENDED_LIMIT_INFORMATION_CLASS,
+                ctypes.byref(limits),
+                ctypes.sizeof(limits),
+            ):
+                error = ctypes.WinError(ctypes.get_last_error())
+                _kernel32.CloseHandle(self.handle)
+                self.handle = None
+                raise error
+
+        def assign(self, child: subprocess.Popen) -> None:
+            if self.handle is None:
+                raise OSError("development process job is already closed")
+            if not _kernel32.AssignProcessToJobObject(
+                self.handle, int(child._handle)  # noqa: SLF001 - Win32 Popen handle
+            ):
+                raise ctypes.WinError(ctypes.get_last_error())
+
+        def close(self) -> None:
+            if self.handle is not None:
+                _kernel32.CloseHandle(self.handle)
+                self.handle = None
 
 
 def free_port(port: int = 0) -> int:
@@ -49,6 +140,7 @@ class Session:
     def __init__(self) -> None:
         self.children: list[subprocess.Popen] = []
         self.stopping = threading.Event()
+        self._job = _WindowsJob() if os.name == "nt" else None
 
     def spawn(self, command: list[str], **kwargs) -> subprocess.Popen:
         options = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
@@ -56,6 +148,19 @@ class Session:
         # Children must not consume the owner's stdin lifecycle pipe (or wait
         # for interactive terminal input in a background test session).
         child = subprocess.Popen(command, cwd=ROOT, stdin=subprocess.DEVNULL, **options, **kwargs)
+        if self._job is not None:
+            try:
+                self._job.assign(child)
+            except BaseException:
+                subprocess.run(
+                    ["taskkill", "/PID", str(child.pid), "/T", "/F"], check=False,
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+                if child.poll() is None:
+                    child.kill()
+                child.wait(timeout=5)
+                raise
         self.children.append(child)
         return child
 
@@ -82,6 +187,8 @@ class Session:
     def close(self) -> None:
         for child in self.children.copy()[::-1]:
             self.stop(child)
+        if self._job is not None:
+            self._job.close()
 
     def wait(self, seconds: float = 0.25) -> None:
         if self.stopping.wait(seconds):
@@ -175,15 +282,18 @@ def run(args: argparse.Namespace, session: Session) -> None:
                 raise RuntimeError("initial Go build failed")
             environment = {**os.environ, "ROUTEVANE_DEV_API_ORIGIN": api_origin,
                            "ROUTEVANE_DEV_UI_ORIGIN": origin, "NUXT_TELEMETRY_DISABLED": "1"}
-            print("[dev] Starting Nuxt HMR...", flush=True)
             frontend = session.spawn([
                 node, str(nuxt), "dev", str(ROOT / "web"), "--host", "127.0.0.1",
                 "--port", str(port), "--no-fork", "--no-clear",
             ], env=environment)
+            print(f"[dev] Starting Nuxt HMR (PID {frontend.pid})...", flush=True)
             session.ready(frontend, port, "/")
             session.ready(frontend, port, "/health")
             print(f"[dev] Ready: {origin} | Vue/CSS HMR + Go/catalog reload | data: {data}", flush=True)
-            print("[dev] Stop both servers with Ctrl+C.", flush=True)
+            print(
+                "[dev] Stop both servers with Ctrl+C; closing this terminal also stops them on Windows.",
+                flush=True,
+            )
             if not args.no_browser:
                 webbrowser.open(origin)
             pending_since = None
@@ -219,7 +329,11 @@ def main() -> int:
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--stop-on-stdin-close", action="store_true", help="Stop when the owning test runner closes stdin")
     args = parser.parse_args()
-    session = Session()
+    try:
+        session = Session()
+    except OSError as error:
+        print(f"[dev] Could not create the Windows process job: {error}", file=sys.stderr, flush=True)
+        return 1
     for signum in (signal.SIGINT, signal.SIGTERM):
         signal.signal(signum, lambda *_: session.stopping.set())
     if os.name == "nt":

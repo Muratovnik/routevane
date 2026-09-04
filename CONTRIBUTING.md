@@ -88,9 +88,12 @@ The UI opens at `http://127.0.0.1:8765`:
 - Development data lives in `.cache/dev-data/`, separate from the ordinary
   application's `data/`. It survives restarts; preserve it if you want to keep
   your development routes when cleaning `.cache/`.
-- Ctrl+C stops both owned servers. An occupied UI port is an error, not permission
-  to reuse or terminate another process. Use `dev -Port 9000` or `./dev.cmd 9000`
-  to choose a different port; `dev -NoBrowser` skips opening the browser.
+- Ctrl+C stops both owned servers. On Windows they are also terminated if the
+  development console closes abruptly; the supervisor fails startup rather than
+  leave a server running when it cannot establish that ownership. An occupied UI
+  port is an error, not permission to reuse or terminate another process. Use
+  `dev -Port 9000` or `./dev.cmd 9000` to choose a different port; `dev -NoBrowser`
+  skips opening the browser.
 
 The existing Python toolchain supervises the two processes and watches only Go
 and catalog inputs; the pinned Nuxt/Vite toolchain owns frontend watching and

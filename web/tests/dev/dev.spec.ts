@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { mkdir, unlink, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
@@ -190,3 +191,90 @@ const draft = ref('')
     await assertPortBindable(apiPort)
   }
 })
+
+test('abrupt Windows supervisor termination releases its servers', async ({
+  request,
+}, testInfo) => {
+  test.skip(process.platform !== 'win32', 'Windows Job Object behavior')
+  const root = resolve(import.meta.dirname, '../../..')
+  const port = await reserveLoopbackPort()
+  const apiPort = await reserveLoopbackPort()
+  const origin = `http://127.0.0.1:${port}`
+  const owner = spawnProduct(
+    'python',
+    [
+      'tools/dev_server.py',
+      '--port',
+      String(port),
+      '--api-port',
+      String(apiPort),
+      '--no-browser',
+      '--data-dir',
+      testInfo.outputPath('abrupt-data'),
+      '--catalog-dir',
+      'testdata/expiry/browser-catalog',
+    ],
+    { cwd: root, stdio: 'pipe', windowsHide: true },
+  )
+  let childPids: number[] = []
+  try {
+    await expect
+      .poll(
+        () => {
+          owner.assertAlive()
+          return owner.output()
+        },
+        { timeout: 90_000 },
+      )
+      .toContain('[dev] Ready:')
+    expect((await request.get(`${origin}/health`)).ok()).toBe(true)
+    childPids = [...owner.output().matchAll(/PID (\d+)/g)].map((match) =>
+      Number(match[1]),
+    )
+    expect(childPids).toHaveLength(2)
+    expect(childPids.every(processIsRunning)).toBe(true)
+
+    const exited = once(owner.process, 'exit')
+    // On Windows ChildProcess.kill calls TerminateProcess for this PID; it does
+    // not ask the supervisor to perform its normal stdin/CTRL_BREAK cleanup.
+    expect(owner.process.kill()).toBe(true)
+    expect(await resolvesWithin(exited, 10_000), owner.output()).toBe(true)
+    await expect
+      .poll(() => childPids.every((pid) => !processIsRunning(pid)))
+      .toBe(true)
+    await expect
+      .poll(async () => {
+        try {
+          await assertPortBindable(port)
+          await assertPortBindable(apiPort)
+          return true
+        } catch {
+          return false
+        }
+      })
+      .toBe(true)
+  } finally {
+    if (owner.isAlive()) {
+      const exited = once(owner.process, 'exit')
+      owner.process.stdin?.end()
+      if (!(await resolvesWithin(exited, 20_000))) owner.process.kill()
+    }
+    for (const pid of childPids.filter(processIsRunning)) {
+      spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+        stdio: 'ignore',
+        windowsHide: true,
+      })
+    }
+    await mkdir(testInfo.outputDir, { recursive: true })
+    await writeFile(testInfo.outputPath('abrupt-session.log'), owner.output())
+  }
+})
+
+function processIsRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
