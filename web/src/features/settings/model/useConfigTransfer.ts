@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 
 import {
   applyConfigTransfer,
+  configTransferMaximumFileBytes,
   downloadConfigTransfer,
   parseConfigTransferDocument,
   previewConfigTransfer,
@@ -10,7 +11,7 @@ import {
   type ConfigTransferPreview,
 } from '@/shared/api/configTransfer'
 
-const maximumFileBytes = 16 * 1024 * 1024
+const maximumFileBytes = configTransferMaximumFileBytes
 
 type TransferState =
   'idle' | 'reading' | 'selected' | 'previewing' | 'ready' | 'failed'
@@ -67,7 +68,9 @@ export function useConfigTransfer() {
 
     state.value = 'reading'
     try {
-      const parsed = parseConfigTransferDocument(await file.text())
+      const bytes = await file.arrayBuffer()
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+      const parsed = parseConfigTransferDocument(text)
       if (currentGeneration !== generation) return
       document.value = parsed
       fileName.value = file.name

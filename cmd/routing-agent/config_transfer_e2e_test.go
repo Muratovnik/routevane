@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -36,11 +38,35 @@ func TestConfigTransferRoundTripsThroughServe(t *testing.T) {
 	if err := json.Unmarshal(previewBody, &preview); err != nil || preview.Digest == "" {
 		t.Fatalf("preview=%s err=%v", previewBody, err)
 	}
-	applyBody := postJSON(t, origin+"/v1/config-transfer/apply", `{"preview_digest":`+mustQuote(t, preview.Digest)+`,"transfer":`+string(exported.body)+`}`)
+	applyBody := postConfigTransfer(t, origin+"/v1/config-transfer/apply", string(exported.body), preview.Digest)
 	var applied struct {
 		Applied bool `json:"applied"`
 	}
 	if err := json.Unmarshal(applyBody, &applied); err != nil || !applied.Applied {
 		t.Fatalf("apply=%s err=%v", applyBody, err)
 	}
+}
+
+func postConfigTransfer(t *testing.T, endpoint, body, digest string) []byte {
+	t.Helper()
+	request, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Routevane-Request", "1")
+	request.Header.Set("X-Routevane-Transfer-Digest", digest)
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	payload, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		t.Fatalf("POST %s status=%d body=%s", endpoint, response.StatusCode, payload)
+	}
+	return payload
 }

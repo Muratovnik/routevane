@@ -9,7 +9,9 @@ import {
 import { RoutevaneAPIError } from './http'
 
 const fetchMock = vi.fn()
-const document = { version: 1, routes: [] }
+const document = ' {"version":1,"routes":[]} ' as ReturnType<
+  typeof parseConfigTransferDocument
+>
 const digest = `sha256:${'a'.repeat(64)}`
 
 function json(payload: unknown, status = 200): Response {
@@ -72,6 +74,7 @@ describe('configuration transfer API contract', () => {
         can_apply: true,
         counts: counts(),
         warnings: [
+          { code: 'custom_sources_require_recreation' },
           { code: 'devices_require_credentials' },
           { code: 'automatic_delivery_disabled' },
           { code: 'outputs_require_publication' },
@@ -90,6 +93,7 @@ describe('configuration transfer API contract', () => {
         outputs: 6,
       },
       warnings: [
+        'custom_sources_require_recreation',
         'devices_require_credentials',
         'automatic_delivery_disabled',
         'outputs_require_publication',
@@ -101,7 +105,7 @@ describe('configuration transfer API contract', () => {
         'Content-Type': 'application/json',
         'X-Routevane-Request': '1',
       },
-      body: JSON.stringify(document),
+      body: document,
     })
 
     fetchMock.mockResolvedValueOnce(json({ applied: true, counts: counts() }))
@@ -121,8 +125,9 @@ describe('configuration transfer API contract', () => {
       headers: {
         'Content-Type': 'application/json',
         'X-Routevane-Request': '1',
+        'X-Routevane-Transfer-Digest': digest,
       },
-      body: JSON.stringify({ preview_digest: digest, transfer: document }),
+      body: document,
     })
   })
 
@@ -142,6 +147,7 @@ describe('configuration transfer API contract', () => {
       {
         ...valid,
         warnings: [
+          { code: 'custom_sources_require_recreation' },
           { code: 'devices_require_credentials' },
           { code: 'devices_require_credentials' },
         ],
@@ -170,6 +176,7 @@ describe('configuration transfer API contract', () => {
       json({
         ...valid,
         warnings: [
+          { code: 'custom_sources_require_recreation' },
           { code: 'devices_require_credentials' },
           { code: 'automatic_delivery_disabled' },
           { code: 'outputs_require_publication' },
@@ -178,6 +185,7 @@ describe('configuration transfer API contract', () => {
     )
     await expect(previewConfigTransfer(document)).resolves.toMatchObject({
       warnings: [
+        'custom_sources_require_recreation',
         'devices_require_credentials',
         'automatic_delivery_disabled',
         'outputs_require_publication',
@@ -185,8 +193,12 @@ describe('configuration transfer API contract', () => {
     })
   })
 
-  it('keeps only a JSON object as an import document', () => {
-    expect(parseConfigTransferDocument('{"version":1}')).toEqual({ version: 1 })
+  it('keeps the exact text of a JSON object, including duplicate keys', () => {
+    const ordinary = ' \r\n { "version" : 1 } \n'
+    const duplicate =
+      '{"version":"config-transfer-v1.1","version":"config-transfer-v1.1"}'
+    expect(parseConfigTransferDocument(ordinary)).toBe(ordinary)
+    expect(parseConfigTransferDocument(duplicate)).toBe(duplicate)
     for (const source of ['not-json', 'null', '[]', '"text"']) {
       expect(() => parseConfigTransferDocument(source)).toThrow(
         RoutevaneAPIError,

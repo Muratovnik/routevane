@@ -63,6 +63,33 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 	}
 }
 
+func TestConfigTransferExportOmitsCustomSourceSecretsAndKeepsCatalogDisable(t *testing.T) {
+	store := categoryTestStore(t)
+	now := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC).UnixNano()
+	const customID = "feed-1234567890abcdef"
+	const secretURL = "https://secret.example.test/token/SENTINEL/feed?format=json"
+	if _, err := store.db.Exec("INSERT INTO custom_sources(id,service_id,url,format,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?,?)", customID, "example", secretURL, "text", now, now); err != nil {
+		t.Fatal(err)
+	}
+	for _, sourceID := range []string{"catalog-source", customID} {
+		if _, err := store.db.Exec("INSERT INTO service_disabled_sources(service_id,source_id) VALUES(?,?)", "example", sourceID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	document, err := store.ExportConfigTransfer(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if document.OmittedCustomSources != 1 || len(document.Tunings) != 1 {
+		t.Fatalf("export = %#v", document)
+	}
+	tuning := document.Tunings[0]
+	if len(tuning.CustomSources) != 0 || len(tuning.DisabledSources) != 1 || tuning.DisabledSources[0] != "catalog-source" {
+		t.Fatalf("exported tuning = %#v", tuning)
+	}
+}
+
 func isTransferCode(err error, want string) bool {
 	var transfer application.TransferError
 	return errors.As(err, &transfer) && transfer.Code == want

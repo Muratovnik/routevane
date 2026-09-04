@@ -1,14 +1,14 @@
 package httpapi
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 
 	"github.com/Muratovnik/routevane/internal/application"
 )
+
+const configTransferDigestHeader = "X-Routevane-Transfer-Digest"
 
 func (h *handler) exportConfigTransfer(w http.ResponseWriter, r *http.Request) {
 	payload, err := h.backend.ExportConfigTransfer(r.Context())
@@ -56,30 +56,10 @@ func (h *handler) applyConfigTransfer(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if err := application.RejectDuplicateJSONKeys(payload); err != nil {
-		writeTransferBackendError(w, err)
-		return
-	}
-	var request struct {
-		PreviewDigest string          `json:"preview_digest"`
-		Transfer      json.RawMessage `json:"transfer"`
-	}
-	decoder := json.NewDecoder(bytes.NewReader(payload))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&request); err != nil {
-		writeTransferError(w, application.NewTransferError("invalid_json", ""))
-		return
-	}
-	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		writeTransferError(w, application.NewTransferError("invalid_json", ""))
-		return
-	}
-	if len(request.Transfer) == 0 || string(request.Transfer) == "null" {
-		writeTransferError(w, application.NewTransferError("invalid_shape", "transfer"))
-		return
-	}
-	counts, err := h.backend.ApplyConfigTransfer(r.Context(), request.PreviewDigest, request.Transfer)
+	// Apply receives the exact document bytes preview received. The digest is
+	// transport metadata, not a JSON envelope that would consume part of the
+	// document's own size budget or tempt a browser to parse and rewrite it.
+	counts, err := h.backend.ApplyConfigTransfer(r.Context(), r.Header.Get(configTransferDigestHeader), payload)
 	if err != nil {
 		writeTransferBackendError(w, err)
 		return

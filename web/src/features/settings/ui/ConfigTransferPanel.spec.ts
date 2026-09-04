@@ -25,4 +25,23 @@ describe('ConfigTransferPanel', () => {
     )
     wrapper.unmount()
   })
+
+  it('explains the omitted custom-source boundary in Russian', () => {
+    const locale = useLocale()
+    locale.setLocale('ru')
+    const wrapper = mount(ConfigTransferPanel, {
+      global: {
+        stubs: { RvButton: true, RvDialog: true, RvStateNotice: true },
+      },
+    })
+
+    expect(wrapper.text()).toContain('адреса пользовательских источников')
+    expect(wrapper.text()).toContain('Не больше 64 МБ.')
+    expect(
+      locale.t('configTransfer.warning.custom_sources_require_recreation'),
+    ).toBe(
+      'Пользовательские источники не входят в файл. После переноса добавьте их заново.',
+    )
+    wrapper.unmount()
+  })
 })

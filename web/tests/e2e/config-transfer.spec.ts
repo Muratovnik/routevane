@@ -1,7 +1,8 @@
-import { access, mkdir, rm } from 'node:fs/promises'
+import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
 
 import {
@@ -29,6 +30,8 @@ const destinationDataRoot = join(
 )
 const downloadRoot = join(repositoryRoot, 'tmp', 'test-artifacts', 'transfer')
 const transferPath = join(downloadRoot, 'routevane-config.json')
+const topDuplicatePath = join(downloadRoot, 'duplicate-top.json')
+const nestedDuplicatePath = join(downloadRoot, 'duplicate-nested.json')
 
 let sourceOrigin = ''
 let destinationOrigin = ''
@@ -95,6 +98,27 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
     Origin: sourceOrigin,
     'X-Routevane-Request': '1',
   }
+  const addedSource = await page.request.post(
+    `${sourceOrigin}/v1/services/youtube/sources`,
+    {
+      data: {
+        format: 'text',
+        url: 'https://secret.example.test/token/SENTINEL/feed?format=json',
+      },
+      headers: mutationHeaders,
+    },
+  )
+  expect(addedSource.ok()).toBe(true)
+  const customSourceID = (
+    (await addedSource.json()) as { source: { id: string } }
+  ).source.id
+  for (const sourceID of ['dns-playback', customSourceID]) {
+    const disabled = await page.request.post(
+      `${sourceOrigin}/v1/services/youtube/sources/${sourceID}/update`,
+      { data: { enabled: false }, headers: mutationHeaders },
+    )
+    expect(disabled.ok()).toBe(true)
+  }
   const created = await page.request.post(`${sourceOrigin}/v1/lists`, {
     data: {
       categories: [],
@@ -119,15 +143,100 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
   expect(download.suggestedFilename()).toBe('routevane-config.json')
   await download.saveAs(transferPath)
 
+  const rawTransfer = await readFile(transferPath, 'utf8')
+  expect(rawTransfer).not.toContain('SENTINEL')
+  expect(rawTransfer).not.toContain('secret.example.test')
+  expect(rawTransfer).not.toContain('format=json')
+  expect(rawTransfer).not.toContain(customSourceID)
+  const portable = JSON.parse(rawTransfer) as {
+    omitted_custom_sources: number
+    tunings: {
+      custom_sources: unknown[]
+      disabled_sources: string[]
+      service_ref: string
+    }[]
+    version: string
+  }
+  const youtubeTuning = portable.tunings.find(
+    (tuning) => tuning.service_ref === 'youtube',
+  )
+  expect(portable.omitted_custom_sources).toBe(1)
+  expect(portable.version).toBe('config-transfer-v1.1')
+  expect(youtubeTuning?.custom_sources).toEqual([])
+  expect(youtubeTuning?.disabled_sources).toEqual(['dns-playback'])
+
+  const topDuplicate = rawTransfer.replace(
+    '{',
+    '{"version":"config-transfer-v1.1",',
+  )
+  const nestedDuplicate = rawTransfer.replace(
+    '"settings":{',
+    '"settings":{"refresh_interval":"off",',
+  )
+  expect(topDuplicate).not.toBe(rawTransfer)
+  expect(nestedDuplicate).not.toBe(rawTransfer)
+  await writeFile(topDuplicatePath, topDuplicate, 'utf8')
+  await writeFile(nestedDuplicatePath, nestedDuplicate, 'utf8')
+
   await page.goto(`${destinationOrigin}/settings`)
+  for (const [duplicatePath, duplicateKeyPath] of [
+    [topDuplicatePath, '/version'],
+    [nestedDuplicatePath, '/settings/refresh_interval'],
+  ] as const) {
+    await page.getByLabel('Choose a .json file').setInputFiles(duplicatePath)
+    const refusedPreview = page.waitForResponse(
+      (response) =>
+        response.url() === `${destinationOrigin}/v1/config-transfer/preview` &&
+        response.request().method() === 'POST',
+    )
+    await page.getByRole('button', { name: 'Preview transfer' }).click()
+    const refusal = await refusedPreview
+    expect(refusal.status()).toBe(422)
+    await expect(refusal.json()).resolves.toMatchObject({
+      code: 'config_transfer_duplicate_key',
+      path: duplicateKeyPath,
+    })
+    await expect(
+      page.getByText('The configuration could not be checked.'),
+    ).toBeVisible()
+  }
   await page.getByLabel('Choose a .json file').setInputFiles(transferPath)
+  const validPreviewRequest = page.waitForRequest(
+    (request) =>
+      request.url() === `${destinationOrigin}/v1/config-transfer/preview` &&
+      request.method() === 'POST',
+  )
   await page.getByRole('button', { name: 'Preview transfer' }).click()
+  expect((await validPreviewRequest).postData()).toBe(rawTransfer)
   const preview = page.getByRole('region', { name: 'Will be imported' })
   await expect(preview).toContainText('1 route')
   await expect(preview).toContainText('1 connection')
   await expect(preview).toContainText(
     'Publish connections again and create new subscriptions.',
   )
+  await expect(preview).toContainText(
+    'Custom sources are not in the file. Add them again after transfer.',
+  )
+
+  const previousViewport = page.viewportSize()
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ height: 900, width })
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <=
+          document.documentElement.clientWidth,
+      ),
+    ).toBe(true)
+    const accessibility = await new AxeBuilder({ page }).analyze()
+    expect(
+      accessibility.violations.filter(
+        (violation) =>
+          violation.impact === 'serious' || violation.impact === 'critical',
+      ),
+    ).toEqual([])
+  }
+  if (previousViewport !== null) await page.setViewportSize(previousViewport)
 
   await preview.getByRole('button', { name: 'Review and apply' }).click()
   const confirmation = page.getByRole('dialog', {
@@ -136,13 +245,47 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
   await expect(confirmation).toContainText(
     'Passwords, tokens, and history will not be imported.',
   )
-  await Promise.all([
+  const [, applyRequest] = await Promise.all([
     page.waitForURL(`${destinationOrigin}/`),
+    page.waitForRequest(
+      (request) =>
+        request.url() === `${destinationOrigin}/v1/config-transfer/apply` &&
+        request.method() === 'POST',
+    ),
     confirmation.getByRole('button', { name: 'Apply transfer' }).click(),
   ])
+  expect(applyRequest.postData()).toBe(rawTransfer)
+  expect(applyRequest.headers()['x-routevane-transfer-digest']).toMatch(
+    /^sha256:[a-f0-9]{64}$/,
+  )
+  if (destinationProduct === undefined) throw new Error('destination missing')
+  await stopOwnedProduct(destinationProduct.process)
+  destinationProduct = undefined
+  await assertPortBindable(destinationPort)
+  destinationProduct = startProduct(destinationPort, destinationDataRoot)
+  await waitForHealth(destinationOrigin, destinationProduct)
+
+  await page.goto(`${destinationOrigin}/`)
   await expect(
     page.getByRole('link', { exact: true, name: 'Transferred route' }),
   ).toBeVisible()
+  const contentsResponse = await page.request.get(
+    `${destinationOrigin}/v1/services/youtube/contents`,
+  )
+  expect(contentsResponse.ok()).toBe(true)
+  const contents = (await contentsResponse.json()) as {
+    sources: { enabled: boolean; id: string }[]
+  }
+  expect(contents.sources).toContainEqual(
+    expect.objectContaining({
+      enabled: false,
+      id: 'dns-playback',
+      type: 'dns',
+    }),
+  )
+  expect(contents.sources.some((source) => source.id.startsWith('feed-'))).toBe(
+    false,
+  )
 
   sourceProduct?.assertAlive()
   destinationProduct?.assertAlive()

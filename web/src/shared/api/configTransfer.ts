@@ -3,7 +3,8 @@ import * as v from 'valibot'
 import {
   decode,
   type Decoder,
-  postJSON,
+  mutationHeaders,
+  requestJSON,
   requestFile,
   RoutevaneAPIError,
   text,
@@ -19,6 +20,7 @@ export type ConfigTransferCounts = {
 }
 
 export type ConfigTransferWarning =
+  | 'custom_sources_require_recreation'
   | 'devices_require_credentials'
   | 'automatic_delivery_disabled'
   | 'outputs_require_publication'
@@ -38,13 +40,20 @@ export type ConfigTransferApplyResult = {
 export type ConfigTransferExport = { blob: Blob; fileName: string }
 
 const fallbackFileName = 'routevane-config.json'
+const configTransferDigestHeader = 'X-Routevane-Transfer-Digest'
+
+export const configTransferMaximumFileBytes = 64 * 1024 * 1024
 
 /**
  * A portable configuration is opaque to the client. The server is the one
- * authority on its version and fields; the browser only preserves the parsed
- * JSON exactly enough to bind an apply request to the preview it just showed.
+ * authority on its version and fields. The browser keeps the exact decoded
+ * UTF-8 text so duplicate keys, whitespace, and ordering reach preview and
+ * apply unchanged.
  */
-export type ConfigTransferDocument = Record<string, unknown>
+declare const configTransferDocument: unique symbol
+export type ConfigTransferDocument = string & {
+  readonly [configTransferDocument]: true
+}
 
 export function requestConfigTransferExport(): Promise<ConfigTransferExport> {
   return requestFile(
@@ -78,16 +87,27 @@ export async function downloadConfigTransfer(): Promise<void> {
 export function previewConfigTransfer(
   document: ConfigTransferDocument,
 ): Promise<ConfigTransferPreview> {
-  return postJSON('/v1/config-transfer/preview', document, parsePreview)
+  return requestJSON(
+    '/v1/config-transfer/preview',
+    { method: 'POST', headers: mutationHeaders, body: document },
+    parsePreview,
+  )
 }
 
 export function applyConfigTransfer(
   previewDigest: string,
   transfer: ConfigTransferDocument,
 ): Promise<ConfigTransferApplyResult> {
-  return postJSON(
+  return requestJSON(
     '/v1/config-transfer/apply',
-    { preview_digest: previewDigest, transfer },
+    {
+      method: 'POST',
+      headers: {
+        ...mutationHeaders,
+        [configTransferDigestHeader]: previewDigest,
+      },
+      body: transfer,
+    },
     parseApplyResult,
   )
 }
@@ -174,6 +194,7 @@ const warningSchema = v.pipe(
       'devices_require_credentials',
       'automatic_delivery_disabled',
       'outputs_require_publication',
+      'custom_sources_require_recreation',
     ]),
   }),
   v.transform((warning): ConfigTransferWarning => warning.code),
@@ -221,6 +242,7 @@ const parseApplyResult: Decoder<ConfigTransferApplyResult> =
 
 function warningOrder(warning: ConfigTransferWarning): number {
   return [
+    'custom_sources_require_recreation',
     'devices_require_credentials',
     'automatic_delivery_disabled',
     'outputs_require_publication',
@@ -239,5 +261,5 @@ export function parseConfigTransferDocument(
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
     throw new RoutevaneAPIError('invalid config document', 0)
   }
-  return parsed as ConfigTransferDocument
+  return textContent as ConfigTransferDocument
 }

@@ -291,11 +291,13 @@ preview, and apply it. The destination must be empty; transfer does not merge
 with an installation that already has routes, connections, or custom lists.
 
 The file contains the global refresh setting, custom lists and categories,
-source changes, routes, non-secret connection details, and output bindings. It
-does not contain router passwords, bearer subscription tokens, published
-artifacts, observations, history, backups, logs, or browser preferences. Local
-catalog discoveries are also excluded because another installation may not have
-the same files.
+catalog-source on/off choices, per-destination source corrections, routes,
+non-secret connection details, and output bindings. It does not contain router
+passwords, bearer subscription tokens, operator-added HTTP source addresses,
+published artifacts, observations, history, backups, logs, or browser
+preferences. A preview warning tells you when custom sources were omitted; add
+them again after transfer. Local catalog discoveries are also excluded because
+another installation may not have the same files.
 
 After import, enter each device password again, publish every output to create a
 new artifact and subscription, and then enable automatic delivery where wanted.

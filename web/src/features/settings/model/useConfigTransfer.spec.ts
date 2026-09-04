@@ -39,17 +39,32 @@ beforeEach(() => {
 
 describe('useConfigTransfer', () => {
   it('rejects an oversized file before reading its contents', async () => {
-    const text = vi.fn(async () => '{}')
+    const arrayBuffer = vi.fn(async () => new ArrayBuffer(0))
     const transfer = useConfigTransfer()
 
     await transfer.choose({
       name: 'large.json',
-      size: 16 * 1024 * 1024 + 1,
-      text,
+      size: 64 * 1024 * 1024 + 1,
+      arrayBuffer,
     } as unknown as File)
 
     expect(transfer.failure.value).toBe('fileSize')
-    expect(text).not.toHaveBeenCalled()
+    expect(arrayBuffer).not.toHaveBeenCalled()
+  })
+
+  it('preserves duplicate keys through file selection and preview', async () => {
+    const source =
+      '{"version":"config-transfer-v1.1","settings":{"refresh_interval":"off","refresh_interval":"daily"}}'
+    fetchMock.mockResolvedValueOnce(previewResponse())
+    const transfer = useConfigTransfer()
+
+    await transfer.choose(file('duplicate.json', source))
+    await expect(transfer.previewSelected()).resolves.toBe(true)
+
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      '/v1/config-transfer/preview',
+      expect.objectContaining({ body: source }),
+    )
   })
 
   it('does not let an apply response for a replaced file become current', async () => {

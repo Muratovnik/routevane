@@ -153,7 +153,19 @@ Sections, addressable by URL:
    is unavailable, the screen keeps known devices readable and states exactly
    which actions cannot be trusted yet.
 7. `/settings` — **Настройки.** Language, theme (system/dark/light), detail
-   mode, and the server's address. Preferences live here, not in the chrome.
+   mode, the server's address, and portable configuration transfer. Preferences
+   live here, not in the chrome. Transfer starts with an idle file control,
+   keeps the chosen file visible while reading or checking it, then shows a
+   server-owned preview before enabling the confirmation. Confirmation applies
+   only the bytes just previewed; selecting another file invalidates it. Read,
+   preview, download, and apply failures remain distinct retryable states. The
+   destination must be empty. Imported connections carry no credentials or
+   delivery authority, outputs carry no publication/subscription state, and
+   operator-added HTTP sources carry no portable URL: preview warns that they
+   must be recreated. Catalog-source on/off choices still transfer. The browser
+   preserves the exact UTF-8 JSON text through preview and apply, rejects a file
+   over the shared 64 MiB boundary before reading it, and never parses then
+   rewrites the document sent to the server.
 
 The URL hash carries only page location — the active tab and the first-setup
 handoff — never route contents: a refresh, bookmark, second tab or second

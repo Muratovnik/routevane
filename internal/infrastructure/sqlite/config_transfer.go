@@ -130,7 +130,28 @@ func exportTunings(ctx context.Context, q *sql.Tx, d *application.ConfigTransfer
 		by[id] = v
 		return v
 	}
-	rows, err := q.QueryContext(ctx, "SELECT service_id,source_id FROM service_disabled_sources ORDER BY service_id,source_id")
+	// A custom feed URL may carry credentials in any component. Read only its
+	// opaque identity so the export can omit both the source and its disabled
+	// reference without ever loading the URL into the transfer snapshot.
+	customSources := map[string]struct{}{}
+	rows, err := q.QueryContext(ctx, "SELECT id FROM custom_sources ORDER BY id")
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		customSources[id] = struct{}{}
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+	d.OmittedCustomSources = uint(len(customSources))
+
+	rows, err = q.QueryContext(ctx, "SELECT service_id,source_id FROM service_disabled_sources ORDER BY service_id,source_id")
 	if err != nil {
 		return err
 	}
@@ -140,25 +161,11 @@ func exportTunings(ctx context.Context, q *sql.Tx, d *application.ConfigTransfer
 			_ = rows.Close()
 			return err
 		}
+		if _, omitted := customSources[id]; omitted {
+			continue
+		}
 		v := get(sid)
 		v.DisabledSources = append(v.DisabledSources, id)
-	}
-	if err := rows.Close(); err != nil {
-		return err
-	}
-	rows, err = q.QueryContext(ctx, "SELECT id,service_id,url,format FROM custom_sources ORDER BY service_id,id")
-	if err != nil {
-		return err
-	}
-	for rows.Next() {
-		var sid string
-		var v application.TransferCustomSource
-		if err := rows.Scan(&v.Ref, &sid, &v.URL, &v.Format); err != nil {
-			_ = rows.Close()
-			return err
-		}
-		t := get(sid)
-		t.CustomSources = append(t.CustomSources, v)
 	}
 	if err := rows.Close(); err != nil {
 		return err

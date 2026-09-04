@@ -923,13 +923,15 @@ func TestConfigTransferHTTPContract(t *testing.T) {
 	}
 
 	preview := httptest.NewRecorder()
-	server.Handler().ServeHTTP(preview, mutationRequest(t, "/v1/config-transfer/preview", `{"version":"config-transfer-v1.0"}`))
-	if preview.Code != http.StatusOK || string(backend.transferPayload) != `{"version":"config-transfer-v1.0"}` {
+	server.Handler().ServeHTTP(preview, mutationRequest(t, "/v1/config-transfer/preview", `{"version":"config-transfer-v1.1"}`))
+	if preview.Code != http.StatusOK || string(backend.transferPayload) != `{"version":"config-transfer-v1.1"}` {
 		t.Fatalf("preview = %d payload=%s", preview.Code, backend.transferPayload)
 	}
 	apply := httptest.NewRecorder()
-	server.Handler().ServeHTTP(apply, mutationRequest(t, "/v1/config-transfer/apply", `{"preview_digest":"sha256:`+strings.Repeat("0", 64)+`","transfer":{"version":"config-transfer-v1.0"}}`))
-	if apply.Code != http.StatusOK || backend.transferDigest == "" || string(backend.transferPayload) != `{"version":"config-transfer-v1.0"}` {
+	applyRequest := mutationRequest(t, "/v1/config-transfer/apply", ` {"version":"config-transfer-v1.1"} `)
+	applyRequest.Header.Set(configTransferDigestHeader, "sha256:"+strings.Repeat("0", 64))
+	server.Handler().ServeHTTP(apply, applyRequest)
+	if apply.Code != http.StatusOK || backend.transferDigest == "" || string(backend.transferPayload) != ` {"version":"config-transfer-v1.1"} ` {
 		t.Fatalf("apply = %d digest=%q payload=%s", apply.Code, backend.transferDigest, backend.transferPayload)
 	}
 	foreign := mutationRequest(t, "/v1/config-transfer/preview", `{}`)
@@ -947,8 +949,11 @@ func TestConfigTransferErrorsUseVersionedCodes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	backend.transferErr = application.NewTransferError("invalid_json", "")
 	invalid := httptest.NewRecorder()
-	server.Handler().ServeHTTP(invalid, mutationRequest(t, "/v1/config-transfer/apply", `{"preview_digest":`))
+	invalidRequest := mutationRequest(t, "/v1/config-transfer/apply", `{"version":`)
+	invalidRequest.Header.Set(configTransferDigestHeader, "sha256:"+strings.Repeat("0", 64))
+	server.Handler().ServeHTTP(invalid, invalidRequest)
 	if invalid.Code != http.StatusBadRequest || !strings.Contains(invalid.Body.String(), `"code":"config_transfer_invalid_json"`) {
 		t.Fatalf("invalid preview = %d %s", invalid.Code, invalid.Body.String())
 	}

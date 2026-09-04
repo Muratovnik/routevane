@@ -9,10 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Muratovnik/routevane/internal/domain"
 )
@@ -20,8 +20,14 @@ import (
 const transferCodePrefix = "config_transfer_"
 
 const (
-	ConfigTransferVersion  = "config-transfer-v1.0"
-	ConfigTransferMaxBytes = 16 << 20
+	ConfigTransferVersion       = "config-transfer-v1.1"
+	configTransferLegacyVersion = "config-transfer-v1.0"
+	// ConfigTransferMaxBytes covers the current bounded product maximum with
+	// headroom: 200 routes can each carry at most 512 253-byte local domains,
+	// while the other largest collections are 16,384 membership/verdict rows,
+	// 128 custom lists with 64 domains each, 200 devices, and 800 outputs.
+	// Preview, apply, export, and the browser all use this one limit.
+	ConfigTransferMaxBytes = 64 << 20
 	maxTransferRoutes      = 200
 	maxTransferDevices     = 200
 	maxTransferOutputs     = 800
@@ -343,16 +349,17 @@ func (v *TransferOutput) UnmarshalJSON(b []byte) error {
 }
 
 type ConfigTransferDocument struct {
-	Version          string                   `json:"version"`
-	Settings         TransferSettings         `json:"settings"`
-	CustomServices   []TransferCustomService  `json:"custom_services"`
-	CustomCategories []TransferCustomCategory `json:"custom_categories"`
-	Memberships      []TransferMembership     `json:"memberships"`
-	Removals         []TransferRemoval        `json:"removals"`
-	Tunings          []TransferTuning         `json:"tunings"`
-	Routes           []TransferRoute          `json:"routes"`
-	Devices          []TransferDevice         `json:"devices"`
-	Outputs          []TransferOutput         `json:"outputs"`
+	Version              string                   `json:"version"`
+	Settings             TransferSettings         `json:"settings"`
+	CustomServices       []TransferCustomService  `json:"custom_services"`
+	CustomCategories     []TransferCustomCategory `json:"custom_categories"`
+	Memberships          []TransferMembership     `json:"memberships"`
+	Removals             []TransferRemoval        `json:"removals"`
+	Tunings              []TransferTuning         `json:"tunings"`
+	Routes               []TransferRoute          `json:"routes"`
+	Devices              []TransferDevice         `json:"devices"`
+	Outputs              []TransferOutput         `json:"outputs"`
+	OmittedCustomSources uint                     `json:"omitted_custom_sources"`
 }
 
 type ConfigTransferRepository interface {
@@ -377,20 +384,28 @@ func (s *PublicationService) ExportConfigTransfer(ctx context.Context) ([]byte, 
 		return nil, fmt.Errorf("export configuration: %w", err)
 	}
 	doc.Version = ConfigTransferVersion
+	omitCustomSources(&doc)
 	canonicalizeTransfer(&doc)
 	if err := s.validateTransferShape(doc, nil); err != nil {
 		return nil, err
 	}
 	canonicalizeTransferReferences(&doc)
-	return json.Marshal(doc)
+	payload, err := json.Marshal(doc)
+	if err != nil {
+		return nil, transferError("invalid_shape", "")
+	}
+	if err := validateConfigTransferSize(len(payload)); err != nil {
+		return nil, err
+	}
+	return payload, nil
 }
 
 func (s *PublicationService) PreviewConfigTransfer(payload []byte, validateDevice func(TransferDevice) error) (ConfigTransferPreview, ConfigTransferDocument, error) {
-	doc, canonical, err := s.validateTransfer(payload, validateDevice)
+	doc, err := s.validateTransfer(payload, validateDevice)
 	if err != nil {
 		return ConfigTransferPreview{}, ConfigTransferDocument{}, err
 	}
-	hash := sha256.Sum256(canonical)
+	hash := sha256.Sum256(payload)
 	digest := "sha256:" + hex.EncodeToString(hash[:])
 	return transferPreview(doc, digest), doc, nil
 }
@@ -399,11 +414,11 @@ func (s *PublicationService) ApplyConfigTransfer(ctx context.Context, previewDig
 	if previewDigest == "" {
 		return ConfigTransferCounts{}, transferError("preview_required", "preview_digest")
 	}
-	doc, canonical, err := s.validateTransfer(payload, validateDevice)
+	doc, err := s.validateTransfer(payload, validateDevice)
 	if err != nil {
 		return ConfigTransferCounts{}, err
 	}
-	hash := sha256.Sum256(canonical)
+	hash := sha256.Sum256(payload)
 	digest := "sha256:" + hex.EncodeToString(hash[:])
 	if !validTransferDigest(previewDigest) || digest != previewDigest {
 		return ConfigTransferCounts{}, transferError("preview_mismatch", "preview_digest")
@@ -525,29 +540,79 @@ func validTransferDigest(value string) bool {
 	return true
 }
 
-func (s *PublicationService) validateTransfer(payload []byte, validateDevice func(TransferDevice) error) (ConfigTransferDocument, []byte, error) {
-	if len(payload) > ConfigTransferMaxBytes {
-		return ConfigTransferDocument{}, nil, transferError("too_large", "")
+func (s *PublicationService) validateTransfer(payload []byte, validateDevice func(TransferDevice) error) (ConfigTransferDocument, error) {
+	if err := validateConfigTransferSize(len(payload)); err != nil {
+		return ConfigTransferDocument{}, err
+	}
+	if !utf8.Valid(payload) {
+		return ConfigTransferDocument{}, transferError("invalid_json", "")
 	}
 	if err := RejectDuplicateJSONKeys(payload); err != nil {
-		return ConfigTransferDocument{}, nil, err
+		return ConfigTransferDocument{}, err
+	}
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &top); err != nil || top == nil {
+		return ConfigTransferDocument{}, transferError("invalid_json", "")
+	}
+	var version string
+	if err := json.Unmarshal(top["version"], &version); err != nil {
+		return ConfigTransferDocument{}, transferError("invalid_json", "version")
+	}
+	_, hasOmissionMetadata := top["omitted_custom_sources"]
+	if version != ConfigTransferVersion && version != configTransferLegacyVersion {
+		return ConfigTransferDocument{}, transferError("unsupported_version", "version")
+	}
+	if version == configTransferLegacyVersion && hasOmissionMetadata {
+		return ConfigTransferDocument{}, transferError("unsupported_version", "version")
+	}
+	if version == ConfigTransferVersion && !hasOmissionMetadata {
+		return ConfigTransferDocument{}, transferError("invalid_shape", "omitted_custom_sources")
+	}
+	if version == ConfigTransferVersion && strings.TrimSpace(string(top["omitted_custom_sources"])) == "null" {
+		return ConfigTransferDocument{}, transferError("invalid_shape", "omitted_custom_sources")
 	}
 	var doc ConfigTransferDocument
 	if err := strictUnmarshal(payload, &doc); err != nil {
-		return ConfigTransferDocument{}, nil, transferError("invalid_json", "")
-	}
-	if doc.Version != ConfigTransferVersion {
-		return ConfigTransferDocument{}, nil, transferError("unsupported_version", "version")
+		return ConfigTransferDocument{}, transferError("invalid_json", "")
 	}
 	canonicalizeTransfer(&doc)
 	if err := s.validateTransferShape(doc, validateDevice); err != nil {
-		return ConfigTransferDocument{}, nil, err
+		return ConfigTransferDocument{}, err
 	}
-	canonical, err := json.Marshal(doc)
-	if err != nil {
-		return ConfigTransferDocument{}, nil, transferError("invalid_shape", "")
+	return doc, nil
+}
+
+func validateConfigTransferSize(size int) error {
+	if size > ConfigTransferMaxBytes {
+		return transferError("too_large", "")
 	}
-	return doc, canonical, nil
+	return nil
+}
+
+// omitCustomSources applies the portable-file secrecy boundary independently
+// of a repository implementation. An arbitrary feed URL may carry a credential
+// in its host, path, or query, so no URL heuristic can make one exportable.
+// References that only disable an omitted source are omitted with it; catalog
+// source choices remain intact.
+func omitCustomSources(d *ConfigTransferDocument) {
+	omitted := uint(0)
+	for i := range d.Tunings {
+		t := &d.Tunings[i]
+		custom := make(map[string]struct{}, len(t.CustomSources))
+		for _, source := range t.CustomSources {
+			custom[source.Ref] = struct{}{}
+		}
+		omitted += uint(len(t.CustomSources))
+		t.CustomSources = nil
+		kept := t.DisabledSources[:0]
+		for _, sourceID := range t.DisabledSources {
+			if _, isCustom := custom[sourceID]; !isCustom {
+				kept = append(kept, sourceID)
+			}
+		}
+		t.DisabledSources = kept
+	}
+	d.OmittedCustomSources += omitted
 }
 
 func strictUnmarshal(payload []byte, destination any) error {
@@ -563,9 +628,8 @@ func strictUnmarshal(payload []byte, destination any) error {
 	return nil
 }
 
-// RejectDuplicateJSONKeys is shared with the HTTP envelope boundary. The
-// transfer document itself calls it too, so non-HTTP callers get the same
-// strict semantics.
+// RejectDuplicateJSONKeys protects the transfer document at the application
+// boundary, so HTTP and non-HTTP callers get the same strict semantics.
 func RejectDuplicateJSONKeys(payload []byte) error {
 	dec := json.NewDecoder(strings.NewReader(string(payload)))
 	var walk func(string) error
@@ -802,6 +866,9 @@ func transferCounts(d ConfigTransferDocument) ConfigTransferCounts {
 }
 func transferPreview(d ConfigTransferDocument, digest string) ConfigTransferPreview {
 	warnings := []ConfigTransferWarning{}
+	if d.OmittedCustomSources > 0 {
+		warnings = append(warnings, ConfigTransferWarning{"custom_sources_require_recreation"})
+	}
 	if len(d.Devices) > 0 {
 		warnings = append(warnings, ConfigTransferWarning{"devices_require_credentials"}, ConfigTransferWarning{"automatic_delivery_disabled"})
 	}
@@ -814,6 +881,9 @@ func transferPreview(d ConfigTransferDocument, digest string) ConfigTransferPrev
 func (s *PublicationService) validateTransferShape(d ConfigTransferDocument, validateDevice func(TransferDevice) error) error {
 	if len(d.CustomServices) > maxCustomServices || len(d.CustomCategories) > maxCustomCategories || len(d.Routes) > maxTransferRoutes || len(d.Devices) > maxTransferDevices || len(d.Outputs) > maxTransferOutputs {
 		return transferError("limit_exceeded", "")
+	}
+	if d.OmittedCustomSources > maxCustomSourcesTotal {
+		return transferError("limit_exceeded", "omitted_custom_sources")
 	}
 	if !d.Settings.RefreshInterval.validDefault() {
 		return transferError("invalid_shape", "settings/refresh_interval")
@@ -907,8 +977,7 @@ func (s *PublicationService) validateTransferShape(d ConfigTransferDocument, val
 		}
 	}
 	seen = map[string]bool{}
-	sourceRefs := map[string]bool{}
-	customSourceTotal, verdictTotal := 0, 0
+	verdictTotal := 0
 	for i, t := range d.Tunings {
 		p := fmt.Sprintf("tunings/%d", i)
 		if seen[t.ServiceRef] {
@@ -921,9 +990,11 @@ func (s *PublicationService) validateTransferShape(d ConfigTransferDocument, val
 		if !services[t.ServiceRef] {
 			return transferError("catalog_reference_missing", p+"/service_ref")
 		}
-		customSourceTotal += len(t.CustomSources)
+		if len(t.CustomSources) > 0 {
+			return transferError("secret_material", p+"/custom_sources")
+		}
 		verdictTotal += len(t.Includes) + len(t.Excludes)
-		if len(t.DisabledSources) > maxCustomSourcesTotal || len(t.CustomSources) > maxCustomSourcesPerService || len(t.Includes)+len(t.Excludes) > maxServiceVerdicts || customSourceTotal > maxCustomSourcesTotal || len(d.Memberships)+verdictTotal > maxTransferRows {
+		if len(t.DisabledSources) > maxCustomSourcesTotal || len(t.Includes)+len(t.Excludes) > maxServiceVerdicts || len(d.Memberships)+verdictTotal > maxTransferRows {
 			return transferError("limit_exceeded", p)
 		}
 		definition, _ := s.baseDefinition(t.ServiceRef)
@@ -934,23 +1005,6 @@ func (s *PublicationService) validateTransferShape(d ConfigTransferDocument, val
 		for _, id := range t.DisabledSources {
 			if !available[id] {
 				return transferError("source_missing", p+"/disabled_sources")
-			}
-		}
-		for j, src := range t.CustomSources {
-			sp := fmt.Sprintf("%s/custom_sources/%d", p, j)
-			if sourceRefs[src.Ref] {
-				return transferError("duplicate_key", sp+"/ref")
-			}
-			sourceRefs[src.Ref] = true
-			u, err := url.Parse(src.URL)
-			if err != nil || u.RawQuery != "" || u.ForceQuery || u.User != nil {
-				return transferError("config_transfer_secret_material", sp+"/url")
-			}
-			if s.config.FeedURL == nil || s.config.FeedURL(src.URL) != nil {
-				return transferError("invalid_shape", sp+"/url")
-			}
-			if src.Format != domain.FeedFormatText && src.Format != domain.FeedFormatJSON && src.Format != domain.FeedFormatDomainList {
-				return transferError("invalid_shape", sp+"/format")
 			}
 		}
 		if _, err := normalizedServiceTuning(t.ServiceRef, ServiceTuning{DisabledSources: t.DisabledSources, Includes: t.Includes, Excludes: t.Excludes}); err != nil {

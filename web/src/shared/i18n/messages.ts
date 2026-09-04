@@ -710,9 +710,9 @@ const ru: Dictionary = {
   'configTransfer.download.busy': 'Скачиваем…',
   'configTransfer.download.failed': 'Не удалось скачать конфигурацию.',
   'configTransfer.file.label': 'Выберите файл .json',
-  'configTransfer.file.limit': 'Не больше 16 МБ.',
+  'configTransfer.file.limit': 'Не больше 64 МБ.',
   'configTransfer.boundary':
-    'Импорт работает только в пустой установке. Пароли, токены и история в файл не входят.',
+    'Импорт работает только в пустой установке. Пароли, токены, адреса пользовательских источников и история в файл не входят.',
   'configTransfer.afterImport':
     'После переноса введите пароли устройств; автодоставка останется выключенной. Подключения нужно опубликовать заново и создать новые подписки.',
   'configTransfer.reading': 'Читаем конфигурацию…',
@@ -757,12 +757,14 @@ const ru: Dictionary = {
   },
   'configTransfer.warning.devices_require_credentials':
     'Для перенесённых устройств нужны пароли.',
+  'configTransfer.warning.custom_sources_require_recreation':
+    'Пользовательские источники не входят в файл. После переноса добавьте их заново.',
   'configTransfer.warning.automatic_delivery_disabled':
     'Автодоставка останется выключенной.',
   'configTransfer.warning.outputs_require_publication':
     'Опубликуйте подключения заново и создайте новые подписки.',
   'configTransfer.failure.fileType': 'Выберите файл .json.',
-  'configTransfer.failure.fileSize': 'Файл больше 16 МБ.',
+  'configTransfer.failure.fileSize': 'Файл больше 64 МБ.',
   'configTransfer.failure.fileRead': 'Не удалось прочитать конфигурацию.',
   'configTransfer.failure.preview': 'Не удалось проверить конфигурацию.',
   'configTransfer.apply.review': 'Проверить и применить',
@@ -1466,9 +1468,9 @@ const en: Dictionary = {
   'configTransfer.download.busy': 'Downloading…',
   'configTransfer.download.failed': 'The configuration was not downloaded.',
   'configTransfer.file.label': 'Choose a .json file',
-  'configTransfer.file.limit': 'Up to 16 MB.',
+  'configTransfer.file.limit': 'Up to 64 MB.',
   'configTransfer.boundary':
-    'Import works only in an empty installation. Passwords, tokens, and history are not in the file.',
+    'Import works only in an empty installation. Passwords, tokens, custom-source addresses, and history are not in the file.',
   'configTransfer.afterImport':
     'Enter device passwords after import; automatic delivery stays off. Publish connections normally and create new subscriptions.',
   'configTransfer.reading': 'Reading configuration…',
@@ -1501,12 +1503,14 @@ const en: Dictionary = {
   },
   'configTransfer.warning.devices_require_credentials':
     'Imported devices need their passwords.',
+  'configTransfer.warning.custom_sources_require_recreation':
+    'Custom sources are not in the file. Add them again after transfer.',
   'configTransfer.warning.automatic_delivery_disabled':
     'Automatic delivery stays off.',
   'configTransfer.warning.outputs_require_publication':
     'Publish connections again and create new subscriptions.',
   'configTransfer.failure.fileType': 'Choose a .json file.',
-  'configTransfer.failure.fileSize': 'The file is larger than 16 MB.',
+  'configTransfer.failure.fileSize': 'The file is larger than 64 MB.',
   'configTransfer.failure.fileRead': 'The configuration could not be read.',
   'configTransfer.failure.preview': 'The configuration could not be checked.',
   'configTransfer.apply.review': 'Review and apply',
