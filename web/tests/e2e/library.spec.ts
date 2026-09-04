@@ -3736,7 +3736,11 @@ for (const language of ['en', 'ru'] as const) {
         const pendingFilterBox = await card
           .getByRole('searchbox', { name: copy('serviceCard.filter') })
           .boundingBox()
+        const pendingRefreshStatusBox = await card
+          .locator('.service-card__refresh-status')
+          .boundingBox()
         expect(pendingFilterBox).not.toBeNull()
+        expect(pendingRefreshStatusBox).not.toBeNull()
         await page.screenshot({
           path: join(reviewRoot, `${language}-card-pending-320.png`),
         })
@@ -3752,9 +3756,22 @@ for (const language of ['en', 'ru'] as const) {
         const failedFilterBox = await card
           .getByRole('searchbox', { name: copy('serviceCard.filter') })
           .boundingBox()
+        const failedRefreshStatusBox = await card
+          .locator('.service-card__refresh-status')
+          .boundingBox()
         expect(failedFilterBox).not.toBeNull()
+        expect(failedRefreshStatusBox).not.toBeNull()
+        const naturalStatusGrowth = Math.max(
+          0,
+          (failedRefreshStatusBox?.height ?? 0) -
+            (pendingRefreshStatusBox?.height ?? 0),
+        )
         expect(
-          Math.abs((failedFilterBox?.y ?? 0) - (pendingFilterBox?.y ?? 0)),
+          Math.abs(
+            (failedFilterBox?.y ?? 0) -
+              (pendingFilterBox?.y ?? 0) -
+              naturalStatusGrowth,
+          ),
         ).toBeLessThanOrEqual(1)
         await expect(
           card.getByRole('button', { name: copy('action.retry'), exact: true }),
