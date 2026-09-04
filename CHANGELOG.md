@@ -19,6 +19,28 @@ breaking change raises the minor, everything else raises the patch. The
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/Muratovnik/routevane/compare/v0.1.2...v0.1.3) (2026-09-04)
+
+### Highlights
+
+This release turns list overlaps into an automatic, route-local priority rule,
+adds a reviewed configuration transfer, and makes the operational interface much
+clearer while a list is loading, refreshing, failing, or being edited. It also
+adds Russian user documentation and clearer Keenetic route ownership.
+
+### Features
+
+- **routes:** Resolve shared destinations by list priority, with drag-and-drop and keyboard reordering, while preserving unique address coverage. ([0d0b410](https://github.com/Muratovnik/routevane/commit/0d0b4101151f0143569e598a8954a80bbca8bf28))
+- **config:** Export, preview, validate, and import portable Routevane configuration into a fresh installation. ([a7e542c](https://github.com/Muratovnik/routevane/commit/a7e542c4d5559af44abe089e6379739bb76167aa), [620f86b](https://github.com/Muratovnik/routevane/commit/620f86bf4abc372d9f0f7236e224f8a44c9bcbbc))
+- **keenetic:** Label managed static routes with their category and list, and retain enough ownership data to update them safely. ([0c50dff](https://github.com/Muratovnik/routevane/commit/0c50dffcbb2f1249ca4160e0a1e9b5217fee54dd), [a7bbd4a](https://github.com/Muratovnik/routevane/commit/a7bbd4a6bc77fde8136ecc5cfb0a17256380144a))
+- **ui:** Add the Routevane mark, adopt maintained Nuxt UI interaction mechanics, and add Russian user guides. ([7288827](https://github.com/Muratovnik/routevane/commit/72888276094a2c5f143476c0438e4daea40dc6a6), [a9e9282](https://github.com/Muratovnik/routevane/commit/a9e92827c4b567453c937b5a3a4d3a3337ffadb0), [d7f8448](https://github.com/Muratovnik/routevane/commit/d7f844830110263695943fc3912e36ab50e1c130))
+
+### Bug Fixes
+
+- **ui:** Keep loading, refresh, error, disabled, drawer, form, and dense-list states unambiguous and operable. ([eaa1c88](https://github.com/Muratovnik/routevane/commit/eaa1c88ba00c4bc8ad4a4e2f99cb09ba43cb70ab), [0d44270](https://github.com/Muratovnik/routevane/commit/0d44270af3614a476c7c5e9b7be55415645758ce))
+- **config:** Preserve exact transfer bytes and reject malformed or inconsistent configuration before changing the destination. ([1451360](https://github.com/Muratovnik/routevane/commit/1451360e5f1f1a3a9ded22fe74c5008a03f0f57b), [647c68f](https://github.com/Muratovnik/routevane/commit/647c68f2fd94d1331caf647208803cf7fcb51063), [ca58a69](https://github.com/Muratovnik/routevane/commit/ca58a69469fb64bcf3719fad2d61b596e2549f8f))
+- **delivery:** Serialize manual and scheduled writes to a device, and stop owned development servers when their supervisor exits. ([1d8360d](https://github.com/Muratovnik/routevane/commit/1d8360d803d519723b85b693a92926afe5901f65), [52c3a8a](https://github.com/Muratovnik/routevane/commit/52c3a8aaea01cd924c495816f79e757aaa3408da))
+
 ## [0.1.2](https://github.com/Muratovnik/routevane/compare/v0.1.1...v0.1.2) (2026-09-03)
 
 ### Highlights
