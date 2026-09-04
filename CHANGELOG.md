@@ -19,7 +19,7 @@ breaking change raises the minor, everything else raises the patch. The
 
 ## [Unreleased]
 
-## [0.1.4](https://github.com/Muratovnik/routevane/compare/v0.1.3...v0.1.4) (2026-09-04)
+## [0.1.5](https://github.com/Muratovnik/routevane/compare/v0.1.3...v0.1.5) (2026-09-04)
 
 ### Highlights
 
