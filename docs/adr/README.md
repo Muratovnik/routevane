@@ -7,7 +7,8 @@ of the decision; an adopted ADR can have specifically replaced clauses.
 
 Important chains: 0004 → 0013/0023 (objects and issuance), 0013 → 0016 → 0028 →
 0029 (composition, vocabulary, library ownership), 0024 → 0025 → 0029 (editing),
-0012 → 0014 → 0031 (credentials and unattended delivery), and 0002 → 0030 (Go).
+0012 → 0014 → 0031 (credentials and unattended delivery), 0008 → 0032 → 0034
+(Keenetic route ownership and descriptions), and 0002 → 0030 (Go).
 Later clauses replace only the scope they name, not every invariant in an earlier ADR.
 
 | Decision | Status |
@@ -43,4 +44,6 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0029: composing is per route, and the library is its own flow](./0029-composing-is-per-route-and-the-library-is-its-own-flow.md) | adopted |
 | [ADR 0030: Go 1.27 is the native toolchain baseline](./0030-go-1-27-native-toolchain-gates.md) | adopted |
 | [ADR 0031: scheduled delivery is an explicit output-to-device binding](./0031-explicit-scheduled-device-delivery.md) | adopted |
+| [ADR 0032: persist exact Keenetic static-route ownership](./0032-persist-exact-keenetic-static-route-ownership.md) | adopted |
 | [ADR 0033: portable configuration transfers use fresh identities](./0033-portable-configuration-transfers.md) | adopted |
+| [ADR 0034: Keenetic route descriptions come from plan provenance](./0034-keenetic-route-descriptions-from-plan-provenance.md) | adopted |

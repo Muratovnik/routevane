@@ -185,6 +185,7 @@ func (s *DeploymentService) Deploy(ctx context.Context, command DeployCommand) (
 			Payload:         payload.Payload,
 			PlanSnapshotID:  payload.Artifact.PlanSnapshotID,
 			RoutingPlanHash: snapshot.RoutingPlanHash,
+			PlanSnapshot:    append([]byte(nil), snapshot.RoutingPlanJSON...),
 		},
 	}
 	return DeployToDevice(ctx, request, s.config.Deployers, s.config.Backups, s.config.Clock)

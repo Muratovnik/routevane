@@ -598,6 +598,7 @@ func cloneRoutingPlan(plan domain.RoutingPlan) domain.RoutingPlan {
 
 func cloneRouteRule(rule domain.RouteRule) domain.RouteRule {
 	cloned := rule
+	cloned.Labels = append([]string(nil), rule.Labels...)
 	cloned.ReasonCodes = append([]string(nil), rule.ReasonCodes...)
 	cloned.ProvenanceRefs = append([]string(nil), rule.ProvenanceRefs...)
 	if rule.ExpiresAt != nil {

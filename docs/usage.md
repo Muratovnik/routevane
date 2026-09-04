@@ -387,6 +387,15 @@ never guesses from interface membership. Every step is recorded with its outcome
 and duration; no credential appears in the record. See
 [`ADR 0032`](adr/0032-persist-exact-keenetic-static-route-ownership.md).
 
+For a route Routevane creates, Keenetic's **Description** shows its provenance as
+`(category/list)`. An uncategorized list uses `(Без категории/list)`. When a
+prefix comes from several lists, the lexicographically first label is followed
+by `+N`; the complete label set remains in the plan snapshot. Routevane reads
+this value back and rolls back if Keenetic omits or changes it. A pre-existing same-prefix
+route and its description remain untouched. Downloaded BAT files deliberately
+stay unchanged; this description applies to automatic RCI delivery. See
+[`ADR 0034`](adr/0034-keenetic-route-descriptions-from-plan-provenance.md).
+
 Keenetic rollback uploads the complete captured configuration, not a scoped
 route delta. Avoid concurrent router changes during delivery: unrelated changes
 made after the backup may also be undone. Physical recovery remains unverified.
@@ -417,12 +426,13 @@ and retires its route-ownership scope without changing the router.
 The consent, binding, and credential-free target rules are recorded in
 [`docs/adr/0031-explicit-scheduled-device-delivery.md`](adr/0031-explicit-scheduled-device-delivery.md).
 
-The Keenetic RCI interface is documented by the vendor's community rather than by
-a vendor specification, so this deployer is verified against a faithful device
-double and **has not been accepted against a physical router in this
-repository's environment**. It refuses what it cannot confirm rather than
-guessing. The boundary and its verification limits are recorded in
-[`docs/adr/0008-device-deployment-boundary.md`](adr/0008-device-deployment-boundary.md).
+The Keenetic RCI interface, including its route `comment` property, is not covered
+by a vendor specification. The deployer is verified against a faithful device
+double and **has not been accepted against a physical router in this repository's
+environment**. It refuses what it cannot confirm rather than guessing. The
+boundary and its verification limits are recorded in
+[`docs/adr/0008-device-deployment-boundary.md`](adr/0008-device-deployment-boundary.md)
+and [`ADR 0034`](adr/0034-keenetic-route-descriptions-from-plan-provenance.md).
 
 ## External plugins
 

@@ -30,7 +30,8 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 - Device changes require explicit authority, a compatible target, verified
   backup, bounded application, read-back, and recovery after failure. Keenetic
   static-route deletion additionally requires persisted exact ownership; shared,
-  pre-existing, and unrelated same-interface routes are preserved.
+  pre-existing, and unrelated same-interface routes are preserved. Descriptions
+  are verified exactly only for routes that ownership says Routevane created.
   Scheduled delivery additionally needs an exact output/device binding and consent.
 - Operator-installed plugins use the same validated publication/observation
   boundaries. Checksums and resource limits do not imply a hostile-code sandbox.

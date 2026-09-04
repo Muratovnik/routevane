@@ -237,6 +237,12 @@ func (s *PublicationService) prepareList(ctx context.Context, list List, target 
 	if err != nil {
 		return PreparedPlan{}, time.Time{}, err
 	}
+	applyRouteLabels(&prepared.Plan, routeLabelsByService(definitions, s.mergedCategories()))
+	planner.CanonicalizePlan(&prepared.Plan)
+	prepared.Plan.SemanticHash = planner.SemanticHash(prepared.Plan, target)
+	if err := PreflightPlan(prepared.Plan, target, renderer, cutoff); err != nil {
+		return PreparedPlan{}, time.Time{}, err
+	}
 	return prepared, cutoff, nil
 }
 

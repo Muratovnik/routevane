@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -96,13 +95,10 @@ func TestMigrationFailureRollsBackAndNewerSchemaFailsClosed(t *testing.T) {
 	})
 }
 
-// An installation that predates exact route ownership migrates one step to it
-// and keeps everything it held, including scheduled bindings and the previous
-// catalog overlay.
-// The runner is strictly +1, so this is the only path a stored database can
-// take; a schema that arrived any other way is refused by verifySchema rather
-// than served.
-func TestAnExistingDatabaseMigratesOneStepToManagedRouteOwnership(t *testing.T) {
+// Version ten extends the exact ownership ledger without inventing provenance
+// for version-nine claims. Empty legacy descriptions remain safe and a later
+// publication can fill them from its immutable plan snapshot.
+func TestVersionNineManagedRouteOwnershipMigratesWithEmptyDescriptions(t *testing.T) {
 	root := newDataRoot(t)
 	path := filepath.Join(root, DatabaseName)
 	db, err := sql.Open("sqlite", path)
@@ -111,9 +107,6 @@ func TestAnExistingDatabaseMigratesOneStepToManagedRouteOwnership(t *testing.T) 
 	}
 	db.SetMaxOpenConns(1)
 	previous := &Store{db: db, path: path}
-	// The previous schema is the one this change is the successor of. Running
-	// it alone leaves the database one version short, which the runner reports
-	// rather than serving.
 	if err := previous.initialize(context.Background(), migrations[:CurrentSchemaVersion-1]); err == nil {
 		t.Fatal("a database short of the current version was accepted")
 	}
@@ -121,28 +114,22 @@ func TestAnExistingDatabaseMigratesOneStepToManagedRouteOwnership(t *testing.T) 
 	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != CurrentSchemaVersion-1 {
 		t.Fatalf("version=%d err=%v", version, err)
 	}
-	// The database is populated the way a real installation is: a preference,
-	// an operator-created list with its own tuning, and a membership overlay
-	// over a shipped category. All of it must survive the step.
 	populate := []string{
 		`INSERT INTO settings(key,value,updated_at_ns) VALUES('refresh_interval','weekly',1)`,
-		`INSERT INTO custom_services(id,title,domains_json,created_at_ns,updated_at_ns) VALUES('custom-1234567890abcdef','Мои сайты','["a.example"]',1,1)`,
-		`INSERT INTO service_domain_verdicts(service_id,domain,verdict) VALUES('custom-1234567890abcdef','b.example','include')`,
-		`INSERT INTO category_memberships(category_id,service_id,state,updated_at_ns) VALUES('video','custom-1234567890abcdef','added',1)`,
 		`INSERT INTO lists(id,name,created_at_ns,updated_at_ns) VALUES('11111111111111111111111111111111','Legacy list',1,1)`,
-		`INSERT INTO devices(id,target_id,name,address,account,auto_deliver,created_at_ns,updated_at_ns) VALUES('22222222222222222222222222222222','keenetic','Legacy router','http://192.168.1.1','admin',0,1,1)`,
 		`INSERT INTO outputs(id,list_id,target_id,profile_key,renderer_id,renderer_version,target_revision,created_at_ns) VALUES('33333333333333333333333333333333','11111111111111111111111111111111','keenetic','keenetic-bat-ipv4-v1','keenetic-route-bat','keenetic-bat-ipv4-v1','legacy',1)`,
+		`INSERT INTO managed_route_scopes(endpoint,target_id,interface,created_at_ns,updated_at_ns) VALUES('http://192.168.1.1','keenetic','Wireguard0',1,1)`,
+		`INSERT INTO managed_routes(scope_id,prefix,created_by_routevane) VALUES(1,'192.0.2.10/32',1)`,
+		`INSERT INTO managed_route_claims(scope_id,output_id,prefix) VALUES(1,'33333333333333333333333333333333','192.0.2.10/32')`,
 	}
 	for _, statement := range populate {
 		if _, err := db.Exec(statement); err != nil {
 			t.Fatalf("%s: %v", statement, err)
 		}
 	}
-	for _, table := range []string{"managed_route_scopes", "managed_routes", "managed_route_claims"} {
-		var present int
-		if err := db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&present); err != nil || present != 0 {
-			t.Fatalf("%s existed before its migration: present=%d err=%v", table, present, err)
-		}
+	var descriptionColumns int
+	if err := db.QueryRow(`SELECT count(*) FROM pragma_table_info('managed_routes') WHERE name='description'`).Scan(&descriptionColumns); err != nil || descriptionColumns != 0 {
+		t.Fatalf("version nine already had route descriptions: count=%d err=%v", descriptionColumns, err)
 	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
@@ -156,87 +143,32 @@ func TestAnExistingDatabaseMigratesOneStepToManagedRouteOwnership(t *testing.T) 
 	if err := verifySchema(context.Background(), store.db); err != nil {
 		t.Fatal(err)
 	}
-	for _, table := range []string{"managed_route_scopes", "managed_routes", "managed_route_claims"} {
-		var present int
-		if err := store.db.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&present); err != nil || present != 1 {
-			t.Fatalf("%s missing after migration: present=%d err=%v", table, present, err)
-		}
+	if err := store.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != CurrentSchemaVersion {
+		t.Fatalf("version=%d err=%v", version, err)
 	}
-	// The ownership ledger must not accept a route without a durable scope or a
-	// claim for a route that was never recorded. Both foreign keys are needed
-	// because these rows are the only authority to delete a physical route.
-	if _, err := store.db.Exec(`INSERT INTO managed_routes(scope_id,prefix,created_by_routevane) VALUES(999,'192.0.2.10/32',1)`); err == nil {
-		t.Fatal("managed route without a scope was accepted")
-	}
-	if _, err := store.db.Exec(`INSERT INTO managed_route_scopes(endpoint,target_id,interface,created_at_ns,updated_at_ns) VALUES('http://192.168.1.1','keenetic','Wireguard0',1,1)`); err != nil {
+	var routeDescription, claimDescription, labelsJSON string
+	if err := store.db.QueryRow(`SELECT description FROM managed_routes WHERE scope_id=1 AND prefix='192.0.2.10/32'`).Scan(&routeDescription); err != nil {
 		t.Fatal(err)
 	}
-	var managedScopeID int64
-	if err := store.db.QueryRow(`SELECT id FROM managed_route_scopes WHERE endpoint='http://192.168.1.1'`).Scan(&managedScopeID); err != nil {
+	if err := store.db.QueryRow(`SELECT description,labels_json FROM managed_route_claims WHERE scope_id=1 AND output_id='33333333333333333333333333333333'`).Scan(&claimDescription, &labelsJSON); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.db.Exec(`INSERT INTO managed_route_claims(scope_id,output_id,prefix) VALUES(?,?,?)`, managedScopeID, "33333333333333333333333333333333", "192.0.2.10/32"); err == nil {
-		t.Fatal("managed route claim without its route was accepted")
+	if routeDescription != "" || claimDescription != "" || labelsJSON != "[]" {
+		t.Fatalf("legacy ownership gained invented provenance: route=%q claim=%q labels=%q", routeDescription, claimDescription, labelsJSON)
 	}
-	if _, err := store.db.Exec(`INSERT INTO managed_routes(scope_id,prefix,created_by_routevane) VALUES(?,'192.0.2.10/32',1)`, managedScopeID); err != nil {
-		t.Fatal(err)
+	loaded, err := store.ManagedRouteOwnership(context.Background(), application.ManagedRouteScope{Endpoint: "http://192.168.1.1", TargetID: "keenetic", Interface: "Wireguard0"})
+	if err != nil || len(loaded.Routes) != 1 || len(loaded.Claims) != 1 || loaded.Routes[0].Description != "" || loaded.Claims[0].Description != "" || len(loaded.Claims[0].Labels) != 0 {
+		t.Fatalf("migrated ownership=%#v err=%v", loaded, err)
 	}
-	if _, err := store.db.Exec(`INSERT INTO managed_route_claims(scope_id,output_id,prefix) VALUES(?,?,?)`, managedScopeID, "44444444444444444444444444444444", "192.0.2.10/32"); err == nil {
-		t.Fatal("managed route claim without its output was accepted")
+	if _, err := store.db.Exec(`UPDATE managed_routes SET description=? WHERE scope_id=1`, strings.Repeat("é", 49)); err == nil {
+		t.Fatal("description over the UTF-8 byte bound was accepted")
 	}
-	if _, err := store.db.Exec(`INSERT INTO managed_route_claims(scope_id,output_id,prefix) VALUES(?,?,?)`, managedScopeID, "33333333333333333333333333333333", "192.0.2.10/32"); err != nil {
-		t.Fatal(err)
-	}
-	var interfaceName string
-	if err := store.db.QueryRow(`SELECT interface FROM devices WHERE id='22222222222222222222222222222222'`).Scan(&interfaceName); err != nil || interfaceName != "" {
-		t.Fatalf("legacy device interface=%q err=%v", interfaceName, err)
-	}
-	var binding sql.NullString
-	if err := store.db.QueryRow(`SELECT device_id FROM outputs WHERE id='33333333333333333333333333333333'`).Scan(&binding); err != nil || binding.Valid {
-		t.Fatalf("legacy output binding=%#v err=%v", binding, err)
-	}
-	if _, err := store.db.Exec(`UPDATE outputs SET device_id='22222222222222222222222222222222' WHERE id='33333333333333333333333333333333'`); err != nil {
-		t.Fatalf("bind migrated output: %v", err)
-	}
-	if _, err := store.db.Exec(`DELETE FROM devices WHERE id='22222222222222222222222222222222'`); err != nil {
-		t.Fatalf("delete migrated device: %v", err)
-	}
-	if err := store.db.QueryRow(`SELECT device_id FROM outputs WHERE id='33333333333333333333333333333333'`).Scan(&binding); err != nil || binding.Valid {
-		t.Fatalf("ON DELETE SET NULL binding=%#v err=%v", binding, err)
+	if _, err := store.db.Exec(`UPDATE managed_route_claims SET labels_json='{}' WHERE scope_id=1`); err == nil {
+		t.Fatal("non-array claim labels were accepted")
 	}
 	var value string
 	if err := store.db.QueryRow(`SELECT value FROM settings WHERE key='refresh_interval'`).Scan(&value); err != nil || value != "weekly" {
 		t.Fatalf("the migration lost stored state: value=%q err=%v", value, err)
-	}
-	services, err := store.CustomServices(context.Background())
-	if err != nil || len(services) != 1 || services[0].ID != "custom-1234567890abcdef" {
-		t.Fatalf("the migration lost the operator's lists: %#v err=%v", services, err)
-	}
-	overlay, err := store.CategoryOverlay(context.Background())
-	if err != nil || len(overlay.Memberships) != 1 || len(overlay.Removals) != 0 {
-		t.Fatalf("the migration lost the overlay: %#v err=%v", overlay, err)
-	}
-	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
-	// Behavior from the preceding migration remains intact after the new step.
-	if err := store.RemoveFromLibrary(context.Background(), application.LibraryRemoval{
-		Kind: application.RemovalCategory, ID: "video", Services: []string{"custom-1234567890abcdef"}, RemovedAt: now,
-	}); err != nil {
-		t.Fatalf("the migrated database refused a removal: %v", err)
-	}
-	overlay, err = store.CategoryOverlay(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []application.CatalogRemoval{{Kind: application.RemovalCategory, ID: "video", RemovedAt: now}}
-	if !reflect.DeepEqual(overlay.Removals, want) || len(overlay.Memberships) != 0 {
-		t.Fatalf("overlay after removal = %#v", overlay)
-	}
-	if services, err := store.CustomServices(context.Background()); err != nil || len(services) != 0 {
-		t.Fatalf("the deleted list survived: %#v err=%v", services, err)
-	}
-	var verdicts int
-	if err := store.db.QueryRow(`SELECT count(*) FROM service_domain_verdicts WHERE service_id='custom-1234567890abcdef'`).Scan(&verdicts); err != nil || verdicts != 0 {
-		t.Fatalf("the deleted list kept its verdicts: count=%d err=%v", verdicts, err)
 	}
 }
 

@@ -119,8 +119,11 @@ endpoint/target/interface scope. The application computes additions and
 authorized removals; the deployer observes and applies them without depending on
 SQLite. A route is removable only after its last claim disappears and the ledger
 says Routevane created it. Missing or retired ownership is additive and preserves
-unknown same-interface routes
-([exact ownership](adr/0032-persist-exact-keenetic-static-route-ownership.md)).
+unknown same-interface routes. The immutable plan also carries human category/list
+labels; deployment compacts their union into the native description of an owned
+route and verifies it on read-back without changing BAT artifact bytes
+([exact ownership](adr/0032-persist-exact-keenetic-static-route-ownership.md),
+[descriptions](adr/0034-keenetic-route-descriptions-from-plan-provenance.md)).
 
 Manual credentials arrive through the CLI environment or the local API request.
 They are not persisted by the deployment call. Unattended credentials are stored

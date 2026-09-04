@@ -39,6 +39,18 @@ func TestRenderIsDeterministicDeduplicatedAndDoesNotMutateBacking(t *testing.T) 
 	if !bytes.Equal(first, second) {
 		t.Fatalf("permutation changed bytes:\n%q\n%q", first, second)
 	}
+	labeled := plan
+	labeled.Rules = append([]domain.RouteRule(nil), plan.Rules...)
+	for index := range labeled.Rules {
+		labeled.Rules[index].Labels = []string{"(Категория/Список)"}
+	}
+	withLabels, err := Render(labeled)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(first, withLabels) {
+		t.Fatalf("route provenance changed BAT bytes:\n%q\n%q", first, withLabels)
+	}
 	if !reflect.DeepEqual(backing, wantBacking) || !reflect.DeepEqual(servicesBacking, wantServices) {
 		t.Fatalf("renderer mutated input backing: rules=%#v services=%#v", backing, servicesBacking)
 	}

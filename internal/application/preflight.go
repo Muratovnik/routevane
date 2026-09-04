@@ -63,7 +63,7 @@ func PreflightPlan(plan domain.RoutingPlan, target domain.TargetProfile, rendere
 		if rule.ExpiresAt != nil && !rule.ExpiresAt.After(cutoff) {
 			return fmt.Errorf("%w: stale rule", ErrPreflight)
 		}
-		if !canonicalStrings(rule.ReasonCodes) || !canonicalStrings(rule.ProvenanceRefs) {
+		if !canonicalStrings(rule.Labels) || !canonicalStrings(rule.ReasonCodes) || !canonicalStrings(rule.ProvenanceRefs) {
 			return fmt.Errorf("%w: non-canonical rule metadata", ErrPreflight)
 		}
 		key := ruleSortKey(rule)

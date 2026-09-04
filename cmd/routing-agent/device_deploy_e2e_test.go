@@ -35,22 +35,23 @@ const (
 // fakeKeeneticDevice answers the RCI surface the deployer uses and records the
 // state a deployment leaves behind.
 type fakeKeeneticDevice struct {
-	mu            sync.Mutex
-	authenticated bool
-	routes        map[string]string
-	config        []byte
-	restores      int
-	drift         bool
-	driftPrefix   string
-	bodies        []string
-	backupRoutes  map[string]string
-	partialState  map[string]string
-	failAfterAdd  bool
-	cancelApply   context.CancelFunc
+	mu                sync.Mutex
+	authenticated     bool
+	routes            map[string]string
+	comments          map[string]string
+	config            []byte
+	restores          int
+	bodies            []string
+	backupRoutes      map[string]string
+	backupComments    map[string]string
+	partialState      map[string]string
+	failAfterAdd      bool
+	omitRouteComments bool
+	cancelApply       context.CancelFunc
 }
 
 func newFakeKeeneticDevice() *fakeKeeneticDevice {
-	return &fakeKeeneticDevice{routes: map[string]string{}, config: []byte("! startup-config\nsystem hostname router\n")}
+	return &fakeKeeneticDevice{routes: map[string]string{}, comments: map[string]string{}, config: []byte("! startup-config\nsystem hostname router\n")}
 }
 
 func (d *fakeKeeneticDevice) handler() http.Handler {
@@ -97,7 +98,7 @@ func (d *fakeKeeneticDevice) handler() http.Handler {
 			routes := make([]map[string]any, 0, len(d.routes))
 			for key, attached := range d.routes {
 				parts := strings.SplitN(key, "/", 2)
-				routes = append(routes, map[string]any{"network": parts[0], "mask": parts[1], "interface": attached})
+				routes = append(routes, map[string]any{"network": parts[0], "mask": parts[1], "interface": attached, "comment": d.comments[key]})
 			}
 			d.mu.Unlock()
 			writeDeviceJSON(w, map[string]any{"route": routes})
@@ -109,10 +110,11 @@ func (d *fakeKeeneticDevice) handler() http.Handler {
 			snapshot.WriteString("! startup-config\nsystem hostname router\n")
 			for _, key := range slices.Sorted(maps.Keys(d.routes)) {
 				parts := strings.SplitN(key, "/", 2)
-				snapshot.WriteString("ip route " + parts[0] + " " + parts[1] + " " + d.routes[key] + "\n")
+				snapshot.WriteString("ip route " + parts[0] + " " + parts[1] + " " + d.routes[key] + " " + d.comments[key] + "\n")
 			}
 			d.config = []byte(snapshot.String())
 			d.backupRoutes = maps.Clone(d.routes)
+			d.backupComments = maps.Clone(d.comments)
 			config := slices.Clone(d.config)
 			d.mu.Unlock()
 			_, _ = w.Write(config)
@@ -125,6 +127,7 @@ func (d *fakeKeeneticDevice) handler() http.Handler {
 			}
 			d.restores++
 			d.routes = maps.Clone(d.backupRoutes)
+			d.comments = maps.Clone(d.backupComments)
 			d.mu.Unlock()
 			w.WriteHeader(http.StatusOK)
 		case r.URL.Path == "/rci/system/configuration/save":
@@ -152,6 +155,7 @@ func (d *fakeKeeneticDevice) apply(w http.ResponseWriter, body string) {
 		network, _ := route["network"].(string)
 		mask, _ := route["mask"].(string)
 		attached, _ := route["interface"].(string)
+		comment, _ := route["comment"].(string)
 		_, remove := route["no"]
 		if network == "" || mask == "" || attached == "" {
 			answers = append(answers, map[string]any{"status": []map[string]any{{"status": "error", "code": "unknown"}}})
@@ -159,8 +163,14 @@ func (d *fakeKeeneticDevice) apply(w http.ResponseWriter, body string) {
 		}
 		if remove {
 			delete(d.routes, network+"/"+mask)
+			delete(d.comments, network+"/"+mask)
 		} else {
 			d.routes[network+"/"+mask] = attached
+			if d.omitRouteComments {
+				d.comments[network+"/"+mask] = ""
+			} else {
+				d.comments[network+"/"+mask] = comment
+			}
 		}
 		if d.failAfterAdd && !remove {
 			d.partialState = maps.Clone(d.routes)
@@ -171,16 +181,6 @@ func (d *fakeKeeneticDevice) apply(w http.ResponseWriter, body string) {
 			break
 		}
 		answers = append(answers, map[string]any{"status": []map[string]any{{"status": "message", "code": "route.applied"}}})
-	}
-	if d.drift {
-		if d.driftPrefix != "" {
-			delete(d.routes, d.driftPrefix)
-		} else {
-			for key := range d.routes {
-				delete(d.routes, key)
-				break
-			}
-		}
 	}
 	writeDeviceJSON(w, answers)
 }
@@ -292,6 +292,10 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 		device.mu.Unlock()
 		t.Fatalf("foreign or pre-existing desired route was removed: %#v", device.routes)
 	}
+	if device.comments["198.51.100.20/255.255.255.255"] != "(Без категории/Discord)" || device.comments["192.0.2.10/255.255.255.255"] != "" {
+		device.mu.Unlock()
+		t.Fatalf("route descriptions = %#v", device.comments)
+	}
 	device.mu.Unlock()
 	// The backup is on disk where the audit record says it is.
 	backupPath := filepath.Join(data, filepath.FromSlash(applied.Backup.Path))
@@ -310,14 +314,12 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 	ownershipScope := application.ManagedRouteScope{Endpoint: "http://192.168.1.1", TargetID: "keenetic", Interface: deviceInterfaceName}
 	ownershipBefore := readManagedOwnership(t, data, ownershipScope)
 
-	// A device that silently loses a route fails verification and is rolled back.
-	// One route is dropped first so the deployment has work to do; the drift then
-	// makes the device answer with less than it was told to install, which is
-	// what a partial write looks like from outside.
+	// A device that silently omits the RCI comment fails exact ownership
+	// verification and rolls back. Prefix presence alone cannot prove that the
+	// user-visible Description was installed.
 	device.mu.Lock()
-	delete(device.routes, "198.51.100.20/255.255.255.255")
-	device.drift = true
-	device.driftPrefix = "198.51.100.20/255.255.255.255"
+	device.comments["198.51.100.20/255.255.255.255"] = ""
+	device.omitRouteComments = true
 	device.mu.Unlock()
 	stdout, deployStderr = &syncBuffer{}, &syncBuffer{}
 	t.Setenv(DevicePasswordVariable, devicePassword)
@@ -386,6 +388,14 @@ func TestManagedRouteClaimsPreserveForeignRoutesAndShareCreatedPrefixes(t *testi
 	deployViaCLI(t, deps, args(artifactB), devicePassword)
 	if !fakeDeviceHasRoutes(device, foreign, shared, discord) {
 		t.Fatalf("initial shared state = %#v", device.routes)
+	}
+	device.mu.Lock()
+	sharedDescription := device.comments[shared]
+	discordDescription := device.comments[discord]
+	foreignDescription := device.comments[foreign]
+	device.mu.Unlock()
+	if sharedDescription != "(Без категории/YouTube)" || discordDescription != "(Без категории/Discord)" || foreignDescription != "" {
+		t.Fatalf("route descriptions: shared=%q discord=%q foreign=%q", sharedDescription, discordDescription, foreignDescription)
 	}
 
 	postJSON(t, origin+"/v1/lists/"+listA+"/update", `{"name":"A","services":["discord"]}`)

@@ -19,10 +19,12 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Muratovnik/routevane/internal/application"
 	"github.com/Muratovnik/routevane/internal/domain"
 	"github.com/Muratovnik/routevane/internal/netpolicy"
+	"github.com/Muratovnik/routevane/internal/planjson"
 	"github.com/Muratovnik/routevane/internal/renderers/keenetic"
 )
 
@@ -245,15 +247,15 @@ func (d *Deployer) Deploy(ctx context.Context, device application.DeviceInfo, co
 		return err
 	}
 	present := make(map[netip.Prefix]struct{}, len(current))
-	for _, prefix := range current {
-		present[prefix] = struct{}{}
+	for _, route := range current {
+		present[route.Prefix] = struct{}{}
 	}
 	mutation := application.ManagedRouteMutation{}
-	for _, prefix := range desired {
-		if _, exists := present[prefix]; exists {
+	for _, route := range desired {
+		if _, exists := present[route.Prefix]; exists {
 			continue
 		}
-		mutation.Add = append(mutation.Add, prefix)
+		mutation.Upsert = append(mutation.Upsert, route)
 	}
 	return d.ApplyManagedRoutes(ctx, device, connection, mutation)
 }
@@ -277,20 +279,15 @@ func (d *Deployer) ManagedRouteScope(target domain.TargetProfile, connection app
 	}, nil
 }
 
-func (*Deployer) DesiredManagedRoutes(artifact application.DeployArtifact) ([]netip.Prefix, error) {
-	prefixes, err := artifactPrefixes(artifact)
+func (*Deployer) DesiredManagedRoutes(artifact application.DeployArtifact) ([]application.ManagedRouteSpec, error) {
+	prefixes, err := artifactRouteSpecs(artifact)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]netip.Prefix, 0, len(prefixes))
-	for prefix := range prefixes {
-		result = append(result, prefix)
-	}
-	slices.SortFunc(result, func(a, b netip.Prefix) int { return cmp.Compare(a.String(), b.String()) })
-	return result, nil
+	return prefixes, nil
 }
 
-func (d *Deployer) CurrentManagedRoutes(ctx context.Context, device application.DeviceInfo, connection application.Connection) ([]netip.Prefix, error) {
+func (d *Deployer) CurrentManagedRoutes(ctx context.Context, device application.DeviceInfo, connection application.Connection) ([]application.ManagedRouteSpec, error) {
 	session, err := d.connect(ctx, connection)
 	if err != nil {
 		return nil, err
@@ -299,32 +296,33 @@ func (d *Deployer) CurrentManagedRoutes(ctx context.Context, device application.
 	if err != nil {
 		return nil, err
 	}
-	result := make([]netip.Prefix, 0, len(existing))
-	for prefix := range existing {
-		result = append(result, prefix)
+	result := make([]application.ManagedRouteSpec, 0, len(existing))
+	for prefix, description := range existing {
+		result = append(result, application.ManagedRouteSpec{Prefix: prefix, Description: description})
 	}
-	slices.SortFunc(result, func(a, b netip.Prefix) int { return cmp.Compare(a.String(), b.String()) })
+	slices.SortFunc(result, func(a, b application.ManagedRouteSpec) int { return cmp.Compare(a.Prefix.String(), b.Prefix.String()) })
 	return result, nil
 }
 
 // ApplyManagedRoutes applies only the exact additions and deletions authorized
 // by the application-owned ledger.
 func (d *Deployer) ApplyManagedRoutes(ctx context.Context, device application.DeviceInfo, connection application.Connection, mutation application.ManagedRouteMutation) error {
-	seen := make(map[netip.Prefix]bool, len(mutation.Add)+len(mutation.Remove))
-	commands := make([]any, 0, len(mutation.Add)+len(mutation.Remove))
+	seen := make(map[netip.Prefix]bool, len(mutation.Upsert)+len(mutation.Remove))
+	commands := make([]any, 0, len(mutation.Upsert)+len(mutation.Remove))
 	for _, prefix := range mutation.Remove {
 		if !prefix.IsValid() || !prefix.Addr().Is4() || prefix != prefix.Masked() || seen[prefix] {
 			return fmt.Errorf("%w: invalid managed route removal", ErrDeviceRefused)
 		}
 		seen[prefix] = true
-		commands = append(commands, routeCommand(prefix, device.Interface, true))
+		commands = append(commands, routeCommand(prefix, device.Interface, "", true))
 	}
-	for _, prefix := range mutation.Add {
-		if !prefix.IsValid() || !prefix.Addr().Is4() || prefix != prefix.Masked() || seen[prefix] {
+	for _, route := range mutation.Upsert {
+		prefix := route.Prefix
+		if !prefix.IsValid() || !prefix.Addr().Is4() || prefix != prefix.Masked() || seen[prefix] || !validRouteComment(route.Description) {
 			return fmt.Errorf("%w: invalid managed route addition", ErrDeviceRefused)
 		}
 		seen[prefix] = true
-		commands = append(commands, routeCommand(prefix, device.Interface, false))
+		commands = append(commands, routeCommand(prefix, device.Interface, route.Description, false))
 	}
 	if len(commands) == 0 {
 		return nil
@@ -340,10 +338,22 @@ func (d *Deployer) ApplyManagedRoutes(ctx context.Context, device application.De
 	return session.command(ctx, "/rci/system/configuration/save", map[string]any{}, nil)
 }
 
+func validRouteComment(comment string) bool {
+	if !utf8.ValidString(comment) || len(comment) > application.MaxManagedRouteDescriptionBytes {
+		return false
+	}
+	for _, r := range comment {
+		if r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	return true
+}
+
 // Verify is the no-ledger verification path. Desired routes must be present,
 // but unrelated routes are accepted because their ownership is unknown.
 func (d *Deployer) Verify(ctx context.Context, device application.DeviceInfo, connection application.Connection, artifact application.DeployArtifact) error {
-	prefixes, err := artifactPrefixes(artifact)
+	prefixes, err := artifactRouteSpecs(artifact)
 	if err != nil {
 		return err
 	}
@@ -356,9 +366,9 @@ func (d *Deployer) Verify(ctx context.Context, device application.DeviceInfo, co
 		return err
 	}
 	missing := make([]string, 0)
-	for prefix := range prefixes {
-		if _, present := existing[prefix]; !present {
-			missing = append(missing, prefix.String())
+	for _, route := range prefixes {
+		if _, present := existing[route.Prefix]; !present {
+			missing = append(missing, route.Prefix.String())
 		}
 	}
 	if len(missing) == 0 {
@@ -383,7 +393,7 @@ func (d *Deployer) Rollback(ctx context.Context, device application.DeviceInfo, 
 	return session.command(ctx, "/rci/system/configuration/save", map[string]any{}, nil)
 }
 
-func routeCommand(prefix netip.Prefix, deviceInterface string, remove bool) map[string]any {
+func routeCommand(prefix netip.Prefix, deviceInterface, description string, remove bool) map[string]any {
 	route := map[string]any{
 		"network":   prefix.Addr().String(),
 		"mask":      maskOf(prefix),
@@ -392,6 +402,8 @@ func routeCommand(prefix netip.Prefix, deviceInterface string, remove bool) map[
 	}
 	if remove {
 		route["no"] = true
+	} else {
+		route["comment"] = description
 	}
 	return map[string]any{"ip": map[string]any{"route": route}}
 }
@@ -409,10 +421,9 @@ func sortCommands(commands []any) {
 	})
 }
 
-// artifactPrefixes parses the artifact with the renderer's own validator. The
-// deployer installs only what that validator accepts, so a corrupted or foreign
-// file can never reach the device.
-func artifactPrefixes(artifact application.DeployArtifact) (map[netip.Prefix]struct{}, error) {
+// artifactRouteSpecs parses prefixes with the renderer's own validator and
+// joins them to immutable snapshot provenance. The BAT bytes remain unchanged.
+func artifactRouteSpecs(artifact application.DeployArtifact) ([]application.ManagedRouteSpec, error) {
 	if artifact.RendererID != keenetic.ID {
 		return nil, fmt.Errorf("%w: renderer %q", ErrArtifactMismatch, artifact.RendererID)
 	}
@@ -423,11 +434,61 @@ func artifactPrefixes(artifact application.DeployArtifact) (map[netip.Prefix]str
 	if len(rules) == 0 || len(rules) > MaxRoutes {
 		return nil, fmt.Errorf("%w: %d routes", ErrArtifactMismatch, len(rules))
 	}
-	prefixes := make(map[netip.Prefix]struct{}, len(rules))
+	prefixes := make(map[netip.Prefix][]string, len(rules))
 	for _, rule := range rules {
-		prefixes[rule.Prefix.Masked()] = struct{}{}
+		prefixes[rule.Prefix.Masked()] = nil
 	}
-	return prefixes, nil
+	if len(artifact.PlanSnapshot) != 0 {
+		if err := planjson.Validate(artifact.PlanSnapshot); err != nil {
+			return nil, fmt.Errorf("%w: plan snapshot: %v", ErrArtifactMismatch, err)
+		}
+		var snapshot planjson.Plan
+		if err := json.Unmarshal(artifact.PlanSnapshot, &snapshot); err != nil {
+			return nil, fmt.Errorf("%w: plan snapshot: %v", ErrArtifactMismatch, err)
+		}
+		if artifact.RoutingPlanHash == "" || snapshot.SemanticHash != artifact.RoutingPlanHash || snapshot.TargetID != "keenetic" || snapshot.ProfileKey != keenetic.Version {
+			return nil, fmt.Errorf("%w: plan snapshot hash", ErrArtifactMismatch)
+		}
+		for _, rule := range snapshot.Rules {
+			stableLabels := domain.StableStrings(rule.Labels)
+			if !slices.Equal(stableLabels, rule.Labels) || (len(stableLabels) > 0 && application.CompactManagedRouteDescription(stableLabels) == "") {
+				return nil, fmt.Errorf("%w: non-canonical route labels", ErrArtifactMismatch)
+			}
+			prefix, ok := snapshotRulePrefix(rule)
+			if !ok {
+				continue
+			}
+			if _, rendered := prefixes[prefix]; rendered {
+				prefixes[prefix] = append(prefixes[prefix], stableLabels...)
+			}
+		}
+	}
+	result := make([]application.ManagedRouteSpec, 0, len(prefixes))
+	for prefix, labels := range prefixes {
+		labels = domain.StableStrings(labels)
+		result = append(result, application.ManagedRouteSpec{Prefix: prefix, Labels: labels, Description: application.CompactManagedRouteDescription(labels)})
+	}
+	slices.SortFunc(result, func(a, b application.ManagedRouteSpec) int { return cmp.Compare(a.Prefix.String(), b.Prefix.String()) })
+	return result, nil
+}
+
+func snapshotRulePrefix(rule planjson.Rule) (netip.Prefix, bool) {
+	switch domain.RuleKind(rule.Kind) {
+	case domain.RuleIPv4:
+		address, err := netip.ParseAddr(rule.Value)
+		if err != nil || !address.Is4() {
+			return netip.Prefix{}, false
+		}
+		return netip.PrefixFrom(address, 32), true
+	case domain.RulePrefix4:
+		prefix, err := netip.ParsePrefix(rule.Value)
+		if err != nil || !prefix.Addr().Is4() || prefix != prefix.Masked() {
+			return netip.Prefix{}, false
+		}
+		return prefix, true
+	default:
+		return netip.Prefix{}, false
+	}
 }
 
 // Requirements describes the RCI interface: an address on the local network, an

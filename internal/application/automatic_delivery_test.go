@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"errors"
-	"net/netip"
 	"testing"
 	"time"
 )
@@ -105,8 +104,8 @@ func TestManualAndAutomaticDeliveryUseTheSameManagedRouteLedger(t *testing.T) {
 	base := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("previous device state")}
 	deployer := &managedSpyDeployer{
 		spyDeployer: base,
-		desired:     []netip.Prefix{prefix},
-		current:     [][]netip.Prefix{nil, {prefix}, {prefix}, {prefix}},
+		desired:     managedSpecs(prefix),
+		current:     [][]ManagedRouteSpec{nil, managedSpecs(prefix), managedSpecs(prefix), managedSpecs(prefix)},
 	}
 	ledger := &memoryManagedRoutes{}
 	deployments, err := NewDeploymentService(DeploymentConfig{

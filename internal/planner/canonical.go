@@ -112,6 +112,7 @@ func CanonicalizePlan(plan *domain.RoutingPlan) {
 	plan.ObservationCutoff = plan.ObservationCutoff.UTC()
 	plan.Services = domain.StableStrings(plan.Services)
 	for i := range plan.Rules {
+		plan.Rules[i].Labels = domain.StableStrings(plan.Rules[i].Labels)
 		plan.Rules[i].ReasonCodes = domain.StableStrings(plan.Rules[i].ReasonCodes)
 		plan.Rules[i].ProvenanceRefs = domain.StableStrings(plan.Rules[i].ProvenanceRefs)
 		if plan.Rules[i].ExpiresAt != nil {
@@ -144,6 +145,7 @@ type hashRule struct {
 	ServiceID   string   `json:"service_id"`
 	ComponentID string   `json:"component_id"`
 	SourceClass string   `json:"source_class"`
+	Labels      []string `json:"labels,omitempty"`
 	Reasons     []string `json:"reason_codes"`
 	Provenance  []string `json:"provenance_refs"`
 }
@@ -177,7 +179,7 @@ func SemanticHash(plan domain.RoutingPlan, target domain.TargetProfile) string {
 	payload := hashPayload{InterfaceVersion: plan.InterfaceVersion, TargetID: plan.TargetID, ProfileKey: plan.ProfileKey, PolicyVersion: plan.PolicyVersion, CatalogRevision: plan.CatalogRevision,
 		Target: hashTarget{target.Constraints.SupportsDomainExact, target.Constraints.SupportsDomainSuffix, target.Constraints.SupportsDynamicDNSSet, target.Constraints.SupportsIPv4, target.Constraints.SupportsIPv6, target.Constraints.SupportsPrefixes, target.Constraints.MaxRules, target.Constraints.MaxArtifactSize}}
 	for _, rule := range plan.Rules {
-		payload.Rules = append(payload.Rules, hashRule{string(rule.Kind), rule.CanonicalValue(), string(rule.Action), rule.ServiceID, rule.ComponentID, string(rule.SourceClass), domain.StableStrings(rule.ReasonCodes), domain.StableStrings(rule.ProvenanceRefs)})
+		payload.Rules = append(payload.Rules, hashRule{string(rule.Kind), rule.CanonicalValue(), string(rule.Action), rule.ServiceID, rule.ComponentID, string(rule.SourceClass), domain.StableStrings(rule.Labels), domain.StableStrings(rule.ReasonCodes), domain.StableStrings(rule.ProvenanceRefs)})
 	}
 	for _, sighting := range plan.Sightings {
 		payload.SightingFingerprints = append(payload.SightingFingerprints, sighting.Fingerprint())
@@ -197,6 +199,7 @@ func cloneRoutingPlan(plan domain.RoutingPlan) domain.RoutingPlan {
 	clone.Services = append([]string(nil), plan.Services...)
 	clone.Rules = append([]domain.RouteRule(nil), plan.Rules...)
 	for i := range clone.Rules {
+		clone.Rules[i].Labels = append([]string(nil), plan.Rules[i].Labels...)
 		clone.Rules[i].ReasonCodes = append([]string(nil), plan.Rules[i].ReasonCodes...)
 		clone.Rules[i].ProvenanceRefs = append([]string(nil), plan.Rules[i].ProvenanceRefs...)
 		if plan.Rules[i].ExpiresAt != nil {

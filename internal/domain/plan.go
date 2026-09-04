@@ -12,15 +12,19 @@ type Action string
 const ActionRoute Action = "route"
 
 type RouteRule struct {
-	Kind           RuleKind
-	Domain         string
-	Addr           netip.Addr
-	Prefix         netip.Prefix
-	Action         Action
-	ServiceID      string
-	ComponentID    string
-	ExpiresAt      *time.Time
-	SourceClass    SourceClass
+	Kind        RuleKind
+	Domain      string
+	Addr        netip.Addr
+	Prefix      netip.Prefix
+	Action      Action
+	ServiceID   string
+	ComponentID string
+	ExpiresAt   *time.Time
+	SourceClass SourceClass
+	// Labels are stable human provenance labels assigned by the publication
+	// boundary. They are part of the routing decision, but renderers may ignore
+	// them when their file format has no native description field.
+	Labels         []string
 	ReasonCodes    []string
 	ProvenanceRefs []string
 }

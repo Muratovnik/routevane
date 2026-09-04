@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"fmt"
 	"net/netip"
 	"reflect"
 	"strings"
@@ -24,15 +25,17 @@ func TestManagedRouteOwnershipPersistsExactlyAndRetirementStartsSafe(t *testing.
 	insertManagedRouteOutputs(t, store, "11111111111111111111111111111111", "22222222222222222222222222222222", "33333333333333333333333333333333")
 	created := netip.MustParsePrefix("192.0.2.10/32")
 	preexisting := netip.MustParsePrefix("198.51.100.0/24")
+	youtubeLabels := []string{"(Видео/YouTube)"}
+	youtubeDescription := application.CompactManagedRouteDescription(youtubeLabels)
 	state := application.ManagedRouteOwnership{
 		Scope: scope,
 		Routes: []application.ManagedRoute{
-			{Prefix: created, CreatedByRoutevane: true},
+			{Prefix: created, Description: youtubeDescription, CreatedByRoutevane: true},
 			{Prefix: preexisting, CreatedByRoutevane: false},
 		},
 		Claims: []application.ManagedRouteClaim{
-			{OutputID: "11111111111111111111111111111111", Prefix: created},
-			{OutputID: "22222222222222222222222222222222", Prefix: created},
+			{OutputID: "11111111111111111111111111111111", Prefix: created, Description: youtubeDescription, Labels: youtubeLabels},
+			{OutputID: "22222222222222222222222222222222", Prefix: created, Description: youtubeDescription, Labels: youtubeLabels},
 			{OutputID: "22222222222222222222222222222222", Prefix: preexisting},
 		},
 	}
@@ -114,6 +117,41 @@ func TestInvalidManagedRouteReplacementLeavesThePreviousLedgerUnchanged(t *testi
 	loaded, err := store.ManagedRouteOwnership(context.Background(), state.Scope)
 	if err != nil || !reflect.DeepEqual(loaded, state) {
 		t.Fatalf("invalid replacement changed ledger: %#v err=%v", loaded, err)
+	}
+}
+
+func TestManagedRouteOwnershipPersistsTheCompleteMaximumCategoryProvenance(t *testing.T) {
+	store, err := Open(context.Background(), newDataRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	const outputID = "11111111111111111111111111111111"
+	insertManagedRouteOutputs(t, store, outputID)
+	labels := make([]string, 0, 256) // 128 shipped and 128 custom categories.
+	for index := range cap(labels) {
+		labels = append(labels, fmt.Sprintf("(Category%03d%s/%s)", index, strings.Repeat("x", 70), strings.Repeat("y", 110)))
+	}
+	description := application.CompactManagedRouteDescription(labels)
+	prefix := netip.MustParsePrefix("192.0.2.10/32")
+	state := application.ManagedRouteOwnership{
+		Scope:  sqliteManagedScope(),
+		Routes: []application.ManagedRoute{{Prefix: prefix, Description: description, CreatedByRoutevane: true}},
+		Claims: []application.ManagedRouteClaim{{OutputID: outputID, Prefix: prefix, Description: description, Labels: labels}},
+	}
+	if err := store.ReplaceManagedRouteOwnership(context.Background(), state); err != nil {
+		t.Fatal(err)
+	}
+	var storedBytes int
+	if err := store.db.QueryRow(`SELECT length(CAST(labels_json AS BLOB)) FROM managed_route_claims`).Scan(&storedBytes); err != nil {
+		t.Fatal(err)
+	}
+	if storedBytes <= 8192 {
+		t.Fatalf("test provenance did not exercise the former truncating bound: %d bytes", storedBytes)
+	}
+	loaded, err := store.ManagedRouteOwnership(context.Background(), state.Scope)
+	if err != nil || !reflect.DeepEqual(loaded, state) {
+		t.Fatalf("loaded=%#v err=%v", loaded, err)
 	}
 }
 

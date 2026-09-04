@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/netip"
 	"time"
 
 	"github.com/Muratovnik/routevane/internal/domain"
@@ -82,6 +81,9 @@ type DeployArtifact struct {
 	// PlanSnapshotID and RoutingPlanHash identify what the bytes represent.
 	PlanSnapshotID  string
 	RoutingPlanHash string
+	// PlanSnapshot carries the immutable renderer-neutral decision so a device
+	// transport can attach provenance without changing the published artifact.
+	PlanSnapshot []byte
 }
 
 // ConnectionRequirements is what a deployer needs before it can be used. A
@@ -249,7 +251,7 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 	manageRoutes := supportsManagedRoutes && request.ManagedRoutes != nil
 	var (
 		priorOwnership ManagedRouteOwnership
-		desiredRoutes  []netip.Prefix
+		desiredRoutes  []ManagedRouteSpec
 		mutation       ManagedRouteMutation
 		nextOwnership  ManagedRouteOwnership
 	)
@@ -299,7 +301,7 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 	started = clock.Now()
 	var deployErr error
 	if manageRoutes {
-		var current []netip.Prefix
+		var current []ManagedRouteSpec
 		current, deployErr = managedDeployer.CurrentManagedRoutes(ctx, device, request.Connection)
 		if deployErr == nil {
 			mutation, nextOwnership, deployErr = reconcileManagedRoutes(priorOwnership, request.OutputID, desiredRoutes, current)
@@ -315,7 +317,7 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 		started = clock.Now()
 		var verifyErr error
 		if manageRoutes {
-			var current []netip.Prefix
+			var current []ManagedRouteSpec
 			current, verifyErr = managedDeployer.CurrentManagedRoutes(ctx, device, request.Connection)
 			if verifyErr == nil {
 				verifyErr = verifyManagedRouteMutation(nextOwnership, mutation, current)

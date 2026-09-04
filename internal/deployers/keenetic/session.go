@@ -189,19 +189,20 @@ func deviceError(answer json.RawMessage) error {
 // ownedRoutes is the historical name for reading every usable static route on
 // one interface. The result is observation, not ownership: deletion authority
 // comes only from the persisted exact-route ledger in the application layer.
-func (s *session) ownedRoutes(ctx context.Context, deviceInterface string) (map[netip.Prefix]struct{}, error) {
+func (s *session) ownedRoutes(ctx context.Context, deviceInterface string) (map[netip.Prefix]string, error) {
 	var configured struct {
 		Route []struct {
 			Network   string `json:"network"`
 			Mask      string `json:"mask"`
 			Interface string `json:"interface"`
 			Host      string `json:"host"`
+			Comment   string `json:"comment"`
 		} `json:"route"`
 	}
 	if err := s.command(ctx, "/rci/show/sc/ip/route", nil, &configured); err != nil {
 		return nil, err
 	}
-	routes := make(map[netip.Prefix]struct{}, len(configured.Route))
+	routes := make(map[netip.Prefix]string, len(configured.Route))
 	for _, route := range configured.Route {
 		if route.Interface != deviceInterface || route.Host != "" {
 			continue
@@ -210,7 +211,7 @@ func (s *session) ownedRoutes(ctx context.Context, deviceInterface string) (map[
 		if !ok {
 			continue
 		}
-		routes[prefix] = struct{}{}
+		routes[prefix] = route.Comment
 	}
 	return routes, nil
 }

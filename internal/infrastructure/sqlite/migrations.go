@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 9
+const CurrentSchemaVersion = 10
 
 type migration struct {
 	version int
@@ -493,6 +493,18 @@ CREATE TABLE managed_route_claims (
     PRIMARY KEY (scope_id,output_id,prefix),
     FOREIGN KEY (scope_id,prefix) REFERENCES managed_routes(scope_id,prefix)
 ) WITHOUT ROWID, STRICT;
+`}, {version: 10, sql: `
+-- Route descriptions are part of exact ownership. Legacy rows migrate with
+-- empty descriptions and labels, which keeps them safe and usable without
+-- inventing provenance that version nine never stored.
+ALTER TABLE managed_routes ADD COLUMN description TEXT NOT NULL DEFAULT ''
+    CHECK (length(CAST(description AS BLOB)) <= 96);
+ALTER TABLE managed_route_claims ADD COLUMN description TEXT NOT NULL DEFAULT ''
+    CHECK (length(CAST(description AS BLOB)) <= 96);
+-- The complete provenance can contain every shipped and custom category. Keep
+-- the same conservative byte ceiling as an immutable plan snapshot.
+ALTER TABLE managed_route_claims ADD COLUMN labels_json TEXT NOT NULL DEFAULT '[]'
+    CHECK (length(CAST(labels_json AS BLOB)) BETWEEN 2 AND 4194304 AND json_valid(labels_json) AND json_type(labels_json)='array');
 `}}
 
 var requiredTables = []string{
@@ -548,8 +560,8 @@ var requiredColumns = map[string][]string{
 	"list_exclusions":          {"list_id", "service_id"},
 	"list_service_domains":     {"list_id", "service_id", "domains_json"},
 	"managed_route_scopes":     {"id", "endpoint", "target_id", "interface", "retired_at_ns", "created_at_ns", "updated_at_ns"},
-	"managed_routes":           {"scope_id", "prefix", "created_by_routevane"},
-	"managed_route_claims":     {"scope_id", "output_id", "prefix"},
+	"managed_routes":           {"scope_id", "prefix", "created_by_routevane", "description"},
+	"managed_route_claims":     {"scope_id", "output_id", "prefix", "description", "labels_json"},
 	"outputs":                  {"id", "list_id", "target_id", "profile_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id"},
 	"output_attempts":          {"id", "output_id", "status", "code", "projected_rules", "maximum_rules", "artifact_id", "completed_at_ns"},
 	"plan_snapshots":           {"id", "output_id", "routing_plan_hash", "routing_plan_json", "policy_version", "catalog_revision", "observation_cutoff_ns", "created_at_ns", "status"},

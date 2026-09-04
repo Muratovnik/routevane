@@ -12,6 +12,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -19,7 +21,10 @@ import (
 	"time"
 
 	"github.com/Muratovnik/routevane/internal/application"
+	"github.com/Muratovnik/routevane/internal/domain"
 	"github.com/Muratovnik/routevane/internal/netpolicy"
+	"github.com/Muratovnik/routevane/internal/planjson"
+	"github.com/Muratovnik/routevane/internal/planner"
 	"github.com/Muratovnik/routevane/internal/renderers/keenetic"
 )
 
@@ -40,7 +45,8 @@ type deviceDouble struct {
 	firmware string
 	// routes is the device's static-route table keyed by "network/mask" with the
 	// interface it is attached to.
-	routes map[string]string
+	routes   map[string]string
+	comments map[string]string
 	// fqdn is the device's FQDN object groups and dnsRoutes the dns-proxy
 	// routes pointing at them. They are the second artifact format's state and
 	// live beside the route table because it is one device.
@@ -57,7 +63,8 @@ type deviceDouble struct {
 	failDeploy bool
 	// driftAfterDeploy makes the device silently lose one route, which is what a
 	// partial write looks like from outside.
-	driftAfterDeploy bool
+	driftAfterDeploy  bool
+	omitRouteComments bool
 	// requests records every path, so a test can prove no credential was sent
 	// anywhere unexpected.
 	requests []string
@@ -178,6 +185,7 @@ func newDeviceDouble(firmware string) *deviceDouble {
 	return &deviceDouble{
 		firmware:  firmware,
 		routes:    map[string]string{},
+		comments:  map[string]string{},
 		fqdn:      map[string][]string{},
 		dnsRoutes: map[string]string{},
 		config:    []byte("! Keenetic startup-config\nsystem hostname router\n"),
@@ -247,6 +255,7 @@ func (d *deviceDouble) handler() http.Handler {
 			d.restoreCalls++
 			// A restore returns the device to the state the backup describes.
 			d.routes = map[string]string{}
+			d.comments = map[string]string{}
 			d.fqdn = map[string][]string{}
 			d.dnsRoutes = map[string]string{}
 			d.mu.Unlock()
@@ -299,8 +308,14 @@ func (d *deviceDouble) applyBatch(w http.ResponseWriter, r *http.Request) {
 		key := route.network + "/" + route.mask
 		if route.remove {
 			delete(d.routes, key)
+			delete(d.comments, key)
 		} else {
 			d.routes[key] = route.deviceInterface
+			if d.omitRouteComments {
+				d.comments[key] = ""
+			} else {
+				d.comments[key] = route.comment
+			}
 		}
 		answers = append(answers, map[string]any{"status": []map[string]any{{"status": "message", "code": "route.applied"}}})
 	}
@@ -314,8 +329,8 @@ func (d *deviceDouble) applyBatch(w http.ResponseWriter, r *http.Request) {
 }
 
 type deviceRoute struct {
-	network, mask, deviceInterface string
-	remove                         bool
+	network, mask, deviceInterface, comment string
+	remove                                  bool
 }
 
 func routeOf(command map[string]any) (deviceRoute, bool) {
@@ -330,18 +345,19 @@ func routeOf(command map[string]any) (deviceRoute, bool) {
 	network, _ := route["network"].(string)
 	mask, _ := route["mask"].(string)
 	deviceInterfaceName, _ := route["interface"].(string)
+	comment, _ := route["comment"].(string)
 	_, remove := route["no"]
 	if network == "" || mask == "" || deviceInterfaceName == "" {
 		return deviceRoute{}, false
 	}
-	return deviceRoute{network: network, mask: mask, deviceInterface: deviceInterfaceName, remove: remove}, true
+	return deviceRoute{network: network, mask: mask, deviceInterface: deviceInterfaceName, comment: comment, remove: remove}, true
 }
 
 func (d *deviceDouble) routeList() []map[string]any {
 	routes := make([]map[string]any, 0, len(d.routes))
 	for key, attached := range d.routes {
 		parts := strings.SplitN(key, "/", 2)
-		routes = append(routes, map[string]any{"network": parts[0], "mask": parts[1], "interface": attached})
+		routes = append(routes, map[string]any{"network": parts[0], "mask": parts[1], "interface": attached, "comment": d.comments[key]})
 	}
 	return routes
 }
@@ -428,6 +444,97 @@ func testArtifact(t *testing.T, prefixes ...string) application.DeployArtifact {
 	return application.DeployArtifact{
 		ArtifactID: strings.Repeat("a", 32), RendererID: keenetic.ID,
 		ArtifactHash: strings.Repeat("b", 64), ContentType: "application/x-bat", Payload: payload,
+	}
+}
+
+func testArtifactWithLabels(t *testing.T, prefix string, owners map[string][]string) application.DeployArtifact {
+	t.Helper()
+	artifact := testArtifact(t, prefix)
+	parsed := netip.MustParsePrefix(prefix)
+	plan := domain.RoutingPlan{
+		InterfaceVersion: domain.RoutingPlanInterfaceVersion,
+		TargetID:         "keenetic", ProfileKey: keenetic.Version, PolicyVersion: planner.PolicyVersion,
+		CatalogRevision: strings.Repeat("c", 64), ObservationCutoff: time.Date(2026, 9, 4, 9, 0, 0, 0, time.UTC),
+		SemanticHash: strings.Repeat("d", 64),
+	}
+	for serviceID, labels := range owners {
+		rule, err := domain.NewPrefixRule(parsed, serviceID, "web", domain.SourceOfficial, []string{planner.ReasonOfficialRule}, []string{"catalog"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		rule.Labels = domain.StableStrings(labels)
+		plan.Services = append(plan.Services, serviceID)
+		plan.Rules = append(plan.Rules, rule)
+	}
+	planner.CanonicalizePlan(&plan)
+	snapshot, err := planjson.Encode(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifact.RoutingPlanHash = plan.SemanticHash
+	artifact.PlanSnapshot = snapshot
+	return artifact
+}
+
+func TestDesiredRoutesUnionSnapshotLabelsAndRCIWritesTheComment(t *testing.T) {
+	artifact := testArtifactWithLabels(t, "192.0.2.0/24", map[string][]string{
+		"youtube": {"(Видео/YouTube)"},
+		"discord": {"(Игры/Discord)"},
+	})
+	fixture := newDeviceFixture(t, "5.1.2")
+	desired, err := fixture.deployer.DesiredManagedRoutes(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := application.CompactManagedRouteDescription([]string{"(Видео/YouTube)", "(Игры/Discord)"})
+	if len(desired) != 1 || desired[0].Description != want || !reflect.DeepEqual(desired[0].Labels, []string{"(Видео/YouTube)", "(Игры/Discord)"}) {
+		t.Fatalf("desired = %#v", desired)
+	}
+	device, err := fixture.deployer.Probe(context.Background(), fixture.connection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.deployer.ApplyManagedRoutes(context.Background(), device, fixture.connection, application.ManagedRouteMutation{Upsert: desired}); err != nil {
+		t.Fatal(err)
+	}
+	key := "192.0.2.0/255.255.255.0"
+	if fixture.device.comments[key] != want {
+		t.Fatalf("device comment = %q, want %q", fixture.device.comments[key], want)
+	}
+	current, err := fixture.deployer.CurrentManagedRoutes(context.Background(), device, fixture.connection)
+	if err != nil || len(current) != 1 || current[0].Description != want {
+		t.Fatalf("readback = %#v err=%v", current, err)
+	}
+}
+
+func TestRCICommentOmissionIsVisibleToOwnershipVerification(t *testing.T) {
+	artifact := testArtifactWithLabels(t, "192.0.2.0/24", map[string][]string{"youtube": {"(Видео/YouTube)"}})
+	fixture := newDeviceFixture(t, "5.1.2")
+	fixture.device.omitRouteComments = true
+	device, err := fixture.deployer.Probe(context.Background(), fixture.connection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	desired, err := fixture.deployer.DesiredManagedRoutes(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := fixture.deployer.ApplyManagedRoutes(context.Background(), device, fixture.connection, application.ManagedRouteMutation{Upsert: desired}); err != nil {
+		t.Fatal(err)
+	}
+	current, err := fixture.deployer.CurrentManagedRoutes(context.Background(), device, fixture.connection)
+	if err != nil || len(current) != 1 || current[0].Description != "" {
+		t.Fatalf("readback = %#v err=%v", current, err)
+	}
+}
+
+func TestRouteRemovalDoesNotRequireOrSendAComment(t *testing.T) {
+	prefix := netip.MustParsePrefix("192.0.2.0/24")
+	command := routeCommand(prefix, deviceInterface, "must-not-travel", true)
+	ip, _ := command["ip"].(map[string]any)
+	route, _ := ip["route"].(map[string]any)
+	if _, present := route["comment"]; present || route["no"] != true || route["network"] != "192.0.2.0" {
+		t.Fatalf("delete command = %#v", command)
 	}
 }
 

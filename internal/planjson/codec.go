@@ -23,6 +23,7 @@ type Rule struct {
 	ComponentID    string   `json:"component_id"`
 	ExpiresAt      *string  `json:"expires_at"`
 	SourceClass    string   `json:"source_class"`
+	Labels         []string `json:"labels,omitempty"`
 	ReasonCodes    []string `json:"reason_codes"`
 	ProvenanceRefs []string `json:"provenance_refs"`
 }
@@ -162,7 +163,7 @@ func convertRule(rule domain.RouteRule) Rule {
 		value := formatTime(*rule.ExpiresAt)
 		expires = &value
 	}
-	return Rule{Kind: string(rule.Kind), Value: rule.CanonicalValue(), Action: string(rule.Action), ServiceID: rule.ServiceID, ComponentID: rule.ComponentID, ExpiresAt: expires, SourceClass: string(rule.SourceClass), ReasonCodes: stringsOrEmpty(rule.ReasonCodes), ProvenanceRefs: stringsOrEmpty(rule.ProvenanceRefs)}
+	return Rule{Kind: string(rule.Kind), Value: rule.CanonicalValue(), Action: string(rule.Action), ServiceID: rule.ServiceID, ComponentID: rule.ComponentID, ExpiresAt: expires, SourceClass: string(rule.SourceClass), Labels: append([]string(nil), rule.Labels...), ReasonCodes: stringsOrEmpty(rule.ReasonCodes), ProvenanceRefs: stringsOrEmpty(rule.ProvenanceRefs)}
 }
 func convertResource(resource domain.Resource) Resource {
 	return Resource{Kind: string(resource.Kind), Value: resource.CanonicalValue()}

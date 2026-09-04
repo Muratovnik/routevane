@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/netip"
@@ -32,14 +33,14 @@ func (s *Store) ManagedRouteOwnership(ctx context.Context, scope application.Man
 		return state, fmt.Errorf("read managed route scope: %w", err)
 	}
 
-	routes, err := s.db.QueryContext(ctx, `SELECT prefix,created_by_routevane FROM managed_routes WHERE scope_id=? ORDER BY prefix`, scopeID)
+	routes, err := s.db.QueryContext(ctx, `SELECT prefix,created_by_routevane,description FROM managed_routes WHERE scope_id=? ORDER BY prefix`, scopeID)
 	if err != nil {
 		return state, fmt.Errorf("read managed routes: %w", err)
 	}
 	for routes.Next() {
-		var raw string
+		var raw, description string
 		var created int
-		if err := routes.Scan(&raw, &created); err != nil {
+		if err := routes.Scan(&raw, &created, &description); err != nil {
 			_ = routes.Close()
 			return state, fmt.Errorf("scan managed route: %w", err)
 		}
@@ -48,7 +49,7 @@ func (s *Store) ManagedRouteOwnership(ctx context.Context, scope application.Man
 			_ = routes.Close()
 			return state, fmt.Errorf("stored managed route is invalid")
 		}
-		state.Routes = append(state.Routes, application.ManagedRoute{Prefix: prefix, CreatedByRoutevane: created == 1})
+		state.Routes = append(state.Routes, application.ManagedRoute{Prefix: prefix, Description: description, CreatedByRoutevane: created == 1})
 	}
 	if err := routes.Err(); err != nil {
 		_ = routes.Close()
@@ -58,13 +59,13 @@ func (s *Store) ManagedRouteOwnership(ctx context.Context, scope application.Man
 		return state, fmt.Errorf("close managed routes: %w", err)
 	}
 
-	claims, err := s.db.QueryContext(ctx, `SELECT output_id,prefix FROM managed_route_claims WHERE scope_id=? ORDER BY output_id,prefix`, scopeID)
+	claims, err := s.db.QueryContext(ctx, `SELECT output_id,prefix,description,labels_json FROM managed_route_claims WHERE scope_id=? ORDER BY output_id,prefix`, scopeID)
 	if err != nil {
 		return state, fmt.Errorf("read managed route claims: %w", err)
 	}
 	for claims.Next() {
-		var outputID, raw string
-		if err := claims.Scan(&outputID, &raw); err != nil {
+		var outputID, raw, description, labelsJSON string
+		if err := claims.Scan(&outputID, &raw, &description, &labelsJSON); err != nil {
 			_ = claims.Close()
 			return state, fmt.Errorf("scan managed route claim: %w", err)
 		}
@@ -73,7 +74,15 @@ func (s *Store) ManagedRouteOwnership(ctx context.Context, scope application.Man
 			_ = claims.Close()
 			return state, fmt.Errorf("stored managed route claim is invalid")
 		}
-		state.Claims = append(state.Claims, application.ManagedRouteClaim{OutputID: outputID, Prefix: prefix})
+		var labels []string
+		if err := json.Unmarshal([]byte(labelsJSON), &labels); err != nil {
+			_ = claims.Close()
+			return state, fmt.Errorf("stored managed route claim labels are invalid")
+		}
+		if len(labels) == 0 {
+			labels = nil
+		}
+		state.Claims = append(state.Claims, application.ManagedRouteClaim{OutputID: outputID, Prefix: prefix, Description: description, Labels: labels})
 	}
 	if err := claims.Err(); err != nil {
 		_ = claims.Close()
@@ -129,12 +138,20 @@ func (s *Store) ReplaceManagedRouteOwnership(ctx context.Context, state applicat
 		if route.CreatedByRoutevane {
 			created = 1
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO managed_routes(scope_id,prefix,created_by_routevane) VALUES(?,?,?)`, scopeID, route.Prefix.String(), created); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO managed_routes(scope_id,prefix,created_by_routevane,description) VALUES(?,?,?,?)`, scopeID, route.Prefix.String(), created, route.Description); err != nil {
 			return fmt.Errorf("insert managed route: %w", err)
 		}
 	}
 	for _, claim := range state.Claims {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO managed_route_claims(scope_id,output_id,prefix) VALUES(?,?,?)`, scopeID, claim.OutputID, claim.Prefix.String()); err != nil {
+		labels := claim.Labels
+		if labels == nil {
+			labels = []string{}
+		}
+		labelsJSON, err := json.Marshal(labels)
+		if err != nil {
+			return fmt.Errorf("encode managed route claim labels: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO managed_route_claims(scope_id,output_id,prefix,description,labels_json) VALUES(?,?,?,?,?)`, scopeID, claim.OutputID, claim.Prefix.String(), claim.Description, string(labelsJSON)); err != nil {
 			return fmt.Errorf("insert managed route claim: %w", err)
 		}
 	}
