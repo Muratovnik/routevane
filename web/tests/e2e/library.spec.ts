@@ -3141,8 +3141,14 @@ test('source skips are visible without changing routes, and clear after a clean 
       exact: true,
     })
     const refresh = card.getByRole('button', { name: 'Refresh from sources' })
-    await refresh.focus()
-    await page.keyboard.press('Enter')
+    const firstRefresh = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname ===
+          `/v1/services/${service.id}/refresh`,
+    )
+    await refresh.click()
+    expect((await firstRefresh).ok()).toBe(true)
     const status = card
       .getByRole('status')
       .filter({ hasText: '1 source entry skipped' })
