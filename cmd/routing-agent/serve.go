@@ -281,8 +281,9 @@ func startScheduler(ctx context.Context, service *application.PublicationService
 }
 
 // serveBackend is the one place the two services are presented as a single
-// surface to the HTTP layer. It adds no behavior: each method belongs to the
-// service that owns the decision.
+// surface to the HTTP layer. It also holds the process-wide delivery gate: a
+// manual request must not overlap an automatic delivery or another manual
+// request while they read, change and replace device ownership state.
 type serveBackend struct {
 	*application.PublicationService
 	deployments  *application.DeploymentService
@@ -379,5 +380,10 @@ func (b serveBackend) DeployPlan(ctx context.Context, command application.Deploy
 }
 
 func (b serveBackend) Deploy(ctx context.Context, command application.DeployCommand) (application.DeployResult, error) {
+	release, err := b.deliveryGate.Acquire(ctx)
+	if err != nil {
+		return application.DeployResult{}, err
+	}
+	defer release()
 	return b.deployments.Deploy(ctx, command)
 }
