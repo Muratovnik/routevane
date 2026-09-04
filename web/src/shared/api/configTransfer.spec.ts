@@ -142,6 +142,20 @@ describe('configuration transfer API contract', () => {
       {
         ...valid,
         warnings: [
+          { code: 'devices_require_credentials' },
+          { code: 'devices_require_credentials' },
+        ],
+      },
+      {
+        ...valid,
+        warnings: [
+          { code: 'automatic_delivery_disabled' },
+          { code: 'devices_require_credentials' },
+        ],
+      },
+      {
+        ...valid,
+        warnings: [
           { code: 'devices_require_credentials', detail: 'do not render' },
         ],
       },
@@ -156,13 +170,18 @@ describe('configuration transfer API contract', () => {
       json({
         ...valid,
         warnings: [
-          { code: 'outputs_require_publication' },
           { code: 'devices_require_credentials' },
+          { code: 'automatic_delivery_disabled' },
+          { code: 'outputs_require_publication' },
         ],
       }),
     )
     await expect(previewConfigTransfer(document)).resolves.toMatchObject({
-      warnings: ['outputs_require_publication', 'devices_require_credentials'],
+      warnings: [
+        'devices_require_credentials',
+        'automatic_delivery_disabled',
+        'outputs_require_publication',
+      ],
     })
   })
 

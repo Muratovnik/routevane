@@ -179,7 +179,18 @@ const warningSchema = v.pipe(
   v.transform((warning): ConfigTransferWarning => warning.code),
 )
 
-const warningsSchema = v.pipe(v.array(warningSchema))
+const warningsSchema = v.pipe(
+  v.array(warningSchema),
+  v.check(
+    (warnings) =>
+      new Set(warnings).size === warnings.length &&
+      warnings.every(
+        (warning, index) =>
+          index === 0 ||
+          warningOrder(warnings[index - 1]!) < warningOrder(warning),
+      ),
+  ),
+)
 
 const previewSchema = v.pipe(
   v.strictObject({
@@ -207,6 +218,14 @@ const applyResultSchema = v.pipe(
 const parsePreview: Decoder<ConfigTransferPreview> = decode(previewSchema)
 const parseApplyResult: Decoder<ConfigTransferApplyResult> =
   decode(applyResultSchema)
+
+function warningOrder(warning: ConfigTransferWarning): number {
+  return [
+    'devices_require_credentials',
+    'automatic_delivery_disabled',
+    'outputs_require_publication',
+  ].indexOf(warning)
+}
 
 export function parseConfigTransferDocument(
   textContent: string,
