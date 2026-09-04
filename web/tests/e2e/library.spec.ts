@@ -737,7 +737,7 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   const { listId, outputId } = await buildList(page)
   const listURL = `${origin}/lists/${listId}`
 
-  await expect(page.locator('.rv-status__label')).toHaveText(
+  await expect(page.locator('.list__header .rv-status__label')).toHaveText(
     'Published with notes',
   )
   await expect(page.getByText('Coverage is incomplete')).toBeVisible()
@@ -750,11 +750,9 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
     'YouTube',
   ])
 
-  // A field has no hover state, so the heading that names the schedule cannot
-  // light the control up from a line the pointer merely crossed. A `<label for>`
-  // forwards its own `:hover` to the control it names, which is how the whole
-  // width of that line was lighting up the select underneath it.
-  await expect(page.locator('#list-schedule-select')).toHaveCount(0)
+  // Refresh belongs to Connection. The inactive panel stays mounted for stable
+  // state, but its control must not leak into the Contents tab.
+  await expect(page.locator('#list-schedule-select')).toBeHidden()
 
   // The subscription link is shown masked: the raw secret is not in the DOM,
   // not in any request, until the operator asks for it.
@@ -1829,9 +1827,14 @@ test('the device form asks only for fields the selected target needs', async ({
   )
   await expect(page.locator('#device-account')).toBeVisible()
   await expect(page.locator('label[for="device-interface"]')).toHaveText(
-    'Device interface',
+    'Interface for routes',
   )
   await expect(page.locator('#device-interface')).toBeVisible()
+  await expect(
+    page.getByText(
+      'For example, Wireguard0 — the Keenetic connection/interface ID.',
+    ),
+  ).toBeVisible()
   await page.locator('#device-address').fill('http://192.168.1.1')
   await page.locator('#device-account').fill('admin')
 
