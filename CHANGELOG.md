@@ -19,6 +19,17 @@ breaking change raises the minor, everything else raises the patch. The
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/Muratovnik/routevane/compare/v0.1.3...v0.1.4) (2026-09-04)
+
+### Highlights
+
+This release contains the Routevane 0.1.3 product changes and corrects the
+release validation deadline exposed by Linux race instrumentation.
+
+### Bug Fixes
+
+- **release:** Allow instrumented server startup to reach its listener without weakening the readiness assertion, and report an early process exit directly. ([a7a63c4](https://github.com/Muratovnik/routevane/commit/a7a63c402324c383858597b35459b4e5ff48db33))
+
 ## [0.1.3](https://github.com/Muratovnik/routevane/compare/v0.1.2...v0.1.3) (2026-09-04)
 
 ### Highlights
