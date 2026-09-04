@@ -39,15 +39,22 @@ func startServeServer(t *testing.T, catalog, data string, deps runtimeDeps, extr
 		args := append([]string{"serve", "--catalog-dir", catalog, "--data-dir", data}, extraArgs...)
 		done <- runWithDeps(stdout, stderr, args, deps)
 	}()
+	startup := time.NewTimer(10 * time.Second)
+	defer startup.Stop()
 	select {
 	case call := <-called:
 		if call.network != "tcp4" || call.address != "127.0.0.1:8765" {
 			cancel()
 			t.Fatalf("listen arguments=%#v", call)
 		}
-	case <-time.After(time.Second):
+	case code := <-done:
 		cancel()
-		t.Fatal("serve did not call listener factory")
+		_ = listener.Close()
+		t.Fatalf("serve exited before listening: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
+	case <-startup.C:
+		cancel()
+		_ = listener.Close()
+		t.Fatalf("serve did not call listener factory: stdout=%s stderr=%s", stdout.String(), stderr.String())
 	}
 	origin := "http://" + listener.Addr().String()
 	deadline := time.Now().Add(5 * time.Second)
