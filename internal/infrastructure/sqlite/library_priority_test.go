@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -42,5 +43,27 @@ func TestLibraryPrioritySchemaExistsAfterFreshMigration(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("library priority table count=%d", count)
+	}
+}
+
+func TestLibraryPriorityRoundTripsMoreThan128Services(t *testing.T) {
+	store := categoryTestStore(t)
+	want := make([]string, 129)
+	for i := range want {
+		want[i] = fmt.Sprintf("service-%03d", i)
+	}
+	if err := store.SetDefaultPriority(context.Background(), want); err != nil {
+		t.Fatal(err)
+	}
+	got, err := store.DefaultPriority(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		tail := ""
+		if len(got) > 0 {
+			tail = got[len(got)-1]
+		}
+		t.Fatalf("priority length=%d, want %d; tail=%q", len(got), len(want), tail)
 	}
 }

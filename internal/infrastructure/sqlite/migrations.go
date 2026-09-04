@@ -523,7 +523,7 @@ CREATE TABLE list_service_priorities (
 -- filter them and append currently available catalog ids canonically.
 CREATE TABLE library_service_priorities (
     service_id TEXT NOT NULL CHECK (length(service_id) BETWEEN 1 AND 64),
-    position INTEGER NOT NULL CHECK (position BETWEEN 0 AND 127),
+    position INTEGER NOT NULL CHECK (position >= 0),
     PRIMARY KEY (service_id),
     UNIQUE (position)
 ) WITHOUT ROWID, STRICT;

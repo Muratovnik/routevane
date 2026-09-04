@@ -48,6 +48,16 @@ func TestCreateListAndForecastUseGlobalPriorityOnlyWhenOmitted(t *testing.T) {
 	if want := []string{"other", "example"}; !reflect.DeepEqual(created.Priority, want) {
 		t.Fatalf("created priority=%#v, want %#v", created.Priority, want)
 	}
+	forecasts, err := service.ForecastComposition(context.Background(), ListComposition{Services: []string{"example", "other"}}, []string{"keenetic"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(forecasts) != 1 {
+		t.Fatalf("forecasts=%#v", forecasts)
+	}
+	if want := []ServiceRuleForecast{{ServiceID: "example", Rules: 0}, {ServiceID: "other", Rules: 2}}; !reflect.DeepEqual(forecasts[0].PerService, want) {
+		t.Fatalf("forecast per-service=%#v, want %#v", forecasts[0].PerService, want)
+	}
 	// A non-empty request remains a route-local override even when the global
 	// order changes later. The list's stored priority is never rewritten.
 	store.globalPriority = []string{"example", "other"}

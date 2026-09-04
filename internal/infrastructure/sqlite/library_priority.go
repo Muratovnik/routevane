@@ -8,8 +8,6 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-const libraryPriorityLimit = 128
-
 // DefaultPriority reads the sparse library-wide preference in stored order.
 // The application layer owns catalog filtering and canonical append behavior;
 // this boundary intentionally returns stale rows too so no destructive cleanup
@@ -17,7 +15,7 @@ const libraryPriorityLimit = 128
 func (s *Store) DefaultPriority(ctx context.Context) ([]string, error) {
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, `SELECT service_id FROM library_service_priorities ORDER BY position ASC LIMIT ?`, libraryPriorityLimit)
+	rows, err := s.db.QueryContext(ctx, `SELECT service_id FROM library_service_priorities ORDER BY position ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("read library priority: %w", err)
 	}
@@ -41,9 +39,6 @@ func (s *Store) DefaultPriority(ctx context.Context) ([]string, error) {
 // current services; the store still validates its own row grammar so direct
 // callers cannot create duplicate positions or malformed ids.
 func (s *Store) SetDefaultPriority(ctx context.Context, priority []string) error {
-	if len(priority) > libraryPriorityLimit {
-		return fmt.Errorf("invalid library priority")
-	}
 	seen := make(map[string]struct{}, len(priority))
 	for _, serviceID := range priority {
 		if domain.ValidateSlug(serviceID) != nil {
