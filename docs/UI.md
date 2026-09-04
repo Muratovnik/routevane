@@ -49,41 +49,46 @@ Sections, addressable by URL:
    under the field; a pair that cannot build is refused before it exists,
    with a fitting format named and switchable in one click. The forecast
    guards — an unknown forecast never blocks creation.
-   The resolved lists also form a route-local priority order. Rows can be
-   dragged by their handles or moved with the up/down keys; when two lists name
-   the same destination, the higher one owns it. A new member of a live
-   category is appended after the saved order. A broader lower-priority network
-   remains when removing it would lose addresses unique to that list.
-   A collapsed **How overlaps are resolved / Как разрешаются пересечения**
-   disclosure names the format and reports whether the forecast found a
-   relation, but never turns hundreds of destinations into a manual cleanup
-   queue. A retained answer is marked as updating and an unavailable answer
-   offers a real source reread and retry.
+   Composition is one dense semantic table, searchable and filterable by
+   category. Selected rows stay together first and available rows follow, so
+   changing membership does not replace the operator's working surface. A
+   persistent rail beside the table shows only the selected lists and owns
+   reordering and removal. Its drag handles have keyboard equivalents; order
+   is communicated by position, not repeated as visible ordinal numbers. On a
+   narrow screen the rail becomes a full-width section after the table instead
+   of shrinking into a drawer.
+   The rail begins in the library's default order, then the route stores that
+   order as its own snapshot. When two selected lists overlap, each affected
+   table row carries compact tags naming every other selected list it intersects.
+   Tags summarize the complete relation set even when detailed diagnostics are
+   capped at 100 records. The interface never turns those records into a manual
+   cleanup queue: the higher list owns an equal destination, a covered
+   lower-priority rule is omitted, and a broader lower-priority network remains
+   when removing it would lose unique addresses. A new member of a live category
+   is appended after the route's saved order. A retained forecast is marked as
+   updating and an unavailable answer offers a real source reread and retry.
 3. `/lists/{listId}` — **The route page.** One object with its facets as tabs:
    Contents · Connection · File · Diagnostics; the active tab and the
    first-setup handoff travel in the URL hash (`#tab=…&setup=…`) because the
    embedded server rejects query strings, and the legacy `/#list={listId}`
    fragment redirects here. A breadcrumb returns to the route shelf. The Contents
-   tab leads with what the route already holds (ADR 0027): its categories and
-   lists as rows, each with its forecast weight in rules and a removal
-   control drawn as a bin, never as a cross — a cross means "close", and the
-   catalog picker that opens beneath the rows behind «Добавить списки» has
-   its own header and its own «Скрыть»; choosing is the composer's job and
-   reviewing is this page's.
-   Resolved list rows are shown in their saved priority order and can be
-   reordered by drag handle or keyboard. The overlap disclosure uses the first
-   connection's format, like the row weights, names that connection explicitly,
-   and explains the automatic winner rule. Save
+   tab leads with the same dense composition table and ordered rail as route
+   creation (ADR 0027). Selected rows come first, available rows follow, search
+   and category filters keep their geometry, and opening a row inspects the
+   list without changing membership. The rail shows the route's saved priority
+   and owns reordering and removal by pointer or keyboard. Intersection tags on
+   selected rows use the first connection's format, like the row weights, and
+   name every other selected list with which that row overlaps. Save
    is enabled only once the draft differs from the stored route, cancel
    restores it, and an output the draft would overflow is warned about beside
-   the save action without blocking it. **The picker selects and writes nothing else** (ADR 0029). Every
+   the save action without blocking it. **The composition table selects and
+   writes nothing else** (ADR 0029). Every
    category names its members before it is selected; a mixed checkbox always
    means that only some of those members are active, regardless of how they
-   were selected. Categories and their lists form a master-detail view: the
-   category column — every catalog and operator category, then «Без
-   категории» for the lists no category holds (ADR 0028) — keeps its geometry
-   while a separate, scrollable pane shows one category at a time. Search
-   filters the available choices without expanding or moving unrelated rows.
+   were selected. The table's category filter includes every catalog and
+   operator category, then «Без категории» for the lists no category holds
+   (ADR 0028). Search filters the available choices without expanding or moving
+   unrelated rows.
    Changing a member never adds a provenance label or changes that row's
    height. Selecting the category adds its members together, and each member
    can still be excluded. There is no category menu here, no «Своя
@@ -142,7 +147,11 @@ Sections, addressable by URL:
    «Удалить список». Deleting a list or a category a route names directly is
    refused with those routes named; removing a list _from a category_ is
    allowed to change what a route carries, because that is what naming a
-   category means. «Своя категория» and «Свой список» occupy the full width of
+   category means. The library also owns the default list priority. Its complete
+   ordered list can be rearranged by drag handle or keyboard without visible
+   ordinal labels. This order initializes routes and forecasts that do not yet
+   supply their own priority; saving it never rewrites an existing route's
+   stored order. «Своя категория» and «Свой список» occupy the full width of
    their respective footers. This card has no footer: no route is in question. The two
    panes use the available viewport height and dense operational rows instead
    of clipping a short table inside an otherwise empty page. While the library
@@ -175,7 +184,8 @@ Sections, addressable by URL:
    destination must be empty. Imported connections carry no credentials or
    delivery authority, outputs carry no publication/subscription state, and
    operator-added HTTP sources carry no portable URL: preview warns that they
-   must be recreated. Catalog-source on/off choices still transfer. The browser
+   must be recreated. Catalog-source on/off choices and the library's default
+   list priority still transfer. The browser
    preserves the exact UTF-8 JSON text through preview and apply, rejects a file
    over the shared 64 MiB boundary before reading it, and never parses then
    rewrites the document sent to the server.

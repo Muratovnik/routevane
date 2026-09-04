@@ -14,13 +14,15 @@ configuration document.
 
 ## Decision
 
-`config-transfer-v1.2` exports strict canonical JSON from one read snapshot.
+`config-transfer-v1.3` exports strict canonical JSON from one read snapshot.
 Operator-owned records use deterministic transfer-local references; catalog
 references remain catalog ids. Applying a previewed document only succeeds on a
 fresh database and creates fresh persistent identities in one transaction.
 Each route also carries its ordered service references so overlap ownership
-survives the move. The importer accepts v1.1 documents and derives their
-priority from the resolved service order.
+survives the move. The settings carry the complete library default priority,
+with custom-list ids rewritten to transfer-local references. The importer accepts
+v1.2 and v1.1 documents: route priority remains readable, while an absent library
+default falls back to canonical catalog order.
 
 The transfer excludes credentials, tokens, hashes, publication pointers,
 artifacts, history, observations, browser preferences, caches, backups, audits,
@@ -32,9 +34,9 @@ source is omitted with it; enabled/disabled choices for catalog sources remain
 portable. A v1 document containing a custom source URL is refused.
 The importer still recognizes a legacy `config-transfer-v1.0` document only
 when it has neither a custom source URL nor the v1.1 omission field. This lets a
-non-sensitive old file move forward. V1.1 files remain readable; current exports
-use v1.2 so importers that do not understand route priority fail cleanly rather
-than silently discarding the order.
+non-sensitive old file move forward. V1.1 and v1.2 files remain readable;
+current exports use v1.3 so importers that do not understand the library default
+priority fail cleanly rather than silently discarding the order.
 
 Device metadata may transfer, but credentials and automatic delivery do not;
 output publication and subscription state remain empty. Preview and apply

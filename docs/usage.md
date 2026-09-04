@@ -283,6 +283,27 @@ Public/LAN access and separate workers remain outside this local release. Device
 deployment, browser discovery, and the external renderer/source plugin path are
 included and keep their own bounded safety boundaries.
 
+## Ordering lists and resolving overlaps
+
+The order of selected lists decides which list owns a shared destination. In a
+route, move lists in the **In route** rail: the list above wins. Saving the route
+stores that order for this route and rebuilds its outputs. Reordering the default
+priority in **Lists** affects the initial order of new routes and forecasts only;
+it does not change routes that already exist.
+
+If two selected lists contain the same destination, Routevane keeps it under the
+higher list. If a lower list's narrower rule is wholly covered by a higher list,
+the lower rule is omitted. A broader lower-priority network is kept whenever it
+still contributes addresses that the higher list does not cover, so changing
+priority never silently reduces the requested routing union. A list newly added
+through a live category is placed after the route's saved order.
+
+Selected table rows use intersection tags to name every other selected list they
+overlap. Use those tags to decide which list should move higher; you do not need
+to edit hundreds of individual destinations. The tag summary is complete even
+when Diagnostics shows only the first 100 detailed overlap records.
+See [ADR 0036](adr/0036-route-local-list-priority.md) for the ownership rules.
+
 ## Moving configuration to another computer
 
 Open **Settings → Configuration transfer** on the source computer and download
@@ -290,10 +311,11 @@ the JSON file. On a fresh Routevane installation, select that file, review the
 preview, and apply it. The destination must be empty; transfer does not merge
 with an installation that already has routes, connections, or custom lists.
 
-The file contains the global refresh setting, custom lists and categories,
-catalog-source on/off choices, per-destination source corrections, routes,
-non-secret connection details, and output bindings. It does not contain router
-passwords, bearer subscription tokens, operator-added HTTP source addresses,
+The current `config-transfer-v1.3` file contains the global refresh setting, the
+library's default list priority, custom lists and categories, catalog-source
+on/off choices, per-destination source corrections, routes with their own
+priority, non-secret connection details, and output bindings. It does not contain
+router passwords, bearer subscription tokens, operator-added HTTP source addresses,
 published artifacts, observations, history, backups, logs, or browser
 preferences. A preview warning tells you when custom sources were omitted; add
 them again after transfer. Local catalog discoveries are also excluded because

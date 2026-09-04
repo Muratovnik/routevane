@@ -6,7 +6,7 @@ Audience: contributors investigating a decision, not users installing Routevane.
 of the decision; an adopted ADR can have specifically replaced clauses.
 
 Important chains: 0004 → 0013/0023 (objects and issuance), 0013 → 0016 → 0028 →
-0029 → 0036 (composition, vocabulary, library ownership and priority),
+0029 → 0036 (composition, vocabulary, library ownership, default and route priority),
 0024 → 0025 → 0029 (editing),
 0012 → 0014 → 0031 (credentials and unattended delivery), 0008 → 0032 → 0034
 (Keenetic route ownership and descriptions), and 0002 → 0030 (Go).
@@ -49,4 +49,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0033: portable configuration transfers use fresh identities](./0033-portable-configuration-transfers.md) | adopted |
 | [ADR 0034: Keenetic route descriptions come from plan provenance](./0034-keenetic-route-descriptions-from-plan-provenance.md) | adopted |
 | [ADR 0035: Nuxt UI supplies interactive component mechanics](./0035-nuxt-ui-component-mechanics.md) | adopted |
-| [ADR 0036: resolve list overlaps by route-local priority](./0036-route-local-list-priority.md) | adopted |
+| [ADR 0036: initialize route-local list priority from a library default](./0036-route-local-list-priority.md) | adopted |
