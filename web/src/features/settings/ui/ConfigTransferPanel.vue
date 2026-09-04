@@ -171,6 +171,7 @@ async function apply(): Promise<void> {
       v-if="transfer.preview.value !== null"
       aria-labelledby="config-transfer-preview"
       class="config-transfer__preview"
+      role="region"
     >
       <h3 id="config-transfer-preview" class="config-transfer__preview-title">
         {{ t('configTransfer.preview.title') }}
