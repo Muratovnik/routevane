@@ -29,6 +29,7 @@ release validation deadline exposed by Linux race instrumentation.
 ### Bug Fixes
 
 - **release:** Allow instrumented server startup to reach its listener without weakening the readiness assertion, and report an early process exit directly. ([a7a63c4](https://github.com/Muratovnik/routevane/commit/a7a63c402324c383858597b35459b4e5ff48db33))
+- **release:** Await the source-refresh response instead of racing drawer focus during browser validation. ([64a06f6](https://github.com/Muratovnik/routevane/commit/64a06f6d0d32aefb14e03f3122c8c0f52a028aeb))
 
 ## [0.1.3](https://github.com/Muratovnik/routevane/compare/v0.1.2...v0.1.3) (2026-09-04)
 
