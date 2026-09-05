@@ -692,17 +692,22 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
   // The page is scrolled before the card opens. The click below would scroll
   // its own target into view, so the position the card must preserve is the
   // one read after that adjustment, not before it.
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
+  await page.locator('.shell__main').evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
   const opener = page.getByRole('button', {
     name: 'Open the contents of list Discord',
   })
   await opener.scrollIntoViewIfNeeded()
-  const scrolled = await page.evaluate(() => Math.round(window.scrollY))
+  const scrolled = await page
+    .locator('.shell__main')
+    .evaluate((element) => Math.round(element.scrollTop))
   expect(scrolled).toBeGreaterThan(0)
   const logoAfterScroll = await logo.boundingBox()
   expect(logoAfterScroll).not.toBeNull()
   expect(logoAfterScroll?.width).toBeCloseTo(logoBeforeScroll?.width ?? 0, 2)
   expect(logoAfterScroll?.height).toBeCloseTo(logoBeforeScroll?.height ?? 0, 2)
+  expect(logoAfterScroll?.y).toBe(logoBeforeScroll?.y)
 
   await opener.focus()
   await expect(opener).toBeFocused()
@@ -798,7 +803,11 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
   ).toBe('hidden')
   await page.mouse.move(8, 320)
   await page.mouse.wheel(0, -600)
-  expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(scrolled)
+  expect(
+    await page
+      .locator('.shell__main')
+      .evaluate((element) => Math.round(element.scrollTop)),
+  ).toBe(scrolled)
 
   // The library primitive owns a modal focus loop. Both ends wrap inside the
   // real USlideover, and close returns to the external opener.
@@ -876,7 +885,11 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
   await expect
     .poll(() => page.evaluate(() => getComputedStyle(document.body).overflow))
     .not.toBe('hidden')
-  expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(scrolled)
+  expect(
+    await page
+      .locator('.shell__main')
+      .evaluate((element) => Math.round(element.scrollTop)),
+  ).toBe(scrolled)
 
   // Reduced motion keeps the same final geometry but collapses the animation
   // to the global near-zero duration.
@@ -904,7 +917,11 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
   await card.getByRole('button', { name: 'Close' }).click()
   await expect(card).toBeHidden()
   await expect(opener).toBeFocused()
-  expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(scrolled)
+  expect(
+    await page
+      .locator('.shell__main')
+      .evaluate((element) => Math.round(element.scrollTop)),
+  ).toBe(scrolled)
   await page.emulateMedia({ reducedMotion: 'no-preference' })
 
   // A quick dismissal during the entrance has no matching exit animation and
@@ -2998,7 +3015,7 @@ test('the composition editor keeps its geometry across selections and shell brea
 }) => {
   await page.goto(`${origin}/lists/new`)
   const table = page.locator('.picker__table-frame')
-  const rail = page.locator('.create__settings')
+  const rail = page.locator('.rv-workspace__settings')
   await expect(table).toBeVisible()
 
   await page.setViewportSize({ height: 900, width: 1440 })
@@ -3052,7 +3069,7 @@ test('the composition editor keeps its geometry across selections and shell brea
   expect(after?.width).toBeCloseTo(before?.width ?? 0)
   expect(after?.height).toBeCloseTo(before?.height ?? 0)
 
-  for (const width of [1024, 768, 320]) {
+  for (const width of [1280, 1024, 768, 320]) {
     await page.setViewportSize({ height: 900, width })
     if (width <= 768) {
       // Resizing also updates the measured quick-filter count. Compare both
@@ -3061,7 +3078,7 @@ test('the composition editor keeps its geometry across selections and shell brea
         .poll(() =>
           page.evaluate(() => {
             const table = document.querySelector('.picker__table-frame')!
-            const settings = document.querySelector('.create__settings')!
+            const settings = document.querySelector('.rv-workspace__settings')!
             return (
               settings.getBoundingClientRect().top -
               table.getBoundingClientRect().bottom
@@ -3070,6 +3087,11 @@ test('the composition editor keeps its geometry across selections and shell brea
         )
         .toBeGreaterThanOrEqual(0)
     }
+    expect(
+      await table.evaluate(
+        (element) => element.scrollWidth - element.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(1)
     await assertNoOverflow(page, `composition-editor-${width}`)
   }
 })
@@ -3274,6 +3296,17 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     .locator(`input[value="${ids[1]}"]`)
     .locator('xpath=ancestor::tr')
   await expect(alphaRow).toContainText('Overlap: Overlap Beta')
+  const countInset = await alphaRow
+    .locator('.picker__overlaps-column')
+    .evaluate((cell) => {
+      const count = cell.querySelector('button')!
+      return (
+        count.getBoundingClientRect().left -
+        cell.getBoundingClientRect().left -
+        Number.parseFloat(getComputedStyle(cell).paddingLeft)
+      )
+    })
+  expect(Math.abs(countInset)).toBeLessThanOrEqual(1)
   await expect(betaRow).toContainText('Overlap: Overlap Alpha')
   await alphaRow
     .getByRole('button', { name: 'Overlap: Overlap Beta', exact: true })
@@ -3597,6 +3630,11 @@ for (const language of ['en', 'ru'] as const) {
         })
         for (const width of [320, 1919]) {
           await page.setViewportSize({ width, height: 900 })
+          // ResizeObserver moves the card between modal and workspace surfaces.
+          // Measure after the requested mode has mounted, not the outgoing tree.
+          if (width === 1919)
+            await expect(compose).toHaveClass(/rv-dialog--docked/)
+          else await expect(compose).not.toHaveClass(/rv-dialog--docked/)
           await filter.fill('')
           await expect(rows.locator('li')).toHaveCount(domains.length)
           const normalRowBox = await rows
@@ -4018,14 +4056,8 @@ for (const language of ['en', 'ru'] as const) {
         await expect(
           card.getByText(copy('serviceCard.loading'), { exact: true }),
         ).toBeVisible()
-        await expect(close).toBeDisabled()
-        await page.keyboard.press('Escape')
-        await expect(card).toBeVisible()
-        await page
-          .locator('.rv-dialog__scrim')
-          .last()
-          .dispatchEvent('pointerdown')
-        await expect(card).toBeVisible()
+        // Initial reading can be dismissed; actual source work below stays guarded.
+        await expect(close).toBeEnabled()
         releaseInitialContents()
         await expect(
           card.getByRole('heading', { name: copy('serviceCard.domains') }),
@@ -4178,6 +4210,19 @@ type AuditFinding = {
 }
 
 async function audit(page: Page, screen: string): Promise<AuditFinding[]> {
+  // Measure settled contrast, not the intermediate opacity of an opening panel.
+  // Loading indicators may run indefinitely; they are still audited as drawn.
+  await page.evaluate(async () => {
+    await Promise.all(
+      document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.effect?.getComputedTiming().iterations !== Infinity,
+        )
+        .map((animation) => animation.finished.catch(() => {})),
+    )
+  })
   const result = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze()
@@ -4366,3 +4411,84 @@ async function embeddedFiles(root: string, prefix = ''): Promise<string[]> {
 function sha256(value: string | Uint8Array): string {
   return createHash('sha256').update(value).digest('hex')
 }
+
+test('composition keeps its context in docked and overlaid cards and isolates navigation scroll', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 960 })
+  await page.goto(`${origin}/lists/new`)
+  const frame = page.locator('.picker__table-frame')
+  await expect(frame).toBeVisible()
+  const closedWidth = (await frame.boundingBox())!.width
+  expect(closedWidth).toBeLessThan(1150)
+  const opener = page.locator('[data-id="discord"] .picker__open')
+  await opener.click()
+  const card = page.getByRole('dialog', { name: 'Discord', exact: true })
+  await expect(card).toHaveClass(/rv-dialog--docked/)
+  await expect(page.locator('.rv-dialog__scrim')).toHaveCount(0)
+  const tableBox = (await frame.boundingBox())!
+  const cardBox = (await card.boundingBox())!
+  expect(tableBox.x + tableBox.width).toBeLessThan(cardBox.x)
+  expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(960)
+  expect(
+    await frame.evaluate((e) => e.scrollWidth - e.clientWidth),
+  ).toBeLessThanOrEqual(1)
+  const filter = card.locator('.service-card__filter-input')
+  await filter.fill('discord')
+  await filter.press('Enter')
+  await expect(page).toHaveURL(`${origin}/lists/new`)
+  expect(
+    await filter.evaluate((element) => (element as HTMLInputElement).form),
+  ).toBeNull()
+  await page.locator('input[value="discord"]').check()
+  await expect(card).toBeVisible()
+  await page.screenshot({ path: join(reviewRoot, 'composition-docked.png') })
+  await page.setViewportSize({ width: 1100, height: 850 })
+  await expect(card).not.toHaveClass(/rv-dialog--docked/)
+  await expect(page.locator('.rv-dialog__scrim')).toBeVisible()
+  await expect(filter).toHaveValue('discord')
+  await expect(
+    card.getByRole('button', { name: 'Close', exact: true }),
+  ).toBeEnabled({ timeout: 60000 })
+  await page.keyboard.press('Escape')
+  await expect(card).toBeHidden()
+  await expect(opener).toBeFocused()
+  await expect(page.locator('input[value="discord"]')).toBeChecked()
+  await page.setViewportSize({ width: 1920, height: 960 })
+  await opener.click()
+  await expect(card).toHaveClass(/rv-dialog--docked/)
+  await expect(
+    card.getByRole('button', { name: 'Close', exact: true }),
+  ).toBeEnabled({ timeout: 60000 })
+  await page.keyboard.press('Escape')
+  await expect(opener).toBeFocused()
+  await page.getByRole('button', { name: 'Collapse sidebar' }).click()
+  await expect(
+    page.getByRole('button', { name: 'Expand sidebar' }),
+  ).toBeVisible()
+  expect(
+    await page
+      .locator('.shell')
+      .evaluate((e) => getComputedStyle(e).transitionProperty),
+  ).toContain('grid-template-columns')
+  await page.screenshot({ path: join(reviewRoot, 'composition-compact.png') })
+  // A long existing route must scroll its own content without moving navigation.
+  await page.goto(`${origin}/settings`)
+  const logoY = (await page.locator('.shell__product-mark').boundingBox())!.y
+  await page.locator('.shell__main').evaluate((e) => {
+    e.scrollTop = e.scrollHeight
+  })
+  expect((await page.locator('.shell__product-mark').boundingBox())!.y).toBe(
+    logoY,
+  )
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollHeight - innerHeight,
+    ),
+  ).toBe(0)
+  expect(
+    await page
+      .locator('.shell__side')
+      .evaluate((e) => e.scrollHeight - e.clientHeight),
+  ).toBeLessThanOrEqual(1)
+})

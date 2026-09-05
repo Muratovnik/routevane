@@ -573,7 +573,7 @@ async function onListMenu(key: string): Promise<void> {
         v-show="tab === 'overview'"
         id="rv-panel-overview"
         aria-labelledby="rv-tab-overview"
-        class="list__panel"
+        class="list__panel list__panel--composition"
         role="tabpanel"
       >
         <ListEditor

@@ -148,9 +148,11 @@
   --rv-picker-fill-height: 100%;
   --rv-picker-fill-min: 0;
   --rv-picker-fill-max: none;
+  --rv-composition-width: 88rem;
+  --rv-composition-inspecting-width: 112rem;
+  --rv-detail-min-width: 35rem;
   --rv-composer-rail-width: var(--rv-panel-width);
   --rv-composer-priority-height: max(16rem, calc(100dvh - 24rem));
-  --rv-picker-table-width: 42rem;
   --rv-picker-priority-width: 2.75rem;
   --rv-picker-name-width: 8rem;
   --rv-picker-rule-width: 5rem;

@@ -1,9 +1,20 @@
 .list {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
   gap: var(--rv-space-8);
   width: 100%;
   min-width: 0;
+}
+
+.list > * {
+  flex-shrink: 0;
+}
+
+.list__panel--composition {
+  flex: 1;
+  min-height: var(--rv-picker-mobile-height);
 }
 
 /* The first read keeps the page's final silhouette in place. No transient

@@ -82,6 +82,7 @@ function onDrop(event: DragEvent): void {
 
 <style scoped>
 .rv-file-picker {
+  position: relative;
   width: min(var(--rv-measure-field), 100%);
 }
 

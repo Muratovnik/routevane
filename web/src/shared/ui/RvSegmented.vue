@@ -101,6 +101,7 @@ function select(value: string, event: Event): void {
 }
 
 .rv-segmented__option {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -114,6 +115,7 @@ function select(value: string, event: Event): void {
 }
 
 .rv-segmented:disabled .rv-segmented__option {
+  position: relative;
   opacity: var(--rv-disabled-opacity);
   cursor: not-allowed;
 }

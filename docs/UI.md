@@ -76,7 +76,10 @@ Sections, addressable by URL:
    first-setup handoff travel in the URL hash (`#tab=…&setup=…`) because the
    embedded server rejects query strings, and the legacy `/#list={listId}`
    fragment redirects here. A breadcrumb returns to the route shelf. The Contents
-   tab leads with the same dense composition table as route creation (ADR 0027).
+   tab uses the same workspace as route creation: the dense composition table
+   on the left, route name, existing connections, and save/cancel on the right
+   (ADR 0027). The existing connections are a summary; adding or changing an
+   output remains on the Connection tab.
    Membership changes keep row positions stable. The table owns selection,
    removal and priority changes by pointer or keyboard; opening a row inspects
    the list without changing membership. Intersection counts and their name disclosures on
@@ -98,11 +101,15 @@ Sections, addressable by URL:
    категория», no «Свой список» and no bin on a row: those change the library,
    and the library is its own section.
    A list's chevron opens its **list card** (ADR 0025, ADR 0026, ADR 0029)
-   before or after selection — a full-height right-side sheet up to the shared
-   64rem working width, one modal
-   `RvDialog` portalled to the document body: it locks the page scroll behind
-   it, traps focus, returns it on close, and stays whole over a page scrolled
-   to any position. The table's scroll area fills the sheet down to the footer;
+   before or after selection. When the composition workspace has at least
+   80rem of available width, the card occupies a nonmodal panel beside the
+   table, temporarily replacing the settings rail. The table remains interactive;
+   closing the card restores the settings and keyboard focus. At smaller widths
+   it becomes a modal right-side sheet up to the shared 64rem working width,
+   portalled to the document body, with scroll lock and trapped focus. Switching
+   modes preserves the card data and filter. Secondary decisions remain modal.
+   Without an open card, the shared workspace has a maximum width of 88rem
+   to keep names, categories and numeric columns close enough to scan. The table's scroll area fills the sheet down to the footer;
    its rows keep their natural height and align at the top, including when a
    filter leaves one row. A long table has no separate empty band between its
    scroll area and the footer. When enlarged controls need more height, the
@@ -314,11 +321,11 @@ lists. The panel's ground and border must survive portal rendering.
 
 This is the shared layout verification matrix; rule and skill files link here:
 
-| Scenario | Verification |
-| --- | --- |
-| Desktop layout | Inspect at 1024 and 1440 CSS px wide with representative data, checking density, comparison and keyboard/pointer operation. |
-| Constrained window | Inspect at 768 CSS px wide and a short desktop window, such as 1280 × 640 CSS px; scrolling must keep actions reachable. |
-| Enlarged text | Check text enlarged to 200% without losing content or controls. |
+| Scenario             | Verification                                                                                                                 |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Desktop layout       | Inspect at 1024 and 1440 CSS px wide with representative data, checking density, comparison and keyboard/pointer operation.  |
+| Constrained window   | Inspect at 768 CSS px wide and a short desktop window, such as 1280 × 640 CSS px; scrolling must keep actions reachable.     |
+| Enlarged text        | Check text enlarged to 200% without losing content or controls.                                                              |
 | Accessibility reflow | Check at 320 CSS px wide, equivalent to a 1280 CSS px viewport at 400% browser zoom; preserve information and functionality. |
 
 These are inspection cases, not a minimum window size or device support list.
@@ -459,3 +466,7 @@ measured cell widths and row height outside their table. Selection never changes
 row order. File previews grow with the desktop window while short files keep their
 natural height. Loading, stale coverage, failed calculation, and a confirmed zero
 remain distinct states; source changes invalidate forecasts for affected drafts.
+
+The application shell owns one viewport. Page content and overflowing navigation
+scroll independently; ordinary page scrolling never moves the logo. Sidebar width
+changes use the shared motion tokens and honor reduced-motion preferences.

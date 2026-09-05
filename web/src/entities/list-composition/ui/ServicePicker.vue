@@ -105,7 +105,17 @@ const rowOrder = ref<string[]>([])
 watch(
   allRows,
   (rows) => {
-    let ids = rows.map((row) => row.id)
+    const catalogOrder = [
+      ...new Set(props.categories.flatMap((category) => category.services)),
+    ]
+    const rank = new Map(catalogOrder.map((id, index) => [id, index]))
+    let ids = rows
+      .map((row) => row.id)
+      .sort(
+        (a, b) =>
+          (rank.get(a) ?? catalogOrder.length) -
+          (rank.get(b) ?? catalogOrder.length),
+      )
     if (rowOrder.value.length === 0) {
       const initial = props.initialPriority ?? props.modelValue.priority ?? []
       const ranked = initial.filter((id) => ids.includes(id))
@@ -301,7 +311,6 @@ function ruleLabel(serviceID: string): string {
 function overlapTitles(serviceID: string): string[] | null {
   if (
     !resolvedSet.value.has(serviceID) ||
-    props.forecastPending ||
     props.forecastFailure ||
     props.overlapUnavailable
   )
@@ -424,7 +433,10 @@ function serviceLabel(serviceID: string): string {
                 : undefined
             "
             class="picker__row"
-            :class="{ 'picker__row--selected': included(service.id) }"
+            :class="{
+              'picker__row--selected': included(service.id),
+              'picker__row--inspected': activeServiceID === service.id,
+            }"
           >
             <td class="picker__priority-column">
               <button
@@ -527,6 +539,7 @@ function serviceLabel(serviceID: string): string {
             <td class="picker__overlaps-column">
               <RvInfoTip
                 v-if="(overlapTitles(service.id)?.length ?? 0) > 0"
+                numeric
                 :label="
                   t('servicePicker.overlap.tag', {
                     list: overlapTitles(service.id)?.join(', ') ?? '',
@@ -589,11 +602,7 @@ function serviceLabel(serviceID: string): string {
       </p>
     </div>
 
-    <div
-      v-if="overlapMessage !== ''"
-      class="picker__forecast-status"
-      role="status"
-    >
+    <div class="picker__forecast-status" role="status">
       <span>{{ overlapMessage }}</span>
       <RvButton
         v-if="

@@ -8,6 +8,7 @@ import {
   resolvedComposition,
 } from '@/entities/list-composition/model/composition'
 import { useCompositionForecast } from '@/entities/list-composition/model/forecast'
+import RvWorkspace from '@/shared/ui/RvWorkspace.vue'
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { CategoryDetail, ServiceDetail } from '@/shared/api/catalog'
@@ -59,7 +60,12 @@ const forecastTargets = computed(() => [
 ])
 
 watch(
-  [draftComposition, forecastTargets],
+  () =>
+    JSON.stringify([
+      draftComposition.value,
+      resolved.value,
+      forecastTargets.value,
+    ]),
   () => {
     // An empty target list asks the endpoint about every format there is,
     // which is the opposite of what a list publishing nowhere wants: with
@@ -147,78 +153,93 @@ function reset(): void {
 </script>
 
 <template>
-  <form class="editor" @submit.prevent="submit">
-    <div class="editor__field">
-      <label class="editor__label" for="editor-name">
-        {{ t('list.edit.name') }}
-      </label>
-      <input
-        id="editor-name"
-        v-model="draftName"
-        class="editor__input"
-        :disabled="props.busy"
-        maxlength="120"
-        type="text"
-      />
-    </div>
+  <div class="editor">
+    <RvWorkspace :settings-label="t('create.settings')">
+      <section aria-labelledby="editor-composition" class="editor__composition">
+        <h2 id="editor-composition" class="editor__legend">
+          {{ t('list.composition.services') }}
+        </h2>
+        <div class="editor__composition-body">
+          <ServicePicker
+            v-model="draftComposition"
+            fill
+            :categories="props.categories"
+            :disabled="props.busy"
+            :forecast="firstForecast"
+            :forecast-failure="
+              forecast.failure.value
+                ? t(`forecast.failure.${forecast.failure.value}`)
+                : undefined
+            "
+            :overlap-unavailable="forecastTargets.length === 0"
+            :overlap-unavailable-label="t('list.overlap.unavailable')"
+            :forecast-pending="forecast.pending.value"
+            :list-name="draftName"
+            :pending="dirty"
+            :services="props.services"
+            :retryable="forecastTargets.length > 0"
+            @reorder="setPriority"
+            @refresh="
+              forecast.refresh(draftComposition, resolved, forecastTargets)
+            "
+            @retry="retryForecast"
+          />
+        </div>
+      </section>
 
-    <section aria-labelledby="editor-composition" class="editor__composition">
-      <h2 id="editor-composition" class="editor__label">
-        {{ t('list.composition.services') }}
-      </h2>
-      <div class="editor__composition-body">
-        <ServicePicker
-          v-model="draftComposition"
-          :categories="props.categories"
-          :disabled="props.busy"
-          :forecast="firstForecast"
-          :forecast-failure="
-            forecast.failure.value
-              ? t(`forecast.failure.${forecast.failure.value}`)
-              : undefined
-          "
-          :overlap-unavailable="forecastTargets.length === 0"
-          :overlap-unavailable-label="t('list.overlap.unavailable')"
-          :forecast-pending="forecast.pending.value"
-          :list-name="draftName"
-          :pending="dirty"
-          :services="props.services"
-          :retryable="forecastTargets.length > 0"
-          @reorder="setPriority"
-          @refresh="
-            forecast.refresh(draftComposition, resolved, forecastTargets)
-          "
-          @retry="retryForecast"
-        />
-      </div>
-    </section>
+      <template #settings>
+        <form class="editor__settings" @submit.prevent="submit">
+          <div class="editor__field">
+            <label class="editor__label" for="editor-name">
+              {{ t('list.edit.name') }}
+            </label>
+            <input
+              id="editor-name"
+              v-model="draftName"
+              class="editor__input"
+              :disabled="props.busy"
+              maxlength="120"
+              type="text"
+            />
+          </div>
 
-    <p class="editor__note">{{ t('list.edit.note') }}</p>
+          <div v-if="outputs.length" class="editor__field">
+            <span class="editor__label">{{ t('create.target') }}</span>
+            <p>{{ outputs.map((output) => output.title).join(', ') }}</p>
+          </div>
+          <p class="editor__note">{{ t('list.edit.note') }}</p>
 
-    <div v-if="overflowLines.length > 0" class="editor__forecast" role="status">
-      <p v-for="line in overflowLines" :key="line">{{ line }}</p>
-    </div>
+          <div
+            v-if="overflowLines.length > 0"
+            class="editor__forecast"
+            role="status"
+          >
+            <p v-for="line in overflowLines" :key="line">{{ line }}</p>
+          </div>
 
-    <div class="editor__actions">
-      <RvButton
-        :disabled="!canSave || !dirty"
-        :loading="props.busy"
-        :loading-label="t('list.edit.saving')"
-        type="submit"
-        variant="primary"
-      >
-        {{ props.busy ? t('list.edit.saving') : t('list.edit.save') }}
-      </RvButton>
-      <RvButton
-        v-if="dirty"
-        :disabled="props.busy"
-        variant="quiet"
-        @click="reset"
-      >
-        {{ t('action.cancel') }}
-      </RvButton>
-    </div>
-  </form>
+          <div class="editor__actions">
+            <RvButton
+              :disabled="!canSave || !dirty"
+              :loading="props.busy"
+              :loading-label="t('list.edit.saving')"
+              type="submit"
+              variant="primary"
+            >
+              {{ props.busy ? t('list.edit.saving') : t('list.edit.save') }}
+            </RvButton>
+            <RvButton
+              v-if="dirty"
+              :disabled="props.busy"
+              variant="quiet"
+              @click="reset"
+            >
+              {{ t('action.cancel') }}
+            </RvButton>
+          </div>
+        </form>
+      </template>
+    </RvWorkspace>
+  </div>
 </template>
 
 <style scoped src="./ListEditor.css"></style>

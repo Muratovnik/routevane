@@ -95,7 +95,7 @@ function acceptedResponse(): Response {
  * fault in that test rather than a silent default, so an unrouted call answers
  * with a refusal it will notice.
  */
-function stubAPI(routes: Record<string, () => Response>) {
+function stubAPI(routes: Record<string, () => Response | Promise<Response>>) {
   const calls: { body: string | null; key: string }[] = []
   const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
     const key = `${init?.method ?? 'GET'} ${String(input)}`
@@ -388,6 +388,30 @@ describe('ServicePicker', () => {
   // source that offered it — nothing repeats what the value already says, and
   // nothing on the row is a control: what a route takes from a list is the
   // whole list (ADR 0029).
+  it('closes during a read and ignores its late result without starting source work', async () => {
+    let release!: (response: Response) => void
+    const { keys } = stubAPI({
+      'GET /v1/services/discord/contents': () =>
+        new Promise((resolve) => {
+          release = resolve
+        }),
+    })
+    const wrapper = mountPicker()
+    await wrapper.findAll('.picker__open')[0]!.trigger('click')
+    await flushPromises()
+    const close =
+      openDialog().querySelector<HTMLButtonElement>('.rv-dialog__close')!
+    expect(close.disabled).toBe(false)
+    close.click()
+    await flushPromises()
+    release(contentsResponse(false))
+    await flushPromises()
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(keys()).toEqual(['GET /v1/services/discord/contents'])
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    wrapper.unmount()
+  })
+
   it('opens on the contents table with origins and no row controls', async () => {
     const { keys } = stubAPI({
       'GET /v1/services/discord/contents': () => contentsResponse(),

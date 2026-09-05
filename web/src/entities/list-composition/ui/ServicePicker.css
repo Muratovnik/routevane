@@ -94,13 +94,17 @@
   font-weight: 600;
 }
 
+.picker__row--inspected {
+  box-shadow: inset var(--rv-border-mark) 0 var(--rv-color-accent);
+}
+
 .picker__name {
   display: block;
   font-weight: 400;
 }
 
 .picker__category-column {
-  width: 26%;
+  width: 30%;
   color: var(--rv-color-ink-muted);
 }
 
@@ -134,7 +138,7 @@
 
 .picker__unknown {
   color: var(--rv-color-ink-tertiary);
-  font-size: var(--rv-text-meta);
+  font-variant-numeric: tabular-nums;
 }
 
 .picker__checkbox {
@@ -196,13 +200,7 @@
   clip-path: inset(50%);
 }
 
-@container (width > 36rem) {
-  .picker__table {
-    min-width: var(--rv-picker-table-width);
-  }
-}
-
-@container (width <= 36rem) {
+@container (width <= 42rem) {
   .picker__table {
     table-layout: auto;
   }
@@ -336,7 +334,7 @@
   /* A stacking host may restore a bounded natural-height table. */
   height: var(--rv-picker-fill-height);
   min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
 }
 
 .picker--fill .picker__table-frame {

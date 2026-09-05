@@ -134,6 +134,23 @@ describe('ListEditor', () => {
     wrapper.unmount()
   })
 
+  it('does not recalculate when output objects refresh without changing the formats', async () => {
+    const fetchMock = stubPreview()
+    const wrapper = mountEditor()
+    await vi.advanceTimersByTimeAsync(600)
+    await flushPromises()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await wrapper.setProps({
+      outputs: outputs.map((output) => ({ ...output })),
+    })
+    await vi.advanceTimersByTimeAsync(600)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    await wrapper.setProps({ outputs: [outputs[1]!] })
+    await vi.advanceTimersByTimeAsync(600)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
   it('weighs each list in the first format the route publishes', async () => {
     const fetchMock = stubPreview()
     vi.advanceTimersByTime(600)

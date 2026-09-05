@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 
+import RvWorkspace from '@/shared/ui/RvWorkspace.vue'
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
 import { useCreateList } from '@/features/create-list/model/useCreateList'
 import { useLocale } from '@/shared/i18n/useLocale'
@@ -133,7 +134,7 @@ async function submit(): Promise<void> {
       tone="warning"
     />
 
-    <form v-else class="create__form" @submit.prevent="submit">
+    <RvWorkspace v-else :settings-label="t('create.settings')">
       <section
         aria-labelledby="create-services-title"
         class="create__services"
@@ -168,87 +169,89 @@ async function submit(): Promise<void> {
         </div>
       </section>
 
-      <aside class="create__settings" :aria-label="t('create.settings')">
-        <div class="create__name">
-          <label class="create__name-label" for="create-name">
-            {{ t('create.name') }}
-          </label>
-          <input
-            id="create-name"
-            class="create__name-input"
-            :disabled="setup.busy.value"
-            maxlength="120"
-            :placeholder="t('create.name.placeholder')"
-            type="text"
-            :value="setup.name.value"
-            @input="setup.setName(($event.target as HTMLInputElement).value)"
-          />
-        </div>
-
-        <div class="create__target">
-          <label class="create__target-label" for="create-target">
-            {{ t('create.target') }}
-          </label>
-          <template v-if="setup.targets.value.length > 0">
-            <RvCombobox
-              v-model="chosenTarget"
+      <template #settings>
+        <form class="create__form" @submit.prevent="submit">
+          <div class="create__name">
+            <label class="create__name-label" for="create-name">
+              {{ t('create.name') }}
+            </label>
+            <input
+              id="create-name"
+              class="create__name-input"
               :disabled="setup.busy.value"
-              :empty-label="t('create.target.noMatches')"
-              :groups="targetChoices"
-              input-id="create-target"
-              :placeholder="t('create.target.placeholder')"
-              :toggle-label="t('create.target.toggle')"
+              maxlength="120"
+              :placeholder="t('create.name.placeholder')"
+              type="text"
+              :value="setup.name.value"
+              @input="setup.setName(($event.target as HTMLInputElement).value)"
             />
-            <p v-if="chosenForecast !== ''" class="create__forecast">
-              {{ chosenForecast }}
-            </p>
-          </template>
-          <RvStateNotice
-            v-else
-            :body="t('create.target.empty.body')"
-            :title="t('create.target.empty')"
-            tone="warning"
-          />
-        </div>
+          </div>
 
-        <div class="create__submit">
-          <RvStateNotice
-            v-if="setup.blocked.value"
-            :body="blockedBody"
-            class="create__blocked"
-            live
-            :title="
-              t('create.forecast.blocked', {
-                target: setup.selectedTargetTitle.value,
-              })
-            "
-            tone="warning"
-          >
-            <template v-if="setup.suggestedTarget.value !== null" #action>
-              <RvButton
+          <div class="create__target">
+            <label class="create__target-label" for="create-target">
+              {{ t('create.target') }}
+            </label>
+            <template v-if="setup.targets.value.length > 0">
+              <RvCombobox
+                v-model="chosenTarget"
                 :disabled="setup.busy.value"
-                size="compact"
-                @click="setup.setTarget(setup.suggestedTarget.value.id)"
-              >
-                {{
-                  t('create.forecast.switch', {
-                    target: setup.suggestedTargetTitle.value,
-                  })
-                }}
-              </RvButton>
+                :empty-label="t('create.target.noMatches')"
+                :groups="targetChoices"
+                input-id="create-target"
+                :placeholder="t('create.target.placeholder')"
+                :toggle-label="t('create.target.toggle')"
+              />
+              <p v-if="chosenForecast !== ''" class="create__forecast">
+                {{ chosenForecast }}
+              </p>
             </template>
-          </RvStateNotice>
-          <RvButton
-            :disabled="!setup.canCreate.value"
-            :loading="setup.busy.value"
-            type="submit"
-            variant="primary"
-          >
-            {{ setup.busy.value ? stageMessage : t('create.submit') }}
-          </RvButton>
-        </div>
-      </aside>
-    </form>
+            <RvStateNotice
+              v-else
+              :body="t('create.target.empty.body')"
+              :title="t('create.target.empty')"
+              tone="warning"
+            />
+          </div>
+
+          <div class="create__submit">
+            <RvStateNotice
+              v-if="setup.blocked.value"
+              :body="blockedBody"
+              class="create__blocked"
+              live
+              :title="
+                t('create.forecast.blocked', {
+                  target: setup.selectedTargetTitle.value,
+                })
+              "
+              tone="warning"
+            >
+              <template v-if="setup.suggestedTarget.value !== null" #action>
+                <RvButton
+                  :disabled="setup.busy.value"
+                  size="compact"
+                  @click="setup.setTarget(setup.suggestedTarget.value.id)"
+                >
+                  {{
+                    t('create.forecast.switch', {
+                      target: setup.suggestedTargetTitle.value,
+                    })
+                  }}
+                </RvButton>
+              </template>
+            </RvStateNotice>
+            <RvButton
+              :disabled="!setup.canCreate.value"
+              :loading="setup.busy.value"
+              type="submit"
+              variant="primary"
+            >
+              {{ setup.busy.value ? stageMessage : t('create.submit') }}
+            </RvButton>
+          </div>
+        </form>
+      </template>
+    </RvWorkspace>
 
     <RvStateNotice
       v-if="setup.flowState.value === 'failed'"

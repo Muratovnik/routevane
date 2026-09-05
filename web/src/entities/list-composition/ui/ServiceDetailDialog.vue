@@ -224,13 +224,15 @@ const feedFormats = computed<ChoiceOption[]>(() => [
 const mutationPending = computed(
   () => entryMutations.pending.value || sourceMutations.pending.value,
 )
-const interactionBusy = computed(
+const dismissalBlocked = computed(
   () =>
     props.disabled === true ||
     saving.value ||
     refreshing.value ||
-    contentsState.value === 'loading' ||
     mutationPending.value,
+)
+const interactionBusy = computed(
+  () => dismissalBlocked.value || contentsState.value === 'loading',
 )
 const toggleBlocked = computed(
   () =>
@@ -307,10 +309,14 @@ watch(
 // the keyboard is still on the sheet's own fallback control.
 watch(contentsState, async (state) => {
   if (state !== 'ready' || props.service === null) return
+  const request = contentsRequest
+  const focused = document.activeElement
   await nextTick()
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
   const input = filterInput.value
-  if (input === null) return
+  if (input === null || request !== contentsRequest) return
+  const panel = input.closest('[role=dialog]')
+  if (document.activeElement !== focused || !panel?.contains(focused)) return
   input.focus()
 })
 
@@ -721,21 +727,22 @@ function sourceLabel(id: string, type: string): string {
 }
 
 function requestClose(): void {
-  if (interactionBusy.value) return
+  if (dismissalBlocked.value) return
   contentsRequest += 1
   sourcesOpen.value = false
   emit('close')
 }
 
 function onOpenChange(open: boolean): void {
-  if (!open && !interactionBusy.value) requestClose()
+  if (!open && !dismissalBlocked.value) requestClose()
 }
 </script>
 
 <template>
   <RvDialog
+    adaptive
     :close-label="t('action.close')"
-    :dismissible="!interactionBusy"
+    :dismissible="!dismissalBlocked"
     :fill="service !== null && creating !== true"
     :open="active"
     :title="service === null ? t('serviceCard.new') : service.title"

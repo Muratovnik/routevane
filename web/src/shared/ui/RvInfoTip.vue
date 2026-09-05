@@ -19,6 +19,7 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
  */
 defineProps<{
   /** The accessible name of the trigger: what this explains. */
+  numeric?: boolean
   label: string
   text: string
 }>()
@@ -33,7 +34,11 @@ function onFocusOutside(event: Event): void {
 
 <template>
   <PopoverRoot>
-    <PopoverTrigger :aria-label="label" class="rv-infotip__trigger">
+    <PopoverTrigger
+      :aria-label="label"
+      class="rv-infotip__trigger"
+      :class="{ 'rv-infotip__trigger--numeric': numeric }"
+    >
       <slot><RvIcon name="info" /></slot>
     </PopoverTrigger>
     <PopoverPortal>
@@ -59,11 +64,17 @@ function onFocusOutside(event: Event): void {
   height: var(--rv-control-compact);
   padding: 0;
   color: var(--rv-color-ink-tertiary);
-  font-size: 0.875rem;
+  font: inherit;
   background: transparent;
   border: 0;
   border-radius: var(--rv-radius-sm);
   cursor: pointer;
+}
+
+.rv-infotip__trigger--numeric {
+  justify-content: flex-start;
+  font-variant-numeric: tabular-nums;
+  color: var(--rv-color-ink-muted);
 }
 
 .rv-infotip__trigger:hover {

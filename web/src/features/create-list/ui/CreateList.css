@@ -1,6 +1,6 @@
 .create {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--rv-composer-rail-width);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--rv-space-5) var(--rv-space-6);
   align-items: start;
   grid-template-rows: auto minmax(0, 1fr);
@@ -29,7 +29,9 @@
 }
 
 .create__form {
-  display: contents;
+  display: grid;
+  gap: var(--rv-space-6);
+  min-width: 0;
 }
 
 .create__services {
@@ -51,20 +53,6 @@
   height: 100%;
   min-height: 0;
   min-width: 0;
-}
-
-.create__settings {
-  position: sticky;
-  top: var(--rv-space-5);
-  grid-column: 2;
-  grid-row: 2;
-  display: grid;
-  gap: var(--rv-space-6);
-  min-width: 0;
-  padding: var(--rv-space-6);
-  background: var(--rv-color-surface);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-md);
 }
 
 .create__target {
@@ -142,12 +130,6 @@
   .create__services,
   .create__services-body {
     height: auto;
-  }
-
-  .create__settings {
-    position: static;
-    grid-column: 1;
-    grid-row: auto;
   }
 }
 

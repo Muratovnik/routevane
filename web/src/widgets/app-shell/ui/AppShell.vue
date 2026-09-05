@@ -20,7 +20,7 @@ const collapsed = useLocalStorage('rv.sidebarCollapsed', false, {
   onError: () => {},
 })
 const workspace = computed(
-  () => route.path === '/lists/new' || route.path === '/library',
+  () => route.path.startsWith('/lists/') || route.path === '/library',
 )
 
 // The document's language is part of the head, not a one-time DOM write: a page
@@ -135,7 +135,10 @@ const sections = computed<
 .shell {
   display: grid;
   grid-template-columns: var(--rv-sidebar-width) minmax(0, 1fr);
-  min-height: 100dvh;
+  height: 100dvh;
+  overflow: hidden;
+  transition: grid-template-columns var(--rv-motion-normal)
+    var(--rv-motion-ease-out);
 }
 
 .shell__skip {
@@ -168,7 +171,9 @@ const sections = computed<
   position: sticky;
   top: 0;
   min-height: 0;
-  overflow: visible;
+  overflow: auto;
+  overscroll-behavior: contain;
+  transition: padding var(--rv-motion-normal) var(--rv-motion-ease-out);
   display: flex;
   flex-direction: column;
   gap: var(--rv-space-8);
@@ -243,6 +248,9 @@ const sections = computed<
 }
 
 .shell__main {
+  position: relative;
+  overflow: auto;
+  overscroll-behavior: contain;
   min-width: 0;
   min-height: 0;
 }
@@ -260,6 +268,7 @@ const sections = computed<
 
 @container (width <= 40rem) {
   .shell {
+    grid-template-rows: auto minmax(0, 1fr);
     grid-template-columns: 1fr;
   }
 
@@ -357,6 +366,7 @@ const sections = computed<
 }
 
 .shell__collapse > .rv-icon {
+  transition: transform var(--rv-motion-normal) var(--rv-motion-ease-out);
   transform: rotate(90deg);
   flex: none;
 }

@@ -8,8 +8,9 @@ import {
   DialogRoot,
   DialogTitle,
 } from 'reka-ui'
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
 
+import { workspacePane } from '@/shared/ui/workspacePane'
 import { openDialogs } from '@/shared/ui/dialogStack'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 
@@ -29,6 +30,8 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
  */
 const props = withDefaults(
   defineProps<{
+    /** Use an enclosing RvWorkspace pane when it has room for this sheet. */
+    adaptive?: boolean
     /** What to call the control that dismisses the panel. */
     closeLabel: string
     /** Standing background for the panel, read out with its title. */
@@ -55,6 +58,21 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:open': [value: boolean]
 }>()
+
+const workspace = inject(workspacePane, null)
+const docked = computed(
+  () => props.adaptive === true && workspace?.docked.value === true,
+)
+watch(
+  () => props.open,
+  (open) => {
+    if (props.adaptive && workspace) workspace.open.value = open
+  },
+  { immediate: true },
+)
+onBeforeUnmount(() => {
+  if (props.adaptive && workspace) workspace.open.value = false
+})
 
 const canDismiss = computed(() => props.dismissible !== false)
 
@@ -85,13 +103,21 @@ function leave(): void {
 }
 
 watch(
-  () => props.open,
+  () => props.open && !docked.value,
   (open) => {
     if (!open) {
       leave()
       return
     }
     enter()
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.open,
+  (open) => {
+    if (!open) return
     const active = document.activeElement
     opener.value = active instanceof HTMLElement ? active : null
   },
@@ -137,13 +163,16 @@ function updateOpen(open: boolean): void {
 const sheetContentProps = computed(() => ({
   onCloseAutoFocus,
   onOpenAutoFocus,
+  onInteractOutside: (event: Event) => {
+    if (docked.value) event.preventDefault()
+  },
 }))
 
 const sheetUI = computed(() => ({
   overlay: ['rv-dialog__scrim', nested.value ? 'rv-dialog__scrim--nested' : ''],
   // Cancels Nuxt UI's compact `max-w-md`; Routevane's token owns the working
   // width below and Tailwind Merge removes the conflicting utility.
-  content: 'max-w-none rv-dialog rv-dialog--sheet',
+  content: `max-w-none rv-dialog rv-dialog--sheet${docked.value ? ' rv-dialog--docked' : ''}`,
   header: 'rv-dialog__header',
   wrapper: 'rv-dialog__heading',
   title: 'rv-dialog__title',
@@ -157,6 +186,9 @@ const sheetUI = computed(() => ({
   <USlideover
     v-if="(variant ?? 'sheet') === 'sheet'"
     :open="open"
+    :modal="!docked"
+    :overlay="!docked"
+    :portal="docked && workspace ? workspace.target : true"
     :title="title"
     :description="description"
     :dismissible="canDismiss"
@@ -271,6 +303,16 @@ const sheetUI = computed(() => ({
     var(--rv-motion-ease-out);
 }
 
+.rv-dialog--docked {
+  position: relative;
+  inset: auto;
+  z-index: auto;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  box-shadow: none;
+}
+
 /* One bounded decision: centred, no taller than it needs to be, and never
    taller than the viewport it is centred in. */
 .rv-dialog--panel {
@@ -363,6 +405,7 @@ const sheetUI = computed(() => ({
   align-content: start;
   min-height: 0;
   overflow-y: auto;
+  padding: 0;
 }
 
 /* The panel's own height, handed to the content instead of kept as empty space

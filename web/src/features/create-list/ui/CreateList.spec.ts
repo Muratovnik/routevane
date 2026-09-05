@@ -222,7 +222,9 @@ describe('CreateList forecast', () => {
     const wrapper = mountComposer()
     await flushPromises()
 
-    expect(wrapper.find('.create__settings #create-name').exists()).toBe(true)
+    expect(wrapper.find('.rv-workspace__settings #create-name').exists()).toBe(
+      true,
+    )
 
     await wrapper.get('input[value="discord"]').setValue(true)
     await flushPromises()
@@ -237,7 +239,7 @@ describe('CreateList forecast', () => {
     const wrapper = mountComposer()
     await flushPromises()
 
-    expect(wrapper.find('.create__settings').exists()).toBe(true)
+    expect(wrapper.find('.rv-workspace__settings').exists()).toBe(true)
     expect(wrapper.find('.priority-list').exists()).toBe(false)
     await wrapper.get('input[value="discord"]').setValue(true)
     await wrapper.get('input[value="limit-fixture"]').setValue(true)
