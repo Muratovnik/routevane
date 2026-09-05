@@ -180,7 +180,7 @@ describe('ListEditor', () => {
     expect(fetchMock).not.toHaveBeenCalled()
     expect(wrapper.find('.editor__forecast').exists()).toBe(false)
     expect(wrapper.findAll('.priority-list__copy small')).toHaveLength(0)
-    expect(wrapper.text()).toContain('No forecast')
+    expect(wrapper.findAll('td[aria-label="No forecast"]')).toHaveLength(3)
     expect(wrapper.text()).toContain('Add an output to check overlaps')
     expect(wrapper.text()).not.toContain('Overlaps unknown')
     expect(buttonByText(wrapper, 'Retry')).toBeUndefined()

@@ -83,8 +83,15 @@ const sections = computed<
       </nav>
     </header>
 
-    <main id="content" class="shell__main">
-      <div class="shell__measure">
+    <main
+      id="content"
+      class="shell__main"
+      :class="{ 'shell__main--composer': route.path === '/lists/new' }"
+    >
+      <div
+        class="shell__measure"
+        :class="{ 'shell__measure--composer': route.path === '/lists/new' }"
+      >
         <slot />
       </div>
     </main>
@@ -213,6 +220,20 @@ const sections = computed<
   width: min(var(--rv-measure-workspace), 100%);
   margin: 0 auto;
   padding: var(--rv-space-10) var(--rv-page-inline) var(--rv-space-12);
+}
+
+.shell__main--composer {
+  --rv-color-canvas: var(--rv-color-composer-canvas);
+  --rv-color-surface: var(--rv-color-composer-surface);
+  --rv-color-surface-muted: var(--rv-color-composer-selected);
+
+  background: var(--rv-color-canvas);
+}
+
+.shell__measure--composer {
+  container-type: inline-size;
+  width: 100%;
+  padding-block: var(--rv-space-6);
 }
 
 @media (width <= 64rem) {

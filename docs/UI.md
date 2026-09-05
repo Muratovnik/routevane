@@ -53,14 +53,17 @@ Sections, addressable by URL:
    category. Selected rows stay together first and available rows follow, so
    changing membership does not replace the operator's working surface. A
    persistent rail beside the table shows only the selected lists and owns
-   reordering and removal. Its drag handles have keyboard equivalents; order
-   is communicated by position, not repeated as visible ordinal numbers. On a
+   reordering and removal. Its drag handles have keyboard equivalents; the create
+   rail numbers its rows so priority stays explicit. The first
+   connection choice, forecast and create action share its footer. On a
    narrow screen the rail becomes a full-width section after the table instead
    of shrinking into a drawer.
    The rail begins in the library's default order, then the route stores that
    order as its own snapshot. When two selected lists overlap, each affected
-   table row carries compact tags naming every other selected list it intersects.
-   Tags summarize the complete relation set even when detailed diagnostics are
+   table row shows the number of other selected lists it intersects; activating
+   that count reveals every name. Narrow rows show those names as compact tags.
+   These names summarize the complete relation set even when detailed diagnostics
+   are
    capped at 100 records. The interface never turns those records into a manual
    cleanup queue: the higher list owns an equal destination, a covered
    lower-priority rule is omitted, and a broader lower-priority network remains
@@ -76,7 +79,7 @@ Sections, addressable by URL:
    creation (ADR 0027). Selected rows come first, available rows follow, search
    and category filters keep their geometry, and opening a row inspects the
    list without changing membership. The rail shows the route's saved priority
-   and owns reordering and removal by pointer or keyboard. Intersection tags on
+   and owns reordering and removal by pointer or keyboard. Intersection counts and their name disclosures on
    selected rows use the first connection's format, like the row weights, and
    name every other selected list with which that row overlaps. Save
    is enabled only once the draft differs from the stored route, cancel

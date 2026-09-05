@@ -139,7 +139,13 @@
 
   /* The composition workspace claims the viewport it actually has: a tall
      window shows more of the catalog instead of a fixed inner scroll box. */
-  --rv-picker-height: clamp(24rem, 56dvh, 38rem);
+  --rv-picker-height: max(24rem, calc(100dvh - 16rem));
+  --rv-priority-height: var(--rv-picker-height);
+  --rv-composer-rail-width: 21rem;
+  --rv-composer-priority-height: max(16rem, calc(100dvh - 24rem));
+  --rv-picker-name-width: 8rem;
+  --rv-picker-rule-width: 5rem;
+  --rv-picker-overlap-width: 8rem;
   --rv-picker-mobile-height: clamp(22rem, 64dvh, 32rem);
   --rv-fact-label-width: 8rem;
   --rv-disabled-opacity: 0.5;
@@ -158,6 +164,10 @@
   --rv-motion-normal: 200ms;
   --rv-motion-ease-out: cubic-bezier(0.25, 0, 0.4, 1);
   --rv-motion-working: 700ms;
+  --rv-native-color-scheme: dark;
+  --rv-color-composer-canvas: #101719;
+  --rv-color-composer-surface: #181f21;
+  --rv-color-composer-selected: #20292c;
 
   color-scheme: dark;
 }
@@ -191,6 +201,10 @@
     --rv-color-status-waiting: #656e68;
     --rv-shadow-panel: 0 0.0625rem 0.125rem rgb(20 24 21 / 10%);
     --rv-shadow-raised: 0 0.5rem 1.5rem rgb(20 24 21 / 12%);
+    --rv-native-color-scheme: light;
+    --rv-color-composer-canvas: var(--rv-paper-100);
+    --rv-color-composer-surface: var(--rv-white-000);
+    --rv-color-composer-selected: var(--rv-paper-200);
 
     color-scheme: light;
   }
@@ -221,6 +235,10 @@
   --rv-color-status-waiting: #656e68;
   --rv-shadow-panel: 0 0.0625rem 0.125rem rgb(20 24 21 / 10%);
   --rv-shadow-raised: 0 0.5rem 1.5rem rgb(20 24 21 / 12%);
+  --rv-native-color-scheme: light;
+  --rv-color-composer-canvas: var(--rv-paper-100);
+  --rv-color-composer-surface: var(--rv-white-000);
+  --rv-color-composer-selected: var(--rv-paper-200);
 
   color-scheme: light;
 }

@@ -34,7 +34,7 @@ function onFocusOutside(event: Event): void {
 <template>
   <PopoverRoot>
     <PopoverTrigger :aria-label="label" class="rv-infotip__trigger">
-      <RvIcon name="info" />
+      <slot><RvIcon name="info" /></slot>
     </PopoverTrigger>
     <PopoverPortal>
       <PopoverContent

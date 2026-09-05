@@ -154,13 +154,8 @@ describe('ServicePicker', () => {
       wrapper.findAll('.picker__group-row').map((row) => row.text()),
     ).toEqual(['Selected for the route 1', 'Available lists 3'])
     expect(
-      wrapper.findAll('.picker__row th[scope="row"]').map((row) => row.text()),
-    ).toEqual([
-      'DiscordCommunication',
-      'TelegramCommunication',
-      'YouTubeVideo, Домашние',
-      'SteamUncategorized',
-    ])
+      wrapper.findAll('.picker__row .picker__name').map((name) => name.text()),
+    ).toEqual(['Discord', 'Telegram', 'YouTube', 'Steam'])
 
     const search = wrapper.get<HTMLInputElement>('.picker__search-input')
     await search.setValue('steam')
@@ -213,6 +208,26 @@ describe('ServicePicker', () => {
    * same column, computed here, and it carries no membership controls because
    * there is no category to leave.
    */
+  it('quick category filters narrow choices without changing route membership', async () => {
+    const wrapper = mountPicker()
+    const filter = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Communication 2')
+    expect(filter).toBeDefined()
+    await filter!.trigger('click')
+    expect(filter!.attributes('aria-pressed')).toBe('true')
+    expect(
+      wrapper.findAll('.picker__row .picker__name').map((name) => name.text()),
+    ).toEqual(['Discord', 'Telegram'])
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'All categories')!
+      .trigger('click')
+    expect(wrapper.findAll('.picker__row')).toHaveLength(4)
+    wrapper.unmount()
+  })
+
   it('filters by category and exposes a separate live category reference', async () => {
     const wrapper = mountPicker()
 
@@ -298,7 +313,7 @@ describe('ServicePicker', () => {
     })
 
     expect(wrapper.findAll('.picker__row--selected')).toHaveLength(2)
-    expect(wrapper.text()).toContain('≈ 3 rules')
+    expect(wrapper.get('td[aria-label="≈ 3 rules"]').text()).toBe('3')
     expect(wrapper.text()).toContain('Overlap: Telegram')
     expect(wrapper.text()).toContain('Overlap: Discord')
     await wrapper.setProps({

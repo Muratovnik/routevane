@@ -512,7 +512,9 @@ test('the library starts empty and shelves the route the composer creates and pu
   expect(await discordRow.evaluate((element) => element.clientHeight)).toBe(
     rowHeight,
   )
-  await expect(listPage.getByText('1 list in the route')).toBeVisible()
+  await expect(
+    listPage.locator('.priority-list').getByText('1 list', { exact: true }),
+  ).toBeVisible()
   await expect(compositionRow).toHaveCount(0)
 
   expect(consoleErrors).toEqual([])
@@ -2763,17 +2765,27 @@ test('the composition editor keeps its geometry across selections and shell brea
   page,
 }) => {
   await page.goto(`${origin}/lists/new`)
-  const workspace = page.locator('.create__services-body')
   const table = page.locator('.picker__table-frame')
-  await expect(workspace).toBeVisible()
+  const rail = page.locator('.create__priority')
+  await expect(table).toBeVisible()
 
   await page.setViewportSize({ height: 900, width: 1440 })
-  expect(
-    await workspace.evaluate(
-      (element) =>
-        getComputedStyle(element).gridTemplateColumns.split(' ').length,
-    ),
-  ).toBeGreaterThanOrEqual(2)
+  const tableBox = await table.boundingBox()
+  const railBox = await rail.boundingBox()
+  expect(railBox!.x).toBeGreaterThanOrEqual(tableBox!.x + tableBox!.width)
+  await expect(
+    page.getByRole('columnheader', { name: 'Category', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('columnheader', { name: 'Rules', exact: true }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Create and prepare', exact: true }),
+  ).toBeInViewport()
+  // The reference is a dense table: a normal desktop row must not become
+  // a 70px two-line card when the priority rail is beside it.
+  const row = await page.locator('.picker__row').first().boundingBox()
+  expect(row!.height).toBeLessThanOrEqual(48)
   const before = await table.boundingBox()
   expect(before).not.toBeNull()
   await page.locator('input[value="discord"]').check()
@@ -2786,13 +2798,13 @@ test('the composition editor keeps its geometry across selections and shell brea
 
   for (const width of [1024, 768, 320]) {
     await page.setViewportSize({ height: 900, width })
-    const columns = await workspace.evaluate((element) =>
-      getComputedStyle(element).gridTemplateColumns.split(' '),
-    )
-    expect(
-      columns,
-      `composition workspace did not stack at ${width}px`,
-    ).toHaveLength(1)
+    if (width <= 768) {
+      const narrowTable = await table.boundingBox()
+      const narrowRail = await rail.boundingBox()
+      expect(narrowRail!.y).toBeGreaterThanOrEqual(
+        narrowTable!.y + narrowTable!.height,
+      )
+    }
     await assertNoOverflow(page, `composition-editor-${width}`)
   }
 })
@@ -3002,9 +3014,11 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     .locator('xpath=ancestor::tr')
   await expect(alphaRow).toContainText('Overlap: Overlap Beta')
   await expect(betaRow).toContainText('Overlap: Overlap Alpha')
-  await expect(
-    priority.locator(`.priority-list__item[data-id="${ids[0]}"]`),
-  ).toContainText('Overlap: Overlap Beta')
+  await alphaRow
+    .getByRole('button', { name: 'Overlap: Overlap Beta', exact: true })
+    .click()
+  await expect(page.getByRole('dialog')).toContainText('Overlap Beta')
+  await page.keyboard.press('Escape')
   await expect(
     page.getByRole('button', { name: 'How overlaps are resolved' }),
   ).toHaveCount(0)
@@ -3067,19 +3081,31 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     await expect(retry).toBeVisible()
     fail = false
     await retry.click()
+    await page.getByRole('searchbox', { name: 'Find a list' }).fill('')
     await expect(
-      priority.locator(`.priority-list__item[data-id="${ids[0]}"]`),
-    ).toContainText('Overlap: Overlap Beta')
+      alphaRow.getByRole('button', {
+        name: 'Overlap: Overlap Beta',
+        exact: true,
+      }),
+    ).toHaveCount(1)
     await select(2, 'Overlap Gamma', true)
     await select(1, 'Overlap Beta', false)
+    await page.getByRole('searchbox', { name: 'Find a list' }).fill('')
     await expect(
-      priority.locator(`.priority-list__item[data-id="${ids[0]}"]`),
-    ).not.toContainText('Overlap:')
+      alphaRow.getByRole('button', {
+        name: 'Overlap: Overlap Beta',
+        exact: true,
+      }),
+    ).toHaveCount(0)
     await select(1, 'Overlap Beta', true)
     await select(2, 'Overlap Gamma', false)
+    await page.getByRole('searchbox', { name: 'Find a list' }).fill('')
     await expect(
-      priority.locator(`.priority-list__item[data-id="${ids[0]}"]`),
-    ).toContainText('Overlap: Overlap Beta')
+      alphaRow.getByRole('button', {
+        name: 'Overlap: Overlap Beta',
+        exact: true,
+      }),
+    ).toHaveCount(1)
   } finally {
     release()
   }

@@ -14,6 +14,7 @@ import type { ListComposition, TargetForecast } from '@/shared/api/lists'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { ChoiceOption } from '@/shared/ui/kinds'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 
 import ServiceDetailDialog from './ServiceDetailDialog.vue'
@@ -38,6 +39,17 @@ const emit = defineEmits<{
 const { formatNumber, t, tc, tor } = useLocale()
 const query = ref('')
 const categoryFilter = ref('all')
+const overflowFilter = computed({
+  get: () =>
+    filterOptions.value
+      .slice(0, 6)
+      .some((option) => option.value === categoryFilter.value)
+      ? ''
+      : categoryFilter.value,
+  set: (value: string) => {
+    categoryFilter.value = value
+  },
+})
 const activeServiceID = ref('')
 const baseId = useId()
 const uncategorizedID = 'rv:uncategorized'
@@ -226,20 +238,40 @@ function serviceLabel(serviceID: string): string {
           type="search"
         />
       </label>
-      <label :for="baseId + '-category'" class="picker__visually-hidden">
-        {{ t('servicePicker.filter.label') }}
-      </label>
-      <RvSelect
-        v-model="categoryFilter"
-        class="picker__filter"
-        :disabled="disabled"
-        :input-id="baseId + '-category'"
-        :options="filterOptions"
-        :placeholder="t('servicePicker.filter.all')"
-      />
-      <p class="picker__count" role="status">
-        {{ tc('create.resolved', resolved.length) }}
-      </p>
+    </div>
+    <div
+      class="picker__filters"
+      :aria-label="t('servicePicker.filter.label')"
+      role="group"
+    >
+      <div class="picker__quick-filters">
+        <button
+          v-for="option in filterOptions.slice(0, 6)"
+          :key="option.value"
+          type="button"
+          class="picker__chip"
+          :aria-pressed="categoryFilter === option.value"
+          :disabled="disabled"
+          @click="categoryFilter = option.value"
+        >
+          {{ option.label }}
+          <small v-if="categoryByID.has(option.value)">{{
+            categoryByID.get(option.value)?.services.length
+          }}</small>
+        </button>
+      </div>
+      <label :for="baseId + '-category'" class="picker__visually-hidden">{{
+        t('servicePicker.filter.label')
+      }}</label>
+      <div class="picker__filter">
+        <RvSelect
+          v-model="overflowFilter"
+          :disabled="disabled"
+          :input-id="baseId + '-category'"
+          :options="filterOptions"
+          :placeholder="t('servicePicker.filter.more')"
+        />
+      </div>
     </div>
 
     <label v-if="selectedCategory !== null" class="picker__category-reference">
@@ -271,7 +303,12 @@ function serviceLabel(serviceID: string): string {
                 t('servicePicker.column.include')
               }}</span>
             </th>
-            <th scope="col">{{ t('servicePicker.column.list') }}</th>
+            <th scope="col">
+              {{ t('servicePicker.column.list')
+              }}<span class="picker__mobile-rules">{{
+                t('servicePicker.column.rules')
+              }}</span>
+            </th>
             <th class="picker__category-column" scope="col">
               {{ t('servicePicker.column.category') }}
             </th>
@@ -319,6 +356,15 @@ function serviceLabel(serviceID: string): string {
               <strong class="picker__name">{{
                 serviceLabel(service.id)
               }}</strong>
+              <span
+                class="picker__mobile-rules"
+                :aria-label="ruleLabel(service.id)"
+                >{{
+                  ruleCounts.has(service.id)
+                    ? formatNumber(ruleCounts.get(service.id)!)
+                    : '—'
+                }}</span
+              >
               <span class="picker__mobile-meta">{{
                 categoryNames(service)
               }}</span>
@@ -333,30 +379,48 @@ function serviceLabel(serviceID: string): string {
             <td class="picker__category-column">
               {{ categoryNames(service) }}
             </td>
-            <td class="picker__rules-column">{{ ruleLabel(service.id) }}</td>
+            <td
+              class="picker__rules-column"
+              :aria-label="ruleLabel(service.id)"
+              :title="ruleLabel(service.id)"
+            >
+              {{
+                ruleCounts.has(service.id)
+                  ? formatNumber(ruleCounts.get(service.id)!)
+                  : '—'
+              }}
+            </td>
             <td class="picker__overlaps-column">
-              <span
-                v-for="title in overlapTitles(service.id) ?? []"
-                :key="`${service.id}-${title}`"
-                class="picker__tag"
+              <RvInfoTip
+                v-if="(overlapTitles(service.id)?.length ?? 0) > 0"
+                :label="
+                  t('servicePicker.overlap.tag', {
+                    list: overlapTitles(service.id)?.join(', ') ?? '',
+                  })
+                "
+                :text="overlapTitles(service.id)?.join(', ') ?? ''"
+                >{{
+                  formatNumber(overlapTitles(service.id)?.length ?? 0)
+                }}</RvInfoTip
               >
-                {{ t('servicePicker.overlap.tag', { list: title }) }}
-              </span>
               <span
                 v-if="overlapTitles(service.id) === null"
                 class="picker__unknown"
               >
-                {{
-                  overlapUnavailable && overlapUnavailableLabel
-                    ? overlapUnavailableLabel
-                    : t(
-                        overlapUnavailable
-                          ? 'servicePicker.overlap.unavailable'
-                          : forecastPending
-                            ? 'servicePicker.overlap.pending'
-                            : 'servicePicker.overlap.unknown',
-                      )
-                }}
+                <span aria-hidden="true">—</span>
+                <span class="picker__visually-hidden">
+                  {{
+                    overlapUnavailable && overlapUnavailableLabel
+                      ? overlapUnavailableLabel
+                      : t(
+                          overlapUnavailable
+                            ? 'servicePicker.overlap.unavailable'
+                            : forecastPending
+                              ? 'servicePicker.overlap.pending'
+                              : 'servicePicker.overlap.unknown',
+                        )
+                  }}
+                </span>
               </span>
               <span
                 v-else-if="overlapTitles(service.id)?.length === 0"
@@ -412,6 +476,15 @@ function serviceLabel(serviceID: string): string {
               <strong class="picker__name">{{
                 serviceLabel(service.id)
               }}</strong>
+              <span
+                class="picker__mobile-rules"
+                :aria-label="ruleLabel(service.id)"
+                >{{
+                  ruleCounts.has(service.id)
+                    ? formatNumber(ruleCounts.get(service.id)!)
+                    : '—'
+                }}</span
+              >
               <span class="picker__mobile-meta">{{
                 categoryNames(service)
               }}</span>
@@ -419,7 +492,17 @@ function serviceLabel(serviceID: string): string {
             <td class="picker__category-column">
               {{ categoryNames(service) }}
             </td>
-            <td class="picker__rules-column">{{ ruleLabel(service.id) }}</td>
+            <td
+              class="picker__rules-column"
+              :aria-label="ruleLabel(service.id)"
+              :title="ruleLabel(service.id)"
+            >
+              {{
+                ruleCounts.has(service.id)
+                  ? formatNumber(ruleCounts.get(service.id)!)
+                  : '—'
+              }}
+            </td>
             <td class="picker__overlaps-column picker__unknown">—</td>
             <td>
               <button

@@ -249,7 +249,9 @@ describe('CreateList forecast', () => {
     await wrapper.get('input[value="limit-fixture"]').setValue(true)
     await flushPromises()
     expect(
-      wrapper.findAll('.priority-list__item').map((row) => row.text()),
+      wrapper
+        .findAll('.priority-list__copy strong')
+        .map((title) => title.text()),
     ).toEqual(['Limit fixture', 'Discord'])
     expect(wrapper.text()).toContain('Choose a format to check overlaps')
     expect(wrapper.text()).not.toContain('Overlaps unknown')
@@ -268,7 +270,9 @@ describe('CreateList forecast', () => {
     expect(remove).toBeDefined()
     await remove?.trigger('click')
     expect(
-      wrapper.findAll('.priority-list__item').map((row) => row.text()),
+      wrapper
+        .findAll('.priority-list__copy strong')
+        .map((title) => title.text()),
     ).toEqual(['Discord'])
     wrapper.unmount()
   })
@@ -284,26 +288,34 @@ describe('CreateList forecast', () => {
     await wrapper.get('input[value="limit-fixture"]').setValue(true)
     await flushPromises()
     expect(
-      wrapper.findAll('.priority-list__item').map((row) => row.text()),
+      wrapper
+        .findAll('.priority-list__copy strong')
+        .map((title) => title.text()),
     ).toEqual(['Limit fixture', 'Discord'])
 
     priority = ['discord', 'limit-fixture']
     window.dispatchEvent(new Event('focus'))
     await flushPromises()
     expect(
-      wrapper.findAll('.priority-list__item').map((row) => row.text()),
+      wrapper
+        .findAll('.priority-list__copy strong')
+        .map((title) => title.text()),
     ).toEqual(['Discord', 'Limit fixture'])
 
     await wrapper.get('.priority-list__handle').trigger('keydown', {
       key: 'ArrowDown',
     })
     expect(
-      wrapper.findAll('.priority-list__item').map((row) => row.text()),
+      wrapper
+        .findAll('.priority-list__copy strong')
+        .map((title) => title.text()),
     ).toEqual(['Limit fixture', 'Discord'])
     window.dispatchEvent(new Event('focus'))
     await flushPromises()
     expect(
-      wrapper.findAll('.priority-list__item').map((row) => row.text()),
+      wrapper
+        .findAll('.priority-list__copy strong')
+        .map((title) => title.text()),
     ).toEqual(['Limit fixture', 'Discord'])
     wrapper.unmount()
   })

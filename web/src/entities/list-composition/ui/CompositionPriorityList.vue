@@ -14,6 +14,9 @@ export type PriorityItem = {
 }
 
 const props = defineProps<{
+  countLabel?: string
+  numbered?: boolean
+  compactOverlaps?: boolean
   disabled?: boolean
   description?: string
   items: PriorityItem[]
@@ -102,7 +105,9 @@ function overlapMessage(): string {
         <h3 :id="baseId + '-title'">
           {{ title ?? t('list.priority.title') }}
         </h3>
-        <small>{{ tc('list.priority.count', items.length) }}</small>
+        <small role="status">{{
+          countLabel ?? tc('list.priority.count', items.length)
+        }}</small>
       </span>
       <p :id="baseId + '-note'">
         {{ description ?? t('list.priority.body') }}
@@ -141,6 +146,12 @@ function overlapMessage(): string {
         :data-id="id"
         class="priority-list__item"
       >
+        <span
+          v-if="numbered"
+          class="priority-list__position"
+          aria-hidden="true"
+          >{{ index + 1 }}</span
+        >
         <button
           :aria-label="
             t('list.priority.move.aria', {
@@ -160,7 +171,7 @@ function overlapMessage(): string {
           <strong>{{ item(id)?.title ?? id }}</strong>
           <small v-if="item(id)?.note">{{ item(id)?.note }}</small>
           <span
-            v-if="(item(id)?.overlaps?.length ?? 0) > 0"
+            v-if="!compactOverlaps && (item(id)?.overlaps?.length ?? 0) > 0"
             class="priority-list__tags"
           >
             <span
@@ -175,6 +186,9 @@ function overlapMessage(): string {
         <slot name="actions" :item="item(id)" />
       </li>
     </ol>
+    <div v-if="$slots.footer" class="priority-list__footer">
+      <slot name="footer" />
+    </div>
   </section>
 </template>
 
@@ -184,7 +198,7 @@ function overlapMessage(): string {
   align-content: start;
   width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   background: var(--rv-color-surface);
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-lg);
@@ -193,7 +207,7 @@ function overlapMessage(): string {
 .priority-list__heading {
   display: grid;
   gap: var(--rv-space-2);
-  padding: var(--rv-space-4);
+  padding: var(--rv-space-5);
   border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 
@@ -235,9 +249,10 @@ function overlapMessage(): string {
 .priority-list__items {
   display: grid;
   align-content: start;
-  max-height: var(--rv-picker-height);
+  max-height: var(--rv-priority-height, var(--rv-picker-height));
   margin: 0;
-  padding: var(--rv-space-2);
+  padding: var(--rv-space-3);
+  gap: var(--rv-space-2);
   overflow-y: auto;
   overscroll-behavior: contain;
   list-style: none;
@@ -249,11 +264,8 @@ function overlapMessage(): string {
   align-items: center;
   min-height: var(--rv-row-comfortable);
   padding: var(--rv-space-2);
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
-}
-
-.priority-list__item:last-child {
-  border-bottom: 0;
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-md);
 }
 
 .priority-list__item.sortable-ghost {
@@ -265,6 +277,7 @@ function overlapMessage(): string {
 }
 
 .priority-list__handle {
+  order: 1;
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -308,6 +321,8 @@ function overlapMessage(): string {
 }
 
 .priority-list__copy strong {
+  font-weight: 400;
+  font-size: var(--rv-text-dense);
   overflow-wrap: anywhere;
 }
 
@@ -330,5 +345,25 @@ function overlapMessage(): string {
   background: var(--rv-color-surface-selected);
   border: var(--rv-border-hair) solid var(--rv-color-rule);
   border-radius: var(--rv-radius-lg);
+}
+
+.priority-list__position {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--rv-space-8);
+  height: var(--rv-space-8);
+  color: var(--rv-color-accent-ink);
+  background: var(--rv-color-accent-quiet);
+  border-radius: var(--rv-radius-sm);
+  font-size: var(--rv-text-dense);
+  font-variant-numeric: tabular-nums;
+}
+
+.priority-list__footer {
+  display: grid;
+  gap: var(--rv-space-5);
+  padding: var(--rv-space-5);
+  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 </style>

@@ -90,9 +90,17 @@ const priorityItems = computed(() =>
   setup.resolvedServiceIDs.value.map((id) => ({
     id,
     overlaps: overlapNames(id),
+    note: ruleNote(id),
     title: serviceLabels.value.get(id) ?? id,
   })),
 )
+
+function ruleNote(serviceID: string): string | undefined {
+  const row = setup.selectedForecast.value?.perService.find(
+    (entry) => entry.serviceID === serviceID,
+  )
+  return row === undefined ? undefined : tc('create.forecast.rules', row.rules)
+}
 
 function overlapNames(serviceID: string): string[] | null {
   const ids = overlapServiceIDs(setup.selectedForecast.value, serviceID)
@@ -194,96 +202,103 @@ async function submit(): Promise<void> {
             pending
             :services="setup.services.value"
           />
-          <CompositionPriorityList
-            class="create__priority"
-            :disabled="setup.busy.value"
-            :items="priorityItems"
-            :overlap-pending="setup.forecastPending.value"
-            :overlap-unavailable="setup.selectedTargetID.value === ''"
-            :retryable="setup.selectedTargetID.value !== ''"
-            @reorder="setup.setPriority"
-            @retry="setup.retryForecast"
-          >
-            <template #actions="{ item }">
-              <button
-                v-if="item !== undefined"
-                :aria-label="
-                  t('list.composition.remove.aria', { service: item.title })
-                "
-                class="create__priority-remove"
-                :disabled="setup.busy.value"
-                type="button"
-                @click="setup.removeService(item.id)"
-              >
-                <RvIcon name="trash" />
-              </button>
-            </template>
-          </CompositionPriorityList>
         </div>
       </section>
 
-      <div class="create__target">
-        <label class="create__target-label" for="create-target">
-          {{ t('create.target') }}
-        </label>
-        <template v-if="setup.targets.value.length > 0">
-          <RvCombobox
-            v-model="chosenTarget"
+      <CompositionPriorityList
+        class="create__priority"
+        :count-label="
+          tc('create.resolved', setup.resolvedServiceIDs.value.length)
+        "
+        numbered
+        compact-overlaps
+        :disabled="setup.busy.value"
+        :items="priorityItems"
+        :overlap-pending="setup.forecastPending.value"
+        :overlap-unavailable="setup.selectedTargetID.value === ''"
+        :retryable="setup.selectedTargetID.value !== ''"
+        @reorder="setup.setPriority"
+        @retry="setup.retryForecast"
+      >
+        <template #actions="{ item }">
+          <button
+            v-if="item !== undefined"
+            :aria-label="
+              t('list.composition.remove.aria', { service: item.title })
+            "
+            class="create__priority-remove"
             :disabled="setup.busy.value"
-            :empty-label="t('create.target.noMatches')"
-            :groups="targetChoices"
-            input-id="create-target"
-            :placeholder="t('create.target.placeholder')"
-            :toggle-label="t('create.target.toggle')"
-          />
-          <p v-if="chosenForecast !== ''" class="create__forecast">
-            {{ chosenForecast }}
-          </p>
+            type="button"
+            @click="setup.removeService(item.id)"
+          >
+            <RvIcon name="close" />
+          </button>
         </template>
-        <RvStateNotice
-          v-else
-          :body="t('create.target.empty.body')"
-          :title="t('create.target.empty')"
-          tone="warning"
-        />
-      </div>
+        <template #footer>
+          <div class="create__target">
+            <label class="create__target-label" for="create-target">
+              {{ t('create.target') }}
+            </label>
+            <template v-if="setup.targets.value.length > 0">
+              <RvCombobox
+                v-model="chosenTarget"
+                :disabled="setup.busy.value"
+                :empty-label="t('create.target.noMatches')"
+                :groups="targetChoices"
+                input-id="create-target"
+                :placeholder="t('create.target.placeholder')"
+                :toggle-label="t('create.target.toggle')"
+              />
+              <p v-if="chosenForecast !== ''" class="create__forecast">
+                {{ chosenForecast }}
+              </p>
+            </template>
+            <RvStateNotice
+              v-else
+              :body="t('create.target.empty.body')"
+              :title="t('create.target.empty')"
+              tone="warning"
+            />
+          </div>
 
-      <div class="create__submit">
-        <RvStateNotice
-          v-if="setup.blocked.value"
-          :body="blockedBody"
-          class="create__blocked"
-          live
-          :title="
-            t('create.forecast.blocked', {
-              target: setup.selectedTargetTitle.value,
-            })
-          "
-          tone="warning"
-        >
-          <template v-if="setup.suggestedTarget.value !== null" #action>
-            <RvButton
-              :disabled="setup.busy.value"
-              size="compact"
-              @click="setup.setTarget(setup.suggestedTarget.value.id)"
-            >
-              {{
-                t('create.forecast.switch', {
-                  target: setup.suggestedTargetTitle.value,
+          <div class="create__submit">
+            <RvStateNotice
+              v-if="setup.blocked.value"
+              :body="blockedBody"
+              class="create__blocked"
+              live
+              :title="
+                t('create.forecast.blocked', {
+                  target: setup.selectedTargetTitle.value,
                 })
-              }}
+              "
+              tone="warning"
+            >
+              <template v-if="setup.suggestedTarget.value !== null" #action>
+                <RvButton
+                  :disabled="setup.busy.value"
+                  size="compact"
+                  @click="setup.setTarget(setup.suggestedTarget.value.id)"
+                >
+                  {{
+                    t('create.forecast.switch', {
+                      target: setup.suggestedTargetTitle.value,
+                    })
+                  }}
+                </RvButton>
+              </template>
+            </RvStateNotice>
+            <RvButton
+              :disabled="!setup.canCreate.value"
+              type="submit"
+              variant="primary"
+            >
+              {{ t('create.submit') }}
             </RvButton>
-          </template>
-        </RvStateNotice>
-        <RvButton
-          :disabled="!setup.canCreate.value"
-          type="submit"
-          variant="primary"
-        >
-          {{ t('create.submit') }}
-        </RvButton>
-        <p class="create__stage" role="status">{{ stageMessage }}</p>
-      </div>
+            <p class="create__stage" role="status">{{ stageMessage }}</p>
+          </div>
+        </template>
+      </CompositionPriorityList>
     </form>
 
     <RvStateNotice
