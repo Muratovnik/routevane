@@ -48,7 +48,7 @@
 .picker__filters {
   display: flex;
   gap: var(--rv-space-2);
-  align-items: center;
+  align-items: flex-start;
   min-width: 0;
 }
 
@@ -97,13 +97,6 @@
   flex: none;
   width: var(--rv-picker-overlap-width);
   min-width: 0;
-}
-
-.picker__count {
-  color: var(--rv-color-ink-muted);
-  font-weight: 600;
-  font-size: var(--rv-text-dense);
-  white-space: nowrap;
 }
 
 .picker__category-reference {
@@ -168,24 +161,10 @@
 
 .picker__choice-heading,
 .picker__action-heading,
-.picker__row > td:first-child,
+.picker__row > td:nth-child(2),
 .picker__row > td:last-child {
   width: var(--rv-control-default);
   padding-inline: var(--rv-space-2);
-}
-
-.picker__group-row th {
-  padding-block: var(--rv-space-2);
-  color: var(--rv-color-ink-muted);
-  font-weight: 600;
-  background: var(--rv-color-canvas);
-}
-
-.picker__group-row small {
-  margin-inline-start: var(--rv-space-2);
-  color: var(--rv-color-ink-tertiary);
-  font-size: var(--rv-text-meta);
-  font-variant-numeric: tabular-nums;
 }
 
 .picker__table thead th {
@@ -210,10 +189,6 @@
 .picker__name {
   display: block;
   font-weight: 400;
-}
-
-.picker__table th:nth-child(2) {
-  width: 34%;
 }
 
 .picker__category-column {
@@ -312,6 +287,12 @@
   clip-path: inset(50%);
 }
 
+@container (width > 36rem) {
+  .picker__table {
+    min-width: var(--rv-picker-table-width);
+  }
+}
+
 @container (width <= 36rem) {
   .picker__table {
     table-layout: auto;
@@ -330,7 +311,7 @@
 }
 
 @container (width <= 26rem) {
-  .picker__table th:nth-child(2) {
+  .picker__table th:nth-child(3) {
     width: auto;
   }
 
@@ -384,4 +365,112 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
+}
+
+.picker__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--rv-space-2) var(--rv-space-4);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-meta);
+}
+
+.picker__forecast-status {
+  display: flex;
+  align-items: center;
+  gap: var(--rv-space-3);
+  min-height: var(--rv-space-8);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-meta);
+}
+
+.picker__table .picker__priority-column {
+  width: var(--rv-picker-priority-width);
+  padding-inline: var(--rv-space-1);
+}
+
+.picker__handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--rv-space-1);
+  width: 100%;
+  height: var(--rv-control-compact);
+  padding: 0;
+  color: var(--rv-color-accent-ink);
+  font: inherit;
+  font-size: var(--rv-text-meta);
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: 0;
+  border-radius: var(--rv-radius-sm);
+  cursor: grab;
+  touch-action: none;
+}
+
+.picker__handle:active {
+  cursor: grabbing;
+}
+
+.picker__handle:disabled {
+  cursor: not-allowed;
+}
+
+.picker__handle:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: calc(-1 * var(--rv-border-mark));
+}
+
+.picker__row.sortable-ghost {
+  opacity: var(--rv-disabled-opacity);
+}
+
+.picker__category {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rv-space-2);
+  max-width: 100%;
+  margin-inline-end: var(--rv-space-3);
+  overflow-wrap: anywhere;
+}
+
+.picker__category-dot {
+  flex: none;
+  width: var(--rv-space-2);
+  height: var(--rv-space-2);
+  border-radius: var(--rv-radius-lg);
+  background: var(--rv-color-category-slate);
+}
+
+.picker__category-dot[data-tone='violet'] {
+  background: var(--rv-color-category-violet);
+}
+
+.picker__category-dot[data-tone='cyan'] {
+  background: var(--rv-color-category-cyan);
+}
+
+.picker__category-dot[data-tone='amber'] {
+  background: var(--rv-color-category-amber);
+}
+
+.picker__category-dot[data-tone='green'] {
+  background: var(--rv-color-category-green);
+}
+
+.picker__category-dot[data-tone='pink'] {
+  background: var(--rv-color-category-pink);
+}
+
+.picker__category-dot[data-tone='blue'] {
+  background: var(--rv-color-category-blue);
+}
+
+.picker__category-dot[data-tone='slate'] {
+  background: var(--rv-color-category-slate);
+}
+
+.picker__category-dot[data-tone='red'] {
+  background: var(--rv-color-category-red);
 }

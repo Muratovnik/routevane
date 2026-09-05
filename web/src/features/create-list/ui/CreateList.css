@@ -13,7 +13,6 @@
 }
 
 .create__header,
-.create__name,
 .create__services {
   grid-column: 1;
 }
@@ -46,45 +45,18 @@
   min-width: 0;
 }
 
-.create__priority {
-  --rv-priority-height: var(--rv-composer-priority-height);
-
+.create__settings {
   position: sticky;
   top: var(--rv-space-5);
   grid-column: 2;
-  grid-row: 1 / span 3;
-}
-
-.create__priority-remove {
-  display: inline-flex;
-  flex: none;
-  order: 2;
-  align-items: center;
-  justify-content: center;
-  width: var(--rv-control-touch);
-  height: var(--rv-control-touch);
-  padding: 0;
-  color: var(--rv-color-ink-muted);
-  font: inherit;
-  background: transparent;
-  border: 0;
-  border-radius: var(--rv-radius-sm);
-  cursor: pointer;
-}
-
-.create__priority-remove:focus-visible {
-  outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: var(--rv-border-hair);
-}
-
-.create__priority-remove:disabled {
-  opacity: var(--rv-disabled-opacity);
-  cursor: not-allowed;
-}
-
-.create__priority-remove:hover:not(:disabled) {
-  color: var(--rv-color-status-failed);
-  background: var(--rv-color-surface-hover);
+  grid-row: 2;
+  display: grid;
+  gap: var(--rv-space-6);
+  min-width: 0;
+  padding: var(--rv-space-5);
+  background: var(--rv-color-surface);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-md);
 }
 
 .create__target {
@@ -161,7 +133,7 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .create__priority {
+  .create__settings {
     position: static;
     grid-column: 1;
     grid-row: auto;

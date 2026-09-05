@@ -39,46 +39,10 @@
 
 .editor__composition-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--rv-space-5);
   align-items: start;
   min-width: 0;
-}
-
-.editor__priority {
-  position: sticky;
-  top: var(--rv-space-4);
-}
-
-.editor__row-action {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: var(--rv-control-touch);
-  height: var(--rv-control-touch);
-  padding: 0;
-  color: var(--rv-color-ink-muted);
-  font: inherit;
-  background: transparent;
-  border: 0;
-  border-radius: var(--rv-radius-sm);
-  cursor: pointer;
-}
-
-.editor__row-action:disabled {
-  opacity: var(--rv-disabled-opacity);
-  cursor: not-allowed;
-}
-
-.editor__row-action:focus-visible {
-  outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: var(--rv-border-hair);
-}
-
-.editor__row-action:hover:not(:disabled) {
-  color: var(--rv-color-status-failed);
-  background: var(--rv-color-surface-hover);
 }
 
 .editor__note {

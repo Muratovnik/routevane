@@ -103,7 +103,7 @@ function buttonByText(wrapper: ReturnType<typeof mountEditor>, text: string) {
 }
 
 function rowCopies(wrapper: ReturnType<typeof mountEditor>) {
-  return wrapper.findAll('.priority-list__copy')
+  return wrapper.findAll('.picker__row--selected .picker__name')
 }
 
 describe('ListEditor', () => {
@@ -157,9 +157,16 @@ describe('ListEditor', () => {
       }),
     })
 
-    const rows = rowCopies(wrapper)
-    expect(rows[0]?.text()).toContain('≈ 3 rules')
-    expect(rows[2]?.text()).toContain('≈ 1 rule')
+    expect(
+      wrapper
+        .get('.picker__row[data-id="discord"] .picker__rules-column')
+        .attributes('aria-label'),
+    ).toBe('≈ 3 rules')
+    expect(
+      wrapper
+        .get('.picker__row[data-id="youtube"] .picker__rules-column')
+        .attributes('aria-label'),
+    ).toBe('≈ 1 rule')
 
     // A format that would refuse the draft says so; saving stays available,
     // because a failed rebuild is already reported per connection.
@@ -179,7 +186,6 @@ describe('ListEditor', () => {
 
     expect(fetchMock).not.toHaveBeenCalled()
     expect(wrapper.find('.editor__forecast').exists()).toBe(false)
-    expect(wrapper.findAll('.priority-list__copy small')).toHaveLength(0)
     expect(wrapper.findAll('td[aria-label="No forecast"]')).toHaveLength(3)
     expect(wrapper.text()).toContain('Add an output to check overlaps')
     expect(wrapper.text()).not.toContain('Overlaps unknown')
@@ -223,9 +229,7 @@ describe('ListEditor', () => {
     const wrapper = mountEditor()
     await flushPromises()
 
-    await buttonByLabel(wrapper, 'Remove Discord from the route')?.trigger(
-      'click',
-    )
+    await wrapper.get('input[value="discord"]').setValue(false)
     expect(rowCopies(wrapper).map((row) => row.text())).not.toContain(
       expect.stringContaining('Discord'),
     )
@@ -275,12 +279,10 @@ describe('ListEditor', () => {
     const wrapper = mountEditor()
     await flushPromises()
     const storedRows = wrapper
-      .findAll('.priority-list__copy')
+      .findAll('.picker__row--selected .picker__name')
       .map((row) => row.text())
     await wrapper.get('#editor-name').setValue('Unsaved name')
-    const remove = buttonByLabel(wrapper, 'Remove Discord from the route')
-    expect(remove).toBeDefined()
-    await remove!.trigger('click')
+    await wrapper.get('input[value="discord"]').setValue(false)
     expect(rowCopies(wrapper).map((row) => row.text())).not.toEqual(storedRows)
     const cancel = buttonByText(wrapper, 'Cancel')
     expect(cancel).toBeDefined()
@@ -289,7 +291,9 @@ describe('ListEditor', () => {
       (wrapper.get('#editor-name').element as HTMLInputElement).value,
     ).toBe('Chat and video')
     expect(
-      wrapper.findAll('.priority-list__copy').map((row) => row.text()),
+      wrapper
+        .findAll('.picker__row--selected .picker__name')
+        .map((row) => row.text()),
     ).toEqual(storedRows)
     expect(wrapper.emitted('save')).toBeUndefined()
     expect(buttonByText(wrapper, 'Cancel')).toBeUndefined()
@@ -309,6 +313,10 @@ describe('ListEditor', () => {
       .get<HTMLInputElement>('.picker__category-reference input')
       .setValue(false)
 
+    wrapper
+      .findComponent({ name: 'RvSelect' })
+      .vm.$emit('update:modelValue', 'all')
+    await wrapper.vm.$nextTick()
     expect(rowCopies(wrapper).map((row) => row.text())).toEqual(['YouTube'])
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('save')?.at(-1)?.[1]).toEqual({

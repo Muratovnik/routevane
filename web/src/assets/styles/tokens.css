@@ -143,6 +143,8 @@
   --rv-priority-height: var(--rv-picker-height);
   --rv-composer-rail-width: 21rem;
   --rv-composer-priority-height: max(16rem, calc(100dvh - 24rem));
+  --rv-picker-table-width: 46rem;
+  --rv-picker-priority-width: 3.5rem;
   --rv-picker-name-width: 8rem;
   --rv-picker-rule-width: 5rem;
   --rv-picker-overlap-width: 8rem;
@@ -165,6 +167,14 @@
   --rv-motion-ease-out: cubic-bezier(0.25, 0, 0.4, 1);
   --rv-motion-working: 700ms;
   --rv-native-color-scheme: dark;
+  --rv-color-category-violet: #9276de;
+  --rv-color-category-cyan: #439cbc;
+  --rv-color-category-amber: #c18b32;
+  --rv-color-category-green: #599b6b;
+  --rv-color-category-pink: #c970a2;
+  --rv-color-category-blue: #668cd1;
+  --rv-color-category-slate: #89959c;
+  --rv-color-category-red: #cf746a;
   --rv-color-composer-canvas: #101719;
   --rv-color-composer-surface: #181f21;
   --rv-color-composer-selected: #20292c;

@@ -145,18 +145,21 @@ describe('ServicePicker', () => {
     document.body.innerHTML = ''
   })
 
-  it('groups selected lists first and keeps search state while selection changes', async () => {
+  it('keeps row order and search state while selection changes', async () => {
     const wrapper = mountPicker({
       modelValue: { ...emptyComposition, services: ['discord'] },
     })
 
-    expect(
-      wrapper.findAll('.picker__group-row').map((row) => row.text()),
-    ).toEqual(['Selected for the route 1', 'Available lists 3'])
+    await wrapper.setProps({
+      modelValue: { ...emptyComposition, services: ['steam', 'discord'] },
+    })
     expect(
       wrapper.findAll('.picker__row .picker__name').map((name) => name.text()),
     ).toEqual(['Discord', 'Telegram', 'YouTube', 'Steam'])
 
+    await wrapper.setProps({
+      modelValue: { ...emptyComposition, services: ['discord'] },
+    })
     const search = wrapper.get<HTMLInputElement>('.picker__search-input')
     await search.setValue('steam')
     await wrapper.get('input[value="steam"]').setValue(true)
@@ -164,6 +167,28 @@ describe('ServicePicker', () => {
     expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toMatchObject({
       services: ['discord', 'steam'],
     })
+    wrapper.unmount()
+  })
+
+  it('reorders from a filtered row without dropping hidden selections, and respects disabled state', async () => {
+    const wrapper = mountPicker({
+      modelValue: {
+        ...emptyComposition,
+        services: ['discord', 'telegram', 'youtube'],
+        priority: ['discord', 'telegram', 'youtube'],
+      },
+    })
+    await wrapper.get('.picker__search-input').setValue('telegram')
+    await wrapper
+      .get('.picker__handle')
+      .trigger('keydown', { key: 'ArrowDown' })
+    expect(wrapper.emitted('reorder')).toEqual([
+      [['discord', 'youtube', 'telegram']],
+    ])
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    await wrapper.setProps({ disabled: true })
+    await wrapper.get('.picker__handle').trigger('keydown', { key: 'ArrowUp' })
+    expect(wrapper.emitted('reorder')).toHaveLength(1)
     wrapper.unmount()
   })
 

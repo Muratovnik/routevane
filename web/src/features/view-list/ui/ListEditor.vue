@@ -5,19 +5,14 @@ import {
   cloneComposition,
   compositionSignature,
   normalizeComposition,
-  overlapServiceIDs,
   resolvedComposition,
-  serviceIdentityLabels,
-  toggleCompositionService,
 } from '@/entities/list-composition/model/composition'
 import { useCompositionForecast } from '@/entities/list-composition/model/forecast'
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
-import CompositionPriorityList from '@/entities/list-composition/ui/CompositionPriorityList.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { CategoryDetail, ServiceDetail } from '@/shared/api/catalog'
 import type { ListComposition } from '@/shared/api/lists'
 import RvButton from '@/shared/ui/RvButton.vue'
-import RvIcon from '@/shared/ui/RvIcon.vue'
 
 const props = defineProps<{
   busy: boolean
@@ -39,7 +34,7 @@ const emit = defineEmits<{
   save: [name: string, composition: ListComposition]
 }>()
 
-const { formatNumber, t, tc } = useLocale()
+const { formatNumber, t } = useLocale()
 const forecast = useCompositionForecast()
 
 function storedComposition(): ListComposition {
@@ -85,40 +80,10 @@ watch(
 // One format weighs the services, and it is the first one this list publishes
 // in: a service's share of the rules differs per format, so mixing two would
 // be adding numbers that do not belong to the same total.
-const weights = computed<Map<string, number>>(() => {
-  const first = props.outputs[0]
-  if (first === undefined) return new Map()
-  const answer = forecast.forTarget(first.targetID)
-  if (answer === null) return new Map()
-  return new Map(
-    answer.perService.map((entry) => [entry.serviceID, entry.rules]),
-  )
-})
-
 const firstForecast = computed(() => {
   const first = props.outputs[0]
   return first === undefined ? null : forecast.forTarget(first.targetID)
 })
-
-const serviceLabels = computed(() => serviceIdentityLabels(props.services))
-
-const serviceRows = computed(() =>
-  resolved.value.map((id) => ({
-    id,
-    note:
-      weights.value.get(id) === undefined
-        ? undefined
-        : tc('create.forecast.rules', weights.value.get(id) ?? 0),
-    overlaps: overlapNames(id),
-    title: serviceLabels.value.get(id) ?? id,
-  })),
-)
-
-function overlapNames(serviceID: string): string[] | null {
-  const ids = overlapServiceIDs(firstForecast.value, serviceID)
-  if (ids === null) return null
-  return ids.map((id) => serviceLabels.value.get(id) ?? id)
-}
 
 // A format that would refuse this draft says so beside the save control. It
 // does not stop the save: the operator may be fixing one format while another
@@ -154,15 +119,6 @@ const canSave = computed(
   () =>
     !props.busy && draftName.value.trim() !== '' && resolved.value.length > 0,
 )
-
-function removeService(serviceID: string): void {
-  if (props.busy) return
-  draftComposition.value = toggleCompositionService(
-    draftComposition.value,
-    props.categories,
-    serviceID,
-  )
-}
 
 function setPriority(ids: string[]): void {
   if (props.busy) return
@@ -222,33 +178,10 @@ function reset(): void {
           :list-name="draftName"
           :pending="dirty"
           :services="props.services"
-        />
-        <CompositionPriorityList
-          class="editor__priority"
-          :disabled="props.busy"
-          :items="serviceRows"
-          :overlap-pending="forecast.pending.value"
-          :overlap-unavailable="forecastTargets.length === 0"
-          :overlap-unavailable-label="t('list.overlap.unavailable')"
           :retryable="forecastTargets.length > 0"
           @reorder="setPriority"
           @retry="retryForecast"
-        >
-          <template #actions="{ item: row }">
-            <button
-              v-if="row !== undefined"
-              :aria-label="
-                t('list.composition.remove.aria', { service: row.title })
-              "
-              class="editor__row-action"
-              :disabled="props.busy"
-              type="button"
-              @click="removeService(row.id)"
-            >
-              <RvIcon name="trash" />
-            </button>
-          </template>
-        </CompositionPriorityList>
+        />
       </div>
     </section>
 

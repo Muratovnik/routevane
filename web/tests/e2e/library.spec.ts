@@ -242,10 +242,11 @@ test('the library starts empty and shelves the route the composer creates and pu
 
   // Priority is the route's overlap policy. The first row is dragged below the
   // second here, while the same handle also exposes arrow-key reordering.
-  const priorityRows = page.locator('.priority-list__item')
+  await search.fill('')
+  const priorityRows = page.locator('.picker__row--selected')
   await expect(priorityRows).toHaveCount(2)
   await expect(priorityRows.nth(0)).toHaveAttribute('data-id', 'discord')
-  const dragHandle = priorityRows.nth(0).locator('.priority-list__handle')
+  const dragHandle = priorityRows.nth(0).locator('.picker__handle')
   await dragHandle.scrollIntoViewIfNeeded()
   const from = await dragHandle.boundingBox()
   const to = await priorityRows.nth(1).boundingBox()
@@ -460,24 +461,21 @@ test('the library starts empty and shelves the route the composer creates and pu
   await expect(page.locator('#editor-name')).toHaveValue('Discord, YouTube')
   const listPage = page.locator('main')
 
-  // The editor keeps the same table-and-rail composition as creation. Selected
-  // lists stay grouped first, while the rail owns ordering and removal.
+  // Editing uses the same stable rows and in-table membership controls.
   const compositionRow = listPage
-    .locator('.priority-list__item')
+    .locator('.picker__row--selected')
     .filter({ hasText: 'Discord' })
   await expect(
-    compositionRow.getByRole('button', {
+    compositionRow.getByRole('checkbox', {
       name: 'Remove Discord from the route',
     }),
   ).toBeVisible()
   await expect(
-    listPage.getByRole('button', { name: 'Remove YouTube from the route' }),
+    listPage.getByRole('checkbox', { name: 'Remove YouTube from the route' }),
   ).toBeVisible()
   const editorTable = listPage.locator('.picker__table')
   await expect(editorTable).toBeVisible()
-  await expect(editorTable.locator('.picker__group-row').first()).toContainText(
-    'Selected for the route',
-  )
+  await expect(editorTable.locator('.picker__row--selected')).toHaveCount(2)
   await editorTable
     .locator('.picker__row')
     .filter({ hasText: 'Discord' })
@@ -513,7 +511,7 @@ test('the library starts empty and shelves the route the composer creates and pu
     rowHeight,
   )
   await expect(
-    listPage.locator('.priority-list').getByText('1 list', { exact: true }),
+    listPage.getByText('1 list in the route', { exact: true }),
   ).toBeVisible()
   await expect(compositionRow).toHaveCount(0)
 
@@ -1056,7 +1054,7 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   await expect(page.locator('#editor-name')).toHaveValue('Discord, YouTube')
   // The contents tab states the composition itself, one row per list, and keeps
   // the catalog behind the control that adds to it.
-  const routePriority = page.locator('main').locator('.priority-list__item')
+  const routePriority = page.locator('main').locator('.picker__row--selected')
   await expect(routePriority).toHaveCount(2)
   await expect(routePriority).toContainText(['Discord', 'YouTube'])
 
@@ -1519,9 +1517,13 @@ test('the library default order seeds new routes without showing ordinal clutter
     await page.locator('input[value="discord"]').check()
     await search.fill('YouTube')
     await page.locator('input[value="youtube"]').check()
-    const routeOrder = page.locator('.priority-list__item')
-    await expect(routeOrder.nth(0)).toHaveAttribute('data-id', 'youtube')
-    await expect(routeOrder.nth(1)).toHaveAttribute('data-id', 'discord')
+    await search.fill('')
+    await expect(
+      page.locator('.picker__row[data-id="youtube"]'),
+    ).toHaveAttribute('data-priority', '1')
+    await expect(
+      page.locator('.picker__row[data-id="discord"]'),
+    ).toHaveAttribute('data-priority', '2')
   } finally {
     const restored = await page.request.post(`${origin}/v1/services/priority`, {
       data: { default_priority: original },
@@ -1646,7 +1648,7 @@ test('an operator category carries its lists into a route and is kept while a ro
     page.getByRole('checkbox', { name: 'Follow “Домашние”' }),
   ).toBeChecked()
   await expect(
-    page.locator('.priority-list__item').filter({ hasText: 'Discord' }),
+    page.locator('.picker__row--selected').filter({ hasText: 'Discord' }),
   ).toHaveCount(1)
 
   const routeURL = page.url()
@@ -1688,8 +1690,12 @@ test('an operator category carries its lists into a route and is kept while a ro
   await expect(
     page.getByRole('checkbox', { name: 'Follow “Домашние”' }),
   ).not.toBeChecked()
+  await page.getByRole('searchbox', { name: 'Find a list' }).fill('')
+  await page
+    .getByRole('button', { name: 'All categories', exact: true })
+    .click()
   await expect(
-    page.locator('.priority-list__item').filter({ hasText: 'YouTube' }),
+    page.locator('.picker__row--selected').filter({ hasText: 'YouTube' }),
   ).toHaveCount(1)
 
   // Nothing names it now, so it goes — and the list it held keeps the category
@@ -2766,7 +2772,7 @@ test('the composition editor keeps its geometry across selections and shell brea
 }) => {
   await page.goto(`${origin}/lists/new`)
   const table = page.locator('.picker__table-frame')
-  const rail = page.locator('.create__priority')
+  const rail = page.locator('.create__settings')
   await expect(table).toBeVisible()
 
   await page.setViewportSize({ height: 900, width: 1440 })
@@ -2788,7 +2794,28 @@ test('the composition editor keeps its geometry across selections and shell brea
   expect(row!.height).toBeLessThanOrEqual(48)
   const before = await table.boundingBox()
   expect(before).not.toBeNull()
-  await page.locator('input[value="discord"]').check()
+  const positions = await page.locator('.picker__row').evaluateAll((rows) =>
+    rows.map((row) => ({
+      id: (row as HTMLElement).dataset.id,
+      y: row.getBoundingClientRect().y,
+    })),
+  )
+  const checkbox = page.locator('input[value="discord"]')
+  await checkbox.check()
+  await expect(checkbox).toBeFocused()
+  expect(
+    await page.locator('.picker__row').evaluateAll((rows) =>
+      rows.map((row) => ({
+        id: (row as HTMLElement).dataset.id,
+        y: row.getBoundingClientRect().y,
+      })),
+    ),
+  ).toEqual(positions)
+  const chips = await page.locator('.picker__chip').first().boundingBox()
+  const more = await page
+    .getByRole('combobox', { name: 'Filter by category' })
+    .boundingBox()
+  expect(more!.height).toBe(chips!.height)
   const after = await table.boundingBox()
   expect(after).not.toBeNull()
   expect(after?.x).toBeCloseTo(before?.x ?? 0)
@@ -3005,7 +3032,7 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   await select(1, 'Overlap Beta', true)
   await page.getByRole('searchbox', { name: 'Find a list' }).fill('')
   await chooseFormat(page, /sing-box/)
-  const priority = page.locator('.priority-list')
+  const priority = page.locator('.picker__forecast-status')
   const alphaRow = page
     .locator(`input[value="${ids[0]}"]`)
     .locator('xpath=ancestor::tr')
@@ -3132,7 +3159,7 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   await page.getByRole('tab', { name: 'Contents', exact: true }).click()
   const editor = page.locator('.editor')
   await expect(
-    editor.locator(`.priority-list__item[data-id="${ids[0]}"]`),
+    editor.locator(`.picker__row[data-id="${ids[0]}"]`),
   ).toContainText('Overlap: Overlap Beta')
   await expect(
     editor.getByRole('button', { name: 'How overlaps are resolved' }),

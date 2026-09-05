@@ -285,6 +285,10 @@ const ru: Dictionary = {
     'Выберите формат, чтобы проверить пересечения',
   'servicePicker.overlap.unknown': 'Пересечения неизвестны',
   'servicePicker.overlap.none': 'Нет',
+  'create.settings': 'Параметры маршрута',
+  'servicePicker.column.priority': 'Приоритет',
+  'servicePicker.overlap.legend':
+    'Число других выбранных списков с общими правилами. 0 — пересечений нет; прочерк — расчёта нет или список не выбран.',
   'servicePicker.overlap.tag': 'Пересечение: {list}',
 
   'lists.title': 'Списки',
@@ -1128,6 +1132,10 @@ const en: Dictionary = {
   'servicePicker.overlap.unavailable': 'Choose a format to check overlaps',
   'servicePicker.overlap.unknown': 'Overlaps unknown',
   'servicePicker.overlap.none': 'None',
+  'create.settings': 'Route settings',
+  'servicePicker.column.priority': 'Priority',
+  'servicePicker.overlap.legend':
+    'Number of other selected lists with shared rules. 0 means no overlaps; a dash means no calculation or an unselected list.',
   'servicePicker.overlap.tag': 'Overlap: {list}',
 
   'lists.title': 'Lists',

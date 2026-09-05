@@ -29,6 +29,7 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
  * then, exactly as an unset native select does.
  */
 const props = defineProps<{
+  size?: 'default' | 'compact'
   describedBy?: string
   disabled?: boolean
   /** Grouped choices. Groups and flat options are mutually exclusive. */
@@ -78,7 +79,10 @@ const empty = computed(() =>
       :aria-busy="loading === true ? 'true' : undefined"
       :aria-label="loading === true ? loadingLabel : undefined"
       class="rv-select__trigger"
-      :class="{ 'rv-select__trigger--invalid': invalid === true }"
+      :class="{
+        'rv-select__trigger--invalid': invalid === true,
+        'rv-select__trigger--compact': size === 'compact',
+      }"
     >
       <SelectValue class="rv-select__value" :placeholder="placeholder" />
       <span
@@ -166,6 +170,12 @@ const empty = computed(() =>
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-sm);
   cursor: pointer;
+}
+
+.rv-select__trigger--compact {
+  min-height: var(--rv-control-compact);
+  font-size: var(--rv-text-dense);
+  border-radius: var(--rv-radius-md);
 }
 
 .rv-select__trigger:disabled {

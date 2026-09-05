@@ -217,18 +217,13 @@ describe('CreateList forecast', () => {
   // The route is named before it is filled in. The name field asked last while
   // proposing itself from the catalog above it, which read as a summary of what
   // had been picked rather than as the first thing the form wants.
-  it('asks for the name above the catalog', async () => {
+  it('keeps the editable proposed name in route settings', async () => {
     stubNetwork()
     const wrapper = mountComposer()
     await flushPromises()
 
-    const name = wrapper.get('#create-name').element
-    const picker = wrapper.get('.picker').element
-    expect(
-      name.compareDocumentPosition(picker) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
+    expect(wrapper.find('.create__settings #create-name').exists()).toBe(true)
 
-    // It is still fed by what is picked below it.
     await wrapper.get('input[value="discord"]').setValue(true)
     await flushPromises()
     expect(wrapper.get<HTMLInputElement>('#create-name').element.value).toBe(
@@ -237,42 +232,40 @@ describe('CreateList forecast', () => {
     wrapper.unmount()
   })
 
-  it('keeps the composition rail visible, applies the library order, and removes from it', async () => {
+  it('applies library priority in the table and removes by checkbox', async () => {
     stubNetwork()
     const wrapper = mountComposer()
     await flushPromises()
 
-    expect(wrapper.get('.priority-list__empty').text()).toBe(
-      'Choose lists in the table.',
-    )
+    expect(wrapper.find('.create__settings').exists()).toBe(true)
+    expect(wrapper.find('.priority-list').exists()).toBe(false)
     await wrapper.get('input[value="discord"]').setValue(true)
     await wrapper.get('input[value="limit-fixture"]').setValue(true)
     await flushPromises()
     expect(
       wrapper
-        .findAll('.priority-list__copy strong')
-        .map((title) => title.text()),
+        .findAll('.picker__row--selected')
+        .sort(
+          (a, b) =>
+            Number(a.attributes('data-priority')) -
+            Number(b.attributes('data-priority')),
+        )
+        .map((row) => row.get('.picker__name').text()),
     ).toEqual(['Limit fixture', 'Discord'])
     expect(wrapper.text()).toContain('Choose a format to check overlaps')
     expect(wrapper.text()).not.toContain('Overlaps unknown')
     expect(buttonWithText(wrapper, 'Retry')).toBeUndefined()
-    expect(wrapper.find('.picker__row .priority-list__handle').exists()).toBe(
-      false,
-    )
-
-    const remove = wrapper
-      .findAll('button')
-      .find(
-        (button) =>
-          button.attributes('aria-label') ===
-          'Remove Limit fixture from the route',
-      )
-    expect(remove).toBeDefined()
-    await remove?.trigger('click')
+    expect(wrapper.findAll('.picker__handle')).toHaveLength(2)
+    await wrapper.get('input[value="limit-fixture"]').setValue(false)
     expect(
       wrapper
-        .findAll('.priority-list__copy strong')
-        .map((title) => title.text()),
+        .findAll('.picker__row--selected')
+        .sort(
+          (a, b) =>
+            Number(a.attributes('data-priority')) -
+            Number(b.attributes('data-priority')),
+        )
+        .map((row) => row.get('.picker__name').text()),
     ).toEqual(['Discord'])
     wrapper.unmount()
   })
@@ -289,8 +282,13 @@ describe('CreateList forecast', () => {
     await flushPromises()
     expect(
       wrapper
-        .findAll('.priority-list__copy strong')
-        .map((title) => title.text()),
+        .findAll('.picker__row--selected')
+        .sort(
+          (a, b) =>
+            Number(a.attributes('data-priority')) -
+            Number(b.attributes('data-priority')),
+        )
+        .map((row) => row.get('.picker__name').text()),
     ).toEqual(['Limit fixture', 'Discord'])
 
     priority = ['discord', 'limit-fixture']
@@ -298,24 +296,41 @@ describe('CreateList forecast', () => {
     await flushPromises()
     expect(
       wrapper
-        .findAll('.priority-list__copy strong')
-        .map((title) => title.text()),
+        .findAll('.picker__row--selected')
+        .sort(
+          (a, b) =>
+            Number(a.attributes('data-priority')) -
+            Number(b.attributes('data-priority')),
+        )
+        .map((row) => row.get('.picker__name').text()),
     ).toEqual(['Discord', 'Limit fixture'])
 
-    await wrapper.get('.priority-list__handle').trigger('keydown', {
-      key: 'ArrowDown',
-    })
+    await wrapper
+      .get('.picker__row[data-id="discord"] .picker__handle')
+      .trigger('keydown', {
+        key: 'ArrowDown',
+      })
     expect(
       wrapper
-        .findAll('.priority-list__copy strong')
-        .map((title) => title.text()),
+        .findAll('.picker__row--selected')
+        .sort(
+          (a, b) =>
+            Number(a.attributes('data-priority')) -
+            Number(b.attributes('data-priority')),
+        )
+        .map((row) => row.get('.picker__name').text()),
     ).toEqual(['Limit fixture', 'Discord'])
     window.dispatchEvent(new Event('focus'))
     await flushPromises()
     expect(
       wrapper
-        .findAll('.priority-list__copy strong')
-        .map((title) => title.text()),
+        .findAll('.picker__row--selected')
+        .sort(
+          (a, b) =>
+            Number(a.attributes('data-priority')) -
+            Number(b.attributes('data-priority')),
+        )
+        .map((row) => row.get('.picker__name').text()),
     ).toEqual(['Limit fixture', 'Discord'])
     wrapper.unmount()
   })

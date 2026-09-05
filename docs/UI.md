@@ -35,9 +35,8 @@ Sections, addressable by URL:
    and say what to do next rather than leaking migration names. The primary
    action is «Build a route».
 2. `/lists/new` — **New route.** The composer keeps the first setup in one
-   visible flow: the name first — proposed from what is picked below and
-   editable at any point — then lists or whole categories, then the first
-   device or application. The target still
+   visible flow: lists or whole categories on the left; the proposed, editable
+   name and first device or application on the right. The target still
    belongs to the output, not the route; after the route is stored, the route
    page creates and publishes that first output so the one-time subscription
    URL never crosses storage or a URL. **Capacity is part of composing**
@@ -50,21 +49,21 @@ Sections, addressable by URL:
    with a fitting format named and switchable in one click. The forecast
    guards — an unknown forecast never blocks creation.
    Composition is one dense semantic table, searchable and filterable by
-   category. Selected rows stay together first and available rows follow, so
-   changing membership does not replace the operator's working surface. A
-   persistent rail beside the table shows only the selected lists and owns
-   reordering and removal. Its drag handles have keyboard equivalents; the create
-   rail numbers its rows so priority stays explicit. The first
-   connection choice, forecast and create action share its footer. On a
-   narrow screen the rail becomes a full-width section after the table instead
-   of shrinking into a drawer.
-   The rail begins in the library's default order, then the route stores that
+   category. Checking or unchecking a list preserves every row's position and
+   focus. A left-hand drag handle and visible priority number on each selected
+   row own reordering, with arrow-key equivalents. Only an explicit reorder
+   moves rows. The settings rail contains the name, first connection choice,
+   forecast and create action, without repeating the selected lists. In a
+   constrained window it stacks after the table.
+   Priority begins in the library's default order, then the route stores that
    order as its own snapshot. When two selected lists overlap, each affected
    table row shows the number of other selected lists it intersects; activating
-   that count reveals every name. Narrow rows show those names as compact tags.
-   These names summarize the complete relation set even when detailed diagnostics
-   are
-   capped at 100 records. The interface never turns those records into a manual
+   that count reveals every name. Zero means no intersections; a dash means
+   unselected or not calculated, with the reason available in the table status.
+   Narrow rows show intersecting list names as compact tags. These names
+   summarize the complete relation set even when detailed diagnostics are
+   capped at 100 records. Category names carry stable colored dots as a
+   secondary recognition cue. The interface never turns those records into a manual
    cleanup queue: the higher list owns an equal destination, a covered
    lower-priority rule is omitted, and a broader lower-priority network remains
    when removing it would lose unique addresses. A new member of a live category
@@ -75,11 +74,10 @@ Sections, addressable by URL:
    first-setup handoff travel in the URL hash (`#tab=…&setup=…`) because the
    embedded server rejects query strings, and the legacy `/#list={listId}`
    fragment redirects here. A breadcrumb returns to the route shelf. The Contents
-   tab leads with the same dense composition table and ordered rail as route
-   creation (ADR 0027). Selected rows come first, available rows follow, search
-   and category filters keep their geometry, and opening a row inspects the
-   list without changing membership. The rail shows the route's saved priority
-   and owns reordering and removal by pointer or keyboard. Intersection counts and their name disclosures on
+   tab leads with the same dense composition table as route creation (ADR 0027).
+   Membership changes keep row positions stable. The table owns selection,
+   removal and priority changes by pointer or keyboard; opening a row inspects
+   the list without changing membership. Intersection counts and their name disclosures on
    selected rows use the first connection's format, like the row weights, and
    name every other selected list with which that row overlaps. Save
    is enabled only once the draft differs from the stored route, cancel
