@@ -13,11 +13,18 @@ Read `AGENTS.md`, `docs/UI.md`, `.agents/rules/web-architecture.md`, and
 progressive. Reuse semantic tokens and existing primitives before adding one.
 
 Implement real loading, empty, error, stale, success, keyboard, focus, and
-narrow-screen behavior relevant to the slice. Keep data fetching outside
+constrained-window behavior relevant to the slice. Keep data fetching outside
 presentational components and keep product state in the URL or server state
 when it must survive refresh or be shareable.
 
-Run `npm run check` from `web/`. For user-visible changes also run
-`tools/dev.ps1 test-browser`, restart the server that owns the built asset, and
-inspect the rendered result at 320, 768, 1024, and 1440 pixels. Axe is a gate,
-not a substitute for keyboard and visual review.
+For implementation, run the verification commands in `AGENTS.md`, including
+`tools/dev.ps1 test-browser` for browser-facing changes. For user-visible changes,
+inspect the rendered result using the desktop, constrained-window and
+accessibility checks in [the UI contract](../../../docs/UI.md#desktop-layout-and-window-adaptation).
+Axe is a gate, not a substitute for keyboard and visual review.
+
+Follow `AGENTS.md` for live acceptance: restart a server only when it belongs to
+this task, after confirming ownership and a rollback path. Otherwise launch an
+isolated task-owned process and clean it up afterward. Preserve another task's
+server and generated working directories; use an isolated checkout when checks
+would interfere with an active development session.

@@ -18,9 +18,11 @@ reach through another component with element or implementation selectors.
 
 Every product state has loading, empty, error, stale, and success behavior as
 applicable. Use native interactive elements, visible focus, logical headings,
-labels, keyboard traversal, and non-color state text. Verify 320, 768, 1024,
-and 1440 pixel widths. Axe automation blocks serious and critical findings but
-does not replace keyboard and screen-reader review.
+labels, keyboard traversal, and non-color state text. Follow the desktop layout
+and accessibility checks in [the UI contract](../../docs/UI.md#desktop-layout-and-window-adaptation).
+Constrained windows and enlarged content must remain usable; they do not imply
+a separate mobile interface. Axe automation blocks serious and critical findings
+but does not replace keyboard and screen-reader review.
 
 Nuxt output is generated, not committed, and embedded by the canonical Go build.
 The build path and served UI digest are one tested contract. A Nuxt development

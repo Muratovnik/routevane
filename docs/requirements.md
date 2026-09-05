@@ -14,6 +14,10 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 
 - Run one local executable with an embedded English/Russian UI and API. No cloud
   account, separate worker, or external database is required.
+- The primary interface is a desktop browser operated by keyboard and pointer.
+  Preserve access in smaller windows and with enlarged content; this does not
+  require a separate mobile interface. The [UI contract](UI.md#desktop-layout-and-window-adaptation)
+  owns layout and accessibility verification.
 - A **list** contains destinations; a **category** groups lists; a **route**
   composes them and publishes through one or more **connections**. In the API,
   `services` still means UI lists and `lists` means UI routes.

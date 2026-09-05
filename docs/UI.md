@@ -229,17 +229,20 @@ operator deliberately opened to inspect and edit exactly that material. The publ
 — that is how a generated file earns trust — but they are one deliberate click
 away, because they carry addresses.
 
-Instruction lives where a decision needs it, and only there. Background a
-reader may want — what a subscription link is, how formats differ — sits behind
-an informer (`RvInfoTip`), never as a paragraph on the default path.
+Instruction lives where a decision needs it. Optional background — what a
+subscription link is, how formats differ — sits behind an informer (`RvInfoTip`).
+Keep a concise explanation visible when it is needed to choose safely, understand
+an empty state, or recover from failure.
 Disclosures are for long secondary content, not for hints. A label or a heading
 never gets a sentence under it that restates the label, the placeholder or the
 obvious next step; a hint under a field states an input format or a
-consequence, or it does not exist. A surface never explains its own reach: if a
-screen has to say that an edit applies somewhere else, the edit is on the wrong
-screen. Composing a route writes only that route; the library writes the
-library (ADR 0029). The product never volunteers what it does
-not do — that it does not scan the network, that a password is not kept: an
+consequence, or it does not exist. Keep edits on the surface that owns their
+scope: composing a route writes only that route; the library writes the
+library (ADR 0029). Explain shared effects beside an action when they affect
+the operator's decision, such as a library edit used by several routes. A
+warning does not justify placing a library edit in the route composer.
+The product never volunteers what it does not do — that it does not scan the
+network, that a password is not kept: an
 absence cannot be shown to the reader, so the sentence asks for trust instead
 of giving evidence. What an act must disclose it discloses beside that act, as
 the thing that will happen.
@@ -281,33 +284,60 @@ interface are not secrets and are remembered for the tab, because asking again
 for what was just typed is the redundant entry WCAG 2.2 asks products to stop
 doing.
 
+## Desktop layout and window adaptation
+
+Use a dense desktop working surface for the keyboard and pointer scenario in
+[the product requirements](requirements.md#product-contract). Keep related data
+comparable in tables and adjacent panes when space permits. Adapt the same
+interface to a smaller window or enlarged content while keeping its actions
+reachable. A narrow viewport is not a requirement for a separate mobile product.
+
+This is the shared layout verification matrix; rule and skill files link here:
+
+| Scenario | Verification |
+| --- | --- |
+| Desktop layout | Inspect at 1024 and 1440 CSS px wide with representative data, checking density, comparison and keyboard/pointer operation. |
+| Constrained window | Inspect at 768 CSS px wide and a short desktop window, such as 1280 × 640 CSS px; scrolling must keep actions reachable. |
+| Enlarged text | Check text enlarged to 200% without losing content or controls. |
+| Accessibility reflow | Check at 320 CSS px wide, equivalent to a 1280 CSS px viewport at 400% browser zoom; preserve information and functionality. |
+
+These are inspection cases, not a minimum window size or device support list.
+Use both interface languages and inspect the affected states. See
+[Accessibility](#accessibility) for the reflow boundary and manual checks.
+
 ## Layout stability
 
-Content that appears must not move content that is already there. Message rows,
-stage lines and confirmations occupy their space before they have anything to
-say; a background load never blanks or re-creates what it is refreshing; long
+Background loading and status updates must not unexpectedly move the operator's
+current control or reading position. Reserve space for predictable inline status
+changes; a background load never blanks or re-creates what it is refreshing. An
+explicit disclosure, validation message or user-requested layout change may
+reflow content while preserving focus and keeping the next action reachable. Long
 values wrap or scroll inside their own box; wide tables scroll inside their own
 container, never the page. Menus are viewport overlays: they collision-position
 above or below their trigger and never extend a table's scroll area. A screen
-that jumps when it answers has failed this contract regardless of how it looks
-in a screenshot. Variable-length composition data never lives in sibling grid
-rows: category selection swaps the contents of a reserved detail pane that
-scrolls independently while the surrounding page keeps its command area
-reachable. A modal dialog owns the scroll: the page behind it does not move.
+that unexpectedly jumps during a background update fails this contract.
+In the desktop composition layout, changing category content must not stretch
+adjacent rows or displace the command area; use the reserved detail pane's own
+scrolling. At constrained widths, panes may stack as described in the composing
+flow above. A modal dialog owns the scroll: the page behind it does not move.
 
 ## Tokens
 
 `web/src/assets/styles/tokens.css` holds two levels. Primitives are raw values and
 never appear in component code. Roles are what components consume and the only
-thing a theme redefines. Dark is the default ground because the operating scene
-is an evening desk beside a router; light follows the operating system or an
-explicit choice, and both come from the same role names.
+thing a theme redefines. The initial theme preference is System: follow the
+operating system unless the operator explicitly chooses Light or Dark. Both
+themes use the same role names; the base CSS palette does not define a user's
+theme preference.
 
 The type scale is eight steps: 13px is secondary metadata, 14px is the reading
 floor, 15–16px carries normal controls and copy, and 28px is a page title.
-Compact controls are at least 36px high, ordinary controls 40px and touch
-choices 44px; check and radio marks are 18px. Tight groups use 8–12px, ordinary
-component interiors 16–20px, and distinct page sections 32–48px. Anything
+Compact controls are at least 36px high, ordinary controls 40px and larger
+hit-area choices 44px; check and radio marks are 18px. Choose density for the
+task through shared component variants. The `--rv-control-touch` token names
+the existing larger size; it does not require every desktop control to use it.
+Tight groups use 8–12px, ordinary component interiors 16–20px, and distinct page
+sections 32–48px. Anything
 compared character by character — links, identifiers, addresses, file contents,
 interface names — takes the mono role. No component declares a literal colour,
 size, space, radius or duration.
@@ -323,7 +353,9 @@ variant of `RvDialog`; remaining overlays use headless Reka UI primitives.
 Both libraries are wrapped once here and themed with Routevane tokens: a
 feature never imports `U*` or Reka components directly, and no native
 `<select>` or `<dialog>` remains. Every control that
-sits in a row with a text field shares its height (`--rv-control-touch`), and
+sits in a row with a text field shares that row's chosen control height. Current
+standard fields use `--rv-control-touch`; a compact row must use a consistent
+shared variant for the field and its adjacent controls. In either case,
 a field drawn as a bordered wrapper around an input — the combobox, a search
 box — lets the wrapper own that height rather than the input inside it, or it
 stands a border taller than the control beside it. A field — text, select or
@@ -363,15 +395,29 @@ choice.
 WCAG 2.2 AA is the floor, and it is a gate rather than an aspiration: native
 interactive elements, labels tied to controls, an error beside the control that
 caused it, a visible focus ring of at least two pixels, targets no smaller than
-24px, and every state distinguishable in text. Verified by keyboard and by axe
-at 320, 768, 1024 and 1440 pixels. Automation blocks serious findings; it does
-not replace the keyboard pass.
+24px, and every state distinguishable in text. Use the matrix in
+[Desktop layout and window adaptation](#desktop-layout-and-window-adaptation).
+The 320 CSS px case checks [WCAG Reflow](https://www.w3.org/WAI/WCAG22/Understanding/reflow.html),
+including desktop browser enlargement. Content that needs two-dimensional
+layout, such as a data table, may scroll in its own container; that exception
+does not extend to surrounding forms, text or actions. The
+[200% text enlargement check](https://www.w3.org/WAI/WCAG22/Understanding/resize-text.html)
+is separate and does not replace reflow verification.
+
+Use axe for the affected states. Serious and critical findings block acceptance;
+any stricter existing test assertions remain in force. Automated checks do not
+establish WCAG conformance by themselves: also inspect keyboard traversal,
+focus, reflow and enlarged content, and review screen-reader behavior for changed
+semantics or interactions.
 
 ## What the surface does not do
 
-No wizard: nothing is a numbered step, and no section is reachable only after
-another. No eyebrow labels, no colored edge stripes, no arrow glyphs welded
-into copy, no teaching paragraphs on the default path. No dashboard of things
+Keep the object-based navigation: routes, the library, connections and settings
+remain directly reachable rather than gated by a setup wizard. A local operation
+may show its sequence or prerequisites without locking unrelated sections.
+No eyebrow labels, no colored edge stripes, no arrow glyphs welded into copy.
+Keep optional tutorials off the default path; retain concise guidance needed for
+the current decision, first use or recovery. No dashboard of things
 the product does not have. No status the server cannot substantiate — a live
 "the router fetched your subscription" indicator waits for the server to record
 that fact, and until then the interface does not imply it. Routes are archived,
