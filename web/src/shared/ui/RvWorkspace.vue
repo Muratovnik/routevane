@@ -4,8 +4,6 @@ import { computed, provide, ref, useId, useTemplateRef } from 'vue'
 
 import { workspacePane } from '@/shared/ui/workspacePane'
 
-defineProps<{ bounded?: boolean }>()
-
 const host = useTemplateRef<HTMLElement>('host')
 const target = `workspace-pane-${useId().replaceAll(':', '-')}`
 const open = ref(false)
@@ -28,7 +26,6 @@ provide(workspacePane, { target: `#${target}`, docked, open, locked })
     class="rv-workspace"
     :class="{
       'rv-workspace--inspecting': docked && open,
-      'rv-workspace--bounded': bounded,
     }"
   >
     <div class="rv-workspace__main" :inert="docked && locked"><slot /></div>
@@ -41,6 +38,9 @@ provide(workspacePane, { target: `#${target}`, docked, open, locked })
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
+  width: 100%;
+  max-width: var(--rv-composition-width);
+  margin-inline: auto;
   min-width: 0;
   min-height: 0;
   height: 100%;
@@ -49,10 +49,6 @@ provide(workspacePane, { target: `#${target}`, docked, open, locked })
 .rv-workspace__main {
   min-width: 0;
   min-height: 0;
-}
-
-.rv-workspace--bounded .rv-workspace__main {
-  max-width: var(--rv-composition-width);
 }
 
 .rv-workspace--inspecting {

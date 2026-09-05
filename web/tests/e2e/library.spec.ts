@@ -4453,7 +4453,8 @@ test('composition keeps its context in docked and overlaid cards and isolates na
   await page.goto(`${origin}/lists/new`)
   const frame = page.locator('.picker__table-frame')
   await expect(frame).toBeVisible()
-  const closedWidth = (await frame.boundingBox())!.width
+  const closedBounds = (await frame.boundingBox())!
+  const closedWidth = closedBounds.width
   expect(closedWidth).toBeLessThan(1150)
   const opener = page.locator('[data-id="discord"] .picker__open')
   await opener.click()
@@ -4462,6 +4463,7 @@ test('composition keeps its context in docked and overlaid cards and isolates na
   await expect(page.locator('.rv-dialog__scrim')).toHaveCount(0)
   const tableBox = (await frame.boundingBox())!
   const cardBox = (await card.boundingBox())!
+  expect(Math.abs(tableBox.x - closedBounds.x)).toBeLessThanOrEqual(1)
   expect(tableBox.x + tableBox.width).toBeLessThan(cardBox.x)
   expect(cardBox.y + cardBox.height).toBeLessThanOrEqual(960)
   expect(
@@ -4585,8 +4587,17 @@ test('page inspection preserves primary actions and full-height geometry in ever
     'Inspection workflow saved',
   )
   await page.goto(`${origin}/library`)
+  const libraryLeadingEdge = (await page
+    .locator('.lists__workspace')
+    .boundingBox())!.x
   await page.locator('[data-id="discord"] .lists__list-name').click()
   await aligned(page.locator('.lists__workspace'))
+  expect(
+    Math.abs(
+      (await page.locator('.lists__workspace').boundingBox())!.x -
+        libraryLeadingEdge,
+    ),
+  ).toBeLessThanOrEqual(1)
   await expect(
     page.getByRole('button', { name: 'New list', exact: true }),
   ).toBeInViewport()

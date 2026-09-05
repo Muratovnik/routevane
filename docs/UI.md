@@ -125,8 +125,11 @@ Sections, addressable by URL:
    the docked card temporarily makes the underlying workspace inert, preventing
    a list switch from abandoning the operation. It becomes interactive again
    once the result is known. Secondary decisions remain modal.
-   Without an open card, the shared workspace has a maximum width of 88rem
-   to keep names, categories and numeric columns close enough to scan. The table's scroll area fills the sheet down to the footer;
+   The shared workspace centers its content within a maximum width of 88rem
+   to keep names, categories and numeric columns close enough to scan. Opening
+   a docked card preserves those outer bounds and the table's leading edge;
+   the card occupies the right side inside that same container.
+   The table's scroll area fills the sheet down to the footer;
    its rows keep their natural height and align at the top, including when a
    filter leaves one row. A long table has no separate empty band between its
    scroll area and the footer. When enlarged controls need more height, the
@@ -324,9 +327,12 @@ comparable in tables and adjacent panes when space permits. Adapt the same
 interface to a smaller window or enlarged content while keeping its actions
 reachable. A narrow viewport is not a requirement for a separate mobile product.
 
-The shell owns one canvas palette, full-width workspace and consistent outer
-alignment across every section. Reading widths belong to form fields and prose,
-not a second centered page container. The sidebar keeps its place on desktop and
+The shell owns one canvas palette and consistent outer insets across every
+section. Its shared workspace centers the page content with the same width limit
+on routes, composition, library, connections and settings; features do not add
+their own page containers. Docked inspection divides the existing workspace
+without moving its outer edges. Reading widths belong to form fields and prose within it.
+The sidebar keeps its place on desktop and
 can collapse to icons with labels on hover or keyboard focus. The route composer
 and library allocate remaining height to their data regions; headings and filters
 keep natural height. Short windows and enlarged content may scroll to preserve

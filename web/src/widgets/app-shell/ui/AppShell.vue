@@ -121,7 +121,7 @@ const sections = computed<
         :class="{ 'shell__main--workspace': workspace }"
       >
         <div class="shell__measure">
-          <RvWorkspace :bounded="workspace"><slot /></RvWorkspace>
+          <RvWorkspace><slot /></RvWorkspace>
         </div>
       </main>
     </div>
