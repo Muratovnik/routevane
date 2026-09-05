@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('setup', 'setup-browser', 'dev', 'up', 'release', 'doctor', 'format', 'check-go', 'check-web', 'security', 'build', 'check', 'test-browser', 'install-hooks')]
+    [ValidateSet('setup', 'setup-browser', 'setup-desktop', 'desktop', 'package-desktop', 'check-desktop', 'test-desktop', 'dev', 'up', 'release', 'doctor', 'format', 'check-go', 'check-web', 'security', 'build', 'check', 'test-browser', 'install-hooks')]
     [string]$Command = 'check',
     # dev/up: the port the local interface listens on, and an escape hatch for
     # an environment where opening a browser is unwanted.
@@ -291,6 +291,24 @@ function Invoke-ProductBuild {
     return $Binary
 }
 
+function Invoke-DesktopCommand {
+    param([Parameter(Mandatory)][string[]]$Arguments)
+    Push-Location (Join-Path $RepositoryRoot 'desktop')
+    try { Invoke-Checked 'npm' $Arguments } finally { Pop-Location }
+}
+
+function Invoke-DesktopCheck {
+    Invoke-DesktopCommand @('run', 'check')
+    Push-Location (Join-Path $RepositoryRoot 'web')
+    try { Invoke-Checked 'npx' @('--no-install', 'prettier', '../desktop', '--check') } finally { Pop-Location }
+}
+
+function Invoke-DesktopPackage {
+    Invoke-ProductBuild | Out-Null
+    Invoke-Checked 'node' @((Join-Path $RepositoryRoot 'desktop/icons.mjs'))
+    Invoke-DesktopCommand @('run', 'package')
+}
+
 function Assert-ReleaseArchives {
     param(
         [Parameter(Mandatory = $true)][string]$ReleaseRoot,
@@ -524,6 +542,8 @@ try {
             Invoke-Checked $GoExecutable @('mod', 'download')
             Push-Location (Join-Path $RepositoryRoot 'web')
             try { Invoke-Checked 'npm' @('ci') } finally { Pop-Location }
+            Invoke-DesktopCommand @('ci')
+            Invoke-Checked 'node' @((Join-Path $RepositoryRoot 'desktop/node_modules/electron/install.js'))
             Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'))
         }
         'setup-browser' {
@@ -534,6 +554,30 @@ try {
                 else { Invoke-Checked 'npx' @('--no-install', 'playwright', 'install', 'chromium') }
             } finally { Pop-Location }
             Get-RoutevaneBrowserPath | Out-Null
+        }
+        'setup-desktop' {
+            Invoke-DesktopCommand @('ci')
+            # Explicitly install the pinned runtime even on workstations whose
+            # npm policy disables lifecycle scripts globally.
+            Invoke-Checked 'node' @((Join-Path $RepositoryRoot 'desktop/node_modules/electron/install.js'))
+        }
+        'check-desktop' { Invoke-DesktopCheck }
+        'package-desktop' { Invoke-DesktopPackage }
+        'desktop' {
+            if (-not (Test-Path -LiteralPath (Join-Path $RepositoryRoot 'web/node_modules') -PathType Container)) {
+                Invoke-Checked 'pwsh' @('-NoLogo', '-NoProfile', '-File', $PSCommandPath, 'setup')
+            }
+            if (-not (Test-Path -LiteralPath (Join-Path $RepositoryRoot 'desktop/node_modules/electron/dist'))) {
+                Invoke-Checked 'pwsh' @('-NoLogo', '-NoProfile', '-File', $PSCommandPath, 'setup-desktop')
+            }
+            Invoke-ProductBuild | Out-Null
+            Invoke-Checked 'node' @((Join-Path $RepositoryRoot 'desktop/icons.mjs'))
+            Invoke-DesktopCommand @('start')
+        }
+        'test-desktop' {
+            Invoke-DesktopPackage
+            Push-Location (Join-Path $RepositoryRoot 'web')
+            try { Invoke-Checked 'npx' @('--no-install', 'playwright', 'test', '--config', 'playwright.desktop.config.ts') } finally { Pop-Location }
         }
         'doctor' {
             Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'))
@@ -592,6 +636,7 @@ try {
             Assert-RoutevaneHooksCurrent
             Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'))
             Invoke-WebCheck | Out-Null
+            Invoke-DesktopCheck
             Invoke-GoCheck
         }
         'test-browser' {

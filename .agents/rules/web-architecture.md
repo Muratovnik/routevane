@@ -26,4 +26,5 @@ but does not replace keyboard and screen-reader review.
 
 Nuxt output is generated, not committed, and embedded by the canonical Go build.
 The build path and served UI digest are one tested contract. A Nuxt development
-server alone is not acceptance of the shipped single-binary application.
+server alone is not acceptance of either the CLI's embedded interface or the
+Electron desktop package. Desktop acceptance runs the packaged application.

@@ -6,13 +6,24 @@ Routevane builds routing lists for your router or VPN client. Choose services
 and categories, combine them into a route, and export it in the format your
 device uses. Refresh lists manually or on a schedule.
 
-It runs on your computer with a browser interface in English and Russian.
+It runs on your computer with an interface in English and Russian.
 No account or cloud service is required. Routevane prepares routing rules;
 it does not provide a VPN connection.
 
 > [Русская документация](README.ru.md) — краткое руководство, установка и расширенное использование на русском языке.
 
 ## Download and start
+
+The Electron desktop application opens Routevane in its own window with a bundled
+browser engine. Close hides it to the tray; **Open Routevane** restores it and
+**Quit** stops its owned background work. Starting it twice restores the existing
+window. Build the native package using the
+[desktop build instructions](CONTRIBUTING.md#desktop-application); on Windows,
+open `Routevane.exe` inside the generated folder and keep that folder together.
+Desktop installers and automatic program updates are not published yet.
+
+The independently usable **CLI distribution** retains the download and browser
+launch instructions below.
 
 The release is ready to run: **you do not need Go, Node.js, Python, or build tools**.
 You only need a browser to use the interface.

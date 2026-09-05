@@ -11,6 +11,7 @@
 /web/.output/
 /web/dist/
 /web/coverage/
+/desktop/node_modules/
 
 # Generated Nuxt public output embedded by the Go HTTP boundary. The tracked
 # marker keeps the package compilable until tools/dev.ps1 generates and syncs it.

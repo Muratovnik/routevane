@@ -12,6 +12,12 @@ product is actually built on. It is for interface contributors, not installation
 
 ## The shape of the product
 
+The Electron shell keeps a tray icon while running. Window Close hides the
+window without discarding its draft; the tray's Open restores it and Quit ends
+owned work. The first hide in a session explains this through a native notification.
+Display preferences belong to the permanent application origin, independently
+of the private backend port. CLI/browser use retains its own explicit lifetime.
+
 The unit of the product is the **route** (ADR 0013, named by ADR 0028): a
 stored, server-owned composition of **lists** and **categories** with no
 target of its own. A _list_ is a named set of destinations — domains,

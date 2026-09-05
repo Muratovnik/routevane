@@ -12,9 +12,18 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 
 ## Product contract
 
-- Run one local executable with an embedded English/Russian UI and API. No cloud
-  account, separate worker, or external database is required.
-- The primary interface is a desktop browser operated by keyboard and pointer.
+- Deliver a local Electron desktop application with its Chromium runtime and
+  the existing Go core. Retain the independently runnable Go CLI and its embedded
+  English/Russian UI/API. No cloud account or external database is required.
+- Closing the desktop window hides it to a visible tray icon. Open restores the
+  same window and draft; Quit stops its owned Go process and releases its data
+  lock. A second launch activates the existing desktop instance. A shell crash
+  ends the owned backend's lifetime. Independently started CLI processes are
+  never adopted or terminated implicitly.
+- Source refresh schedules belong to Go and keep running while the desktop is
+  in the tray. Application updates belong to packaging, independently of those
+  schedules; unattended application replacement is not enabled by this slice.
+- The primary interface is a desktop window operated by keyboard and pointer.
   Preserve access in smaller windows and with enlarged content; this does not
   require a separate mobile interface. The [UI contract](UI.md#desktop-layout-and-window-adaptation)
   owns layout and accessibility verification.
@@ -62,6 +71,7 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 | Explicit device delivery | `cmd/routing-agent/device_deploy_e2e_test.go`; `cmd/routing-agent/scheduled_delivery_e2e_test.go` |
 | Real plugin examples | `cmd/routing-agent/external_plugin_e2e_test.go` consumes their shipped manifests |
 | Keyboard, localization, and browser flows | `web/tests/e2e/` against the built binary |
+| Desktop lifetime, isolation, persistence and tray behavior | `tools/dev.ps1 test-desktop` against the native package; `cmd/routing-agent/desktop_test.go` |
 | New-user installation | Native release jobs start the packaged launcher with fresh data and check version, health, and UI |
 | Documentation and file ownership | Structural validator plus the prerelease file/audience audit; tests alone do not establish clarity |
 
@@ -69,6 +79,11 @@ These are acceptance entry points, not a substitute for reading an actual run's
 results. Device doubles and parser tests do not prove physical-device acceptance.
 
 ## Open work and limits
+
+- Signed desktop installers, automatic application updates and a separately
+  managed background service are not yet delivered. The CLI remains separately
+  distributable. Native desktop acceptance is recorded per OS; Windows evidence
+  does not establish macOS/Linux tray or installer behavior.
 
 - Physical Keenetic, OpenWrt, MikroTik, and Amnezia acceptance, including device
   interruption/recovery where relevant, remains unverified. Local sing-box

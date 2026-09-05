@@ -1,4 +1,5 @@
 import * as v from 'valibot'
+import { servingOrigin } from './desktop'
 
 import {
   count,
@@ -305,7 +306,7 @@ function validSubscriptionURL(value: string): boolean {
   try {
     const url = new URL(value)
     return (
-      url.origin === window.location.origin &&
+      url.origin === servingOrigin() &&
       url.protocol === 'http:' &&
       url.pathname.startsWith('/v1/subscriptions/rv1.')
     )

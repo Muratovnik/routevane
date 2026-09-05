@@ -4,6 +4,7 @@ package httpapi
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -169,7 +170,19 @@ func newServer(origin string, backend Backend, logger *slog.Logger, assets stati
 }
 
 func (s *Server) Handler() http.Handler { return s.handler }
-func (s *Server) Origin() string        { return s.origin }
+
+// RequireDesktopToken confines UI/API access to the owning desktop process.
+// Call before Serve. Subscription URLs retain their separate bearer contract.
+func (s *Server) RequireDesktopToken(token string) {
+	s.handler.(*handler).desktopToken = token
+}
+
+// CancelRequestsWith binds desktop requests to the owning process's lifetime.
+// Device recovery already detaches from request cancellation with its own budget.
+func (s *Server) CancelRequestsWith(ctx context.Context) {
+	s.server.BaseContext = func(net.Listener) context.Context { return ctx }
+}
+func (s *Server) Origin() string { return s.origin }
 
 // UIAvailable reports whether this build carries the generated control surface.
 // A binary built without it still serves the API, so the caller is the one who
@@ -199,6 +212,7 @@ type handler struct {
 	requestTimeout time.Duration
 	assets         staticAssets
 	mux            *http.ServeMux
+	desktopToken   string
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -260,6 +274,11 @@ func (h *handler) serveFallback(w http.ResponseWriter, r *http.Request) {
 // guard every mutation passes, the budget it may spend, and the record of
 // which route answered.
 func (h *handler) dispatch(route string, w http.ResponseWriter, r *http.Request) {
+	if h.desktopToken != "" && route != "subscriptions.get" &&
+		subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Routevane-Desktop")), []byte(h.desktopToken)) != 1 {
+		writeError(w, http.StatusForbidden, "request rejected")
+		return
+	}
 	spec := routes[route]
 	if spec.handle == nil {
 		// A route name no table entry owns is not found. It must never fall

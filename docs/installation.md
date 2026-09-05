@@ -4,6 +4,13 @@ status: adopted
 
 # Installation and maintenance
 
+The instructions below cover the independently distributed CLI/browser package.
+The Electron desktop package has a [separate source build](../CONTRIBUTING.md#desktop-application).
+Its Close button hides to the tray; Quit stops the owned backend. Desktop data
+is under the operating system's Routevane user-data directory, outside the
+installation folder. Quit before backup or replacement; keep the entire package
+together. Signed installers and automatic application updates are not available yet.
+
 For users of the downloaded application. Follow the [quick start](../README.md#download-and-start)
 for your first launch; this guide covers verification, launch options, updates,
 and recovery. Building the source is a separate [developer workflow](../CONTRIBUTING.md).

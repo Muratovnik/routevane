@@ -15,3 +15,7 @@ fi
 if printf '%s\n' "$staged" | grep -Eq '^(web/|tools/|\.githooks/)'; then
   pwsh -NoLogo -NoProfile -File "$root/tools/dev.ps1" check-web
 fi
+
+if printf '%s\n' "$staged" | grep -Eq '^(desktop/|tools/|\.githooks/)'; then
+  pwsh -NoLogo -NoProfile -File "$root/tools/dev.ps1" check-desktop
+fi

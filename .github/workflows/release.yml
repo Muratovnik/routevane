@@ -66,6 +66,8 @@ jobs:
             Pop-Location
           }
           ./tools/dev.ps1 setup-browser
+          npm ci --prefix desktop
+          if ($LASTEXITCODE -ne 0) { throw 'desktop dependency install failed' }
       - name: Allow the pinned Chromium to create its sandbox
         run: python tools/ci_browser_sandbox.py
       - name: Run the canonical, race, and browser gates

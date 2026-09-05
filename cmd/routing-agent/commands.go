@@ -45,10 +45,11 @@ type doctorOptions struct {
 }
 
 type serveOptions struct {
-	Port        int
-	CatalogDir  string
-	DataDir     string
-	OpenBrowser bool
+	Port         int
+	CatalogDir   string
+	DataDir      string
+	OpenBrowser  bool
+	DesktopToken string
 }
 
 func commonFlags(name string) (*flag.FlagSet, *commonOptions) {

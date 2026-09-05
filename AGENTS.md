@@ -40,7 +40,9 @@ hard-to-reverse technical choice as an ADR.
   a WHOIS, RDAP, ASN, or broad CIDR rule.
 - Published plans and artifacts are immutable. A failed candidate never removes
   the previous valid artifact.
-- The executable remains one binary. Do not add worker/API binaries, external
+- The Go core and CLI remain one binary, independently usable without Electron.
+  The desktop package adds Electron and owns one child instance of that same
+  binary (ADR 0037). Do not add worker/API binaries, external
   plugin hosting, PostgreSQL, Redis, Prometheus, or OpenTelemetry without the
   measured milestone requirement.
 

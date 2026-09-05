@@ -12,7 +12,26 @@ The [requirements](requirements.md) define product guarantees and limits.
 
 `cmd/routing-agent` builds one executable. Its composition root wires application
 services to SQLite, catalog files, source adapters, renderers, deployment, plugins,
-and the loopback HTTP server. No standalone worker/API process is installed.
+and the loopback HTTP server. It also remains the standalone CLI distribution.
+`desktop/` wraps the same binary with Electron; no second Go executable or
+background service is installed. The shell owns a single window, tray and child
+process. See [ADR 0037](adr/0037-electron-desktop-and-independent-cli.md).
+
+The desktop renderer uses the stable `routevane://app` origin. A main-process
+protocol handler forwards only that authority to a loopback port. Go persists the
+first OS-assigned port under its data lock so subscription URLs survive restarts.
+It adds a per-launch credential received by Go through stdin. Renderer
+Node integration is disabled, context isolation and sandboxing are enabled,
+and external navigation requires a separate browser action. The existing HTTP
+Host, mutation and CSP guards remain active. A tiny isolated preload exposes
+only the serving origin for subscription URL validation, never credentials.
+
+Closing the window keeps the tray and schedule alive. Quit closes the parent
+pipe, cancels requests and permits bounded device recovery before terminating.
+EOF also covers an unexpectedly terminated shell. Go's data lock continues to
+reject concurrent writers, including an independently started CLI. Source
+refresh, desktop update installation and CLI distribution have different owners;
+the shell does not turn source scheduling into an Electron-only capability.
 
 Domain values and pure planning do not depend on persistence, HTTP, browser or
 device transports. Interfaces belong to their consumers. A renderer projects an

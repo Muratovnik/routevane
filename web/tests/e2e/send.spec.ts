@@ -377,7 +377,13 @@ for (const language of ['en', 'ru'] as const) {
       let pendingRead: (() => void) | undefined
       const mutations: string[] = []
       page.on('request', (request) => {
-        if (request.method() !== 'GET') mutations.push(request.url())
+        // A debounced draft forecast may finish as the route page is left.
+        // POST carries its input; this exact endpoint writes no product state.
+        const forecast =
+          request.method() === 'POST' &&
+          request.url() === `${origin}/v1/lists/preview`
+        if (request.method() !== 'GET' && !forecast)
+          mutations.push(request.url())
       })
       await page.route(detailURL, async (route) => {
         if (unavailable) {
@@ -479,6 +485,25 @@ for (const language of ['en', 'ru'] as const) {
       await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
       await auditEntry()
       expect(mutations).toEqual([])
+      // Prove the observer still catches a real write endpoint while allowing
+      // the read-only forecast. Invalid JSON makes these probes non-mutating.
+      const updateURL = `${detailURL}/update`
+      await page.evaluate(
+        async (urls) => {
+          for (const url of urls) {
+            await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Routevane-Request': '1',
+              },
+              body: '{',
+            })
+          }
+        },
+        [`${origin}/v1/lists/preview`, updateURL],
+      )
+      expect(mutations).toEqual([updateURL])
     })
   })
 }

@@ -50,3 +50,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0034: Keenetic route descriptions come from plan provenance](./0034-keenetic-route-descriptions-from-plan-provenance.md) | adopted |
 | [ADR 0035: Nuxt UI supplies interactive component mechanics](./0035-nuxt-ui-component-mechanics.md) | adopted |
 | [ADR 0036: initialize route-local list priority from a library default](./0036-route-local-list-priority.md) | adopted |
+| [ADR 0037: Electron desktop and an independently usable Go CLI](./0037-electron-desktop-and-independent-cli.md) | adopted |

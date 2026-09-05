@@ -67,6 +67,7 @@ type runtimeDeps struct {
 	BuildWriter    filesystem.BuildOutputWriter
 	Listen         func(string, string) (net.Listener, error)
 	OpenBrowser    func(context.Context, string) error
+	DesktopInput   io.Reader
 }
 
 func productionDeps() runtimeDeps {
@@ -81,8 +82,9 @@ func productionDeps() runtimeDeps {
 		SignalContext: func(parent context.Context) (context.Context, context.CancelFunc) {
 			return signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 		},
-		Listen:      net.Listen,
-		OpenBrowser: openSystemBrowser,
+		Listen:       net.Listen,
+		OpenBrowser:  openSystemBrowser,
+		DesktopInput: os.Stdin,
 	}
 }
 
@@ -117,6 +119,9 @@ func normalizeDeps(deps runtimeDeps) runtimeDeps {
 	if deps.OpenBrowser == nil {
 		deps.OpenBrowser = production.OpenBrowser
 	}
+	if deps.DesktopInput == nil {
+		deps.DesktopInput = production.DesktopInput
+	}
 	return deps
 }
 
@@ -139,6 +144,8 @@ func runWithDeps(stdout, stderr io.Writer, args []string, deps runtimeDeps) int 
 		return 2
 	}
 	switch args[0] {
+	case "desktop":
+		return runDesktop(stdout, logger, args[1:], deps)
 	case "refresh":
 		options, ok := parseRefresh(args[1:])
 		if !ok {

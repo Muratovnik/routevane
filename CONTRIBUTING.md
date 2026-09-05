@@ -65,6 +65,42 @@ gate must remain green.
 
 ## Run and build
 
+### Desktop application
+
+From a clean checkout, `tools/dev.ps1 setup` installs the pinned web and desktop
+build dependencies. If web dependencies are already installed,
+`tools/dev.ps1 setup-desktop` installs just Electron and its packaging tools.
+
+```powershell
+pwsh -NoLogo -NoProfile -File tools/dev.ps1 desktop
+pwsh -NoLogo -NoProfile -File tools/dev.ps1 package-desktop
+pwsh -NoLogo -NoProfile -File tools/dev.ps1 test-desktop
+```
+
+On Windows `desktop.cmd` runs the first command. It builds the embedded frontend
+and Go executable and opens Electron. `package-desktop` creates the native package
+under `.cache/desktop/Routevane-<platform>-<arch>/`. Open `Routevane.exe` on Windows
+or the application bundle on macOS; distribute the entire package, not the EXE
+alone. This local package is unsigned. `test-desktop` builds and drives that package
+with fresh data, including tray, repeat-launch, persistence and process cleanup.
+The shell has no HMR; the browser development session below remains available.
+
+Desktop Close hides to the tray; Quit stops owned work. Preferences and data are
+stored in Electron's `Routevane` user-data directory (on Windows,
+`%APPDATA%/Routevane/`, with the database under `data/`). An upgrade does not write
+data into the installation folder. Old checkout `data/` and `.cache/dev-data/`
+are not moved automatically. Use configuration export/import or an explicit
+`ROUTEVANE_DESKTOP_DATA` directory while its previous server is stopped.
+`ROUTEVANE_DESKTOP_PROFILE` isolates display preferences and the desktop instance
+lock for development/tests. Never point two writers at the same data directory.
+
+The Go CLI still builds and runs independently, with no Electron runtime required.
+Scheduled source refresh is in Go; it continues while the desktop is in the tray.
+Application auto-update, signed installers and a separately managed background
+service are separate work, not enabled by starting this application.
+
+### Browser development and CLI
+
 For everyday development, run from the repository root:
 
 ```powershell

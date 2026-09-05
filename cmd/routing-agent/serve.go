@@ -90,6 +90,13 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		logResult(logger, "serve", "", "", "failed", 0, started, "categories_unavailable")
 		return 1
 	}
+	if options.DesktopToken != "" {
+		options.Port, err = filesystem.DesktopPort(root)
+		if err != nil {
+			logResult(logger, "serve", "", "", "failed", 0, started, "desktop_port_invalid")
+			return 1
+		}
+	}
 	listener, err := deps.Listen("tcp4", fmt.Sprintf("127.0.0.1:%d", options.Port))
 	if err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "listen_failed")
@@ -100,6 +107,12 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	if !ok || tcp.IP.To4() == nil || !tcp.IP.IsLoopback() {
 		logResult(logger, "serve", "", "", "failed", 0, started, "listen_failed")
 		return 1
+	}
+	if options.DesktopToken != "" && options.Port == 0 {
+		if err := filesystem.SaveDesktopPort(root, tcp.Port); err != nil {
+			logResult(logger, "serve", "", "", "failed", 0, started, "desktop_port_unavailable")
+			return 1
+		}
 	}
 	// The server can apply what it publishes. Deployment is composed separately
 	// because it is a different decision: publication owns formats, deployment
@@ -160,6 +173,10 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
 		return 1
 	}
+	if options.DesktopToken != "" {
+		server.RequireDesktopToken(options.DesktopToken)
+		server.CancelRequestsWith(deps.Context)
+	}
 	if _, err := fmt.Fprintln(stdout, origin); err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "output_failed")
 		return 1
@@ -209,7 +226,13 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		}
 		return 0
 	case <-ctx.Done():
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownBudget := 5 * time.Second
+		if options.DesktopToken != "" {
+			// Cancellation must leave time for the existing two-minute device
+			// recovery budget before closing the store it records ownership in.
+			shutdownBudget = 135 * time.Second
+		}
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownBudget)
 		defer shutdownCancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			logResult(logger, "serve", "", "", "failed", 0, started, "shutdown_failed")
