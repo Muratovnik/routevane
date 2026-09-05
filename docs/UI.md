@@ -54,7 +54,11 @@ Sections, addressable by URL:
    position is announced in the handle accessible name rather than printed in
    every row. Reordering has arrow-key equivalents. The header checkbox selects
    or clears filtered rows, preserving hidden selections. Only an explicit reorder
-   moves rows. The settings rail contains the name, first connection choice,
+   moves rows. Selecting all visible rows is a snapshot of current members.
+   The secondary “New lists” menu explicitly controls whether future category
+   members are included automatically; this live reference is distinct from
+   the table's selection checkbox and never occupies a separate banner.
+   The settings rail contains the name, first connection choice,
    forecast and create action, without repeating the selected lists. In a
    constrained window it stacks after the table.
    Priority begins grouped by category unless the library has a saved custom
@@ -103,11 +107,18 @@ Sections, addressable by URL:
    A list's chevron opens its **list card** (ADR 0025, ADR 0026, ADR 0029)
    before or after selection. When the composition workspace has at least
    80rem of available width, the card occupies a nonmodal panel beside the
-   table, temporarily replacing the settings rail. The table remains interactive;
-   closing the card restores the settings and keyboard focus. At smaller widths
+   table. Placement belongs to the page workspace, shared by the composer,
+   route editor, and library. The panel starts at the page's top inset and ends
+   at its bottom inset. Route settings move above the table while inspecting,
+   keeping name, connection, and create/save actions available. The same form
+   stays mounted, preserving unsaved inputs and validation. The table remains
+   interactive; closing the card restores the rail and keyboard focus. At smaller widths
    it becomes a modal right-side sheet up to the shared 64rem working width,
    portalled to the document body, with scroll lock and trapped focus. Switching
-   modes preserves the card data and filter. Secondary decisions remain modal.
+   modes preserves the card data and filter. During a non-dismissible write,
+   the docked card temporarily makes the underlying workspace inert, preventing
+   a list switch from abandoning the operation. It becomes interactive again
+   once the result is known. Secondary decisions remain modal.
    Without an open card, the shared workspace has a maximum width of 88rem
    to keep names, categories and numeric columns close enough to scan. The table's scroll area fills the sheet down to the footer;
    its rows keep their natural height and align at the top, including when a
@@ -209,7 +220,11 @@ browser resolves the same server-owned object via `GET /v1/lists` and
 `GET /v1/lists/{listId}`, never to an empty form. Local storage holds display
 preferences only — no product state. Each screen carries exactly one `<h1>` and
 one `<main>`. The chrome is a collapsible sidebar of sections; its bottom control switches
-between labels and icons and remembers that display preference. The
+between labels and icons and remembers that display preference. Navigation
+labels remain single-line throughout the width transition, fading and translating
+without switching display or changing button height. Horizontal overflow stays
+clipped throughout motion. A detail panel animates as one surface, including its
+border; its host paints no separate piece that could appear before the panel. The
 server's own address is a Settings fact, not a footer — and no section is
 ever locked.
 

@@ -82,3 +82,23 @@
   overflow: hidden;
   clip-path: inset(50%);
 }
+
+.editor__settings--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--rv-space-3) var(--rv-space-4);
+}
+
+.editor__settings--compact > * {
+  flex: 1 1 var(--rv-composer-field-width);
+  min-width: 0;
+}
+
+.editor__actions--compact {
+  gap: var(--rv-space-1);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+}

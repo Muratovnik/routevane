@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 
-import RvWorkspace from '@/shared/ui/RvWorkspace.vue'
+import RvComposer from '@/shared/ui/RvComposer.vue'
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
 import { useCreateList } from '@/features/create-list/model/useCreateList'
 import { useLocale } from '@/shared/i18n/useLocale'
@@ -134,7 +134,7 @@ async function submit(): Promise<void> {
       tone="warning"
     />
 
-    <RvWorkspace v-else :settings-label="t('create.settings')">
+    <RvComposer v-else :settings-label="t('create.settings')">
       <section
         aria-labelledby="create-services-title"
         class="create__services"
@@ -169,8 +169,12 @@ async function submit(): Promise<void> {
         </div>
       </section>
 
-      <template #settings>
-        <form class="create__form" @submit.prevent="submit">
+      <template #settings="{ compact }">
+        <form
+          class="create__form"
+          :class="{ 'create__form--compact': compact }"
+          @submit.prevent="submit"
+        >
           <div class="create__name">
             <label class="create__name-label" for="create-name">
               {{ t('create.name') }}
@@ -251,7 +255,7 @@ async function submit(): Promise<void> {
           </div>
         </form>
       </template>
-    </RvWorkspace>
+    </RvComposer>
 
     <RvStateNotice
       v-if="setup.flowState.value === 'failed'"

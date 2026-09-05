@@ -16,6 +16,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import { tableDragGeometry } from '@/shared/lib/tableDrag'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvMenu from '@/shared/ui/RvMenu.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import CategoryFilters from './CategoryFilters.vue'
 import CategoryLabel from './CategoryLabel.vue'
@@ -269,7 +270,7 @@ function toggleService(serviceID: string): void {
   )
 }
 
-function toggleCategoryReference(event: Event): void {
+function toggleCategoryReference(follow: boolean): void {
   const category = selectedCategory.value
   if (category === null) return
   emit(
@@ -278,7 +279,7 @@ function toggleCategoryReference(event: Event): void {
       props.modelValue,
       props.categories,
       category.id,
-      (event.currentTarget as HTMLInputElement).checked,
+      follow,
     ),
   )
 }
@@ -340,29 +341,6 @@ function serviceLabel(serviceID: string): string {
         :services="services"
         :disabled="disabled"
       />
-      <label
-        v-if="selectedCategory !== null"
-        class="picker__category-reference"
-      >
-        <input
-          :checked="followsSelectedCategory"
-          class="picker__checkbox"
-          :disabled="disabled"
-          type="checkbox"
-          @change="toggleCategoryReference"
-        />
-        <span>
-          <strong>{{
-            t('servicePicker.follow', {
-              category: categoryLabel(selectedCategory),
-            })
-          }}</strong>
-          <small>{{
-            tc('servicePicker.follow.members', selectedCategory.services.length)
-          }}</small>
-        </span>
-      </label>
-
       <div class="picker__summary">
         <RvButton
           size="compact"
@@ -372,8 +350,43 @@ function serviceLabel(serviceID: string): string {
         >
           {{ t('serviceCard.refresh') }}
         </RvButton>
+        <RvMenu
+          v-if="selectedCategory"
+          :disabled="disabled"
+          :label="
+            t('servicePicker.follow', {
+              category: categoryLabel(selectedCategory),
+            })
+          "
+          :trigger-text="
+            t(
+              followsSelectedCategory
+                ? 'servicePicker.future.auto'
+                : 'servicePicker.future.manual',
+            )
+          "
+          :items="[
+            { key: 'auto', label: t('servicePicker.future.enable') },
+            { key: 'manual', label: t('servicePicker.future.disable') },
+          ]"
+          @select="toggleCategoryReference($event === 'auto')"
+        />
         <span role="status">{{ tc('create.resolved', resolved.length) }}</span>
-        <span>{{ t('list.priority.body') }}</span>
+        <div class="picker__forecast-status" role="status">
+          <span>{{ overlapMessage || t('list.priority.body') }}</span>
+          <RvButton
+            v-if="
+              overlapMessage !== '' &&
+              !overlapUnavailable &&
+              !forecastPending &&
+              retryable
+            "
+            size="compact"
+            @click="emit('retry')"
+            >{{ t('action.retry') }}</RvButton
+          >
+        </div>
+
         <RvInfoTip
           :label="t('servicePicker.column.overlaps')"
           :text="t('servicePicker.overlap.legend')"
@@ -602,20 +615,6 @@ function serviceLabel(serviceID: string): string {
       </p>
     </div>
 
-    <div class="picker__forecast-status" role="status">
-      <span>{{ overlapMessage }}</span>
-      <RvButton
-        v-if="
-          overlapMessage !== '' &&
-          !overlapUnavailable &&
-          !forecastPending &&
-          retryable
-        "
-        size="compact"
-        @click="emit('retry')"
-        >{{ t('action.retry') }}</RvButton
-      >
-    </div>
     <ServiceDetailDialog
       :disabled="disabled"
       :included="activeService === null ? false : included(activeService.id)"

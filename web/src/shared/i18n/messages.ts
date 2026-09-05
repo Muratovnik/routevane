@@ -277,6 +277,11 @@ const ru: Dictionary = {
   'servicePicker.filter.more': 'Ещё',
   'servicePicker.filter.label': 'Фильтр по категории',
   'servicePicker.filter.all': 'Все категории',
+  'servicePicker.future.auto': 'Новые списки: автоматически',
+  'servicePicker.future.manual': 'Новые списки: вручную',
+  'servicePicker.future.enable':
+    'Автоматически включать новые списки категории',
+  'servicePicker.future.disable': 'Выбирать новые списки вручную',
   'servicePicker.follow': 'Следовать категории «{category}»',
   'servicePicker.follow.members': {
     few: '{count} списка',
@@ -642,6 +647,7 @@ const ru: Dictionary = {
   'list.edit.name': 'Название',
   'list.edit.save': 'Сохранить и пересобрать',
   'list.edit.saving': 'Сохраняем…',
+  'list.edit.effect': 'Что произойдёт при сохранении',
   'list.edit.note': 'После сохранения все подключения маршрута пересобираются.',
   'list.composition.services': 'Списки маршрута',
   'list.composition.empty': 'В маршруте пока нет списков.',
@@ -1142,6 +1148,11 @@ const en: Dictionary = {
   'servicePicker.filter.more': 'More',
   'servicePicker.filter.label': 'Filter by category',
   'servicePicker.filter.all': 'All categories',
+  'servicePicker.future.auto': 'New lists: automatic',
+  'servicePicker.future.manual': 'New lists: manual',
+  'servicePicker.future.enable':
+    'Automatically include new lists in this category',
+  'servicePicker.future.disable': 'Select new lists manually',
   'servicePicker.follow': 'Follow “{category}”',
   'servicePicker.follow.members': {
     one: '{count} list',
@@ -1492,6 +1503,7 @@ const en: Dictionary = {
   'list.edit.name': 'Name',
   'list.edit.save': 'Save and rebuild',
   'list.edit.saving': 'Saving…',
+  'list.edit.effect': 'What happens when saving',
   'list.edit.note': 'Saving rebuilds every connection of this route.',
   'list.composition.services': 'Lists in the route',
   'list.composition.empty': 'The route has no lists yet.',

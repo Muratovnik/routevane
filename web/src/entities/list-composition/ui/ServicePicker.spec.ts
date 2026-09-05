@@ -297,14 +297,11 @@ describe('ServicePicker', () => {
       expect.stringContaining('Discord'),
       expect.stringContaining('Telegram'),
     ])
-    const follow = wrapper.get<HTMLInputElement>(
-      '.picker__category-reference input',
-    )
-    expect(follow.attributes('aria-label')).toBeUndefined()
-    expect(wrapper.get('.picker__category-reference').text()).toContain(
-      'Follow “Communication”',
-    )
-    await follow.setValue(true)
+    expect(wrapper.find('.picker__category-reference').exists()).toBe(false)
+    const follow = wrapper.findComponent({ name: 'RvMenu' })
+    expect(follow.props('triggerText')).toBe('New lists: manual')
+    follow.vm.$emit('select', 'auto')
+    await wrapper.vm.$nextTick()
     expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toMatchObject({
       categories: ['communication'],
       services: [],

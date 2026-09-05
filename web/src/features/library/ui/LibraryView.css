@@ -13,6 +13,7 @@
 }
 
 .library__title {
+  margin-inline-end: auto;
   font-size: var(--rv-text-page);
   line-height: var(--rv-leading-tight);
   letter-spacing: var(--rv-tracking-title);

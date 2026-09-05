@@ -4,6 +4,7 @@ import { computed } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { IconName } from '@/shared/ui/kinds'
+import RvWorkspace from '@/shared/ui/RvWorkspace.vue'
 import RvTooltip from '@/shared/ui/RvTooltip.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 
@@ -108,7 +109,7 @@ const sections = computed<
             @click="collapsed = !collapsed"
           >
             <RvIcon name="chevron" /><span class="shell__nav-label">{{
-              t(collapsed ? 'shell.expand' : 'shell.collapse')
+              t('shell.collapse')
             }}</span>
           </button>
         </RvTooltip>
@@ -120,7 +121,7 @@ const sections = computed<
         :class="{ 'shell__main--workspace': workspace }"
       >
         <div class="shell__measure">
-          <slot />
+          <RvWorkspace :bounded="workspace"><slot /></RvWorkspace>
         </div>
       </main>
     </div>
@@ -171,7 +172,7 @@ const sections = computed<
   position: sticky;
   top: 0;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden auto;
   overscroll-behavior: contain;
   transition: padding var(--rv-motion-normal) var(--rv-motion-ease-out);
   display: flex;
@@ -188,6 +189,8 @@ const sections = computed<
   display: flex;
   gap: var(--rv-space-2);
   align-items: center;
+  overflow: hidden;
+  flex: none;
   padding: 0 var(--rv-space-3);
   font-weight: 700;
   font-size: var(--rv-text-section);
@@ -216,6 +219,7 @@ const sections = computed<
 }
 
 .shell__nav-link {
+  overflow: hidden;
   position: relative;
   display: flex;
   gap: var(--rv-space-3);
@@ -341,15 +345,29 @@ const sections = computed<
 }
 
 .shell--collapsed .shell__product {
-  justify-content: center;
-  padding-inline: 0;
+  padding-inline: var(--rv-space-3);
 }
 
-.shell--collapsed .shell__product-name {
-  display: none;
+.shell__product-name,
+.shell__nav-label {
+  white-space: nowrap;
+  flex: none;
+  transition:
+    opacity var(--rv-motion-normal) var(--rv-motion-ease-out),
+    transform var(--rv-motion-normal) var(--rv-motion-ease-out);
+}
+
+.shell--collapsed .shell__product-name,
+.shell--collapsed .shell__nav-label {
+  opacity: 0;
+  transform: translateX(var(--rv-space-2));
+  pointer-events: none;
 }
 
 .shell__collapse {
+  overflow: hidden;
+  flex: none;
+  white-space: nowrap;
   position: relative;
   display: flex;
   align-items: center;
@@ -377,16 +395,7 @@ const sections = computed<
 
 .shell--collapsed .shell__nav-link,
 .shell--collapsed .shell__collapse {
-  justify-content: center;
-  padding-inline: 0;
-}
-
-.shell--collapsed .shell__nav-label {
-  position: absolute;
-  width: var(--rv-border-hair);
-  height: var(--rv-border-hair);
-  overflow: hidden;
-  clip-path: inset(50%);
+  padding-inline: var(--rv-space-3);
 }
 
 @media (width > 64rem) and (height > 36rem) {

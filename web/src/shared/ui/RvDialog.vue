@@ -64,14 +64,20 @@ const docked = computed(
   () => props.adaptive === true && workspace?.docked.value === true,
 )
 watch(
-  () => props.open,
-  (open) => {
-    if (props.adaptive && workspace) workspace.open.value = open
+  () => [props.open, props.dismissible] as const,
+  ([open, dismissible]) => {
+    if (props.adaptive && workspace) {
+      workspace.open.value = open
+      workspace.locked.value = open && dismissible === false
+    }
   },
   { immediate: true },
 )
 onBeforeUnmount(() => {
-  if (props.adaptive && workspace) workspace.open.value = false
+  if (props.adaptive && workspace) {
+    workspace.open.value = false
+    workspace.locked.value = false
+  }
 })
 
 const canDismiss = computed(() => props.dismissible !== false)
@@ -309,7 +315,8 @@ const sheetUI = computed(() => ({
   z-index: auto;
   width: 100%;
   height: 100%;
-  border: 0;
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-md);
   box-shadow: none;
 }
 
@@ -392,11 +399,11 @@ const sheetUI = computed(() => ({
 
 @keyframes rv-dialog-sheet-in {
   from {
-    translate: 100% 0;
+    transform: translateX(100%);
   }
 
   to {
-    translate: 0 0;
+    transform: translateX(0);
   }
 }
 

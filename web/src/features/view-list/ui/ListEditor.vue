@@ -8,7 +8,8 @@ import {
   resolvedComposition,
 } from '@/entities/list-composition/model/composition'
 import { useCompositionForecast } from '@/entities/list-composition/model/forecast'
-import RvWorkspace from '@/shared/ui/RvWorkspace.vue'
+import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
+import RvComposer from '@/shared/ui/RvComposer.vue'
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { CategoryDetail, ServiceDetail } from '@/shared/api/catalog'
@@ -154,7 +155,7 @@ function reset(): void {
 
 <template>
   <div class="editor">
-    <RvWorkspace :settings-label="t('create.settings')">
+    <RvComposer :settings-label="t('create.settings')">
       <section aria-labelledby="editor-composition" class="editor__composition">
         <h2 id="editor-composition" class="editor__legend">
           {{ t('list.composition.services') }}
@@ -187,8 +188,12 @@ function reset(): void {
         </div>
       </section>
 
-      <template #settings>
-        <form class="editor__settings" @submit.prevent="submit">
+      <template #settings="{ compact }">
+        <form
+          class="editor__settings"
+          :class="{ 'editor__settings--compact': compact }"
+          @submit.prevent="submit"
+        >
           <div class="editor__field">
             <label class="editor__label" for="editor-name">
               {{ t('list.edit.name') }}
@@ -207,7 +212,7 @@ function reset(): void {
             <span class="editor__label">{{ t('create.target') }}</span>
             <p>{{ outputs.map((output) => output.title).join(', ') }}</p>
           </div>
-          <p class="editor__note">{{ t('list.edit.note') }}</p>
+          <p v-if="!compact" class="editor__note">{{ t('list.edit.note') }}</p>
 
           <div
             v-if="overflowLines.length > 0"
@@ -217,7 +222,15 @@ function reset(): void {
             <p v-for="line in overflowLines" :key="line">{{ line }}</p>
           </div>
 
-          <div class="editor__actions">
+          <div
+            class="editor__actions"
+            :class="{ 'editor__actions--compact': compact }"
+          >
+            <RvInfoTip
+              v-if="compact"
+              :label="t('list.edit.effect')"
+              :text="t('list.edit.note')"
+            />
             <RvButton
               :disabled="!canSave || !dirty"
               :loading="props.busy"
@@ -238,7 +251,7 @@ function reset(): void {
           </div>
         </form>
       </template>
-    </RvWorkspace>
+    </RvComposer>
   </div>
 </template>
 

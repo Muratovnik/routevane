@@ -855,6 +855,11 @@ function onOpenChange(open: boolean): void {
             :label="t('serviceCard.domains.info')"
             :text="t('serviceCard.domains.intro')"
           />
+          <strong v-if="contents !== null" class="service-card__count">
+            {{ tc('serviceCard.domains.count', enabledCount) }}
+          </strong>
+        </div>
+        <div class="service-card__heading">
           <!-- Reading the sources is the frequent act; editing which sources
                there are is the rare one, so the frequent one is the control
                and the rare one opens a panel. -->
@@ -896,9 +901,6 @@ function onOpenChange(open: boolean): void {
               {{ t('serviceCard.openLibrary') }}
             </a>
           </template>
-          <strong v-if="contents !== null" class="service-card__count">
-            {{ tc('serviceCard.domains.count', enabledCount) }}
-          </strong>
         </div>
 
         <RvStateNotice
@@ -1469,9 +1471,9 @@ function onOpenChange(open: boolean): void {
   align-items: center;
   min-width: 0;
 
-  /* Reserve two compact lines in every state. A concise refusal and its Retry
-     control then replace the pending/ready fact without moving the filter. */
-  min-height: calc(var(--rv-control-touch) + var(--rv-space-5));
+  /* A compact status and its Retry control share the same minimum height.
+     Longer failure explanations may wrap when recovery needs more context. */
+  min-height: var(--rv-control-compact);
 }
 
 .service-card__refresh-indicator {

@@ -6,31 +6,6 @@
   position: relative;
 }
 
-.picker__category-reference {
-  display: flex;
-  gap: var(--rv-space-3);
-  align-items: center;
-  min-height: var(--rv-control-touch);
-  padding: var(--rv-space-2) var(--rv-space-4);
-  background: var(--rv-color-surface-muted);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-md);
-  cursor: pointer;
-}
-
-.picker__category-reference > span {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-1) var(--rv-space-3);
-  align-items: baseline;
-  min-width: 0;
-}
-
-.picker__category-reference small {
-  color: var(--rv-color-ink-tertiary);
-  font-size: var(--rv-text-meta);
-}
-
 .picker__table-frame {
   position: relative;
   min-width: 0;
@@ -273,10 +248,12 @@
 }
 
 .picker__forecast-status {
+  flex: 1 1 var(--rv-composer-field-width);
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: var(--rv-space-3);
-  min-height: var(--rv-space-8);
+  min-height: var(--rv-control-touch);
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-meta);
 }
@@ -334,7 +311,7 @@
   /* A stacking host may restore a bounded natural-height table. */
   height: var(--rv-picker-fill-height);
   min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .picker--fill .picker__table-frame {

@@ -326,9 +326,8 @@ describe('ListEditor', () => {
       .findComponent({ name: 'CategoryFilters' })
       .vm.$emit('update:modelValue', 'communication')
     await wrapper.vm.$nextTick()
-    await wrapper
-      .get<HTMLInputElement>('.picker__category-reference input')
-      .setValue(false)
+    wrapper.findComponent({ name: 'RvMenu' }).vm.$emit('select', 'manual')
+    await wrapper.vm.$nextTick()
 
     wrapper
       .findComponent({ name: 'CategoryFilters' })

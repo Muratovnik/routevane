@@ -435,12 +435,12 @@ async function onListMenu(key: string): Promise<void> {
     </RvStateNotice>
 
     <template v-else>
-      <nav :aria-label="t('list.breadcrumb')" class="list__breadcrumb">
-        <NuxtLink class="list__breadcrumb-link" to="/">
-          {{ t('library.title') }}
-        </NuxtLink>
-      </nav>
       <header class="list__header">
+        <nav :aria-label="t('list.breadcrumb')" class="list__breadcrumb">
+          <NuxtLink class="list__breadcrumb-link" to="/">
+            {{ t('library.title') }}
+          </NuxtLink>
+        </nav>
         <h1 :id="titleID" ref="heading" class="list__title" tabindex="-1">
           {{ displayName }}
         </h1>

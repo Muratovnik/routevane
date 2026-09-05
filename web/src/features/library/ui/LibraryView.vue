@@ -157,16 +157,12 @@ function onMenu(card: ListCard, key: string): void {
       <h1 id="library-title" class="library__title">
         {{ t('library.title') }}
       </h1>
+      <p class="library__copy-message" role="status">{{ copyMessage }}</p>
       <RvButton to="/lists/new" variant="primary">
         <RvIcon name="plus" />
         {{ t('library.new') }}
       </RvButton>
     </header>
-
-    <p v-if="copyMessage !== ''" class="library__copy-message" role="status">
-      {{ copyMessage }}
-    </p>
-    <p v-else aria-hidden="true" class="library__copy-message" role="status" />
 
     <RvStateNotice
       v-if="library.state.value === 'ready' && importedCount > 0"

@@ -138,3 +138,15 @@
     height: auto;
   }
 }
+
+.create__form--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--rv-space-3) var(--rv-space-4);
+}
+
+.create__form--compact > * {
+  flex: 1 1 var(--rv-composer-field-width);
+  min-width: 0;
+}

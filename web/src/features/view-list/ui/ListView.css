@@ -3,7 +3,7 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  gap: var(--rv-space-8);
+  gap: var(--rv-space-3);
   width: 100%;
   min-width: 0;
 }
@@ -21,7 +21,7 @@
    status sentence is painted above the title and then removed a frame later. */
 .list__loading {
   display: grid;
-  gap: var(--rv-space-8);
+  gap: var(--rv-space-3);
   width: 100%;
 }
 
@@ -84,17 +84,18 @@
   flex-wrap: wrap;
   gap: var(--rv-space-4) var(--rv-space-6);
   align-items: baseline;
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
 .list__header-tools {
+  margin-inline-start: auto;
   display: flex;
   gap: var(--rv-space-2);
   align-items: center;
 }
 
 .list__breadcrumb {
-  margin-bottom: calc(-1 * var(--rv-space-4));
+  margin: 0;
 }
 
 .list__breadcrumb-link {

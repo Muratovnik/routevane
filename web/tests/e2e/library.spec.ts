@@ -1682,7 +1682,12 @@ test('an operator category carries its lists into a route and is kept while a ro
   )
   await categoryFilter.click()
   await page.getByRole('option', { name: 'Домашние' }).click()
-  await page.getByRole('checkbox', { name: 'Follow “Домашние”' }).check()
+  await page.getByRole('button', { name: 'Follow “Домашние”' }).click()
+  await page
+    .getByRole('menuitem', {
+      name: 'Automatically include new lists in this category',
+    })
+    .click()
   await categoryFilter.click()
   await page.getByRole('option', { name: 'Video' }).click()
   await page.locator('input[value="youtube"]').check()
@@ -1709,8 +1714,8 @@ test('an operator category carries its lists into a route and is kept while a ro
   await editorFilter.click()
   await page.getByRole('option', { name: 'Домашние' }).click()
   await expect(
-    page.getByRole('checkbox', { name: 'Follow “Домашние”' }),
-  ).toBeChecked()
+    page.getByRole('button', { name: 'Follow “Домашние”' }),
+  ).toContainText('New lists: automatic')
   await expect(
     page.locator('.picker__row--selected').filter({ hasText: 'Discord' }),
   ).toHaveCount(1)
@@ -1754,11 +1759,14 @@ test('an operator category carries its lists into a route and is kept while a ro
   )
   await routeEditorFilter.click()
   await page.getByRole('option', { name: 'Домашние' }).click()
-  await page.getByRole('checkbox', { name: 'Follow “Домашние”' }).uncheck()
+  await page.getByRole('button', { name: 'Follow “Домашние”' }).click()
+  await page
+    .getByRole('menuitem', { name: 'Select new lists manually' })
+    .click()
   await page.getByRole('button', { name: 'Save and rebuild' }).click()
   await expect(
-    page.getByRole('checkbox', { name: 'Follow “Домашние”' }),
-  ).not.toBeChecked()
+    page.getByRole('button', { name: 'Follow “Домашние”' }),
+  ).toContainText('New lists: manual')
   await page.getByRole('searchbox', { name: 'Find a list' }).fill('')
   await page
     .getByRole('button', { name: 'All categories', exact: true })
@@ -3015,7 +3023,7 @@ test('the composition editor keeps its geometry across selections and shell brea
 }) => {
   await page.goto(`${origin}/lists/new`)
   const table = page.locator('.picker__table-frame')
-  const rail = page.locator('.rv-workspace__settings')
+  const rail = page.locator('.rv-composer__settings')
   await expect(table).toBeVisible()
 
   await page.setViewportSize({ height: 900, width: 1440 })
@@ -3078,7 +3086,7 @@ test('the composition editor keeps its geometry across selections and shell brea
         .poll(() =>
           page.evaluate(() => {
             const table = document.querySelector('.picker__table-frame')!
-            const settings = document.querySelector('.rv-workspace__settings')!
+            const settings = document.querySelector('.rv-composer__settings')!
             return (
               settings.getBoundingClientRect().top -
               table.getBoundingClientRect().bottom
@@ -3353,6 +3361,9 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     })
     await select(2, 'Overlap Gamma', true)
     await expect(priority.getByText('Calculating overlaps…')).toBeVisible()
+    const pendingTableY = (await page
+      .locator('.picker__table-frame')
+      .boundingBox())!.y
     const recalculated = page.waitForResponse(
       (response) => new URL(response.url()).pathname === forecastPath,
     )
@@ -3364,6 +3375,9 @@ test('the forecast explains overlaps in create and edit without rewriting the li
       await recalculatedResponse.text(),
     ).toBe(200)
     await expect(priority.getByText('Calculating overlaps…')).toBeHidden()
+    expect(
+      (await page.locator('.picker__table-frame').boundingBox())!.y,
+    ).toBeCloseTo(pendingTableY, 0)
     fail = true
     const failed = page.waitForResponse(
       (response) => new URL(response.url()).pathname === forecastPath,
@@ -3751,16 +3765,36 @@ for (const language of ['en', 'ru'] as const) {
           await expect(libraryClose).toBeDisabled()
           await page.keyboard.press('Escape')
           await expect(library).toBeVisible()
-          await page
-            .locator('.rv-dialog__scrim')
-            .last()
-            .dispatchEvent('pointerdown')
+          if (
+            (await library.getAttribute('class'))?.includes('rv-dialog--docked')
+          ) {
+            await expect(page.locator('.rv-workspace__main')).toHaveAttribute(
+              'inert',
+            )
+            const other = await page
+              .locator('.lists__list-name')
+              .first()
+              .boundingBox()
+            await page.mouse.click(
+              other!.x + other!.width / 2,
+              other!.y + other!.height / 2,
+            )
+            await expect(library).toHaveAccessibleName(title)
+          } else {
+            await page
+              .locator('.rv-dialog__scrim')
+              .last()
+              .dispatchEvent('pointerdown')
+          }
           await expect(library).toBeVisible()
         } finally {
           releaseRefresh()
         }
         await expect(refresh).not.toHaveAttribute('aria-busy', 'true')
         await expect(refresh).toBeEnabled()
+        await expect(page.locator('.rv-workspace__main')).not.toHaveAttribute(
+          'inert',
+        )
         await page.unroute(refreshPath)
 
         await page.evaluate(() => document.fonts.ready.then(() => true))
@@ -4491,4 +4525,184 @@ test('composition keeps its context in docked and overlaid cards and isolates na
       .locator('.shell__side')
       .evaluate((e) => e.scrollHeight - e.clientHeight),
   ).toBeLessThanOrEqual(1)
+})
+
+test('page inspection preserves primary actions and full-height geometry in every list workflow', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 960 })
+  await page.goto(`${origin}/lists/new`)
+  await page.locator('input[value="discord"]').check()
+  await chooseFormat(page, /sing-box/)
+  await page.locator('#create-name').fill('Inspection workflow')
+  await page.locator('[data-id="discord"] .picker__open').click()
+  const card = page.getByRole('dialog', { name: 'Discord', exact: true })
+  async function aligned(frame: Locator) {
+    await expect(card).toHaveClass(/rv-dialog--docked/)
+    await expect
+      .poll(async () => {
+        const a = (await frame.boundingBox())!
+        const b = (await card.boundingBox())!
+        return Math.abs(a.y + a.height - b.y - b.height)
+      })
+      .toBeLessThanOrEqual(2)
+    const bounds = (await card.boundingBox())!
+    expect(bounds.y).toBeLessThanOrEqual(24)
+    expect(bounds.y + bounds.height).toBeGreaterThanOrEqual(936)
+    expect(
+      await frame.evaluate((e) => e.scrollWidth - e.clientWidth),
+    ).toBeLessThanOrEqual(1)
+    await expect(page.locator('.rv-dialog__scrim')).toHaveCount(0)
+  }
+  await aligned(page.locator('.picker__table-frame'))
+  const create = page.getByRole('button', {
+    name: 'Create and prepare',
+    exact: true,
+  })
+  await expect(create).toBeInViewport()
+  await expect(create).toBeEnabled()
+  await create.click()
+  await page.waitForURL(/\/lists\/[a-f0-9]{32}/)
+  const id = listIDFromURL(page.url())
+  await page.goto(`${origin}/lists/${id}`)
+  await page.locator('#editor-name').fill('Inspection workflow saved')
+  await page.locator('[data-id="discord"] .picker__open').click()
+  await aligned(page.locator('.picker__table-frame'))
+  const save = page.getByRole('button', {
+    name: 'Save and rebuild',
+    exact: true,
+  })
+  await expect(save).toBeInViewport()
+  await save.click()
+  await expect(
+    page.getByRole('heading', {
+      name: 'Inspection workflow saved',
+      exact: true,
+    }),
+  ).toBeVisible()
+  await page.reload()
+  await expect(page.locator('#editor-name')).toHaveValue(
+    'Inspection workflow saved',
+  )
+  await page.goto(`${origin}/library`)
+  await page.locator('[data-id="discord"] .lists__list-name').click()
+  await aligned(page.locator('.lists__workspace'))
+  await expect(
+    page.getByRole('button', { name: 'New list', exact: true }),
+  ).toBeInViewport()
+  await page.screenshot({ path: join(reviewRoot, 'library-docked.png') })
+  await page.setViewportSize({ width: 1100, height: 850 })
+  await expect(card).not.toHaveClass(/rv-dialog--docked/)
+  await expect(page.locator('.rv-dialog__scrim')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(card).toBeHidden()
+})
+
+test('sidebar labels and buttons retain their geometry throughout expansion and collapse', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${origin}/`)
+  await expect(
+    page.getByRole('button', { name: 'Collapse sidebar' }),
+  ).toBeVisible()
+  for (const direction of ['collapse', 'expand']) {
+    const frames = await page.evaluate(async () => {
+      const button =
+        document.querySelector<HTMLButtonElement>('.shell__collapse')!
+      const side = document.querySelector<HTMLElement>('.shell__side')!
+      const labels = [
+        ...side.querySelectorAll<HTMLElement>('.shell__nav-label'),
+      ]
+      button.click()
+      const frames: {
+        height: number
+        overflow: number
+        labels: number[]
+        opacity: number
+      }[] = []
+      const start = performance.now()
+      do {
+        await new Promise(requestAnimationFrame)
+        frames.push({
+          height: button.getBoundingClientRect().height,
+          overflow: side.scrollWidth - side.clientWidth,
+          labels: labels.map((e) => e.getBoundingClientRect().height),
+          opacity: Number(getComputedStyle(labels[0]!).opacity),
+        })
+      } while (performance.now() - start < 350)
+      return frames
+    })
+    expect(frames.length, direction).toBeGreaterThan(2)
+    expect(
+      Math.max(...frames.map((f) => f.height)) -
+        Math.min(...frames.map((f) => f.height)),
+      direction,
+    ).toBeLessThanOrEqual(1)
+    expect(
+      Math.max(...frames.map((f) => f.overflow)),
+      direction,
+    ).toBeLessThanOrEqual(1)
+    for (let i = 0; i < frames[0]!.labels.length; i++) {
+      const heights = frames.map((f) => f.labels[i]!)
+      expect(
+        Math.max(...heights) - Math.min(...heights),
+        direction,
+      ).toBeLessThanOrEqual(1)
+    }
+    expect(
+      frames.some((f) => f.opacity > 0 && f.opacity < 1),
+      direction,
+    ).toBe(true)
+  }
+})
+
+test('the inspection surface moves as one piece during its entrance', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 960 })
+  await page.goto(`${origin}/lists/new`)
+  await expect(page.locator('[data-id="discord"] .picker__open')).toBeVisible()
+  const frames = await page.evaluate(async () => {
+    document
+      .querySelector<HTMLButtonElement>('[data-id="discord"] .picker__open')!
+      .click()
+    const frames: {
+      x: number
+      headerInset: number
+      bodyInset: number
+      transform: string
+    }[] = []
+    const start = performance.now()
+    do {
+      await new Promise(requestAnimationFrame)
+      const card = document.querySelector<HTMLElement>('.rv-dialog--docked')
+      if (!card) continue
+      const x = card.getBoundingClientRect().x
+      frames.push({
+        x,
+        headerInset:
+          card.querySelector('.rv-dialog__header')!.getBoundingClientRect().x -
+          x,
+        bodyInset:
+          card.querySelector('.rv-dialog__body')!.getBoundingClientRect().x - x,
+        transform: getComputedStyle(card).transform,
+      })
+    } while (performance.now() - start < 350)
+    return frames
+  })
+  expect(frames.length).toBeGreaterThan(2)
+  expect(frames.some((f) => f.transform !== 'none')).toBe(true)
+  expect(frames[0]!.x - frames.at(-1)!.x).toBeGreaterThan(20)
+  for (const f of frames) {
+    expect(Math.abs(f.headerInset - f.bodyInset)).toBeLessThanOrEqual(1)
+    expect(Math.abs(f.headerInset)).toBeLessThanOrEqual(2)
+  }
+  await expect(
+    page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Close', exact: true }),
+  ).toBeEnabled({ timeout: 60000 })
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toBeHidden()
 })
