@@ -51,3 +51,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0035: Nuxt UI supplies interactive component mechanics](./0035-nuxt-ui-component-mechanics.md) | adopted |
 | [ADR 0036: initialize route-local list priority from a library default](./0036-route-local-list-priority.md) | adopted |
 | [ADR 0037: Electron desktop and an independently usable Go CLI](./0037-electron-desktop-and-independent-cli.md) | adopted |
+| [ADR 0038: Windows application updates from GitHub releases](./0038-windows-application-updates.md) | adopted |

@@ -23,7 +23,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.13'
+          python-version: "3.13"
       - name: Audit public history and links
         # Owner policy reads a private sibling checkout and is a maintainer-only
         # pre-push gate. Public CI can and must validate the public history alone.
@@ -84,7 +84,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.13'
+          python-version: "3.13"
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.0
@@ -134,3 +134,4 @@ jobs:
         run: |
           ./tools/dev.ps1 check-desktop
           ./tools/dev.ps1 test-desktop
+          ./tools/dev.ps1 test-update

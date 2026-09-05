@@ -4,6 +4,9 @@ status: adopted
 
 # ADR 0037: Electron desktop and an independently usable Go CLI
 
+Packaging and application updates are extended by [ADR 0038](0038-windows-application-updates.md).
+The process ownership and CLI boundaries below remain in force.
+
 ## Context
 
 A browser tab does not own the lifetime of a local server. Closing the interface

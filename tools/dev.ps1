@@ -2,14 +2,14 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('setup', 'setup-browser', 'setup-desktop', 'desktop', 'package-desktop', 'check-desktop', 'test-desktop', 'dev', 'up', 'release', 'doctor', 'format', 'check-go', 'check-web', 'security', 'build', 'check', 'test-browser', 'install-hooks')]
+    [ValidateSet('setup', 'setup-browser', 'setup-desktop', 'desktop', 'package-desktop', 'installer', 'test-update', 'check-desktop', 'test-desktop', 'dev', 'up', 'release', 'doctor', 'format', 'check-go', 'check-web', 'security', 'build', 'check', 'test-browser', 'install-hooks')]
     [string]$Command = 'check',
     # dev/up: the port the local interface listens on, and an escape hatch for
     # an environment where opening a browser is unwanted.
     [int]$Port = 8765,
     [switch]$NoBrowser,
-    # release only: the version stamped into the binary. Defaults to what
-    # git describes, so a local build is never mistaken for a tagged one.
+    # release/installer: version stamped into the binary. Installer requires an
+    # explicit stable version; release defaults to the annotated Git identity.
     [string]$Version = ''
 )
 
@@ -19,6 +19,10 @@ $RepositoryRoot = Split-Path -Parent $PSScriptRoot
 if (-not $env:PLAYWRIGHT_BROWSERS_PATH) {
     $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $RepositoryRoot '.cache/browsers'
 }
+# An editor or Electron parent process exports this. Inherited, it would start
+# the packaged application as plain Node, which rejects the launcher's Chromium
+# switches, so the desktop commands below would fail without an explanation.
+Remove-Item Env:\ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
 $GoCommand = Get-Command go -ErrorAction SilentlyContinue
 if ($null -eq $GoCommand) {
     $GoFallback = 'C:\Program Files\Go\bin\go.exe'
@@ -282,12 +286,13 @@ function Invoke-WebCheck {
 }
 
 function Invoke-ProductBuild {
+    param([string]$ProductVersion = 'dev')
     Invoke-WebGenerateAndSync | Out-Null
     $BuildRoot = Join-Path $RepositoryRoot '.cache\build'
     New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
     $BinaryName = if ($IsWindows) { 'routing-agent.exe' } else { 'routing-agent' }
     $Binary = Join-Path $BuildRoot $BinaryName
-    Invoke-Checked $GoExecutable @('build', '-trimpath', '-buildvcs=true', '-mod=readonly', '-o', $Binary, './cmd/routing-agent')
+    Invoke-Checked $GoExecutable @('build', '-trimpath', '-buildvcs=true', '-mod=readonly', '-ldflags', "-X main.version=$ProductVersion", '-o', $Binary, './cmd/routing-agent')
     return $Binary
 }
 
@@ -563,6 +568,36 @@ try {
         }
         'check-desktop' { Invoke-DesktopCheck }
         'package-desktop' { Invoke-DesktopPackage }
+        'installer' {
+            if (-not $IsWindows -or [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne 'X64') { throw 'installer requires Windows x64' }
+            if ($Version -notmatch '^v?\d+\.\d+\.\d+$') { throw 'installer requires a stable -Version vX.Y.Z' }
+            Invoke-ProductBuild -ProductVersion $Version | Out-Null
+            Invoke-Checked 'node' @((Join-Path $RepositoryRoot 'desktop/icons.mjs'))
+            Invoke-DesktopCommand @('run', 'package', '--', '--installer', '--version', $Version)
+            $DesktopRelease = Join-Path $RepositoryRoot '.cache/desktop-release'
+            New-Item -ItemType Directory -Force -Path $DesktopRelease | Out-Null
+            # This directory is generated exclusively by this command. Keep its
+            # inventory exact when a contributor builds consecutive versions.
+            foreach ($OldAsset in Get-ChildItem -LiteralPath $DesktopRelease -File) {
+                if ($OldAsset.Name -match '^(Routevane-[0-9.]+-x64-setup\.exe(\.blockmap)?|latest\.yml|DESKTOP-SHA256SUMS)$') {
+                    Remove-Item -LiteralPath $OldAsset.FullName
+                }
+            }
+            $InstallerName = 'Routevane-' + ($Version -replace '^v', '') + '-x64-setup.exe'
+            $Checksums = foreach ($Name in @($InstallerName, "$InstallerName.blockmap", 'latest.yml')) {
+                $Source = Join-Path $RepositoryRoot ".cache/desktop/$Name"
+                Copy-Item -LiteralPath $Source -Destination (Join-Path $DesktopRelease $Name) -Force
+                (Get-FileHash -LiteralPath $Source -Algorithm SHA256).Hash.ToLowerInvariant() + '  ' + $Name
+            }
+            [IO.File]::WriteAllLines((Join-Path $DesktopRelease 'DESKTOP-SHA256SUMS'), $Checksums, [Text.UTF8Encoding]::new($false))
+        }
+        'test-update' {
+            if (-not $IsWindows) { throw 'Update acceptance requires Windows' }
+            Invoke-ProductBuild | Out-Null
+            Invoke-Checked 'node' @((Join-Path $RepositoryRoot 'desktop/icons.mjs'))
+            Push-Location (Join-Path $RepositoryRoot 'web')
+            try { Invoke-Checked 'npx' @('--no-install', 'playwright', 'test', '--config', 'playwright.update.config.ts') } finally { Pop-Location }
+        }
         'desktop' {
             if (-not (Test-Path -LiteralPath (Join-Path $RepositoryRoot 'web/node_modules') -PathType Container)) {
                 Invoke-Checked 'pwsh' @('-NoLogo', '-NoProfile', '-File', $PSCommandPath, 'setup')

@@ -4,12 +4,29 @@ status: adopted
 
 # Installation and maintenance
 
-The instructions below cover the independently distributed CLI/browser package.
-The Electron desktop package has a [separate source build](../CONTRIBUTING.md#desktop-application).
-Its Close button hides to the tray; Quit stops the owned backend. Desktop data
-is under the operating system's Routevane user-data directory, outside the
-installation folder. Quit before backup or replacement; keep the entire package
-together. Signed installers and automatic application updates are not available yet.
+## Windows desktop installation and updates
+
+When a release provides `Routevane-X.Y.Z-x64-setup.exe`, run that installer for
+the desktop application. The installation is per user; no separate Go or browser
+installation is needed. Releases without that asset contain only the CLI package.
+Source builds are described in the [developer guide](../CONTRIBUTING.md#desktop-application).
+
+An installed app checks [GitHub releases](https://github.com/Muratovnik/routevane/releases)
+for newer stable versions. **Update** appears at the bottom of the left menu.
+Save your edits, then click it to download, install and restart. A failed download
+leaves the current version running and offers retry. Nothing downloads or installs
+just because you close the window or quit.
+
+Alternatively, download the new installer from the release page, choose **Quit**
+in the tray, and run it. Do not uninstall first. Routes and display preferences
+stay in `%APPDATA%/Routevane/`, outside installation files. Unpacked development
+packages do not receive updates; install the NSIS package once to enable them.
+The installer is currently unsigned; Windows can display an unknown publisher.
+
+Close hides the desktop window to the tray; Quit stops its owned background work.
+Quit before backing up the data directory. CLI profiles are not migrated automatically.
+
+## CLI/browser package
 
 For users of the downloaded application. Follow the [quick start](../README.md#download-and-start)
 for your first launch; this guide covers verification, launch options, updates,

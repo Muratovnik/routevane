@@ -14,7 +14,13 @@ const root = resolve(import.meta.dirname, '../../..')
 const packageRoot = join(
   root,
   '.cache/desktop',
-  `Routevane-${process.platform}-${process.arch}`,
+  process.platform === 'win32'
+    ? 'win-unpacked'
+    : process.platform === 'darwin'
+      ? process.arch === 'arm64'
+        ? 'mac-arm64'
+        : 'mac'
+      : 'linux-unpacked',
 )
 const executablePath =
   process.platform === 'darwin'

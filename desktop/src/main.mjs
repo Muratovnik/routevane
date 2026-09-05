@@ -2,10 +2,12 @@ import {
   app,
   BrowserWindow,
   dialog,
+  ipcMain,
   Menu,
   nativeImage,
   Notification,
   protocol,
+  powerMonitor,
   session,
   shell,
   Tray,
@@ -13,6 +15,9 @@ import {
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { mkdir } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import electronUpdater from 'electron-updater'
+import { createUpdates } from './updates.mjs'
 import { startBackend } from './backend.mjs'
 import { appURL, createTransport, externalURL, isAppURL } from './transport.mjs'
 
@@ -41,6 +46,26 @@ let quitting = false
 let stopped = false
 let failed = false
 let requestedExitCode = 0
+let updates
+let updateTimer
+
+function ownsUpdateRequest(event) {
+  return (
+    event.sender === window?.webContents &&
+    event.senderFrame === event.sender.mainFrame &&
+    isAppURL(event.senderFrame?.url)
+  )
+}
+ipcMain.handle('updates:state', (event, ...args) => {
+  if (!ownsUpdateRequest(event) || args.length)
+    throw new Error('request_rejected')
+  return updates?.snapshot() ?? { status: 'disabled' }
+})
+ipcMain.handle('updates:apply', (event, ...args) => {
+  if (!ownsUpdateRequest(event) || args.length)
+    throw new Error('request_rejected')
+  void updates?.apply()
+})
 
 function foreground() {
   if (!window || window.isDestroyed()) return
@@ -229,6 +254,37 @@ async function start() {
   )
   await window.loadURL(appURL)
   foreground()
+  if (
+    app.isPackaged &&
+    process.platform === 'win32' &&
+    existsSync(join(resources, 'desktop-installed'))
+  ) {
+    const { autoUpdater } = electronUpdater
+    updates = createUpdates({
+      updater: autoUpdater,
+      notify: (state) => {
+        if (window && !window.isDestroyed())
+          window.webContents.send('updates:state', state)
+      },
+      install: async () => {
+        // Stop owned work BEFORE NSIS may replace the Go executable or files.
+        // Normal Quit never installs a cached update without a fresh click.
+        quitting = true
+        await backend.stop()
+        stopped = true
+        autoUpdater.once('error', () => {
+          // If the installer cannot start, reopen the unchanged application.
+          app.relaunch()
+          app.exit(1)
+        })
+        autoUpdater.quitAndInstall(true, true)
+      },
+    })
+    setTimeout(() => void updates.check(), 3000).unref()
+    updateTimer = setInterval(() => void updates.check(), 4 * 60 * 60 * 1000)
+    updateTimer.unref()
+    powerMonitor.on('resume', () => void updates.check())
+  }
 }
 
 app.on('before-quit', (event) => {
@@ -236,6 +292,8 @@ app.on('before-quit', (event) => {
   event.preventDefault()
   if (quitting) return
   quitting = true
+  updates?.close()
+  clearInterval(updateTimer)
   if (window && !window.isDestroyed()) window.hide()
   if (tray && !tray.isDestroyed()) {
     const ru = app.getLocale().startsWith('ru')

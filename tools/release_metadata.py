@@ -149,10 +149,21 @@ def npm_components() -> list[Component]:
             installed = json.loads(package_json.read_text(encoding="utf-8"))
         name = npm_name(lock_path, installed)
         license_id = declared_license(metadata) or declared_license(installed)
+        texts = license_files(directory)
+        # npm's 0.4.1 tarball omits both its declaration and license file. The
+        # release gitHead is 1b1f6dfdba6a775410508884097443d35c9a8690; retain its
+        # upstream MIT notice without accepting unknown packages or versions.
+        if not license_id and (name, version, metadata.get("integrity")) == (
+            "vaul-vue", "0.4.1",
+            "sha512-A6jOWOZX5yvyo1qMn7IveoWN91mJI5L3BUKsIwkg6qrTGgHs1Sb1JF/vyLJgnbN1rH4OOOxFbtqL9A46bOyGUQ==",
+        ):
+            license_id = "MIT"
+            notice = Path(__file__).with_name("licenses") / "vaul-vue-0.4.1.LICENSE"
+            texts = (("LICENSE (upstream release source)", notice.read_text(encoding="utf-8")),)
         if not name or not version or not license_id:
             raise ValueError(f"npm production dependency has incomplete license identity: {lock_path}")
         key = (name, version)
-        candidate = Component("npm", name, version, license_id, license_files(directory))
+        candidate = Component("npm", name, version, license_id, texts)
         previous = components.get(key)
         if previous is None or (not previous.license_texts and candidate.license_texts):
             components[key] = candidate

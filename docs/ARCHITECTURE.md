@@ -17,6 +17,11 @@ and the loopback HTTP server. It also remains the standalone CLI distribution.
 background service is installed. The shell owns a single window, tray and child
 process. See [ADR 0037](adr/0037-electron-desktop-and-independent-cli.md).
 
+Windows installation and application updates use electron-builder/NSIS and
+electron-updater in the main process. The preload exposes only state and an apply
+command validated against the main application frame. Backend shutdown precedes
+file replacement. See [ADR 0038](adr/0038-windows-application-updates.md).
+
 The desktop renderer uses the stable `routevane://app` origin. A main-process
 protocol handler forwards only that authority to a loopback port. Go persists the
 first OS-assigned port under its data lock so subscription URLs survive restarts.

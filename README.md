@@ -20,7 +20,9 @@ browser engine. Close hides it to the tray; **Open Routevane** restores it and
 window. Build the native package using the
 [desktop build instructions](CONTRIBUTING.md#desktop-application); on Windows,
 open `Routevane.exe` inside the generated folder and keep that folder together.
-Desktop installers and automatic program updates are not published yet.
+Releases that include `Routevane-X.Y.Z-x64-setup.exe` support Windows installation
+and updates through the bottom-left **Update** button or by running the next
+installer manually. See [desktop installation and updates](docs/installation.md#windows-desktop-installation-and-updates).
 
 The independently usable **CLI distribution** retains the download and browser
 launch instructions below.

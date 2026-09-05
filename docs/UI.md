@@ -18,6 +18,12 @@ owned work. The first hide in a session explains this through a native notificat
 Display preferences belong to the permanent application origin, independently
 of the private backend port. CLI/browser use retains its own explicit lifetime.
 
+Installed desktop builds place an available application update above the sidebar
+collapse control. The action remains reachable with the menu collapsed and explains
+the version and restart on hover/focus. One click downloads, installs and restarts;
+progress replaces the label, errors offer retry. Idle/offline checks and browser/dev
+sessions add no sidebar item. Application updates are independent of source refresh.
+
 The unit of the product is the **route** (ADR 0013, named by ADR 0028): a
 stored, server-owned composition of **lists** and **categories** with no
 target of its own. A _list_ is a named set of destinations — domains,

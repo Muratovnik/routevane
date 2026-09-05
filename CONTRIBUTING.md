@@ -79,7 +79,7 @@ pwsh -NoLogo -NoProfile -File tools/dev.ps1 test-desktop
 
 On Windows `desktop.cmd` runs the first command. It builds the embedded frontend
 and Go executable and opens Electron. `package-desktop` creates the native package
-under `.cache/desktop/Routevane-<platform>-<arch>/`. Open `Routevane.exe` on Windows
+under `.cache/desktop/` (`win-unpacked/` on Windows). Open `Routevane.exe` on Windows
 or the application bundle on macOS; distribute the entire package, not the EXE
 alone. This local package is unsigned. `test-desktop` builds and drives that package
 with fresh data, including tray, repeat-launch, persistence and process cleanup.
@@ -96,8 +96,22 @@ lock for development/tests. Never point two writers at the same data directory.
 
 The Go CLI still builds and runs independently, with no Electron runtime required.
 Scheduled source refresh is in Go; it continues while the desktop is in the tray.
-Application auto-update, signed installers and a separately managed background
-service are separate work, not enabled by starting this application.
+Installed Windows x64 builds check GitHub releases for newer stable versions.
+Only the operator's update click downloads, installs and restarts; ordinary Quit
+does not install a cached download. Signing and a separately managed background
+service remain separate work. CLI users replace their CLI package independently.
+
+Build a Windows installer with `tools/dev.ps1 installer -Version vX.Y.Z` (substitute
+the intended release version). The executable, blockmap and `latest.yml` are staged
+with `DESKTOP-SHA256SUMS` under `.cache/desktop-release/`. Building never publishes.
+The release workflow uploads these together to the same GitHub release as the CLI.
+Do not upload just `latest.yml` or reuse metadata from a different installer.
+
+`tools/dev.ps1 test-update` builds three isolated NSIS fixture versions and exercises
+manual upgrade, discovery, a rejected corrupt download, retry, automatic restart,
+and preserved data. It uses a loopback feed, unique installer identity and temporary
+profile; production builds always use `Muratovnik/routevane`. Development and unpacked
+directory builds do not offer application updates.
 
 ### Browser development and CLI
 

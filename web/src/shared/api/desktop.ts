@@ -1,6 +1,20 @@
+export type DesktopUpdateState = {
+  status:
+    'disabled' | 'idle' | 'available' | 'downloading' | 'installing' | 'error'
+  version?: string
+  percent?: number
+}
+
 declare global {
   interface Window {
-    routevaneDesktop?: Readonly<{ backendOrigin?: string }>
+    routevaneDesktop?: Readonly<{
+      backendOrigin?: string
+      updates?: {
+        state: () => Promise<DesktopUpdateState>
+        apply: () => Promise<void>
+        subscribe: (callback: (state: DesktopUpdateState) => void) => () => void
+      }
+    }>
   }
 }
 

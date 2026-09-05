@@ -7,6 +7,7 @@ import type { IconName } from '@/shared/ui/kinds'
 import RvWorkspace from '@/shared/ui/RvWorkspace.vue'
 import RvTooltip from '@/shared/ui/RvTooltip.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import ApplicationUpdate from '@/features/application-update/ui/ApplicationUpdate.vue'
 
 /**
  * The chrome: the product's name and its sections. Sections mirror the object
@@ -97,22 +98,25 @@ const sections = computed<
             </NuxtLink>
           </RvTooltip>
         </nav>
-        <RvTooltip
-          :text="t(collapsed ? 'shell.expand' : 'shell.collapse')"
-          :disabled="!collapsed"
-        >
-          <button
-            class="shell__collapse"
-            type="button"
-            :aria-expanded="!collapsed"
-            :aria-label="t(collapsed ? 'shell.expand' : 'shell.collapse')"
-            @click="collapsed = !collapsed"
+        <div class="shell__footer">
+          <ApplicationUpdate :collapsed="collapsed" />
+          <RvTooltip
+            :text="t(collapsed ? 'shell.expand' : 'shell.collapse')"
+            :disabled="!collapsed"
           >
-            <RvIcon name="chevron" /><span class="shell__nav-label">{{
-              t('shell.collapse')
-            }}</span>
-          </button>
-        </RvTooltip>
+            <button
+              class="shell__collapse"
+              type="button"
+              :aria-expanded="!collapsed"
+              :aria-label="t(collapsed ? 'shell.expand' : 'shell.collapse')"
+              @click="collapsed = !collapsed"
+            >
+              <RvIcon name="chevron" /><span class="shell__nav-label">{{
+                t('shell.collapse')
+              }}</span>
+            </button>
+          </RvTooltip>
+        </div>
       </header>
 
       <main
@@ -381,6 +385,14 @@ const sections = computed<
   border-radius: var(--rv-radius-md);
   cursor: pointer;
   text-align: start;
+}
+
+.shell__footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rv-space-1);
+  margin-top: auto;
+  flex: none;
 }
 
 .shell__collapse > .rv-icon {

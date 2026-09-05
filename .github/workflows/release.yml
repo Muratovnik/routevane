@@ -6,7 +6,7 @@ name: release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 permissions:
   contents: read
@@ -29,7 +29,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.13'
+          python-version: "3.13"
       - name: Bind the release identity and validate curated notes
         shell: pwsh
         run: |
@@ -111,7 +111,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.13'
+          python-version: "3.13"
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: release-bundle
@@ -124,8 +124,48 @@ jobs:
           python tools/release_smoke.py --archive ".cache/release/routevane-$env:VERSION-$env:PLATFORM.zip" --version "$env:VERSION" --platform "$env:PLATFORM"
           if ($LASTEXITCODE -ne 0) { throw 'native launcher acceptance failed' }
 
+  desktop:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.27.0
+          cache: true
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            desktop/package-lock.json
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          npm ci --prefix web
+          if ($LASTEXITCODE -ne 0) { throw 'web dependency install failed' }
+          ./tools/dev.ps1 setup-desktop
+      - name: Check shell and packaged desktop behavior
+        shell: pwsh
+        run: |
+          ./tools/dev.ps1 check-desktop
+          ./tools/dev.ps1 test-desktop
+          ./tools/dev.ps1 test-update
+      - name: Build the Windows installer and updater metadata
+        shell: pwsh
+        run: ./tools/dev.ps1 installer -Version "$env:VERSION"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-bundle
+          path: .cache/desktop-release
+          if-no-files-found: error
+          retention-days: 1
+
   publish:
-    needs: native-smoke
+    needs: [native-smoke, desktop]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -141,6 +181,10 @@ jobs:
         with:
           name: release-bundle
           path: .cache/release
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: desktop-bundle
+          path: .cache/desktop-release
       - name: Revalidate the publication identity and notes
         shell: pwsh
         run: |
@@ -151,12 +195,15 @@ jobs:
       - name: Revalidate transferred checksums
         shell: pwsh
         run: |
-          $Lines = Get-Content -LiteralPath '.cache/release/SHA256SUMS'
-          foreach ($Line in $Lines) {
-            if ($Line -notmatch '^([0-9a-f]{64})\s{2}(.+)$') { throw "invalid checksum line: $Line" }
-            $Path = Join-Path '.cache/release' $Matches[2]
-            $Actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($Actual -ne $Matches[1]) { throw "checksum mismatch: $($Matches[2])" }
+          foreach ($Bundle in @('release', 'desktop-release')) {
+            $Manifest = if ($Bundle -eq 'release') { 'SHA256SUMS' } else { 'DESKTOP-SHA256SUMS' }
+            $Lines = Get-Content -LiteralPath ".cache/$Bundle/$Manifest"
+            foreach ($Line in $Lines) {
+              if ($Line -notmatch '^([0-9a-f]{64})\s{2}(.+)$') { throw "invalid checksum line: $Line" }
+              $Path = Join-Path ".cache/$Bundle" $Matches[2]
+              $Actual = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
+              if ($Actual -ne $Matches[1]) { throw "checksum mismatch: $($Matches[2])" }
+            }
           }
       - name: Attest release provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
@@ -164,6 +211,7 @@ jobs:
           subject-path: |
             .cache/release/*.zip
             .cache/release/SHA256SUMS
+            .cache/desktop-release/*
       - name: Attest the archive SBOM
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
@@ -184,6 +232,10 @@ jobs:
           }
           gh attestation verify '.cache/release/SHA256SUMS' --repo $env:GITHUB_REPOSITORY --signer-workflow $Signer --source-digest $env:EXPECTED_SHA --source-ref $env:GITHUB_REF
           if ($LASTEXITCODE -ne 0) { throw 'checksum provenance verification failed' }
+          foreach ($Asset in Get-ChildItem -LiteralPath '.cache/desktop-release' -File) {
+            gh attestation verify $Asset.FullName --repo $env:GITHUB_REPOSITORY --signer-workflow $Signer --source-digest $env:EXPECTED_SHA --source-ref $env:GITHUB_REF
+            if ($LASTEXITCODE -ne 0) { throw "desktop provenance verification failed: $($Asset.Name)" }
+          }
       - name: Create a complete draft release
         shell: pwsh
         env:
@@ -191,6 +243,7 @@ jobs:
         run: |
           $Assets = @(Get-ChildItem -LiteralPath '.cache/release' -Filter '*.zip' -File | Sort-Object Name | ForEach-Object FullName)
           $Assets += (Resolve-Path -LiteralPath '.cache/release/SHA256SUMS').Path
+          $Assets += @(Get-ChildItem -LiteralPath '.cache/desktop-release' -File | ForEach-Object FullName)
           gh release create $env:VERSION --verify-tag --draft --title $env:VERSION --notes-file (Join-Path $env:RUNNER_TEMP 'release-notes.md') @Assets
           if ($LASTEXITCODE -ne 0) { throw 'draft release creation failed' }
       - name: Verify uploaded asset digests and publish the draft
@@ -202,6 +255,7 @@ jobs:
           if (-not $View.isDraft -or $View.tagName -ne $env:VERSION) { throw 'release is not the expected draft' }
           $LocalAssets = @(Get-ChildItem -LiteralPath '.cache/release' -Filter '*.zip' -File)
           $LocalAssets += Get-Item -LiteralPath '.cache/release/SHA256SUMS'
+          $LocalAssets += @(Get-ChildItem -LiteralPath '.cache/desktop-release' -File)
           if ($View.assets.Count -ne $LocalAssets.Count) { throw 'draft asset inventory mismatch' }
           foreach ($Local in $LocalAssets) {
             $Remote = @($View.assets | Where-Object name -eq $Local.Name)

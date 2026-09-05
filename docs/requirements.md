@@ -72,6 +72,7 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 | Real plugin examples | `cmd/routing-agent/external_plugin_e2e_test.go` consumes their shipped manifests |
 | Keyboard, localization, and browser flows | `web/tests/e2e/` against the built binary |
 | Desktop lifetime, isolation, persistence and tray behavior | `tools/dev.ps1 test-desktop` against the native package; `cmd/routing-agent/desktop_test.go` |
+| Windows application updates | `tools/dev.ps1 test-update`: manual installer replacement and explicit download/install/restart preserve routes and preferences; corrupt downloads cannot install |
 | New-user installation | Native release jobs start the packaged launcher with fresh data and check version, health, and UI |
 | Documentation and file ownership | Structural validator plus the prerelease file/audience audit; tests alone do not establish clarity |
 
@@ -80,10 +81,10 @@ results. Device doubles and parser tests do not prove physical-device acceptance
 
 ## Open work and limits
 
-- Signed desktop installers, automatic application updates and a separately
-  managed background service are not yet delivered. The CLI remains separately
-  distributable. Native desktop acceptance is recorded per OS; Windows evidence
-  does not establish macOS/Linux tray or installer behavior.
+- Signed desktop installers and a separately managed background service are not
+  yet delivered. The CLI remains separately distributable. Native desktop
+  acceptance is recorded per OS; Windows evidence does not establish macOS/Linux
+  tray or installer behavior.
 
 - Physical Keenetic, OpenWrt, MikroTik, and Amnezia acceptance, including device
   interruption/recovery where relevant, remains unverified. Local sing-box
