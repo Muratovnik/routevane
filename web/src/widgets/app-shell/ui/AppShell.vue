@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useLocalStorage } from '@vueuse/core'
 import { computed } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
@@ -13,6 +14,13 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
  */
 const { locale, t } = useLocale()
 const route = useRoute()
+const collapsed = useLocalStorage('rv.sidebarCollapsed', false, {
+  writeDefaults: false,
+  onError: () => {},
+})
+const workspace = computed(
+  () => route.path === '/lists/new' || route.path === '/library',
+)
 
 // The document's language is part of the head, not a one-time DOM write: a page
 // re-rendering its title would otherwise restore the build-time default and
@@ -61,48 +69,62 @@ const sections = computed<
 </script>
 
 <template>
-  <div class="shell">
-    <a class="shell__skip" href="#content">{{ t('shell.skip') }}</a>
-    <header class="shell__side">
-      <p class="shell__product">
-        <span aria-hidden="true" class="shell__product-mark" />
-        <span>{{ t('shell.product') }}</span>
-      </p>
-      <nav :aria-label="t('shell.nav')" class="shell__nav">
-        <NuxtLink
-          v-for="section in sections"
-          :key="section.id"
-          :aria-current="section.active ? 'page' : undefined"
-          class="shell__nav-link"
-          :class="{ 'shell__nav-link--active': section.active }"
-          :to="section.to"
+  <div class="shell-frame">
+    <div class="shell" :class="{ 'shell--collapsed': collapsed }">
+      <a class="shell__skip" href="#content">{{ t('shell.skip') }}</a>
+      <header class="shell__side">
+        <p class="shell__product">
+          <span aria-hidden="true" class="shell__product-mark" />
+          <span class="shell__product-name">{{ t('shell.product') }}</span>
+        </p>
+        <nav :aria-label="t('shell.nav')" class="shell__nav">
+          <NuxtLink
+            v-for="section in sections"
+            :key="section.id"
+            :aria-current="section.active ? 'page' : undefined"
+            class="shell__nav-link"
+            :class="{ 'shell__nav-link--active': section.active }"
+            :to="section.to"
+          >
+            <RvIcon class="shell__nav-icon" :name="section.icon" />
+            <span class="shell__nav-label">{{ section.label }}</span>
+          </NuxtLink>
+        </nav>
+        <button
+          class="shell__collapse"
+          type="button"
+          :aria-expanded="!collapsed"
+          :aria-label="t(collapsed ? 'shell.expand' : 'shell.collapse')"
+          @click="collapsed = !collapsed"
         >
-          <RvIcon class="shell__nav-icon" :name="section.icon" />
-          {{ section.label }}
-        </NuxtLink>
-      </nav>
-    </header>
+          <RvIcon name="chevron" /><span class="shell__nav-label">{{
+            t(collapsed ? 'shell.expand' : 'shell.collapse')
+          }}</span>
+        </button>
+      </header>
 
-    <main
-      id="content"
-      class="shell__main"
-      :class="{ 'shell__main--composer': route.path === '/lists/new' }"
-    >
-      <div
-        class="shell__measure"
-        :class="{ 'shell__measure--composer': route.path === '/lists/new' }"
+      <main
+        id="content"
+        class="shell__main"
+        :class="{ 'shell__main--workspace': workspace }"
       >
-        <slot />
-      </div>
-    </main>
+        <div class="shell__measure">
+          <slot />
+        </div>
+      </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
+.shell-frame {
+  container-type: inline-size;
+}
+
 .shell {
   display: grid;
   grid-template-columns: var(--rv-sidebar-width) minmax(0, 1fr);
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .shell__skip {
@@ -134,10 +156,12 @@ const sections = computed<
 
   position: sticky;
   top: 0;
+  min-height: 0;
+  overflow: visible;
   display: flex;
   flex-direction: column;
   gap: var(--rv-space-8);
-  height: 100vh;
+  height: 100dvh;
   padding: var(--rv-space-8) var(--rv-space-5);
   color: var(--rv-color-ink);
   background: var(--rv-color-chrome);
@@ -176,6 +200,7 @@ const sections = computed<
 }
 
 .shell__nav-link {
+  position: relative;
   display: flex;
   gap: var(--rv-space-3);
   align-items: center;
@@ -208,35 +233,21 @@ const sections = computed<
 
 .shell__main {
   min-width: 0;
+  min-height: 0;
 }
 
-/* One measure for every screen, owned here, so moving between sections never
-   changes the width the content sits in. --rv-page-inline mirrors the inline
-   padding for descendants that bleed to the page edge (a sticky action bar);
-   a bleed wider than this padding scrolls the whole page sideways. */
+/* The shell owns outer alignment; individual fields own their reading width. */
 .shell__measure {
   display: grid;
   gap: var(--rv-space-12);
-  width: min(var(--rv-measure-workspace), 100%);
-  margin: 0 auto;
-  padding: var(--rv-space-10) var(--rv-page-inline) var(--rv-space-12);
-}
-
-.shell__main--composer {
-  --rv-color-canvas: var(--rv-color-composer-canvas);
-  --rv-color-surface: var(--rv-color-composer-surface);
-  --rv-color-surface-muted: var(--rv-color-composer-selected);
-
-  background: var(--rv-color-canvas);
-}
-
-.shell__measure--composer {
-  container-type: inline-size;
   width: 100%;
-  padding-block: var(--rv-space-6);
+  margin: 0;
+  padding: var(--rv-space-6) var(--rv-page-inline);
+  min-height: 0;
+  container-type: inline-size;
 }
 
-@media (width <= 64rem) {
+@container (width <= 40rem) {
   .shell {
     grid-template-columns: 1fr;
   }
@@ -275,7 +286,7 @@ const sections = computed<
   }
 }
 
-@media (width <= 40rem) {
+@container (width <= 40rem) {
   .shell__side {
     padding-inline: var(--rv-space-4);
   }
@@ -298,6 +309,106 @@ const sections = computed<
 
     gap: var(--rv-space-10);
     padding: var(--rv-space-6) var(--rv-page-inline) var(--rv-space-8);
+  }
+}
+
+.shell--collapsed {
+  grid-template-columns: var(--rv-sidebar-collapsed-width) minmax(0, 1fr);
+}
+
+.shell--collapsed .shell__side {
+  padding-inline: var(--rv-space-2);
+}
+
+.shell--collapsed .shell__product {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.shell--collapsed .shell__product-name {
+  display: none;
+}
+
+.shell__collapse {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--rv-space-3);
+  margin-top: auto;
+  min-height: var(--rv-control-default);
+  padding: var(--rv-space-3);
+  color: var(--rv-color-ink-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--rv-radius-md);
+  cursor: pointer;
+  text-align: start;
+}
+
+.shell__collapse > .rv-icon {
+  transform: rotate(90deg);
+  flex: none;
+}
+
+.shell--collapsed .shell__collapse > .rv-icon {
+  transform: rotate(-90deg);
+}
+
+.shell--collapsed .shell__nav-link,
+.shell--collapsed .shell__collapse {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.shell--collapsed .shell__nav-label {
+  position: absolute;
+  left: calc(100% + var(--rv-space-2));
+  z-index: 10;
+  width: max-content;
+  max-width: var(--rv-panel-width);
+  padding: var(--rv-space-2) var(--rv-space-3);
+  color: var(--rv-color-chrome-ink);
+  background: var(--rv-color-chrome-raised);
+  border: var(--rv-border-hair) solid var(--rv-color-chrome-rule);
+  border-radius: var(--rv-radius-sm);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shell--collapsed .shell__nav-link:hover .shell__nav-label,
+.shell--collapsed .shell__nav-link:focus-visible .shell__nav-label,
+.shell--collapsed .shell__collapse:hover .shell__nav-label,
+.shell--collapsed .shell__collapse:focus-visible .shell__nav-label {
+  opacity: 1;
+}
+
+@media (width > 64rem) and (height > 36rem) {
+  .shell__main--workspace {
+    height: 100dvh;
+  }
+
+  .shell__main--workspace .shell__measure {
+    height: 100%;
+    grid-template-rows: minmax(0, 1fr);
+  }
+}
+
+@container (width <= 40rem) {
+  .shell--collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .shell__collapse {
+    display: none;
+  }
+
+  .shell--collapsed .shell__nav-label {
+    position: static;
+    width: auto;
+    padding: 0;
+    border: 0;
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 </style>

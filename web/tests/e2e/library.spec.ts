@@ -646,7 +646,7 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
     )
       cspErrors.push(message.text())
   })
-  await page.setViewportSize({ height: 640, width: 1280 })
+  await page.setViewportSize({ height: 500, width: 1280 })
   await page.goto(`${origin}/lists/new`)
   await expect(
     page.getByRole('heading', { level: 1, name: 'New route' }),
@@ -1480,7 +1480,7 @@ test('the composing card carries no row control and never spoils the forecast', 
   assertProductAlive()
 })
 
-test('the library default order seeds new routes without showing ordinal clutter', async ({
+test('the visible library order seeds new routes without rewriting saved routes', async ({
   page,
 }) => {
   const headers = { 'X-Routevane-Request': '1' }
@@ -1491,25 +1491,41 @@ test('the library default order seeds new routes without showing ordinal clutter
 
   try {
     await page.goto(`${origin}/library`)
-    await page.getByRole('button', { name: 'Default order' }).click()
-    const sheet = page.getByRole('dialog', { name: 'Default list order' })
+    const sheet = page.locator('.lists')
     await expect(sheet).toContainText(
       'New routes start with this order. Existing saved routes do not change.',
     )
 
+    const first = sheet.locator('.lists__list-row').first()
+    const firstHandle = await first.locator('.lists__handle').boundingBox()
+    const secondRow = await sheet
+      .locator('.lists__list-row')
+      .nth(1)
+      .boundingBox()
+    await page.mouse.move(firstHandle!.x + 8, firstHandle!.y + 8)
+    await page.mouse.down()
+    await page.mouse.move(
+      firstHandle!.x + 8,
+      secondRow!.y + secondRow!.height - 4,
+      { steps: 12 },
+    )
+    await page.mouse.up()
+    await expect(first).toHaveAttribute('data-id', original[1]!)
+    await sheet.getByRole('button', { name: 'Reset order' }).click()
+    await expect(first).toHaveAttribute('data-id', original[0]!)
+
     const youtube = sheet
-      .locator('.priority-list__item')
+      .locator('.lists__list-row')
       .filter({ hasText: 'YouTube' })
-    const handle = youtube.locator('.priority-list__handle')
+    const handle = youtube.locator('.lists__handle')
     for (let index = original.indexOf('youtube'); index > 0; index -= 1)
       await handle.press('ArrowUp')
-    await expect(sheet.locator('.priority-list__item').first()).toHaveAttribute(
+    await expect(sheet.locator('.lists__list-row').first()).toHaveAttribute(
       'data-id',
       'youtube',
     )
-    await expect(sheet.locator('.priority-list__position')).toHaveCount(0)
     await sheet.getByRole('button', { name: 'Save order' }).click()
-    await expect(sheet).toBeHidden()
+    await expect(sheet.getByRole('button', { name: 'Save order' })).toBeHidden()
 
     await page.goto(`${origin}/lists/new`)
     const search = page.getByRole('searchbox', { name: 'Find a list' })
@@ -1556,31 +1572,18 @@ test('an operator category carries its lists into a route and is kept while a ro
   // viewport height.
   const viewport = page.viewportSize()
   const workspaceBox = await page.locator('.lists__workspace').boundingBox()
-  const firstCategoryBox = await page
-    .locator('.lists__category')
+  const firstListBox = await page
+    .locator('.lists__list-row')
     .first()
     .boundingBox()
   expect(workspaceBox?.height ?? 0).toBeGreaterThanOrEqual(
-    Math.floor((viewport?.height ?? 0) * 0.7),
+    Math.floor((viewport?.height ?? 0) * 0.55),
   )
-  expect(
-    firstCategoryBox?.height ?? Number.POSITIVE_INFINITY,
-  ).toBeLessThanOrEqual(56)
+  expect(firstListBox?.height ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(
+    48,
+  )
 
-  for (const [footer, label] of [
-    ['.lists__collections-footer', 'New category'],
-    ['.lists__details-footer', 'New list'],
-  ] as const) {
-    const footerBox = await page.locator(footer).boundingBox()
-    const buttonBox = await page
-      .locator(footer)
-      .getByRole('button', { name: label })
-      .boundingBox()
-    expect(buttonBox?.width ?? 0).toBeGreaterThan(
-      (footerBox?.width ?? Number.POSITIVE_INFINITY) * 0.9,
-    )
-  }
-
+  await page.getByRole('button', { name: 'Categories', exact: true }).click()
   await page.getByRole('button', { name: 'New category' }).click()
   const categoryForm = page.getByRole('dialog', { name: 'New category' })
   // The panel opens with the keyboard in its field, so typing starts there
@@ -1594,7 +1597,7 @@ test('an operator category carries its lists into a route and is kept while a ro
 
   // The category just made is the one on screen, because it was made to be
   // filled.
-  const details = page.locator('.lists__details')
+  const details = page.locator('.lists')
   await expect(details.getByRole('heading', { name: 'Домашние' })).toBeVisible()
 
   await page.getByRole('button', { name: 'New list' }).click()
@@ -1613,9 +1616,7 @@ test('an operator category carries its lists into a route and is kept while a ro
 
   // A filtered category exposes an explicit live-reference choice, so the
   // route follows it rather than freezing today's members.
-  const categoryFilter = page.getByRole('combobox', {
-    name: 'Filter by category',
-  })
+  const categoryFilter = page.locator('.rv-search-select__trigger')
   await categoryFilter.click()
   await page.getByRole('option', { name: 'Домашние' }).click()
   await page.getByRole('checkbox', { name: 'Follow “Домашние”' }).check()
@@ -1639,9 +1640,7 @@ test('an operator category carries its lists into a route and is kept while a ro
     .getByRole('tablist', { name: 'Route sections' })
     .getByRole('tab', { name: 'Contents' })
     .click()
-  const editorFilter = page.getByRole('combobox', {
-    name: 'Filter by category',
-  })
+  const editorFilter = page.locator('.rv-search-select__trigger')
   await editorFilter.click()
   await page.getByRole('option', { name: 'Домашние' }).click()
   await expect(
@@ -1671,7 +1670,12 @@ test('an operator category carries its lists into a route and is kept while a ro
     ),
   ).toBeVisible()
   await removal.getByRole('button', { name: 'Cancel' }).click()
+  await page.getByRole('button', { name: 'Categories', exact: true }).click()
   await expect(page.locator('.lists__groups')).toContainText('Домашние')
+  await page
+    .getByRole('dialog', { name: 'Categories', exact: true })
+    .getByRole('button', { name: 'Close', exact: true })
+    .click()
 
   // Doing what the refusal asks is what makes the deletion possible, and the
   // route keeps everything it did not follow through the category.
@@ -1680,9 +1684,7 @@ test('an operator category carries its lists into a route and is kept while a ro
     .getByRole('tablist', { name: 'Route sections' })
     .getByRole('tab', { name: 'Contents' })
     .click()
-  const routeEditorFilter = page.getByRole('combobox', {
-    name: 'Filter by category',
-  })
+  const routeEditorFilter = page.locator('.rv-search-select__trigger')
   await routeEditorFilter.click()
   await page.getByRole('option', { name: 'Домашние' }).click()
   await page.getByRole('checkbox', { name: 'Follow “Домашние”' }).uncheck()
@@ -1708,7 +1710,12 @@ test('an operator category carries its lists into a route and is kept while a ro
     .click()
   await removal.getByRole('button', { exact: true, name: 'Delete' }).click()
   await expect(removal).toBeHidden()
+  await page.getByRole('button', { name: 'Categories', exact: true }).click()
   await expect(page.locator('.lists__groups')).not.toContainText('Домашние')
+  await page
+    .getByRole('dialog', { name: 'Categories', exact: true })
+    .getByRole('button', { name: 'Close', exact: true })
+    .click()
   await openLibraryCategory(page, 'Communication')
   await expect(page.locator('.lists__pane-body')).toContainText('Discord')
   assertProductAlive()
@@ -1728,6 +1735,7 @@ test('the library deletes a category with its lists, and composing offers none o
     page.getByRole('heading', { level: 1, name: 'Lists' }),
   ).toBeVisible()
 
+  await page.getByRole('button', { name: 'Categories', exact: true }).click()
   await page.getByRole('button', { name: 'New category' }).click()
   const categoryForm = page.getByRole('dialog', { name: 'New category' })
   await categoryForm.getByLabel('Name').fill('Черновик')
@@ -1743,7 +1751,7 @@ test('the library deletes a category with its lists, and composing offers none o
   await newList.getByLabel('Domains').fill('draft.example')
   await newList.getByRole('button', { exact: true, name: 'Create' }).click()
   await expect(newList).toBeHidden()
-  await expect(page.locator('.lists__details')).toContainText('Draft fixture')
+  await expect(page.locator('.lists')).toContainText('Draft fixture')
 
   await openCategoryActions(page, 'Черновик')
   await page
@@ -1754,7 +1762,12 @@ test('the library deletes a category with its lists, and composing offers none o
   await removal.getByText('Delete them with it').click()
   await removal.getByRole('button', { exact: true, name: 'Delete' }).click()
   await expect(removal).toBeHidden()
+  await page.getByRole('button', { name: 'Categories', exact: true }).click()
   await expect(page.locator('.lists__groups')).not.toContainText('Черновик')
+  await page
+    .getByRole('dialog', { name: 'Categories', exact: true })
+    .getByRole('button', { name: 'Close', exact: true })
+    .click()
   await openLibraryCategory(page, 'Uncategorized')
   await expect(page.locator('.lists__pane-body')).not.toContainText(
     'Draft fixture',
@@ -2498,6 +2511,12 @@ for (const language of ['en', 'ru'] as const) {
           page.getByRole('heading', { level: 1, name: copy('lists.title') }),
         ).toBeVisible()
         await page
+          .getByRole('button', {
+            name: copy('lists.manageCategories'),
+            exact: true,
+          })
+          .click()
+        await page
           .getByRole('button', { name: copy('lists.addCategory') })
           .click()
         const form = page.getByRole('dialog', {
@@ -2528,8 +2547,8 @@ for (const language of ['en', 'ru'] as const) {
           copy('lists.stale'),
         )
         await expect(
-          page.locator('.lists__details').getByRole('heading', {
-            name: copy('category.communication'),
+          page.locator('.lists').getByRole('heading', {
+            name: copy('servicePicker.filter.all'),
           }),
         ).toBeVisible()
         expect(categoryWrites).toHaveLength(1)
@@ -2537,7 +2556,7 @@ for (const language of ['en', 'ru'] as const) {
         expect(await auditWidths(page, `${language}-library-stale`)).toEqual([])
         await page.getByRole('button', { name: copy('lists.refresh') }).click()
         await expect(
-          page.locator('.lists__details').getByRole('heading', {
+          page.locator('.lists').getByRole('heading', {
             name: categoryTitle,
           }),
         ).toBeVisible()
@@ -2767,6 +2786,89 @@ test('the populated library never scrolls sideways', async ({ page }) => {
   await page.setViewportSize({ height: 900, width: 1280 })
 })
 
+test('workspace pages share geometry and the category panel supports keyboard search', async ({
+  page,
+}) => {
+  for (const width of [1366, 1920]) {
+    await page.setViewportSize({ width, height: 900 })
+    let reference: { x: number; width: number; background: string } | undefined
+    for (const path of [
+      '/lists/new',
+      '/library',
+      '/connections',
+      '/settings',
+      '/',
+    ]) {
+      await page.goto(`${origin}${path}`)
+      await expect(page.locator('h1')).toBeVisible()
+      const geometry = await page
+        .locator('.shell__measure')
+        .evaluate((element) => ({
+          x: element.getBoundingClientRect().x,
+          width: element.getBoundingClientRect().width,
+          background: getComputedStyle(document.documentElement)
+            .backgroundColor,
+        }))
+      reference ??= geometry
+      expect(geometry).toEqual(reference)
+      if (path === '/lists/new' || path === '/library') {
+        const frame = page.locator(
+          path === '/lists/new' ? '.picker__table-frame' : '.lists__workspace',
+        )
+        await expect(frame).toBeVisible()
+        expect(
+          await frame.evaluate(
+            (element) => element.scrollWidth - element.clientWidth,
+          ),
+        ).toBe(0)
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollHeight - innerHeight,
+          ),
+        ).toBeLessThanOrEqual(1)
+      }
+    }
+  }
+  await page.goto(`${origin}/lists/new`)
+  const collapse = page.getByRole('button', { name: 'Collapse sidebar' })
+  await collapse.click()
+  await expect(page.locator('.shell')).toHaveClass(/shell--collapsed/)
+  await page.reload()
+  await expect(
+    page.getByRole('button', { name: 'Expand sidebar' }),
+  ).toBeVisible()
+  const nav = page.getByRole('link', { name: 'Lists', exact: true })
+  await nav.focus()
+  await expect(nav.locator('.shell__nav-label')).toHaveCSS('opacity', '1')
+  await page.getByRole('button', { name: 'Expand sidebar' }).click()
+  const more = page.locator('.rv-search-select__trigger')
+  await more.click()
+  const search = page.getByRole('textbox', { name: 'Find a category' })
+  await expect(search).toBeFocused()
+  const panel = page.locator('.rv-search-select__panel')
+  await expect(panel).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+  await expect(panel).toHaveCSS('border-top-width', '1px')
+  await search.fill('no category matches this')
+  await expect(page.getByText('No matching categories')).toBeVisible()
+  await search.fill('Video')
+  await search.press('ArrowDown')
+  await search.press('Enter')
+  await expect(search).toBeHidden()
+  await expect(more).toBeFocused()
+  await expect(page.locator('.picker__row')).toHaveCount(1)
+  await expect(page.locator('.picker__row')).toContainText('YouTube')
+  await more.click()
+  await expect(page.getByRole('option', { name: 'Video' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await search.fill('Communication')
+  await search.press('Escape')
+  await expect(search).toBeHidden()
+  await expect(more).toBeFocused()
+  await expect(page.locator('.picker__row')).toContainText('YouTube')
+})
+
 test('the composition editor keeps its geometry across selections and shell breakpoints', async ({
   page,
 }) => {
@@ -2811,10 +2913,11 @@ test('the composition editor keeps its geometry across selections and shell brea
       })),
     ),
   ).toEqual(positions)
-  const chips = await page.locator('.picker__chip').first().boundingBox()
-  const more = await page
-    .getByRole('combobox', { name: 'Filter by category' })
+  const chips = await page
+    .locator('.catalog-filters__chip')
+    .first()
     .boundingBox()
+  const more = await page.locator('.rv-search-select__trigger').boundingBox()
   expect(more!.height).toBe(chips!.height)
   const after = await table.boundingBox()
   expect(after).not.toBeNull()
@@ -2826,11 +2929,20 @@ test('the composition editor keeps its geometry across selections and shell brea
   for (const width of [1024, 768, 320]) {
     await page.setViewportSize({ height: 900, width })
     if (width <= 768) {
-      const narrowTable = await table.boundingBox()
-      const narrowRail = await rail.boundingBox()
-      expect(narrowRail!.y).toBeGreaterThanOrEqual(
-        narrowTable!.y + narrowTable!.height,
-      )
+      // Resizing also updates the measured quick-filter count. Compare both
+      // boxes in one layout snapshot after that reactive update settles.
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const table = document.querySelector('.picker__table-frame')!
+            const settings = document.querySelector('.create__settings')!
+            return (
+              settings.getBoundingClientRect().top -
+              table.getBoundingClientRect().bottom
+            )
+          }),
+        )
+        .toBeGreaterThanOrEqual(0)
     }
     await assertNoOverflow(page, `composition-editor-${width}`)
   }
@@ -2918,14 +3030,9 @@ async function openLibraryCategory(
   page: Page,
   category: string,
 ): Promise<void> {
-  await page
-    .locator('.lists__category')
-    .filter({ hasText: category })
-    .first()
-    .click()
-  await expect(
-    page.locator('.lists__details').getByRole('heading', { name: category }),
-  ).toBeVisible()
+  await page.locator('.rv-search-select__trigger').click()
+  await page.getByRole('option', { name: category }).click()
+  await expect(page.locator('.lists__details-title')).toHaveText(category)
 }
 
 /**
@@ -2937,6 +3044,7 @@ async function openCategoryActions(
   category: string,
 ): Promise<void> {
   await openLibraryCategory(page, category)
+  await page.getByRole('button', { name: 'Categories', exact: true }).click()
   await page
     .getByRole('button', { name: `Actions for category ${category}` })
     .click()

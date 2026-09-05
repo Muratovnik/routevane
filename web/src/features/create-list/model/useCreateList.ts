@@ -314,6 +314,7 @@ export function useCreateList() {
     composition,
     create,
     deployable,
+    defaultPriority,
     flowState,
     forecastFor,
     initialize,

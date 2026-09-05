@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { useSortable } from '@vueuse/integrations/useSortable'
+import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
 
-import CompositionPriorityList, {
-  type PriorityItem,
-} from '@/entities/list-composition/ui/CompositionPriorityList.vue'
+import CategoryFilters from '@/entities/list-composition/ui/CategoryFilters.vue'
+import CategoryLabel from '@/entities/list-composition/ui/CategoryLabel.vue'
 import ServiceDetailDialog from '@/entities/list-composition/ui/ServiceDetailDialog.vue'
 import { useListLibrary } from '@/features/list-library/model/useListLibrary'
 import LibraryListSheet from '@/features/list-library/ui/LibraryListSheet.vue'
@@ -29,9 +29,8 @@ import RvTextInput from '@/shared/ui/RvTextInput.vue'
  *
  * Everything global lives here — what a category holds, what a list holds,
  * where its entries come from, and whether either exists at all — so that
- * composing a route can write nothing but the route. The geometry is the
- * composer's, and deliberately so: the same two columns, without the
- * checkboxes, because this screen is not selecting anything.
+ * composing a route can write nothing but the route. The catalog table also
+ * owns the default order; membership and content edits remain library actions.
  */
 const { t, tc, tor } = useLocale()
 const library = useListLibrary()
@@ -53,7 +52,8 @@ type CategoryRow = {
 
 const activeCategoryID = ref('')
 const activeServiceID = ref('')
-const mobilePane = ref<'collections' | 'details'>('collections')
+const categoriesOpen = ref(false)
+const query = ref('')
 
 const categoryForm = ref<'closed' | 'create' | 'rename'>('closed')
 const categorySubject = ref<CategoryDetail | null>(null)
@@ -69,7 +69,6 @@ const pendingCreatedServiceID = ref('')
 const removingCategory = ref(false)
 const categoryLists = ref<CategoryLists>('detach')
 const removingService = ref<ServiceDetail | null>(null)
-const priorityOpen = ref(false)
 const priorityDraft = ref<string[]>([])
 const priorityError = ref('')
 
@@ -111,10 +110,7 @@ const rows = computed<CategoryRow[]>(() => [
 ])
 
 const activeRow = computed<CategoryRow | null>(
-  () =>
-    rows.value.find((entry) => entry.id === activeCategoryID.value) ??
-    rows.value[0] ??
-    null,
+  () => rows.value.find((entry) => entry.id === activeCategoryID.value) ?? null,
 )
 
 const activeService = computed(
@@ -163,12 +159,22 @@ function listActions(service: ServiceDetail): MenuItem[] {
       key: 'rename',
       label: t('lists.list.rename'),
     })
-  if ((activeRow.value?.category ?? null) !== null)
+  const memberships = serviceCategories(service)
+  if (activeRow.value?.category)
     items.push({
       disabled: library.stale.value || library.busy.value,
       key: 'detach',
       label: t('lists.list.detach'),
-      separatorBefore: items.length > 0,
+    })
+  else if (memberships.length > 0)
+    items.push({
+      key: 'detach-category',
+      label: t('lists.list.detach'),
+      children: memberships.map((entry) => ({
+        key: `detach:${entry.id}`,
+        label: entry.label,
+        disabled: library.stale.value || library.busy.value,
+      })),
     })
   items.push({
     disabled: library.busy.value,
@@ -191,14 +197,6 @@ const pickableLists = computed<ChoiceOption[]>(() => {
     .map((service) => ({ label: service.title, value: service.id }))
 })
 
-const priorityItems = computed<PriorityItem[]>(() => {
-  const details = servicesByID.value
-  return priorityDraft.value.map((id) => ({
-    id,
-    title: details.get(id)?.title ?? id,
-  }))
-})
-
 const priorityDirty = computed(
   () =>
     priorityDraft.value.join('\0') !== library.defaultPriority.value.join('\0'),
@@ -219,7 +217,6 @@ onMounted(() => {
   const opened = parseLibraryPageHash(route.hash)
   activeCategoryID.value = opened.category
   activeServiceID.value = opened.list
-  if (opened.list !== '') mobilePane.value = 'details'
   void library.initialize()
 })
 
@@ -238,11 +235,7 @@ function select(categoryID: string): void {
 
 function showCategory(categoryID: string): void {
   select(categoryID)
-  mobilePane.value = 'details'
-}
-
-function showCollections(): void {
-  mobilePane.value = 'collections'
+  categoriesOpen.value = false
 }
 
 function openService(serviceID: string): void {
@@ -274,6 +267,7 @@ function writeLocation(): void {
 }
 
 function startCreateCategory(): void {
+  categoriesOpen.value = false
   if (library.stale.value) return
   library.clearRefusal()
   categorySubject.value = null
@@ -323,6 +317,7 @@ async function retryLibraryRead(): Promise<void> {
 }
 
 function onCategoryAction(entry: CategoryRow, key: string): void {
+  categoriesOpen.value = false
   const category = entry.category
   if (category === null || library.busy.value) return
   if (key === 'rename') {
@@ -346,6 +341,13 @@ function onListAction(service: ServiceDetail, key: string): void {
   const category = activeRow.value?.category ?? null
   if (key === 'rename' && service.custom === true) {
     openService(service.id)
+    return
+  }
+  if (key.startsWith('detach:') && !library.stale.value) {
+    const from = library.categories.value.find(
+      (entry) => entry.id === key.slice(7),
+    )
+    if (from) void library.detachList(from, service.id)
     return
   }
   if (key === 'detach' && category !== null && !library.stale.value) {
@@ -468,34 +470,91 @@ function closeListSheet(): void {
   pendingCreatedServiceID.value = ''
 }
 
-function openPriority(): void {
-  if (
-    library.state.value !== 'ready' ||
-    library.stale.value ||
-    library.busy.value
-  )
-    return
+function resetPriority(): void {
   priorityDraft.value = [...library.defaultPriority.value]
   priorityError.value = ''
-  priorityOpen.value = true
 }
 
-function closePriority(): void {
-  if (library.busy.value) return
-  priorityOpen.value = false
-  priorityError.value = ''
+const filter = computed({
+  get: () => activeCategoryID.value || 'all',
+  set: (value: string) => select(value === 'all' ? '' : value),
+})
+const tableDisabled = computed(() => library.busy.value || library.stale.value)
+watch(
+  () => library.defaultPriority.value,
+  (ids, previous) => {
+    if (
+      priorityDraft.value.length === 0 ||
+      priorityDraft.value.join('\0') === previous?.join('\0')
+    )
+      priorityDraft.value = [...ids]
+    else
+      priorityDraft.value = [
+        ...priorityDraft.value.filter((id) => ids.includes(id)),
+        ...ids.filter((id) => !priorityDraft.value.includes(id)),
+      ]
+  },
+  { immediate: true },
+)
+function serviceCategories(service: ServiceDetail): CategoryRow[] {
+  return rows.value.filter(
+    (row) =>
+      row.category !== null &&
+      row.members.some((member) => member.id === service.id),
+  )
 }
-
-function reorderPriority(ids: string[]): void {
-  priorityDraft.value = ids
-  priorityError.value = ''
+const visibleServices = computed(() => {
+  const needle = query.value.trim().toLocaleLowerCase()
+  return priorityDraft.value
+    .map((id) => servicesByID.value.get(id))
+    .filter((service): service is ServiceDetail => service !== undefined)
+    .filter(
+      (service) =>
+        (activeRow.value === null ||
+          activeRow.value.members.some((member) => member.id === service.id)) &&
+        [
+          service.title,
+          service.id,
+          ...serviceCategories(service).map((category) => category.label),
+        ].some((label) => label.toLocaleLowerCase().includes(needle)),
+    )
+})
+const tableBody = useTemplateRef<HTMLElement>('tableBody')
+const visibleOrder = computed({
+  get: () => visibleServices.value.map((service) => service.id),
+  set: (ids: string[]) => {
+    const visible = new Set(ids)
+    let index = 0
+    priorityDraft.value = priorityDraft.value.map((id) =>
+      visible.has(id) ? ids[index++]! : id,
+    )
+    priorityError.value = ''
+  },
+})
+const sortable = useSortable(tableBody, visibleOrder, {
+  handle: '.lists__handle',
+  animation: 200,
+  forceFallback: true,
+  fallbackOnBody: true,
+  watchElement: true,
+  disabled: tableDisabled.value,
+})
+watch(tableDisabled, (disabled) => sortable.option('disabled', disabled))
+function movePriority(id: string, offset: number): void {
+  if (tableDisabled.value) return
+  const ids = [...visibleOrder.value]
+  const from = ids.indexOf(id)
+  const to = from + offset
+  if (from < 0 || to < 0 || to >= ids.length) return
+  ids.splice(from, 1)
+  ids.splice(to, 0, id)
+  visibleOrder.value = ids
 }
 
 async function submitPriority(): Promise<void> {
   if (!priorityDirty.value) return
   const result = await library.setDefaultPriority(priorityDraft.value)
   if (result.status === 'saved') {
-    priorityOpen.value = false
     priorityError.value = ''
     return
   }
@@ -508,19 +567,25 @@ async function submitPriority(): Promise<void> {
   <section aria-labelledby="lists-title" class="lists">
     <header class="lists__header">
       <h1 id="lists-title" class="lists__title">{{ t('lists.title') }}</h1>
-      <RvButton
-        :disabled="
-          library.state.value !== 'ready' ||
-          library.busy.value ||
-          library.stale.value
-        "
-        size="compact"
-        variant="secondary"
-        @click="openPriority"
-      >
-        <RvIcon name="drag" />
-        {{ t('lists.priority.action') }}
-      </RvButton>
+      <div class="lists__actions">
+        <RvButton
+          :disabled="library.busy.value"
+          size="compact"
+          @click="categoriesOpen = true"
+          >{{ t('lists.manageCategories') }}</RvButton
+        >
+        <RvButton
+          :disabled="
+            library.state.value !== 'ready' ||
+            library.busy.value ||
+            library.stale.value
+          "
+          size="compact"
+          variant="primary"
+          @click="startCreateService"
+          ><RvIcon name="plus" />{{ t('lists.addList') }}</RvButton
+        >
+      </div>
     </header>
 
     <RvStateNotice
@@ -560,144 +625,217 @@ async function submitPriority(): Promise<void> {
           </RvButton>
         </template>
       </RvStateNotice>
-      <div class="lists__workspace" :class="`lists__workspace--${mobilePane}`">
-        <section aria-labelledby="lists-categories" class="lists__collections">
-          <header class="lists__pane-header">
-            <h2 id="lists-categories">{{ t('servicePicker.collections') }}</h2>
-          </header>
-          <ul class="lists__groups">
-            <li
-              v-for="entry in rows"
-              :key="entry.id"
-              class="lists__group"
-              :class="{ 'lists__group--active': activeRow?.id === entry.id }"
-            >
-              <div class="lists__category-row">
-                <button
-                  :aria-current="
-                    activeRow?.id === entry.id ? 'true' : undefined
-                  "
-                  class="lists__category"
-                  :disabled="library.busy.value"
-                  type="button"
-                  @click="showCategory(entry.id)"
-                >
-                  <span class="lists__category-copy">
-                    <strong>{{ entry.label }}</strong>
-                    <small>{{
-                      tc('create.category.size', entry.members.length)
-                    }}</small>
-                  </span>
-                  <RvIcon class="lists__category-mark" name="chevron" />
-                </button>
-                <RvMenu
-                  v-if="categoryActions(entry).length > 0"
-                  :disabled="library.busy.value"
-                  :items="categoryActions(entry)"
-                  :label="t('lists.category.menu', { category: entry.label })"
-                  @select="onCategoryAction(entry, $event)"
-                />
-              </div>
-            </li>
-          </ul>
-          <footer class="lists__collections-footer">
-            <RvButton
-              block
-              :disabled="library.busy.value || library.stale.value"
-              size="compact"
-              type="button"
-              variant="quiet"
-              @click="startCreateCategory"
-            >
-              <RvIcon name="plus" />
-              {{ t('lists.addCategory') }}
-            </RvButton>
-          </footer>
-        </section>
-
-        <section
-          v-if="activeRow !== null"
-          aria-labelledby="lists-details-title"
-          class="lists__details"
+      <CategoryFilters
+        v-model="filter"
+        v-model:query="query"
+        :categories="library.categories.value"
+        :services="library.services.value"
+        :disabled="library.busy.value"
+      />
+      <div class="lists__order-bar">
+        <h2 class="lists__details-title">
+          {{ activeRow?.label ?? t('servicePicker.filter.all') }}
+        </h2>
+        <span>{{ t('lists.priority.title') }}</span>
+        <span class="lists__priority-help">{{ t('lists.priority.body') }}</span>
+        <RvButton
+          v-if="priorityDirty"
+          :disabled="tableDisabled"
+          size="compact"
+          variant="quiet"
+          @click="resetPriority"
+          >{{ t('lists.priority.cancel') }}</RvButton
         >
-          <header class="lists__details-header">
-            <button class="lists__back" type="button" @click="showCollections">
-              <RvIcon name="chevron" />
-              {{ t('servicePicker.back') }}
-            </button>
-            <h2 id="lists-details-title" class="lists__details-title">
-              {{ activeRow.label }}
-            </h2>
-            <strong class="lists__details-count">
-              {{ tc('create.category.size', activeRow.members.length) }}
-            </strong>
-          </header>
-          <div class="lists__pane-body">
-            <RvStateNotice
-              v-if="paneRefusal !== null"
-              :body="
-                paneRefusal.kind === 'inUse'
-                  ? t('lists.category.inUse.body', {
-                      routes: paneRefusal.routes.join(', '),
-                    })
-                  : t('lists.category.failed.body')
-              "
-              class="lists__notice"
-              live
-              :title="
-                paneRefusal.kind === 'inUse'
-                  ? t('lists.category.inUse')
-                  : t('lists.category.failed')
-              "
-              tone="failed"
-            />
-            <ul class="lists__members">
-              <li
-                v-for="service in activeRow.members"
-                :key="service.id"
-                class="lists__list-row"
-              >
-                <span class="lists__list-name">{{ service.title }}</span>
+        <RvButton
+          v-if="priorityDirty"
+          :disabled="tableDisabled"
+          size="compact"
+          variant="primary"
+          :loading="library.busy.value"
+          @click="submitPriority"
+          >{{ t('lists.priority.save') }}</RvButton
+        >
+      </div>
+      <RvStateNotice
+        v-if="paneRefusal !== null || priorityError !== ''"
+        :title="
+          t(
+            priorityError
+              ? 'lists.priority.failed'
+              : paneRefusal?.kind === 'inUse'
+                ? 'lists.category.inUse'
+                : 'lists.category.failed',
+          )
+        "
+        :body="
+          priorityError ||
+          (paneRefusal?.kind === 'inUse'
+            ? t('lists.category.inUse.body', {
+                routes: paneRefusal.routes.join(', '),
+              })
+            : t('lists.category.failed.body'))
+        "
+        live
+        tone="failed"
+      />
+      <div class="lists__workspace lists__pane-body">
+        <table class="lists__table">
+          <thead>
+            <tr>
+              <th class="lists__priority-column" scope="col">
+                {{ t('lists.priority.column') }}
+              </th>
+              <th scope="col">{{ t('servicePicker.column.list') }}</th>
+              <th class="lists__category-column" scope="col">
+                {{ t('servicePicker.collections') }}
+              </th>
+              <th class="lists__action-column" scope="col">
+                <span class="lists__visually-hidden">{{
+                  t('lists.manageCategories')
+                }}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody ref="tableBody" class="lists__members">
+            <tr
+              v-for="service in visibleServices"
+              :key="service.id"
+              class="lists__list-row"
+              :data-id="service.id"
+            >
+              <td class="lists__priority-column">
                 <button
+                  type="button"
+                  class="lists__handle"
+                  :disabled="tableDisabled"
+                  :aria-label="
+                    t('list.priority.move.aria', {
+                      list: service.title,
+                      position: priorityDraft.indexOf(service.id) + 1,
+                      total: priorityDraft.length,
+                    })
+                  "
+                  @keydown.up.prevent="movePriority(service.id, -1)"
+                  @keydown.down.prevent="movePriority(service.id, 1)"
+                  @keydown.home.prevent="
+                    movePriority(service.id, -visibleOrder.indexOf(service.id))
+                  "
+                  @keydown.end.prevent="
+                    movePriority(
+                      service.id,
+                      visibleOrder.length -
+                        visibleOrder.indexOf(service.id) -
+                        1,
+                    )
+                  "
+                >
+                  <RvIcon name="drag" /><span aria-hidden="true">{{
+                    priorityDraft.indexOf(service.id) + 1
+                  }}</span>
+                </button>
+              </td>
+              <th scope="row">
+                <button
+                  type="button"
+                  class="lists__list-name"
                   :aria-label="
                     t('serviceDetail.open.aria', { service: service.title })
                   "
-                  class="lists__open"
                   :disabled="library.busy.value"
-                  type="button"
                   @click="openService(service.id)"
                 >
-                  <RvIcon name="chevron" />
+                  {{ service.title }}
                 </button>
+              </th>
+              <td class="lists__category-column">
+                <CategoryLabel
+                  v-for="category in serviceCategories(service)"
+                  :id="category.id"
+                  :key="category.id"
+                  :label="category.label"
+                /><span v-if="serviceCategories(service).length === 0">{{
+                  t('servicePicker.other')
+                }}</span>
+              </td>
+              <td class="lists__action-column">
                 <RvMenu
-                  v-if="listActions(service).length > 0"
                   :disabled="library.busy.value"
                   :items="listActions(service)"
                   :label="t('lists.list.menu', { list: service.title })"
                   @select="onListAction(service, $event)"
                 />
-              </li>
-            </ul>
-            <p v-if="activeRow.members.length === 0" class="lists__empty">
-              {{ t('lists.category.empty') }}
-            </p>
-          </div>
-          <footer class="lists__details-footer">
-            <RvButton
-              block
-              :disabled="library.busy.value || library.stale.value"
-              size="compact"
-              type="button"
-              variant="quiet"
-              @click="startCreateService"
-            >
-              <RvIcon name="plus" />
-              {{ t('lists.addList') }}
-            </RvButton>
-          </footer>
-        </section>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-if="visibleServices.length === 0" class="lists__empty">
+          {{
+            query ? t('create.noMatches', { query }) : t('lists.category.empty')
+          }}
+        </p>
       </div>
     </template>
+
+    <RvDialog
+      :open="categoriesOpen"
+      :title="t('lists.manageCategories')"
+      :close-label="t('action.close')"
+      :dismissible="!library.busy.value"
+      variant="panel"
+      @update:open="categoriesOpen = $event"
+    >
+      <section aria-labelledby="lists-categories" class="lists__collections">
+        <header class="lists__pane-header">
+          <h2 id="lists-categories">{{ t('servicePicker.collections') }}</h2>
+        </header>
+        <ul class="lists__groups">
+          <li
+            v-for="entry in rows"
+            :key="entry.id"
+            class="lists__group"
+            :class="{ 'lists__group--active': activeRow?.id === entry.id }"
+          >
+            <div class="lists__category-row">
+              <button
+                :aria-current="activeRow?.id === entry.id ? 'true' : undefined"
+                class="lists__category"
+                :disabled="library.busy.value"
+                type="button"
+                @click="showCategory(entry.id)"
+              >
+                <span class="lists__category-copy">
+                  <strong>{{ entry.label }}</strong>
+                  <small>{{
+                    tc('create.category.size', entry.members.length)
+                  }}</small>
+                </span>
+                <RvIcon class="lists__category-mark" name="chevron" />
+              </button>
+              <RvMenu
+                v-if="categoryActions(entry).length > 0"
+                :disabled="library.busy.value"
+                :items="categoryActions(entry)"
+                :label="t('lists.category.menu', { category: entry.label })"
+                @select="onCategoryAction(entry, $event)"
+              />
+            </div>
+          </li>
+        </ul>
+        <footer class="lists__collections-footer">
+          <RvButton
+            block
+            :disabled="library.busy.value || library.stale.value"
+            size="compact"
+            type="button"
+            variant="quiet"
+            @click="startCreateCategory"
+          >
+            <RvIcon name="plus" />
+            {{ t('lists.addCategory') }}
+          </RvButton>
+        </footer>
+      </section>
+    </RvDialog>
 
     <RvDialog
       :close-label="t('action.close')"
@@ -903,50 +1041,6 @@ async function submitPriority(): Promise<void> {
       @remove="startRemoveService"
       @updated="onServiceUpdated"
     />
-
-    <RvDialog
-      :close-label="t('action.close')"
-      :dismissible="!library.busy.value"
-      fill
-      :open="priorityOpen"
-      :title="t('lists.priority.title')"
-      variant="sheet"
-      @update:open="$event === false && closePriority()"
-    >
-      <div class="lists__priority">
-        <CompositionPriorityList
-          :description="t('lists.priority.body')"
-          :disabled="library.busy.value"
-          :items="priorityItems"
-          :title="t('lists.priority.title')"
-          @reorder="reorderPriority"
-        />
-        <RvStateNotice
-          v-if="priorityError !== ''"
-          :body="priorityError"
-          live
-          :title="t('lists.priority.failed')"
-          tone="failed"
-        />
-      </div>
-      <template #footer>
-        <RvButton
-          :disabled="library.busy.value"
-          variant="quiet"
-          @click="closePriority"
-        >
-          {{ t('action.cancel') }}
-        </RvButton>
-        <RvButton
-          :disabled="library.busy.value || !priorityDirty"
-          :loading="library.busy.value"
-          variant="primary"
-          @click="submitPriority"
-        >
-          {{ t('lists.priority.save') }}
-        </RvButton>
-      </template>
-    </RvDialog>
   </section>
 </template>
 

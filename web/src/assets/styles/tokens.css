@@ -45,9 +45,9 @@
   /* Roles: dark, the default scene */
   --rv-color-chrome: var(--rv-near-black-950);
   --rv-color-chrome-raised: var(--rv-near-black-900);
-  --rv-color-canvas: var(--rv-near-black-880);
-  --rv-color-surface: var(--rv-near-black-850);
-  --rv-color-surface-muted: var(--rv-near-black-800);
+  --rv-color-canvas: #101719;
+  --rv-color-surface: #181f21;
+  --rv-color-surface-muted: #20292c;
   --rv-color-surface-hover: var(--rv-near-black-750);
   --rv-color-surface-selected: #1c2a24;
   --rv-color-ink: var(--rv-white-050);
@@ -141,9 +141,14 @@
      window shows more of the catalog instead of a fixed inner scroll box. */
   --rv-picker-height: max(24rem, calc(100dvh - 16rem));
   --rv-priority-height: var(--rv-picker-height);
-  --rv-composer-rail-width: 21rem;
+
+  /* Workspace hosts may restore natural height when their columns stack. */
+  --rv-picker-fill-height: 100%;
+  --rv-picker-fill-min: 0;
+  --rv-picker-fill-max: none;
+  --rv-composer-rail-width: var(--rv-panel-width);
   --rv-composer-priority-height: max(16rem, calc(100dvh - 24rem));
-  --rv-picker-table-width: 46rem;
+  --rv-picker-table-width: 42rem;
   --rv-picker-priority-width: 3.5rem;
   --rv-picker-name-width: 8rem;
   --rv-picker-rule-width: 5rem;
@@ -152,6 +157,9 @@
   --rv-fact-label-width: 8rem;
   --rv-disabled-opacity: 0.5;
   --rv-sidebar-width: 15rem;
+  --rv-sidebar-collapsed-width: 4rem;
+  --rv-panel-width: 20rem;
+  --rv-table-action-width: 3.25rem;
   --rv-measure-workspace: 70rem;
 
   /* The standing width of a single choice or name field. A panel opened from
@@ -160,7 +168,7 @@
 
   /* The page's inline padding. The shell narrows it with the viewport, and an
    * element that bleeds to the page edge must bleed exactly this much. */
-  --rv-page-inline: var(--rv-space-8);
+  --rv-page-inline: var(--rv-space-6);
   --rv-measure-prose: 68ch;
   --rv-motion-fast: 120ms;
   --rv-motion-normal: 200ms;
@@ -175,9 +183,6 @@
   --rv-color-category-blue: #668cd1;
   --rv-color-category-slate: #89959c;
   --rv-color-category-red: #cf746a;
-  --rv-color-composer-canvas: #101719;
-  --rv-color-composer-surface: #181f21;
-  --rv-color-composer-selected: #20292c;
 
   color-scheme: dark;
 }
@@ -212,9 +217,6 @@
     --rv-shadow-panel: 0 0.0625rem 0.125rem rgb(20 24 21 / 10%);
     --rv-shadow-raised: 0 0.5rem 1.5rem rgb(20 24 21 / 12%);
     --rv-native-color-scheme: light;
-    --rv-color-composer-canvas: var(--rv-paper-100);
-    --rv-color-composer-surface: var(--rv-white-000);
-    --rv-color-composer-selected: var(--rv-paper-200);
 
     color-scheme: light;
   }
@@ -246,9 +248,6 @@
   --rv-shadow-panel: 0 0.0625rem 0.125rem rgb(20 24 21 / 10%);
   --rv-shadow-raised: 0 0.5rem 1.5rem rgb(20 24 21 / 12%);
   --rv-native-color-scheme: light;
-  --rv-color-composer-canvas: var(--rv-paper-100);
-  --rv-color-composer-surface: var(--rv-white-000);
-  --rv-color-composer-selected: var(--rv-paper-200);
 
   color-scheme: light;
 }

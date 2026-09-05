@@ -113,9 +113,18 @@ function menuText(): string {
   return panels.item(panels.length - 1)?.textContent ?? ''
 }
 
-function clickByText(scope: HTMLElement, text: string): void {
-  const control = [...scope.querySelectorAll('button')].find((button) =>
-    button.textContent?.includes(text),
+async function clickByText(scope: HTMLElement, text: string): Promise<void> {
+  if (text === 'New category' && !scope.querySelector('.lists__collections')) {
+    ;[...scope.querySelectorAll('button')]
+      .find((button) => button.textContent?.trim() === 'Categories')
+      ?.click()
+    await flushPromises()
+    scope = dialog()
+  }
+  const control = [...scope.querySelectorAll('button')].find(
+    (button) =>
+      button.textContent?.includes(text) ||
+      button.getAttribute('aria-label') === text,
   )
   expect(control, text).toBeDefined()
   control?.click()
@@ -132,21 +141,35 @@ function mountLibrary(hash = '') {
   })
 }
 
+async function openCategories(wrapper: Library): Promise<void> {
+  if (!document.querySelector('.lists__collections')) {
+    await clickByText(wrapper.element as HTMLElement, 'Categories')
+    await flushPromises()
+  }
+}
 async function openCategory(wrapper: Library, label: string): Promise<void> {
-  const opener = wrapper
-    .findAll('.lists__category')
-    .find((entry) => entry.text().includes(label))
+  await openCategories(wrapper)
+  const opener = [
+    ...document.querySelectorAll<HTMLButtonElement>('.lists__category'),
+  ].find((entry) => entry.textContent?.includes(label))
   expect(opener, label).toBeDefined()
-  await opener?.trigger('click')
+  opener?.click()
   await flushPromises()
 }
-
+async function categoryText(wrapper: Library): Promise<string> {
+  await openCategories(wrapper)
+  const text = document.querySelector('.lists__groups')?.textContent ?? ''
+  await clickByText(dialog(), 'Close')
+  await flushPromises()
+  return text
+}
 async function openMenu(wrapper: Library, label: string): Promise<void> {
-  const trigger = wrapper
-    .findAll('.rv-menu__trigger')
-    .find((entry) => entry.attributes('aria-label') === label)
+  if (label.startsWith('Actions for category')) await openCategories(wrapper)
+  const trigger = [
+    ...document.querySelectorAll<HTMLButtonElement>('.rv-menu__trigger'),
+  ].find((entry) => entry.getAttribute('aria-label') === label)
   expect(trigger, label).toBeDefined()
-  await trigger?.trigger('click')
+  trigger?.click()
   await flushPromises()
 }
 
@@ -175,9 +198,10 @@ describe('ListLibraryView', () => {
     const wrapper = mountLibrary()
     await flushPromises()
 
-    const rows = wrapper.findAll('.lists__group')
+    await openCategories(wrapper)
+    const rows = [...document.querySelectorAll('.lists__group')]
     expect(rows).toHaveLength(4)
-    expect(rows.at(-1)?.text()).toContain('Uncategorized')
+    expect(rows.at(-1)?.textContent).toContain('Uncategorized')
     expect(wrapper.findAll('input[type="checkbox"]')).toHaveLength(0)
 
     await openCategory(wrapper, 'Uncategorized')
@@ -185,32 +209,20 @@ describe('ListLibraryView', () => {
     wrapper.unmount()
   })
 
-  it('offers one full-width creation action per pane and opens both in sheets', async () => {
+  it('offers category management and list creation through their owning actions', async () => {
     stubAPI(catalogRoutes())
     const wrapper = mountLibrary()
     await flushPromises()
-
-    const namedButtons = (label: string) =>
-      wrapper
-        .findAll('button')
-        .filter((button) => button.text().trim() === label)
-    expect(namedButtons('New category')).toHaveLength(1)
-    expect(namedButtons('New list')).toHaveLength(1)
-    expect(namedButtons('New category')[0]?.classes()).toContain(
-      'rv-button--block',
-    )
-    expect(namedButtons('New list')[0]?.classes()).toContain('rv-button--block')
-
-    namedButtons('New category')[0]?.element.click()
+    expect(wrapper.findAll('.lists__list-row')).toHaveLength(4)
+    await clickByText(wrapper.element as HTMLElement, 'New category')
     await flushPromises()
     expect(openedDialogVariant(wrapper)).toBe('sheet')
-    clickByText(dialog(), 'Cancel')
+    await clickByText(dialog(), 'Cancel')
     await flushPromises()
-
-    clickByText(wrapper.element as HTMLElement, 'New list')
+    await openCategory(wrapper, 'Communication')
+    await clickByText(wrapper.element as HTMLElement, 'New list')
     await flushPromises()
     expect(openedDialogVariant(wrapper)).toBe('sheet')
-    expect(dialog().textContent).toContain('New list')
     expect(dialog().textContent).toContain('Existing list')
     wrapper.unmount()
   })
@@ -252,16 +264,16 @@ describe('ListLibraryView', () => {
     })
     const wrapper = mountLibrary()
     await flushPromises()
-    expect(wrapper.get('.lists__details-title').text()).toBe('Communication')
+    expect(wrapper.get('.lists__details-title').text()).toBe('All categories')
 
     await openMenu(wrapper, 'Actions for category Video')
     menuItem('Delete the category')?.click()
     await flushPromises()
-    clickByText(dialog(), 'Delete')
+    await clickByText(dialog(), 'Delete')
     await flushPromises()
 
     expect(keys().at(-3)).toBe('POST /v1/categories/video/remove')
-    expect(wrapper.get('.lists__details-title').text()).toBe('Communication')
+    expect(wrapper.get('.lists__details-title').text()).toBe('All categories')
     wrapper.unmount()
   })
 
@@ -299,14 +311,14 @@ describe('ListLibraryView', () => {
     const wrapper = mountLibrary()
     await flushPromises()
 
-    clickByText(wrapper.element as HTMLElement, 'New category')
+    await clickByText(wrapper.element as HTMLElement, 'New category')
     await flushPromises()
     const panel = dialog()
     const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
     expect(field).not.toBeNull()
     field!.value = 'Дом'
     field!.dispatchEvent(new Event('input'))
-    clickByText(panel, 'Create')
+    await clickByText(panel, 'Create')
     await flushPromises()
 
     expect(keys()).toEqual([
@@ -337,7 +349,7 @@ describe('ListLibraryView', () => {
     await flushPromises()
 
     await openCategory(wrapper, 'Video')
-    clickByText(wrapper.element as HTMLElement, 'New list')
+    await clickByText(wrapper.element as HTMLElement, 'New list')
     await flushPromises()
 
     const panel = dialog()
@@ -357,7 +369,7 @@ describe('ListLibraryView', () => {
       field!.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key }))
       await flushPromises()
     }
-    clickByText(dialog(), 'Add')
+    await clickByText(dialog(), 'Add')
     await flushPromises()
 
     expect(calls.at(-3)?.key).toBe('POST /v1/categories/video/update')
@@ -380,7 +392,7 @@ describe('ListLibraryView', () => {
     const wrapper = mountLibrary()
     await flushPromises()
     await openCategory(wrapper, 'Uncategorized')
-    clickByText(wrapper.element as HTMLElement, 'New list')
+    await clickByText(wrapper.element as HTMLElement, 'New list')
     await flushPromises()
 
     const panel = dialog()
@@ -395,7 +407,7 @@ describe('ListLibraryView', () => {
     title!.dispatchEvent(new Event('input', { bubbles: true }))
     domains!.value = created.domains.join('\n')
     domains!.dispatchEvent(new Event('input', { bubbles: true }))
-    clickByText(panel, 'Create')
+    await clickByText(panel, 'Create')
     await flushPromises()
 
     expect(calls.at(-1)).toEqual({
@@ -447,7 +459,7 @@ describe('ListLibraryView', () => {
     const wrapper = mountLibrary()
     await flushPromises()
     await openCategory(wrapper, 'Video')
-    clickByText(wrapper.element as HTMLElement, 'New list')
+    await clickByText(wrapper.element as HTMLElement, 'New list')
     await flushPromises()
 
     const panel = dialog()
@@ -461,7 +473,7 @@ describe('ListLibraryView', () => {
     title!.dispatchEvent(new Event('input', { bubbles: true }))
     domains!.value = 'local.example'
     domains!.dispatchEvent(new Event('input', { bubbles: true }))
-    clickByText(panel, 'Create')
+    await clickByText(panel, 'Create')
     await flushPromises()
 
     expect(dialog().textContent).toContain(
@@ -470,7 +482,7 @@ describe('ListLibraryView', () => {
     expect(
       dialog().querySelector<HTMLInputElement>('#library-list-title'),
     ).toBeNull()
-    clickByText(dialog(), 'Try adding again')
+    await clickByText(dialog(), 'Try adding again')
     await flushPromises()
 
     expect(
@@ -493,19 +505,14 @@ describe('ListLibraryView', () => {
     const wrapper = mountLibrary()
     await flushPromises()
 
-    clickByText(wrapper.element as HTMLElement, 'Default order')
-    await flushPromises()
-    const panel = dialog()
-    expect(openedDialogVariant(wrapper)).toBe('sheet')
-    const handles = panel.querySelectorAll<HTMLButtonElement>(
-      '.priority-list__handle',
-    )
+    const panel = wrapper.element as HTMLElement
+    const handles = panel.querySelectorAll<HTMLButtonElement>('.lists__handle')
     expect(handles).toHaveLength(4)
     handles[0]?.dispatchEvent(
       new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }),
     )
     await flushPromises()
-    clickByText(panel, 'Save order')
+    await clickByText(panel, 'Save order')
     await flushPromises()
 
     expect(calls.at(-1)).toEqual({
@@ -526,16 +533,14 @@ describe('ListLibraryView', () => {
     const wrapper = mountLibrary()
     await flushPromises()
 
-    clickByText(wrapper.element as HTMLElement, 'Default order')
-    await flushPromises()
-    const panel = dialog()
+    const panel = wrapper.element as HTMLElement
     panel
-      .querySelector<HTMLButtonElement>('.priority-list__handle')
+      .querySelector<HTMLButtonElement>('.lists__handle')
       ?.dispatchEvent(
         new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }),
       )
     await flushPromises()
-    clickByText(panel, 'Save order')
+    await clickByText(panel, 'Save order')
     await flushPromises()
 
     expect(panel.isConnected).toBe(true)
@@ -575,12 +580,12 @@ describe('ListLibraryView', () => {
     expect(answer, choice).toBeDefined()
     answer?.querySelector('input')?.click()
     await flushPromises()
-    clickByText(panel, 'Delete')
+    await clickByText(panel, 'Delete')
     await flushPromises()
 
     expect(keys().at(-3)).toBe('POST /v1/categories/custom-home/remove')
     expect(calls.at(-3)?.body).toBe(JSON.stringify({ lists: disposition }))
-    expect(wrapper.get('.lists__groups').text()).not.toContain('Домашние')
+    expect(await categoryText(wrapper)).not.toContain('Домашние')
     wrapper.unmount()
   })
 
@@ -608,13 +613,13 @@ describe('ListLibraryView', () => {
     await openMenu(wrapper, 'Actions for category Домашние')
     menuItem('Delete the category')?.click()
     await flushPromises()
-    clickByText(dialog(), 'Delete')
+    await clickByText(dialog(), 'Delete')
     await flushPromises()
 
     const panel = dialog()
     expect(panel.textContent).toContain('The category was not deleted')
     expect(panel.textContent).toContain('Дом, Офис')
-    expect(wrapper.get('.lists__groups').text()).toContain('Домашние')
+    expect(await categoryText(wrapper)).toContain('Домашние')
     wrapper.unmount()
   })
 
@@ -669,7 +674,7 @@ describe('ListLibraryView', () => {
     expect(panel.textContent).toContain(
       'List “Telegram” and its entries are removed.',
     )
-    clickByText(panel, 'Delete')
+    await clickByText(panel, 'Delete')
     await flushPromises()
 
     expect(keys().at(-1)).toBe('POST /v1/services/telegram/remove')
@@ -677,13 +682,13 @@ describe('ListLibraryView', () => {
     expect(dialog().textContent).toContain('Дом')
 
     // The one nothing holds goes, and the catalog is read back after it.
-    clickByText(dialog(), 'Cancel')
+    await clickByText(dialog(), 'Cancel')
     await flushPromises()
     await openCategory(wrapper, 'Uncategorized')
     await openMenu(wrapper, 'Actions for list Steam')
     menuItem('Delete the list')?.click()
     await flushPromises()
-    clickByText(dialog(), 'Delete')
+    await clickByText(dialog(), 'Delete')
     await flushPromises()
 
     expect(calls.at(-3)?.key).toBe('POST /v1/services/steam/remove')
@@ -708,7 +713,7 @@ describe('ListLibraryView', () => {
     menuItem('Delete the list')?.click()
     await flushPromises()
     const panel = dialog()
-    clickByText(panel, 'Delete')
+    await clickByText(panel, 'Delete')
     await flushPromises()
 
     const submit = [
@@ -777,14 +782,14 @@ describe('ListLibraryView', () => {
     const wrapper = mountLibrary()
     await flushPromises()
 
-    clickByText(wrapper.element as HTMLElement, 'New category')
+    await clickByText(wrapper.element as HTMLElement, 'New category')
     await flushPromises()
     const panel = dialog()
     const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
     expect(field).not.toBeNull()
     field!.value = created.title
     field!.dispatchEvent(new Event('input', { bubbles: true }))
-    clickByText(panel, 'Create')
+    await clickByText(panel, 'Create')
     await flushPromises()
 
     // The POST landed exactly once, but the retained copy cannot contain the
@@ -795,12 +800,12 @@ describe('ListLibraryView', () => {
     expect(panel.isConnected).toBe(false)
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
     expect(wrapper.text()).toContain('Saved, but the lists were not reread')
-    expect(wrapper.get('.lists__details-title').text()).toBe('Communication')
+    expect(wrapper.get('.lists__details-title').text()).toBe('All categories')
     expect(wrapper.text()).not.toContain('Saved while offline')
 
     // Recovery is only GET. Once it confirms the category, the saved identity
     // completes selection; no second POST is sent.
-    clickByText(wrapper.element as HTMLElement, 'Refresh lists')
+    await clickByText(wrapper.element as HTMLElement, 'Refresh lists')
     await flushPromises()
     expect(
       calls.filter((call) => call.key === 'POST /v1/categories'),
@@ -821,14 +826,14 @@ describe('ListLibraryView', () => {
     const wrapper = mountLibrary()
     await flushPromises()
 
-    clickByText(wrapper.element as HTMLElement, 'New category')
+    await clickByText(wrapper.element as HTMLElement, 'New category')
     await flushPromises()
     const panel = dialog()
     const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
     expect(field).not.toBeNull()
     field!.value = 'Keep this draft'
     field!.dispatchEvent(new Event('input', { bubbles: true }))
-    clickByText(panel, 'Create')
+    await clickByText(panel, 'Create')
     await flushPromises()
 
     expect(
@@ -869,7 +874,7 @@ describe('ListLibraryView', () => {
     expect(field).not.toBeNull()
     field!.value = 'Renamed later'
     field!.dispatchEvent(new Event('input', { bubbles: true }))
-    clickByText(panel, 'Save')
+    await clickByText(panel, 'Save')
     await flushPromises()
 
     expect(panel.isConnected).toBe(false)
@@ -882,7 +887,7 @@ describe('ListLibraryView', () => {
       ),
     ).toHaveLength(1)
 
-    clickByText(wrapper.element as HTMLElement, 'Refresh lists')
+    await clickByText(wrapper.element as HTMLElement, 'Refresh lists')
     await flushPromises()
     expect(wrapper.get('.lists__details-title').text()).toBe('Renamed later')
     expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
@@ -915,13 +920,13 @@ describe('ListLibraryView', () => {
     await flushPromises()
     const panel = dialog()
     expect(panel.isConnected).toBe(true)
-    clickByText(panel, 'Delete')
+    await clickByText(panel, 'Delete')
     await flushPromises()
 
     expect(panel.isConnected).toBe(false)
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
     expect(wrapper.get('.lists__details-title').text()).toBe('Uncategorized')
-    expect(wrapper.get('.lists__groups').text()).toContain('Домашние')
+    expect(await categoryText(wrapper)).toContain('Домашние')
     expect(wrapper.text()).toContain('Saved, but the lists were not reread')
     expect(
       calls.filter(
@@ -929,10 +934,10 @@ describe('ListLibraryView', () => {
       ),
     ).toHaveLength(1)
 
-    clickByText(wrapper.element as HTMLElement, 'Refresh lists')
+    await clickByText(wrapper.element as HTMLElement, 'Refresh lists')
     await flushPromises()
     expect(wrapper.get('.lists__details-title').text()).toBe('Uncategorized')
-    expect(wrapper.get('.lists__groups').text()).not.toContain('Домашние')
+    expect(await categoryText(wrapper)).not.toContain('Домашние')
     expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
     expect(
       calls.filter(
@@ -974,7 +979,7 @@ describe('ListLibraryView', () => {
       ),
     ).toHaveLength(1)
 
-    clickByText(wrapper.element as HTMLElement, 'Refresh lists')
+    await clickByText(wrapper.element as HTMLElement, 'Refresh lists')
     await flushPromises()
     expect(wrapper.get('.lists__pane-body').text()).not.toContain('Discord')
     expect(wrapper.get('.lists__pane-body').text()).toContain('Telegram')

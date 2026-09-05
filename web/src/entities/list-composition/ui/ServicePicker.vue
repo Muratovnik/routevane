@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useSortable } from '@vueuse/integrations/useSortable'
-import { computed, ref, useId, useTemplateRef, watch } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 
 import {
   overlapServiceIDs,
@@ -13,15 +13,17 @@ import {
 import type { CategoryDetail, ServiceDetail } from '@/shared/api/catalog'
 import type { ListComposition, TargetForecast } from '@/shared/api/lists'
 import { useLocale } from '@/shared/i18n/useLocale'
-import type { ChoiceOption } from '@/shared/ui/kinds'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
-import RvSelect from '@/shared/ui/RvSelect.vue'
+import CategoryFilters from './CategoryFilters.vue'
+import CategoryLabel from './CategoryLabel.vue'
 
 import ServiceDetailDialog from './ServiceDetailDialog.vue'
 
 const props = defineProps<{
+  initialPriority?: string[]
+  fill?: boolean
   modelValue: ListComposition
   services: ServiceDetail[]
   categories: CategoryDetail[]
@@ -44,19 +46,7 @@ const emit = defineEmits<{
 const { formatNumber, t, tc, tor } = useLocale()
 const query = ref('')
 const categoryFilter = ref('all')
-const overflowFilter = computed({
-  get: () =>
-    filterOptions.value
-      .slice(0, 6)
-      .some((option) => option.value === categoryFilter.value)
-      ? ''
-      : categoryFilter.value,
-  set: (value: string) => {
-    categoryFilter.value = value
-  },
-})
 const activeServiceID = ref('')
-const baseId = useId()
 const uncategorizedID = 'rv:uncategorized'
 
 const servicesByID = computed(
@@ -70,24 +60,6 @@ const resolvedSet = computed(() => new Set(resolved.value))
 const categoryByID = computed(
   () => new Map(props.categories.map((category) => [category.id, category])),
 )
-const claimed = computed(
-  () => new Set(props.categories.flatMap((category) => category.services)),
-)
-
-const filterOptions = computed<ChoiceOption[]>(() => {
-  const options = [
-    { label: t('servicePicker.filter.all'), value: 'all' },
-    ...props.categories.map((category) => ({
-      label: categoryLabel(category),
-      value: category.id,
-    })),
-  ]
-  if (props.services.some((service) => !claimed.value.has(service.id))) {
-    options.push({ label: t('servicePicker.other'), value: uncategorizedID })
-  }
-  return options
-})
-
 const selectedCategory = computed(
   () => categoryByID.value.get(categoryFilter.value) ?? null,
 )
@@ -130,7 +102,14 @@ const rowOrder = ref<string[]>([])
 watch(
   allRows,
   (rows) => {
-    const ids = rows.map((row) => row.id)
+    let ids = rows.map((row) => row.id)
+    if (rowOrder.value.length === 0) {
+      const initial = props.initialPriority ?? props.modelValue.priority ?? []
+      const ranked = initial.filter((id) => ids.includes(id))
+      const known = new Set(ranked)
+      let index = 0
+      ids = ids.map((id) => (known.has(id) ? ranked[index++]! : id))
+    }
     rowOrder.value = [
       ...rowOrder.value.filter((id) => ids.includes(id)),
       ...ids.filter((id) => !rowOrder.value.includes(id)),
@@ -211,29 +190,6 @@ const overlapMessage = computed(() => {
     ? t('servicePicker.overlap.unknown')
     : ''
 })
-const categoryTones: Record<string, string> = {
-  ai: 'violet',
-  'ai-tools': 'cyan',
-  development: 'amber',
-  education: 'green',
-  games: 'pink',
-  google: 'blue',
-  infrastructure: 'slate',
-  music: 'pink',
-  video: 'red',
-  messengers: 'cyan',
-  socials: 'violet',
-  work: 'blue',
-  torrents: 'amber',
-}
-function categoryTone(id: string): string {
-  return (
-    categoryTones[id] ??
-    ['violet', 'cyan', 'amber', 'green', 'pink', 'blue'][
-      [...id].reduce((value, char) => value + char.codePointAt(0)!, 0) % 6
-    ]!
-  )
-}
 const activeService = computed(
   () => servicesByID.value.get(activeServiceID.value) ?? null,
 )
@@ -329,83 +285,49 @@ function serviceLabel(serviceID: string): string {
 </script>
 
 <template>
-  <div class="picker" :class="{ 'picker--disabled': disabled }">
-    <div class="picker__toolbar">
-      <label class="picker__search">
-        <RvIcon name="search" />
-        <span class="picker__visually-hidden">{{ t('create.search') }}</span>
-        <input
-          v-model="query"
-          class="picker__search-input"
-          :disabled="disabled"
-          :placeholder="t('create.search')"
-          type="search"
-        />
-      </label>
-    </div>
-    <div
-      class="picker__filters"
-      :aria-label="t('servicePicker.filter.label')"
-      role="group"
-    >
-      <div class="picker__quick-filters">
-        <button
-          v-for="option in filterOptions.slice(0, 6)"
-          :key="option.value"
-          type="button"
-          class="picker__chip"
-          :aria-pressed="categoryFilter === option.value"
-          :disabled="disabled"
-          @click="categoryFilter = option.value"
-        >
-          {{ option.label }}
-          <small v-if="categoryByID.has(option.value)">{{
-            categoryByID.get(option.value)?.services.length
-          }}</small>
-        </button>
-      </div>
-      <label :for="baseId + '-category'" class="picker__visually-hidden">{{
-        t('servicePicker.filter.label')
-      }}</label>
-      <div class="picker__filter">
-        <RvSelect
-          v-model="overflowFilter"
-          :disabled="disabled"
-          size="compact"
-          :input-id="baseId + '-category'"
-          :options="filterOptions"
-          :placeholder="t('servicePicker.filter.more')"
-        />
-      </div>
-    </div>
-
-    <label v-if="selectedCategory !== null" class="picker__category-reference">
-      <input
-        :checked="followsSelectedCategory"
-        class="picker__checkbox"
+  <div
+    class="picker"
+    :class="{ 'picker--disabled': disabled, 'picker--fill': fill }"
+  >
+    <div class="picker__controls">
+      <CategoryFilters
+        v-model="categoryFilter"
+        v-model:query="query"
+        :categories="categories"
+        :services="services"
         :disabled="disabled"
-        type="checkbox"
-        @change="toggleCategoryReference"
       />
-      <span>
-        <strong>{{
-          t('servicePicker.follow', {
-            category: categoryLabel(selectedCategory),
-          })
-        }}</strong>
-        <small>{{
-          tc('servicePicker.follow.members', selectedCategory.services.length)
-        }}</small>
-      </span>
-    </label>
+      <label
+        v-if="selectedCategory !== null"
+        class="picker__category-reference"
+      >
+        <input
+          :checked="followsSelectedCategory"
+          class="picker__checkbox"
+          :disabled="disabled"
+          type="checkbox"
+          @change="toggleCategoryReference"
+        />
+        <span>
+          <strong>{{
+            t('servicePicker.follow', {
+              category: categoryLabel(selectedCategory),
+            })
+          }}</strong>
+          <small>{{
+            tc('servicePicker.follow.members', selectedCategory.services.length)
+          }}</small>
+        </span>
+      </label>
 
-    <div class="picker__summary">
-      <span role="status">{{ tc('create.resolved', resolved.length) }}</span>
-      <span>{{ t('list.priority.body') }}</span>
-      <RvInfoTip
-        :label="t('servicePicker.column.overlaps')"
-        :text="t('servicePicker.overlap.legend')"
-      />
+      <div class="picker__summary">
+        <span role="status">{{ tc('create.resolved', resolved.length) }}</span>
+        <span>{{ t('list.priority.body') }}</span>
+        <RvInfoTip
+          :label="t('servicePicker.column.overlaps')"
+          :text="t('servicePicker.overlap.legend')"
+        />
+      </div>
     </div>
     <div class="picker__table-frame">
       <table class="picker__table">
@@ -458,16 +380,20 @@ function serviceLabel(serviceID: string): string {
           >
             <td class="picker__priority-column">
               <button
-                v-if="included(service.id)"
                 class="picker__handle"
                 type="button"
-                :disabled="disabled"
+                :disabled="disabled || !included(service.id)"
                 :aria-label="
-                  t('list.priority.move.aria', {
-                    list: serviceLabel(service.id),
-                    position: resolved.indexOf(service.id) + 1,
-                    total: resolved.length,
-                  })
+                  t(
+                    included(service.id)
+                      ? 'list.priority.move.aria'
+                      : 'list.priority.unselected',
+                    {
+                      list: serviceLabel(service.id),
+                      position: resolved.indexOf(service.id) + 1,
+                      total: resolved.length,
+                    },
+                  )
                 "
                 @keydown.up.prevent="movePriority(service.id, -1)"
                 @keydown.down.prevent="movePriority(service.id, 1)"
@@ -482,7 +408,7 @@ function serviceLabel(serviceID: string): string {
                 "
               >
                 <RvIcon name="drag" /><span aria-hidden="true">{{
-                  resolved.indexOf(service.id) + 1
+                  included(service.id) ? resolved.indexOf(service.id) + 1 : ''
                 }}</span>
               </button>
             </td>
@@ -531,17 +457,12 @@ function serviceLabel(serviceID: string): string {
               </span>
             </th>
             <td class="picker__category-column">
-              <span
+              <CategoryLabel
                 v-for="category in serviceCategories(service)"
+                :id="category.id"
                 :key="category.id"
-                class="picker__category"
-              >
-                <span
-                  class="picker__category-dot"
-                  :data-tone="categoryTone(category.id)"
-                  aria-hidden="true"
-                />{{ categoryLabel(category) }}
-              </span>
+                :label="categoryLabel(category)"
+              />
               <span v-if="serviceCategories(service).length === 0">{{
                 t('servicePicker.other')
               }}</span>
@@ -622,7 +543,11 @@ function serviceLabel(serviceID: string): string {
       </p>
     </div>
 
-    <div class="picker__forecast-status" role="status">
+    <div
+      v-if="overlapMessage !== ''"
+      class="picker__forecast-status"
+      role="status"
+    >
       <span>{{ overlapMessage }}</span>
       <RvButton
         v-if="

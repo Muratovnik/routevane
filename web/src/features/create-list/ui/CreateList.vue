@@ -145,6 +145,8 @@ async function submit(): Promise<void> {
         <div class="create__services-body">
           <ServicePicker
             v-model="setup.composition.value"
+            fill
+            :initial-priority="setup.defaultPriority.value"
             :categories="setup.categories.value"
             :disabled="setup.busy.value"
             :forecast="setup.selectedForecast.value"
@@ -232,12 +234,12 @@ async function submit(): Promise<void> {
           </RvStateNotice>
           <RvButton
             :disabled="!setup.canCreate.value"
+            :loading="setup.busy.value"
             type="submit"
             variant="primary"
           >
-            {{ t('create.submit') }}
+            {{ setup.busy.value ? stageMessage : t('create.submit') }}
           </RvButton>
-          <p class="create__stage" role="status">{{ stageMessage }}</p>
         </div>
       </aside>
     </form>

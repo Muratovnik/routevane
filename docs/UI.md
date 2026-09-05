@@ -50,8 +50,8 @@ Sections, addressable by URL:
    guards — an unknown forecast never blocks creation.
    Composition is one dense semantic table, searchable and filterable by
    category. Checking or unchecking a list preserves every row's position and
-   focus. A left-hand drag handle and visible priority number on each selected
-   row own reordering, with arrow-key equivalents. Only an explicit reorder
+   focus. A left-hand drag handle stays visible on every row, disabled until selected;
+   selected rows show their priority number. Reordering has arrow-key equivalents. Only an explicit reorder
    moves rows. The settings rail contains the name, first connection choice,
    forecast and create action, without repeating the selected lists. In a
    constrained window it stacks after the table.
@@ -133,11 +133,13 @@ Sections, addressable by URL:
    deployer exists; subscription and manual download remain available
    connection methods.
 4. `/library` — **Lists / Списки.** The library: what a list holds and which
-   category holds it, for every route at once (ADR 0029). The same
-   master-detail geometry as the picker with no checkboxes, because nothing
-   here is being selected. The category column ends in «Без категории» and
-   creates one at its foot; a category's menu adds a list from the whole
-   catalog, renames the operator's own, and deletes any of them — a catalog
+   category holds it, for every route at once (ADR 0029). It uses the same
+   dense catalog table, search and category filter as the composer, with list
+   management actions in place of membership checkboxes. Category labels use
+   the same identity colors. The filter includes «Без категории»; «Категории»
+   opens category management with a create action at its foot. «Новый список»
+   creates a list or adds an existing one to the selected category. A category's
+   menu renames the operator's own category and deletes any category — a catalog
    category included, because deletion is a record in the operator's overlay
    and never an edit to the shipped file. Deleting a category asks the one
    question it must: move its lists to «Без категории», or delete them with
@@ -149,13 +151,12 @@ Sections, addressable by URL:
    refused with those routes named; removing a list _from a category_ is
    allowed to change what a route carries, because that is what naming a
    category means. The library also owns the default list priority. Its complete
-   ordered list can be rearranged by drag handle or keyboard without visible
-   ordinal labels. This order initializes routes and forecasts that do not yet
+   ordered table can be rearranged by its always-visible drag handles or
+   keyboard. Priority numbers are visible; save and reset actions appear for a
+   changed draft, and a failed save retains the order for retry. This order initializes routes and forecasts that do not yet
    supply their own priority; saving it never rewrites an existing route's
-   stored order. «Своя категория» and «Свой список» occupy the full width of
-   their respective footers. This card has no footer: no route is in question. The two
-   panes use the available viewport height and dense operational rows instead
-   of clipping a short table inside an otherwise empty page. While the library
+   stored order. The list card has no route-membership footer. The table fills
+   the available workspace height and scrolls beneath its header. While the library
    is writing or a list is reading its sources, conflicting menus, switches,
    deletion and dismissal stay unavailable until the result is known.
 5. `/lists/{listId}/send/{outputId}` — **Send.** An action, not a step:
@@ -196,7 +197,8 @@ handoff — never route contents: a refresh, bookmark, second tab or second
 browser resolves the same server-owned object via `GET /v1/lists` and
 `GET /v1/lists/{listId}`, never to an empty form. Local storage holds display
 preferences only — no product state. Each screen carries exactly one `<h1>` and
-one `<main>`. The chrome is a sidebar of sections and nothing else — the
+one `<main>`. The chrome is a collapsible sidebar of sections; its bottom control switches
+between labels and icons and remembers that display preference. The
 server's own address is a Settings fact, not a footer — and no section is
 ever locked.
 
@@ -290,6 +292,22 @@ comparable in tables and adjacent panes when space permits. Adapt the same
 interface to a smaller window or enlarged content while keeping its actions
 reachable. A narrow viewport is not a requirement for a separate mobile product.
 
+The shell owns one canvas palette, full-width workspace and consistent outer
+alignment across every section. Reading widths belong to form fields and prose,
+not a second centered page container. The sidebar keeps its place on desktop and
+can collapse to icons with labels on hover or keyboard focus. The route composer
+and library allocate remaining height to their data regions; headings and filters
+keep natural height. Short windows and enlarged content may scroll to preserve
+access to actions. Invisible accessibility labels must stay within the table's
+scrolling context, and service-column widths include controls and their padding.
+
+Category filters are shared by composition and library. «Ещё» opens an anchored
+panel with search above a scrollable list of all categories, including custom
+ones. Choosing applies one filter and closes the panel; Escape preserves the
+previous filter. Both return focus to the trigger, which reflects a selected
+category absent from the quick filters. The primary search continues to search
+lists. The panel's ground and border must survive portal rendering.
+
 This is the shared layout verification matrix; rule and skill files link here:
 
 | Scenario | Verification |
@@ -344,7 +362,7 @@ size, space, radius or duration.
 
 `web/src/shared/ui` owns the primitives: `RvButton`, `RvStatus`, `RvStateNotice`,
 `RvFacts`, `RvField`, `RvTextInput`, `RvTextarea`, `RvSegmented`, `RvTabs`,
-`RvDialog`, `RvSelect`, `RvCombobox`, `RvMenu`, `RvInfoTip`, `RvIcon`,
+`RvDialog`, `RvSelect`, `RvCombobox`, `RvSearchSelect`, `RvMenu`, `RvInfoTip`, `RvIcon`,
 `RvDisclosure`, `RvFilePicker`, `RvCopyButton`, `RvCodeBlock`. Nuxt UI supplies
 the styled interaction mechanics behind `RvButton` and the full-height sheet
 variant of `RvDialog`; remaining overlays use headless Reka UI primitives.

@@ -160,9 +160,9 @@ describe('ServicePicker', () => {
     await wrapper.setProps({
       modelValue: { ...emptyComposition, services: ['discord'] },
     })
-    const search = wrapper.get<HTMLInputElement>('.picker__search-input')
+    const search = wrapper.get<HTMLInputElement>('input[type="search"]')
     await search.setValue('steam')
-    await wrapper.get('input[value="steam"]').setValue(true)
+    await wrapper.get('input[type="checkbox"][value="steam"]').setValue(true)
     expect(search.element.value).toBe('steam')
     expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toMatchObject({
       services: ['discord', 'steam'],
@@ -178,7 +178,7 @@ describe('ServicePicker', () => {
         priority: ['discord', 'telegram', 'youtube'],
       },
     })
-    await wrapper.get('.picker__search-input').setValue('telegram')
+    await wrapper.get('input[type="search"]').setValue('telegram')
     await wrapper
       .get('.picker__handle')
       .trigger('keydown', { key: 'ArrowDown' })
@@ -235,12 +235,10 @@ describe('ServicePicker', () => {
    */
   it('quick category filters narrow choices without changing route membership', async () => {
     const wrapper = mountPicker()
-    const filter = wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Communication 2')
-    expect(filter).toBeDefined()
-    await filter!.trigger('click')
-    expect(filter!.attributes('aria-pressed')).toBe('true')
+    wrapper
+      .findComponent({ name: 'CategoryFilters' })
+      .vm.$emit('update:modelValue', 'communication')
+    await wrapper.vm.$nextTick()
     expect(
       wrapper.findAll('.picker__row .picker__name').map((name) => name.text()),
     ).toEqual(['Discord', 'Telegram'])
@@ -257,7 +255,7 @@ describe('ServicePicker', () => {
     const wrapper = mountPicker()
 
     wrapper
-      .findComponent({ name: 'RvSelect' })
+      .findComponent({ name: 'CategoryFilters' })
       .vm.$emit('update:modelValue', 'communication')
     await wrapper.vm.$nextTick()
 

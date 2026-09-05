@@ -1,8 +1,11 @@
 .create {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--rv-composer-rail-width);
-  gap: var(--rv-space-5) var(--rv-space-8);
+  gap: var(--rv-space-5) var(--rv-space-6);
   align-items: start;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
   width: 100%;
 }
 
@@ -14,6 +17,9 @@
 
 .create__header,
 .create__services {
+  position: relative;
+  min-height: 0;
+  height: 100%;
   grid-column: 1;
 }
 
@@ -42,6 +48,8 @@
 }
 
 .create__services-body {
+  height: 100%;
+  min-height: 0;
   min-width: 0;
 }
 
@@ -53,7 +61,7 @@
   display: grid;
   gap: var(--rv-space-6);
   min-width: 0;
-  padding: var(--rv-space-5);
+  padding: var(--rv-space-6);
   background: var(--rv-color-surface);
   border: var(--rv-border-hair) solid var(--rv-color-rule);
   border-radius: var(--rv-radius-md);
@@ -120,22 +128,31 @@
   max-width: var(--rv-measure-prose);
 }
 
-/* The stage line keeps its height when empty so submitting never shifts the
-   layout under the pointer. */
-.create__stage {
-  min-height: var(--rv-space-5);
-  color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-dense);
-}
-
 @container (width <= 54rem) {
   .create {
+    --rv-picker-fill-height: auto;
+    --rv-picker-fill-min: var(--rv-picker-mobile-height);
+    --rv-picker-fill-max: var(--rv-picker-mobile-height);
+
+    height: auto;
+    grid-template-rows: auto;
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .create__services,
+  .create__services-body {
+    height: auto;
   }
 
   .create__settings {
     position: static;
     grid-column: 1;
     grid-row: auto;
+  }
+}
+
+@media (width <= 64rem), (height <= 36rem) {
+  .create {
+    height: auto;
   }
 }

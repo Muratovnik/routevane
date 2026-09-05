@@ -27,6 +27,16 @@ export const localeNames: Record<Locale, string> = {
 }
 
 const ru: Dictionary = {
+  'list.priority.unselected':
+    'Приоритет списка {list}: сначала добавьте его в маршрут',
+  'shell.collapse': 'Свернуть меню',
+  'shell.expand': 'Развернуть меню',
+  'category.search': 'Найти категорию',
+  'category.noMatches': 'Категории не найдены',
+  'lists.manageCategories': 'Категории',
+  'lists.priority.column': 'Приоритет',
+  'lists.priority.cancel': 'Отменить порядок',
+
   'overlaps.title': 'Как разрешаются пересечения',
   'overlaps.loading': 'Обновляем прогноз файла…',
   'overlaps.stale': 'Обновляем расчёт; ниже предыдущий результат.',
@@ -886,6 +896,15 @@ const ru: Dictionary = {
 }
 
 const en: Dictionary = {
+  'list.priority.unselected': 'Priority of {list}: add it to the route first',
+  'shell.collapse': 'Collapse sidebar',
+  'shell.expand': 'Expand sidebar',
+  'category.search': 'Find a category',
+  'category.noMatches': 'No matching categories',
+  'lists.manageCategories': 'Categories',
+  'lists.priority.column': 'Priority',
+  'lists.priority.cancel': 'Reset order',
+
   'overlaps.title': 'How overlaps are resolved',
   'overlaps.loading': 'Updating the file forecast…',
   'overlaps.stale':

@@ -306,7 +306,7 @@ describe('ListEditor', () => {
     await flushPromises()
 
     wrapper
-      .findComponent({ name: 'RvSelect' })
+      .findComponent({ name: 'CategoryFilters' })
       .vm.$emit('update:modelValue', 'communication')
     await wrapper.vm.$nextTick()
     await wrapper
@@ -314,7 +314,7 @@ describe('ListEditor', () => {
       .setValue(false)
 
     wrapper
-      .findComponent({ name: 'RvSelect' })
+      .findComponent({ name: 'CategoryFilters' })
       .vm.$emit('update:modelValue', 'all')
     await wrapper.vm.$nextTick()
     expect(rowCopies(wrapper).map((row) => row.text())).toEqual(['YouTube'])
