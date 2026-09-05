@@ -71,6 +71,9 @@ func (Renderer) SupportedRuleKinds() []domain.RuleKind {
 }
 
 func (Renderer) ProjectedRuleCount(plan domain.RoutingPlan) (int, error) {
+	if len(plan.Rules) == 0 {
+		return 0, nil
+	}
 	groups, err := projectPlan(plan)
 	if err != nil {
 		return 0, err

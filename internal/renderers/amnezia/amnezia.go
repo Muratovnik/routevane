@@ -84,7 +84,7 @@ func ProjectedRuleCount(plan domain.RoutingPlan) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	canonical, err := canonicalSites(sites)
+	canonical, err := projectedSites(sites)
 	if err != nil {
 		return 0, err
 	}
@@ -184,7 +184,24 @@ func renderSites(input []Site) ([]byte, error) {
 // canonicalSites orders IPv4 prefixes before names and refuses anything the
 // client would store without routing. An empty list is refused: it would replace
 // the operator's site list with nothing.
+// Artifact validation owns empty/size refusal; counting must be able to
+// report both zero and an overflow without pretending either is unavailable.
 func canonicalSites(input []Site) ([]Site, error) {
+	result, err := projectedSites(input)
+	if err != nil {
+		return nil, err
+	}
+	total := len(result)
+	if total == 0 {
+		return nil, fmt.Errorf("projection contains no entries")
+	}
+	if total > MaxEntries {
+		return nil, fmt.Errorf("projection exceeds entry bound")
+	}
+	return result, nil
+}
+
+func projectedSites(input []Site) ([]Site, error) {
 	prefixes := make([]netip.Prefix, 0, len(input))
 	seenPrefix := make(map[string]struct{}, len(input))
 	names := make([]string, 0, len(input))
@@ -228,12 +245,6 @@ func canonicalSites(input []Site) ([]Site, error) {
 		names = append(names, normalized)
 	}
 	total := len(prefixes) + len(names)
-	if total == 0 {
-		return nil, fmt.Errorf("split-tunnel list projection contains no entry")
-	}
-	if total > MaxEntries {
-		return nil, fmt.Errorf("split-tunnel list projection exceeds the entry bound")
-	}
 	slices.SortFunc(prefixes, func(a, b netip.Prefix) int {
 		return cmp.Or(a.Addr().Compare(b.Addr()), cmp.Compare(a.Bits(), b.Bits()))
 	})

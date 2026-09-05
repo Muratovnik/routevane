@@ -179,7 +179,7 @@ const sections = computed<
   flex-direction: column;
   gap: var(--rv-space-8);
   height: 100dvh;
-  padding: var(--rv-space-8) var(--rv-space-5);
+  padding: var(--rv-space-8) var(--rv-space-5) 0;
   color: var(--rv-color-ink);
   background: var(--rv-color-chrome);
   border-right: var(--rv-border-hair) solid var(--rv-color-rule);
@@ -373,7 +373,7 @@ const sections = computed<
   align-items: center;
   gap: var(--rv-space-3);
   margin-top: auto;
-  min-height: var(--rv-control-default);
+  min-height: var(--rv-control-touch);
   padding: var(--rv-space-3);
   color: var(--rv-color-ink-muted);
   background: transparent;

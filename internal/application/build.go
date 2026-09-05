@@ -207,6 +207,10 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 // output, subscription or artifact record just to select another renderer,
 // but it must make exactly the same composition and preflight decisions.
 func (s *PublicationService) prepareList(ctx context.Context, list List, target domain.TargetProfile, renderer Renderer) (PreparedPlan, time.Time, error) {
+	return s.prepareListAt(ctx, list, target, renderer, s.config.Clock.Now().UTC())
+}
+
+func (s *PublicationService) prepareListAt(ctx context.Context, list List, target domain.TargetProfile, renderer Renderer, cutoff time.Time) (PreparedPlan, time.Time, error) {
 	// References are expanded, exclusions applied and duplicates dropped once
 	// here, so every renderer sees the same current service set.
 	services := s.ResolvedServices(list)
@@ -229,7 +233,6 @@ func (s *PublicationService) prepareList(ctx context.Context, list List, target 
 		// feed's observations start, without touching what is stored.
 		revisions[serviceID] = sourceRevisions(definition)
 	}
-	cutoff := s.config.Clock.Now().UTC()
 	if cutoff.IsZero() {
 		return PreparedPlan{}, time.Time{}, fmt.Errorf("clock returned zero time")
 	}

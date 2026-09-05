@@ -74,7 +74,13 @@ Sections, addressable by URL:
    lower-priority rule is omitted, and a broader lower-priority network remains
    when removing it would lose unique addresses. A new member of a live category
    is appended after the route's saved order. A retained forecast is marked as
-   updating and an unavailable answer offers a real source reread and retry.
+   updating. Missing coverage is reported per format and per list: the complete
+   lists retain their rules and known overlap relationships, while unavailable
+   lists show a dash. Partial overlap counts are lower bounds, marked “≥”,
+   with the omitted lists named in a disclosure. A partial total never claims
+   that the whole composition fits and never blocks saving or creation. Refresh
+   retries source reads; normal automatic recovery reads only missing lists once.
+   Publication still requires complete coverage.
 3. `/lists/{listId}` — **The route page.** One object with its facets as tabs:
    Contents · Connection · File · Diagnostics; the active tab and the
    first-setup handoff travel in the URL hash (`#tab=…&setup=…`) because the
@@ -484,4 +490,15 @@ remain distinct states; source changes invalidate forecasts for affected drafts.
 
 The application shell owns one viewport. Page content and overflowing navigation
 scroll independently; ordinary page scrolling never moves the logo. Sidebar width
-changes use the shared motion tokens and honor reduced-motion preferences.
+changes use the shared motion tokens and honor reduced-motion preferences. The
+collapse button's hit area reaches the bottom edge. Breadcrumbs sit above the
+route title in compact metadata type, preserving the title's leading alignment.
+
+Docked inspection transitions capture the page before selection changes and
+commit the new Vue layout inside the View Transition API update callback. The
+settings form, table area, and detail pane transition together; a docked sheet
+has no second slide animation inside its column. Opening and closing use the
+same transaction in the route composer, editor and library. Without API support
+or with reduced motion, the layout switches immediately. Modal sheets retain
+their separate viewport entrance. Check the actual snapshot animation and both
+layout states, not only the final DOM bounding boxes.

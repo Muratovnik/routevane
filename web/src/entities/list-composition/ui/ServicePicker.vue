@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useWorkspaceInspection } from '@/shared/ui/workspacePane'
 import { useSortable } from '@vueuse/integrations/useSortable'
 import { computed, ref, useTemplateRef, watch } from 'vue'
 
@@ -23,6 +24,7 @@ import CategoryLabel from './CategoryLabel.vue'
 
 import ServiceDetailDialog from './ServiceDetailDialog.vue'
 
+const inspectWorkspace = useWorkspaceInspection()
 const props = defineProps<{
   initialPriority?: string[]
   fill?: boolean
@@ -206,6 +208,11 @@ const overlapMessage = computed(() => {
     )
   if (props.forecastPending) return t('servicePicker.overlap.pending')
   if (props.forecastFailure) return props.forecastFailure
+  if (props.forecast?.incompleteServices?.length)
+    return t('forecast.partial.table', {
+      n: resolved.value.length - props.forecast.incompleteServices.length,
+      m: resolved.value.length,
+    })
   return resolved.value.some((id) => overlapTitles(id) === null)
     ? t('servicePicker.overlap.unknown')
     : ''
@@ -285,17 +292,28 @@ function toggleCategoryReference(follow: boolean): void {
 }
 
 function openService(serviceID: string): void {
-  activeServiceID.value = serviceID
+  inspectWorkspace(true, () => {
+    activeServiceID.value = serviceID
+  })
 }
 
 function closeService(): void {
-  activeServiceID.value = ''
+  inspectWorkspace(false, () => {
+    activeServiceID.value = ''
+  })
 }
 
 function onDialogInclude(add: boolean): void {
   const service = activeService.value
   if (service === null || included(service.id) === add) return
   toggleService(service.id)
+}
+
+function overlapCount(serviceID: string): string {
+  const count = formatNumber(overlapTitles(serviceID)?.length ?? 0)
+  return props.forecast?.incompleteServices?.length
+    ? t('forecast.partial.count', { n: count })
+    : count
 }
 
 function ruleLabel(serviceID: string): string {
@@ -370,6 +388,11 @@ function serviceLabel(serviceID: string): string {
             { key: 'manual', label: t('servicePicker.future.disable') },
           ]"
           @select="toggleCategoryReference($event === 'auto')"
+        />
+        <RvInfoTip
+          v-if="forecast?.incompleteServices?.length"
+          :label="t('forecast.partial.missing')"
+          :text="forecast.incompleteServices.map(serviceLabel).join(', ')"
         />
         <span role="status">{{ tc('create.resolved', resolved.length) }}</span>
         <div class="picker__forecast-status" role="status">
@@ -559,9 +582,7 @@ function serviceLabel(serviceID: string): string {
                   })
                 "
                 :text="overlapTitles(service.id)?.join(', ') ?? ''"
-                >{{
-                  formatNumber(overlapTitles(service.id)?.length ?? 0)
-                }}</RvInfoTip
+                >{{ overlapCount(service.id) }}</RvInfoTip
               >
               <span
                 v-if="
@@ -588,7 +609,7 @@ function serviceLabel(serviceID: string): string {
                 v-else-if="overlapTitles(service.id)?.length === 0"
                 class="picker__unknown"
               >
-                0
+                {{ overlapCount(service.id) }}
               </span>
             </td>
             <td>

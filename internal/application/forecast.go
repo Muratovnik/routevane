@@ -2,8 +2,10 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/Muratovnik/routevane/internal/domain"
 	"github.com/Muratovnik/routevane/internal/planner"
@@ -28,6 +30,9 @@ type CompositionForecast struct {
 	// file rather than to any one service.
 	PerService []ServiceRuleForecast `json:"per_service"`
 	Overlaps   CompositionOverlaps   `json:"overlaps"`
+	// Missing services are excluded from this partial calculation, never counted
+	// as zero. Fits is false until the entire composition can be measured.
+	IncompleteServices []string `json:"incomplete_services,omitempty"`
 }
 
 type OverlapValue struct {
@@ -127,9 +132,10 @@ func (s *PublicationService) ForecastComposition(ctx context.Context, requested 
 		Exclusions: composition.Exclusions, ServiceDomains: composition.ServiceDomains,
 		Priority: composition.Priority,
 	}
+	cutoff := s.config.Clock.Now().UTC()
 	forecasts := make([]CompositionForecast, 0, len(targets))
 	for _, targetID := range targets {
-		forecast, err := s.forecastTarget(ctx, list, targetID)
+		forecast, err := s.forecastTarget(ctx, list, targetID, cutoff)
 		if err != nil {
 			return nil, err
 		}
@@ -171,14 +177,38 @@ func (s *PublicationService) forecastTargets(requested []string) ([]string, erro
 // changes nothing about which rules the plan holds and only decides whether
 // that refusal fires — and predicting that refusal is the whole point, which it
 // cannot do from behind it.
-func (s *PublicationService) forecastTarget(ctx context.Context, list List, targetID string) (CompositionForecast, error) {
+func (s *PublicationService) forecastTarget(ctx context.Context, list List, targetID string, cutoff time.Time) (CompositionForecast, error) {
 	target, renderer, err := s.target(targetID)
 	if err != nil {
 		return CompositionForecast{}, fmt.Errorf("invalid forecast target")
 	}
 	unbounded := target
 	unbounded.Constraints.MaxRules = 0
-	prepared, _, err := s.prepareList(ctx, list, unbounded, renderer)
+	prepared, _, err := s.prepareListAt(ctx, list, unbounded, renderer, cutoff)
+	var incomplete []string
+	if unavailableForecastCoverage(err) {
+		// Publication is still all-or-nothing. Inspection can retain the complete
+		// services, using the same strict preparation and the same observation cut.
+		var available []string
+		for _, id := range s.ResolvedServices(list) {
+			one := List{Services: []string{id}, ServiceDomains: list.ServiceDomains}
+			_, _, serviceErr := s.prepareListAt(ctx, one, unbounded, renderer, cutoff)
+			if unavailableForecastCoverage(serviceErr) {
+				incomplete = append(incomplete, id)
+			} else if serviceErr != nil {
+				return CompositionForecast{}, serviceErr
+			} else {
+				available = append(available, id)
+			}
+		}
+		if len(available) == 0 {
+			return CompositionForecast{TargetID: target.ID, MaximumRules: target.Constraints.MaxRules,
+				IncompleteServices: incomplete, PerService: []ServiceRuleForecast{},
+				Overlaps: CompositionOverlaps{Items: []CompositionOverlap{}}}, nil
+		}
+		subset := List{Services: available, Priority: available, ServiceDomains: list.ServiceDomains}
+		prepared, _, err = s.prepareListAt(ctx, subset, unbounded, renderer, cutoff)
+	}
 	if err != nil {
 		return CompositionForecast{}, err
 	}
@@ -186,12 +216,20 @@ func (s *PublicationService) forecastTarget(ctx context.Context, list List, targ
 	if err != nil || projected < 0 {
 		return CompositionForecast{}, fmt.Errorf("%w: invalid renderer projection", ErrPreflight)
 	}
+	// A zero contribution is useful inside a larger plan. An entirely empty
+	// artifact is refused by every file renderer and must not be offered as a fit.
+	if projected == 0 {
+		return CompositionForecast{TargetID: target.ID, MaximumRules: target.Constraints.MaxRules,
+			IncompleteServices: s.ResolvedServices(list), PerService: []ServiceRuleForecast{},
+			Overlaps: CompositionOverlaps{Items: []CompositionOverlap{}}}, nil
+	}
 	maximum := target.Constraints.MaxRules
 	return CompositionForecast{
 		TargetID: target.ID, MaximumRules: maximum, ProjectedRules: projected,
-		Fits:       maximum == 0 || projected <= maximum,
-		PerService: rulesPerService(prepared.Plan),
-		Overlaps:   prepared.compositionOverlaps,
+		Fits:               len(incomplete) == 0 && (maximum == 0 || projected <= maximum),
+		IncompleteServices: incomplete,
+		PerService:         rulesPerService(prepared.Plan),
+		Overlaps:           prepared.compositionOverlaps,
 	}, nil
 }
 
@@ -212,4 +250,8 @@ func rulesPerService(plan domain.RoutingPlan) []ServiceRuleForecast {
 		perService = append(perService, ServiceRuleForecast{ServiceID: serviceID, Rules: counts[serviceID]})
 	}
 	return perService
+}
+
+func unavailableForecastCoverage(err error) bool {
+	return errors.Is(err, ErrPartialCoverage) || errors.Is(err, ErrNotFound)
 }

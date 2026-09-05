@@ -99,7 +99,8 @@ const overflowLines = computed<string[]>(() => {
   const lines: string[] = []
   for (const output of props.outputs) {
     const answer = forecast.forTarget(output.targetID)
-    if (answer === null || answer.fits) continue
+    if (answer === null || answer.incompleteServices?.length || answer.fits)
+      continue
     lines.push(
       t('list.forecast.overflow', {
         count: formatNumber(answer.projectedRules),

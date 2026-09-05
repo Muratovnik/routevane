@@ -97,7 +97,7 @@ func ProjectedRuleCount(plan domain.RoutingPlan) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	canonical, err := canonicalScript(script)
+	canonical, err := projectedScript(script)
 	if err != nil {
 		return 0, err
 	}
@@ -280,7 +280,24 @@ func renderScript(input Script) ([]byte, error) {
 // canonicalScript sorts and deduplicates each section and re-validates every
 // entry against the family that section carries. A script with no entry at all
 // is refused: it would clear both lists and route nothing.
+// Artifact validation owns empty/size refusal; counting must be able to
+// report both zero and an overflow without pretending either is unavailable.
 func canonicalScript(input Script) (Script, error) {
+	result, err := projectedScript(input)
+	if err != nil {
+		return Script{}, err
+	}
+	total := len(result.IPv4) + len(result.IPv6)
+	if total == 0 {
+		return Script{}, fmt.Errorf("projection contains no entries")
+	}
+	if total > MaxLines {
+		return Script{}, fmt.Errorf("projection exceeds entry bound")
+	}
+	return result, nil
+}
+
+func projectedScript(input Script) (Script, error) {
 	ipv4, err := canonicalSection(input.IPv4, true)
 	if err != nil {
 		return Script{}, err
@@ -288,13 +305,6 @@ func canonicalScript(input Script) (Script, error) {
 	ipv6, err := canonicalSection(input.IPv6, false)
 	if err != nil {
 		return Script{}, err
-	}
-	total := len(ipv4) + len(ipv6)
-	if total == 0 {
-		return Script{}, fmt.Errorf("RouterOS script projection contains no address-list entry")
-	}
-	if total > MaxLines {
-		return Script{}, fmt.Errorf("RouterOS script projection exceeds the entry bound")
 	}
 	return Script{IPv4: ipv4, IPv6: ipv6}, nil
 }

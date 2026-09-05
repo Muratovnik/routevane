@@ -4657,52 +4657,205 @@ test('sidebar labels and buttons retain their geometry throughout expansion and 
   }
 })
 
-test('the inspection surface moves as one piece during its entrance', async ({
+test('docked inspection transitions the form and table together on opening and closing', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1920, height: 960 })
   await page.goto(`${origin}/lists/new`)
   await expect(page.locator('[data-id="discord"] .picker__open')).toBeVisible()
-  const frames = await page.evaluate(async () => {
-    document
-      .querySelector<HTMLButtonElement>('[data-id="discord"] .picker__open')!
-      .click()
-    const frames: {
-      x: number
-      headerInset: number
-      bodyInset: number
-      transform: string
-    }[] = []
-    const start = performance.now()
-    do {
-      await new Promise(requestAnimationFrame)
-      const card = document.querySelector<HTMLElement>('.rv-dialog--docked')
-      if (!card) continue
-      const x = card.getBoundingClientRect().x
-      frames.push({
-        x,
-        headerInset:
-          card.querySelector('.rv-dialog__header')!.getBoundingClientRect().x -
-          x,
-        bodyInset:
-          card.querySelector('.rv-dialog__body')!.getBoundingClientRect().x - x,
-        transform: getComputedStyle(card).transform,
-      })
-    } while (performance.now() - start < 350)
-    return frames
-  })
-  expect(frames.length).toBeGreaterThan(2)
-  expect(frames.some((f) => f.transform !== 'none')).toBe(true)
-  expect(frames[0]!.x - frames.at(-1)!.x).toBeGreaterThan(20)
-  for (const f of frames) {
-    expect(Math.abs(f.headerInset - f.bodyInset)).toBeLessThanOrEqual(1)
-    expect(Math.abs(f.headerInset)).toBeLessThanOrEqual(2)
+  async function transitionFrames(selector: string) {
+    return page.evaluate(async (selector) => {
+      const rect = (name: string) => {
+        const r = document.querySelector(name)!.getBoundingClientRect()
+        return { x: r.x, y: r.y }
+      }
+      const before = {
+        form: rect('.rv-composer__settings'),
+        table: rect('.rv-composer__main'),
+      }
+      const native = document.startViewTransition.bind(document)
+      let current: ViewTransition | undefined
+      document.startViewTransition = (update) => {
+        current = native(update)
+        void current.ready.then(() =>
+          document
+            .getAnimations()
+            .filter((a) => (a.effect as KeyframeEffect)?.pseudoElement)
+            .forEach((a) => a.pause()),
+        )
+        return current
+      }
+      document.querySelector<HTMLButtonElement>(selector)!.click()
+      if (!current)
+        throw new Error(
+          'Inspection did not capture the layout before changing it',
+        )
+      await current.ready
+      const animations = document
+        .getAnimations()
+        .filter((a) => (a.effect as KeyframeEffect)?.pseudoElement)
+      const frames = []
+      for (const progress of [0, 0.5, 1]) {
+        for (const a of animations)
+          a.currentTime = Number(a.effect!.getTiming().duration) * progress
+        await new Promise(requestAnimationFrame)
+        const position = (name: string) => {
+          const matrix = new DOMMatrix(
+            getComputedStyle(
+              document.documentElement,
+              `::view-transition-group(${name})`,
+            ).transform,
+          )
+          return { x: matrix.e, y: matrix.f }
+        }
+        frames.push({
+          form: position('composer-settings'),
+          table: position('composer-content'),
+        })
+      }
+      const after = {
+        form: rect('.rv-composer__settings'),
+        table: rect('.rv-composer__main'),
+      }
+      const card = document.querySelector('.rv-dialog--docked')
+      const nestedSlide = card ? getComputedStyle(card).animationName : 'none'
+      animations.forEach((a) => a.finish())
+      await current.finished
+      document.startViewTransition = native
+      return { before, after, frames, nestedSlide }
+    }, selector)
   }
+  function check(result: Awaited<ReturnType<typeof transitionFrames>>) {
+    for (const part of ['form', 'table'] as const) {
+      for (const axis of ['x', 'y'] as const) {
+        expect(
+          Math.abs(result.frames[0]![part][axis] - result.before[part][axis]),
+        ).toBeLessThan(2)
+        expect(
+          Math.abs(result.frames[2]![part][axis] - result.after[part][axis]),
+        ).toBeLessThan(2)
+      }
+    }
+    const positions = result.frames.map((f) => f.form.x)
+    expect(positions[1]).toBeGreaterThan(Math.min(positions[0]!, positions[2]!))
+    expect(positions[1]).toBeLessThan(Math.max(positions[0]!, positions[2]!))
+    expect(result.nestedSlide).toBe('none')
+  }
+  // Start at the keyboard opener; native click() below does not focus it.
+  await page.locator('[data-id="discord"] .picker__open').focus()
+  check(await transitionFrames('[data-id="discord"] .picker__open'))
   await expect(
     page
       .getByRole('dialog')
       .getByRole('button', { name: 'Close', exact: true }),
   ).toBeEnabled({ timeout: 60000 })
+  check(await transitionFrames('.rv-dialog__close'))
+  await expect(page.getByRole('dialog')).toBeHidden()
+  await expect(page.locator('[data-id="discord"] .picker__open')).toBeFocused()
+  const collapse = await page.locator('.shell__collapse').boundingBox()
+  expect(Math.abs(collapse!.y + collapse!.height - 960)).toBeLessThanOrEqual(1)
+  // The same operation stays usable when animation is disabled or unavailable.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.locator('[data-id="discord"] .picker__open').click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'startViewTransition', {
+      value: undefined,
+      configurable: true,
+    })
+  })
+  await page.locator('[data-id="discord"] .picker__open').click()
+  await expect(page.getByRole('dialog')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toBeHidden()
+})
+
+test('one list without IP coverage preserves other lists and domain-format forecasts', async ({
+  page,
+}) => {
+  const headers = { 'X-Routevane-Request': '1' }
+  const ids: string[] = []
+  try {
+    for (const [title, address] of [
+      ['Partial Alpha', '192.0.2.1'],
+      ['Partial Beta', '192.0.2.1'],
+      ['Partial Missing', ''],
+    ] as const) {
+      const created = await page.request.post(`${origin}/v1/services`, {
+        headers,
+        data: { title, domains: ['forecast.invalid'] },
+      })
+      expect(created.status()).toBe(201)
+      const { service } = (await created.json()) as { service: { id: string } }
+      ids.push(service.id)
+      if (address)
+        expect(
+          (
+            await page.request.post(
+              `${origin}/v1/services/${service.id}/domains`,
+              { headers, data: { values: [address], verdict: 'include' } },
+            )
+          ).ok(),
+        ).toBe(true)
+      expect(
+        (
+          await page.request.post(
+            `${origin}/v1/services/${service.id}/refresh`,
+            { headers, data: {} },
+          )
+        ).ok(),
+      ).toBe(true)
+    }
+    const response = await page.request.post(`${origin}/v1/lists/preview`, {
+      headers,
+      data: { services: ids, priority: ids },
+    })
+    expect(response.status()).toBe(200)
+    const { targets } = (await response.json()) as {
+      targets: {
+        target_id: string
+        incomplete_services?: string[]
+        projected_rules: number
+        fits: boolean
+      }[]
+    }
+    expect(
+      targets.find((x) => x.target_id === 'keenetic')?.incomplete_services,
+    ).toEqual([ids[2]])
+    expect(targets.find((x) => x.target_id === 'keenetic')?.fits).toBe(false)
+    expect(
+      targets.find((x) => x.target_id === 'singbox')?.incomplete_services ?? [],
+    ).toEqual([])
+    expect(targets.find((x) => x.target_id === 'singbox')?.fits).toBe(true)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto(`${origin}/lists/new`)
+    for (const id of ids) await page.locator(`input[value="${id}"]`).check()
+    await chooseFormat(page, /Keenetic/)
+    await expect(page.locator('.picker__forecast-status')).toContainText(
+      'Data for 2 of 3 lists',
+      { timeout: 60000 },
+    )
+    for (const id of ids.slice(0, 2))
+      await expect(
+        page.locator(`[data-id="${id}"] .picker__overlaps-column`),
+      ).toContainText('≥ 1')
+    await expect(
+      page.locator(`[data-id="${ids[2]}"] .picker__rules-column`),
+    ).toHaveText('—')
+    await expect(
+      page.getByRole('button', { name: 'Create and prepare', exact: true }),
+    ).toBeEnabled()
+  } finally {
+    for (const id of ids)
+      expect(
+        (
+          await page.request.post(`${origin}/v1/services/${id}/remove`, {
+            headers,
+            data: {},
+          })
+        ).ok(),
+      ).toBe(true)
+  }
 })

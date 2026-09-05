@@ -145,6 +145,7 @@ export type OverlapSummary = {
 }
 
 export type TargetForecast = {
+  incompleteServices?: string[]
   targetID: string
   // Zero means the format states no bound, which is a different fact from a
   // bound that happens to be large.
@@ -153,8 +154,8 @@ export type TargetForecast = {
   // overlaps to their winning list.
   projectedRules: number
   fits: boolean
-  // Every resolved service, including one whose rules all belong to a
-  // higher-priority list.
+  // Every service with complete data, including one whose rules all belong
+  // to a higher-priority list. Incomplete services are omitted, not zero.
   perService: ForecastService[]
   // Missing on an older server means unknown, never "no overlaps".
   overlaps?: CompositionOverlaps
@@ -168,9 +169,9 @@ export type TargetForecast = {
  * asked, so callers look a format up by its id.
  *
  * The server refuses a composition that resolves to no service, one that names
- * something the catalog does not carry, and one nothing has ever observed.
- * Every refusal reaches the caller as a rejection, and callers read that as
- * "no forecast" rather than as a fit.
+ * something the catalog does not carry, or a failed storage/renderer read.
+ * Missing coverage is represented per target by incompleteServices; facts
+ * for complete services remain available without claiming the draft fits.
  */
 export function previewComposition(
   composition: ListComposition,
@@ -477,9 +478,13 @@ const forecastSchema = v.pipe(
     fits: v.boolean(),
     per_service: v.array(forecastServiceSchema),
     overlaps: v.optional(overlapsSchema),
+    incomplete_services: v.optional(texts),
   }),
   v.transform((forecast): TargetForecast => ({
     targetID: forecast.target_id,
+    ...(forecast.incomplete_services === undefined
+      ? {}
+      : { incompleteServices: forecast.incomplete_services }),
     maximumRules: forecast.maximum_rules,
     projectedRules: forecast.projected_rules,
     fits: forecast.fits,

@@ -30,6 +30,7 @@ const stageMessage = computed(() => {
 function forecastLabel(targetID: string): string {
   const forecast = setup.forecastFor(targetID)
   if (forecast === null) return ''
+  if (forecast.incompleteServices?.length) return t('forecast.partial.target')
   return forecast.maximumRules === 0
     ? tc('create.forecast.rules', forecast.projectedRules)
     : t('create.forecast.of', {
@@ -39,7 +40,8 @@ function forecastLabel(targetID: string): string {
 }
 
 function overflowing(targetID: string): boolean {
-  return setup.forecastFor(targetID)?.fits === false
+  const forecast = setup.forecastFor(targetID)
+  return !forecast?.incompleteServices?.length && forecast?.fits === false
 }
 
 // One line under a format's name: how it is delivered, and what this draft

@@ -180,3 +180,52 @@ it('refreshes stale coverage once and invalidates the result when sources change
     scope.stop()
   }
 })
+
+it('retains partial facts while reading only missing lists, then recovers the full forecast', async () => {
+  vi.useFakeTimers()
+  forgetForecastObservations()
+  let complete = false
+  const refreshed: string[] = []
+  vi.stubGlobal(
+    'fetch',
+    vi.fn((input: unknown) => {
+      const url = String(input)
+      if (url.endsWith('/refresh')) {
+        refreshed.push(url)
+        complete = true
+        return Promise.resolve(new Response(JSON.stringify({ refresh: {} })))
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            targets: [
+              {
+                target_id: 'keenetic',
+                maximum_rules: 100,
+                projected_rules: complete ? 2 : 1,
+                fits: complete,
+                per_service: [{ service_id: 'alpha', rules: 1 }],
+                incomplete_services: complete ? [] : ['beta'],
+              },
+            ],
+          }),
+        ),
+      )
+    }),
+  )
+  const scope = effectScope()
+  const forecast = scope.run(() => useCompositionForecast(1))!
+  const draft = {
+    services: ['alpha', 'beta'],
+    categories: [],
+    exclusions: [],
+    serviceDomains: {},
+  }
+  forecast.request(draft, draft.services)
+  await vi.advanceTimersByTimeAsync(2)
+  await flushPromises()
+  expect(refreshed).toEqual(['/v1/services/beta/refresh'])
+  expect(forecast.forTarget('keenetic')?.projectedRules).toBe(2)
+  expect(forecast.failure.value).toBeNull()
+  scope.stop()
+})

@@ -25,11 +25,13 @@ const compact = computed(() => pane?.docked.value && pane.open.value)
 }
 
 .rv-composer__main {
+  view-transition-name: composer-content;
   min-height: 0;
   min-width: 0;
 }
 
 .rv-composer__settings {
+  view-transition-name: composer-settings;
   align-self: start;
   padding: var(--rv-space-5);
   min-width: 0;
@@ -44,6 +46,7 @@ const compact = computed(() => pane?.docked.value && pane.open.value)
 }
 
 .rv-composer--compact .rv-composer__settings {
+  view-transition-name: composer-settings;
   grid-row: 1;
 }
 

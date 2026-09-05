@@ -304,7 +304,7 @@ const sheetUI = computed(() => ({
 
 /* USlideover owns focus, dismissal and scroll lock. Its state attribute gives
    this facade a CSP-safe entrance without inline animation styles. */
-.rv-dialog--sheet[data-state='open'] {
+.rv-dialog--sheet:not(.rv-dialog--docked)[data-state='open'] {
   animation: rv-dialog-sheet-in var(--rv-motion-normal)
     var(--rv-motion-ease-out);
 }
@@ -451,7 +451,7 @@ const sheetUI = computed(() => ({
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rv-dialog--sheet[data-state='open'] {
+  .rv-dialog--sheet:not(.rv-dialog--docked)[data-state='open'] {
     animation-duration: 1ms;
   }
 }

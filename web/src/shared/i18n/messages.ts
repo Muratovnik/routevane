@@ -30,6 +30,11 @@ const ru: Dictionary = {
   'forecast.failure.coverage':
     'Недостаточно актуальных данных для расчёта. Повторите обновление источников.',
   'forecast.failure.unavailable': 'Расчёт недоступен. Повторите попытку.',
+  'forecast.partial.target': 'Не все списки рассчитаны',
+  'forecast.partial.table':
+    'Данные для {n} из {m} списков. Пересечения — среди них.',
+  'forecast.partial.missing': 'Списки без подходящих данных',
+  'forecast.partial.count': '≥ {n}',
   'choice.search': 'Найти',
   'choice.empty': 'Ничего не найдено',
   'servicePicker.selectVisible': 'Выбрать или убрать все видимые списки',
@@ -911,6 +916,11 @@ const en: Dictionary = {
   'forecast.failure.coverage':
     'Not enough current source data to calculate. Retry the source refresh.',
   'forecast.failure.unavailable': 'Calculation unavailable. Try again.',
+  'forecast.partial.target': 'Some lists could not be calculated',
+  'forecast.partial.table':
+    'Data for {n} of {m} lists. Intersections are between these lists.',
+  'forecast.partial.missing': 'Lists without usable data',
+  'forecast.partial.count': '≥ {n}',
   'choice.search': 'Search',
   'choice.empty': 'Nothing found',
   'servicePicker.selectVisible': 'Select or clear all visible lists',

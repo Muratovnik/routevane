@@ -64,7 +64,7 @@ func ProjectedRuleCount(plan domain.RoutingPlan) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	canonical, err := canonicalRules(rules)
+	canonical, err := projectedRules(rules)
 	if err != nil {
 		return 0, err
 	}
@@ -199,7 +199,21 @@ func renderRules(input []Rule) ([]byte, error) {
 	return output.Bytes(), nil
 }
 
+// Artifact validation owns empty/size refusal; counting must be able to
+// report both zero and an overflow without pretending either is unavailable.
 func canonicalRules(input []Rule) ([]Rule, error) {
+	result, err := projectedRules(input)
+	if err != nil {
+		return nil, err
+	}
+	total := len(result)
+	if total == 0 {
+		return nil, fmt.Errorf("projection contains no entries")
+	}
+	return result, nil
+}
+
+func projectedRules(input []Rule) ([]Rule, error) {
 	seen := make(map[string]Rule, len(input))
 	for _, rule := range input {
 		prefix := rule.Prefix.Masked()
@@ -207,9 +221,6 @@ func canonicalRules(input []Rule) ([]Rule, error) {
 			return nil, fmt.Errorf("keenetic BAT projection contains an invalid prefix")
 		}
 		seen[prefix.String()] = Rule{Prefix: prefix}
-	}
-	if len(seen) == 0 {
-		return nil, fmt.Errorf("keenetic BAT projection contains no routes")
 	}
 	rules := make([]Rule, 0, len(seen))
 	for _, rule := range seen {

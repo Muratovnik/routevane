@@ -2,7 +2,9 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/netip"
 	"reflect"
 	"slices"
 	"strings"
@@ -10,7 +12,12 @@ import (
 	"time"
 
 	"github.com/Muratovnik/routevane/internal/domain"
+	"github.com/Muratovnik/routevane/internal/renderers/amnezia"
 	"github.com/Muratovnik/routevane/internal/renderers/keenetic"
+	"github.com/Muratovnik/routevane/internal/renderers/keeneticdns"
+	"github.com/Muratovnik/routevane/internal/renderers/mikrotik"
+	"github.com/Muratovnik/routevane/internal/renderers/openwrtnftset"
+	"github.com/Muratovnik/routevane/internal/renderers/singbox"
 )
 
 // forecastTestService wires the shape the defect appears in: two services whose
@@ -262,5 +269,95 @@ func TestForecastOverlapUsesOnlyThePreparedCutoffAndDistinctLists(t *testing.T) 
 	}
 	if len(store.writes) != 0 || files.puts != 0 {
 		t.Fatal("overlap preview wrote state or artifacts")
+	}
+}
+
+// An unread or unsupported member must not blank a complete format or the
+// overlap facts available for other members. Publication still refuses it.
+func TestForecastRetainsKnownListsWithoutClaimingPartialCompositionFits(t *testing.T) {
+	store := &forecastGuardStore{publicationFakeStore: &publicationFakeStore{}}
+	service := forecastTestService(t, store, &publicationFakeFiles{})
+	missing := service.config.Definitions["discord"]
+	missing.ID = "missing"
+	missing.Components = append(missing.Components, domain.ComponentDefinition{ID: "required", Required: true})
+	service.config.Definitions[missing.ID] = missing
+	ctx := context.Background()
+	composition := ListComposition{Services: []string{"youtube", "discord", "missing"}, Priority: []string{"youtube", "discord", "missing"}}
+	answer, err := service.ForecastComposition(ctx, composition, []string{"unbounded"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := answer[0]
+	if got.Fits || !slices.Equal(got.IncompleteServices, []string{"missing"}) || got.ProjectedRules != 4 || len(got.PerService) != 2 || len(got.Overlaps.Items) != 1 {
+		t.Fatalf("partial forecast lost known rules/overlaps or claimed completeness: %#v", got)
+	}
+	target, renderer, _ := service.target("unbounded")
+	_, _, err = service.prepareList(ctx, List{Services: composition.Services}, target, renderer)
+	if !errors.Is(err, ErrPartialCoverage) {
+		t.Fatalf("publication accepted incomplete coverage: %v", err)
+	}
+	if len(store.writes) != 0 {
+		t.Fatalf("preview wrote: %v", store.writes)
+	}
+	// The IP-only target has no usable rules when IPv4 is unsupported. Its
+	// failure cannot remove the other target's complete result.
+	unsupported := service.config.Targets["keenetic"]
+	unsupported.Constraints.SupportsIPv4 = false
+	service.config.Targets["keenetic"] = unsupported
+	answer, err = service.ForecastComposition(ctx, ListComposition{Services: []string{"youtube", "discord"}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(answer) != 2 || len(answer[0].IncompleteServices) != 2 || answer[0].Fits || !answer[1].Fits || answer[1].ProjectedRules != 4 {
+		t.Fatalf("one unavailable format erased another: %#v", answer)
+	}
+}
+
+func TestForecastProjectionCountsEmptyAndOverflowWithoutAllowingInvalidArtifacts(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		renderer   Renderer
+		limit      int
+		domainOnly bool
+	}{
+		{"amnezia", amnezia.Renderer{}, amnezia.MaxEntries, false},
+		{"mikrotik", mikrotik.Renderer{}, mikrotik.MaxLines, false},
+		{"singbox", singbox.Renderer{}, singbox.MaxEntries, false},
+		{"openwrt", openwrtnftset.Renderer{}, openwrtnftset.MaxLines, true},
+		{"keenetic", keenetic.Renderer{}, 0, false},
+		{"keenetic-dns", keeneticdns.Renderer{}, 0, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			empty := domain.RoutingPlan{}
+			if count, err := tc.renderer.ProjectedRuleCount(empty); err != nil || count != 0 {
+				t.Fatalf("zero count = %d, %v", count, err)
+			}
+			if _, err := tc.renderer.Render(empty); err == nil {
+				t.Fatal("empty artifact accepted")
+			}
+			if tc.limit == 0 {
+				return
+			}
+			plan := domain.RoutingPlan{}
+			for i := 0; i <= tc.limit; i++ {
+				var rule domain.RouteRule
+				var err error
+				if tc.domainOnly {
+					rule, err = domain.NewDomainRule(domain.RuleDomainSuffix, fmt.Sprintf("host%d.example.com", i), "example", "web", domain.SourceManual, nil, nil)
+				} else {
+					rule, err = domain.NewAddrRule(netip.AddrFrom4([4]byte{198, 18, byte(i / 256), byte(i % 256)}), "example", "web", domain.SourceManual, nil, nil)
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				plan.Rules = append(plan.Rules, rule)
+			}
+			if count, err := tc.renderer.ProjectedRuleCount(plan); err != nil || count != tc.limit+1 {
+				t.Fatalf("overflow count = %d, %v", count, err)
+			}
+			if _, err := tc.renderer.Render(plan); err == nil {
+				t.Fatal("oversized artifact accepted")
+			}
+		})
 	}
 }

@@ -123,7 +123,9 @@ export function useCompositionForecast(delay = settleDelay) {
       if (next.attempt !== issued) return 'silent'
       forecasts.value = answer
       failure.value = null
-      return 'landed'
+      return answer.some((row) => (row.incompleteServices?.length ?? 0) > 0)
+        ? 'unread'
+        : 'landed'
     } catch (reason) {
       if (next.attempt !== issued) return 'silent'
       forecasts.value = []
@@ -144,8 +146,15 @@ export function useCompositionForecast(delay = settleDelay) {
     }
   }
 
-  async function observeThenRetry(next: Ask): Promise<void> {
-    const pending = next.resolved.filter((id) => !observedForForecast.has(id))
+  async function observeThenRetry(next: Ask, all = false): Promise<void> {
+    const incomplete = new Set(
+      forecasts.value.flatMap((row) => row.incompleteServices ?? []),
+    )
+    const pending = next.resolved.filter(
+      (id) =>
+        !observedForForecast.has(id) &&
+        (all || incomplete.size === 0 || incomplete.has(id)),
+    )
     // Everything in this draft has already been read once. Reading again would
     // answer the same way, so the screen simply stays quiet.
     if (pending.length === 0) return
@@ -208,7 +217,7 @@ export function useCompositionForecast(delay = settleDelay) {
     pending.value = resolved.length > 0
     for (const id of resolved) observedForForecast.delete(id)
     try {
-      await observeThenRetry(next)
+      await observeThenRetry(next, true)
     } finally {
       if (next.attempt === issued) pending.value = false
     }

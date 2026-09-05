@@ -95,3 +95,53 @@ input[type='number'] {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* One snapshot transaction owns the docked layout, including the moved form.
+   The document background does not crossfade over unchanged navigation. */
+html[data-rv-workspace-transition]::view-transition-old(root),
+html[data-rv-workspace-transition]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+html[data-rv-workspace-transition]::view-transition-group(*) {
+  animation-duration: var(--rv-motion-normal);
+  animation-timing-function: var(--rv-motion-ease-out);
+}
+
+html[data-rv-workspace-transition]::view-transition-old(library-content),
+html[data-rv-workspace-transition]::view-transition-new(library-content),
+html[data-rv-workspace-transition]::view-transition-old(composer-content),
+html[data-rv-workspace-transition]::view-transition-new(composer-content),
+html[data-rv-workspace-transition]::view-transition-old(composer-settings),
+html[data-rv-workspace-transition]::view-transition-new(composer-settings) {
+  height: 100%;
+  object-fit: none;
+  object-position: top left;
+}
+
+/* Keep text as one readable image while its group moves/resizes. A crossfade
+   between the vertical rail and horizontal form would paint both forms. */
+html[data-rv-workspace-transition]::view-transition-old(library-content),
+html[data-rv-workspace-transition]::view-transition-old(composer-content),
+html[data-rv-workspace-transition]::view-transition-old(composer-settings) {
+  display: none;
+}
+
+html[data-rv-workspace-transition]::view-transition-new(library-content),
+html[data-rv-workspace-transition]::view-transition-new(composer-content),
+html[data-rv-workspace-transition]::view-transition-new(composer-settings) {
+  animation: none;
+}
+
+html[data-rv-workspace-transition]::view-transition-image-pair(*) {
+  overflow: clip;
+}
+
+html[data-rv-workspace-transition]::view-transition-old(root) {
+  display: none;
+}
+
+html[data-rv-workspace-transition]::view-transition-group(composer-settings) {
+  z-index: 2;
+}

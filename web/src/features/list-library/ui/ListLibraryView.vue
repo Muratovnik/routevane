@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useWorkspaceInspection } from '@/shared/ui/workspacePane'
 import { useSortable } from '@vueuse/integrations/useSortable'
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
 
@@ -33,6 +34,7 @@ import RvTextInput from '@/shared/ui/RvTextInput.vue'
  * composing a route can write nothing but the route. The catalog table also
  * owns the default order; membership and content edits remain library actions.
  */
+const inspectWorkspace = useWorkspaceInspection()
 const { t, tc, tor } = useLocale()
 const library = useListLibrary()
 const route = useRoute()
@@ -240,8 +242,10 @@ function showCategory(categoryID: string): void {
 }
 
 function openService(serviceID: string): void {
-  activeServiceID.value = serviceID
-  writeLocation()
+  inspectWorkspace(true, () => {
+    activeServiceID.value = serviceID
+    writeLocation()
+  })
 }
 
 function startCreateService(): void {
@@ -252,8 +256,10 @@ function startCreateService(): void {
 }
 
 function closeService(): void {
-  activeServiceID.value = ''
-  writeLocation()
+  inspectWorkspace(false, () => {
+    activeServiceID.value = ''
+    writeLocation()
+  })
 }
 
 // The address states where the operator is, so a refresh, a bookmark and the

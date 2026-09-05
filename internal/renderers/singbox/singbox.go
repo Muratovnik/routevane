@@ -97,7 +97,7 @@ func ProjectedRuleCount(plan domain.RoutingPlan) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	canonical, err := canonicalRule(rule)
+	canonical, err := projectedRule(rule)
 	if err != nil {
 		return 0, err
 	}
@@ -195,7 +195,24 @@ func renderRule(input Rule) ([]byte, error) {
 // canonicalRule sorts and deduplicates every match list and re-validates each
 // entry. A document with no entry at all is refused: an empty match set would
 // silently match nothing rather than the requested services.
+// Artifact validation owns empty/size refusal; counting must be able to
+// report both zero and an overflow without pretending either is unavailable.
 func canonicalRule(input Rule) (Rule, error) {
+	result, err := projectedRule(input)
+	if err != nil {
+		return Rule{}, err
+	}
+	total := len(result.Domain) + len(result.DomainSuffix) + len(result.IPCIDR)
+	if total == 0 {
+		return Rule{}, fmt.Errorf("projection contains no entries")
+	}
+	if total > MaxEntries {
+		return Rule{}, fmt.Errorf("projection exceeds entry bound")
+	}
+	return result, nil
+}
+
+func projectedRule(input Rule) (Rule, error) {
 	domains, err := canonicalDomains(input.Domain)
 	if err != nil {
 		return Rule{}, err
@@ -207,13 +224,6 @@ func canonicalRule(input Rule) (Rule, error) {
 	prefixes, err := canonicalPrefixes(input.IPCIDR)
 	if err != nil {
 		return Rule{}, err
-	}
-	total := len(domains) + len(suffixes) + len(prefixes)
-	if total == 0 {
-		return Rule{}, fmt.Errorf("sing-box rule set projection contains no match entry")
-	}
-	if total > MaxEntries {
-		return Rule{}, fmt.Errorf("sing-box rule set projection exceeds the entry bound")
 	}
 	return Rule{Domain: domains, DomainSuffix: suffixes, IPCIDR: prefixes}, nil
 }

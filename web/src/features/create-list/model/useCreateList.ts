@@ -166,7 +166,10 @@ export function useCreateList() {
   // Only a delivered answer stops anything. An unknown forecast — not asked
   // for yet, still in flight, or refused — leaves creating available.
   const blocked = computed(
-    () => selectedForecast.value !== null && !selectedForecast.value.fits,
+    () =>
+      selectedForecast.value !== null &&
+      !selectedForecast.value.incompleteServices?.length &&
+      !selectedForecast.value.fits,
   )
 
   /**
