@@ -176,6 +176,7 @@ function reset(): void {
             :overlap-unavailable="forecastTargets.length === 0"
             :overlap-unavailable-label="t('list.overlap.unavailable')"
             :forecast-pending="forecast.pending.value"
+            :refreshing="forecast.observing.value"
             :list-name="draftName"
             :pending="dirty"
             :services="props.services"

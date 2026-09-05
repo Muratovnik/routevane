@@ -209,6 +209,7 @@ export function useCompositionForecast(delay = settleDelay) {
     resolved: string[],
     targets: string[] = [],
   ): Promise<void> {
+    if (observing.value) return
     ask.cancel()
     issued += 1
     const next = { attempt: issued, composition, resolved, targets }

@@ -32,7 +32,6 @@ import RvFilePicker from '@/shared/ui/RvFilePicker.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
-import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import RvStatus from '@/shared/ui/RvStatus.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
 import RvTextarea from '@/shared/ui/RvTextarea.vue'
@@ -305,7 +304,7 @@ watch(
 )
 
 // USlideover moves focus as soon as the sheet mounts. During the first source
-// read the filter does not exist yet, so move focus once it appears only when
+// read the filter is disabled, so move focus once it is ready only when
 // the keyboard is still on the sheet's own fallback control.
 watch(contentsState, async (state) => {
   if (state !== 'ready' || props.service === null) return
@@ -848,6 +847,7 @@ function onOpenChange(open: boolean): void {
       <section
         aria-labelledby="service-card-contents"
         class="service-card__section service-card__section--base service-card__section--fill"
+        :aria-busy="contentsState === 'loading'"
       >
         <div class="service-card__heading">
           <h3 id="service-card-contents">{{ t('serviceCard.domains') }}</h3>
@@ -855,11 +855,15 @@ function onOpenChange(open: boolean): void {
             :label="t('serviceCard.domains.info')"
             :text="t('serviceCard.domains.intro')"
           />
-          <strong v-if="contents !== null" class="service-card__count">
-            {{ tc('serviceCard.domains.count', enabledCount) }}
+          <strong class="service-card__count">
+            {{
+              contents === null
+                ? '—'
+                : tc('serviceCard.domains.count', enabledCount)
+            }}
           </strong>
         </div>
-        <div class="service-card__heading">
+        <div class="service-card__commands">
           <!-- Reading the sources is the frequent act; editing which sources
                there are is the rare one, so the frequent one is the control
                and the rare one opens a panel. -->
@@ -867,7 +871,7 @@ function onOpenChange(open: boolean): void {
             :disabled="interactionBusy || contentsState !== 'ready'"
             size="compact"
             type="button"
-            variant="quiet"
+            variant="secondary"
             @click="onRefreshSources"
           >
             <RvIcon name="refresh" />
@@ -878,7 +882,7 @@ function onOpenChange(open: boolean): void {
               :disabled="interactionBusy"
               size="compact"
               type="button"
-              variant="quiet"
+              variant="secondary"
               @click="sourcesOpen = true"
             >
               <RvIcon name="settings" />
@@ -903,210 +907,213 @@ function onOpenChange(open: boolean): void {
           </template>
         </div>
 
-        <RvStateNotice
-          v-if="contentsState === 'loading'"
-          live
-          :title="t('serviceCard.loading')"
-          tone="busy"
-        />
-        <RvStateNotice
-          v-else-if="contentsState === 'failed'"
-          :body="t('serviceCard.failed.body')"
-          live
-          :title="t('serviceCard.failed')"
-          tone="failed"
-        >
-          <template #action>
-            <RvButton
-              type="button"
-              @click="service !== null && openContents(service.id)"
-            >
-              {{ t('action.retry') }}
-            </RvButton>
-          </template>
-        </RvStateNotice>
-
-        <template v-else-if="contents !== null">
-          <!-- Source reads keep one compact, reserved status row. The retry
+        <!-- Source reads keep one compact, reserved status row. The retry
                control is present but invisible until an error so the filter
                and the known rows do not move when the answer changes. -->
-          <div
-            class="service-card__refresh-status"
-            :role="refreshError !== '' ? 'alert' : 'status'"
+        <div
+          class="service-card__refresh-status"
+          :role="
+            refreshError !== '' || contentsState === 'failed'
+              ? 'alert'
+              : 'status'
+          "
+        >
+          <RvStatus
+            v-if="contentsState === 'loading'"
+            class="service-card__refresh-indicator"
+            :label="t('serviceCard.loading')"
+            tone="busy"
+          />
+          <RvStatus
+            v-else-if="contentsState === 'failed'"
+            class="service-card__refresh-indicator"
+            :label="t('serviceCard.failed.body')"
+            tone="failed"
+          />
+          <RvStatus
+            v-else-if="refreshing"
+            class="service-card__refresh-indicator"
+            :label="
+              t(
+                observing
+                  ? 'serviceCard.observing'
+                  : 'serviceCard.refresh.busy',
+              )
+            "
+            tone="busy"
+          />
+          <RvStatus
+            v-else-if="refreshError !== ''"
+            class="service-card__refresh-indicator"
+            :label="refreshError"
+            tone="failed"
+          />
+          <RvStatus
+            v-else-if="sources.length === 0"
+            class="service-card__refresh-indicator"
+            :label="t('serviceCard.refresh.none')"
+            tone="waiting"
+          />
+          <RvStatus
+            v-else-if="contents?.observed === true"
+            class="service-card__refresh-indicator"
+            :label="t('serviceCard.refresh.ready')"
+            tone="ready"
+          />
+          <RvStatus
+            v-else
+            class="service-card__refresh-indicator"
+            :label="t('serviceCard.refresh.waiting')"
+            tone="waiting"
+          />
+          <RvButton
+            class="service-card__refresh-retry"
+            :aria-hidden="
+              refreshError === '' && contentsState !== 'failed'
+                ? 'true'
+                : undefined
+            "
+            :disabled="
+              (refreshError === '' && contentsState !== 'failed') ||
+              interactionBusy
+            "
+            size="compact"
+            type="button"
+            @click="
+              contentsState === 'failed' && service !== null
+                ? openContents(service.id)
+                : onRetryRefresh()
+            "
           >
-            <RvStatus
-              v-if="refreshing"
-              class="service-card__refresh-indicator"
-              :label="
-                t(
-                  observing
-                    ? 'serviceCard.observing'
-                    : 'serviceCard.refresh.busy',
-                )
-              "
-              tone="busy"
-            />
-            <RvStatus
-              v-else-if="refreshError !== ''"
-              class="service-card__refresh-indicator"
-              :label="refreshError"
-              tone="failed"
-            />
-            <RvStatus
-              v-else-if="sources.length === 0"
-              class="service-card__refresh-indicator"
-              :label="t('serviceCard.refresh.none')"
-              tone="waiting"
-            />
-            <RvStatus
-              v-else-if="contents?.observed === true"
-              class="service-card__refresh-indicator"
-              :label="t('serviceCard.refresh.ready')"
-              tone="ready"
-            />
-            <RvStatus
-              v-else
-              class="service-card__refresh-indicator"
-              :label="t('serviceCard.refresh.waiting')"
-              tone="waiting"
-            />
-            <RvButton
-              class="service-card__refresh-retry"
-              :aria-hidden="refreshError === '' ? 'true' : undefined"
-              :disabled="refreshError === '' || interactionBusy"
-              size="compact"
-              type="button"
-              @click="onRetryRefresh"
-            >
-              {{ t('action.retry') }}
-            </RvButton>
-          </div>
+            {{ t('action.retry') }}
+          </RvButton>
+        </div>
 
-          <div class="service-card__toolbar">
-            <label class="service-card__filter">
-              <RvIcon name="search" />
-              <span class="service-card__visually-hidden">
-                {{ t('serviceCard.filter') }}
-              </span>
-              <input
-                ref="filterInput"
-                v-model="filter"
-                class="service-card__filter-input"
-                :placeholder="t('serviceCard.filter')"
-                type="search"
-              />
-            </label>
-            <RvButton
-              v-if="curating"
-              :disabled="interactionBusy"
-              type="button"
-              variant="secondary"
-              @click="addValuesOpen = true"
-            >
-              <RvIcon name="plus" />
-              {{ t('serviceCard.domains.add') }}
-            </RvButton>
-          </div>
+        <div class="service-card__toolbar">
+          <label class="service-card__filter">
+            <RvIcon name="search" />
+            <span class="service-card__visually-hidden">
+              {{ t('serviceCard.filter') }}
+            </span>
+            <input
+              ref="filterInput"
+              v-model="filter"
+              :disabled="contentsState !== 'ready'"
+              class="service-card__filter-input"
+              :placeholder="t('serviceCard.filter')"
+              type="search"
+            />
+          </label>
+          <RvButton
+            v-if="curating"
+            :disabled="interactionBusy"
+            type="button"
+            variant="secondary"
+            @click="addValuesOpen = true"
+          >
+            <RvIcon name="plus" />
+            {{ t('serviceCard.domains.add') }}
+          </RvButton>
+        </div>
 
-          <!-- Composing reads the list here; the one act this route owns is
+        <!-- Composing reads the list here; the one act this route owns is
                the footer. The per-list override a composition can carry
                replaces the catalog's domain seeds and nothing else, so a switch
                on this row could not take an observed rule out of this route —
                and it must not pretend to. Excluding one value from one route is
                a feature of its own, with its own model. -->
-          <ul
-            class="service-card__rows"
-            :aria-label="composing ? t('serviceCard.domains') : undefined"
-            :tabindex="composing ? 0 : undefined"
-          >
+        <ul
+          class="service-card__rows"
+          :aria-label="composing ? t('serviceCard.domains') : undefined"
+          :tabindex="composing ? 0 : undefined"
+        >
+          <template v-if="contentsState === 'loading'">
             <li
-              v-for="row in visibleRows"
-              :key="row.value"
-              :class="{ 'service-card__row--disabled': !row.enabled }"
-            >
-              <label v-if="curating" class="service-card__switch">
-                <input
-                  :checked="row.enabled"
-                  :disabled="toggleBlocked"
-                  type="checkbox"
-                  @change="
-                    onToggleRow(
-                      row,
-                      ($event.target as HTMLInputElement).checked,
-                    )
-                  "
-                />
-                <span class="service-card__row-copy">
-                  <span class="service-card__value">{{ row.value }}</span>
-                  <small>{{ originLabel(row) }}</small>
-                </span>
-              </label>
-              <span v-else class="service-card__row-copy service-card__entry">
+              v-for="index in 8"
+              :key="index"
+              class="service-card__loading-row"
+              aria-hidden="true"
+            />
+          </template>
+          <li
+            v-for="row in visibleRows"
+            :key="row.value"
+            :class="{ 'service-card__row--disabled': !row.enabled }"
+          >
+            <label v-if="curating" class="service-card__switch">
+              <input
+                :checked="row.enabled"
+                :disabled="toggleBlocked"
+                type="checkbox"
+                @change="
+                  onToggleRow(row, ($event.target as HTMLInputElement).checked)
+                "
+              />
+              <span class="service-card__row-copy">
                 <span class="service-card__value">{{ row.value }}</span>
                 <small>{{ originLabel(row) }}</small>
-                <small v-if="!row.enabled" class="service-card__row-state">
-                  {{ t('serviceCard.domains.disabledInLibrary') }}
-                </small>
               </span>
-              <template v-if="curating">
-                <small
-                  v-if="entryMutations.isPending(row.value)"
-                  class="service-card__row-state"
-                  role="status"
-                >
-                  {{ t('serviceCard.mutation.pending') }}
+            </label>
+            <span v-else class="service-card__row-copy service-card__entry">
+              <span class="service-card__value">{{ row.value }}</span>
+              <small>{{ originLabel(row) }}</small>
+              <small v-if="!row.enabled" class="service-card__row-state">
+                {{ t('serviceCard.domains.disabledInLibrary') }}
+              </small>
+            </span>
+            <template v-if="curating">
+              <small
+                v-if="entryMutations.isPending(row.value)"
+                class="service-card__row-state"
+                role="status"
+              >
+                {{ t('serviceCard.mutation.pending') }}
+              </small>
+              <span
+                v-else-if="entryMutations.getState(row.value).error !== null"
+                class="service-card__row-recovery"
+                role="alert"
+              >
+                <small class="service-card__row-state">
+                  {{ t('serviceCard.mutation.failed') }}
                 </small>
-                <span
-                  v-else-if="entryMutations.getState(row.value).error !== null"
-                  class="service-card__row-recovery"
-                  role="alert"
+                <button
+                  :aria-label="
+                    t('serviceCard.mutation.retry.aria', {
+                      entry: row.value,
+                    })
+                  "
+                  class="service-card__row-action"
+                  type="button"
+                  @click="entryMutations.retry(row.value)"
                 >
-                  <small class="service-card__row-state">
-                    {{ t('serviceCard.mutation.failed') }}
-                  </small>
-                  <button
-                    :aria-label="
-                      t('serviceCard.mutation.retry.aria', {
-                        entry: row.value,
-                      })
-                    "
-                    class="service-card__row-action"
-                    type="button"
-                    @click="entryMutations.retry(row.value)"
-                  >
-                    {{ t('serviceCard.mutation.retry') }}
-                  </button>
-                </span>
-              </template>
-            </li>
-          </ul>
-          <p v-if="rows.length === 0" class="service-card__muted" role="status">
-            {{ t('serviceCard.domains.empty') }}
-          </p>
-          <p
-            v-else-if="visibleRows.length === 0"
-            class="service-card__muted"
-            role="status"
-          >
-            {{ t('serviceCard.filter.empty') }}
-          </p>
+                  {{ t('serviceCard.mutation.retry') }}
+                </button>
+              </span>
+            </template>
+          </li>
+        </ul>
+        <p
+          v-if="contentsState === 'ready' && rows.length === 0"
+          class="service-card__muted"
+          role="status"
+        >
+          {{ t('serviceCard.domains.empty') }}
+        </p>
+        <p
+          v-else-if="contentsState === 'ready' && visibleRows.length === 0"
+          class="service-card__muted"
+          role="status"
+        >
+          {{ t('serviceCard.filter.empty') }}
+        </p>
 
-          <p
-            v-if="importStatus !== ''"
-            class="service-card__muted"
-            role="status"
-          >
-            {{ importStatus }}
-          </p>
-          <p
-            v-if="refreshSkipped > 0"
-            class="service-card__muted"
-            role="status"
-          >
-            {{ tc('serviceCard.refresh.skipped', refreshSkipped) }}
-          </p>
-        </template>
-
+        <p v-if="importStatus !== ''" class="service-card__muted" role="status">
+          {{ importStatus }}
+        </p>
+        <p v-if="refreshSkipped > 0" class="service-card__muted" role="status">
+          {{ tc('serviceCard.refresh.skipped', refreshSkipped) }}
+        </p>
         <!-- Composing leaves nothing under the table: the sheet's height is the
              table's, and the footer sits directly under its last row. -->
         <p v-if="curating" class="service-card__aside">
@@ -1395,6 +1402,7 @@ function onOpenChange(open: boolean): void {
   min-height: min-content;
 }
 
+.service-card__commands,
 .service-card__heading {
   display: flex;
   flex-wrap: wrap;
@@ -1620,6 +1628,16 @@ function onOpenChange(open: boolean): void {
      the body can then scroll its controls without replacing the table scroll. */
   min-height: calc(var(--rv-row-default) * 2);
   contain: size;
+}
+
+.service-card__loading-row::before {
+  content: '';
+  display: block;
+  width: 60%;
+  height: var(--rv-space-4);
+  margin-block: var(--rv-space-3);
+  background: var(--rv-color-surface-muted);
+  border-radius: var(--rv-radius-sm);
 }
 
 .service-card__rows li {

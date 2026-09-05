@@ -58,16 +58,6 @@ const triggerLabel = computed(() =>
 
 <template>
   <div ref="element" class="catalog-filters">
-    <label class="catalog-filters__search">
-      <RvIcon name="search" />
-      <input
-        v-model="search"
-        :aria-label="t('create.search')"
-        :placeholder="t('create.search')"
-        :disabled="disabled"
-        type="search"
-      />
-    </label>
     <div
       class="catalog-filters__categories"
       :aria-label="t('servicePicker.filter.label')"
@@ -117,6 +107,16 @@ const triggerLabel = computed(() =>
         </template>
       </RvSearchSelect>
     </div>
+    <label class="catalog-filters__search">
+      <RvIcon name="search" />
+      <input
+        v-model="search"
+        :aria-label="t('create.search')"
+        :placeholder="t('create.search')"
+        :disabled="disabled"
+        type="search"
+      />
+    </label>
   </div>
 </template>
 

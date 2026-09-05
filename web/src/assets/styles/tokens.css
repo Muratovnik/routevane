@@ -156,7 +156,7 @@
   --rv-picker-priority-width: 2.75rem;
   --rv-picker-name-width: 8rem;
   --rv-picker-rule-width: 5rem;
-  --rv-picker-overlap-width: 8rem;
+  --rv-picker-overlap-width: 10rem;
   --rv-picker-mobile-height: clamp(22rem, 64dvh, 32rem);
   --rv-fact-label-width: 8rem;
   --rv-disabled-opacity: 0.5;

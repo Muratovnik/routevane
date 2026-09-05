@@ -94,6 +94,12 @@
   width: var(--rv-picker-overlap-width);
 }
 
+.picker__column-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rv-space-1);
+}
+
 .picker__tag {
   display: inline-flex;
   margin: var(--rv-space-1) var(--rv-space-1) var(--rv-space-1) 0;

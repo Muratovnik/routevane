@@ -160,6 +160,7 @@ async function submit(): Promise<void> {
             "
             :overlap-unavailable="setup.selectedTargetID.value === ''"
             :forecast-pending="setup.forecastPending.value"
+            :refreshing="setup.observing.value"
             :list-name="setup.name.value"
             pending
             :services="setup.services.value"

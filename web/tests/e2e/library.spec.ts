@@ -3737,7 +3737,7 @@ for (const language of ['en', 'ru'] as const) {
           })
         })
         const refresh = library
-          .locator('.service-card__heading > .rv-button')
+          .locator('.service-card__commands > .rv-button')
           .first()
         await expect(refresh).toHaveAccessibleName(copy('serviceCard.refresh'))
         const libraryClose = library
@@ -4445,6 +4445,121 @@ async function embeddedFiles(root: string, prefix = ''): Promise<string[]> {
 function sha256(value: string | Uint8Array): string {
   return createHash('sha256').update(value).digest('hex')
 }
+
+test('source refresh stays available during a forecast and reports its own busy state', async ({
+  page,
+}) => {
+  let releaseForecast!: () => void
+  let releaseRefresh!: () => void
+  const forecastHeld = new Promise<void>((resolve) => {
+    releaseForecast = resolve
+  })
+  const refreshHeld = new Promise<void>((resolve) => {
+    releaseRefresh = resolve
+  })
+  let forecasts = 0
+  let refreshes = 0
+  await page.route('**/v1/lists/preview', async (route) => {
+    forecasts += 1
+    if (forecasts === 1) await forecastHeld
+    await route.fulfill({ json: { targets: [] } })
+  })
+  await page.route('**/v1/services/discord/refresh', async (route) => {
+    refreshes += 1
+    await refreshHeld
+    await route.fulfill({ json: { refresh: {} } })
+  })
+  try {
+    await page.goto(`${origin}/lists/new`)
+    await page.locator('input[value="discord"]').check()
+    await expect.poll(() => forecasts).toBe(1)
+    const refresh = page
+      .locator('.picker__summary')
+      .getByRole('button', { name: 'Refresh from sources', exact: true })
+    await expect(refresh).toBeEnabled()
+    await refresh.click()
+    await expect.poll(() => refreshes).toBe(1)
+    await expect(refresh).toBeDisabled()
+    await expect(refresh).toHaveAttribute('aria-busy', 'true')
+    releaseRefresh()
+    await expect.poll(() => forecasts).toBeGreaterThan(1)
+    await expect(refresh).toBeEnabled()
+    releaseForecast()
+    await expect(
+      page.getByText('List order sets the priority.', { exact: true }),
+    ).toHaveCount(0)
+    const search = (await page
+      .getByRole('searchbox', { name: 'Find a list' })
+      .boundingBox())!
+    const categories = (await page
+      .locator('.catalog-filters__categories')
+      .boundingBox())!
+    expect(search.y).toBeGreaterThanOrEqual(categories.y + categories.height)
+  } finally {
+    releaseForecast()
+    releaseRefresh()
+    await page.unrouteAll({ behavior: 'wait' })
+  }
+})
+
+test('library rows disclose inspection and the card keeps its controls while switching lists', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 960 })
+  const first = await (
+    await page.request.get(`${origin}/v1/services/discord/contents`)
+  ).json()
+  const second = await (
+    await page.request.get(`${origin}/v1/services/youtube/contents`)
+  ).json()
+  let release!: () => void
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await page.route('**/v1/services/discord/contents', (route) =>
+    route.fulfill({ json: { ...first, observed: true } }),
+  )
+  await page.route('**/v1/services/youtube/contents', async (route) => {
+    await held
+    await route.fulfill({ json: { ...second, observed: true } })
+  })
+  try {
+    await page.goto(`${origin}/library`)
+    await page.locator('[data-id="discord"] .lists__category-column').click()
+    const card = page.locator('.rv-dialog--docked')
+    await expect(card).toHaveAccessibleName('Discord')
+    const filter = card.locator('.service-card__filter-input')
+    await expect(filter).toBeEnabled()
+    const before = (await filter.boundingBox())!
+    const rowsBefore = (await card
+      .locator('.service-card__rows')
+      .boundingBox())!
+    await page.locator('[data-id="youtube"] .lists__category-column').click()
+    await expect(card).toHaveAccessibleName('YouTube')
+    await expect(filter).toBeDisabled()
+    await expect(
+      card.getByText('Loading the list contents…', { exact: true }),
+    ).toBeVisible()
+    const loading = (await filter.boundingBox())!
+    const rowsLoading = (await card
+      .locator('.service-card__rows')
+      .boundingBox())!
+    expect(Math.abs(loading.y - before.y)).toBeLessThanOrEqual(1)
+    expect(Math.abs(rowsLoading.y - rowsBefore.y)).toBeLessThanOrEqual(1)
+    await expect(card.locator('.service-card__count')).toHaveText('—')
+    release()
+    await expect(filter).toBeEnabled()
+    expect(
+      Math.abs((await filter.boundingBox())!.y - before.y),
+    ).toBeLessThanOrEqual(1)
+    await page.keyboard.press('Escape')
+    await page.locator('[data-id="discord"] .lists__open-indicator').click()
+    await expect(card).toHaveAccessibleName('Discord')
+  } finally {
+    release()
+    await page.unrouteAll({ behavior: 'wait' })
+  }
+})
 
 test('composition keeps its context in docked and overlaid cards and isolates navigation scroll', async ({
   page,

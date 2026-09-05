@@ -346,6 +346,20 @@ previous filter. Both return focus to the trigger, which reflects a selected
 category absent from the quick filters. The primary search continues to search
 lists. The panel's ground and border must survive portal rendering.
 
+Category filters precede the list search in both workflows. The composition
+toolbar shows selection and calculation state; the overlap explanation is
+attached to its column heading, and priority semantics stay in documentation.
+Refreshing selected lists is available without choosing a format and while a
+forecast is calculating. Only an actual source read shows the refresh button's
+busy state and prevents a duplicate refresh, apart from conflicting writes.
+
+Library rows open inspection from their non-interactive area and show a right
+chevron; the named button retains keyboard access. Reorder handles and menus
+keep their separate actions. On a list switch, the card clears the previous
+list's data but retains its command bar, search and table geometry. Loading
+placeholders occupy the table; failures expose retry in the reserved status row.
+Source actions use bordered buttons, distinct from the contents heading.
+
 This is the shared layout verification matrix; rule and skill files link here:
 
 | Scenario             | Verification                                                                                                                 |

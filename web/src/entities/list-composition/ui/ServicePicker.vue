@@ -36,6 +36,7 @@ const props = defineProps<{
   pending?: boolean
   forecast?: TargetForecast | null
   forecastPending?: boolean
+  refreshing?: boolean
   forecastFailure?: string
   overlapUnavailable?: boolean
   overlapUnavailableLabel?: string
@@ -362,8 +363,8 @@ function serviceLabel(serviceID: string): string {
       <div class="picker__summary">
         <RvButton
           size="compact"
-          variant="quiet"
-          :disabled="disabled || forecastPending || resolved.length === 0"
+          :loading="refreshing"
+          :disabled="disabled || resolved.length === 0"
           @click="emit('refresh')"
         >
           {{ t('serviceCard.refresh') }}
@@ -396,7 +397,7 @@ function serviceLabel(serviceID: string): string {
         />
         <span role="status">{{ tc('create.resolved', resolved.length) }}</span>
         <div class="picker__forecast-status" role="status">
-          <span>{{ overlapMessage || t('list.priority.body') }}</span>
+          <span>{{ overlapMessage }}</span>
           <RvButton
             v-if="
               overlapMessage !== '' &&
@@ -409,11 +410,6 @@ function serviceLabel(serviceID: string): string {
             >{{ t('action.retry') }}</RvButton
           >
         </div>
-
-        <RvInfoTip
-          :label="t('servicePicker.column.overlaps')"
-          :text="t('servicePicker.overlap.legend')"
-        />
       </div>
     </div>
     <div class="picker__table-frame">
@@ -449,7 +445,13 @@ function serviceLabel(serviceID: string): string {
               {{ t('servicePicker.column.rules') }}
             </th>
             <th class="picker__overlaps-column" scope="col">
-              {{ t('servicePicker.column.overlaps') }}
+              <span class="picker__column-label">
+                {{ t('servicePicker.column.overlaps') }}
+                <RvInfoTip
+                  :label="t('servicePicker.column.overlaps')"
+                  :text="t('servicePicker.overlap.legend')"
+                />
+              </span>
             </th>
             <th class="picker__action-heading" scope="col">
               <span class="picker__visually-hidden">{{

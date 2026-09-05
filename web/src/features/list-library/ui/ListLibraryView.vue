@@ -248,6 +248,14 @@ function openService(serviceID: string): void {
   })
 }
 
+function openRow(event: MouseEvent, serviceID: string): void {
+  if (tableDisabled.value || event.defaultPrevented) return
+  const target = event.target
+  if (target instanceof Element && target.closest('button, a, input, select'))
+    return
+  openService(serviceID)
+}
+
 function startCreateService(): void {
   if (library.stale.value) return
   listSheetError.value = ''
@@ -717,6 +725,7 @@ async function submitPriority(): Promise<void> {
               :key="service.id"
               class="lists__list-row"
               :data-id="service.id"
+              @click="openRow($event, service.id)"
             >
               <td class="lists__priority-column">
                 <button
@@ -757,7 +766,8 @@ async function submitPriority(): Promise<void> {
                   :disabled="library.busy.value"
                   @click="openService(service.id)"
                 >
-                  {{ service.title }}
+                  <span>{{ service.title }}</span>
+                  <RvIcon name="chevron" class="lists__open-indicator" />
                 </button>
               </th>
               <td class="lists__category-column">
