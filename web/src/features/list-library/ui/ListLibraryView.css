@@ -83,7 +83,7 @@
 }
 
 .lists__table .lists__priority-column {
-  width: var(--rv-fact-label-width);
+  width: var(--rv-table-action-width);
 }
 
 .lists__table .lists__action-column {
@@ -248,4 +248,12 @@
     font-size: var(--rv-text-meta);
     overflow-wrap: anywhere;
   }
+}
+
+/* The fallback is portalled outside its table; retain table column geometry. */
+.lists__list-row.sortable-fallback {
+  display: table;
+  table-layout: fixed;
+  border-collapse: collapse;
+  background: var(--rv-color-surface-muted);
 }

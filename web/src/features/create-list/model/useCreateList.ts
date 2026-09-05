@@ -298,7 +298,10 @@ export function useCreateList() {
       flowState.value = 'creating'
       const list = await createList(name.value.trim(), composition.value)
       flowState.value = 'idle'
-      return { listID: list.id, targetID: selectedTargetID.value }
+      return {
+        listID: list.id,
+        targetID: selectedTargetID.value,
+      }
     } catch {
       flowState.value = 'failed'
       return null
@@ -321,6 +324,9 @@ export function useCreateList() {
     name,
     observing: forecast.observing,
     forecastPending: forecast.pending,
+    forecastFailure: forecast.failure,
+    refreshSources: () =>
+      forecast.refresh(composition.value, resolvedServiceIDs.value),
     retryForecast: () =>
       forecast.retry(composition.value, resolvedServiceIDs.value),
     registerCatalog,

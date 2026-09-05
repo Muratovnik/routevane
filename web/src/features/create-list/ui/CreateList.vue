@@ -150,6 +150,11 @@ async function submit(): Promise<void> {
             :categories="setup.categories.value"
             :disabled="setup.busy.value"
             :forecast="setup.selectedForecast.value"
+            :forecast-failure="
+              setup.forecastFailure.value
+                ? t(`forecast.failure.${setup.forecastFailure.value}`)
+                : undefined
+            "
             :overlap-unavailable="setup.selectedTargetID.value === ''"
             :forecast-pending="setup.forecastPending.value"
             :list-name="setup.name.value"
@@ -157,6 +162,7 @@ async function submit(): Promise<void> {
             :services="setup.services.value"
             :retryable="setup.selectedTargetID.value !== ''"
             @reorder="setup.setPriority"
+            @refresh="setup.refreshSources"
             @retry="setup.retryForecast"
           />
         </div>

@@ -15,6 +15,7 @@ import type {
 import { useLocale } from '@/shared/i18n/useLocale'
 import { libraryPageHash, parseLibraryPageHash } from '@/shared/lib/libraryHash'
 import type { ChoiceOption, MenuItem, SegmentOption } from '@/shared/ui/kinds'
+import { tableDragGeometry } from '@/shared/lib/tableDrag'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvField from '@/shared/ui/RvField.vue'
@@ -523,6 +524,7 @@ const tableBody = useTemplateRef<HTMLElement>('tableBody')
 const visibleOrder = computed({
   get: () => visibleServices.value.map((service) => service.id),
   set: (ids: string[]) => {
+    if (tableDisabled.value) return
     const visible = new Set(ids)
     let index = 0
     priorityDraft.value = priorityDraft.value.map((id) =>
@@ -532,14 +534,19 @@ const visibleOrder = computed({
   },
 })
 const sortable = useSortable(tableBody, visibleOrder, {
-  handle: '.lists__handle',
+  handle: '.lists__handle:not(:disabled)',
+  filter: '.lists__handle:disabled',
+  preventOnFilter: false,
+  ...tableDragGeometry(),
   animation: 200,
   forceFallback: true,
   fallbackOnBody: true,
   watchElement: true,
   disabled: tableDisabled.value,
 })
-watch(tableDisabled, (disabled) => sortable.option('disabled', disabled))
+watch(tableDisabled, (disabled) => sortable.option('disabled', disabled), {
+  flush: 'sync',
+})
 function movePriority(id: string, offset: number): void {
   if (tableDisabled.value) return
   const ids = [...visibleOrder.value]
@@ -683,7 +690,9 @@ async function submitPriority(): Promise<void> {
           <thead>
             <tr>
               <th class="lists__priority-column" scope="col">
-                {{ t('lists.priority.column') }}
+                <span class="lists__visually-hidden">{{
+                  t('lists.priority.column')
+                }}</span>
               </th>
               <th scope="col">{{ t('servicePicker.column.list') }}</th>
               <th class="lists__category-column" scope="col">
@@ -729,9 +738,7 @@ async function submitPriority(): Promise<void> {
                     )
                   "
                 >
-                  <RvIcon name="drag" /><span aria-hidden="true">{{
-                    priorityDraft.indexOf(service.id) + 1
-                  }}</span>
+                  <RvIcon name="drag" />
                 </button>
               </td>
               <th scope="row">

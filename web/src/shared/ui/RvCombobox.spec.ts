@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import type { ChoiceGroup } from '@/shared/ui/kinds'
@@ -41,24 +41,23 @@ function list(): HTMLElement | null {
   return document.body.querySelector<HTMLElement>('[role="listbox"]')
 }
 
-// What a reader can actually see: a filtered-out run and a filtered-out choice
-// are hidden in place rather than removed, so the query says so too.
 function visibleOptions(): string[] {
   return [
-    ...(list()?.querySelectorAll<HTMLElement>(
-      '.rv-combobox__group:not([hidden]) [role="option"]:not([hidden])',
-    ) ?? []),
+    ...(list()?.querySelectorAll<HTMLElement>('[role="option"]') ?? []),
   ].map((option) => option.textContent?.trim() ?? '')
 }
-
 function groupLabels(): string[] {
-  return [
-    ...(list()?.querySelectorAll<HTMLElement>(
-      '.rv-combobox__group:not([hidden]) .rv-combobox__group-label',
-    ) ?? []),
-  ].map((label) => label.textContent?.trim() ?? '')
+  return [...document.querySelectorAll('.rv-search-select__group-label')].map(
+    (label) => label.textContent?.trim() ?? '',
+  )
 }
-
+function search() {
+  return new DOMWrapper(
+    document.querySelector<HTMLInputElement>(
+      '.rv-search-select__search input',
+    )!,
+  )
+}
 function mountCombobox(props: Record<string, unknown> = {}) {
   return mount(RvCombobox, {
     attachTo: document.body,
@@ -88,7 +87,7 @@ describe('RvCombobox', () => {
     const wrapper = mountCombobox()
     open = wrapper
 
-    await wrapper.get('.rv-combobox__toggle').trigger('click')
+    await wrapper.get('.rv-search-select__trigger').trigger('click')
     await flushPromises()
 
     expect(groupLabels()).toEqual(['Routers', 'Applications'])
@@ -105,84 +104,82 @@ describe('RvCombobox', () => {
     const wrapper = mountCombobox()
     open = wrapper
 
-    const field = wrapper.get('.rv-combobox__input')
-    await wrapper.get('.rv-combobox__toggle').trigger('click')
+    await wrapper.get('.rv-search-select__trigger').trigger('click')
     await flushPromises()
 
-    await field.setValue('sing')
+    await search().setValue('sing')
     await flushPromises()
     expect(visibleOptions()).toHaveLength(1)
     expect(groupLabels()).toEqual(['Applications'])
 
-    await field.setValue('.bat')
+    await search().setValue('.bat')
     await flushPromises()
     expect(groupLabels()).toEqual(['Routers'])
 
-    await field.setValue('nothing-here')
+    await search().setValue('nothing-here')
     await flushPromises()
     expect(visibleOptions()).toHaveLength(0)
-    expect(list()?.textContent).toContain('Nothing found.')
+    expect(document.querySelector('[role="status"]')?.textContent).toContain(
+      'Nothing found.',
+    )
   })
 
   it('chooses with the keyboard and reads the choice back in the field', async () => {
     const wrapper = mountCombobox()
     open = wrapper
 
-    const field = wrapper.get('.rv-combobox__input')
-    await field.trigger('click')
+    await wrapper.get('button').trigger('click')
     await flushPromises()
-    await field.setValue('sing')
+    await search().setValue('sing')
     await flushPromises()
 
-    await field.trigger('keydown', { key: 'ArrowDown' })
+    await search().trigger('keydown', { key: 'ArrowDown' })
     await flushPromises()
-    await field.trigger('keydown', { key: 'Enter' })
+    await search().trigger('keydown', { key: 'Enter' })
     await flushPromises()
 
     expect(wrapper.emitted('update:modelValue')).toEqual([['singbox']])
     await wrapper.setProps({ modelValue: 'singbox' })
     await flushPromises()
-    expect(
-      wrapper.get<HTMLInputElement>('.rv-combobox__input').element.value,
-    ).toBe('sing-box')
+    expect(wrapper.get('button').text()).toBe('sing-box')
   })
 
-  it('drops a closed highlight and can choose after reopening', async () => {
+  it('clears a closed search and offers all options when reopened', async () => {
     const wrapper = mountCombobox()
     open = wrapper
-
-    const field = wrapper.get('.rv-combobox__input')
-    await field.trigger('keydown', { key: 'ArrowDown' })
+    await wrapper.get('button').trigger('click')
     await flushPromises()
-
-    const firstActive = field.attributes('aria-activedescendant')
-    expect(firstActive).toBeTruthy()
-    if (firstActive === undefined) throw new Error('no active descendant')
-    expect(document.getElementById(firstActive)).not.toBeNull()
-
-    await field.trigger('keydown', { key: 'Escape' })
+    await search().setValue('sing')
     await flushPromises()
-    expect(field.attributes('aria-expanded')).toBe('false')
-    expect(field.attributes('aria-activedescendant')).toBeUndefined()
-
-    await field.trigger('keydown', { key: 'ArrowDown' })
+    expect(visibleOptions()).toHaveLength(1)
+    await search().trigger('keydown', { key: 'Escape' })
     await flushPromises()
-    const reopenedActive = field.attributes('aria-activedescendant')
-    expect(reopenedActive).toBeTruthy()
-    if (reopenedActive === undefined) throw new Error('no active descendant')
-    expect(document.getElementById(reopenedActive)).not.toBeNull()
-
-    await field.trigger('keydown', { key: 'Enter' })
+    expect(wrapper.get('button').attributes('aria-expanded')).toBe('false')
+    await wrapper.get('button').trigger('click')
     await flushPromises()
-    expect(wrapper.emitted('update:modelValue')).toEqual([['keenetic']])
-    expect(field.attributes('aria-activedescendant')).toBeUndefined()
+    expect(search().element.value).toBe('')
+    expect(visibleOptions()).toHaveLength(3)
+  })
+
+  it('preserves the field label and refuses disabled choices', async () => {
+    const wrapper = mountCombobox({
+      groups: undefined,
+      options: [{ value: 'blocked', label: 'Blocked', disabled: true }],
+    })
+    open = wrapper
+    expect(wrapper.get('button').attributes('id')).toBe('target')
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+    document.querySelector<HTMLElement>('[role="option"]')!.click()
+    await flushPromises()
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
   })
 
   it('chooses with the pointer', async () => {
     const wrapper = mountCombobox()
     open = wrapper
 
-    await wrapper.get('.rv-combobox__toggle').trigger('click')
+    await wrapper.get('.rv-search-select__trigger').trigger('click')
     await flushPromises()
     const option = [
       ...(list()?.querySelectorAll<HTMLElement>('[role="option"]') ?? []),

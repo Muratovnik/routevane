@@ -490,11 +490,18 @@ func (s *PublicationService) validCompositionWithDefaultPriority(ctx context.Con
 
 // DefaultPriority returns the live library order. Stored ids that no longer
 // resolve are dropped, known ids retain their persisted order, and current
-// catalog ids not yet stored are appended in canonical order. An older or
-// in-memory repository without the optional seam naturally falls back to the
-// same canonical order.
+// catalog ids not yet stored are appended by category, then uncategorized.
+// An older or in-memory repository without the optional seam uses that grouped
+// order for the entire catalog.
 func (s *PublicationService) DefaultPriority(ctx context.Context) ([]string, error) {
-	available := s.Services()
+	// The first category in the catalog owns a multi-category service's slot.
+	// Uncategorized services follow the category groups. This is presentation
+	// priority only: Services and plan service identities remain canonical.
+	grouped := []string{}
+	for _, category := range s.Categories() {
+		grouped = append(grouped, category.Services...)
+	}
+	available := mergePriority(grouped, s.Services())
 	stored := []string(nil)
 	if repo, ok := s.config.Store.(LibraryPriorityRepository); ok {
 		var err error

@@ -87,9 +87,11 @@ async function publishList(
     .getByRole('searchbox', { name: message(language, 'create.search') })
     .fill('youtube')
   await page.locator('input[value="youtube"]').check()
-  await page.locator('.rv-combobox__toggle').click()
+  await page.locator('.rv-search-select__trigger--field').click()
   await page.getByRole('option', { name: formatNames[targetID] }).click()
-  await expect(page.locator('#create-target')).not.toHaveValue('')
+  await expect(page.locator('#create-target')).not.toHaveText(
+    'Choose a device or application',
+  )
   const outputsResponse = page.waitForResponse(
     (candidate) =>
       candidate.request().method() === 'POST' &&

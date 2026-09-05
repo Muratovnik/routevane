@@ -106,7 +106,7 @@ function onKeydown(event: KeyboardEvent, index: number): void {
 .rv-tabs__tab[aria-selected='true']::after {
   position: absolute;
   right: 0;
-  bottom: calc(-1 * var(--rv-border-hair));
+  bottom: 0;
   left: 0;
   height: 0.125rem;
   background: var(--rv-color-accent);

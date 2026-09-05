@@ -391,12 +391,7 @@ describe('ServiceDetailDialog', () => {
     await flushPromises()
 
     const panel = card()
-    for (const absent of [
-      'Add entries',
-      'Refresh from sources',
-      'Rename',
-      'Delete the list',
-    ]) {
+    for (const absent of ['Add entries', 'Rename', 'Delete the list']) {
       expect(panel.textContent, absent).not.toContain(absent)
     }
     // The fact is stated; nothing in the heading offers to change it.

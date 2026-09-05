@@ -359,7 +359,13 @@ describe('ListLibraryView', () => {
     expect(existing).toBeDefined()
     existing?.querySelector('input')?.click()
     await flushPromises()
-    const field = panel.querySelector<HTMLInputElement>('.rv-combobox__input')
+    panel
+      .querySelector<HTMLButtonElement>('.rv-search-select__trigger')!
+      .click()
+    await flushPromises()
+    const field = document.querySelector<HTMLInputElement>(
+      '.rv-search-select__search input',
+    )
     expect(field).not.toBeNull()
     field!.focus()
     field!.value = 'Steam'

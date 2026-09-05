@@ -145,6 +145,40 @@ describe('ServicePicker', () => {
     document.body.innerHTML = ''
   })
 
+  it('bulk selection applies to filtered rows and preserves hidden and category selections', async () => {
+    const wrapper = mountPicker({
+      modelValue: {
+        ...emptyComposition,
+        categories: ['communication'],
+        exclusions: ['telegram'],
+        services: ['youtube'],
+      },
+    })
+    const search = wrapper.get('input[type="search"]')
+    await search.setValue('communication')
+    const bulk = wrapper.get<HTMLInputElement>('thead input[type="checkbox"]')
+    expect(bulk.element.indeterminate).toBe(true)
+    await bulk.setValue(true)
+    const selected = wrapper
+      .emitted('update:modelValue')!
+      .at(-1)![0] as typeof emptyComposition
+    expect(selected).toMatchObject({
+      categories: ['communication'],
+      exclusions: [],
+      services: ['youtube'],
+    })
+    await wrapper.setProps({ modelValue: selected })
+    await bulk.setValue(false)
+    expect(wrapper.emitted('update:modelValue')!.at(-1)![0]).toMatchObject({
+      categories: ['communication'],
+      exclusions: ['discord', 'telegram'],
+      services: ['youtube'],
+    })
+    await search.setValue('no matching service')
+    expect(bulk.element.disabled).toBe(true)
+    wrapper.unmount()
+  })
+
   it('keeps row order and search state while selection changes', async () => {
     const wrapper = mountPicker({
       modelValue: { ...emptyComposition, services: ['discord'] },
@@ -374,7 +408,9 @@ describe('ServicePicker', () => {
     expect(card.textContent).toContain('iplist')
     // The value already says what it is; the caption does not repeat it.
     expect(card.textContent).not.toContain('IP address')
-    expect(card.textContent).not.toContain('from source')
+    expect(
+      card.querySelector('.service-card__rows')?.textContent,
+    ).not.toContain('from source')
     expect(card.textContent).toContain('3 entries on')
     expect(card.querySelectorAll('.service-card__rows li')).toHaveLength(5)
     expect(

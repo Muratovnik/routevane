@@ -191,6 +191,7 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
                 >
                   <RvSelect
                     :disabled="props.busy || props.archived"
+                    searchable
                     :input-id="`output-device-${output.id}`"
                     :loading="props.busy"
                     :model-value="output.deviceID"
@@ -322,6 +323,7 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
             v-model="chosenTarget"
             :disabled="props.busy || props.targetGroups.length === 0"
             :groups="targetChoices"
+            searchable
             input-id="outputs-target"
             :loading="props.busy"
             :placeholder="t('outputs.add.placeholder')"

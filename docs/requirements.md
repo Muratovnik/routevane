@@ -29,8 +29,9 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 - Separate global library editing from per-route selection. Permit library
   removal only when stored routes are not broken. Routes are archived, not
   destructively deleted; published history remains available.
-- Keep one configurable default list priority in the library. It initializes a
-  new route or forecast only when that request supplies no order; every route
+- Keep one configurable default list priority in the library. Before an operator
+  saves an order, group lists by category, with uncategorized lists last. This
+  initializes a new route or forecast only when that request supplies no order; every route
   then stores its own snapshot, and later library reordering does not rewrite
   existing routes. Equal destinations belong to the first list in that route;
   a lower-priority rule wholly covered by a higher list is omitted, while a

@@ -206,10 +206,23 @@ test('the library starts empty and shelves the route the composer creates and pu
     serviceCard.getByRole('heading', { name: 'Automatic sources' }),
   ).toHaveCount(0)
   await expect(serviceCard.getByText(/^Sources · \d+$/)).toBeVisible()
-  for (const absent of [/^Sources · \d+$/, /^Refresh from sources$/])
+  for (const absent of [/^Sources · \d+$/])
     await expect(serviceCard.getByRole('button', { name: absent })).toHaveCount(
       0,
     )
+
+  const refresh = serviceCard.getByRole('button', {
+    name: 'Refresh from sources',
+    exact: true,
+  })
+  await expect(refresh).toBeEnabled()
+  const refreshed = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/v1/services/discord/refresh') &&
+      response.request().method() === 'POST',
+  )
+  await refresh.click()
+  expect((await refreshed).ok()).toBe(true)
 
   // A list can stand for hundreds of destinations, so the card narrows them in
   // place rather than asking the operator to scroll.
@@ -258,6 +271,27 @@ test('the library starts empty and shelves the route the composer creates and pu
     steps: 4,
   })
   await page.waitForTimeout(50)
+  const ghost = page.locator('.picker__row.sortable-fallback')
+  await expect(ghost).toBeVisible()
+  const ghostBox = (await ghost.boundingBox())!
+  const originalBox = (await priorityRows.nth(0).boundingBox())!
+  expect(Math.abs(ghostBox.width - originalBox.width)).toBeLessThanOrEqual(1)
+  expect(Math.abs(ghostBox.height - originalBox.height)).toBeLessThanOrEqual(1)
+  const originalCells = await priorityRows
+    .nth(0)
+    .locator(':scope > td, :scope > th')
+    .evaluateAll((cells) =>
+      cells.map((cell) => cell.getBoundingClientRect().width),
+    )
+  const ghostCells = await ghost
+    .locator(':scope > td, :scope > th')
+    .evaluateAll((cells) =>
+      cells.map((cell) => cell.getBoundingClientRect().width),
+    )
+  expect(ghostCells).toHaveLength(originalCells.length)
+  ghostCells.forEach((width, index) =>
+    expect(Math.abs(width - originalCells[index]!)).toBeLessThanOrEqual(1),
+  )
   await page.mouse.move(to.x + to.width / 2, to.y + to.height + 8, {
     steps: 16,
   })
@@ -279,8 +313,8 @@ test('the library starts empty and shelves the route the composer creates and pu
   // The list opens against the field it belongs to: the same left edge, and
   // never narrower than it. A panel centred under a field reads as a menu that
   // happens to be near it rather than as that field's own list.
-  const targetField = page.locator('.rv-combobox__field')
-  const targetPanel = page.locator('.rv-combobox__panel')
+  const targetField = page.locator('.rv-search-select__trigger--field')
+  const targetPanel = page.locator('.rv-search-select__panel')
   await expect(targetPanel).toBeVisible()
   const fieldBox = await targetField.boundingBox()
   const panelBox = await targetPanel.boundingBox()
@@ -303,7 +337,7 @@ test('the library starts empty and shelves the route the composer creates and pu
     page.getByRole('option', { name: /Keenetic.*\.bat.*from Routevane/ }),
   ).toBeVisible()
   await page.getByRole('option', { name: /Keenetic/ }).click()
-  await expect(page.locator('#create-target')).toHaveValue('Keenetic')
+  await expect(page.locator('#create-target')).toHaveText('Keenetic')
   await expect(submit).toBeEnabled()
   const outputsResponse = page.waitForResponse(
     (candidate) =>
@@ -1130,6 +1164,12 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
     artifactBytes,
   )
   await expect(page.locator('.rv-code__caption')).toContainText('1 line')
+  await page.reload()
+  await expect(rendered).toHaveText(artifactBytes)
+  await expect(tablist.getByRole('tab', { name: 'File' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
 
   // Diagnostics counts the published rules per service and translates the
   // format's stable reason code into operator language.
@@ -1182,6 +1222,9 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   }))
   expect(JSON.stringify(storedAfterReload)).not.toContain('rv1.')
   expect(requestURLs.some((url) => url.includes('rv1.'))).toBe(false)
+
+  // A restored lazy tab loads without needing a detour through another tab.
+  await expect(diagnosticsPanel).toContainText('Excluded')
 
   // The file is still this computer's record, readable after the reload.
   await tablist.getByRole('tab', { name: 'File' }).click()
@@ -1400,7 +1443,7 @@ test('the composer sizes every format and refuses the pair that cannot hold the 
   await expect(page.getByText('sing-box would fit.')).toBeVisible()
 
   await page.getByRole('button', { name: 'Choose sing-box' }).click()
-  await expect(page.locator('#create-target')).toHaveValue('sing-box')
+  await expect(page.locator('#create-target')).toHaveText('sing-box')
   await expect(submit).toBeEnabled()
   assertProductAlive()
 })
@@ -1603,7 +1646,8 @@ test('an operator category carries its lists into a route and is kept while a ro
   await page.getByRole('button', { name: 'New list' }).click()
   const addList = page.getByRole('dialog', { name: 'New list' })
   await addList.getByText('Existing list', { exact: true }).click()
-  await addList.getByRole('combobox').fill('Discord')
+  await addList.locator('.rv-search-select__trigger').click()
+  await page.locator('.rv-search-select__search input').fill('Discord')
   await page.getByRole('option', { name: 'Discord' }).click()
   await addList.getByRole('button', { exact: true, name: 'Add' }).click()
   await expect(addList).toBeHidden()
@@ -1616,7 +1660,9 @@ test('an operator category carries its lists into a route and is kept while a ro
 
   // A filtered category exposes an explicit live-reference choice, so the
   // route follows it rather than freezing today's members.
-  const categoryFilter = page.locator('.rv-search-select__trigger')
+  const categoryFilter = page.locator(
+    '.catalog-filters .rv-search-select__trigger',
+  )
   await categoryFilter.click()
   await page.getByRole('option', { name: 'Домашние' }).click()
   await page.getByRole('checkbox', { name: 'Follow “Домашние”' }).check()
@@ -1640,7 +1686,9 @@ test('an operator category carries its lists into a route and is kept while a ro
     .getByRole('tablist', { name: 'Route sections' })
     .getByRole('tab', { name: 'Contents' })
     .click()
-  const editorFilter = page.locator('.rv-search-select__trigger')
+  const editorFilter = page.locator(
+    '.catalog-filters .rv-search-select__trigger',
+  )
   await editorFilter.click()
   await page.getByRole('option', { name: 'Домашние' }).click()
   await expect(
@@ -1684,7 +1732,9 @@ test('an operator category carries its lists into a route and is kept while a ro
     .getByRole('tablist', { name: 'Route sections' })
     .getByRole('tab', { name: 'Contents' })
     .click()
-  const routeEditorFilter = page.locator('.rv-search-select__trigger')
+  const routeEditorFilter = page.locator(
+    '.catalog-filters .rv-search-select__trigger',
+  )
   await routeEditorFilter.click()
   await page.getByRole('option', { name: 'Домашние' }).click()
   await page.getByRole('checkbox', { name: 'Follow “Домашние”' }).uncheck()
@@ -1893,12 +1943,15 @@ test('every portalled overlay arrives with its own ground and edge', async ({
 
   await page.goto(`${origin}/connections`)
   await page.locator('#device-target').click()
-  await assertPainted(page.locator('.rv-select__panel'), 'select')
+  await assertPainted(
+    page.locator('.rv-search-select__panel'),
+    'connection choice',
+  )
   await page.keyboard.press('Escape')
 
   await page.goto(`${origin}/lists/new`)
   await openFormats(page)
-  await assertPainted(page.locator('.rv-combobox__panel'), 'combobox')
+  await assertPainted(page.locator('.rv-search-select__panel'), 'combobox')
   await page.keyboard.press('Escape')
 
   await page
@@ -1910,39 +1963,97 @@ test('every portalled overlay arrives with its own ground and edge', async ({
   assertProductAlive()
 })
 
-test('the connection combobox drops its highlight when closed and reopens by keyboard', async ({
+test('the composition table blocks unselected drags and bulk-selects only its category', async ({
+  page,
+}) => {
+  await page.goto(`${origin}/lists/new`)
+  const rows = page.locator('.picker__row')
+  await expect(rows.first()).toBeVisible()
+  const before = await rows.evaluateAll((elements) =>
+    elements.map((element) => element.getAttribute('data-id')),
+  )
+  const handle = rows.first().locator('.picker__handle')
+  await expect(handle).toBeDisabled()
+  const from = (await handle.boundingBox())!
+  const to = (await rows.nth(1).boundingBox())!
+  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(to.x + to.width / 2, to.y + to.height, { steps: 12 })
+  await expect(page.locator('.sortable-fallback')).toHaveCount(0)
+  await page.mouse.up()
+  expect(
+    await rows.evaluateAll((elements) =>
+      elements.map((element) => element.getAttribute('data-id')),
+    ),
+  ).toEqual(before)
+  await page.locator('input[value="youtube"]').check()
+  await page
+    .locator('.catalog-filters__chip')
+    .filter({ hasText: 'Communication' })
+    .click()
+  const bulk = page.getByRole('checkbox', {
+    name: 'Select or clear all visible lists',
+  })
+  await bulk.check()
+  await expect(page.locator('input[value="discord"]')).toBeChecked()
+  await bulk.uncheck()
+  await page
+    .locator('.catalog-filters__chip')
+    .filter({ hasText: 'All categories' })
+    .click()
+  await expect(page.locator('input[value="youtube"]')).toBeChecked()
+  await expect(page.locator('input[value="discord"]')).not.toBeChecked()
+  const text = page.locator('#create-name')
+  const choice = page.locator('#create-target')
+  expect(
+    await text.evaluate((element) => getComputedStyle(element).backgroundColor),
+  ).toBe(
+    await choice.evaluate(
+      (element) => getComputedStyle(element).backgroundColor,
+    ),
+  )
+  const refresh = page
+    .locator('.picker__summary')
+    .getByRole('button', { name: 'Refresh from sources', exact: true })
+  await expect(refresh).toBeEnabled()
+  const read = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/v1/services/youtube/refresh') &&
+      response.request().method() === 'POST',
+  )
+  const forecast = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(forecastPath) &&
+      response.request().method() === 'POST',
+  )
+  await refresh.click()
+  expect((await read).ok()).toBe(true)
+  expect((await forecast).ok()).toBe(true)
+  assertProductAlive()
+})
+
+test('the searchable connection choice filters in its panel and reopens by keyboard', async ({
   page,
 }) => {
   await page.goto(`${origin}/lists/new`)
   const field = page.locator('#create-target')
   await expect(field).toBeVisible()
-
-  await field.press('ArrowDown')
-  await expect(field).toHaveAttribute('aria-expanded', 'true')
-  expect(
-    await field.evaluate((input) => {
-      const id = input.getAttribute('aria-activedescendant')
-      return id !== null && document.getElementById(id) !== null
-    }),
-  ).toBe(true)
-
-  await field.press('Escape')
-  await expect(field).toHaveAttribute('aria-expanded', 'false')
-  await expect(field).not.toHaveAttribute('aria-activedescendant', /.+/)
-
-  await field.press('ArrowDown')
-  await expect(field).toHaveAttribute('aria-expanded', 'true')
-  expect(
-    await field.evaluate((input) => {
-      const id = input.getAttribute('aria-activedescendant')
-      return id !== null && document.getElementById(id) !== null
-    }),
-  ).toBe(true)
   await field.press('Enter')
-  await expect(field).not.toHaveValue('')
-  await expect(field).not.toHaveAttribute('aria-activedescendant', /.+/)
-
-  expect(await audit(page, 'combobox keyboard cycle')).toEqual([])
+  const search = page.locator('.rv-search-select__search input')
+  await expect(search).toBeFocused()
+  await search.fill('Keenetic')
+  await expect(page.getByRole('option')).toHaveCount(1)
+  await search.press('Escape')
+  await expect(field).toHaveAttribute('aria-expanded', 'false')
+  await expect(field).toBeFocused()
+  await field.press('Enter')
+  await expect(search).toHaveValue('')
+  await search.fill('sing-box')
+  await search.press('ArrowDown')
+  await search.press('Enter')
+  await expect(field).toHaveText('sing-box')
+  await expect(field).toHaveAttribute('aria-expanded', 'false')
+  expect(await audit(page, 'searchable connection keyboard cycle')).toEqual([])
   assertProductAlive()
 })
 
@@ -2021,7 +2132,7 @@ test('hiding a format removes it from the connection picker and says where it we
   ).toHaveCount(0)
   expect(
     await outputFormats
-      .locator('.rv-select__group-label')
+      .locator('.rv-search-select__group-label')
       .evaluateAll((nodes) => nodes.map((node) => node.textContent?.trim())),
   ).toEqual(['Applications'])
   await page.keyboard.press('Escape')
@@ -2839,9 +2950,22 @@ test('workspace pages share geometry and the category panel supports keyboard se
   ).toBeVisible()
   const nav = page.getByRole('link', { name: 'Lists', exact: true })
   await nav.focus()
-  await expect(nav.locator('.shell__nav-label')).toHaveCSS('opacity', '1')
+  const tooltip = page.locator('.rv-tooltip')
+  await expect(tooltip).toBeVisible()
+  await expect(nav).toHaveAccessibleDescription('Lists')
+  expect(
+    await tooltip.evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      return element.contains(
+        document.elementFromPoint(
+          rect.x + rect.width / 2,
+          rect.y + rect.height / 2,
+        ),
+      )
+    }),
+  ).toBe(true)
   await page.getByRole('button', { name: 'Expand sidebar' }).click()
-  const more = page.locator('.rv-search-select__trigger')
+  const more = page.locator('.catalog-filters .rv-search-select__trigger')
   await more.click()
   const search = page.getByRole('textbox', { name: 'Find a category' })
   await expect(search).toBeFocused()
@@ -2917,7 +3041,9 @@ test('the composition editor keeps its geometry across selections and shell brea
     .locator('.catalog-filters__chip')
     .first()
     .boundingBox()
-  const more = await page.locator('.rv-search-select__trigger').boundingBox()
+  const more = await page
+    .locator('.catalog-filters .rv-search-select__trigger')
+    .boundingBox()
   expect(more!.height).toBe(chips!.height)
   const after = await table.boundingBox()
   expect(after).not.toBeNull()
@@ -3030,7 +3156,7 @@ async function openLibraryCategory(
   page: Page,
   category: string,
 ): Promise<void> {
-  await page.locator('.rv-search-select__trigger').click()
+  await page.locator('.catalog-filters .rv-search-select__trigger').click()
   await page.getByRole('option', { name: category }).click()
   await expect(page.locator('.lists__details-title')).toHaveText(category)
 }
@@ -3211,7 +3337,9 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     )
     await select(2, 'Overlap Gamma', false)
     expect((await failed).status()).toBe(503)
-    await expect(priority.getByText('Overlaps unknown')).toBeVisible()
+    await expect(
+      priority.getByText('Calculation unavailable. Try again.'),
+    ).toBeVisible()
     const retry = priority.getByRole('button', { name: 'Retry', exact: true })
     await expect(retry).toBeVisible()
     fail = false
@@ -4001,7 +4129,7 @@ for (const language of ['en', 'ru'] as const) {
 }
 
 async function openFormats(page: Page): Promise<Locator> {
-  await page.locator('.rv-combobox__toggle').click()
+  await page.locator('.rv-search-select__trigger--field').click()
   await expect(formatList(page)).toBeVisible()
   return formatList(page)
 }
@@ -4009,7 +4137,9 @@ async function openFormats(page: Page): Promise<Locator> {
 async function chooseFormat(page: Page, name: RegExp): Promise<void> {
   await openFormats(page)
   await page.getByRole('option', { name }).click()
-  await expect(page.locator('#create-target')).not.toHaveValue('')
+  await expect(page.locator('#create-target')).not.toHaveText(
+    'Choose a device or application',
+  )
 }
 
 /**

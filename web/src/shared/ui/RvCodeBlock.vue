@@ -7,13 +7,14 @@
  * page around it does not move.
  */
 defineProps<{
+  fill?: boolean
   caption: string
   text: string
 }>()
 </script>
 
 <template>
-  <figure class="rv-code">
+  <figure class="rv-code" :class="{ 'rv-code--fill': fill }">
     <figcaption class="rv-code__caption">
       <span>{{ caption }}</span>
       <slot name="action" />
@@ -52,5 +53,9 @@ defineProps<{
   border: var(--rv-border-hair) solid var(--rv-color-rule);
   border-radius: var(--rv-radius-sm);
   tab-size: 4;
+}
+
+.rv-code--fill .rv-code__body {
+  max-height: var(--rv-artifact-height);
 }
 </style>

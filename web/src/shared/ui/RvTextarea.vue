@@ -35,7 +35,7 @@ const model = defineModel<string>({ required: true })
   font-family: var(--rv-font-mono);
   line-height: var(--rv-leading-normal);
   resize: vertical;
-  background: var(--rv-color-surface);
+  background: var(--rv-color-field);
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-md);
 }

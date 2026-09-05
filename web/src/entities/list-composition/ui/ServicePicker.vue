@@ -13,6 +13,7 @@ import {
 import type { CategoryDetail, ServiceDetail } from '@/shared/api/catalog'
 import type { ListComposition, TargetForecast } from '@/shared/api/lists'
 import { useLocale } from '@/shared/i18n/useLocale'
+import { tableDragGeometry } from '@/shared/lib/tableDrag'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
@@ -32,6 +33,7 @@ const props = defineProps<{
   pending?: boolean
   forecast?: TargetForecast | null
   forecastPending?: boolean
+  forecastFailure?: string
   overlapUnavailable?: boolean
   overlapUnavailableLabel?: string
   retryable?: boolean
@@ -40,6 +42,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: ListComposition]
   reorder: [ids: string[]]
+  refresh: []
   retry: []
 }>()
 
@@ -125,6 +128,7 @@ const visibleOrder = computed({
       visibleRows.value.some((row) => row.id === id),
     ),
   set: (ids: string[]) => {
+    if (props.disabled || !resolvedSet.value.has(draggedID)) return
     const visible = new Set(ids)
     let index = 0
     rowOrder.value = rowOrder.value.map((id) =>
@@ -154,7 +158,10 @@ const sortable = useSortable(tableBody, visibleOrder, {
   fallbackOnBody: true,
   fallbackTolerance: 3,
   forceFallback: true,
-  handle: '.picker__handle',
+  handle: '.picker__handle:not(:disabled)',
+  filter: '.picker__handle:disabled',
+  preventOnFilter: false,
+  ...tableDragGeometry(),
   watchElement: true,
   onStart: (event) => {
     draggedID = event.item.dataset.id ?? ''
@@ -162,7 +169,8 @@ const sortable = useSortable(tableBody, visibleOrder, {
 })
 watch(
   () => props.disabled,
-  (disabled) => sortable.option('disabled', disabled),
+  (disabled) => sortable.option('disabled', Boolean(disabled)),
+  { flush: 'sync' },
 )
 
 function movePriority(id: string, offset: number): void {
@@ -186,6 +194,7 @@ const overlapMessage = computed(() => {
       props.overlapUnavailableLabel ?? t('servicePicker.overlap.unavailable')
     )
   if (props.forecastPending) return t('servicePicker.overlap.pending')
+  if (props.forecastFailure) return props.forecastFailure
   return resolved.value.some((id) => overlapTitles(id) === null)
     ? t('servicePicker.overlap.unknown')
     : ''
@@ -222,6 +231,25 @@ function categoryNames(service: ServiceDetail): string {
 
 function included(serviceID: string): boolean {
   return serviceIncluded(props.modelValue, props.categories, serviceID)
+}
+
+const visibleSelected = computed(
+  () => orderedRows.value.filter((row) => included(row.id)).length,
+)
+const allVisibleSelected = computed(
+  () =>
+    orderedRows.value.length > 0 &&
+    visibleSelected.value === orderedRows.value.length,
+)
+function toggleVisible(): void {
+  if (props.disabled) return
+  const select = !allVisibleSelected.value
+  let next = props.modelValue
+  for (const row of orderedRows.value) {
+    if (serviceIncluded(next, props.categories, row.id) !== select)
+      next = toggleCompositionService(next, props.categories, row.id)
+  }
+  emit('update:modelValue', next)
 }
 
 function toggleService(serviceID: string): void {
@@ -271,7 +299,13 @@ function ruleLabel(serviceID: string): string {
 }
 
 function overlapTitles(serviceID: string): string[] | null {
-  if (!resolvedSet.value.has(serviceID)) return null
+  if (
+    !resolvedSet.value.has(serviceID) ||
+    props.forecastPending ||
+    props.forecastFailure ||
+    props.overlapUnavailable
+  )
+    return null
   const ids = overlapServiceIDs(props.forecast, serviceID)
   if (ids === null) return null
   return ids
@@ -321,6 +355,14 @@ function serviceLabel(serviceID: string): string {
       </label>
 
       <div class="picker__summary">
+        <RvButton
+          size="compact"
+          variant="quiet"
+          :disabled="disabled || forecastPending || resolved.length === 0"
+          @click="emit('refresh')"
+        >
+          {{ t('serviceCard.refresh') }}
+        </RvButton>
         <span role="status">{{ tc('create.resolved', resolved.length) }}</span>
         <span>{{ t('list.priority.body') }}</span>
         <RvInfoTip
@@ -339,9 +381,15 @@ function serviceLabel(serviceID: string): string {
               }}</span>
             </th>
             <th class="picker__choice-heading" scope="col">
-              <span class="picker__visually-hidden">{{
-                t('servicePicker.column.include')
-              }}</span>
+              <input
+                type="checkbox"
+                class="picker__checkbox"
+                :checked="allVisibleSelected"
+                :indeterminate="visibleSelected > 0 && !allVisibleSelected"
+                :disabled="disabled || orderedRows.length === 0"
+                :aria-label="t('servicePicker.selectVisible')"
+                @change="toggleVisible"
+              />
             </th>
             <th scope="col">
               {{ t('servicePicker.column.list')
@@ -407,9 +455,7 @@ function serviceLabel(serviceID: string): string {
                   )
                 "
               >
-                <RvIcon name="drag" /><span aria-hidden="true">{{
-                  included(service.id) ? resolved.indexOf(service.id) + 1 : ''
-                }}</span>
+                <RvIcon name="drag" />
               </button>
             </td>
             <td>

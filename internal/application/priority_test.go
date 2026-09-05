@@ -5,6 +5,8 @@ import (
 	"context"
 	"reflect"
 	"testing"
+
+	"github.com/Muratovnik/routevane/internal/domain"
 )
 
 func TestDefaultPriorityFiltersStaleAndAppendsNewCatalogMembers(t *testing.T) {
@@ -84,5 +86,37 @@ func TestDefaultPriorityUsesCanonicalOrderWithoutOptionalRepository(t *testing.T
 	}
 	if !reflect.DeepEqual(got, []string{"example", "other"}) {
 		t.Fatalf("canonical fallback=%#v", got)
+	}
+}
+
+func TestDefaultPriorityGroupsCategoriesWithoutChangingSavedOrder(t *testing.T) {
+	store := &publicationFakeStore{}
+	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x54}, 256)))
+	definition := service.config.Definitions["example"]
+	for _, id := range []string{"alpha", "zulu", "shared"} {
+		definition.ID = id
+		service.config.Definitions[id] = definition
+	}
+	service.config.Categories = map[string]domain.CategoryDefinition{
+		"first":  {ID: "first", Title: "First", Services: []string{"zulu", "shared"}},
+		"second": {ID: "second", Title: "Second", Services: []string{"alpha", "shared"}},
+	}
+	got, err := service.DefaultPriority(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Category members are canonical within each group; multi-membership appears once.
+	want := []string{"shared", "zulu", "alpha", "example"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("grouped priority=%v, want %v", got, want)
+	}
+	store.globalPriority = []string{"example", "alpha"}
+	got, err = service.DefaultPriority(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = []string{"example", "alpha", "shared", "zulu"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("saved priority=%v, want %v", got, want)
 	}
 }

@@ -4,6 +4,7 @@ import { computed } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { IconName } from '@/shared/ui/kinds'
+import RvTooltip from '@/shared/ui/RvTooltip.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 
 /**
@@ -78,29 +79,39 @@ const sections = computed<
           <span class="shell__product-name">{{ t('shell.product') }}</span>
         </p>
         <nav :aria-label="t('shell.nav')" class="shell__nav">
-          <NuxtLink
+          <RvTooltip
             v-for="section in sections"
             :key="section.id"
-            :aria-current="section.active ? 'page' : undefined"
-            class="shell__nav-link"
-            :class="{ 'shell__nav-link--active': section.active }"
-            :to="section.to"
+            :text="section.label"
+            :disabled="!collapsed"
           >
-            <RvIcon class="shell__nav-icon" :name="section.icon" />
-            <span class="shell__nav-label">{{ section.label }}</span>
-          </NuxtLink>
+            <NuxtLink
+              :aria-current="section.active ? 'page' : undefined"
+              class="shell__nav-link"
+              :class="{ 'shell__nav-link--active': section.active }"
+              :to="section.to"
+            >
+              <RvIcon class="shell__nav-icon" :name="section.icon" />
+              <span class="shell__nav-label">{{ section.label }}</span>
+            </NuxtLink>
+          </RvTooltip>
         </nav>
-        <button
-          class="shell__collapse"
-          type="button"
-          :aria-expanded="!collapsed"
-          :aria-label="t(collapsed ? 'shell.expand' : 'shell.collapse')"
-          @click="collapsed = !collapsed"
+        <RvTooltip
+          :text="t(collapsed ? 'shell.expand' : 'shell.collapse')"
+          :disabled="!collapsed"
         >
-          <RvIcon name="chevron" /><span class="shell__nav-label">{{
-            t(collapsed ? 'shell.expand' : 'shell.collapse')
-          }}</span>
-        </button>
+          <button
+            class="shell__collapse"
+            type="button"
+            :aria-expanded="!collapsed"
+            :aria-label="t(collapsed ? 'shell.expand' : 'shell.collapse')"
+            @click="collapsed = !collapsed"
+          >
+            <RvIcon name="chevron" /><span class="shell__nav-label">{{
+              t(collapsed ? 'shell.expand' : 'shell.collapse')
+            }}</span>
+          </button>
+        </RvTooltip>
       </header>
 
       <main
@@ -362,24 +373,10 @@ const sections = computed<
 
 .shell--collapsed .shell__nav-label {
   position: absolute;
-  left: calc(100% + var(--rv-space-2));
-  z-index: 10;
-  width: max-content;
-  max-width: var(--rv-panel-width);
-  padding: var(--rv-space-2) var(--rv-space-3);
-  color: var(--rv-color-chrome-ink);
-  background: var(--rv-color-chrome-raised);
-  border: var(--rv-border-hair) solid var(--rv-color-chrome-rule);
-  border-radius: var(--rv-radius-sm);
-  opacity: 0;
-  pointer-events: none;
-}
-
-.shell--collapsed .shell__nav-link:hover .shell__nav-label,
-.shell--collapsed .shell__nav-link:focus-visible .shell__nav-label,
-.shell--collapsed .shell__collapse:hover .shell__nav-label,
-.shell--collapsed .shell__collapse:focus-visible .shell__nav-label {
-  opacity: 1;
+  width: var(--rv-border-hair);
+  height: var(--rv-border-hair);
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
 @media (width > 64rem) and (height > 36rem) {
@@ -405,6 +402,9 @@ const sections = computed<
   .shell--collapsed .shell__nav-label {
     position: static;
     width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
     padding: 0;
     border: 0;
     opacity: 1;

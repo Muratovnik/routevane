@@ -67,8 +67,8 @@
   border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 
-.picker__choice-heading,
-.picker__action-heading,
+.picker__table .picker__choice-heading,
+.picker__table .picker__action-heading,
 .picker__row > td:nth-child(2),
 .picker__row > td:last-child {
   width: var(--rv-table-action-width);
@@ -353,4 +353,12 @@
     min-height: var(--rv-picker-mobile-height);
     max-height: var(--rv-picker-mobile-height);
   }
+}
+
+/* The fallback is portalled outside its table; retain table column geometry. */
+.picker__row.sortable-fallback {
+  display: table;
+  table-layout: fixed;
+  border-collapse: collapse;
+  background: var(--rv-color-surface-muted);
 }

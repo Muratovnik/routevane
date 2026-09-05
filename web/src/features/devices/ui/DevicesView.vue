@@ -390,13 +390,18 @@ async function onEnable(id: string): Promise<void> {
             )
           }}
         </p>
-        <RvField input-id="device-target" :label="t('devices.field.target')">
+        <RvField
+          searchable
+          input-id="device-target"
+          :label="t('devices.field.target')"
+        >
           <template #default="{ describedBy, invalid }">
             <div class="devices__field">
               <RvSelect
                 v-model="targetID"
                 :described-by="describedBy"
                 :disabled="devices.busy.value"
+                searchable
                 input-id="device-target"
                 :invalid="invalid"
                 :options="targetChoices"

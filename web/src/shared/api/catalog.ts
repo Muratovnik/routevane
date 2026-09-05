@@ -1,4 +1,5 @@
 import * as v from 'valibot'
+import { serviceChanges } from '@/shared/lib/serviceChanges'
 
 import {
   acknowledged,
@@ -237,6 +238,7 @@ export async function updateCustomService(
     parseCustomServiceEnvelope,
   )
   invalidateCatalogCache()
+  await serviceChanges.trigger({ serviceID, observed: false })
   return record
 }
 
@@ -374,24 +376,30 @@ export function loadServiceContents(
 
 export type ServiceRefresh = { skippedEntries: number }
 
-export function refreshService(serviceID: string): Promise<ServiceRefresh> {
-  return postJSON(
+export async function refreshService(
+  serviceID: string,
+): Promise<ServiceRefresh> {
+  const result = await postJSON(
     `/v1/services/${encodeURIComponent(serviceID)}/refresh`,
     {},
     parseServiceRefresh,
   )
+  await serviceChanges.trigger({ serviceID, observed: true })
+  return result
 }
 
-export function setServiceSourceEnabled(
+export async function setServiceSourceEnabled(
   serviceID: string,
   sourceID: string,
   enabled: boolean,
 ): Promise<ServiceContents> {
-  return postJSON(
+  const result = await postJSON(
     `/v1/services/${encodeURIComponent(serviceID)}/sources/${encodeURIComponent(sourceID)}/update`,
     { enabled },
     parseServiceContents,
   )
+  await serviceChanges.trigger({ serviceID, observed: false })
+  return result
 }
 
 export async function addServiceSource(
@@ -404,33 +412,38 @@ export async function addServiceSource(
     { format, url },
     parseAcknowledgement,
   )
+  await serviceChanges.trigger({ serviceID, observed: false })
 }
 
-export function removeServiceSource(
+export async function removeServiceSource(
   serviceID: string,
   sourceID: string,
 ): Promise<ServiceContents> {
-  return postJSON(
+  const result = await postJSON(
     `/v1/services/${encodeURIComponent(serviceID)}/sources/${encodeURIComponent(sourceID)}/remove`,
     {},
     parseServiceContents,
   )
+  await serviceChanges.trigger({ serviceID, observed: false })
+  return result
 }
 
 // One verdict, many values: the endpoint takes a batch so a pasted list or an
 // imported routes file is one decision rather than a request per line. The
 // server refuses the whole batch when a single value is malformed, which is why
 // the caller validates before it sends.
-export function setServiceValues(
+export async function setServiceValues(
   serviceID: string,
   values: string[],
   verdict: DomainVerdict,
 ): Promise<ServiceContents> {
-  return postJSON(
+  const result = await postJSON(
     `/v1/services/${encodeURIComponent(serviceID)}/domains`,
     { values, verdict },
     parseServiceContents,
   )
+  await serviceChanges.trigger({ serviceID, observed: false })
+  return result
 }
 
 export async function previewService(

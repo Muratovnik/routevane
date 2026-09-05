@@ -48,6 +48,7 @@
   --rv-color-canvas: #101719;
   --rv-color-surface: #181f21;
   --rv-color-surface-muted: #20292c;
+  --rv-color-field: var(--rv-color-canvas);
   --rv-color-surface-hover: var(--rv-near-black-750);
   --rv-color-surface-selected: #1c2a24;
   --rv-color-ink: var(--rv-white-050);
@@ -128,6 +129,7 @@
   --rv-dialog-width: 64rem;
   --rv-dialog-panel-width: 34rem;
   --rv-dialog-panel-height: 40rem;
+  --rv-artifact-height: max(20rem, calc(100dvh - 22rem));
   --rv-editor-min-height: 14rem;
   --rv-analysis-height: 24rem;
   --rv-library-height: max(30rem, calc(100dvh - 9rem));
@@ -149,7 +151,7 @@
   --rv-composer-rail-width: var(--rv-panel-width);
   --rv-composer-priority-height: max(16rem, calc(100dvh - 24rem));
   --rv-picker-table-width: 42rem;
-  --rv-picker-priority-width: 3.5rem;
+  --rv-picker-priority-width: 2.75rem;
   --rv-picker-name-width: 8rem;
   --rv-picker-rule-width: 5rem;
   --rv-picker-overlap-width: 8rem;

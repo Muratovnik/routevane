@@ -172,6 +172,11 @@ function reset(): void {
           :categories="props.categories"
           :disabled="props.busy"
           :forecast="firstForecast"
+          :forecast-failure="
+            forecast.failure.value
+              ? t(`forecast.failure.${forecast.failure.value}`)
+              : undefined
+          "
           :overlap-unavailable="forecastTargets.length === 0"
           :overlap-unavailable-label="t('list.overlap.unavailable')"
           :forecast-pending="forecast.pending.value"
@@ -180,6 +185,9 @@ function reset(): void {
           :services="props.services"
           :retryable="forecastTargets.length > 0"
           @reorder="setPriority"
+          @refresh="
+            forecast.refresh(draftComposition, resolved, forecastTargets)
+          "
           @retry="retryForecast"
         />
       </div>

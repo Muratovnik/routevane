@@ -14,6 +14,7 @@ import {
 import { computed } from 'vue'
 
 import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/kinds'
+import RvSearchSelect from '@/shared/ui/RvSearchSelect.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 
 /**
@@ -29,6 +30,7 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
  * then, exactly as an unset native select does.
  */
 const props = defineProps<{
+  searchable?: boolean
   size?: 'default' | 'compact'
   describedBy?: string
   disabled?: boolean
@@ -67,7 +69,14 @@ const empty = computed(() =>
 </script>
 
 <template>
+  <RvSearchSelect
+    v-if="searchable"
+    v-bind="$props"
+    v-model="model"
+    :size="size ?? 'default'"
+  />
   <SelectRoot
+    v-else
     v-model="chosen"
     :disabled="disabled === true || loading === true || empty"
   >
@@ -166,7 +175,7 @@ const empty = computed(() =>
   font: inherit;
   font-size: var(--rv-text-interface);
   text-align: start;
-  background: var(--rv-color-canvas);
+  background: var(--rv-color-field);
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-sm);
   cursor: pointer;

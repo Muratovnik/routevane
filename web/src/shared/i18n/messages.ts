@@ -27,6 +27,12 @@ export const localeNames: Record<Locale, string> = {
 }
 
 const ru: Dictionary = {
+  'forecast.failure.coverage':
+    'Недостаточно актуальных данных для расчёта. Повторите обновление источников.',
+  'forecast.failure.unavailable': 'Расчёт недоступен. Повторите попытку.',
+  'choice.search': 'Найти',
+  'choice.empty': 'Ничего не найдено',
+  'servicePicker.selectVisible': 'Выбрать или убрать все видимые списки',
   'list.priority.unselected':
     'Приоритет списка {list}: сначала добавьте его в маршрут',
   'shell.collapse': 'Свернуть меню',
@@ -896,6 +902,12 @@ const ru: Dictionary = {
 }
 
 const en: Dictionary = {
+  'forecast.failure.coverage':
+    'Not enough current source data to calculate. Retry the source refresh.',
+  'forecast.failure.unavailable': 'Calculation unavailable. Try again.',
+  'choice.search': 'Search',
+  'choice.empty': 'Nothing found',
+  'servicePicker.selectVisible': 'Select or clear all visible lists',
   'list.priority.unselected': 'Priority of {list}: add it to the route first',
   'shell.collapse': 'Collapse sidebar',
   'shell.expand': 'Expand sidebar',

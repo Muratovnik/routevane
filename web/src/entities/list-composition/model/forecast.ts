@@ -1,6 +1,7 @@
-import { useDebounceFn } from '@vueuse/core'
+import { useDebounceFn, useEventListener } from '@vueuse/core'
 import { onScopeDispose, ref } from 'vue'
 
+import { serviceChanges } from '@/shared/lib/serviceChanges'
 import { refreshService } from '@/shared/api/catalog'
 import { RoutevaneAPIError } from '@/shared/api/http'
 import {
@@ -23,7 +24,7 @@ const settleDelay = 500
  * running service rather than to the screen that asked for it: moving between
  * the composer and a list must not read the same sources again. It is also the
  * loop guard — a service that was observed and still yields no forecast is
- * never observed a second time, whatever the operator does next.
+ * not automatically observed twice without a source configuration change.
  */
 const observedForForecast = new Set<string>()
 
@@ -55,14 +56,18 @@ type Outcome = 'landed' | 'unread' | 'silent'
 // A forecast for a composition nothing has ever observed is not a malformed
 // request; it is a question the service cannot answer yet.
 function unobserved(reason: unknown): boolean {
-  return reason instanceof RoutevaneAPIError && reason.status === 404
+  return (
+    reason instanceof RoutevaneAPIError &&
+    (reason.status === 404 ||
+      (reason.status === 422 && reason.code === 'partial_coverage'))
+  )
 }
 
 /**
  * What the draft would weigh, per format, kept beside the draft itself.
  *
  * The forecast is an aid and never a gate on availability. A refusal means
- * "no forecast": the screen says nothing and blocks nothing, and a refusal is
+ * "no forecast": the screen reports unavailable data and blocks nothing; it is
  * never read as a fit.
  *
  * One refusal is answered rather than accepted. A service whose sources have
@@ -86,6 +91,21 @@ export function useCompositionForecast(delay = settleDelay) {
   // Bumped whenever an answer in flight stops describing the draft. The
   // debouncer owns waiting; this owns which answer is still the current one.
   let issued = 0
+  let current: Ask | null = null
+  const failure = ref<'coverage' | 'unavailable' | null>(null)
+  const subscription = serviceChanges.on(({ serviceID, observed }) => {
+    if (!current?.resolved.includes(serviceID)) return
+    if (!observed) observedForForecast.delete(serviceID)
+    if (!observing.value)
+      request(current.composition, current.resolved, current.targets)
+  })
+
+  // Returning from another library tab must also invalidate observations that
+  // can have changed without changing the selected service identifiers.
+  useEventListener(window, 'focus', () => {
+    if (current && !observing.value)
+      request(current.composition, current.resolved, current.targets)
+  })
 
   const ask = useDebounceFn((next: Ask) => read(next, false), delay)
 
@@ -102,10 +122,12 @@ export function useCompositionForecast(delay = settleDelay) {
       const answer = await previewComposition(next.composition, next.targets)
       if (next.attempt !== issued) return 'silent'
       forecasts.value = answer
+      failure.value = null
       return 'landed'
     } catch (reason) {
       if (next.attempt !== issued) return 'silent'
       forecasts.value = []
+      failure.value = unobserved(reason) ? 'coverage' : 'unavailable'
       return unobserved(reason) ? 'unread' : 'silent'
     }
   }
@@ -114,7 +136,7 @@ export function useCompositionForecast(delay = settleDelay) {
     try {
       const outcome = await attemptRead(next)
       // A draft that was already read once and still cannot be weighed is a
-      // draft this surface has no forecast for. It says so by saying nothing.
+      // draft with unavailable coverage; never turn that refusal into zero.
       if (retried || outcome !== 'unread') return
       await observeThenRetry(next)
     } finally {
@@ -151,6 +173,8 @@ export function useCompositionForecast(delay = settleDelay) {
     targets: string[] = [],
   ): void {
     issued += 1
+    current = { attempt: issued, composition, resolved, targets }
+    failure.value = null
     pending.value = resolved.length > 0
     if (resolved.length === 0) {
       ask.cancel()
@@ -171,17 +195,49 @@ export function useCompositionForecast(delay = settleDelay) {
     request(composition, resolved, targets)
   }
 
+  async function refresh(
+    composition: ListComposition,
+    resolved: string[],
+    targets: string[] = [],
+  ): Promise<void> {
+    ask.cancel()
+    issued += 1
+    const next = { attempt: issued, composition, resolved, targets }
+    current = next
+    failure.value = null
+    pending.value = resolved.length > 0
+    for (const id of resolved) observedForForecast.delete(id)
+    try {
+      await observeThenRetry(next)
+    } finally {
+      if (next.attempt === issued) pending.value = false
+    }
+  }
+
   function forget(): void {
     issued += 1
+    current = null
+    failure.value = null
     pending.value = false
     ask.cancel()
     forecasts.value = []
   }
 
   onScopeDispose(() => {
+    subscription.off()
     issued += 1
     ask.cancel()
   })
 
-  return { forTarget, forecasts, forget, observing, pending, request, retry }
+  return {
+    forTarget,
+    forecasts,
+    forget,
+    observing,
+    pending,
+    failure,
+    request,
+    retry,
+    refresh,
+  }
 }

@@ -21,7 +21,7 @@
   padding: 0 var(--rv-space-4);
   color: var(--rv-color-ink);
   font: inherit;
-  background: var(--rv-color-surface);
+  background: var(--rv-color-field);
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-md);
 }

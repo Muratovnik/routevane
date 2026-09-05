@@ -135,7 +135,7 @@ const triggerLabel = computed(() =>
   min-height: var(--rv-control-default);
   padding: 0 var(--rv-space-3);
   color: var(--rv-color-ink-muted);
-  background: var(--rv-color-surface);
+  background: var(--rv-color-field);
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-md);
 }

@@ -87,11 +87,11 @@ func TestForecastAnswersAnOverflowingTargetWithItsNumbers(t *testing.T) {
 	if got.ProjectedRules != 4 {
 		t.Fatalf("projected = %d, want the renderer's own count of 4", got.ProjectedRules)
 	}
-	wantPerService := []ServiceRuleForecast{{ServiceID: "discord", Rules: 2}, {ServiceID: "youtube", Rules: 2}}
+	wantPerService := []ServiceRuleForecast{{ServiceID: "discord", Rules: 1}, {ServiceID: "youtube", Rules: 3}}
 	if !reflect.DeepEqual(got.PerService, wantPerService) {
 		t.Fatalf("per service = %#v, want %#v", got.PerService, wantPerService)
 	}
-	// Priority assigns the shared address to Discord before projection, so the
+	// Category-first priority assigns the shared address to YouTube before projection; the
 	// per-service shares now describe the same finished plan the device receives.
 	sum := 0
 	for _, share := range got.PerService {

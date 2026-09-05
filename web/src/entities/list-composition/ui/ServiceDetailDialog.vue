@@ -44,8 +44,8 @@ import RvTextarea from '@/shared/ui/RvTextarea.vue'
  * list's own existence are the subject, and every switch here writes the
  * server. `compose` is the route being built: the same table is only read, and
  * the one act that route owns is the footer — whether the list is in this route
- * at all. Nothing on the composing card reaches the list or another route,
- * which is why no caption has to explain the reach of an edit.
+ * at all. Both flows can refresh existing source observations; only the
+ * library edits list configuration.
  */
 const props = defineProps<{
   mode: 'compose' | 'library'
@@ -851,17 +851,17 @@ function onOpenChange(open: boolean): void {
           <!-- Reading the sources is the frequent act; editing which sources
                there are is the rare one, so the frequent one is the control
                and the rare one opens a panel. -->
+          <RvButton
+            :disabled="interactionBusy || contentsState !== 'ready'"
+            size="compact"
+            type="button"
+            variant="quiet"
+            @click="onRefreshSources"
+          >
+            <RvIcon name="refresh" />
+            {{ t('serviceCard.refresh') }}
+          </RvButton>
           <template v-if="curating">
-            <RvButton
-              :disabled="interactionBusy || contentsState !== 'ready'"
-              size="compact"
-              type="button"
-              variant="quiet"
-              @click="onRefreshSources"
-            >
-              <RvIcon name="refresh" />
-              {{ t('serviceCard.refresh') }}
-            </RvButton>
             <RvButton
               :disabled="interactionBusy"
               size="compact"

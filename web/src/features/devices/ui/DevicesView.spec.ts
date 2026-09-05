@@ -112,14 +112,13 @@ describe('DevicesView prerequisite audit', () => {
         .some((button) => button.text() === 'Turn on automatic delivery'),
     ).toBe(false)
 
-    await wrapper.get('#device-target').trigger('keydown', { key: 'Enter' })
+    await wrapper.get('#device-target').trigger('click')
     await flushPromises()
     const option = [
       ...document.body.querySelectorAll<HTMLElement>('[role="option"]'),
     ].find((candidate) => candidate.textContent?.includes('Keenetic'))
     expect(option).toBeDefined()
-    option?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
-    option?.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }))
+    option?.click()
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('Fill in this field')
@@ -176,14 +175,13 @@ describe('DevicesView prerequisite audit', () => {
     const wrapper = mountDevices()
     await flushPromises()
 
-    await wrapper.get('#device-target').trigger('keydown', { key: 'Enter' })
+    await wrapper.get('#device-target').trigger('click')
     await flushPromises()
     const option = [
       ...document.body.querySelectorAll<HTMLElement>('[role="option"]'),
     ].find((candidate) => candidate.textContent?.includes('Keenetic'))
     expect(option).toBeDefined()
-    option?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
-    option?.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }))
+    option?.click()
     await flushPromises()
     await wrapper.get('#device-name').setValue('Manual router')
     await wrapper.get('#device-address').setValue('file:///router.conf')

@@ -2,6 +2,8 @@
 import {
   ListboxContent,
   ListboxFilter,
+  ListboxGroup,
+  ListboxGroupLabel,
   ListboxItem,
   ListboxRoot,
   PopoverContent,
@@ -10,100 +12,176 @@ import {
   PopoverTrigger,
 } from 'reka-ui'
 import { computed, ref } from 'vue'
-import type { ChoiceOption } from '@/shared/ui/kinds'
+import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/kinds'
+import { useLocale } from '@/shared/i18n/useLocale'
 import RvIcon from '@/shared/ui/RvIcon.vue'
-
 const props = defineProps<{
   modelValue: string
-  options: ChoiceOption[]
-  label: string
+  options?: ChoiceOption[]
+  groups?: ChoiceGroup[]
+  label?: string
+  toggleLabel?: string
+  inputId?: string
+  describedBy?: string
+  labelledBy?: string
+  invalid?: boolean
+  loading?: boolean
+  loadingLabel?: string
+  size?: 'default' | 'compact'
   placeholder: string
   triggerLabel?: string
-  searchLabel: string
-  emptyLabel: string
+  searchLabel?: string
+  emptyLabel?: string
   disabled?: boolean
 }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
+const { t } = useLocale()
 const open = ref(false)
 const query = ref('')
+const runs = computed(
+  () => props.groups ?? [{ key: '', label: '', options: props.options ?? [] }],
+)
+const choices = computed(() => runs.value.flatMap((group) => group.options))
 const selected = computed(() =>
-  props.options.find((option) => option.value === props.modelValue),
+  choices.value.find((option) => option.value === props.modelValue),
+)
+const heading = computed(
+  () => props.label ?? props.toggleLabel ?? props.placeholder,
 )
 const matches = computed(() =>
-  props.options.filter((option) =>
-    `${option.label} ${option.value}`
-      .toLocaleLowerCase()
-      .includes(query.value.trim().toLocaleLowerCase()),
-  ),
+  runs.value
+    .map((group) => ({
+      ...group,
+      options: group.options.filter((option) =>
+        [option.label, option.value, option.mono ?? '', group.label]
+          .join(' ')
+          .toLocaleLowerCase()
+          .includes(query.value.trim().toLocaleLowerCase()),
+      ),
+    }))
+    .filter((group) => group.options.length > 0),
 )
 function choose(value: unknown): void {
-  if (typeof value !== 'string') return
+  if (
+    typeof value !== 'string' ||
+    props.disabled ||
+    props.loading ||
+    !choices.value.some((choice) => choice.value === value && !choice.disabled)
+  )
+    return
   emit('update:modelValue', value)
   open.value = false
 }
 </script>
-
 <template>
   <PopoverRoot v-model:open="open" @update:open="query = ''">
-    <PopoverTrigger
-      class="rv-search-select__trigger"
-      :disabled="disabled"
-      :aria-label="`${label}: ${triggerLabel ?? selected?.label ?? placeholder}`"
-    >
-      <span>{{ triggerLabel ?? selected?.label ?? placeholder }}</span
-      ><RvIcon name="chevron" />
+    <PopoverTrigger as-child>
+      <button
+        :id="inputId"
+        type="button"
+        class="rv-search-select__trigger"
+        :class="{ 'rv-search-select__trigger--field': size === 'default' }"
+        :disabled="disabled || loading || choices.length === 0"
+        :aria-label="
+          inputId
+            ? undefined
+            : `${heading}: ${triggerLabel ?? selected?.label ?? placeholder}`
+        "
+        :aria-describedby="describedBy"
+        :aria-labelledby="labelledBy"
+        :aria-invalid="invalid || undefined"
+        :aria-busy="loading || undefined"
+      >
+        <span>{{
+          loading
+            ? (loadingLabel ?? placeholder)
+            : (triggerLabel ?? selected?.label ?? placeholder)
+        }}</span
+        ><RvIcon name="chevron" />
+      </button>
     </PopoverTrigger>
     <PopoverPortal>
       <PopoverContent
         class="rv-search-select__panel"
-        align="end"
+        :class="{ 'rv-search-select__panel--field': size === 'default' }"
+        align="start"
         :side-offset="4"
         :collision-padding="8"
-        :aria-label="label"
+        :aria-label="heading"
       >
-        <p class="rv-search-select__title">{{ label }}</p>
+        <p class="rv-search-select__title">{{ heading }}</p>
         <ListboxRoot :model-value="modelValue" @update:model-value="choose">
           <div class="rv-search-select__search">
             <RvIcon name="search" />
             <ListboxFilter
               v-model="query"
-              :aria-label="searchLabel"
-              :placeholder="searchLabel"
+              :aria-label="searchLabel ?? t('choice.search')"
+              :placeholder="searchLabel ?? t('choice.search')"
               auto-focus
             />
           </div>
-          <ListboxContent class="rv-search-select__options" :aria-label="label">
-            <ListboxItem
-              v-for="option in matches"
-              :key="option.value"
-              :value="option.value"
-              :disabled="option.disabled"
-              class="rv-search-select__option"
+          <ListboxContent
+            class="rv-search-select__options"
+            :aria-label="heading"
+          >
+            <ListboxGroup
+              v-for="group in matches"
+              :key="group.key"
+              class="rv-search-select__group"
             >
-              <RvIcon
-                name="check"
-                class="rv-search-select__check"
-                :class="{
-                  'rv-search-select__check--selected':
-                    option.value === modelValue,
-                }"
-              />
-              <slot name="option" :option="option">{{ option.label }}</slot>
-            </ListboxItem>
+              <ListboxGroupLabel
+                v-if="group.label"
+                class="rv-search-select__group-label"
+                >{{ group.label }}</ListboxGroupLabel
+              >
+              <ListboxItem
+                v-for="option in group.options"
+                :key="option.value"
+                :value="option.value"
+                :disabled="option.disabled"
+                class="rv-search-select__option"
+              >
+                <RvIcon
+                  name="check"
+                  class="rv-search-select__check"
+                  :class="{
+                    'rv-search-select__check--selected':
+                      option.value === modelValue,
+                  }"
+                />
+                <slot name="option" :option="option">
+                  <span class="rv-search-select__copy"
+                    ><span
+                      >{{ option.label }}
+                      <span v-if="option.mono" class="rv-search-select__mono">{{
+                        option.mono
+                      }}</span></span
+                    >
+                    <small v-if="option.note" class="rv-search-select__note">{{
+                      option.note
+                    }}</small>
+                    <small
+                      v-if="option.warning"
+                      class="rv-search-select__warning"
+                      >{{ option.warning }}</small
+                    >
+                  </span>
+                </slot>
+              </ListboxItem>
+            </ListboxGroup>
           </ListboxContent>
           <p
             v-if="matches.length === 0"
             class="rv-search-select__empty"
             role="status"
           >
-            {{ emptyLabel }}
+            {{ emptyLabel ?? t('choice.empty') }}
           </p>
         </ListboxRoot>
       </PopoverContent>
     </PopoverPortal>
   </PopoverRoot>
 </template>
-
 <!-- The portalled Reka content does not retain the caller scope attribute. -->
 <style>
 .rv-search-select__trigger {
@@ -138,6 +216,8 @@ function choose(value: unknown): void {
 .rv-search-select__panel {
   z-index: 30;
   width: var(--rv-panel-width);
+  /* stylelint-disable-next-line custom-property-pattern -- Reka measures the trigger. */
+  min-width: var(--reka-popover-trigger-width);
   max-width: calc(100vw - var(--rv-space-4));
   /* stylelint-disable-next-line custom-property-pattern -- Reka owns the measured room for this overlay. */
   max-height: var(--reka-popover-content-available-height);
@@ -218,5 +298,52 @@ function choose(value: unknown): void {
 .rv-search-select__empty {
   padding: var(--rv-space-3);
   color: var(--rv-color-ink-muted);
+}
+
+.rv-search-select__trigger--field {
+  background: var(--rv-color-field);
+  width: 100%;
+  min-height: var(--rv-control-touch);
+}
+
+.rv-search-select__trigger[aria-invalid='true'] {
+  border-color: var(--rv-color-status-failed);
+}
+
+.rv-search-select__group-label {
+  padding: var(--rv-space-2);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-meta);
+}
+
+.rv-search-select__copy {
+  display: grid;
+  gap: var(--rv-space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rv-search-select__mono {
+  font-family: var(--rv-font-mono);
+}
+
+.rv-search-select__note {
+  color: var(--rv-color-ink-muted);
+}
+
+.rv-search-select__warning {
+  color: var(--rv-color-status-warning);
+}
+
+.rv-search-select__option[data-disabled] {
+  opacity: var(--rv-disabled-opacity);
+  cursor: not-allowed;
+}
+</style>
+
+<style>
+.rv-search-select__panel--field {
+  /* stylelint-disable-next-line custom-property-pattern -- Reka measures the field. */
+  width: var(--reka-popover-trigger-width, var(--rv-panel-width));
 }
 </style>

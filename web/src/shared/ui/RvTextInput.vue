@@ -42,7 +42,7 @@ const model = defineModel<string>({ required: true })
   color: var(--rv-color-ink);
   font-size: var(--rv-text-emphasis);
   font-family: var(--rv-font-mono);
-  background: var(--rv-color-canvas);
+  background: var(--rv-color-field);
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-sm);
 }

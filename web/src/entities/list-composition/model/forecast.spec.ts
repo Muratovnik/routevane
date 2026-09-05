@@ -2,7 +2,8 @@ import { flushPromises } from '@vue/test-utils'
 import { effectScope } from 'vue'
 import { afterEach, expect, it, vi } from 'vitest'
 
-import { useCompositionForecast } from './forecast'
+import { refreshService } from '@/shared/api/catalog'
+import { useCompositionForecast, forgetForecastObservations } from './forecast'
 
 afterEach(() => {
   vi.useRealTimers()
@@ -108,4 +109,74 @@ it('lets an explicit retry read sources again after the session guard', async ()
     ),
   ).toHaveLength(4)
   scope.stop()
+})
+
+it('refreshes stale coverage once and invalidates the result when sources change', async () => {
+  vi.useFakeTimers()
+  forgetForecastObservations()
+  let available = false
+  let projected = 1
+  const fetchMock = vi.fn((input: unknown) => {
+    if (String(input).endsWith('/refresh')) {
+      available = true
+      return Promise.resolve(new Response(JSON.stringify({ refresh: {} })))
+    }
+    return Promise.resolve(
+      available
+        ? new Response(
+            JSON.stringify({
+              targets: [
+                {
+                  target_id: 'keenetic',
+                  maximum_rules: 0,
+                  projected_rules: projected,
+                  fits: true,
+                  per_service: [],
+                  overlaps: { items: [], truncated: false },
+                },
+              ],
+            }),
+          )
+        : new Response(
+            JSON.stringify({
+              code: 'partial_coverage',
+              error: 'operation failed',
+            }),
+            { status: 422 },
+          ),
+    )
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const scope = effectScope()
+  const forecast = scope.run(() => useCompositionForecast(1))!
+  const draft = {
+    services: ['stale-source'],
+    categories: [],
+    exclusions: [],
+    serviceDomains: {},
+  }
+  try {
+    forecast.request(draft, draft.services)
+    await vi.advanceTimersByTimeAsync(2)
+    await flushPromises()
+    expect(forecast.forTarget('keenetic')?.projectedRules).toBe(1)
+    expect(forecast.failure.value).toBeNull()
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/refresh')),
+    ).toHaveLength(1)
+    projected = 2
+    await refreshService('stale-source')
+    expect(forecast.pending.value).toBe(true)
+    await vi.advanceTimersByTimeAsync(2)
+    await flushPromises()
+    expect(forecast.forTarget('keenetic')?.projectedRules).toBe(2)
+    projected = 3
+    await forecast.refresh(draft, draft.services)
+    expect(forecast.forTarget('keenetic')?.projectedRules).toBe(3)
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/refresh')),
+    ).toHaveLength(3)
+  } finally {
+    scope.stop()
+  }
 })

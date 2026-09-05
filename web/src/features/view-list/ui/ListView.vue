@@ -243,6 +243,32 @@ watch(tab, (value) => {
   void router.replace({ hash: listPageHash({ tab: value }) })
 })
 
+// A restored tab can be active before its output arrives. Detail loading follows
+// resource readiness as well as clicks; an invalidated active detail reloads too.
+watch(
+  [
+    view.state,
+    view.busy,
+    () => view.latest.value?.id,
+    view.snapshotID,
+    view.contentState,
+    view.diagnosticsState,
+  ],
+  () => {
+    if (view.state.value !== 'ready' || view.busy.value) return
+    if (tab.value === 'file' && view.contentState.value === 'idle')
+      void view.openContent()
+    if (tab.value === 'diagnostics' && view.diagnosticsState.value === 'idle')
+      void view.openDiagnostics()
+  },
+)
+watch(
+  () => pageLocation.value.tab,
+  (value) => {
+    if (tabIDs.has(value)) tab.value = value
+  },
+)
+
 onMounted(async () => {
   await view.initialize()
   const setupTarget = pageLocation.value.setup
@@ -629,9 +655,16 @@ async function onListMenu(key: string): Promise<void> {
           live
           :title="t('list.file.failed')"
           tone="warning"
-        />
+        >
+          <template #action
+            ><RvButton size="compact" @click="view.openContent()">{{
+              t('action.retry')
+            }}</RvButton></template
+          >
+        </RvStateNotice>
         <RvCodeBlock
           v-else-if="view.content.value !== null"
+          fill
           :caption="tc('list.lines', view.lineCount.value)"
           :text="view.content.value.text"
         >
@@ -674,7 +707,13 @@ async function onListMenu(key: string): Promise<void> {
           live
           :title="t('list.diagnostics.failed')"
           tone="warning"
-        />
+        >
+          <template #action
+            ><RvButton size="compact" @click="view.openDiagnostics()">{{
+              t('action.retry')
+            }}</RvButton></template
+          >
+        </RvStateNotice>
         <template v-else-if="view.diagnosticsState.value === 'ready'">
           <p class="list__prose">{{ t('list.diagnostics.perService') }}</p>
           <ul class="list__counts">

@@ -47,6 +47,10 @@ watch(
 
 watch(ordered, (ids) => {
   const current = props.items.map((item) => item.id)
+  if (props.disabled) {
+    if (!same(ids, current)) ordered.value = [...current]
+    return
+  }
   if (!same(ids, current)) emit('reorder', [...ids])
 })
 
@@ -56,13 +60,16 @@ const sortable = useSortable(list, ordered, {
   fallbackOnBody: true,
   fallbackTolerance: 3,
   forceFallback: true,
-  handle: '.priority-list__handle',
+  handle: '.priority-list__handle:not(:disabled)',
+  filter: '.priority-list__handle:disabled',
+  preventOnFilter: false,
   watchElement: true,
 })
 
 watch(
   () => props.disabled,
-  (disabled) => sortable.option('disabled', disabled),
+  (disabled) => sortable.option('disabled', Boolean(disabled)),
+  { flush: 'sync' },
 )
 
 function move(from: number, to: number): void {

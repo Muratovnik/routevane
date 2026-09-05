@@ -40,7 +40,7 @@ Sections, addressable by URL:
    belongs to the output, not the route; after the route is stored, the route
    page creates and publishes that first output so the one-time subscription
    URL never crosses storage or a URL. **Capacity is part of composing**
-   (ADR 0027): the format is one searchable combobox whose options are
+   (ADR 0027): the format is one button opening a searchable choice panel. Options are
    grouped into routers and applications (ADR 0028) — two groups inside one
    choice, not two blocks with two selections. Every option carries a live
    forecast of the rules this draft would build (`≈ N of M`), computed from
@@ -51,12 +51,14 @@ Sections, addressable by URL:
    Composition is one dense semantic table, searchable and filterable by
    category. Checking or unchecking a list preserves every row's position and
    focus. A left-hand drag handle stays visible on every row, disabled until selected;
-   selected rows show their priority number. Reordering has arrow-key equivalents. Only an explicit reorder
+   position is announced in the handle accessible name rather than printed in
+   every row. Reordering has arrow-key equivalents. The header checkbox selects
+   or clears filtered rows, preserving hidden selections. Only an explicit reorder
    moves rows. The settings rail contains the name, first connection choice,
    forecast and create action, without repeating the selected lists. In a
    constrained window it stacks after the table.
-   Priority begins in the library's default order, then the route stores that
-   order as its own snapshot. When two selected lists overlap, each affected
+   Priority begins grouped by category unless the library has a saved custom
+   order. The route stores that order as its own snapshot. When two selected lists overlap, each affected
    table row shows the number of other selected lists it intersects; activating
    that count reveals every name. Zero means no intersections; a dash means
    unselected or not calculated, with the reason available in the table status.
@@ -113,7 +115,9 @@ Sections, addressable by URL:
    it is. **Opened from a route, the card reads**: the rows carry no control,
    because the route's own act is the footer and the list itself is edited
    where lists are edited (ADR 0029). The sources are a fact here
-   («Источники · 2»), not a control. The footer is one line: the membership status, the toggle beside
+   («Источники · 2»), with a separate refresh action that rereads existing sources
+   and invalidates the draft forecast. Source configuration stays in the library.
+   The footer is one line: the membership status, the toggle beside
    it, and «applies when the route is saved» only while the card was opened
    from an unsaved draft. A draft's name is proposed from what is picked, so
    the footer does not repeat it back as if it named the list — it names the
@@ -440,3 +444,18 @@ that fact, and until then the interface does not imply it. Routes are archived,
 not destructively deleted; their published files remain immutable (ADR 0004).
 Library lists and categories can be removed through the guarded library flow
 (ADR 0029). Removing a library item never deletes published artifact history.
+
+## Shared field and overlay contracts
+
+Text inputs and choice triggers use the same field ground, distinct from their
+containing panel. Searchable choices share `RvSearchSelect`: a labelled trigger,
+a portalled panel with search at the top, optional groups, a bounded scrolling
+option list, and focus returned to the trigger on dismissal. Short policy choices
+retain `RvSelect` without a search field. Sidebar tooltips use Reka positioning
+and portals, above page content.
+
+A disabled reorder handle cannot initiate a drag. Table fallbacks preserve the
+measured cell widths and row height outside their table. Selection never changes
+row order. File previews grow with the desktop window while short files keep their
+natural height. Loading, stale coverage, failed calculation, and a confirmed zero
+remain distinct states; source changes invalidate forecasts for affected drafts.

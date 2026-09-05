@@ -141,7 +141,7 @@ function buttonWithText(
 async function openTargets(
   wrapper: ReturnType<typeof mountComposer>,
 ): Promise<HTMLElement> {
-  await wrapper.get('.rv-combobox__toggle').trigger('click')
+  await wrapper.get('.rv-search-select__trigger--field').trigger('click')
   await flushPromises()
   const list = document.body.querySelector<HTMLElement>('[role="listbox"]')
   expect(list).not.toBeNull()
@@ -162,7 +162,7 @@ async function chooseTarget(
 }
 
 function chosenTarget(wrapper: ReturnType<typeof mountComposer>): string {
-  return wrapper.get<HTMLInputElement>('#create-target').element.value
+  return wrapper.get('#create-target').text()
 }
 
 describe('CreateList forecast', () => {
