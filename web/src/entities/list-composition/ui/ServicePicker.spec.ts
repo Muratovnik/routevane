@@ -179,6 +179,36 @@ describe('ServicePicker', () => {
     wrapper.unmount()
   })
 
+  it('bulk selects the union of category filters once and preserves hidden selections', async () => {
+    const wrapper = mountPicker({
+      modelValue: { ...emptyComposition, services: ['steam'] },
+    })
+    wrapper
+      .findComponent({ name: 'CategoryFilters' })
+      .vm.$emit('update:modelValue', ['communication', 'video', 'custom-home'])
+    await wrapper.vm.$nextTick()
+    expect(
+      wrapper.findAll('.picker__row').map((row) => row.attributes('data-id')),
+    ).toEqual(['discord', 'telegram', 'youtube'])
+    const bulk = wrapper.get<HTMLInputElement>('thead input[type="checkbox"]')
+    await bulk.setValue(true)
+    const selected = wrapper
+      .emitted('update:modelValue')!
+      .at(-1)![0] as typeof emptyComposition
+    expect([...selected.services].sort()).toEqual([
+      'discord',
+      'steam',
+      'telegram',
+      'youtube',
+    ])
+    await wrapper.setProps({ modelValue: selected })
+    await bulk.setValue(false)
+    expect(wrapper.emitted('update:modelValue')!.at(-1)![0]).toMatchObject({
+      services: ['steam'],
+    })
+    wrapper.unmount()
+  })
+
   it('keeps row order and search state while selection changes', async () => {
     const wrapper = mountPicker({
       modelValue: { ...emptyComposition, services: ['discord'] },
@@ -271,7 +301,7 @@ describe('ServicePicker', () => {
     const wrapper = mountPicker()
     wrapper
       .findComponent({ name: 'CategoryFilters' })
-      .vm.$emit('update:modelValue', 'communication')
+      .vm.$emit('update:modelValue', ['communication'])
     await wrapper.vm.$nextTick()
     expect(
       wrapper.findAll('.picker__row .picker__name').map((name) => name.text()),
@@ -290,7 +320,7 @@ describe('ServicePicker', () => {
 
     wrapper
       .findComponent({ name: 'CategoryFilters' })
-      .vm.$emit('update:modelValue', 'communication')
+      .vm.$emit('update:modelValue', ['communication'])
     await wrapper.vm.$nextTick()
 
     expect(wrapper.findAll('.picker__row').map((row) => row.text())).toEqual([

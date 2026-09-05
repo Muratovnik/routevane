@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends string | string[]">
 import {
   ListboxContent,
   ListboxFilter,
@@ -16,7 +16,7 @@ import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/kinds'
 import { useLocale } from '@/shared/i18n/useLocale'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 const props = defineProps<{
-  modelValue: string
+  modelValue: T
   options?: ChoiceOption[]
   groups?: ChoiceGroup[]
   label?: string
@@ -34,8 +34,9 @@ const props = defineProps<{
   emptyLabel?: string
   disabled?: boolean
 }>()
-const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
+const emit = defineEmits<{ 'update:modelValue': [value: T] }>()
 const { t } = useLocale()
+const multiple = computed(() => Array.isArray(props.modelValue))
 const open = ref(false)
 const query = ref('')
 const runs = computed(
@@ -62,6 +63,19 @@ const matches = computed(() =>
     .filter((group) => group.options.length > 0),
 )
 function choose(value: unknown): void {
+  const valid = (item: unknown): item is string =>
+    typeof item === 'string' &&
+    choices.value.some((choice) => choice.value === item && !choice.disabled)
+  if (multiple.value) {
+    if (
+      !props.disabled &&
+      !props.loading &&
+      Array.isArray(value) &&
+      value.every(valid)
+    )
+      emit('update:modelValue', value as T)
+    return
+  }
   if (
     typeof value !== 'string' ||
     props.disabled ||
@@ -69,7 +83,7 @@ function choose(value: unknown): void {
     !choices.value.some((choice) => choice.value === value && !choice.disabled)
   )
     return
-  emit('update:modelValue', value)
+  emit('update:modelValue', value as T)
   open.value = false
 }
 </script>
@@ -110,7 +124,12 @@ function choose(value: unknown): void {
         :aria-label="heading"
       >
         <p class="rv-search-select__title">{{ heading }}</p>
-        <ListboxRoot :model-value="modelValue" @update:model-value="choose">
+        <ListboxRoot
+          :model-value="modelValue"
+          :multiple="multiple"
+          selection-behavior="toggle"
+          @update:model-value="choose"
+        >
           <div class="rv-search-select__search">
             <RvIcon name="search" />
             <ListboxFilter
@@ -145,8 +164,11 @@ function choose(value: unknown): void {
                   name="check"
                   class="rv-search-select__check"
                   :class="{
-                    'rv-search-select__check--selected':
-                      option.value === modelValue,
+                    'rv-search-select__check--selected': Array.isArray(
+                      modelValue,
+                    )
+                      ? modelValue.includes(option.value)
+                      : option.value === modelValue,
                   }"
                 />
                 <slot name="option" :option="option">

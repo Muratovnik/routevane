@@ -96,6 +96,7 @@ const USlideoverDouble = defineComponent({
             props.description
               ? h('p', { id: `${id}-description` }, props.description)
               : undefined,
+            slots.actions?.(),
             slots.close
               ? h('span', { onClick: close }, slots.close())
               : undefined,

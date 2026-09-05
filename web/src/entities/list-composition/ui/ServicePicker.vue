@@ -20,6 +20,7 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvMenu from '@/shared/ui/RvMenu.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import CategoryFilters from './CategoryFilters.vue'
+import { matchesCategories } from '../model/categoryFilter'
 import CategoryLabel from './CategoryLabel.vue'
 
 import ServiceDetailDialog from './ServiceDetailDialog.vue'
@@ -52,9 +53,8 @@ const emit = defineEmits<{
 
 const { formatNumber, t, tc, tor } = useLocale()
 const query = ref('')
-const categoryFilter = ref('all')
+const categoryFilter = ref<string[]>([])
 const activeServiceID = ref('')
-const uncategorizedID = 'rv:uncategorized'
 
 const servicesByID = computed(
   () => new Map(props.services.map((service) => [service.id, service])),
@@ -67,8 +67,10 @@ const resolvedSet = computed(() => new Set(resolved.value))
 const categoryByID = computed(
   () => new Map(props.categories.map((category) => [category.id, category])),
 )
-const selectedCategory = computed(
-  () => categoryByID.value.get(categoryFilter.value) ?? null,
+const selectedCategory = computed(() =>
+  categoryFilter.value.length === 1
+    ? (categoryByID.value.get(categoryFilter.value[0]!) ?? null)
+    : null,
 )
 const followsSelectedCategory = computed(
   () =>
@@ -89,11 +91,11 @@ const visibleRows = computed(() => {
   const needle = query.value.trim().toLocaleLowerCase()
   return allRows.value.filter((service) => {
     const categories = serviceCategories(service)
-    const inCategory =
-      categoryFilter.value === 'all' ||
-      (categoryFilter.value === uncategorizedID
-        ? categories.length === 0
-        : categories.some((category) => category.id === categoryFilter.value))
+    const inCategory = matchesCategories(
+      service.id,
+      categoryFilter.value,
+      props.categories,
+    )
     if (!inCategory) return false
     if (needle === '') return true
     return [
@@ -209,11 +211,7 @@ const overlapMessage = computed(() => {
     )
   if (props.forecastPending) return t('servicePicker.overlap.pending')
   if (props.forecastFailure) return props.forecastFailure
-  if (props.forecast?.incompleteServices?.length)
-    return t('forecast.partial.table', {
-      n: resolved.value.length - props.forecast.incompleteServices.length,
-      m: resolved.value.length,
-    })
+  if (props.forecast?.incompleteServices?.length) return ''
   return resolved.value.some((id) => overlapTitles(id) === null)
     ? t('servicePicker.overlap.unknown')
     : ''
@@ -312,9 +310,7 @@ function onDialogInclude(add: boolean): void {
 
 function overlapCount(serviceID: string): string {
   const count = formatNumber(overlapTitles(serviceID)?.length ?? 0)
-  return props.forecast?.incompleteServices?.length
-    ? t('forecast.partial.count', { n: count })
-    : count
+  return count
 }
 
 function ruleLabel(serviceID: string): string {
@@ -390,14 +386,24 @@ function serviceLabel(serviceID: string): string {
           ]"
           @select="toggleCategoryReference($event === 'auto')"
         />
-        <RvInfoTip
-          v-if="forecast?.incompleteServices?.length"
-          :label="t('forecast.partial.missing')"
-          :text="forecast.incompleteServices.map(serviceLabel).join(', ')"
-        />
         <span role="status">{{ tc('create.resolved', resolved.length) }}</span>
         <div class="picker__forecast-status" role="status">
           <span>{{ overlapMessage }}</span>
+          <span
+            v-if="
+              forecast?.incompleteServices?.length &&
+              !forecastPending &&
+              !forecastFailure
+            "
+            class="picker__partial"
+          >
+            {{ t('forecast.partial.target') }}
+            <RvInfoTip
+              :label="t('forecast.partial.missing')"
+              :text="t('forecast.partial.explanation')"
+              :items="forecast.incompleteServices.map(serviceLabel)"
+            />
+          </span>
           <RvButton
             v-if="
               overlapMessage !== '' &&
@@ -407,7 +413,7 @@ function serviceLabel(serviceID: string): string {
             "
             size="compact"
             @click="emit('retry')"
-            >{{ t('action.retry') }}</RvButton
+            >{{ t('forecast.recalculate') }}</RvButton
           >
         </div>
       </div>
@@ -583,7 +589,13 @@ function serviceLabel(serviceID: string): string {
                     list: overlapTitles(service.id)?.join(', ') ?? '',
                   })
                 "
-                :text="t('servicePicker.overlap.heading')"
+                :text="
+                  t(
+                    forecast?.incompleteServices?.length
+                      ? 'forecast.partial.found'
+                      : 'servicePicker.overlap.heading',
+                  )
+                "
                 :items="overlapTitles(service.id) ?? []"
                 >{{ overlapCount(service.id) }}</RvInfoTip
               >
@@ -612,7 +624,11 @@ function serviceLabel(serviceID: string): string {
                 v-else-if="overlapTitles(service.id)?.length === 0"
                 class="picker__unknown"
               >
-                {{ overlapCount(service.id) }}
+                {{
+                  forecast?.incompleteServices?.length
+                    ? '—'
+                    : overlapCount(service.id)
+                }}
               </span>
             </td>
             <td>

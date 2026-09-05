@@ -169,8 +169,13 @@ function updateOpen(open: boolean): void {
 const sheetContentProps = computed(() => ({
   onCloseAutoFocus,
   onOpenAutoFocus,
+  onEscapeKeyDown: (event: Event) => {
+    event.preventDefault()
+    updateOpen(false)
+  },
   onInteractOutside: (event: Event) => {
-    if (docked.value) event.preventDefault()
+    event.preventDefault()
+    if (!docked.value) updateOpen(false)
   },
 }))
 
@@ -178,7 +183,7 @@ const sheetUI = computed(() => ({
   overlay: ['rv-dialog__scrim', nested.value ? 'rv-dialog__scrim--nested' : ''],
   // Cancels Nuxt UI's compact `max-w-md`; Routevane's token owns the working
   // width below and Tailwind Merge removes the conflicting utility.
-  content: `max-w-none rv-dialog rv-dialog--sheet${docked.value ? ' rv-dialog--docked' : ''}`,
+  content: `max-w-none rv-dialog rv-dialog--sheet${props.adaptive && workspace ? ' rv-dialog--inspection' : ''}${docked.value ? ' rv-dialog--docked' : ''}`,
   header: 'rv-dialog__header',
   wrapper: 'rv-dialog__heading',
   title: 'rv-dialog__title',
@@ -200,18 +205,19 @@ const sheetUI = computed(() => ({
     :dismissible="canDismiss"
     :content="sheetContentProps"
     :ui="sheetUI"
-    :close="true"
+    :close="false"
     :transition="false"
     side="right"
     @update:open="updateOpen"
   >
-    <template v-if="$slots.actions" #actions><slot name="actions" /></template>
-    <template #close>
+    <template #actions>
+      <slot name="actions" />
       <button
         :aria-label="closeLabel"
         class="rv-dialog__close"
         :disabled="!canDismiss"
         type="button"
+        @click="updateOpen(false)"
       >
         <RvIcon name="close" />
       </button>
@@ -307,9 +313,16 @@ const sheetUI = computed(() => ({
 
 /* USlideover owns focus, dismissal and scroll lock. Its state attribute gives
    this facade a CSP-safe entrance without inline animation styles. */
-.rv-dialog--sheet:not(.rv-dialog--docked)[data-state='open'] {
+.rv-dialog--sheet:not(
+    .rv-dialog--inspection,
+    .rv-dialog--docked
+  )[data-state='open'] {
   animation: rv-dialog-sheet-in var(--rv-motion-normal)
     var(--rv-motion-ease-out);
+}
+
+.rv-dialog--inspection {
+  view-transition-name: workspace-detail;
 }
 
 .rv-dialog--docked {
@@ -456,7 +469,10 @@ const sheetUI = computed(() => ({
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .rv-dialog--sheet:not(.rv-dialog--docked)[data-state='open'] {
+  .rv-dialog--sheet:not(
+      .rv-dialog--inspection,
+      .rv-dialog--docked
+    )[data-state='open'] {
     animation-duration: 1ms;
   }
 }

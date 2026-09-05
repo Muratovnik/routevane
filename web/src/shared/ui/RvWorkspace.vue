@@ -60,7 +60,6 @@ provide(workspacePane, { target: `#${target}`, docked, open, locked })
 }
 
 .rv-workspace__detail {
-  view-transition-name: workspace-detail;
   position: sticky;
   top: 0;
   min-width: 0;

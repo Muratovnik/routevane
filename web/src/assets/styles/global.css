@@ -162,3 +162,43 @@ html[data-rv-workspace-transition]::view-transition-group(composer-settings) {
     visibility: visible;
   }
 }
+
+html[data-rv-workspace-transition]::view-transition-group(workspace-detail) {
+  z-index: 3;
+}
+
+/* The sheet owns its snapshot, so removal cannot turn a captured empty host
+   into a black rectangle. Entrance and exit use the same distance and easing. */
+html[data-rv-workspace-transition]::view-transition-new(workspace-detail) {
+  animation: rv-inspection-in var(--rv-motion-normal) var(--rv-motion-ease-out)
+    both;
+}
+
+html[data-rv-workspace-transition]::view-transition-old(workspace-detail) {
+  animation: rv-inspection-out var(--rv-motion-normal) var(--rv-motion-ease-out)
+    both;
+}
+
+@keyframes rv-inspection-in {
+  from {
+    opacity: 0;
+    transform: translateX(var(--rv-space-6));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes rv-inspection-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(var(--rv-space-6));
+  }
+}

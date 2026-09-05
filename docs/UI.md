@@ -35,8 +35,8 @@ Sections, addressable by URL:
 1. `/` — **Routes / Маршруты.** Every stored route, newest first: its name
    and composition, its connections and content time. The row is a state
    summary, not a toolbar: one overflow menu owns configuration, one-off export,
-   delivery, connection and archive actions. Opening the name navigates to the
-   route's own page. Nothing on the page explains what a route is: the rows
+   delivery, connection and archive actions. Clicking a noninteractive row cell navigates to the
+   route's own page; the title remains a native link. Nothing on the page explains what a route is: the rows
    are the explanation. Imported v3 profiles are identified as restored routes
    and say what to do next rather than leaking migration names. The primary
    action is «Build a route».
@@ -82,8 +82,10 @@ Sections, addressable by URL:
    is appended after the route's saved order. A retained forecast is marked as
    updating. Missing coverage is reported per format and per list: the complete
    lists retain their rules and known overlap relationships, while unavailable
-   lists show a dash. Partial overlap counts are lower bounds, marked “≥”,
-   with the omitted lists named in a disclosure. A partial total never claims
+   lists show a dash. Partial overlap counts show confirmed matches as plain
+   numbers; an unconfirmed zero remains a dash. A compact incomplete-calculation disclosure
+   explains why the named lists were omitted and how to retry. A partial total
+   never claims
    that the whole composition fits and never blocks saving or creation. Refresh
    retries source reads; normal automatic recovery reads only missing lists once.
    Publication still requires complete coverage.
@@ -536,8 +538,9 @@ commit the new Vue layout inside the View Transition API update callback. The
 settings form, table area, and detail pane transition together; a docked sheet
 has no second slide animation inside its column. Opening and closing use the
 same transaction in the route composer, editor and library. Without API support
-or with reduced motion, the layout switches immediately. Modal sheets retain
-their separate viewport entrance. Check the actual snapshot animation and both
+or with reduced motion, the layout switches immediately. Overlaid inspection
+uses the same snapshot lifecycle; standalone sheets retain their CSS entrance.
+Check the actual snapshot animation and both
 layout states, not only the final DOM bounding boxes.
 
 Shared catalog column tokens keep list names comparable in the library and route
@@ -555,3 +558,15 @@ Component reflow follows the available container width, including facts, file
 pickers, route tables and drawer controls. Named dialog queries also apply to
 portalled sheets. Viewport media queries are reserved for the application
 scroll-height policy, fullscreen modal boundaries and system preferences.
+
+Category chips and the searchable More panel toggle a shared multiple selection.
+Lists from any selected category appear once. With no categories selected, all
+lists appear; All categories clears the selection. The table checkbox operates
+on this visible union and preserves hidden selections. Library bookmarks retain
+all selected categories. Route overview rows navigate through their noninteractive
+cells; their native title links and action menus keep independent behavior.
+
+Inspection transitions capture the populated dialog itself, including its text,
+not its empty portal host. Dismissal requests reach the page before the primitive
+unmounts content. Docked and overlaid inspections share one snapshot transition;
+reduced motion and unsupported browsers switch immediately.

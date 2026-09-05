@@ -8,14 +8,14 @@ import RvSearchSelect from '@/shared/ui/RvSearchSelect.vue'
 import CategoryLabel from './CategoryLabel.vue'
 
 const props = defineProps<{
-  modelValue: string
+  modelValue: string[]
   query: string
   categories: CategoryDetail[]
   services: ServiceDetail[]
   disabled?: boolean
 }>()
 const emit = defineEmits<{
-  'update:modelValue': [value: string]
+  'update:modelValue': [value: string[]]
   'update:query': [value: string]
 }>()
 const { t, tor, formatNumber } = useLocale()
@@ -48,12 +48,27 @@ const quick = computed(() =>
     Math.max(0, Math.min(5, Math.floor((width.value - 260) / 155))),
   ),
 )
-const triggerLabel = computed(() =>
-  props.modelValue === 'all' ||
-  quick.value.some((option) => option.value === props.modelValue)
-    ? t('servicePicker.filter.more')
-    : undefined,
+const triggerLabel = computed(
+  () =>
+    choices.value
+      .filter(
+        (option) =>
+          props.modelValue.includes(option.value) &&
+          !quick.value.some(
+            (quickOption) => quickOption.value === option.value,
+          ),
+      )
+      .map((option) => option.label)
+      .join(', ') || t('servicePicker.filter.more'),
 )
+function toggle(id: string): void {
+  emit(
+    'update:modelValue',
+    props.modelValue.includes(id)
+      ? props.modelValue.filter((value) => value !== id)
+      : [...props.modelValue, id],
+  )
+}
 </script>
 
 <template>
@@ -66,9 +81,9 @@ const triggerLabel = computed(() =>
       <button
         type="button"
         class="catalog-filters__chip"
-        :aria-pressed="modelValue === 'all'"
+        :aria-pressed="modelValue.length === 0"
         :disabled="disabled"
-        @click="emit('update:modelValue', 'all')"
+        @click="emit('update:modelValue', [])"
       >
         {{ t('servicePicker.filter.all') }}
       </button>
@@ -77,9 +92,9 @@ const triggerLabel = computed(() =>
         :key="option.value"
         type="button"
         class="catalog-filters__chip"
-        :aria-pressed="modelValue === option.value"
+        :aria-pressed="modelValue.includes(option.value)"
         :disabled="disabled"
-        @click="emit('update:modelValue', option.value)"
+        @click="toggle(option.value)"
       >
         {{ option.label }}<small>{{ formatNumber(option.count) }}</small>
       </button>

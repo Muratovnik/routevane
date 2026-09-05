@@ -20,6 +20,26 @@ const library = useLibrary()
 const route = useRoute()
 const router = useRouter()
 
+function openRoute(event: MouseEvent, card: ListCard): void {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.shiftKey ||
+    event.altKey
+  )
+    return
+  const target = event.target
+  if (
+    target instanceof Element &&
+    target.closest('a, button, input, select, [role="menu"]')
+  )
+    return
+  if (window.getSelection()?.toString()) return
+  void router.push(listHref(card))
+}
+
 const copyMessage = computed(() => {
   if (library.copiedID.value !== '') return t('library.copied')
   if (library.copyFailedID.value !== '') return t('library.copyFailed')
@@ -214,7 +234,12 @@ function onMenu(card: ListCard, key: string): void {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="card in library.rows.value" :key="card.id">
+          <tr
+            v-for="card in library.rows.value"
+            :key="card.id"
+            class="library__row"
+            @click="openRoute($event, card)"
+          >
             <td class="library__cell-name">
               <NuxtLink class="library__link" :to="listHref(card)">
                 {{ displayName(card) }}

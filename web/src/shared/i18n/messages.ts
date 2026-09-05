@@ -30,11 +30,14 @@ const ru: Dictionary = {
   'forecast.failure.coverage':
     'Недостаточно актуальных данных для расчёта. Повторите обновление источников.',
   'forecast.failure.unavailable': 'Расчёт недоступен. Повторите попытку.',
-  'forecast.partial.target': 'Не все списки рассчитаны',
+  'forecast.partial.target': 'Неполный расчёт',
   'forecast.partial.table':
     'Данные для {n} из {m} списков. Пересечения — среди них.',
   'forecast.partial.missing': 'Списки без подходящих данных',
-  'forecast.partial.count': '≥ {n}',
+  'forecast.partial.explanation':
+    'Для этих списков нет данных, подходящих выбранному подключению. Обновите источники или выберите другое подключение:',
+  'forecast.partial.found': 'Найденные пересечения (проверка неполная)',
+  'forecast.recalculate': 'Пересчитать',
   'choice.search': 'Найти',
   'choice.empty': 'Ничего не найдено',
   'servicePicker.selectVisible': 'Выбрать или убрать все видимые списки',
@@ -922,7 +925,10 @@ const en: Dictionary = {
   'forecast.partial.table':
     'Data for {n} of {m} lists. Intersections are between these lists.',
   'forecast.partial.missing': 'Lists without usable data',
-  'forecast.partial.count': '≥ {n}',
+  'forecast.partial.explanation':
+    'These lists have no data usable by the selected connection. Refresh sources or choose another connection:',
+  'forecast.partial.found': 'Found overlaps (incomplete check)',
+  'forecast.recalculate': 'Recalculate',
   'choice.search': 'Search',
   'choice.empty': 'Nothing found',
   'servicePicker.selectVisible': 'Select or clear all visible lists',

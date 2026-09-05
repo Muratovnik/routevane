@@ -4,6 +4,7 @@ import { useSortable } from '@vueuse/integrations/useSortable'
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
 
 import CategoryFilters from '@/entities/list-composition/ui/CategoryFilters.vue'
+import { matchesCategories } from '@/entities/list-composition/model/categoryFilter'
 import CategoryLabel from '@/entities/list-composition/ui/CategoryLabel.vue'
 import ServiceDetailDialog from '@/entities/list-composition/ui/ServiceDetailDialog.vue'
 import { useListLibrary } from '@/features/list-library/model/useListLibrary'
@@ -53,7 +54,10 @@ type CategoryRow = {
   members: ServiceDetail[]
 }
 
-const activeCategoryID = ref('')
+const activeCategoryIDs = ref<string[]>([])
+const activeCategoryID = computed(() =>
+  activeCategoryIDs.value.length === 1 ? activeCategoryIDs.value[0]! : '',
+)
 const activeServiceID = ref('')
 const categoriesOpen = ref(false)
 const query = ref('')
@@ -218,7 +222,7 @@ const categoryTitleError = computed(() =>
 
 onMounted(() => {
   const opened = parseLibraryPageHash(route.hash)
-  activeCategoryID.value = opened.category
+  activeCategoryIDs.value = opened.category
   activeServiceID.value = opened.list
   void library.initialize()
 })
@@ -231,7 +235,7 @@ watch(
 )
 
 function select(categoryID: string): void {
-  activeCategoryID.value = categoryID
+  activeCategoryIDs.value = categoryID ? [categoryID] : []
   library.clearRefusal()
   writeLocation()
 }
@@ -275,7 +279,7 @@ function closeService(): void {
 function writeLocation(): void {
   void router.replace(
     `/library${libraryPageHash({
-      category: activeCategoryID.value,
+      category: activeCategoryIDs.value,
       list: activeServiceID.value,
     })}`,
   )
@@ -491,8 +495,12 @@ function resetPriority(): void {
 }
 
 const filter = computed({
-  get: () => activeCategoryID.value || 'all',
-  set: (value: string) => select(value === 'all' ? '' : value),
+  get: () => activeCategoryIDs.value,
+  set: (value: string[]) => {
+    activeCategoryIDs.value = value
+    library.clearRefusal()
+    writeLocation()
+  },
 })
 const tableDisabled = computed(() => library.busy.value || library.stale.value)
 watch(
@@ -525,8 +533,11 @@ const visibleServices = computed(() => {
     .filter((service): service is ServiceDetail => service !== undefined)
     .filter(
       (service) =>
-        (activeRow.value === null ||
-          activeRow.value.members.some((member) => member.id === service.id)) &&
+        matchesCategories(
+          service.id,
+          activeCategoryIDs.value,
+          library.categories.value,
+        ) &&
         [
           service.title,
           service.id,

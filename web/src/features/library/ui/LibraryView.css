@@ -249,3 +249,12 @@
     content: none;
   }
 }
+
+.library__row {
+  cursor: pointer;
+}
+
+.library__row:hover,
+.library__row:focus-within {
+  background: var(--rv-color-surface-hover);
+}

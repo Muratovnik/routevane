@@ -346,3 +346,9 @@
   border-collapse: collapse;
   background: var(--rv-color-surface-muted);
 }
+
+.picker__partial {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rv-space-1);
+}

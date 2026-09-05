@@ -711,76 +711,70 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
   await opener.focus()
   await expect(opener).toBeFocused()
 
-  // Install the animation observer before the state change that creates the
-  // portalled sheet. This makes the midpoint oracle independent of a 200 ms
-  // polling race while still testing the browser's real CSS transition.
+  // Pause the actual snapshot animation, rather than accepting final geometry
+  // while an empty portal host is the only thing that was animated.
   await page.evaluate(() => {
-    type Probe = {
-      animation?: Animation
-      promise: Promise<{ left: number; right: number; width: number }>
+    const native = document.startViewTransition.bind(document)
+    const probe: {
+      animations: Animation[]
+      promise: Promise<{ opacity: number; x: number }>
+      native: typeof native
+    } = {
+      animations: [],
+      promise: Promise.resolve({ opacity: 0, x: 0 }),
+      native,
     }
-    const probe = {} as Probe
     probe.promise = new Promise((resolve) => {
-      const onStart = (event: Event) => {
-        if (
-          !(event instanceof AnimationEvent) ||
-          event.animationName !== 'rv-dialog-sheet-in' ||
-          !(event.target instanceof HTMLElement) ||
-          !event.target.matches('.rv-dialog--sheet')
-        )
-          return
-        document.removeEventListener('animationstart', onStart, true)
-        const animation = event.target
-          .getAnimations()
-          .find((candidate) => candidate.constructor.name === 'CSSAnimation')
-        const duration = animation?.effect?.getTiming().duration
-        if (animation === undefined || typeof duration !== 'number')
-          throw new Error('Sheet animation did not expose numeric timing')
-        animation.pause()
-        animation.currentTime = duration / 2
-        probe.animation = animation
-        requestAnimationFrame(() => {
-          const box = event.target.getBoundingClientRect()
-          resolve({ left: box.left, right: box.right, width: box.width })
+      document.startViewTransition = (update) => {
+        const current = native(update)
+        void current.ready.then(async () => {
+          probe.animations = document
+            .getAnimations()
+            .filter((a) => (a.effect as KeyframeEffect)?.pseudoElement)
+          for (const animation of probe.animations) {
+            animation.pause()
+            animation.currentTime =
+              Number(animation.effect!.getTiming().duration) / 2
+          }
+          await new Promise(requestAnimationFrame)
+          const style = getComputedStyle(
+            document.documentElement,
+            '::view-transition-new(workspace-detail)',
+          )
+          resolve({
+            opacity: Number(style.opacity),
+            x: new DOMMatrix(style.transform).e,
+          })
         })
+        return current
       }
-      document.addEventListener('animationstart', onStart, true)
     })
     Reflect.set(window, '__routevaneSheetTransitionProbe', probe)
   })
-
   await opener.click()
   const card = page.getByRole('dialog', { exact: true, name: 'Discord' })
   await expect(card).toBeVisible()
   await expect(
     card.getByRole('searchbox', { name: 'Search the contents' }),
   ).toBeFocused()
-
-  // USlideover supplies the real sheet. Its CSP-safe facade animation begins
-  // beyond the right edge; pause it at its midpoint to prove that movement is
-  // perceptible, then let it settle before asserting final geometry.
   const viewport = page.viewportSize()
-  const midpoint = await page.evaluate(async () => {
+  const midpoint = await page.evaluate(
+    async () =>
+      Reflect.get(window, '__routevaneSheetTransitionProbe')
+        .promise as Promise<{ opacity: number; x: number }>,
+  )
+  expect(midpoint.opacity).toBeGreaterThan(0)
+  expect(midpoint.opacity).toBeLessThan(1)
+  expect(midpoint.x).toBeGreaterThan(0)
+  await page.evaluate(async () => {
     const probe = Reflect.get(window, '__routevaneSheetTransitionProbe') as {
-      promise: Promise<{ left: number; right: number; width: number }>
+      animations: Animation[]
+      native: typeof document.startViewTransition
     }
-    return await probe.promise
+    probe.animations.forEach((animation) => animation.play())
+    await Promise.all(probe.animations.map((animation) => animation.finished))
+    document.startViewTransition = probe.native
   })
-  expect(midpoint.left).toBeGreaterThan((viewport?.width ?? 0) - midpoint.width)
-  expect(midpoint.right).toBeGreaterThan(viewport?.width ?? 0)
-  await page.evaluate(() => {
-    const probe = Reflect.get(window, '__routevaneSheetTransitionProbe') as {
-      animation?: Animation
-    }
-    probe.animation?.play()
-  })
-  await expect
-    .poll(async () => {
-      const entering = await card.boundingBox()
-      if (entering === null) return Number.POSITIVE_INFINITY
-      return entering.x + entering.width
-    })
-    .toBeLessThanOrEqual((viewport?.width ?? 0) + 1)
 
   // Wholly inside the screen, whatever the page behind it is doing.
   const box = await card.boundingBox()
@@ -923,113 +917,63 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
   ).toBe(scrolled)
   await page.emulateMedia({ reducedMotion: 'no-preference' })
 
-  // A quick dismissal during the entrance has no matching exit animation and
-  // must not revive the CSP-unsafe runtime style writer.
+  // Dismissing midway through the captured entrance must finish with the
+  // sheet gone and focus restored, without reviving an obsolete transition.
   await page.evaluate(() => {
-    type QuickCloseResult = {
-      latency: number
-      midpoint: { left: number; right: number; width: number }
-      playStateBeforeClose: AnimationPlayState
-      progressBeforeClose: number | null
-      removed: boolean
-    }
-    const promise = new Promise<QuickCloseResult>((resolve, reject) => {
-      const onStart = (event: Event) => {
-        if (
-          !(event instanceof AnimationEvent) ||
-          event.animationName !== 'rv-dialog-sheet-in' ||
-          !(event.target instanceof HTMLElement) ||
-          !event.target.matches('.rv-dialog--sheet')
-        )
-          return
-        document.removeEventListener('animationstart', onStart, true)
-
-        const sheet = event.target
-        const animation = sheet
-          .getAnimations()
-          .find((candidate) => candidate.constructor.name === 'CSSAnimation')
-        const duration = animation?.effect?.getTiming().duration
-        if (animation === undefined || typeof duration !== 'number') {
-          reject(new Error('Quick-close animation has no numeric timing'))
-          return
-        }
-        animation.pause()
-        animation.currentTime = duration / 2
-
-        requestAnimationFrame(() => {
-          const close =
-            sheet.querySelector<HTMLButtonElement>('.rv-dialog__close')
-          if (close === null) {
-            reject(new Error('Quick-close control is unavailable'))
-            return
-          }
-          const box = sheet.getBoundingClientRect()
-          const midpoint = {
-            left: box.left,
-            right: box.right,
-            width: box.width,
-          }
-          const progressBeforeClose =
-            animation.effect?.getComputedTiming().progress ?? null
-          animation.play()
-          const playStateBeforeClose = animation.playState
-
-          let finished = false
-          let clickStarted = Number.NaN
-          const finish = (removed: boolean) => {
-            if (finished) return
-            finished = true
-            observer.disconnect()
-            window.clearTimeout(deadline)
-            resolve({
-              latency: performance.now() - clickStarted,
-              midpoint,
-              playStateBeforeClose,
-              progressBeforeClose,
-              removed,
+    const native = document.startViewTransition.bind(document)
+    let opening = true
+    const promise = new Promise<{ opacity: number; populated: boolean }>(
+      (resolve, reject) => {
+        document.startViewTransition = (update) => {
+          const current = native(update)
+          if (opening) {
+            opening = false
+            void current.ready
+              .then(async () => {
+                const animations = document
+                  .getAnimations()
+                  .filter((a) => (a.effect as KeyframeEffect)?.pseudoElement)
+                animations.forEach((a) => {
+                  a.pause()
+                  a.currentTime = Number(a.effect!.getTiming().duration) / 2
+                })
+                await new Promise(requestAnimationFrame)
+                const opacity = Number(
+                  getComputedStyle(
+                    document.documentElement,
+                    '::view-transition-new(workspace-detail)',
+                  ).opacity,
+                )
+                const sheet = document.querySelector('.rv-dialog--inspection')!
+                const populated = sheet.textContent!.includes('Discord')
+                sheet
+                  .querySelector<HTMLButtonElement>('.rv-dialog__close')!
+                  .click()
+                resolve({ opacity, populated })
+              })
+              .catch(reject)
+          } else {
+            void current.finished.finally(() => {
+              document.startViewTransition = native
             })
           }
-          const observer = new MutationObserver(() => {
-            if (!sheet.isConnected) finish(true)
-          })
-          observer.observe(document.body, { childList: true, subtree: true })
-          const deadline = window.setTimeout(() => finish(false), 1_000)
-          close.addEventListener(
-            'click',
-            () => {
-              clickStarted = performance.now()
-            },
-            { capture: true, once: true },
-          )
-          close.click()
-        })
-      }
-      document.addEventListener('animationstart', onStart, true)
-    })
-    Reflect.set(window, '__routevaneQuickCloseProbe', { promise })
+          return current
+        }
+      },
+    )
+    Reflect.set(window, '__routevaneQuickCloseProbe', promise)
   })
   await opener.click()
-  const quickClose = await page.evaluate(async () => {
-    const probe = Reflect.get(window, '__routevaneQuickCloseProbe') as {
-      promise: Promise<{
-        latency: number
-        midpoint: { left: number; right: number; width: number }
-        playStateBeforeClose: AnimationPlayState
-        progressBeforeClose: number | null
-        removed: boolean
-      }>
-    }
-    return await probe.promise
-  })
-  expect(quickClose.midpoint.left).toBeGreaterThan(
-    (viewport?.width ?? 0) - quickClose.midpoint.width,
+  const quickClose = await page.evaluate(
+    async () =>
+      Reflect.get(window, '__routevaneQuickCloseProbe') as Promise<{
+        opacity: number
+        populated: boolean
+      }>,
   )
-  expect(quickClose.midpoint.right).toBeGreaterThan(viewport?.width ?? 0)
-  expect(quickClose.progressBeforeClose).toBeGreaterThan(0)
-  expect(quickClose.progressBeforeClose).toBeLessThan(1)
-  expect(quickClose.playStateBeforeClose).toBe('running')
-  expect(quickClose.removed).toBe(true)
-  expect(quickClose.latency).toBeLessThan(150)
+  expect(quickClose.opacity).toBeGreaterThan(0)
+  expect(quickClose.opacity).toBeLessThan(1)
+  expect(quickClose.populated).toBe(true)
   await expect(card).toBeHidden()
   await expect(opener).toBeFocused()
   expect(cspErrors).toEqual([])
@@ -2993,6 +2937,8 @@ test('workspace pages share geometry and the category panel supports keyboard se
   await search.fill('Video')
   await search.press('ArrowDown')
   await search.press('Enter')
+  await expect(search).toBeVisible()
+  await search.press('Escape')
   await expect(search).toBeHidden()
   await expect(more).toBeFocused()
   await expect(page.locator('.picker__row')).toHaveCount(1)
@@ -3196,8 +3142,10 @@ async function openLibraryCategory(
   page: Page,
   category: string,
 ): Promise<void> {
+  await page.locator('.catalog-filters__chip').first().click()
   await page.locator('.catalog-filters .rv-search-select__trigger').click()
   await page.getByRole('option', { name: category }).click()
+  await page.keyboard.press('Escape')
   await expectLibraryCategory(page, category)
 }
 
@@ -3402,7 +3350,10 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     await expect(
       priority.getByText('Calculation unavailable. Try again.'),
     ).toBeVisible()
-    const retry = priority.getByRole('button', { name: 'Retry', exact: true })
+    const retry = priority.getByRole('button', {
+      name: 'Recalculate',
+      exact: true,
+    })
     await expect(retry).toBeVisible()
     fail = false
     await retry.click()
@@ -4981,6 +4932,7 @@ test('one list without IP coverage preserves other lists and domain-format forec
       ['Partial Alpha', '192.0.2.1'],
       ['Partial Beta', '192.0.2.1'],
       ['Partial Missing', ''],
+      ['Partial Separate', '192.0.2.2'],
     ] as const) {
       const created = await page.request.post(`${origin}/v1/services`, {
         headers,
@@ -5033,13 +4985,26 @@ test('one list without IP coverage preserves other lists and domain-format forec
     for (const id of ids) await page.locator(`input[value="${id}"]`).check()
     await chooseFormat(page, /Keenetic/)
     await expect(page.locator('.picker__forecast-status')).toContainText(
-      'Data for 2 of 3 lists',
+      'Some lists could not be calculated',
       { timeout: 60000 },
     )
     for (const id of ids.slice(0, 2))
       await expect(
         page.locator(`[data-id="${id}"] .picker__overlaps-column`),
-      ).toContainText('≥ 1')
+      ).toHaveText('1')
+    await expect(
+      page.locator(`[data-id="${ids[3]}"] .picker__overlaps-column`),
+    ).toHaveText('—')
+    await page.locator('.picker__partial button').click()
+    await expect(
+      page.getByText(
+        'These lists have no data usable by the selected connection. Refresh sources or choose another connection:',
+      ),
+    ).toBeVisible()
+    await expect(page.locator('.rv-infotip__panel')).toContainText(
+      'Partial Missing',
+    )
+    await page.keyboard.press('Escape')
     await expect(
       page.locator(`[data-id="${ids[2]}"] .picker__rules-column`),
     ).toHaveText('—')
@@ -5127,4 +5092,92 @@ test('quick route reads stay quiet while slow reads and failures remain visible'
     release()
     await page.unrouteAll({ behavior: 'wait' })
   }
+})
+
+test('category tabs and More toggle a union that bulk selection can add to a route', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 960 })
+  for (const path of ['/library', '/lists/new']) {
+    await page.goto(origin + path)
+    const filters = page.locator('.catalog-filters')
+    const chips = filters.locator('.catalog-filters__chip')
+    await chips.filter({ hasText: /^Communication/ }).click()
+    await chips.filter({ hasText: /^Video/ }).click()
+    const rows = page.locator(
+      path === '/library' ? '.lists__list-row' : '.picker__row',
+    )
+    await expect
+      .poll(async () =>
+        (
+          await rows.evaluateAll((elements) =>
+            elements.map((e) => e.getAttribute('data-id')),
+          )
+        ).sort(),
+      )
+      .toEqual(['discord', 'youtube'])
+    if (path === '/library') {
+      // Reload the committed bookmark, not an in-flight router replacement.
+      await expect
+        .poll(() =>
+          new URLSearchParams(new URL(page.url()).hash.slice(1))
+            .getAll('category')
+            .sort(),
+        )
+        .toEqual(['communication', 'video'])
+      await page.reload()
+      await expect.poll(() => rows.count()).toBe(2)
+      await expect(chips.filter({ hasText: /^Communication/ })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+      await expect(chips.filter({ hasText: /^Video/ })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+    } else {
+      await page.locator('thead input[type="checkbox"]').check()
+      for (const id of ['discord', 'youtube'])
+        await expect(page.locator(`input[value="${id}"]`)).toBeChecked()
+      await chips.first().click()
+      await expect(
+        page.locator('input[value="limit-fixture"]'),
+      ).not.toBeChecked()
+      await chips.filter({ hasText: /^Communication/ }).click()
+      await chips.filter({ hasText: /^Video/ }).click()
+    }
+    await filters.locator('.rv-search-select__trigger').click()
+    const video = page.getByRole('option', { name: /^Video/ })
+    await expect(video).toHaveAttribute('aria-selected', 'true')
+    await video.click()
+    await expect(video).toHaveAttribute('aria-selected', 'false')
+    await expect(
+      page.getByRole('option', { name: /^Communication/ }),
+    ).toHaveAttribute('aria-selected', 'true')
+    await page.keyboard.press('Escape')
+    await expect.poll(() => rows.count()).toBe(1)
+    await chips.filter({ hasText: /^Communication/ }).click()
+    await expect(chips.first()).toHaveAttribute('aria-pressed', 'true')
+    await expect.poll(() => rows.count()).toBeGreaterThan(2)
+  }
+})
+
+test('route rows navigate from their cells while menus and links keep their actions', async ({
+  page,
+}) => {
+  const { listId } = await buildList(page)
+  await page.goto(origin)
+  const row = page.locator('.library__row').filter({
+    has: page.locator(`a[href="/lists/${listId}"]`),
+  })
+  await row.locator('.library__cell-outputs').click()
+  await expect(page).toHaveURL(origin + '/lists/' + listId)
+  await page.goto(origin)
+  await row.getByRole('button').click()
+  await expect(page.getByRole('menu')).toBeVisible()
+  await expect(page).toHaveURL(origin + '/')
+  await page.keyboard.press('Escape')
+  await row.locator(`a[href="/lists/${listId}"]`).focus()
+  await page.keyboard.press('Enter')
+  await expect(page).toHaveURL(origin + '/lists/' + listId)
 })

@@ -29,7 +29,7 @@ export function useWorkspaceInspection() {
   return (opening: boolean, update: () => void): void => {
     const request = ++generation
     if (
-      !pane?.docked.value ||
+      !pane ||
       pane.open.value === opening ||
       !document.startViewTransition ||
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -42,6 +42,9 @@ export function useWorkspaceInspection() {
     const current = document.startViewTransition(async () => {
       if (disposed || request !== generation) return
       update()
+      await nextTick()
+      // Reka mounts portalled content on its next render. Capture the populated
+      // sheet, not the empty destination that existed at the first Vue flush.
       await nextTick()
     })
     transition = current

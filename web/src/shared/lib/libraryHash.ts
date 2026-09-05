@@ -4,16 +4,21 @@
 // carry to the same place.
 
 export type LibraryLocation = {
-  category: string
+  category: string[]
   list: string
 }
 
 export function libraryPageHash(
-  options: { category?: string; list?: string } = {},
+  options: { category?: string | string[]; list?: string } = {},
 ): string {
   const values = new URLSearchParams()
-  if (options.category !== undefined && options.category !== '')
-    values.set('category', options.category)
+  const categories = Array.isArray(options.category)
+    ? options.category
+    : options.category
+      ? [options.category]
+      : []
+  for (const category of new Set(categories))
+    values.append('category', category)
   if (options.list !== undefined && options.list !== '')
     values.set('list', options.list)
   const encoded = values.toString()
@@ -23,7 +28,7 @@ export function libraryPageHash(
 export function parseLibraryPageHash(hash: string): LibraryLocation {
   const values = new URLSearchParams(hash.replace(/^#/, ''))
   return {
-    category: values.get('category') ?? '',
+    category: [...new Set(values.getAll('category').filter(Boolean))],
     list: values.get('list') ?? '',
   }
 }

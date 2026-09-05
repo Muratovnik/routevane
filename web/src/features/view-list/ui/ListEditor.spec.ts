@@ -324,14 +324,14 @@ describe('ListEditor', () => {
 
     wrapper
       .findComponent({ name: 'CategoryFilters' })
-      .vm.$emit('update:modelValue', 'communication')
+      .vm.$emit('update:modelValue', ['communication'])
     await wrapper.vm.$nextTick()
     wrapper.findComponent({ name: 'RvMenu' }).vm.$emit('select', 'manual')
     await wrapper.vm.$nextTick()
 
     wrapper
       .findComponent({ name: 'CategoryFilters' })
-      .vm.$emit('update:modelValue', 'all')
+      .vm.$emit('update:modelValue', [])
     await wrapper.vm.$nextTick()
     expect(rowCopies(wrapper).map((row) => row.text())).toEqual(['YouTube'])
     await wrapper.get('form').trigger('submit')
