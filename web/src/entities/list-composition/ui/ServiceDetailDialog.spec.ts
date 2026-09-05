@@ -32,6 +32,7 @@ const USlideoverStub = defineComponent({
       props.open
         ? h('div', { role: 'dialog' }, [
             h('h2', props.title),
+            slots.actions?.(),
             slots.close?.(),
             slots.body?.(),
             slots.footer?.(),
@@ -154,7 +155,7 @@ function switchOf(scope: HTMLElement, value: string): HTMLInputElement {
 
 function clickByText(scope: HTMLElement, text: string): void {
   const control = [...scope.querySelectorAll('button')].find((button) =>
-    button.textContent?.includes(text),
+    (button.getAttribute('aria-label') ?? button.textContent)?.includes(text),
   )
   expect(control, text).toBeDefined()
   control?.click()
@@ -287,7 +288,9 @@ describe('ServiceDetailDialog', () => {
     clickByText(panel, 'Refresh from sources')
     await flushPromises()
     expect(panel.textContent).toContain('Refreshing…')
-    expect(panel.textContent).not.toContain('Sources read')
+    expect(
+      panel.querySelector('[role="img"][aria-label="Sources read"]'),
+    ).toBeNull()
     const remove = [
       ...panel.querySelectorAll<HTMLButtonElement>('button'),
     ].find((button) => button.textContent?.includes('Delete the list'))
@@ -296,7 +299,9 @@ describe('ServiceDetailDialog', () => {
     expect(wrapper.emitted('remove')).toBeUndefined()
     releaseRefresh()
     await flushPromises()
-    expect(panel.textContent).toContain('Sources read')
+    expect(
+      panel.querySelector('[role="img"][aria-label="Sources read"]'),
+    ).not.toBeNull()
     expect(keys()).toEqual([
       'GET /v1/services/discord/contents',
       'POST /v1/services/discord/refresh',
@@ -315,7 +320,9 @@ describe('ServiceDetailDialog', () => {
     const noSourceWrapper = mountCard({ mode: 'compose', service: noSources })
     await flushPromises()
     expect(card().textContent).toContain('No automatic sources')
-    expect(card().textContent).not.toContain('Sources read')
+    expect(
+      card().querySelector('[role="img"][aria-label="Sources read"]'),
+    ).toBeNull()
     noSourceWrapper.unmount()
   })
 
@@ -397,8 +404,8 @@ describe('ServiceDetailDialog', () => {
     // The fact is stated; nothing in the heading offers to change it.
     expect(panel.textContent).toContain('Sources · 2')
     expect(
-      [...panel.querySelectorAll('button')].some((button) =>
-        button.textContent?.includes('Sources · 2'),
+      [...panel.querySelectorAll('button')].some(
+        (button) => button.getAttribute('aria-label') === 'Configure sources',
       ),
     ).toBe(false)
 
@@ -430,7 +437,9 @@ describe('ServiceDetailDialog', () => {
     expect(panel.querySelector('.service-card__membership')).toBeNull()
     expect(panel.textContent).not.toContain('Add to route')
     // Reading the sources is the frequent act, so it sits on the card itself.
-    expect(panel.textContent).toContain('Refresh from sources')
+    expect(
+      panel.querySelector('button[aria-label^="Refresh from sources:"]'),
+    ).not.toBeNull()
     expect(panel.textContent).toContain('Add entries')
 
     vi.useFakeTimers()
@@ -492,7 +501,7 @@ describe('ServiceDetailDialog', () => {
     // The second row's write can complete without waiting for the first one.
     expect(switchOf(panel, 'discord.com').disabled).toBe(false)
     const refresh = [...panel.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('Refresh from sources'),
+      button.getAttribute('aria-label')?.startsWith('Refresh from sources:'),
     ) as HTMLButtonElement | undefined
     expect(refresh?.disabled).toBe(true)
     const remove = [...panel.querySelectorAll('button')].find((button) =>
@@ -626,7 +635,7 @@ describe('ServiceDetailDialog', () => {
     })
     const wrapper = mountCard({ mode: 'library' })
     await flushPromises()
-    clickByText(card(), 'Sources · 2')
+    clickByText(card(), 'Configure sources')
     await flushPromises()
     const panel = card()
     vi.useFakeTimers()
@@ -682,7 +691,7 @@ describe('ServiceDetailDialog', () => {
     await flushPromises()
 
     const opened = card()
-    clickByText(opened, 'Sources · 2')
+    clickByText(opened, 'Configure sources')
     await flushPromises()
     const panel = card()
 

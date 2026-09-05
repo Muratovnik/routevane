@@ -82,6 +82,7 @@ function onDrop(event: DragEvent): void {
 
 <style scoped>
 .rv-file-picker {
+  container: file-picker / inline-size;
   position: relative;
   width: min(var(--rv-measure-field), 100%);
 }
@@ -163,7 +164,7 @@ function onDrop(event: DragEvent): void {
   white-space: nowrap;
 }
 
-@media (width <= 30rem) {
+@container file-picker (width <= 30rem) {
   .rv-file-picker__surface {
     grid-template-columns: auto minmax(0, 1fr);
   }

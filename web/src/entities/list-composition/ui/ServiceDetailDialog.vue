@@ -30,6 +30,7 @@ import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvFilePicker from '@/shared/ui/RvFilePicker.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvTooltip from '@/shared/ui/RvTooltip.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStatus from '@/shared/ui/RvStatus.vue'
@@ -747,6 +748,18 @@ function onOpenChange(open: boolean): void {
     :title="service === null ? t('serviceCard.new') : service.title"
     @update:open="onOpenChange"
   >
+    <template v-if="composing && service !== null" #actions>
+      <RvTooltip :text="t('serviceCard.openLibrary')">
+        <a
+          class="service-card__library-link"
+          :aria-label="t('serviceCard.openLibrary')"
+          :href="libraryHref"
+          rel="noopener"
+          target="_blank"
+          ><RvIcon name="external"
+        /></a>
+      </RvTooltip>
+    </template>
     <!-- Creation: a name and the first domains. -->
     <form
       v-if="creating"
@@ -867,126 +880,125 @@ function onOpenChange(open: boolean): void {
           <!-- Reading the sources is the frequent act; editing which sources
                there are is the rare one, so the frequent one is the control
                and the rare one opens a panel. -->
-          <RvButton
-            :disabled="interactionBusy || contentsState !== 'ready'"
-            size="compact"
-            type="button"
-            variant="secondary"
-            @click="onRefreshSources"
-          >
-            <RvIcon name="refresh" />
-            {{ t('serviceCard.refresh') }}
-          </RvButton>
-          <template v-if="curating">
+          <RvTooltip :text="t('serviceCard.refresh')">
             <RvButton
+              class="service-card__refresh-button"
+              :aria-label="`${t('serviceCard.refresh')}: ${t('serviceCard.sources.open', { count: sourceCount })}`"
+              :disabled="interactionBusy || contentsState !== 'ready'"
+              size="compact"
+              type="button"
+              variant="secondary"
+              @click="onRefreshSources"
+            >
+              <RvIcon
+                name="refresh"
+                :class="{ 'service-card__refresh-icon--busy': refreshing }"
+              />
+              <span>{{
+                t('serviceCard.sources.open', { count: sourceCount })
+              }}</span>
+            </RvButton>
+          </RvTooltip>
+          <RvTooltip v-if="curating" :text="t('serviceCard.sources.configure')">
+            <RvButton
+              class="service-card__sources-button"
+              :aria-label="t('serviceCard.sources.configure')"
               :disabled="interactionBusy"
               size="compact"
               type="button"
               variant="secondary"
               @click="sourcesOpen = true"
-            >
-              <RvIcon name="settings" />
-              {{ t('serviceCard.sources.open', { count: sourceCount }) }}
-            </RvButton>
-          </template>
-          <template v-else>
-            <small class="service-card__fact">
-              {{ t('serviceCard.sources.open', { count: sourceCount }) }}
-            </small>
-            <!-- The way to the other flow, in a tab of its own, so the unsaved
-                 draft this card was opened from survives being left. -->
-            <a
-              class="service-card__link"
-              :href="libraryHref"
-              rel="noopener"
-              target="_blank"
-            >
-              <RvIcon name="external" />
-              {{ t('serviceCard.openLibrary') }}
-            </a>
-          </template>
-        </div>
+              ><RvIcon name="settings"
+            /></RvButton>
+          </RvTooltip>
 
-        <!-- Source reads keep one compact, reserved status row. The retry
+          <!-- Source reads keep one compact, reserved status row. The retry
                control is present but invisible until an error so the filter
                and the known rows do not move when the answer changes. -->
-        <div
-          class="service-card__refresh-status"
-          :role="
-            refreshError !== '' || contentsState === 'failed'
-              ? 'alert'
-              : 'status'
-          "
-        >
-          <RvStatus
-            v-if="contentsState === 'loading'"
-            class="service-card__refresh-indicator"
-            :label="t('serviceCard.loading')"
-            tone="busy"
-          />
-          <RvStatus
-            v-else-if="contentsState === 'failed'"
-            class="service-card__refresh-indicator"
-            :label="t('serviceCard.failed.body')"
-            tone="failed"
-          />
-          <RvStatus
-            v-else-if="refreshing"
-            class="service-card__refresh-indicator"
-            :label="
-              t(
-                observing
-                  ? 'serviceCard.observing'
-                  : 'serviceCard.refresh.busy',
-              )
-            "
-            tone="busy"
-          />
-          <RvStatus
-            v-else-if="refreshError !== ''"
-            class="service-card__refresh-indicator"
-            :label="refreshError"
-            tone="failed"
-          />
-          <RvStatus
-            v-else-if="sources.length === 0"
-            class="service-card__refresh-indicator"
-            :label="t('serviceCard.refresh.none')"
-            tone="waiting"
-          />
-          <RvStatus
-            v-else-if="contents?.observed === true"
-            class="service-card__refresh-indicator"
-            :label="t('serviceCard.refresh.ready')"
-            tone="ready"
-          />
-          <RvStatus
-            v-else
-            class="service-card__refresh-indicator"
-            :label="t('serviceCard.refresh.waiting')"
-            tone="waiting"
-          />
-          <RvButton
-            class="service-card__refresh-retry"
-            :aria-hidden="
-              refreshError === '' && contentsState !== 'failed'
-                ? 'true'
-                : undefined
-            "
-            :disabled="
-              (refreshError === '' && contentsState !== 'failed') ||
-              interactionBusy
-            "
-            size="compact"
-            type="button"
-            @click="
-              contentsState === 'failed' && service !== null
-                ? openContents(service.id)
-                : onRetryRefresh()
+          <div
+            class="service-card__refresh-status"
+            :role="
+              refreshError !== '' || contentsState === 'failed'
+                ? 'alert'
+                : 'status'
             "
           >
-            {{ t('action.retry') }}
-          </RvButton>
+            <RvStatus
+              v-if="contentsState === 'loading'"
+              class="service-card__refresh-indicator"
+              :label="t('serviceCard.loading')"
+              tone="busy"
+            />
+            <RvStatus
+              v-else-if="contentsState === 'failed'"
+              class="service-card__refresh-indicator"
+              :label="t('serviceCard.failed.body')"
+              tone="failed"
+            />
+            <RvStatus
+              v-else-if="refreshing"
+              class="service-card__refresh-indicator"
+              :label="
+                t(
+                  observing
+                    ? 'serviceCard.observing'
+                    : 'serviceCard.refresh.busy',
+                )
+              "
+              tone="busy"
+            />
+            <RvStatus
+              v-else-if="refreshError !== ''"
+              class="service-card__refresh-indicator"
+              :label="refreshError"
+              tone="failed"
+            />
+            <RvStatus
+              v-else-if="sources.length === 0"
+              class="service-card__refresh-indicator"
+              :label="t('serviceCard.refresh.none')"
+              tone="waiting"
+            />
+            <RvTooltip
+              v-else-if="contents?.observed === true"
+              :text="t('serviceCard.refresh.ready')"
+            >
+              <span
+                class="service-card__ready"
+                role="img"
+                :aria-label="t('serviceCard.refresh.ready')"
+                tabindex="0"
+                ><RvIcon name="check"
+              /></span>
+            </RvTooltip>
+            <RvStatus
+              v-else
+              class="service-card__refresh-indicator"
+              :label="t('serviceCard.refresh.waiting')"
+              tone="waiting"
+            />
+            <RvButton
+              class="service-card__refresh-retry"
+              :aria-hidden="
+                refreshError === '' && contentsState !== 'failed'
+                  ? 'true'
+                  : undefined
+              "
+              :disabled="
+                (refreshError === '' && contentsState !== 'failed') ||
+                interactionBusy
+              "
+              size="compact"
+              type="button"
+              @click="
+                contentsState === 'failed' && service !== null
+                  ? openContents(service.id)
+                  : onRetryRefresh()
+              "
+            >
+              {{ t('action.retry') }}
+            </RvButton>
+          </div>
         </div>
 
         <div class="service-card__toolbar">
@@ -1402,7 +1414,6 @@ function onOpenChange(open: boolean): void {
   min-height: min-content;
 }
 
-.service-card__commands,
 .service-card__heading {
   display: flex;
   flex-wrap: wrap;
@@ -1473,6 +1484,7 @@ function onOpenChange(open: boolean): void {
    the same geometry; the row itself can still grow for translated or zoomed
    copy instead of clipping it. */
 .service-card__refresh-status {
+  flex: 1 1 var(--rv-composer-field-width);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: var(--rv-space-3);
@@ -1841,7 +1853,7 @@ function onOpenChange(open: boolean): void {
   font-weight: 600;
 }
 
-@media (width <= 36rem) {
+@container dialog (width <= 36rem) {
   .service-card__section,
   .service-card__entries {
     padding-right: var(--rv-space-4);
@@ -1861,6 +1873,64 @@ function onOpenChange(open: boolean): void {
 
   .service-card__actions > * {
     flex: 1 1 auto;
+  }
+}
+
+.service-card__commands {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--rv-space-2) var(--rv-space-3);
+}
+
+.service-card__refresh-button {
+  flex: none;
+}
+
+.service-card__sources-button {
+  flex: none;
+  width: var(--rv-control-compact);
+  padding: 0;
+}
+
+.service-card__ready {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  width: var(--rv-control-compact);
+  height: var(--rv-control-compact);
+  color: var(--rv-color-status-ready);
+}
+
+.service-card__library-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--rv-control-touch);
+  height: var(--rv-control-touch);
+  color: var(--rv-color-ink-muted);
+  border-radius: var(--rv-radius-sm);
+}
+
+.service-card__library-link:hover {
+  background: var(--rv-color-surface-hover);
+}
+
+.service-card__refresh-icon--busy {
+  animation: service-card-refresh var(--rv-motion-working) linear infinite;
+}
+
+@keyframes service-card-refresh {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .service-card__refresh-icon--busy {
+    animation: none;
   }
 }
 </style>

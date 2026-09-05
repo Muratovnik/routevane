@@ -27,6 +27,7 @@ defineProps<{
 
 <style scoped>
 .rv-facts {
+  container: facts / inline-size;
   display: grid;
   border-top: var(--rv-border-hair) solid var(--rv-color-rule);
 }
@@ -57,7 +58,7 @@ defineProps<{
   font-family: var(--rv-font-mono);
 }
 
-@media (width <= 34rem) {
+@container facts (width <= 34rem) {
   .rv-facts__row {
     grid-template-columns: 1fr;
     gap: var(--rv-space-1);

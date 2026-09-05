@@ -9,6 +9,7 @@ import {
 } from '@/entities/list-composition/model/composition'
 import { useCompositionForecast } from '@/entities/list-composition/model/forecast'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
+import RvComposerForm from '@/shared/ui/RvComposerForm.vue'
 import RvComposer from '@/shared/ui/RvComposer.vue'
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
@@ -191,9 +192,9 @@ function reset(): void {
       </section>
 
       <template #settings="{ compact }">
-        <form
+        <RvComposerForm
           class="editor__settings"
-          :class="{ 'editor__settings--compact': compact }"
+          :compact="compact"
           @submit.prevent="submit"
         >
           <div class="editor__field">
@@ -212,27 +213,24 @@ function reset(): void {
 
           <div v-if="outputs.length" class="editor__field">
             <span class="editor__label">{{ t('create.target') }}</span>
-            <p>{{ outputs.map((output) => output.title).join(', ') }}</p>
+            <p class="editor__connection-value">
+              {{ outputs.map((output) => output.title).join(', ') }}
+            </p>
           </div>
-          <p v-if="!compact" class="editor__note">{{ t('list.edit.note') }}</p>
+          <template v-if="!compact || overflowLines.length > 0" #details>
+            <p v-if="!compact" class="editor__note">
+              {{ t('list.edit.note') }}
+            </p>
 
-          <div
-            v-if="overflowLines.length > 0"
-            class="editor__forecast"
-            role="status"
-          >
-            <p v-for="line in overflowLines" :key="line">{{ line }}</p>
-          </div>
-
-          <div
-            class="editor__actions"
-            :class="{ 'editor__actions--compact': compact }"
-          >
-            <RvInfoTip
-              v-if="compact"
-              :label="t('list.edit.effect')"
-              :text="t('list.edit.note')"
-            />
+            <div
+              v-if="overflowLines.length > 0"
+              class="editor__forecast"
+              role="status"
+            >
+              <p v-for="line in overflowLines" :key="line">{{ line }}</p>
+            </div>
+          </template>
+          <template #actions>
             <RvButton
               :disabled="!canSave || !dirty"
               :loading="props.busy"
@@ -242,6 +240,11 @@ function reset(): void {
             >
               {{ props.busy ? t('list.edit.saving') : t('list.edit.save') }}
             </RvButton>
+            <RvInfoTip
+              v-if="compact"
+              :label="t('list.edit.effect')"
+              :text="t('list.edit.note')"
+            />
             <RvButton
               v-if="dirty"
               :disabled="props.busy"
@@ -250,8 +253,8 @@ function reset(): void {
             >
               {{ t('action.cancel') }}
             </RvButton>
-          </div>
-        </form>
+          </template>
+        </RvComposerForm>
       </template>
     </RvComposer>
   </div>

@@ -6,12 +6,6 @@
   width: 100%;
 }
 
-.editor__settings {
-  display: grid;
-  gap: var(--rv-space-6);
-  min-width: 0;
-}
-
 .editor__field {
   display: grid;
   gap: var(--rv-space-2);
@@ -83,22 +77,10 @@
   clip-path: inset(50%);
 }
 
-.editor__settings--compact {
+.editor__connection-value {
   display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: var(--rv-space-3) var(--rv-space-4);
-}
-
-.editor__settings--compact > * {
-  flex: 1 1 var(--rv-composer-field-width);
-  min-width: 0;
-}
-
-.editor__actions--compact {
-  gap: var(--rv-space-1);
-  display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  min-height: var(--rv-control-touch);
+  margin: 0;
+  overflow-wrap: anywhere;
 }

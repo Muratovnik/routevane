@@ -149,12 +149,27 @@
   --rv-picker-fill-min: 0;
   --rv-picker-fill-max: none;
   --rv-composition-width: 88rem;
+  --rv-feedback-delay: 160ms;
   --rv-composer-field-width: 14rem;
   --rv-detail-min-width: 35rem;
   --rv-composer-rail-width: var(--rv-panel-width);
   --rv-composer-priority-height: max(16rem, calc(100dvh - 24rem));
   --rv-picker-priority-width: 2.75rem;
   --rv-picker-name-width: 8rem;
+  --rv-catalog-utility-width: calc(
+    var(--rv-picker-priority-width) + var(--rv-table-action-width) * 2 +
+      var(--rv-picker-rule-width) + var(--rv-picker-overlap-width)
+  );
+  --rv-catalog-name-column: clamp(
+    8rem,
+    calc((100cqw - var(--rv-catalog-utility-width)) * 0.45),
+    24rem
+  );
+  --rv-catalog-category-column: clamp(
+    8rem,
+    calc((100cqw - var(--rv-catalog-utility-width)) * 0.55),
+    24rem
+  );
   --rv-picker-rule-width: 5rem;
   --rv-picker-overlap-width: 10rem;
   --rv-picker-mobile-height: clamp(22rem, 64dvh, 32rem);

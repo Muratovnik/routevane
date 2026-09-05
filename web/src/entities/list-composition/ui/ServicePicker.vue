@@ -583,7 +583,8 @@ function serviceLabel(serviceID: string): string {
                     list: overlapTitles(service.id)?.join(', ') ?? '',
                   })
                 "
-                :text="overlapTitles(service.id)?.join(', ') ?? ''"
+                :text="t('servicePicker.overlap.heading')"
+                :items="overlapTitles(service.id) ?? []"
                 >{{ overlapCount(service.id) }}</RvInfoTip
               >
               <span

@@ -394,7 +394,7 @@ async function onListMenu(key: string): Promise<void> {
       v-if="view.state.value === 'loading'"
       :aria-label="t('list.loading')"
       aria-busy="true"
-      class="list__loading"
+      class="list__loading rv-loading-feedback"
       role="status"
     >
       <span class="list__visually-hidden">{{ t('list.loading') }}</span>

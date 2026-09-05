@@ -205,6 +205,7 @@ const sheetUI = computed(() => ({
     side="right"
     @update:open="updateOpen"
   >
+    <template v-if="$slots.actions" #actions><slot name="actions" /></template>
     <template #close>
       <button
         :aria-label="closeLabel"
@@ -245,6 +246,7 @@ const sheetUI = computed(() => ({
               {{ description }}
             </DialogDescription>
           </div>
+          <slot name="actions" />
           <DialogClose
             :aria-label="closeLabel"
             class="rv-dialog__close"
@@ -281,6 +283,7 @@ const sheetUI = computed(() => ({
 }
 
 .rv-dialog {
+  container: dialog / inline-size;
   position: fixed;
   z-index: 6;
   display: grid;
@@ -340,7 +343,7 @@ const sheetUI = computed(() => ({
 .rv-dialog__header {
   display: flex;
   gap: var(--rv-space-4);
-  align-items: flex-start;
+  align-items: center;
   padding: var(--rv-space-5) var(--rv-space-6);
   border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
 }
@@ -433,14 +436,16 @@ const sheetUI = computed(() => ({
   border-top: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 
-@media (width <= 36rem) {
+@container dialog (width <= 36rem) {
   .rv-dialog__header,
   .rv-dialog__footer {
     padding-right: var(--rv-space-4);
     padding-left: var(--rv-space-4);
   }
+}
 
-  /* At this width a centred box is the screen; it stops pretending otherwise. */
+/* A portalled panel is sized against the window; its contents query the panel. */
+@media (width <= 36rem) {
   .rv-dialog--panel {
     width: 100%;
     max-height: 100dvh;

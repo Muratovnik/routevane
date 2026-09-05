@@ -316,6 +316,7 @@ const ru: Dictionary = {
   'servicePicker.overlap.legend':
     'Число других выбранных списков с общими правилами. 0 — пересечений нет; прочерк — расчёта нет или список не выбран.',
   'servicePicker.overlap.tag': 'Пересечение: {list}',
+  'servicePicker.overlap.heading': 'Пересекается со списками',
 
   'lists.title': 'Списки',
   'lists.loading': 'Загружаем списки…',
@@ -400,6 +401,7 @@ const ru: Dictionary = {
   'serviceCard.sources': 'Автоматические источники',
   'serviceCard.sources.none': 'У списка нет автоматических источников.',
   'serviceCard.sources.open': 'Источники · {count}',
+  'serviceCard.sources.configure': 'Настроить источники',
   'serviceCard.source.custom': 'Ваш фид',
   'serviceCard.refresh': 'Обновить из источников',
   'serviceCard.refresh.busy': 'Обновляем…',
@@ -1189,6 +1191,7 @@ const en: Dictionary = {
   'servicePicker.overlap.legend':
     'Number of other selected lists with shared rules. 0 means no overlaps; a dash means no calculation or an unselected list.',
   'servicePicker.overlap.tag': 'Overlap: {list}',
+  'servicePicker.overlap.heading': 'Overlaps with lists',
 
   'lists.title': 'Lists',
   'lists.loading': 'Loading the lists…',
@@ -1273,6 +1276,7 @@ const en: Dictionary = {
   'serviceCard.sources': 'Automatic sources',
   'serviceCard.sources.none': 'This list has no automatic sources.',
   'serviceCard.sources.open': 'Sources · {count}',
+  'serviceCard.sources.configure': 'Configure sources',
   'serviceCard.source.custom': 'Your feed',
   'serviceCard.refresh': 'Refresh from sources',
   'serviceCard.refresh.busy': 'Refreshing…',

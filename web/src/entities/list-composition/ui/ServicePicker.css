@@ -78,8 +78,11 @@
   font-weight: 400;
 }
 
+.picker__table th:nth-child(3) {
+  width: var(--rv-catalog-name-column);
+}
+
 .picker__category-column {
-  width: 30%;
   color: var(--rv-color-ink-muted);
 }
 

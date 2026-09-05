@@ -653,12 +653,7 @@ async function submitPriority(): Promise<void> {
         :services="library.services.value"
         :disabled="library.busy.value"
       />
-      <div class="lists__order-bar">
-        <h2 class="lists__details-title">
-          {{ activeRow?.label ?? t('servicePicker.filter.all') }}
-        </h2>
-        <span>{{ t('lists.priority.title') }}</span>
-        <span class="lists__priority-help">{{ t('lists.priority.body') }}</span>
+      <div v-if="priorityDirty" class="lists__order-bar">
         <RvButton
           v-if="priorityDirty"
           :disabled="tableDisabled"
@@ -760,14 +755,10 @@ async function submitPriority(): Promise<void> {
                 <button
                   type="button"
                   class="lists__list-name"
-                  :aria-label="
-                    t('serviceDetail.open.aria', { service: service.title })
-                  "
                   :disabled="library.busy.value"
                   @click="openService(service.id)"
                 >
                   <span>{{ service.title }}</span>
-                  <RvIcon name="chevron" class="lists__open-indicator" />
                 </button>
               </th>
               <td class="lists__category-column">
@@ -787,6 +778,17 @@ async function submitPriority(): Promise<void> {
                   :label="t('lists.list.menu', { list: service.title })"
                   @select="onListAction(service, $event)"
                 />
+                <button
+                  type="button"
+                  class="lists__open"
+                  :disabled="tableDisabled"
+                  :aria-label="
+                    t('serviceDetail.open.aria', { service: service.title })
+                  "
+                  @click="openService(service.id)"
+                >
+                  <RvIcon name="chevron" class="lists__open-indicator" />
+                </button>
               </td>
             </tr>
           </tbody>

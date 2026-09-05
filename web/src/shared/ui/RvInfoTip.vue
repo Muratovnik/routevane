@@ -22,6 +22,7 @@ defineProps<{
   numeric?: boolean
   label: string
   text: string
+  items?: string[]
 }>()
 
 // The panel closes when the reader looks elsewhere with the pointer or presses
@@ -49,7 +50,13 @@ function onFocusOutside(event: Event): void {
         :side-offset="6"
         @focus-outside="onFocusOutside"
       >
-        {{ text }}
+        <template v-if="items"
+          ><strong>{{ text }}</strong>
+          <ul class="rv-infotip__items">
+            <li v-for="item in items" :key="item">{{ item }}</li>
+          </ul></template
+        >
+        <template v-else>{{ text }}</template>
       </PopoverContent>
     </PopoverPortal>
   </PopoverRoot>
@@ -73,13 +80,15 @@ function onFocusOutside(event: Event): void {
 
 .rv-infotip__trigger--numeric {
   justify-content: flex-start;
+  padding-inline: var(--rv-space-2);
+  margin-inline-start: calc(-1 * var(--rv-space-2));
   font-variant-numeric: tabular-nums;
   color: var(--rv-color-ink-muted);
 }
 
 .rv-infotip__trigger:hover {
   color: var(--rv-color-ink);
-  background: var(--rv-color-surface-muted);
+  background: var(--rv-color-surface-hover);
 }
 </style>
 
@@ -114,9 +123,17 @@ function onFocusOutside(event: Event): void {
   line-height: var(--rv-leading-normal);
   text-transform: none;
   letter-spacing: normal;
-  background: var(--rv-color-surface);
+  background: var(--rv-color-canvas);
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-md);
   box-shadow: var(--rv-shadow-raised);
+}
+
+.rv-infotip__items {
+  display: grid;
+  gap: var(--rv-space-2);
+  margin: var(--rv-space-3) 0 0;
+  padding: 0;
+  list-style: none;
 }
 </style>

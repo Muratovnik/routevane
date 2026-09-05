@@ -147,7 +147,15 @@ function onConfigTransferApplied(): void {
             :options="refreshOptions"
             @update:model-value="onRefreshInterval"
           />
-          <p class="settings__note" role="status">
+          <p
+            class="settings__note"
+            :class="{
+              'rv-loading-feedback':
+                settings.readState.value === 'loading' &&
+                settings.writeState.value !== 'failed',
+            }"
+            role="status"
+          >
             {{
               settings.writeState.value === 'failed'
                 ? t('settings.refresh.failed')

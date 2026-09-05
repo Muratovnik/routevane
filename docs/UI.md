@@ -141,9 +141,9 @@ Sections, addressable by URL:
    («catalog», «by hand», «v2fly»), because a value already shows what kind
    it is. **Opened from a route, the card reads**: the rows carry no control,
    because the route's own act is the footer and the list itself is edited
-   where lists are edited (ADR 0029). The sources are a fact here
-   («Источники · 2»), with a separate refresh action that rereads existing sources
-   and invalidates the draft forecast. Source configuration stays in the library.
+   where lists are edited (ADR 0029). The source count («Источники · 2») labels the refresh button, which rereads
+   existing sources and invalidates the draft forecast. Source configuration
+   stays in the library, behind a separate settings icon.
    The footer is one line: the membership status, the toggle beside
    it, and «applies when the route is saved» only while the card was opened
    from an unsaved draft. A draft's name is proposed from what is picked, so
@@ -353,12 +353,23 @@ Refreshing selected lists is available without choosing a format and while a
 forecast is calculating. Only an actual source read shows the refresh button's
 busy state and prevents a duplicate refresh, apart from conflicting writes.
 
-Library rows open inspection from their non-interactive area and show a right
-chevron; the named button retains keyboard access. Reorder handles and menus
+Library rows open inspection from their non-interactive area and show a chevron
+at the trailing edge after the row menu; the named button retains keyboard access. Reorder handles and menus
 keep their separate actions. On a list switch, the card clears the previous
 list's data but retains its command bar, search and table geometry. Loading
 placeholders occupy the table; failures expose retry in the reserved status row.
-Source actions use bordered buttons, distinct from the contents heading.
+The refresh button combines its icon with the source count; source configuration
+is a separate labelled icon button in the library.
+A successful source read is a compact check with a tooltip; pending and failed
+reads keep their actionable text in the same command area. The library link is
+an icon to the right of the drawer title, before Close and outside its accessible heading. The library
+shows priority actions only for an unsaved order, without repeating category
+or priority explanations above the table.
+
+Create and edit share the settings form layout. When moved above the table,
+its fields align at the top in two equal columns; actions occupy a separate
+full-width row below them. Numeric overlap disclosures keep numbers aligned
+while providing inset hit areas and a titled list of intersecting names.
 
 This is the shared layout verification matrix; rule and skill files link here:
 
@@ -522,3 +533,19 @@ same transaction in the route composer, editor and library. Without API support
 or with reduced motion, the layout switches immediately. Modal sheets retain
 their separate viewport entrance. Check the actual snapshot animation and both
 layout states, not only the final DOM bounding boxes.
+
+Shared catalog column tokens keep list names comparable in the library and route
+tables. Category columns use the same text-width budget; utility columns remain
+reserved for selection, rules and overlaps in routes, with library actions at
+the trailing edge. Additional width does not expand the name beyond its measure.
+
+Loading feedback waits 160ms before becoming visible, including with reduced
+motion enabled. The request and guards start immediately. A quick response
+removes the pending surface before it is shown; a slow response reveals it
+without moving its reserved box. Failure and recovery actions appear immediately.
+This behavior belongs to the shared notice/status components and page skeletons.
+
+Component reflow follows the available container width, including facts, file
+pickers, route tables and drawer controls. Named dialog queries also apply to
+portalled sheets. Viewport media queries are reserved for the application
+scroll-height policy, fullscreen modal boundaries and system preferences.

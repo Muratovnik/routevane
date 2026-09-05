@@ -212,8 +212,7 @@ test('the library starts empty and shelves the route the composer creates and pu
     )
 
   const refresh = serviceCard.getByRole('button', {
-    name: 'Refresh from sources',
-    exact: true,
+    name: /^Refresh from sources: Sources · \d+$/,
   })
   await expect(refresh).toBeEnabled()
   const refreshed = page.waitForResponse(
@@ -1552,7 +1551,7 @@ test('the visible library order seeds new routes without rewriting saved routes'
   try {
     await page.goto(`${origin}/library`)
     const sheet = page.locator('.lists')
-    await expect(sheet).toContainText(
+    await expect(sheet).not.toContainText(
       'New routes start with this order. Existing saved routes do not change.',
     )
 
@@ -1658,7 +1657,7 @@ test('an operator category carries its lists into a route and is kept while a ro
   // The category just made is the one on screen, because it was made to be
   // filled.
   const details = page.locator('.lists')
-  await expect(details.getByRole('heading', { name: 'Домашние' })).toBeVisible()
+  await expectLibraryCategory(page, 'Домашние')
 
   await page.getByRole('button', { name: 'New list' }).click()
   const addList = page.getByRole('dialog', { name: 'New list' })
@@ -2682,20 +2681,12 @@ for (const language of ['en', 'ru'] as const) {
         await expect(page.getByRole('status')).toContainText(
           copy('lists.stale'),
         )
-        await expect(
-          page.locator('.lists').getByRole('heading', {
-            name: copy('servicePicker.filter.all'),
-          }),
-        ).toBeVisible()
+        await expectLibraryCategory(page, copy('servicePicker.filter.all'))
         expect(categoryWrites).toHaveLength(1)
 
         expect(await auditWidths(page, `${language}-library-stale`)).toEqual([])
         await page.getByRole('button', { name: copy('lists.refresh') }).click()
-        await expect(
-          page.locator('.lists').getByRole('heading', {
-            name: categoryTitle,
-          }),
-        ).toBeVisible()
+        await expectLibraryCategory(page, categoryTitle)
         await expect(
           page.getByRole('status').filter({ hasText: copy('lists.stale') }),
         ).toHaveCount(0)
@@ -3181,6 +3172,25 @@ async function buildList(
   return { listId, outputId: outputPayload.output.id }
 }
 
+async function expectLibraryCategory(
+  page: Page,
+  category: string,
+): Promise<void> {
+  await expect
+    .poll(() =>
+      page.locator('.catalog-filters').evaluate((scope) => {
+        const active =
+          scope.querySelector('[aria-pressed="true"]') ??
+          scope.querySelector('.rv-search-select__trigger')
+        if (!active) return ''
+        const copy = active.cloneNode(true) as Element
+        copy.querySelectorAll('small').forEach((count) => count.remove())
+        return copy.textContent!.trim()
+      }),
+    )
+    .toBe(category)
+}
+
 /** One category's pane in «Списки», opened the way the column opens it. */
 async function openLibraryCategory(
   page: Page,
@@ -3188,7 +3198,7 @@ async function openLibraryCategory(
 ): Promise<void> {
   await page.locator('.catalog-filters .rv-search-select__trigger').click()
   await page.getByRole('option', { name: category }).click()
-  await expect(page.locator('.lists__details-title')).toHaveText(category)
+  await expectLibraryCategory(page, category)
 }
 
 /**
@@ -3308,8 +3318,10 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     .locator('.picker__overlaps-column')
     .evaluate((cell) => {
       const count = cell.querySelector('button')!
+      const range = document.createRange()
+      range.selectNodeContents(count)
       return (
-        count.getBoundingClientRect().left -
+        range.getBoundingClientRect().left -
         cell.getBoundingClientRect().left -
         Number.parseFloat(getComputedStyle(cell).paddingLeft)
       )
@@ -3319,7 +3331,10 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   await alphaRow
     .getByRole('button', { name: 'Overlap: Overlap Beta', exact: true })
     .click()
-  await expect(page.getByRole('dialog')).toContainText('Overlap Beta')
+  await expect(page.getByRole('dialog')).toContainText('Overlaps with lists')
+  await expect(page.getByRole('dialog').getByRole('listitem')).toHaveText(
+    'Overlap Beta',
+  )
   await page.keyboard.press('Escape')
   await expect(
     page.getByRole('button', { name: 'How overlaps are resolved' }),
@@ -3739,7 +3754,9 @@ for (const language of ['en', 'ru'] as const) {
         const refresh = library
           .locator('.service-card__commands > .rv-button')
           .first()
-        await expect(refresh).toHaveAccessibleName(copy('serviceCard.refresh'))
+        await expect(refresh).toHaveAccessibleName(
+          new RegExp(`^${copy('serviceCard.refresh')}:`),
+        )
         const libraryClose = library
           .getByRole('button', { name: copy('action.close') })
           .last()
@@ -4164,7 +4181,7 @@ for (const language of ['en', 'ru'] as const) {
           .click()
         await expect(card.getByRole('alert')).toHaveCount(0)
         await expect(
-          card.getByText(copy('serviceCard.refresh.ready')),
+          card.getByRole('img', { name: copy('serviceCard.refresh.ready') }),
         ).toBeVisible()
         const recoveredFilterBox = await card
           .getByRole('searchbox', { name: copy('serviceCard.filter') })
@@ -4672,19 +4689,63 @@ test('page inspection preserves primary actions and full-height geometry in ever
     await expect(page.locator('.rv-dialog__scrim')).toHaveCount(0)
   }
   await aligned(page.locator('.picker__table-frame'))
+  const routeNameWidth = (await page
+    .locator('.picker__table thead th')
+    .nth(2)
+    .boundingBox())!.width
+  const routeCategoryWidth = (await page
+    .locator('.picker__category-column')
+    .first()
+    .boundingBox())!.width
+  const fields = page.locator('.rv-composer-form__fields > div')
+  expect(await fields.count()).toBe(2)
+  const firstField = (await fields.nth(0).boundingBox())!
+  const secondField = (await fields.nth(1).boundingBox())!
+  expect(Math.abs(firstField.y - secondField.y)).toBeLessThanOrEqual(1)
+  const actionRow = (await page
+    .locator('.rv-composer-form__actions')
+    .boundingBox())!
+  expect(actionRow.y).toBeGreaterThanOrEqual(
+    Math.max(
+      firstField.y + firstField.height,
+      secondField.y + secondField.height,
+    ),
+  )
+  const libraryLink = card.getByRole('link', { name: 'Open in the library' })
+  await expect(libraryLink).toBeVisible()
+  expect((await libraryLink.boundingBox())!.x).toBeGreaterThan(
+    (await card
+      .getByRole('heading', { name: 'Discord', exact: true })
+      .boundingBox())!.x,
+  )
+
   const create = page.getByRole('button', {
     name: 'Create and prepare',
     exact: true,
   })
   await expect(create).toBeInViewport()
   await expect(create).toBeEnabled()
+  const firstOutput = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/v1\/lists\/[a-f0-9]{32}\/outputs$/.test(
+        new URL(response.url()).pathname,
+      ),
+  )
   await create.click()
   await page.waitForURL(/\/lists\/[a-f0-9]{32}/)
+  expect((await firstOutput).ok()).toBe(true)
   const id = listIDFromURL(page.url())
   await page.goto(`${origin}/lists/${id}`)
   await page.locator('#editor-name').fill('Inspection workflow saved')
   await page.locator('[data-id="discord"] .picker__open').click()
   await aligned(page.locator('.picker__table-frame'))
+  expect(
+    Math.abs(
+      (await fields.nth(0).boundingBox())!.y -
+        (await fields.nth(1).boundingBox())!.y,
+    ),
+  ).toBeLessThanOrEqual(1)
   const save = page.getByRole('button', {
     name: 'Save and rebuild',
     exact: true,
@@ -4707,6 +4768,18 @@ test('page inspection preserves primary actions and full-height geometry in ever
     .boundingBox())!.x
   await page.locator('[data-id="discord"] .lists__list-name').click()
   await aligned(page.locator('.lists__workspace'))
+  expect(
+    Math.abs(
+      (await page.locator('.lists__table thead th').nth(1).boundingBox())!
+        .width - routeNameWidth,
+    ),
+  ).toBeLessThanOrEqual(8)
+  expect(
+    Math.abs(
+      (await page.locator('.lists__category-column').first().boundingBox())!
+        .width - routeCategoryWidth,
+    ),
+  ).toBeLessThanOrEqual(8)
   expect(
     Math.abs(
       (await page.locator('.lists__workspace').boundingBox())!.x -
@@ -4983,5 +5056,75 @@ test('one list without IP coverage preserves other lists and domain-format forec
           })
         ).ok(),
       ).toBe(true)
+  }
+})
+
+test('quick route reads stay quiet while slow reads and failures remain visible', async ({
+  page,
+}) => {
+  const payload = await (await page.request.get(`${origin}/v1/lists`)).json()
+  let mode: 'fast' | 'slow' | 'failure' = 'fast'
+  let release!: () => void
+  let held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await page.addInitScript(() => {
+    const feedback = { samples: [] as string[] }
+    Object.assign(window, { routeFeedback: feedback })
+    function sample() {
+      const notice = document.querySelector('.rv-notice--busy')
+      if (notice) feedback.samples.push(getComputedStyle(notice).visibility)
+      requestAnimationFrame(sample)
+    }
+    requestAnimationFrame(sample)
+  })
+  await page.route('**/v1/lists', async (route) => {
+    if (mode !== 'fast') await held
+    await route.fulfill({
+      status: mode === 'failure' ? 503 : 200,
+      json: mode === 'failure' ? { error: 'unavailable' } : payload,
+    })
+  })
+  const samples = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { routeFeedback: { samples: string[] } })
+          .routeFeedback.samples,
+    )
+  try {
+    await page.goto(origin)
+    await expect(
+      page.locator('.library__scroll, .library__empty'),
+    ).toBeVisible()
+    expect(await samples()).not.toContain('visible')
+    mode = 'slow'
+    await page.emulateMedia({ reducedMotion: 'reduce' })
+    await page.goto(origin)
+    await expect(page.locator('.rv-notice--busy')).toBeVisible()
+    expect((await samples())[0]).toBe('hidden')
+    release()
+    await expect(
+      page.locator('.library__scroll, .library__empty'),
+    ).toBeVisible()
+    await expect(page.locator('.rv-notice--busy')).toHaveCount(0)
+    mode = 'failure'
+    held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await page.goto(origin)
+    await expect(page.locator('.rv-notice--busy')).toBeVisible()
+    release()
+    await expect(page.locator('.rv-notice--failed')).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Retry', exact: true }),
+    ).toBeEnabled()
+    expect(
+      await page
+        .locator('.rv-notice--failed')
+        .evaluate((e) => getComputedStyle(e).animationDelay),
+    ).toBe('0s')
+  } finally {
+    release()
+    await page.unrouteAll({ behavior: 'wait' })
   }
 })

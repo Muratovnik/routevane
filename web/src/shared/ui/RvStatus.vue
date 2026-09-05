@@ -15,7 +15,13 @@ defineProps<{
 </script>
 
 <template>
-  <span class="rv-status" :class="`rv-status--${tone ?? 'waiting'}`">
+  <span
+    class="rv-status"
+    :class="[
+      `rv-status--${tone ?? 'waiting'}`,
+      { 'rv-loading-feedback': tone === 'busy' },
+    ]"
+  >
     <span class="rv-status__dot" aria-hidden="true" />
     <span class="rv-status__label">{{ label }}</span>
   </span>

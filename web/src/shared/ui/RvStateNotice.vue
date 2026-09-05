@@ -31,7 +31,10 @@ const icon = computed(() => icons[props.tone ?? 'waiting'])
 <template>
   <div
     class="rv-notice"
-    :class="`rv-notice--${tone ?? 'waiting'}`"
+    :class="[
+      `rv-notice--${tone ?? 'waiting'}`,
+      { 'rv-loading-feedback': tone === 'busy' },
+    ]"
     :role="live === true ? 'status' : undefined"
   >
     <span class="rv-notice__icon">

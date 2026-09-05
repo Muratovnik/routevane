@@ -145,3 +145,20 @@ html[data-rv-workspace-transition]::view-transition-old(root) {
 html[data-rv-workspace-transition]::view-transition-group(composer-settings) {
   z-index: 2;
 }
+
+/* Delay feedback, never the operation or its disabled controls. A completed
+   read unmounts this surface before it becomes visible; failures show at once. */
+.rv-loading-feedback {
+  animation: rv-loading-feedback-reveal 0s step-end var(--rv-feedback-delay)
+    both;
+}
+
+@keyframes rv-loading-feedback-reveal {
+  from {
+    visibility: hidden;
+  }
+
+  to {
+    visibility: visible;
+  }
+}

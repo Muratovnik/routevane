@@ -31,6 +31,21 @@ const services = [
   { categories: [], custom: true, id: 'steam', title: 'Steam' },
 ]
 
+function activeCategory(scope: Element): string {
+  const selected = scope.querySelector(
+    '.catalog-filters__categories [aria-pressed="true"]',
+  )
+  const trigger =
+    selected ??
+    scope.querySelector(
+      '.catalog-filters__categories .rv-search-select__trigger',
+    )
+  expect(trigger).not.toBeNull()
+  const copy = trigger!.cloneNode(true) as Element
+  copy.querySelectorAll('small').forEach((count) => count.remove())
+  return copy.textContent!.trim()
+}
+
 function json(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -264,7 +279,7 @@ describe('ListLibraryView', () => {
     })
     const wrapper = mountLibrary()
     await flushPromises()
-    expect(wrapper.get('.lists__details-title').text()).toBe('All categories')
+    expect(activeCategory(wrapper.element)).toBe('All categories')
 
     await openMenu(wrapper, 'Actions for category Video')
     menuItem('Delete the category')?.click()
@@ -273,7 +288,7 @@ describe('ListLibraryView', () => {
     await flushPromises()
 
     expect(keys().at(-3)).toBe('POST /v1/categories/video/remove')
-    expect(wrapper.get('.lists__details-title').text()).toBe('All categories')
+    expect(activeCategory(wrapper.element)).toBe('All categories')
     wrapper.unmount()
   })
 
@@ -329,7 +344,7 @@ describe('ListLibraryView', () => {
       'GET /v1/targets',
     ])
     // A category made to be filled has to be the one on screen.
-    expect(wrapper.get('.lists__details-title').text()).toBe('Дом')
+    expect(activeCategory(wrapper.element)).toBe('Дом')
     wrapper.unmount()
   })
 
@@ -757,7 +772,7 @@ describe('ListLibraryView', () => {
     const wrapper = mountLibrary('#category=video&list=youtube')
     await flushPromises()
 
-    expect(wrapper.get('.lists__details-title').text()).toBe('Video')
+    expect(activeCategory(wrapper.element)).toBe('Video')
     const card = dialog()
     expect(card.textContent).toContain('YouTube')
     expect(card.textContent).toContain('youtube.example')
@@ -806,7 +821,7 @@ describe('ListLibraryView', () => {
     expect(panel.isConnected).toBe(false)
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
     expect(wrapper.text()).toContain('Saved, but the lists were not reread')
-    expect(wrapper.get('.lists__details-title').text()).toBe('All categories')
+    expect(activeCategory(wrapper.element)).toBe('All categories')
     expect(wrapper.text()).not.toContain('Saved while offline')
 
     // Recovery is only GET. Once it confirms the category, the saved identity
@@ -816,9 +831,7 @@ describe('ListLibraryView', () => {
     expect(
       calls.filter((call) => call.key === 'POST /v1/categories'),
     ).toHaveLength(1)
-    expect(wrapper.get('.lists__details-title').text()).toBe(
-      'Saved while offline',
-    )
+    expect(activeCategory(wrapper.element)).toBe('Saved while offline')
     expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
     wrapper.unmount()
   })
@@ -885,7 +898,7 @@ describe('ListLibraryView', () => {
 
     expect(panel.isConnected).toBe(false)
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    expect(wrapper.get('.lists__details-title').text()).toBe('Домашние')
+    expect(activeCategory(wrapper.element)).toBe('Домашние')
     expect(wrapper.text()).toContain('Saved, but the lists were not reread')
     expect(
       calls.filter(
@@ -895,7 +908,7 @@ describe('ListLibraryView', () => {
 
     await clickByText(wrapper.element as HTMLElement, 'Refresh lists')
     await flushPromises()
-    expect(wrapper.get('.lists__details-title').text()).toBe('Renamed later')
+    expect(activeCategory(wrapper.element)).toBe('Renamed later')
     expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
     expect(
       calls.filter(
@@ -931,7 +944,7 @@ describe('ListLibraryView', () => {
 
     expect(panel.isConnected).toBe(false)
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    expect(wrapper.get('.lists__details-title').text()).toBe('Uncategorized')
+    expect(activeCategory(wrapper.element)).toBe('Uncategorized')
     expect(await categoryText(wrapper)).toContain('Домашние')
     expect(wrapper.text()).toContain('Saved, but the lists were not reread')
     expect(
@@ -942,7 +955,7 @@ describe('ListLibraryView', () => {
 
     await clickByText(wrapper.element as HTMLElement, 'Refresh lists')
     await flushPromises()
-    expect(wrapper.get('.lists__details-title').text()).toBe('Uncategorized')
+    expect(activeCategory(wrapper.element)).toBe('Uncategorized')
     expect(await categoryText(wrapper)).not.toContain('Домашние')
     expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
     expect(

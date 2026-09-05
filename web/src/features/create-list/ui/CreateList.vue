@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 
+import RvComposerForm from '@/shared/ui/RvComposerForm.vue'
 import RvComposer from '@/shared/ui/RvComposer.vue'
 import ServicePicker from '@/entities/list-composition/ui/ServicePicker.vue'
 import { useCreateList } from '@/features/create-list/model/useCreateList'
@@ -173,9 +174,9 @@ async function submit(): Promise<void> {
       </section>
 
       <template #settings="{ compact }">
-        <form
+        <RvComposerForm
           class="create__form"
-          :class="{ 'create__form--compact': compact }"
+          :compact="compact"
           @submit.prevent="submit"
         >
           <div class="create__name">
@@ -220,7 +221,7 @@ async function submit(): Promise<void> {
             />
           </div>
 
-          <div class="create__submit">
+          <template #actions>
             <RvStateNotice
               v-if="setup.blocked.value"
               :body="blockedBody"
@@ -255,8 +256,8 @@ async function submit(): Promise<void> {
             >
               {{ setup.busy.value ? stageMessage : t('create.submit') }}
             </RvButton>
-          </div>
-        </form>
+          </template>
+        </RvComposerForm>
       </template>
     </RvComposer>
 
