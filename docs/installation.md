@@ -111,7 +111,7 @@ not GitHub's **Source code** archive. Extract the entire application folder:
 | File | Purpose |
 | --- | --- |
 | `start-routevane.cmd` or `start-routevane.sh` | Starts the application and opens its browser interface |
-| `routing-agent.exe` or `routing-agent` | The application, including its web interface and command-line program |
+| `routevane.exe` or `routevane` | The application, including its web interface and command-line program |
 | `catalog/` | Supplied lists and output definitions |
 | `README.txt` | Offline start, stop, update, and recovery instructions |
 | `LICENSE`, `THIRD_PARTY_NOTICES.txt`, `SBOM.spdx.json` | License and bundled dependency information |
@@ -176,7 +176,7 @@ It does **not** undo routes already applied to a device.
 
 - **The page does not open (CLI package):** keep the console open and read its
   error. Try the printed address manually. From the extracted folder, run
-  `./routing-agent version` (`./routing-agent.exe version` on Windows) to check
+  `./routevane version` (`./routevane.exe version` on Windows) to check
   the version, and open `http://127.0.0.1:8765/health` to check for
   `status: ok`. Use your chosen port if it differs from the default.
 - **Routevane could not start, or its backend stopped (desktop):** another

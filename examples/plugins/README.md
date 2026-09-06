@@ -42,7 +42,7 @@ synthetic documentation addresses and is not useful as a live routing feed.
 A complete test of both supplied files and real subprocesses is:
 
 ```powershell
-go test ./cmd/routing-agent -run 'TestPublishesThroughAnExternalRenderer|TestAnInstalledExternalSource|TestPluginsAreDiscovered' -count=1
+go test ./cmd/routevane -run 'TestPublishesThroughAnExternalRenderer|TestAnInstalledExternalSource|TestPluginsAreDiscovered' -count=1
 ```
 
 The tests copy these exact manifests, target and service, filling only the binary

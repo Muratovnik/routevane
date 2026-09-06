@@ -168,7 +168,7 @@ class RepositoryContracts(unittest.TestCase):
             root = Path(directory)
             stage = root / "routevane-test"
             stage.mkdir()
-            for name in ("routing-agent", "start-routevane.sh", "README.txt"):
+            for name in ("routevane", "start-routevane.sh", "README.txt"):
                 (stage / name).write_text("fixture", encoding="utf-8")
             output = root / "release.zip"
             pack(stage, output, "linux-amd64", "2026-09-01T00:00:00+00:00")

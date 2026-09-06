@@ -83,10 +83,9 @@ browser.
 3. Open **http://127.0.0.1:8765** if the browser does not open by itself.
 
 Keep the console window open while you work; press **Ctrl+C** in it to stop.
-Your data is created in `data/` beside the launcher. The executable
-`routing-agent` is Routevane's engine and command-line program. Keep it together
-with the launcher and `catalog/`; double-clicking the executable alone shows CLI
-help instead of opening the interface. See
+Your data is created in `data/` beside the launcher. Keep the `routevane`
+executable together with the launcher and `catalog/`; double-clicking it alone
+shows command-line help instead of opening the interface. See
 [launch options, updates, and backups](docs/installation.md#cli-package-windows-linux-macos).
 
 ## Build your first route

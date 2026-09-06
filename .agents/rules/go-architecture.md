@@ -2,7 +2,7 @@
 
 Routed from `AGENTS.md`. Read this before changing Go product code.
 
-- `cmd/routing-agent` is a thin executable boundary. Product decisions live in
+- `cmd/routevane` is a thin executable boundary. Product decisions live in
   `internal/` packages created only when a slice uses them.
 - Dependency direction is domain -> planner -> application -> infrastructure
   and surfaces. An arrow means the right side may depend on the left side.

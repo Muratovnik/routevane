@@ -196,7 +196,7 @@ class Session:
 
     def build(self, go: str, destination: Path) -> bool:
         print("[dev] Building Go backend...", flush=True)
-        child = self.spawn([go, "build", "-mod=readonly", "-o", str(destination), "./cmd/routing-agent"])
+        child = self.spawn([go, "build", "-mod=readonly", "-o", str(destination), "./cmd/routevane"])
         while child.poll() is None:
             self.wait()
         self.children.remove(child)
@@ -257,7 +257,7 @@ def run(args: argparse.Namespace, session: Session) -> None:
 
         def rebuild() -> bool:
             nonlocal generation, backend
-            candidate = binary_root / f"routing-agent-{generation}{'.exe' if os.name == 'nt' else ''}"
+            candidate = binary_root / f"routevane-{generation}{'.exe' if os.name == 'nt' else ''}"
             if not session.build(go, candidate):
                 if backend is not None:
                     print("[dev] Go build failed; last working backend stays up. Save a Go file to retry.", flush=True)

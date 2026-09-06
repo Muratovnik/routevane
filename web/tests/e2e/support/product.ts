@@ -1,7 +1,7 @@
 /**
  * Shared product-lifecycle harness for the browser e2e suites.
  *
- * Every suite spawns the same `routing-agent` binary against a reserved
+ * Every suite spawns the same `routevane` binary against a reserved
  * loopback port and must tear it down without leaking either the process or
  * the port into the next run. This is the one place that owns that
  * lifecycle: spawning with captured diagnostics, reserving a port that is

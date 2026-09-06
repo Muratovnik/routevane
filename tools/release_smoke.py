@@ -102,7 +102,7 @@ def smoke(archive_path: Path, version: str, target: str, temp_dir: Path | None =
         if len(folders) != 1 or not folders[0].is_dir():
             raise ValueError("archive must contain one product directory")
         product = folders[0]
-        binary = product / ("routing-agent.exe" if os.name == "nt" else "routing-agent")
+        binary = product / ("routevane.exe" if os.name == "nt" else "routevane")
         reported = subprocess.check_output([str(binary), "version"], text=True).strip()
         if reported != f"routevane {version}":
             raise ValueError(f"wrong version: {reported}")
@@ -143,7 +143,7 @@ def smoke(archive_path: Path, version: str, target: str, temp_dir: Path | None =
                 _, catalog = request(port, "/v1/services")
                 if not json.loads(catalog):
                     raise ValueError("catalog is empty")
-                if not (product / "data/routing-agent.db").is_file():
+                if not (product / "data/routevane.db").is_file():
                     raise ValueError("runtime data was not created in the documented directory")
                 print(f"native launcher: {target}, {reported}, health=ok, UI={digest}, catalog=ok")
             finally:

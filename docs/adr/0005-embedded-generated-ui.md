@@ -59,7 +59,7 @@ handlers it is served by.
 ## Consequences
 
 The canonical tool command is now the only way to produce a UI-bearing binary;
-a bare `go run ./cmd/routing-agent serve` compiles and serves the API but has no
+a bare `go run ./cmd/routevane serve` compiles and serves the API but has no
 UI assets. Reproducibility of two consecutive builds is measured rather than
 assumed, because Nuxt's generated build metadata can carry a fresh identifier.
 

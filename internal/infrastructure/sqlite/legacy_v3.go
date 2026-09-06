@@ -60,7 +60,7 @@ func migrateLegacyV3(ctx context.Context, root, path string) (bool, error) {
 		return false, fmt.Errorf("legacy SQLite integrity check failed")
 	}
 	stamp := time.Now().UTC().Format("20060102T150405.000000000Z")
-	backupName := "routing-agent.legacy-v3-" + stamp + ".db"
+	backupName := "routevane.legacy-v3-" + stamp + ".db"
 	backupPath := filepath.Join(root, backupName)
 	if _, err := legacy.ExecContext(ctx, "VACUUM INTO ?", filepath.ToSlash(backupPath)); err != nil {
 		_ = legacy.Close()

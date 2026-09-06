@@ -25,7 +25,7 @@ def pack(stage: Path, output: Path, platform: str, created: str) -> None:
                 raise ValueError(f"release staging contains a non-regular file: {path.name}")
             relative = path.relative_to(stage).as_posix()
             executable = not platform.startswith("windows-") and relative in {
-                "routing-agent", "start-routevane.sh"
+                "routevane", "start-routevane.sh"
             }
             info = zipfile.ZipInfo(f"{stage.name}/{relative}", date_time=date)
             info.create_system = 3

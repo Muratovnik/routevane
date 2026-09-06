@@ -94,8 +94,7 @@ if (installer) {
     { cwd: root, stdio: 'inherit', windowsHide: true },
   )
 }
-const binary =
-  process.platform === 'win32' ? 'routing-agent.exe' : 'routing-agent'
+const binary = process.platform === 'win32' ? 'routevane.exe' : 'routevane'
 await builder.build({
   projectDir: fileURLToPath(new URL('.', import.meta.url)),
   targets: builder.Platform.current().createTarget(installer ? 'nsis' : 'dir'),

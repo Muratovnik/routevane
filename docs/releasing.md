@@ -16,7 +16,7 @@ change in any release.
 
 The tagged source is the release identity. `tools/dev.ps1 release` derives it from
 `git describe` and stamps it into the binary, so the tag is the single source
-and `routing-agent version` reports it back.
+and `routevane version` reports it back.
 
 ## Managed release
 
@@ -150,7 +150,7 @@ verify the signed source/workflow identity:
    gh attestation verify .\routevane-v0.1.0-windows-amd64.zip --repo Muratovnik/routevane --signer-workflow Muratovnik/routevane/.github/workflows/release.yml
    ```
 
-Confirm `routing-agent version` reports the selected tag. A successful version
+Confirm `routevane version` reports the selected tag. A successful version
 command alone does not establish that the launcher, catalog, UI, or persistence works.
 
 Create/configure a remote only with explicit publication authorization. Never infer

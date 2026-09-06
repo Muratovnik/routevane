@@ -7,6 +7,7 @@ of the decision; an adopted ADR can have specifically replaced clauses.
 
 Important chains: 0004 → 0013/0023 (objects and issuance), 0013 → 0016 → 0028 →
 0029 → 0036 (composition, vocabulary, library ownership, default and route priority),
+0028 → 0039 (the deferred identifiers, and the executable that carries them),
 0024 → 0025 → 0029 (editing),
 0012 → 0014 → 0031 (credentials and unattended delivery), 0008 → 0032 → 0034
 (Keenetic route ownership and descriptions), and 0002 → 0030 (Go).
@@ -52,3 +53,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0036: initialize route-local list priority from a library default](./0036-route-local-list-priority.md) | adopted |
 | [ADR 0037: Electron desktop and an independently usable Go CLI](./0037-electron-desktop-and-independent-cli.md) | adopted |
 | [ADR 0038: Windows application updates from GitHub releases](./0038-windows-application-updates.md) | adopted |
+| [ADR 0039: one product vocabulary across the executable, API, and storage](./0039-one-product-vocabulary-across-binary-api-and-storage.md) | adopted |

@@ -293,7 +293,7 @@ test('desktop quit leaves an independently started CLI server running', async ()
   const binary = join(
     root,
     '.cache/build',
-    process.platform === 'win32' ? 'routing-agent.exe' : 'routing-agent',
+    process.platform === 'win32' ? 'routevane.exe' : 'routevane',
   )
   const cli = spawnProduct(
     binary,

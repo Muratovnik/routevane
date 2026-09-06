@@ -7,8 +7,8 @@ status: adopted
 Audience: operators using the CLI, manual imports, or discovery. Start with the
 [quick start](../README.md#download-and-start).
 
-Run commands from an extracted release folder. `./routing-agent` resolves the
-binary (use `./routing-agent.exe` explicitly on Windows if needed). Contributors
+Run commands from an extracted release folder. `./routevane` resolves the
+binary (use `./routevane.exe` explicitly on Windows if needed). Contributors
 can first build using [CONTRIBUTING](../CONTRIBUTING.md) and substitute the
 `.cache/build/` binary. Catalog and data paths are relative to the working directory.
 The learning-scenario example is a [separate downloadable file](examples/learning-scenario.yaml),
@@ -36,7 +36,7 @@ manual imports, and delivery behavior.
 Preview routing rules without publishing an artifact:
 
 ```powershell
-./routing-agent preview --service example --target raw-json
+./routevane preview --service example --target raw-json
 ```
 
 The command performs a live, deadline-bounded DNS lookup. Its output is stable
@@ -46,9 +46,9 @@ the wall-clock cutoff can naturally change between invocations.
 Refresh, build, and inspect from the CLI:
 
 ```powershell
-./routing-agent refresh --service example
-./routing-agent build --target raw-json --service example
-./routing-agent doctor
+./routevane refresh --service example
+./routevane build --target raw-json --service example
+./routevane doctor
 ```
 
 A service may also declare an official network feed:
@@ -86,7 +86,7 @@ The in-process fixed-delay scheduler owns an OS advisory lock and runs one
 refresh/build pair at a time:
 
 ```powershell
-./routing-agent run --target raw-json --service example --interval 30m
+./routevane run --target raw-json --service example --interval 30m
 ```
 
 Use `--catalog-dir` and `--data-dir` on `refresh`, `build`, `doctor`, and `run`
@@ -118,9 +118,9 @@ build the selected set. `--service` is repeatable and is sorted and deduplicated
 before one all-or-nothing build:
 
 ```powershell
-./routing-agent refresh --service youtube
-./routing-agent refresh --service discord
-./routing-agent build --target keenetic --service youtube --service discord --output ./data/artifacts
+./routevane refresh --service youtube
+./routevane refresh --service discord
+./routevane build --target keenetic --service youtube --service discord --output ./data/artifacts
 ```
 
 The build prints exactly one absolute `.bat` path after validation. An explicit
@@ -156,8 +156,8 @@ to an nftables set, so the routing decision follows the service as its addresses
 change:
 
 ```powershell
-./routing-agent refresh --service youtube
-./routing-agent build --target openwrt --service youtube --output ./data/artifacts
+./routevane refresh --service youtube
+./routevane build --target openwrt --service youtube --output ./data/artifacts
 ```
 
 The fragment carries suffix matches only. An exact domain is refused rather than
@@ -184,7 +184,7 @@ The `mikrotik` target builds a RouterOS script that populates two firewall
 address lists:
 
 ```powershell
-./routing-agent build --target mikrotik --service youtube --output ./data/artifacts
+./routevane build --target mikrotik --service youtube --output ./data/artifacts
 ```
 
 Unlike the Keenetic import, the script is replacing: each section removes the
@@ -209,7 +209,7 @@ documentation.
 The `amnezia` target builds the site list the AmneziaVPN client imports:
 
 ```powershell
-./routing-agent build --target amnezia --service youtube --output ./data/artifacts
+./routevane build --target amnezia --service youtube --output ./data/artifacts
 ```
 
 In the client, open split tunnelling, use the menu to import the file, and choose
@@ -229,7 +229,7 @@ The release launcher starts the service for you. To run the binary directly
 (the bind address is fixed to IPv4 loopback):
 
 ```powershell
-./routing-agent serve --port 8765 --catalog-dir ./catalog --data-dir ./data --open-browser
+./routevane serve --port 8765 --catalog-dir ./catalog --data-dir ./data --open-browser
 ```
 
 The command prints its server-owned origin, normally `http://127.0.0.1:8765`.
@@ -331,7 +331,7 @@ preview. This is a portable settings transfer, not a database backup. See
 ## Adding a service by URL
 
 ```powershell
-./routing-agent discover --url shop.example.co.uk
+./routevane discover --url shop.example.co.uk
 ```
 
 The first call performs no browser load. It prints the canonical HTTPS URL, the
@@ -339,7 +339,7 @@ registrable domain the Public Suffix List derived, and the local service identit
 it would create. Repeat the call with `--confirm` to run exactly that URL:
 
 ```powershell
-./routing-agent discover --url shop.example.co.uk --confirm --service-id shop --title Shop --browser "C:/Program Files/Google/Chrome/Application/chrome.exe"
+./routevane discover --url shop.example.co.uk --confirm --service-id shop --title Shop --browser "C:/Program Files/Google/Chrome/Application/chrome.exe"
 ```
 
 One managed page load runs in an isolated temporary profile that is removed on
@@ -364,14 +364,14 @@ session replays a described exploration and attributes what it sees to the actio
 that reached it:
 
 ```powershell
-./routing-agent learn --scenario learning-scenario.yaml
-./routing-agent learn --scenario learning-scenario.yaml --confirm --browser "C:/Program Files/Google/Chrome/Application/chrome.exe"
+./routevane learn --scenario learning-scenario.yaml
+./routevane learn --scenario learning-scenario.yaml --confirm --browser "C:/Program Files/Google/Chrome/Application/chrome.exe"
 ```
 
 A captured archive can be imported instead of driving a browser:
 
 ```powershell
-./routing-agent learn --har session.har --url app.example.co.uk --confirm
+./routevane learn --har session.har --url app.example.co.uk --confirm
 ```
 
 Both paths produce the same evidence and the same deterministic decisions. A
@@ -394,9 +394,9 @@ work unchanged. When you do want it, the device password comes from an
 environment variable rather than a flag:
 
 ```powershell
-./routing-agent deploy --artifact ID --target keenetic --device http://192.168.1.1 --user admin --interface Wireguard0
+./routevane deploy --artifact ID --target keenetic --device http://192.168.1.1 --user admin --interface Wireguard0
 $env:ROUTEVANE_DEVICE_PASSWORD = Read-Host -AsSecureString | ConvertFrom-SecureString -AsPlainText
-./routing-agent deploy --artifact ID --target keenetic --device http://192.168.1.1 --user admin --interface Wireguard0 --confirm
+./routevane deploy --artifact ID --target keenetic --device http://192.168.1.1 --user admin --interface Wireguard0 --confirm
 ```
 
 The first call changes nothing. A confirmed deployment probes the firmware,
@@ -479,8 +479,8 @@ The destination is the file your own configuration declares:
 ```
 
 ```powershell
-./routing-agent deploy --artifact ID --target singbox --device file:///C:/sing-box/config.json
-./routing-agent deploy --artifact ID --target singbox --device file:///C:/sing-box/config.json --confirm
+./routevane deploy --artifact ID --target singbox --device file:///C:/sing-box/config.json
+./routevane deploy --artifact ID --target singbox --device file:///C:/sing-box/config.json --confirm
 ```
 
 A local deployment takes no account, no interface, and no credential; supplying

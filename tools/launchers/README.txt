@@ -6,7 +6,7 @@ No Go, Node.js, Python, or developer setup is required.
 START
 Windows: double-click start-routevane.cmd.
 Linux/macOS: open a terminal here and run: sh ./start-routevane.sh
-The launcher runs routing-agent and opens the page after the local UI is ready.
+The launcher runs routevane and opens the page after the local UI is ready.
 If no browser opens, visit http://127.0.0.1:8765 on this computer.
 The console stays open. Press Ctrl+C to stop.
 
@@ -24,7 +24,7 @@ Device delivery changes a device only after your explicit setup/consent.
 
 FILES
 start-routevane.*       The launcher.
-routing-agent[.exe]     The application it runs; "version" reports its version.
+routevane[.exe]     The application it runs; "version" reports its version.
 catalog/               Supplied lists, categories, and formats.
 data/                  Created on first start: your database and published files.
 LICENSE                Routevane license.
@@ -48,7 +48,7 @@ TROUBLESHOOTING
 Missing files: extract the whole archive again, not just its launcher.
 Port in use: stop your known instance or choose another port.
 Page absent: read the console and open the printed address manually.
-Verify identity: run routing-agent version (./routing-agent on Linux/macOS).
+Verify identity: run routevane version (./routevane on Linux/macOS).
 Health: http://127.0.0.1:8765/health should return status "ok".
 Never post database files, device credentials, or subscription tokens publicly.
 

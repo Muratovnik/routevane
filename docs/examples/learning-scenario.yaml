@@ -2,8 +2,8 @@
 # during it is attributed to, which is what lets a media or voice dependency be
 # accepted only after the corresponding action actually ran.
 #
-#   routing-agent learn --scenario docs/examples/learning-scenario.yaml
-#   routing-agent learn --scenario docs/examples/learning-scenario.yaml --confirm
+#   routevane learn --scenario docs/examples/learning-scenario.yaml
+#   routevane learn --scenario docs/examples/learning-scenario.yaml --confirm
 #
 # Components come from the closed taxonomy: core, auth, media, voice, downloads,
 # telemetry, advertising, third-party. Telemetry and advertising are recorded and

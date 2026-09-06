@@ -129,8 +129,8 @@ function Invoke-GoCheck {
 
     $BuildRoot = Join-Path $RepositoryRoot '.cache\build'
     New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
-    $BinaryName = if ($IsWindows) { 'routing-agent.exe' } else { 'routing-agent' }
-    Invoke-Checked $GoExecutable @('build', '-trimpath', '-buildvcs=true', '-mod=readonly', '-o', (Join-Path $BuildRoot $BinaryName), './cmd/routing-agent')
+    $BinaryName = if ($IsWindows) { 'routevane.exe' } else { 'routevane' }
+    Invoke-Checked $GoExecutable @('build', '-trimpath', '-buildvcs=true', '-mod=readonly', '-o', (Join-Path $BuildRoot $BinaryName), './cmd/routevane')
 }
 
 function Get-RoutevanePublicManifest {
@@ -290,9 +290,9 @@ function Invoke-ProductBuild {
     Invoke-WebGenerateAndSync | Out-Null
     $BuildRoot = Join-Path $RepositoryRoot '.cache\build'
     New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
-    $BinaryName = if ($IsWindows) { 'routing-agent.exe' } else { 'routing-agent' }
+    $BinaryName = if ($IsWindows) { 'routevane.exe' } else { 'routevane' }
     $Binary = Join-Path $BuildRoot $BinaryName
-    Invoke-Checked $GoExecutable @('build', '-trimpath', '-buildvcs=true', '-mod=readonly', '-ldflags', "-X main.version=$ProductVersion", '-o', $Binary, './cmd/routing-agent')
+    Invoke-Checked $GoExecutable @('build', '-trimpath', '-buildvcs=true', '-mod=readonly', '-ldflags', "-X main.version=$ProductVersion", '-o', $Binary, './cmd/routevane')
     return $Binary
 }
 
@@ -341,7 +341,7 @@ function Assert-ReleaseArchives {
 
         $StemName = "routevane-$ReleaseVersion-$($Platform.OS)-$($Platform.Arch)"
         $Prefix = "$StemName/"
-        $Binary = "$Prefix" + "routing-agent$($Platform.Suffix)"
+        $Binary = "$Prefix" + "routevane$($Platform.Suffix)"
         $Launcher = "$Prefix" + $(if ($Platform.OS -eq 'windows') { 'start-routevane.cmd' } else { 'start-routevane.sh' })
         $Zip = [System.IO.Compression.ZipFile]::OpenRead($ArchivePath)
         try {
@@ -444,7 +444,7 @@ function Invoke-ReleaseBuild {
         $StemName = "routevane-$ReleaseVersion-$($Platform.OS)-$($Platform.Arch)"
         $Stage = Join-Path $ReleaseRoot $StemName
         New-Item -ItemType Directory -Force -Path $Stage | Out-Null
-        $Output = Join-Path $Stage "routing-agent$($Platform.Suffix)"
+        $Output = Join-Path $Stage "routevane$($Platform.Suffix)"
         $env:CGO_ENABLED = '0'
         $env:GOOS = $Platform.OS
         $env:GOARCH = $Platform.Arch
@@ -452,7 +452,7 @@ function Invoke-ReleaseBuild {
             Invoke-Checked $GoExecutable @(
                 'build', '-trimpath', '-buildvcs=true', '-mod=readonly',
                 '-ldflags', "-X main.version=$ReleaseVersion",
-                '-o', $Output, './cmd/routing-agent')
+                '-o', $Output, './cmd/routevane')
         } finally {
             Remove-Item Env:\CGO_ENABLED, Env:\GOOS, Env:\GOARCH -ErrorAction SilentlyContinue
         }
@@ -687,7 +687,7 @@ try {
             # default gate, which must not require a browser binary.
             $env:ROUTEVANE_BROWSER = Get-RoutevaneBrowserPath
             try {
-                Invoke-Checked $GoExecutable @('test', '-count=1', './internal/discovery/...', './cmd/routing-agent/...')
+                Invoke-Checked $GoExecutable @('test', '-count=1', './internal/discovery/...', './cmd/routevane/...')
             } finally {
                 Remove-Item Env:\ROUTEVANE_BROWSER -ErrorAction SilentlyContinue
             }

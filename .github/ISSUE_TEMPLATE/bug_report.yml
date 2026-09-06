@@ -12,7 +12,7 @@ body:
     id: version
     attributes:
       label: Routevane version
-      description: The desktop window title, or the output of `routing-agent version` for the CLI package.
+      description: The desktop window title, or the output of `routevane version` for the CLI package.
       placeholder: v0.1.7
     validations:
       required: true

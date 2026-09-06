@@ -11,7 +11,12 @@ import (
 	"github.com/Muratovnik/routevane/internal/infrastructure/filesystem"
 )
 
-const FileName = "routing-agent.run.lock"
+const FileName = "routevane.run.lock"
+
+// retiredFileName is the lock a process started from the retired routing-agent
+// executable still holds (ADR 0039). Refusing while it is held is what keeps an
+// interrupted upgrade from putting two writers on one data directory.
+const retiredFileName = "routing-agent.run.lock"
 
 var ErrLocked = errors.New("scheduler is already running")
 
@@ -30,7 +35,19 @@ func Acquire(dataRoot string) (*Lock, error) {
 	if err != nil {
 		return nil, err
 	}
-	path := filepath.Join(root, FileName)
+	if held, err := retiredLockHeld(root); err != nil {
+		return nil, err
+	} else if held {
+		return nil, ErrLocked
+	}
+	return acquireNamed(root, FileName)
+}
+
+// acquireNamed owns the one file-locking sequence. Acquire supplies the current
+// name; a test supplies the retired one to stand in for a process that has not
+// been upgraded yet.
+func acquireNamed(root, name string) (*Lock, error) {
+	path := filepath.Join(root, name)
 	if info, statErr := os.Lstat(path); statErr == nil {
 		if !info.Mode().IsRegular() || filesystem.IsLinkOrReparse(info) {
 			return nil, fmt.Errorf("scheduler lock path is unsafe")
@@ -42,7 +59,7 @@ func Acquire(dataRoot string) (*Lock, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open scheduler root: %w", err)
 	}
-	file, err := rootHandle.OpenFile(FileName, os.O_RDWR|os.O_CREATE, 0o600)
+	file, err := rootHandle.OpenFile(name, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		_ = rootHandle.Close()
 		return nil, fmt.Errorf("open scheduler lock: %w", err)
@@ -83,6 +100,11 @@ func Inspect(dataRoot string) Status {
 	if err != nil {
 		return Status{Healthy: false, Code: "unsafe_data_root"}
 	}
+	if held, retiredErr := retiredLockHeld(root); retiredErr != nil {
+		return Status{Healthy: false, Code: "lock_status_failed"}
+	} else if held {
+		return Status{Healthy: true, Locked: true, Code: "locked"}
+	}
 	path := filepath.Join(root, FileName)
 	info, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -116,6 +138,48 @@ func Inspect(dataRoot string) Status {
 		return Status{Healthy: false, Code: "lock_status_failed"}
 	}
 	return Status{Healthy: true, Locked: false, Code: "unlocked"}
+}
+
+// retiredLockHeld reports whether a process started under the retired
+// executable name still holds its own lock. Only the lock decides; the file
+// itself outlives its holder and an upgraded data directory keeps carrying the
+// empty one. Removing it is not this function's call, because a file it does
+// not own may be held by a process it cannot see.
+func retiredLockHeld(root string) (bool, error) {
+	path := filepath.Join(root, retiredFileName)
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.Mode().IsRegular() || filesystem.IsLinkOrReparse(info) {
+		return false, fmt.Errorf("retired scheduler lock path is unsafe")
+	}
+	rootHandle, err := os.OpenRoot(root)
+	if err != nil {
+		return false, fmt.Errorf("open scheduler root: %w", err)
+	}
+	file, err := rootHandle.OpenFile(retiredFileName, os.O_RDWR, 0)
+	if err != nil {
+		_ = rootHandle.Close()
+		return false, fmt.Errorf("open retired scheduler lock: %w", err)
+	}
+	if err := rootHandle.Close(); err != nil {
+		return false, closeFileWith(file, fmt.Errorf("close scheduler root: %w", err))
+	}
+	locked, err := tryLockFile(file)
+	if err != nil {
+		return false, closeFileWith(file, fmt.Errorf("inspect retired scheduler lock: %w", err))
+	}
+	if !locked {
+		return true, file.Close()
+	}
+	if err := unlockFile(file); err != nil {
+		return false, closeFileWith(file, fmt.Errorf("release retired scheduler lock: %w", err))
+	}
+	return false, file.Close()
 }
 
 func closeFileWith(file *os.File, cause error) error {

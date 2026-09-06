@@ -100,7 +100,7 @@ func TestServeCreateRefreshBuildSubscriptionAndReopen(t *testing.T) {
 	if code := <-done; code != 0 {
 		t.Fatalf("first server code=%d stderr=%s", code, stderr.String())
 	}
-	databaseBytes, err := os.ReadFile(filepath.Join(data, "routing-agent.db"))
+	databaseBytes, err := os.ReadFile(filepath.Join(data, "routevane.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

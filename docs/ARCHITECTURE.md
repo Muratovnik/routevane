@@ -10,7 +10,7 @@ The [requirements](requirements.md) define product guarantees and limits.
 
 ## Composition and dependency direction
 
-`cmd/routing-agent` builds one executable. Its composition root wires application
+`cmd/routevane` builds one executable. Its composition root wires application
 services to SQLite, catalog files, source adapters, renderers, deployment, plugins,
 and the loopback HTTP server. It also remains the standalone CLI distribution.
 `desktop/` wraps the same binary with Electron; no second Go executable or

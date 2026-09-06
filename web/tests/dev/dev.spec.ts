@@ -26,11 +26,7 @@ test('one dev session: real API, HMR, Go recovery and owned cleanup', async ({
   const data = testInfo.outputPath('data')
   const probeName = `dev-hmr-probe-${process.pid}`
   const probe = resolve(root, 'web/src/pages', `${probeName}.vue`)
-  const goProbe = resolve(
-    root,
-    'cmd/routing-agent',
-    `dev_probe_${process.pid}.go`,
-  )
+  const goProbe = resolve(root, 'cmd/routevane', `dev_probe_${process.pid}.go`)
   const source = `<script setup lang="ts">
 import { ref } from 'vue'
 const draft = ref('')

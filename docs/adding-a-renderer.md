@@ -33,7 +33,7 @@ Create `internal/renderers/<name>/`. Implement, in this order:
 
 ## 2. Register it
 
-Add the renderer to `builtinRenderers()` in `cmd/routing-agent/plugins.go`. That
+Add the renderer to `builtinRenderers()` in `cmd/routevane/plugins.go`. That
 function is the only place a renderer id is bound to a built-in implementation,
 so no request handler needs a per-format branch. An installed plugin renderer
 joins the same registry there and is judged by the same rules; it may not claim
@@ -74,4 +74,4 @@ pwsh -NoLogo -NoProfile -File tools/dev.ps1 check
 
 Then publish the same profile through both the new target and an existing one
 and confirm each artifact satisfies its own validator and neither satisfies the
-other. `cmd/routing-agent/every_format_e2e_test.go` is the worked example.
+other. `cmd/routevane/every_format_e2e_test.go` is the worked example.

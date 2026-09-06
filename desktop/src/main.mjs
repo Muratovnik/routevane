@@ -117,7 +117,7 @@ async function start() {
     : join(root, '../.cache/desktop/assets')
   const binary = join(
     resources,
-    process.platform === 'win32' ? 'routing-agent.exe' : 'routing-agent',
+    process.platform === 'win32' ? 'routevane.exe' : 'routevane',
   )
   const catalog = app.isPackaged
     ? join(resources, 'catalog')

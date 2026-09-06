@@ -45,7 +45,7 @@ const binary = join(
   repositoryRoot,
   '.cache',
   'build',
-  process.platform === 'win32' ? 'routing-agent.exe' : 'routing-agent',
+  process.platform === 'win32' ? 'routevane.exe' : 'routevane',
 )
 
 let origin = ''

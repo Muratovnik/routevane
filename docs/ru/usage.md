@@ -8,9 +8,9 @@ status: adopted
 конкретный формат вывода. Этот документ отвечает на вопрос, как безопасно
 использовать эти возможности. Сначала пройдите [краткое руководство](../../README.ru.md#скачать-и-запустить).
 
-Выполняйте команды из папки распакованного релиза. `./routing-agent` находит
+Выполняйте команды из папки распакованного релиза. `./routevane` находит
 бинарный файл; в Windows при необходимости явно укажите
-`./routing-agent.exe`. Разработчики могут сначала собрать проект по
+`./routevane.exe`. Разработчики могут сначала собрать проект по
 [английской инструкции](../../CONTRIBUTING.md) и подставить бинарный файл из
 `.cache/build/`. Пути к каталогу и данным относительны к текущей папке. Пример
 сценария обучения — отдельный [файл](../examples/learning-scenario.yaml), а не
@@ -39,7 +39,7 @@ Raw JSON — диагностический формат. Ниже описан�
 Предпросмотр правил без публикации файла:
 
 ```powershell
-./routing-agent preview --service example --target raw-json
+./routevane preview --service example --target raw-json
 ```
 
 Команда делает живой DNS-запрос с ограничением времени. Вывод стабилен для тех
@@ -49,9 +49,9 @@ Raw JSON — диагностический формат. Ниже описан�
 Обновить, собрать и проверить состояние из CLI:
 
 ```powershell
-./routing-agent refresh --service example
-./routing-agent build --target raw-json --service example
-./routing-agent doctor
+./routevane refresh --service example
+./routevane build --target raw-json --service example
+./routevane doctor
 ```
 
 Сервис также может объявить официальный сетевой источник:
@@ -87,7 +87,7 @@ sources:
 блокировкой ОС и запускает одну пару refresh/build одновременно:
 
 ```powershell
-./routing-agent run --target raw-json --service example --interval 30m
+./routevane run --target raw-json --service example --interval 30m
 ```
 
 Параметры `--catalog-dir` и `--data-dir` у `refresh`, `build`, `doctor` и `run`
@@ -118,9 +118,9 @@ GitHub Copilot отличается от GitHub. Его источник сод�
 устраняются дубликаты до одной полностью успешной или неуспешной сборки:
 
 ```powershell
-./routing-agent refresh --service youtube
-./routing-agent refresh --service discord
-./routing-agent build --target keenetic --service youtube --service discord --output ./data/artifacts
+./routevane refresh --service youtube
+./routevane refresh --service discord
+./routevane build --target keenetic --service youtube --service discord --output ./data/artifacts
 ```
 
 После проверки команда печатает ровно один абсолютный путь `.bat`. Явная папка
@@ -154,8 +154,8 @@ GitHub Copilot отличается от GitHub. Его источник сод�
 поэтому маршрутизация следует за изменением адресов сервиса:
 
 ```powershell
-./routing-agent refresh --service youtube
-./routing-agent build --target openwrt --service youtube --output ./data/artifacts
+./routevane refresh --service youtube
+./routevane build --target openwrt --service youtube --output ./data/artifacts
 ```
 
 Фрагмент содержит только суффиксные совпадения. Точный домен отклоняется, а не
@@ -180,7 +180,7 @@ nft add set inet fw4 routevane6 '{ type ipv6_addr; flags interval; }'
 файрвола:
 
 ```powershell
-./routing-agent build --target mikrotik --service youtube --output ./data/artifacts
+./routevane build --target mikrotik --service youtube --output ./data/artifacts
 ```
 
 В отличие от импорта Keenetic, скрипт заменяет содержимое: каждый раздел удаляет
@@ -205,7 +205,7 @@ nft add set inet fw4 routevane6 '{ type ipv6_addr; flags interval; }'
 Цель `amnezia` создаёт список сайтов для импорта в клиент AmneziaVPN:
 
 ```powershell
-./routing-agent build --target amnezia --service youtube --output ./data/artifacts
+./routevane build --target amnezia --service youtube --output ./data/artifacts
 ```
 
 В клиенте откройте раздельное туннелирование, импортируйте файл из меню и
@@ -223,7 +223,7 @@ nft add set inet fw4 routevane6 '{ type ipv6_addr; flags interval; }'
 (адрес привязки всегда IPv4 loopback):
 
 ```powershell
-./routing-agent serve --port 8765 --catalog-dir ./catalog --data-dir ./data --open-browser
+./routevane serve --port 8765 --catalog-dir ./catalog --data-dir ./data --open-browser
 ```
 
 Команда печатает принадлежащий серверу origin, обычно `http://127.0.0.1:8765`.
@@ -322,7 +322,7 @@ JSON-файл. В новой установке Routevane выберите эт�
 ## Добавление сервиса по URL
 
 ```powershell
-./routing-agent discover --url shop.example.co.uk
+./routevane discover --url shop.example.co.uk
 ```
 
 Первый вызов не загружает страницу браузером. Он печатает канонический HTTPS
@@ -330,7 +330,7 @@ URL, регистрируемый домен по Public Suffix List и лока
 который он создал бы. Повторите с `--confirm`, чтобы запустить именно этот URL:
 
 ```powershell
-./routing-agent discover --url shop.example.co.uk --confirm --service-id shop --title Shop --browser "C:/Program Files/Google/Chrome/Application/chrome.exe"
+./routevane discover --url shop.example.co.uk --confirm --service-id shop --title Shop --browser "C:/Program Files/Google/Chrome/Application/chrome.exe"
 ```
 
 Одна управляемая загрузка страницы выполняется в изолированном временном профиле,
@@ -354,14 +354,14 @@ URL, регистрируемый домен по Public Suffix List и лока
 увиденное к действию, которое к нему привело:
 
 ```powershell
-./routing-agent learn --scenario learning-scenario.yaml
-./routing-agent learn --scenario learning-scenario.yaml --confirm --browser "C:/Program Files/Google/Chrome/Application/chrome.exe"
+./routevane learn --scenario learning-scenario.yaml
+./routevane learn --scenario learning-scenario.yaml --confirm --browser "C:/Program Files/Google/Chrome/Application/chrome.exe"
 ```
 
 Вместо управления браузером можно импортировать захваченный архив:
 
 ```powershell
-./routing-agent learn --har session.har --url app.example.co.uk --confirm
+./routevane learn --har session.har --url app.example.co.uk --confirm
 ```
 
 Оба пути дают одинаковые свидетельства и детерминированные решения. Хост того же
@@ -384,9 +384,9 @@ URL, регистрируемый домен по Public Suffix List и лока
 а не флагом:
 
 ```powershell
-./routing-agent deploy --artifact ID --target keenetic --device http://192.168.1.1 --user admin --interface Wireguard0
+./routevane deploy --artifact ID --target keenetic --device http://192.168.1.1 --user admin --interface Wireguard0
 $env:ROUTEVANE_DEVICE_PASSWORD = Read-Host -AsSecureString | ConvertFrom-SecureString -AsPlainText
-./routing-agent deploy --artifact ID --target keenetic --device http://192.168.1.1 --user admin --interface Wireguard0 --confirm
+./routevane deploy --artifact ID --target keenetic --device http://192.168.1.1 --user admin --interface Wireguard0 --confirm
 ```
 
 Первый вызов ничего не меняет. Подтверждённая доставка проверяет прошивку,
@@ -468,8 +468,8 @@ DNS-доставки до сверки отклоняется исключите
 ```
 
 ```powershell
-./routing-agent deploy --artifact ID --target singbox --device file:///C:/sing-box/config.json
-./routing-agent deploy --artifact ID --target singbox --device file:///C:/sing-box/config.json --confirm
+./routevane deploy --artifact ID --target singbox --device file:///C:/sing-box/config.json
+./routevane deploy --artifact ID --target singbox --device file:///C:/sing-box/config.json --confirm
 ```
 
 Локальная доставка не принимает учётную запись, интерфейс или секрет; передача

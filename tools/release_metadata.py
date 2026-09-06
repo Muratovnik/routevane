@@ -86,7 +86,7 @@ def license_files(directory: Path) -> tuple[tuple[str, str], ...]:
 
 def go_components() -> list[Component]:
     modules: dict[tuple[str, str], dict[str, Any]] = {}
-    for package in json_stream(run(["go", "list", "-deps", "-json", "./cmd/routing-agent"])):
+    for package in json_stream(run(["go", "list", "-deps", "-json", "./cmd/routevane"])):
         module = package.get("Module")
         if not isinstance(module, dict) or module.get("Main"):
             continue
@@ -188,7 +188,7 @@ def notices(version: str, components: list[Component]) -> str:
         f"Routevane {version} third-party notices",
         "",
         "The Routevane license is distributed separately as LICENSE.",
-        "This inventory covers Go modules linked into routing-agent and production",
+        "This inventory covers Go modules linked into routevane and production",
         "npm packages used to generate the embedded control surface.",
         "",
     ]

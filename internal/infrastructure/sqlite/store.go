@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	DatabaseName     = "routing-agent.db"
+	DatabaseName     = "routevane.db"
 	operationTimeout = 5 * time.Second
 	maxMetadataBytes = 4096
 )
@@ -59,6 +59,9 @@ func OpenExisting(ctx context.Context, dataRoot string) (*Store, error) {
 func open(ctx context.Context, dataRoot string, allowCreate bool) (*Store, error) {
 	root, err := filesystem.ResolvePrivateDataRoot(dataRoot)
 	if err != nil {
+		return nil, err
+	}
+	if err := renameRetiredDatabase(ctx, root); err != nil {
 		return nil, err
 	}
 	path := filepath.Join(root, DatabaseName)

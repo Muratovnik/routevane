@@ -64,14 +64,14 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 
 | Requirement | Executable evidence |
 | --- | --- |
-| Deterministic policy and expiration | `internal/planner/*_test.go`; `cmd/routing-agent/observation_expiry_e2e_test.go` |
-| Multi-format publication and previous-valid continuity | `cmd/routing-agent/every_format_e2e_test.go`; `cmd/routing-agent/two_formats_outage_e2e_test.go` |
-| Library ownership and route preservation | `cmd/routing-agent/library_removal_e2e_test.go`; `cmd/routing-agent/list_archive_e2e_test.go` |
-| Discovery and learning boundaries | `cmd/routing-agent/service_from_url_e2e_test.go`; `cmd/routing-agent/learning_session_e2e_test.go` |
-| Explicit device delivery | `cmd/routing-agent/device_deploy_e2e_test.go`; `cmd/routing-agent/scheduled_delivery_e2e_test.go` |
-| Real plugin examples | `cmd/routing-agent/external_plugin_e2e_test.go` consumes their shipped manifests |
+| Deterministic policy and expiration | `internal/planner/*_test.go`; `cmd/routevane/observation_expiry_e2e_test.go` |
+| Multi-format publication and previous-valid continuity | `cmd/routevane/every_format_e2e_test.go`; `cmd/routevane/two_formats_outage_e2e_test.go` |
+| Library ownership and route preservation | `cmd/routevane/library_removal_e2e_test.go`; `cmd/routevane/list_archive_e2e_test.go` |
+| Discovery and learning boundaries | `cmd/routevane/service_from_url_e2e_test.go`; `cmd/routevane/learning_session_e2e_test.go` |
+| Explicit device delivery | `cmd/routevane/device_deploy_e2e_test.go`; `cmd/routevane/scheduled_delivery_e2e_test.go` |
+| Real plugin examples | `cmd/routevane/external_plugin_e2e_test.go` consumes their shipped manifests |
 | Keyboard, localization, and browser flows | `web/tests/e2e/` against the built binary |
-| Desktop lifetime, isolation, persistence and tray behavior | `tools/dev.ps1 test-desktop` against the native package; `cmd/routing-agent/desktop_test.go` |
+| Desktop lifetime, isolation, persistence and tray behavior | `tools/dev.ps1 test-desktop` against the native package; `cmd/routevane/desktop_test.go` |
 | Windows application updates | `tools/dev.ps1 test-update`: manual installer replacement and explicit download/install/restart preserve routes and preferences; corrupt downloads cannot install |
 | New-user installation | Native release jobs start the packaged launcher with fresh data and check version, health, and UI |
 | Documentation and file ownership | Structural validator plus the prerelease file/audience audit; tests alone do not establish clarity |
@@ -94,8 +94,11 @@ results. Device doubles and parser tests do not prove physical-device acceptance
   unimplemented.
 - Per-route exclusion of individual observed values is not implemented; route
   composition includes or excludes whole lists (ADR 0029).
-- Renaming the legacy API/Go identifiers is separate compatibility work
-  (ADR 0028). Current documentation must explain the mapping meanwhile.
+- One product vocabulary is adopted and lands as ordered slices in a breaking
+  `0.2.0` (ADR 0039). The executable, its database and its lock file carry the
+  product name; the API, catalog key, Go identifiers and storage names still
+  say `services` for lists and `lists` for routes. Documentation must keep
+  explaining that mapping until the last slice removes it.
 - Scaling changes are conditional on measured workload.
   PostgreSQL, separate workers, and telemetry infrastructure are not planned
   merely to complete a checklist.

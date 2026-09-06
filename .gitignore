@@ -1,6 +1,6 @@
 # Go
-/routing-agent
-/routing-agent.exe
+/routevane
+/routevane.exe
 *.test
 *.out
 /coverage/

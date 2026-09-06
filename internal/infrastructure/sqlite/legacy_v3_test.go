@@ -87,11 +87,11 @@ PRAGMA user_version=3;`
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
 	}
-	backups, err := filepath.Glob(filepath.Join(root, "routing-agent.legacy-v3-*.db"))
+	backups, err := filepath.Glob(filepath.Join(root, "routevane.legacy-v3-*.db"))
 	if err != nil || len(backups) != 1 {
 		t.Fatalf("legacy backups=%v err=%v", backups, err)
 	}
-	sources, err := filepath.Glob(filepath.Join(root, "routing-agent.legacy-v3-*.db.source"))
+	sources, err := filepath.Glob(filepath.Join(root, "routevane.legacy-v3-*.db.source"))
 	if err != nil || len(sources) != 1 {
 		t.Fatalf("legacy sources=%v err=%v", sources, err)
 	}
@@ -103,7 +103,7 @@ PRAGMA user_version=3;`
 		t.Fatal(err)
 	}
 	_ = store.Close()
-	after, _ := filepath.Glob(filepath.Join(root, "routing-agent.legacy-v3-*.db"))
+	after, _ := filepath.Glob(filepath.Join(root, "routevane.legacy-v3-*.db"))
 	if len(after) != len(backups) {
 		t.Fatalf("reopen created another backup: %v", after)
 	}
