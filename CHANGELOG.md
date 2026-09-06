@@ -19,16 +19,32 @@ breaking change raises the minor, everything else raises the patch. The
 
 ## [Unreleased]
 
-## [0.1.6](https://github.com/Muratovnik/routevane/compare/v0.1.5...v0.1.6) (2026-09-04)
+## [0.1.6](https://github.com/Muratovnik/routevane/compare/v0.1.5...v0.1.6) (2026-09-06)
 
 ### Highlights
 
-This release contains the Routevane 0.1.3 product changes and makes the final
-browser release check independent of platform-specific text wrapping.
+This release adds a Windows desktop application. Routevane opens in its own
+window, keeps scheduled work running from the tray, and an installed build
+offers a newer version that one explicit click downloads, installs and
+restarts. The operational interface is rebuilt around ordered tables for routes
+and lists, with category filtering, steadier selection and clearer loading and
+refresh feedback. The CLI package stays independently distributable and does
+not require the desktop application.
+
+### Features
+
+- **desktop:** Open Routevane in its own application window, with a tray lifetime that keeps owned background work running after the window is closed. ([59f0a82](https://github.com/Muratovnik/routevane/commit/59f0a8285c6762f605df23ce55cad8398fd24063))
+- **desktop:** Install Windows builds from a per-user installer, and update an installed build from GitHub releases on one explicit click; a failed download leaves the current version usable. ([49a4778](https://github.com/Muratovnik/routevane/commit/49a4778740c56946cc21dd1ae52ab2d847d9b9a9))
+- **ui:** Rebuild route composition and the library as ordered tables with category filtering and shared desktop workspaces. ([1689947](https://github.com/Muratovnik/routevane/commit/168994745ad75eee052e6e1591de7e1b3320c2cf), [744555f](https://github.com/Muratovnik/routevane/commit/744555ff6b8511805a33ad50648d76c263e343c4), [01e5027](https://github.com/Muratovnik/routevane/commit/01e5027c80b6e1a329c357c1dc7d4a911ddfb9c9))
+- **priority:** Give a new route its library default list order and summarize cross-list overlaps before building. ([4dfb142](https://github.com/Muratovnik/routevane/commit/4dfb142e39996321bf669bfee5433cebbc1be76c))
 
 ### Bug Fixes
 
-- **release:** Validate that a localized refresh error moves the list filter only by the message's natural wrapped height. ([5f2bcec](https://github.com/Muratovnik/routevane/commit/5f2bcec8ffa2a0d0a6a66c47115ad39414d2aa2e))
+- **ui:** Keep route and list selection stable in one table while inspecting, filtering and reordering. ([aff5ddf](https://github.com/Muratovnik/routevane/commit/aff5ddfec9a2f147f40c659f9eadb64bcd9f31e7), [723dc2b](https://github.com/Muratovnik/routevane/commit/723dc2bc7f94c422952409aca067bb66cf7743ea), [370164e](https://github.com/Muratovnik/routevane/commit/370164e82ca95e01555b507a1ac4e05a09105273), [86522e2](https://github.com/Muratovnik/routevane/commit/86522e261bb34ad1f41d894e0a6467cebdc051e7))
+- **ui:** Give each composition workspace one scroll owner, and keep docked panels from shifting the page around them. ([f960fee](https://github.com/Muratovnik/routevane/commit/f960fee1d531cfa5382646b6513e454ed012c0b3), [aab825a](https://github.com/Muratovnik/routevane/commit/aab825a1e74368d11a23df5cb8c9827ca775a62a), [5c98618](https://github.com/Muratovnik/routevane/commit/5c986188b5256708056cb573c3040d6003c68a41))
+- **ui:** Report loading, refreshing and inspection consistently across pages instead of flashing transient states, and keep partial forecasts visible. ([f402ce1](https://github.com/Muratovnik/routevane/commit/f402ce17c9b23b6a56aac215d96c2d3bc69e6a83), [26e0435](https://github.com/Muratovnik/routevane/commit/26e04351a47f3d5f827a6bd9fe438362e0cde9c5), [e1756c4](https://github.com/Muratovnik/routevane/commit/e1756c4d9d1e969279a37c06b2ff0603c21fbaf5), [61fc855](https://github.com/Muratovnik/routevane/commit/61fc855acccf7b90d8981a9a88198f8cec2a6c5e))
+- **priority:** Remove the global cap on the size of a route's list order. ([92eff42](https://github.com/Muratovnik/routevane/commit/92eff4221d3a1f0d6b5982307c2b2f765a2688ea))
+- **web:** Debounce list card toggles so rapid changes are not lost. ([c955e65](https://github.com/Muratovnik/routevane/commit/c955e6505a5e1671a05d0c3b1cbb1fab19cc3ed6))
 
 ## [0.1.5](https://github.com/Muratovnik/routevane/compare/v0.1.3...v0.1.5) (2026-09-04)
 
