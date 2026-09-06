@@ -104,8 +104,10 @@ service remain separate work. CLI users replace their CLI package independently.
 Build a Windows installer with `tools/dev.ps1 installer -Version vX.Y.Z` (substitute
 the intended release version). The executable, blockmap and `latest.yml` are staged
 with `DESKTOP-SHA256SUMS` under `.cache/desktop-release/`. Building never publishes.
-The release workflow uploads these together to the same GitHub release as the CLI.
-Do not upload just `latest.yml` or reuse metadata from a different installer.
+The release workflow uploads the three files to the same GitHub release as the CLI
+and lists them in that release's single `SHA256SUMS`; `DESKTOP-SHA256SUMS` only
+carries the bundle between jobs and is not published. Do not upload just
+`latest.yml` or reuse metadata from a different installer.
 
 `tools/dev.ps1 test-update` builds three isolated NSIS fixture versions and exercises
 manual upgrade, discovery, a rejected corrupt download, retry, automatic restart,

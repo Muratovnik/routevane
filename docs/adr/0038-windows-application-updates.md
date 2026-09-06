@@ -20,7 +20,8 @@ installer lifecycle, caching and integrity handling. No additional Go service is
 
 Production packages use the public GitHub provider for `Muratovnik/routevane`.
 Builds never publish. The existing release workflow uploads the versioned installer,
-blockmap, `latest.yml` and desktop checksums in the complete draft before publication.
+blockmap and `latest.yml` in the complete draft before publication, and lists them
+in the release's single `SHA256SUMS` after the archive SBOM is attested.
 Desktop provenance is attested separately from the existing CLI archive SBOM.
 Only stable upgrades are offered; no downgrade or prerelease channel is enabled.
 

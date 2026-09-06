@@ -205,6 +205,24 @@ jobs:
               if ($Actual -ne $Matches[1]) { throw "checksum mismatch: $($Matches[2])" }
             }
           }
+      # The archive SBOM describes the Go/web archives alone, so it is attested
+      # while the manifest still lists exactly those archives.
+      - name: Attest the archive SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: .cache/release/SHA256SUMS
+          sbom-path: .cache/release/SBOM.spdx.json
+      - name: Publish one checksum manifest for every asset
+        shell: pwsh
+        run: |
+          # A reader verifies one manifest, and the release carries one. The
+          # desktop manifest only carried the bundle between jobs above.
+          $Archives = @(Get-Content -LiteralPath '.cache/release/SHA256SUMS')
+          $Desktop = @(Get-Content -LiteralPath '.cache/desktop-release/DESKTOP-SHA256SUMS')
+          $Names = @($Archives + $Desktop | ForEach-Object { ($_ -split '\s{2}', 2)[1] })
+          if ($Names.Count -ne ($Names | Sort-Object -Unique).Count) { throw 'duplicate checksum entry' }
+          Set-Content -LiteralPath '.cache/release/SHA256SUMS' -Value ($Archives + $Desktop) -Encoding ascii
+          Remove-Item -LiteralPath '.cache/desktop-release/DESKTOP-SHA256SUMS'
       - name: Attest release provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
@@ -212,11 +230,6 @@ jobs:
             .cache/release/*.zip
             .cache/release/SHA256SUMS
             .cache/desktop-release/*
-      - name: Attest the archive SBOM
-        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
-        with:
-          subject-checksums: .cache/release/SHA256SUMS
-          sbom-path: .cache/release/SBOM.spdx.json
       - name: Verify provenance and SBOM attestations before publication
         shell: pwsh
         env:

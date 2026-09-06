@@ -27,8 +27,16 @@ class ManagedReleaseContracts(unittest.TestCase):
         self.assertEqual([], pattern.findall("## [Unreleased]\n"))
 
     def test_asset_set_matches_every_shipped_platform_and_checksum_manifest(self):
+        # electron-builder names the desktop distribution from the bare version.
+        desktop = {
+            "Routevane-1.2.3-x64-setup.exe",
+            "Routevane-1.2.3-x64-setup.exe.blockmap",
+            "latest.yml",
+        }
         self.assertEqual(
-            {f"routevane-v1.2.3-{target}.zip" for target in release_smoke.SUPPORTED} | {"SHA256SUMS"},
+            {f"routevane-v1.2.3-{target}.zip" for target in release_smoke.SUPPORTED}
+            | desktop
+            | {"SHA256SUMS"},
             {name.format(tag="v1.2.3", version="1.2.3") for name in self.settings["assets"]},
         )
         self.assertEqual("SHA256SUMS", self.settings["checksum_file"])
@@ -36,6 +44,30 @@ class ManagedReleaseContracts(unittest.TestCase):
         self.assertTrue(self.settings["owner_audit"])
         self.assertNotIn("branch", self.settings)
         self.assertEqual(["check", "test-browser"], [command[-1] for command in self.settings["checks"]])
+
+    def test_every_release_workflow_job_is_observed_before_publication(self):
+        workflow = (ROOT / self.settings["workflow"]).read_text(encoding="utf-8")
+        jobs = workflow[re.search(r"^jobs:$", workflow, re.MULTILINE).end() :]
+        declared = set(re.findall(r"^  ([A-Za-z0-9_-]+):$", jobs, re.MULTILINE))
+        self.assertIn("desktop", declared)
+        # A matrix job is observed under its expanded "name (values)" label. No
+        # job may be silently optional: a release waits for the whole pipeline.
+        self.assertEqual(declared, {job.split(" (")[0] for job in self.settings["required_jobs"]})
+
+    def test_publication_carries_one_manifest_attested_after_the_archive_sbom(self):
+        workflow = (ROOT / self.settings["workflow"]).read_text(encoding="utf-8")
+        sbom = workflow.index("subject-checksums: .cache/release/SHA256SUMS")
+        merge = workflow.index("name: Publish one checksum manifest for every asset")
+        provenance = workflow.index("name: Attest release provenance")
+        draft = workflow.index("name: Create a complete draft release")
+        # The archive SBOM must not describe the desktop assets, and the manifest
+        # provenance must cover the bytes the release actually carries.
+        self.assertLess(sbom, merge)
+        self.assertLess(merge, provenance)
+        self.assertLess(provenance, draft)
+        removal = workflow.index("Remove-Item -LiteralPath '.cache/desktop-release/DESKTOP-SHA256SUMS'")
+        self.assertLess(removal, draft)
+        self.assertNotIn("DESKTOP-SHA256SUMS", self.settings["assets"])
 
     def test_native_selection_has_no_unknown_architecture_fallback(self):
         cases = [("Windows", "AMD64", "windows-amd64"), ("Windows", "ARM64", "windows-arm64"),

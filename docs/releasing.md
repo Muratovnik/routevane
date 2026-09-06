@@ -28,7 +28,8 @@ coordinator receipt cannot be adopted as unfinished runs or republished.
 Prerequisites are a normal full-history checkout (not a linked worktree), GitHub
 CLI 2.98.0 or newer, locked developer/browser dependencies, current project hooks
 and the maintainer's private owner policy. The active tag workflow must publish
-immutable releases with provenance for all five archives and `SHA256SUMS`.
+immutable releases with provenance for all five archives, the Windows desktop
+installer, its blockmap, `latest.yml` and `SHA256SUMS`.
 The host must have a shipped native archive (macOS requires ARM64).
 
 Cutting a release (replace `vX.Y.Z` below with an agreed new version; never reuse a
@@ -82,7 +83,7 @@ published tag):
    verifies them, uploads a draft, compares every uploaded digest, and publishes
    the complete immutable release.
 7. The coordinator observes the tag's exact successful workflow run and configured
-   jobs, then downloads the exact six assets. It checks notes, sizes, digests, the
+   jobs, then downloads the exact nine assets. It checks notes, sizes, digests, the
    checksum manifest, immutable-release signatures and provenance bound to the
    same repository, source commit, workflow and CI attempt. It selects this host's
    archive and runs `tools/release_smoke.py` from pinned source: real launcher,
