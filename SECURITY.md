@@ -1,11 +1,29 @@
 # Security policy
 
+## Supported versions
+
+Routevane is at version `0.y.z`. Only the latest published release receives
+fixes; there are no maintenance branches for earlier versions. Before reporting,
+check whether the problem is still present in the latest release.
+
+## Reporting a vulnerability
+
 Report vulnerabilities privately by email to
-[el.muratovnik@gmail.com](mailto:el.muratovnik@gmail.com). Include the Routevane
-version, affected platform, impact, and a minimal reproduction with synthetic
-data. Do not include live
-router credentials, tokens, private network addresses, or unredacted local
-runtime data in a public issue.
+[el.muratovnik@gmail.com](mailto:el.muratovnik@gmail.com). Do not open a public
+issue for a security problem.
+
+Include the Routevane version, the distribution (desktop application or CLI
+package), the affected platform, the impact, and a minimal reproduction with
+synthetic data. Do not include live router credentials, subscription tokens,
+private network addresses, or unredacted local runtime data.
+
+## What to expect
+
+You receive an acknowledgement by email. A confirmed vulnerability is fixed in
+the next release and noted in the [changelog](CHANGELOG.md); reporters are
+credited there when they want to be. There is no bug bounty.
+
+## Security boundary
 
 Routevane's security boundary is local but not trusted by default:
 

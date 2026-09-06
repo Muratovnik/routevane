@@ -176,3 +176,22 @@ linter is not a verdict on those properties. Record the exact commit/tree review
 Keep physical-device acceptance, clean OS checks, hosted CI, and publication
 separate from local test results. Enabling immutable releases and configuring
 repository permissions are external prerequisites, not actions a local gate proves.
+
+### Windows desktop installer
+
+Build the installer with `tools/dev.ps1 installer -Version vX.Y.Z` (substitute
+the intended release version). The executable, its blockmap and `latest.yml` are
+staged with `DESKTOP-SHA256SUMS` under `.cache/desktop-release/`. Building never
+publishes. The release workflow uploads the three files to the same GitHub
+release as the CLI archives and lists them in that release's single
+`SHA256SUMS`; `DESKTOP-SHA256SUMS` only carries the bundle between jobs and is
+not published. Do not upload just `latest.yml` or reuse metadata from a
+different installer.
+
+`tools/dev.ps1 test-update` builds three isolated NSIS fixture versions and
+exercises manual upgrade, discovery, a rejected corrupt download, retry,
+automatic restart, and preserved data. It uses a loopback feed, a unique
+installer identity and a temporary profile; production builds always use
+`Muratovnik/routevane`. Development and unpacked directory builds do not offer
+application updates. The installer is currently unsigned; signing is separate
+work recorded in [requirements](requirements.md#open-work-and-limits).

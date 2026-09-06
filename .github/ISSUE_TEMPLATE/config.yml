@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a vulnerability privately
+    url: https://github.com/Muratovnik/routevane/blob/main/SECURITY.md
+    about: Security problems are reported by email, never in a public issue.
+  - name: Installation and troubleshooting guide
+    url: https://github.com/Muratovnik/routevane/blob/main/docs/installation.md
+    about: Verify a download, update, back up, remove, and fix common start-up problems.

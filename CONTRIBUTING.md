@@ -49,15 +49,11 @@ version-pinned in package.json.
 first run may populate the Go module/build caches. It needs no extra Python
 package or installed frontend dependencies.
 
-Client settings are not build prerequisites. Ignored preferences and personal
-skills are not inspected as repository source. `.codex/config.toml` and
-`.claude/settings.json` are ignored by default here, but reviewed portable shared
-settings may be deliberately committed. Their project scope is documented by
-[OpenAI](https://learn.chatgpt.com/docs/config-file/config-advanced#project-config-files-codexconfigtoml)
-and [Anthropic](https://code.claude.com/docs/en/settings#share-settings-with-your-team).
-Keep personal overrides, credentials, workstation paths, and internal reports
-private. Publication audits still reject the private paths declared in `relkit.toml`;
-an ignored local file does not belong in a source archive or public documentation link.
+Personal settings for coding agents are not build prerequisites. The
+[repository contract](AGENTS.md#start-and-tools) states which local files stay
+private and which reviewed shared settings may be published. Keep personal
+overrides, credentials, workstation paths, and internal reports out of the
+source tree and out of public documentation links.
 
 A deprecated transitive npm package warning is not an instruction to install a
 different version or approve scripts. Investigate an audit failure; the security
@@ -81,9 +77,10 @@ On Windows `desktop.cmd` runs the first command. It builds the embedded frontend
 and Go executable and opens Electron. `package-desktop` creates the native package
 under `.cache/desktop/` (`win-unpacked/` on Windows). Open `Routevane.exe` on Windows
 or the application bundle on macOS; distribute the entire package, not the EXE
-alone. This local package is unsigned. `test-desktop` builds and drives that package
-with fresh data, including tray, repeat-launch, persistence and process cleanup.
-The shell has no HMR; the browser development session below remains available.
+alone. This local package is unsigned, and unpacked directory builds do not offer
+application updates. `test-desktop` builds and drives that package with fresh
+data, including tray, repeat-launch, persistence and process cleanup. The shell
+has no HMR; the browser development session below remains available.
 
 Desktop Close hides to the tray; Quit stops owned work. Preferences and data are
 stored in Electron's `Routevane` user-data directory (on Windows,
@@ -96,24 +93,8 @@ lock for development/tests. Never point two writers at the same data directory.
 
 The Go CLI still builds and runs independently, with no Electron runtime required.
 Scheduled source refresh is in Go; it continues while the desktop is in the tray.
-Installed Windows x64 builds check GitHub releases for newer stable versions.
-Only the operator's update click downloads, installs and restarts; ordinary Quit
-does not install a cached download. Signing and a separately managed background
-service remain separate work. CLI users replace their CLI package independently.
-
-Build a Windows installer with `tools/dev.ps1 installer -Version vX.Y.Z` (substitute
-the intended release version). The executable, blockmap and `latest.yml` are staged
-with `DESKTOP-SHA256SUMS` under `.cache/desktop-release/`. Building never publishes.
-The release workflow uploads the three files to the same GitHub release as the CLI
-and lists them in that release's single `SHA256SUMS`; `DESKTOP-SHA256SUMS` only
-carries the bundle between jobs and is not published. Do not upload just
-`latest.yml` or reuse metadata from a different installer.
-
-`tools/dev.ps1 test-update` builds three isolated NSIS fixture versions and exercises
-manual upgrade, discovery, a rejected corrupt download, retry, automatic restart,
-and preserved data. It uses a loopback feed, unique installer identity and temporary
-profile; production builds always use `Muratovnik/routevane`. Development and unpacked
-directory builds do not offer application updates.
+Building the Windows installer and exercising its update path are release steps
+described in [releasing](docs/releasing.md#windows-desktop-installer).
 
 ### Browser development and CLI
 
@@ -186,8 +167,26 @@ Linux CI additionally runs the race detector.
 The gates validate code and mechanical repository contracts; they do not replace
 the file/audience and end-user review required for a prerelease.
 
-Commits follow the [repository Git contract](AGENTS.md#git). Stage only owned
-paths, run the staged publication audit, and keep the index empty after committing.
+## Proposing a change
+
+1. For anything larger than a typo or a one-line fix, open an issue first and
+   describe the user-visible outcome you want. Requirements and architecture
+   decisions live in `docs/`; a change that contradicts them needs a decision
+   record, not a silent workaround.
+2. Work on a branch, one user-visible slice per pull request. Keep unrelated
+   files untouched.
+3. Run `tools/dev.ps1 check`, and `tools/dev.ps1 test-browser` for anything the
+   browser can see, before opening the pull request. Add or update the
+   end-to-end test that proves the user-visible result.
+4. Update the documents that describe what you changed: the user guides for
+   behavior, `docs/requirements.md` for a changed contract, an ADR for a
+   hard-to-reverse technical choice.
+5. Commit subjects follow the [repository Git contract](AGENTS.md#git):
+   Conventional Commits with the closed Angular type set and an optional
+   lowercase scope. Stage only the paths you own, run the staged publication
+   audit, and keep the index empty after committing. Do not add machine
+   authorship or vendor trailers.
+6. In the pull request, state what changed, why, and which gates you ran.
 
 - [CLI and format details](docs/usage.md)
 - [Plugin examples and installation](examples/plugins/README.md)

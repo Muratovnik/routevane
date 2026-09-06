@@ -1,0 +1,72 @@
+name: Bug report
+description: Something does not work as documented
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Do not post your database, subscription links, or device passwords.
+        A security problem belongs in a private report, not here: see https://github.com/Muratovnik/routevane/blob/main/SECURITY.md
+  - type: input
+    id: version
+    attributes:
+      label: Routevane version
+      description: The desktop window title, or the output of `routing-agent version` for the CLI package.
+      placeholder: v0.1.7
+    validations:
+      required: true
+  - type: dropdown
+    id: distribution
+    attributes:
+      label: Distribution
+      options:
+        - Desktop application (Windows installer)
+        - CLI package (ZIP with start-routevane launcher)
+        - Source checkout
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Operating system
+      placeholder: Windows 11 24H2 x64, Ubuntu 24.04 arm64, macOS 15 (Apple silicon)
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Name the screens and buttons exactly as the interface shows them.
+      placeholder: |
+        1. Open Routes and choose Build a route.
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: Paste the exact error text from the interface or the console. Redact addresses and tokens.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: output
+    attributes:
+      label: Output format involved, if any
+      multiple: true
+      options:
+        - Keenetic IPv4 routes
+        - Keenetic FQDN groups
+        - sing-box
+        - OpenWrt
+        - MikroTik
+        - AmneziaVPN
+        - Not format-specific

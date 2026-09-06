@@ -1,0 +1,42 @@
+name: Feature request
+description: Propose a user-visible change
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Current requirements and known limits are listed in https://github.com/Muratovnik/routevane/blob/main/docs/requirements.md
+        Check them first: some gaps are already recorded as open work.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What you are trying to do
+      description: Describe the task and the device or client involved, not the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: What Routevane should do differently, as the user would see it.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today instead
+      description: Workarounds, other tools, or manual steps.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Lists and categories
+        - Routes and priority
+        - Output formats
+        - Device delivery
+        - Desktop application
+        - CLI
+        - Documentation
