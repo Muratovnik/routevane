@@ -57,6 +57,12 @@ by ADR 0028:
 | `list`, `lists` | `route`, `routes` |
 | `category`, `categories` | unchanged |
 
+This is a swap, not two independent renames: `lists` is both a source and a
+target name. Every slice therefore renames `lists` to `routes` first and only
+then renames `services` to `lists`. Performed in the other order, the first step
+walks into names the second step still needs, and the two meanings merge with
+nothing left to tell them apart.
+
 Storage names are renamed with the rest. Leaving them behind would preserve the
 exact confusion this decision exists to end, inside the files that are hardest
 to read without the translation table. The rename travels as one owned schema
