@@ -45,6 +45,7 @@ not require the desktop application.
 - **ui:** Report loading, refreshing and inspection consistently across pages instead of flashing transient states, and keep partial forecasts visible. ([f402ce1](https://github.com/Muratovnik/routevane/commit/f402ce17c9b23b6a56aac215d96c2d3bc69e6a83), [26e0435](https://github.com/Muratovnik/routevane/commit/26e04351a47f3d5f827a6bd9fe438362e0cde9c5), [e1756c4](https://github.com/Muratovnik/routevane/commit/e1756c4d9d1e969279a37c06b2ff0603c21fbaf5), [61fc855](https://github.com/Muratovnik/routevane/commit/61fc855acccf7b90d8981a9a88198f8cec2a6c5e))
 - **priority:** Remove the global cap on the size of a route's list order. ([92eff42](https://github.com/Muratovnik/routevane/commit/92eff4221d3a1f0d6b5982307c2b2f765a2688ea))
 - **web:** Debounce list card toggles so rapid changes are not lost. ([c955e65](https://github.com/Muratovnik/routevane/commit/c955e6505a5e1671a05d0c3b1cbb1fab19cc3ed6))
+- **release:** Publish the Windows installer, its blockmap and the updater feed under the release's single checksum manifest. ([e11f9ac](https://github.com/Muratovnik/routevane/commit/e11f9ac0208d0680939604314f2196532d10890a))
 
 ## [0.1.5](https://github.com/Muratovnik/routevane/compare/v0.1.3...v0.1.5) (2026-09-04)
 
