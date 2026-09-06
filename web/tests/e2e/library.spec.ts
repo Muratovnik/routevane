@@ -4137,9 +4137,24 @@ for (const language of ['en', 'ru'] as const) {
         const recoveredFilterBox = await card
           .getByRole('searchbox', { name: copy('serviceCard.filter') })
           .boundingBox()
+        const recoveredRefreshStatusBox = await card
+          .locator('.service-card__refresh-status')
+          .boundingBox()
         expect(recoveredFilterBox).not.toBeNull()
+        expect(recoveredRefreshStatusBox).not.toBeNull()
+        // Recovery replaces the localized reading status with the compact ready
+        // icon, so the reserved row's own height changes with the translation
+        // and the platform's wrapping. The filter must follow that change
+        // exactly, which is what proves nothing else moved it.
+        const recoveredStatusChange =
+          (recoveredRefreshStatusBox?.height ?? 0) -
+          (pendingRefreshStatusBox?.height ?? 0)
         expect(
-          Math.abs((recoveredFilterBox?.y ?? 0) - (pendingFilterBox?.y ?? 0)),
+          Math.abs(
+            (recoveredFilterBox?.y ?? 0) -
+              (pendingFilterBox?.y ?? 0) -
+              recoveredStatusChange,
+          ),
         ).toBeLessThanOrEqual(1)
         await expect(filter).toHaveValue('retry.example')
         await expect(card.locator('.service-card__rows li')).toHaveCount(1)
