@@ -70,10 +70,10 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
         response.writeHead(404).end()
         return
       }
-      const file = join(
-        name.includes('0.0.1') ? first : name.includes('0.0.2') ? middle : next,
-        name,
-      )
+      let release = next
+      if (name.includes('0.0.1')) release = first
+      else if (name.includes('0.0.2')) release = middle
+      const file = join(release, name)
       const metadata = await stat(file)
       response.writeHead(200, { 'Content-Length': metadata.size })
       let firstChunk = true

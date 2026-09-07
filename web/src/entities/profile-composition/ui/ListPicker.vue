@@ -307,13 +307,9 @@ function overlapCount(listID: string): string {
 
 function ruleLabel(listID: string): string {
   const count = ruleCounts.value.get(listID)
-  return count === undefined
-    ? t(
-        props.forecastPending && resolvedSet.value.has(listID)
-          ? 'listPicker.rules.pending'
-          : 'listPicker.rules.unknown',
-      )
-    : tc('create.forecast.rules', count)
+  if (count !== undefined) return tc('create.forecast.rules', count)
+  const pending = props.forecastPending && resolvedSet.value.has(listID)
+  return t(pending ? 'listPicker.rules.pending' : 'listPicker.rules.unknown')
 }
 
 function overlapTitles(listID: string): string[] | null {

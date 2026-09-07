@@ -102,7 +102,7 @@ async function publishProfile(
   await page
     .getByRole('button', { name: message(language, 'create.submit') })
     .click()
-  await page.waitForURL(/\/profiles\/[a-f0-9]{32}(?:[#?].*)?$/)
+  await page.waitForURL(/\/profiles\/[a-f0-9]{32}(?:[#?]|$)/)
   await expect(
     page.getByRole('heading', { level: 1, name: 'YouTube' }),
   ).toBeVisible()
@@ -330,15 +330,14 @@ test('the send screen builds its form from the deployer and applies the file loc
   expect(Object.keys(stored.local)).not.toContain('rv.deploy.password')
   expect(Object.keys(stored.session)).not.toContain('rv.deploy.password')
   expect(JSON.stringify(stored)).not.toContain('rv1.')
-  expect(await page.locator('#send-device').inputValue()).toBe(
-    fileURL(configPath),
-  )
+  await expect(page.locator('#send-device')).toHaveValue(fileURL(configPath))
 })
 
 for (const language of ['en', 'ru'] as const) {
   test.describe(`send recovery ${language}`, () => {
     test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
     const copy = (key: string): string => message(language, key)
+
     test('send entry distinguishes unavailable, missing profile, missing connection and missing file', async ({
       page,
     }) => {

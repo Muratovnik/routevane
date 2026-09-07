@@ -195,11 +195,10 @@ export function useDebouncedMutation<Value, Result = Value>(
     result: Result | undefined,
   ): void {
     if (!shouldContinue(key, entry)) return
-    const confirmed = options.resolve
-      ? options.resolve(result, attempted, key)
-      : result === undefined
-        ? attempted
-        : (result as unknown as Value)
+    let confirmed: Value
+    if (options.resolve) confirmed = options.resolve(result, attempted, key)
+    else if (result === undefined) confirmed = attempted
+    else confirmed = result as unknown as Value
     const superseded = entry.intentVersion !== version
     entry.inFlight = false
     entry.inFlightVersion = null
@@ -208,16 +207,12 @@ export function useDebouncedMutation<Value, Result = Value>(
     entry.error = null
     entry.retryValue = undefined
 
-    if (!superseded) {
-      entry.optimistic = confirmed
-      entry.hasOptimistic = true
-      entry.queued = false
-    } else if (
-      // A newer intent may already be visible. It is safe to drop it only when
-      // the older response happens to establish the same confirmed value.
-      entry.hasOptimistic &&
-      equals(entry.optimistic as Value, confirmed)
-    ) {
+    // A newer intent may already be visible. It is safe to drop it only when
+    // the older response happens to establish the same confirmed value.
+    const keepsWhatIsVisible =
+      !superseded ||
+      (entry.hasOptimistic && equals(entry.optimistic as Value, confirmed))
+    if (keepsWhatIsVisible) {
       entry.optimistic = confirmed
       entry.hasOptimistic = true
       entry.queued = false

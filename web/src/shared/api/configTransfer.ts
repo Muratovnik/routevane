@@ -124,7 +124,7 @@ function fileNameFromDisposition(disposition: string): string {
     disposition,
   )?.[1]
   const quoted = /(?:^|;)\s*filename="([^"\r\n]+)"/i.exec(disposition)?.[1]
-  const bare = /(?:^|;)\s*filename=([^;\s\r\n]+)/i.exec(disposition)?.[1]
+  const bare = /(?:^|;)\s*filename=([^;\s]+)/i.exec(disposition)?.[1]
   const candidate = (encoded ?? quoted ?? bare ?? '').trim()
   let fileName = candidate
   if (encoded !== undefined) {

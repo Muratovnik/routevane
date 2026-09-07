@@ -25,6 +25,17 @@ import {
   type SpawnedProduct,
 } from './support/product'
 
+// The locale suites read their expected text from the shipped dictionary, so a
+// message the product renames fails the test instead of passing silently.
+function copyFor(language: keyof typeof dictionaries): (key: string) => string {
+  return (key) => {
+    const value = dictionaries[language][key]
+    if (typeof value !== 'string')
+      throw new Error(`Not a string message: ${key}`)
+    return value
+  }
+}
+
 const testDirectory = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(testDirectory, '..', '..', '..')
 const dataRoot = join(repositoryRoot, '.cache', 'browser-data')
@@ -2438,12 +2449,8 @@ test('the server refresh setting cannot race while a write is pending', async ({
 for (const language of ['en', 'ru'] as const) {
   test.describe(`failure recovery ${language}`, () => {
     test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
-    const copy = (key: string): string => {
-      const value = dictionaries[language][key]
-      if (typeof value !== 'string')
-        throw new Error(`Not a string message: ${key}`)
-      return value
-    }
+    const copy = copyFor(language)
+
     test('prerequisite audit: devices remain readable while requirements retry', async ({
       page,
     }) => {
@@ -2685,6 +2692,7 @@ test('the accessibility helper detects undersized adjacent targets and accepts t
 for (const language of ['en', 'ru'] as const) {
   test.describe(`accessibility ${language}`, () => {
     test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
+
     test('every section passes the accessibility gates', async ({ page }) => {
       test.setTimeout(300000)
       const copy = (key: string): string => {
@@ -3532,12 +3540,8 @@ test('source skips are visible without changing profiles, and clear after a clea
 for (const language of ['en', 'ru'] as const) {
   test.describe(`card regression ${language}`, () => {
     test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
-    const copy = (key: string): string => {
-      const value = dictionaries[language][key]
-      if (typeof value !== 'string')
-        throw new Error(`Not a string message: ${key}`)
-      return value
-    }
+    const copy = copyFor(language)
+
     test('card audit: filtered rows stay dense in compose and library cards', async ({
       page,
     }) => {
@@ -4096,11 +4100,13 @@ for (const language of ['en', 'ru'] as const) {
         await page.screenshot({
           path: join(reviewRoot, `${language}-card-pending-320.png`),
         })
+
         await test.step('audit held source read at every width', async () => {
           expect(await auditWidths(page, `${language}-card-pending`)).toEqual(
             [],
           )
         })
+
         releaseFirstRefresh()
         await expect(card.getByRole('alert')).toContainText(
           copy('listCard.refresh.failed.generic'),
@@ -4670,7 +4676,7 @@ test('page inspection preserves primary actions and full-height geometry in ever
     .first()
     .boundingBox())!.width
   const fields = page.locator('.rv-composer-form__fields > div')
-  expect(await fields.count()).toBe(2)
+  await expect(fields).toHaveCount(2)
   const firstField = (await fields.nth(0).boundingBox())!
   const secondField = (await fields.nth(1).boundingBox())!
   expect(Math.abs(firstField.y - secondField.y)).toBeLessThanOrEqual(1)

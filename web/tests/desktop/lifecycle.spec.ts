@@ -11,24 +11,22 @@ import {
 } from '../e2e/support/product'
 
 const root = resolve(import.meta.dirname, '../../..')
-const packageRoot = join(
-  root,
-  '.cache/desktop',
-  process.platform === 'win32'
-    ? 'win-unpacked'
-    : process.platform === 'darwin'
-      ? process.arch === 'arm64'
-        ? 'mac-arm64'
-        : 'mac'
-      : 'linux-unpacked',
-)
+
+function packageDirectory(): string {
+  if (process.platform === 'win32') return 'win-unpacked'
+  if (process.platform !== 'darwin') return 'linux-unpacked'
+  return process.arch === 'arm64' ? 'mac-arm64' : 'mac'
+}
+
+function executableName(): string {
+  return process.platform === 'win32' ? 'Routevane.exe' : 'Routevane'
+}
+
+const packageRoot = join(root, '.cache/desktop', packageDirectory())
 const executablePath =
   process.platform === 'darwin'
     ? join(packageRoot, 'Routevane.app/Contents/MacOS/Routevane')
-    : join(
-        packageRoot,
-        process.platform === 'win32' ? 'Routevane.exe' : 'Routevane',
-      )
+    : join(packageRoot, executableName())
 
 async function scratch() {
   const parent = join(root, 'tmp/desktop-acceptance')

@@ -15,6 +15,14 @@ commands. Do not add a second runner whose result can drift.
   production build. Browser and axe checks are blocking for browser-facing work
   and remain a separate local command because browser binaries are an owned
   dependency installed by `tools/dev.ps1 setup-browser`.
+- ESLint runs without `--max-warnings`: an error is the gate and a warning is
+  advice. The warn-level rules are the advisory size and complexity signals
+  (`max-lines`, `max-lines-per-function`, `complexity`,
+  `vue/max-lines-per-block`, `sonarjs/cognitive-complexity`, and the two rules
+  a later increment promotes); everything a gate must catch is error level, and
+  a preset's own `warn` is promoted so an upgrade cannot quietly downgrade a
+  gate. Read an advisory warning as a place to look, not as a limit: do not
+  split a component, a function or a test for its own sake to silence one.
 - Dead-code and duplication ratchets start only when the Nuxt route/auto-import
   graph and meaningful source volume exist. Adding a noisy zero-day threshold
   is not a quality improvement.

@@ -132,8 +132,9 @@ describe('SettingsView prerequisite audit', () => {
       await flushPromises()
       expect(weekly?.element.checked).toBe(success)
       expect(daily?.element.checked).toBe(!success)
-      if (!success)
-        expect(wrapper.text()).toContain('The refresh rule could not be saved.')
+      expect(
+        wrapper.text().includes('The refresh rule could not be saved.'),
+      ).toBe(!success)
       wrapper.unmount()
     },
   )

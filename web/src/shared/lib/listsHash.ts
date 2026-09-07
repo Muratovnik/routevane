@@ -12,11 +12,12 @@ export function libraryPageHash(
   options: { category?: string | string[]; list?: string } = {},
 ): string {
   const values = new URLSearchParams()
-  const categories = Array.isArray(options.category)
+  const requested = Array.isArray(options.category)
     ? options.category
-    : options.category
-      ? [options.category]
-      : []
+    : [options.category]
+  const categories = requested.filter(
+    (category): category is string => category !== undefined && category !== '',
+  )
   for (const category of new Set(categories))
     values.append('category', category)
   if (options.list !== undefined && options.list !== '')

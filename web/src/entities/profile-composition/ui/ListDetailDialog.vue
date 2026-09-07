@@ -155,11 +155,8 @@ const entryMutations = useDebouncedMutation<boolean, ListContents>(
     const list = props.list
     if (list === null) return undefined
     const row = rows.value.find((candidate) => candidate.value === value)
-    const verdict: DomainVerdict = enabled
-      ? 'auto'
-      : row?.origin === 'manual'
-        ? 'auto'
-        : 'exclude'
+    const verdict: DomainVerdict =
+      enabled || row?.origin === 'manual' ? 'auto' : 'exclude'
     return setListValues(list.id, [value], verdict)
   },
   {

@@ -5,7 +5,10 @@ Routed from `AGENTS.md`. Read this before changing `web/src`.
 Use Feature-Sliced layers from high to low: `pages`, `widgets`, `features`,
 `entities`, `shared`. `app.vue` and global styles exist once. A file imports
 only a lower layer; cross-slice imports use the `@/` alias. Do not create empty
-layers or index barrels without a current consumer.
+layers or index barrels without a current consumer. `eslint-plugin-boundaries`
+enforces that order, including the refusal of a same-layer import between two
+slices; entities present what they are given and do not import `shared/api`,
+which features orchestrate.
 
 Styling is semantic tokens plus named classes. Raw palette, typography,
 spacing, radius, shadow, and motion values are declared in

@@ -175,9 +175,28 @@ const failureCodes = new Set([
 // A destination is whatever its deployer declares: a device on the network, or
 // a configuration file on this computer. What this rejects is a malformed
 // address, never an address that merely turns out to be unreachable — that
-// answer belongs to the destination.
-const hostPattern =
-  /^(?:https?:\/\/)?[a-z\d](?:[a-z\d-]*[a-z\d])?(?:\.[a-z\d](?:[a-z\d-]*[a-z\d])?)*(?::\d{1,5})?\/?$/i
+// answer belongs to the destination. The host is read label by label rather
+// than by one nested pattern, so no input can make the check backtrack.
+const httpSchemePattern = /^https?:\/\//i
+const hostLabelPattern = /^[a-z\d-]+$/i
+const portPattern = /^\d{1,5}$/
+
+function validHostLabel(label: string): boolean {
+  return (
+    !label.startsWith('-') &&
+    !label.endsWith('-') &&
+    hostLabelPattern.test(label)
+  )
+}
+
+function validHostAndPort(value: string): boolean {
+  const authority = value.endsWith('/') ? value.slice(0, -1) : value
+  const [host, port, ...extra] = authority.split(':')
+  if (extra.length > 0 || host === undefined || host === '') return false
+  if (!host.split('.').every(validHostLabel)) return false
+  if (port === undefined) return true
+  return portPattern.test(port) && Number(port) >= 1 && Number(port) <= 65535
+}
 
 export function validAddress(value: string): boolean {
   if (value === '') return false
@@ -190,12 +209,10 @@ export function validAddress(value: string): boolean {
       return false
     }
   }
-  if (/^[a-z][a-z\d+.-]*:/i.test(value) && !/^https?:\/\//i.test(value)) {
+  if (/^[a-z][a-z\d+.-]*:/i.test(value) && !httpSchemePattern.test(value)) {
     return false
   }
-  if (!hostPattern.test(value)) return false
-  const port = /:(\d{1,5})\/?$/.exec(value)?.[1]
-  return port === undefined || (Number(port) >= 1 && Number(port) <= 65535)
+  return validHostAndPort(value.replace(httpSchemePattern, ''))
 }
 
 export function messageKey(error: unknown): string {

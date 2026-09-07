@@ -105,7 +105,9 @@ function renderRoute() {
 }
 
 beforeEach(() => {
-  routeStatus = fileStatus = diagnosticsStatus = 200
+  routeStatus = 200
+  fileStatus = 200
+  diagnosticsStatus = 200
   published = true
   failedRebuild = false
   holdRoute = undefined
@@ -159,7 +161,8 @@ describe('profile screen read boundaries', () => {
   })
 
   it('keeps file and diagnostics failures distinct from an unpublished profile', async () => {
-    fileStatus = diagnosticsStatus = 503
+    fileStatus = 503
+    diagnosticsStatus = 503
     const wrapper = renderRoute()
     await flushPromises()
     await wrapper.get('#rv-tab-file').trigger('click')

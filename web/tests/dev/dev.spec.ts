@@ -151,7 +151,8 @@ const draft = ref('')
     await expect(page.getByRole('textbox', { name: 'Draft' })).toHaveValue(
       'keep my draft',
     )
-    expect(await page.locator('html').getAttribute('data-hmr-sentinel')).toBe(
+    await expect(page.locator('html')).toHaveAttribute(
+      'data-hmr-sentinel',
       'same-document',
     )
     expect(owner.output()).not.toContain('build 2)')

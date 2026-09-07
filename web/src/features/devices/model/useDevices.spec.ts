@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useDevices } from '@/features/devices/model/useDevices'
 
+type FetchInput = string | URL | Request
+
 function json(payload: unknown): Response {
   return new Response(JSON.stringify(payload), {
     status: 200,
@@ -54,7 +56,7 @@ beforeEach(() => {
 
 describe('useDevices degraded dependencies', () => {
   it('keeps registered devices and the catalog when deployer requirements fail', async () => {
-    fetchMock.mockImplementation((input: string | URL | Request) => {
+    fetchMock.mockImplementation((input: FetchInput) => {
       const url = String(input)
       if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
       if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
@@ -78,7 +80,7 @@ describe('useDevices degraded dependencies', () => {
   })
 
   it('keeps registered devices readable but withdraws registration when the catalog fails', async () => {
-    fetchMock.mockImplementation((input: string | URL | Request) => {
+    fetchMock.mockImplementation((input: FetchInput) => {
       const url = String(input)
       if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
       if (url === '/v1/lists')
@@ -98,19 +100,17 @@ describe('useDevices degraded dependencies', () => {
   })
 
   it('does not register or enable while deployment requirements are unknown', async () => {
-    fetchMock.mockImplementation(
-      (input: string | URL | Request, init?: RequestInit) => {
-        const url = String(input)
-        if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
-        if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
-        if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
-        if (url === '/v1/deployments/targets')
-          return Promise.reject(new TypeError('unavailable'))
-        if (url === '/v1/devices' && init?.method === 'POST')
-          return Promise.resolve(json({}))
-        return Promise.reject(new Error(`unexpected request ${url}`))
-      },
-    )
+    fetchMock.mockImplementation((input: FetchInput, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
+      if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
+      if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
+      if (url === '/v1/deployments/targets')
+        return Promise.reject(new TypeError('unavailable'))
+      if (url === '/v1/devices' && init?.method === 'POST')
+        return Promise.resolve(json({}))
+      return Promise.reject(new Error(`unexpected request ${url}`))
+    })
     const devices = useDevices()
 
     await devices.initialize()
@@ -142,7 +142,7 @@ describe('useDevices degraded dependencies', () => {
 
   it('retries only requirements and keeps known devices', async () => {
     let requirementsReads = 0
-    fetchMock.mockImplementation((input: string | URL | Request) => {
+    fetchMock.mockImplementation((input: FetchInput) => {
       const url = String(input)
       if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
       if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
@@ -192,22 +192,20 @@ describe('useDevices degraded dependencies', () => {
   })
 
   it('keeps registration available for a target with no deployer after a successful read', async () => {
-    fetchMock.mockImplementation(
-      (input: string | URL | Request, init?: RequestInit) => {
-        const url = String(input)
-        if (url === '/v1/devices' && init?.method === 'POST')
-          return Promise.resolve(json({}))
-        if (url === '/v1/devices')
-          return Promise.resolve(
-            json({ devices: [], secret_store_available: true }),
-          )
-        if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
-        if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
-        if (url === '/v1/deployments/targets')
-          return Promise.resolve(json({ targets: [] }))
-        return Promise.reject(new Error(`unexpected request ${url}`))
-      },
-    )
+    fetchMock.mockImplementation((input: FetchInput, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/v1/devices' && init?.method === 'POST')
+        return Promise.resolve(json({}))
+      if (url === '/v1/devices')
+        return Promise.resolve(
+          json({ devices: [], secret_store_available: true }),
+        )
+      if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
+      if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
+      if (url === '/v1/deployments/targets')
+        return Promise.resolve(json({ targets: [] }))
+      return Promise.reject(new Error(`unexpected request ${url}`))
+    })
     const devices = useDevices()
 
     await devices.initialize()
@@ -231,28 +229,26 @@ describe('useDevices degraded dependencies', () => {
   })
 
   it('keeps disabling automatic delivery independent of a failed requirements read', async () => {
-    fetchMock.mockImplementation(
-      (input: string | URL | Request, init?: RequestInit) => {
-        const url = String(input)
-        if (
-          url === '/v1/devices/device-1/auto-delivery' &&
-          init?.method === 'POST'
+    fetchMock.mockImplementation((input: FetchInput, init?: RequestInit) => {
+      const url = String(input)
+      if (
+        url === '/v1/devices/device-1/auto-delivery' &&
+        init?.method === 'POST'
+      )
+        return Promise.resolve(json({}))
+      if (url === '/v1/devices')
+        return Promise.resolve(
+          json({
+            ...devicePayload,
+            devices: [{ ...devicePayload.devices[0], auto_deliver: true }],
+          }),
         )
-          return Promise.resolve(json({}))
-        if (url === '/v1/devices')
-          return Promise.resolve(
-            json({
-              ...devicePayload,
-              devices: [{ ...devicePayload.devices[0], auto_deliver: true }],
-            }),
-          )
-        if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
-        if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
-        if (url === '/v1/deployments/targets')
-          return Promise.reject(new TypeError('unavailable'))
-        return Promise.reject(new Error(`unexpected request ${url}`))
-      },
-    )
+      if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
+      if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
+      if (url === '/v1/deployments/targets')
+        return Promise.reject(new TypeError('unavailable'))
+      return Promise.reject(new Error(`unexpected request ${url}`))
+    })
     const devices = useDevices()
 
     await devices.initialize()

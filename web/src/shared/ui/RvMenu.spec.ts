@@ -125,7 +125,7 @@ describe('RvMenu', () => {
 
     // The submenu is its own panel; the menu that opened it is still standing.
     const panels = document.body.querySelectorAll('[role="menu"]')
-    expect(panels.length).toBe(2)
+    expect(panels).toHaveLength(2)
     expect(panel()?.textContent).toContain('JSON · все правила')
 
     // Leaving the group closes only the group.
@@ -133,7 +133,7 @@ describe('RvMenu', () => {
       new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowLeft' }),
     )
     await flushPromises()
-    expect(document.body.querySelectorAll('[role="menu"]').length).toBe(1)
+    expect(document.body.querySelectorAll('[role="menu"]')).toHaveLength(1)
     expect(trigger.attributes('aria-expanded')).toBe('true')
 
     // Choosing inside the group still reports the child's key.
