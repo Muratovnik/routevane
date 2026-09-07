@@ -28,7 +28,7 @@ sources:
 `
 
 const validTargetYAML = `id: keenetic
-profile_key: keenetic-bat-ipv4-v1
+format_key: keenetic-bat-ipv4-v1
 kind: router
 renderer: keenetic-route-bat
 constraints:
@@ -105,7 +105,7 @@ func TestLoadBoundsFilesAndTotalBytes(t *testing.T) {
 			t.Fatal(err)
 		}
 		for i := 0; i < 17; i++ {
-			list := strings.Replace(validCatalogYAML, "id: example", fmt.Sprintf("id: service-%d", i), 1)
+			list := strings.Replace(validCatalogYAML, "id: example", fmt.Sprintf("id: list-%d", i), 1)
 			payload := []byte(list + "#" + strings.Repeat("x", 250000-len(list)-2) + "\n")
 			if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%02d.yaml", i)), payload, 0o600); err != nil {
 				t.Fatal(err)
@@ -128,7 +128,7 @@ func TestLoadRejectsCollisionsAndLinks(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := Load(context.Background(), root); err == nil {
-			t.Fatal("duplicate service id accepted")
+			t.Fatal("duplicate list id accepted")
 		}
 	})
 	t.Run("yaml symlink", func(t *testing.T) {
@@ -373,13 +373,13 @@ func writeTargetFile(t *testing.T, root, name string, payload []byte) {
 // operator wrote or vendored keeps loading; naming both is refused, because the
 // two mean the same thing and neither is more authoritative.
 func TestTargetReadsTheRetiredFormatKeyButRefusesBoth(t *testing.T) {
-	current := strings.Replace(validTargetYAML, "profile_key:", "format_key:", 1)
+	retired := strings.Replace(validTargetYAML, "format_key:", "profile_key:", 1)
 	for _, test := range []struct {
 		name    string
 		payload string
 	}{
-		{"current key", current},
-		{"retired key", validTargetYAML},
+		{"current key", validTargetYAML},
+		{"retired key", retired},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
@@ -397,7 +397,7 @@ func TestTargetReadsTheRetiredFormatKeyButRefusesBoth(t *testing.T) {
 
 	t.Run("both keys", func(t *testing.T) {
 		root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
-		writeTargetFile(t, root, "keenetic.yaml", []byte(current+"profile_key: keenetic-bat-ipv4-v1\n"))
+		writeTargetFile(t, root, "keenetic.yaml", []byte(validTargetYAML+"profile_key: keenetic-bat-ipv4-v1\n"))
 		_, err := Load(context.Background(), root)
 		if err == nil {
 			t.Fatal("a target naming both keys must be refused")

@@ -34,7 +34,7 @@ const countRows = computed(() => {
       key: 'customSources',
       text: tc('configTransfer.count.customSources', counts.customSources),
     },
-    { key: 'routes', text: tc('configTransfer.count.routes', counts.routes) },
+    { key: 'routes', text: tc('configTransfer.count.profiles', counts.routes) },
     {
       key: 'devices',
       text: tc('configTransfer.count.devices', counts.devices),

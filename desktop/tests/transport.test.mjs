@@ -5,7 +5,7 @@ import { once } from 'node:events'
 import { createTransport, externalURL, isAppURL } from '../src/transport.mjs'
 
 test('only the internal app authority is navigable; external links exclude executable schemes', () => {
-  assert.ok(isAppURL('routevane://app/lists/new#tab=contents'))
+  assert.ok(isAppURL('routevane://app/profiles/new#tab=contents'))
   for (const url of [
     'routevane://evil/',
     'routevane://app.evil/',

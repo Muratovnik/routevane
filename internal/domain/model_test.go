@@ -68,7 +68,7 @@ func TestLifecycleEqualityAndSlugBoundary(t *testing.T) {
 	if got := LifecycleAt(expiry, expiry.Add(StaleRetention), false); got != ValidityArchived {
 		t.Fatalf("retention equality=%q", got)
 	}
-	for _, valid := range []string{"a", "example", "dns-main", "service-2"} {
+	for _, valid := range []string{"a", "example", "dns-main", "list-2"} {
 		if err := ValidateSlug(valid); err != nil {
 			t.Errorf("ValidateSlug(%q)=%v", valid, err)
 		}

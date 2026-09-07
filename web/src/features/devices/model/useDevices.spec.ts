@@ -25,7 +25,7 @@ const devicePayload = {
   secret_store_available: true,
 }
 
-const servicesPayload = {
+const listsPayload = {
   lists: [],
   list_details: [],
   categories: [],
@@ -37,7 +37,7 @@ const targetsPayload = {
       id: 'keenetic',
       title: 'Keenetic',
       kind: 'router',
-      profile_key: 'keenetic-bat-ipv4-v1', // betterleaks:allow -- public fixture identifier
+      format_key: 'keenetic-bat-ipv4-v1', // betterleaks:allow -- public fixture identifier
       renderer_id: 'keenetic-route-bat',
       file_extension: 'bat',
       manual_installation_hint: 'Upload the file.',
@@ -57,7 +57,7 @@ describe('useDevices degraded dependencies', () => {
     fetchMock.mockImplementation((input: string | URL | Request) => {
       const url = String(input)
       if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
-      if (url === '/v1/lists') return Promise.resolve(json(servicesPayload))
+      if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
       if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
       if (url === '/v1/deployments/targets')
         return Promise.reject(new TypeError('unavailable'))
@@ -102,7 +102,7 @@ describe('useDevices degraded dependencies', () => {
       (input: string | URL | Request, init?: RequestInit) => {
         const url = String(input)
         if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
-        if (url === '/v1/lists') return Promise.resolve(json(servicesPayload))
+        if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
         if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
         if (url === '/v1/deployments/targets')
           return Promise.reject(new TypeError('unavailable'))
@@ -145,7 +145,7 @@ describe('useDevices degraded dependencies', () => {
     fetchMock.mockImplementation((input: string | URL | Request) => {
       const url = String(input)
       if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
-      if (url === '/v1/lists') return Promise.resolve(json(servicesPayload))
+      if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
       if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
       if (url === '/v1/deployments/targets') {
         requirementsReads += 1
@@ -201,7 +201,7 @@ describe('useDevices degraded dependencies', () => {
           return Promise.resolve(
             json({ devices: [], secret_store_available: true }),
           )
-        if (url === '/v1/lists') return Promise.resolve(json(servicesPayload))
+        if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
         if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
         if (url === '/v1/deployments/targets')
           return Promise.resolve(json({ targets: [] }))
@@ -246,7 +246,7 @@ describe('useDevices degraded dependencies', () => {
               devices: [{ ...devicePayload.devices[0], auto_deliver: true }],
             }),
           )
-        if (url === '/v1/lists') return Promise.resolve(json(servicesPayload))
+        if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
         if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
         if (url === '/v1/deployments/targets')
           return Promise.reject(new TypeError('unavailable'))

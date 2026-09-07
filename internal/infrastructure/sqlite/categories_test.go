@@ -177,7 +177,7 @@ func TestCategoryWritesRefuseWhatTheGrammarForbids(t *testing.T) {
 		{"removed on an operator category", application.CategoryMembership{CategoryID: base.ID, ListID: "youtube", State: application.MembershipRemoved, UpdatedAt: now}},
 		{"unknown state", application.CategoryMembership{CategoryID: base.ID, ListID: "youtube", State: "quarantined", UpdatedAt: now}},
 		{"foreign category", application.CategoryMembership{CategoryID: "video", ListID: "youtube", State: application.MembershipAdded, UpdatedAt: now}},
-		{"invalid service", application.CategoryMembership{CategoryID: base.ID, ListID: "Not A Slug", State: application.MembershipAdded, UpdatedAt: now}},
+		{"invalid list", application.CategoryMembership{CategoryID: base.ID, ListID: "Not A Slug", State: application.MembershipAdded, UpdatedAt: now}},
 		{"zero moment", application.CategoryMembership{CategoryID: base.ID, ListID: "youtube", State: application.MembershipAdded}},
 	}
 	for _, tc := range memberships {

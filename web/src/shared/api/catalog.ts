@@ -1,5 +1,5 @@
 import * as v from 'valibot'
-import { serviceChanges } from '@/shared/lib/serviceChanges'
+import { listChanges } from '@/shared/lib/listChanges'
 
 import {
   acknowledged,
@@ -17,33 +17,33 @@ import {
   texts,
 } from './http'
 
-export type ServiceDomain = {
+export type ListDomain = {
   value: string
   includeSubdomains: boolean
 }
 
-export type ServiceSource = {
+export type ListSource = {
   id: string
   type: 'dns' | 'http'
 }
 
-export type ServiceDetail = {
+export type ListDetail = {
   id: string
   title: string
-  // Every catalog grouping that names this service. A service belongs to as
+  // Every catalog grouping that names this list. A list belongs to as
   // many as fit it, so this is a set rather than one label.
   categories: string[]
   // Optional for compatibility with a service binary built before catalog
   // details were exposed. loadCatalog normalizes both fields for current data.
-  domains?: ServiceDomain[]
-  sources?: ServiceSource[]
+  domains?: ListDomain[]
+  sources?: ListSource[]
   sourceCount?: number
-  // An operator-defined service. Its domains belong to the service itself and
+  // An operator-defined list. Its domains belong to the list itself and
   // are editable, unlike a shipped catalog entry.
   custom?: boolean
 }
 
-export type ServiceSourcePreview = {
+export type ListSourcePreview = {
   id: string
   type: 'dns' | 'http'
   status: 'ready' | 'failed'
@@ -55,9 +55,9 @@ export type ServiceSourcePreview = {
   skippedCount: number
 }
 
-export type ServicePreview = {
-  serviceID: string
-  sources: ServiceSourcePreview[]
+export type ListPreview = {
+  listID: string
+  sources: ListSourcePreview[]
   domains: string[]
   domainCount: number
   addressCount: number
@@ -65,8 +65,8 @@ export type ServicePreview = {
   skippedCount: number
 }
 
-// A grouping of services. It owns no data of its own: a list that references it
-// follows whatever the category currently carries.
+// A grouping of lists. It owns no data of its own: a profile that references
+// it follows whatever the category currently carries.
 //
 // `custom` says who owns it (ADR 0028). A catalog category keeps the title the
 // catalog gave it and cannot be removed; one the operator created can be
@@ -75,20 +75,20 @@ export type ServicePreview = {
 export type CategoryDetail = {
   id: string
   title: string
-  services: string[]
+  lists: string[]
   custom: boolean
 }
 
 // What a category edit states. An absent field and an empty one are different
-// requests: omitting `services` leaves the membership alone, while an empty
+// requests: omitting `lists` leaves the membership alone, while an empty
 // array clears it.
 export type CategoryEdit = {
   title?: string
-  services?: string[]
+  lists?: string[]
 }
 
 // A list named by a refusal — its identity and the words the operator gave it.
-export type ListReference = {
+export type ProfileReference = {
   id: string
   title: string
 }
@@ -105,7 +105,7 @@ export type TargetOption = {
   title: string
   titleEn: string
   kind: 'router' | 'app'
-  profileKey: string
+  formatKey: string
   rendererID: string
   fileExtension: string
   manualInstallationHint: string
@@ -140,24 +140,24 @@ export function localizedTargetHint(
 }
 
 export type Catalog = {
-  services: string[]
-  serviceDetails: ServiceDetail[]
+  lists: string[]
+  listDetails: ListDetail[]
   categories: CategoryDetail[]
   targets: TargetOption[]
   // Older binaries may omit the field; current servers always state the
-  // complete library-wide order beside the service collection.
+  // complete library-wide order beside the list collection.
   defaultPriority?: string[]
 }
 
 export async function loadCatalog(): Promise<Catalog> {
-  const [services, targets] = await Promise.all([
-    getJSON('/v1/lists', parseServices),
+  const [lists, targets] = await Promise.all([
+    getJSON('/v1/lists', parseLists),
     getJSON('/v1/targets', parseTargets),
   ])
-  return { ...services, targets }
+  return { ...lists, targets }
 }
 
-// saveDefaultPriority sends one complete service permutation and reads the
+// saveDefaultPriority sends one complete list permutation and reads the
 // server's normalized order back. Validation of membership and transactionality
 // belongs to the application boundary, not this shared transport helper.
 export async function saveDefaultPriority(
@@ -175,7 +175,7 @@ export async function saveDefaultPriority(
 // Alias kept for callers that name the operation after the HTTP verb.
 export const setDefaultPriority = saveDefaultPriority
 
-// The catalog changes only when this tab writes a custom service or the
+// The catalog changes only when this tab writes a custom list or the
 // process restarts, so one session-scoped copy saves a network round trip on
 // every list open. Writes below invalidate it; a failure is never cached.
 let cachedCatalog: Catalog | null = null
@@ -191,15 +191,15 @@ export function invalidateCatalogCache(): void {
   cachedCatalog = null
 }
 
-export type CustomServiceRecord = {
+export type CustomListRecord = {
   id: string
   title: string
   domains: string[]
 }
 
-// asServiceDetail is the catalog shape of a just-written custom service, so a
+// asListDetail is the catalog shape of a just-written custom list, so a
 // screen can extend its loaded catalog without re-reading the collection.
-export function asServiceDetail(record: CustomServiceRecord): ServiceDetail {
+export function asListDetail(record: CustomListRecord): ListDetail {
   return {
     id: record.id,
     title: record.title,
@@ -214,31 +214,31 @@ export function asServiceDetail(record: CustomServiceRecord): ServiceDetail {
   }
 }
 
-export async function createCustomService(
+export async function createCustomList(
   title: string,
   domains: string[],
-): Promise<CustomServiceRecord> {
+): Promise<CustomListRecord> {
   const record = await postJSON(
     '/v1/lists',
     { title, domains },
-    parseCustomServiceEnvelope,
+    parseCustomListEnvelope,
   )
   invalidateCatalogCache()
   return record
 }
 
-export async function updateCustomService(
-  serviceID: string,
+export async function updateCustomList(
+  listID: string,
   title: string,
   domains: string[],
-): Promise<CustomServiceRecord> {
+): Promise<CustomListRecord> {
   const record = await postJSON(
-    `/v1/lists/${encodeURIComponent(serviceID)}/update`,
+    `/v1/lists/${encodeURIComponent(listID)}/update`,
     { title, domains },
-    parseCustomServiceEnvelope,
+    parseCustomListEnvelope,
   )
   invalidateCatalogCache()
-  await serviceChanges.trigger({ serviceID, observed: false })
+  await listChanges.trigger({ listID, observed: false })
   return record
 }
 
@@ -246,25 +246,25 @@ export async function updateCustomService(
  * Categories the operator owns over the catalog seed (ADR 0028).
  *
  * Every reader of membership sees the merged result, so a write here reaches
- * every list that names the category on its next rebuild. That is the whole
- * point of a category, and it is why each of these invalidates the cached
- * catalog: the next screen to ask must not be handed the membership from
- * before the edit.
+ * every profile that names the category on its next rebuild. That is the
+ * whole point of a category, and it is why each of these invalidates the
+ * cached catalog: the next screen to ask must not be handed the membership
+ * from before the edit.
  */
 export async function createCategory(
   title: string,
-  services?: string[],
+  lists?: string[],
 ): Promise<CategoryDetail> {
   const category = await postJSON(
     '/v1/categories',
-    services === undefined ? { title } : { lists: services, title },
+    lists === undefined ? { title } : { lists: lists, title },
     parseCategoryEnvelope,
   )
   invalidateCatalogCache()
   return category
 }
 
-// `services` is the whole membership the operator wants, not a delta: the
+// `lists` is the whole membership the operator wants, not a delta: the
 // server works out the overlay against the catalog seed itself. The body
 // therefore carries only what the caller actually stated, because a field left
 // out means "leave this alone" and an empty array means "make it empty".
@@ -274,7 +274,7 @@ export async function updateCategory(
 ): Promise<CategoryDetail> {
   const body: Record<string, unknown> = {}
   if (edit.title !== undefined) body.title = edit.title
-  if (edit.services !== undefined) body.lists = edit.services
+  if (edit.lists !== undefined) body.lists = edit.lists
   const category = await postJSON(
     `/v1/categories/${encodeURIComponent(categoryID)}/update`,
     body,
@@ -305,8 +305,8 @@ export async function removeCategory(
 
 // A list the operator removed, catalog-seeded or their own. The same shape of
 // refusal guards it: a route naming the list directly keeps it.
-export async function removeService(serviceID: string): Promise<void> {
-  await postNoContent(`/v1/lists/${encodeURIComponent(serviceID)}/remove`, {})
+export async function removeList(listID: string): Promise<void> {
+  await postNoContent(`/v1/lists/${encodeURIComponent(listID)}/remove`, {})
   invalidateCatalogCache()
 }
 
@@ -314,38 +314,38 @@ export async function removeService(serviceID: string): Promise<void> {
 // route still names is kept, and the reply names those routes so the screen can
 // say which ones stand in the way. Anything else — another status, another
 // shape — is not that refusal and answers null.
-export function categoryInUse(reason: unknown): ListReference[] | null {
+export function categoryInUse(reason: unknown): ProfileReference[] | null {
   return refusedBy(reason, parseCategoryInUse)
 }
 
-export function serviceInUse(reason: unknown): ListReference[] | null {
-  return refusedBy(reason, parseServiceInUse)
+export function listInUse(reason: unknown): ProfileReference[] | null {
+  return refusedBy(reason, parseListInUse)
 }
 
 function refusedBy(
   reason: unknown,
-  read: Decoder<ListReference[]>,
-): ListReference[] | null {
+  read: Decoder<ProfileReference[]>,
+): ProfileReference[] | null {
   if (!(reason instanceof RoutevaneAPIError) || reason.status !== 409)
     return null
   return read(reason.payload)
 }
 
-// The service card's one table: every destination the service stands for — a
+// The list card's one table: every destination the list stands for — a
 // domain, an address or a network — each with its origin and the operator's
 // switch, plus the automatic sources with their switches. It is the same
 // material the next build reads.
-export type ServiceContentsKind = 'domain' | 'ip' | 'prefix'
+export type ListContentsKind = 'domain' | 'ip' | 'prefix'
 
-export type ServiceContentsRow = {
+export type ListContentsRow = {
   value: string
-  kind: ServiceContentsKind
+  kind: ListContentsKind
   origin: string
   enabled: boolean
   missing: boolean
 }
 
-export type ServiceContentsSource = {
+export type ListContentsSource = {
   id: string
   type: 'dns' | 'http'
   custom: boolean
@@ -353,75 +353,71 @@ export type ServiceContentsSource = {
   url: string
 }
 
-export type ServiceContents = {
-  serviceID: string
-  rows: ServiceContentsRow[]
-  sources: ServiceContentsSource[]
+export type ListContents = {
+  listID: string
+  rows: ListContentsRow[]
+  sources: ListContentsSource[]
   observed: boolean
 }
 
 export type DomainVerdict = 'include' | 'exclude' | 'auto'
 
-export function loadServiceContents(
-  serviceID: string,
-): Promise<ServiceContents> {
+export function loadListContents(listID: string): Promise<ListContents> {
   return getJSON(
-    `/v1/lists/${encodeURIComponent(serviceID)}/contents`,
-    parseServiceContents,
+    `/v1/lists/${encodeURIComponent(listID)}/contents`,
+    parseListContents,
   )
 }
 
-export type ServiceRefresh = { skippedEntries: number }
+export type ListRefresh = { skippedEntries: number }
 
-export async function refreshService(
-  serviceID: string,
-): Promise<ServiceRefresh> {
+export async function refreshList(listID: string): Promise<ListRefresh> {
   const result = await postJSON(
-    `/v1/lists/${encodeURIComponent(serviceID)}/refresh`,
+    `/v1/lists/${encodeURIComponent(listID)}/refresh`,
     {},
-    parseServiceRefresh,
+    parseListRefresh,
   )
-  await serviceChanges.trigger({ serviceID, observed: true })
+  await listChanges.trigger({ listID, observed: true })
   return result
 }
 
-export async function setServiceSourceEnabled(
-  serviceID: string,
+export async function setListSourceEnabled(
+  listID: string,
   sourceID: string,
   enabled: boolean,
-): Promise<ServiceContents> {
+): Promise<ListContents> {
   const result = await postJSON(
-    `/v1/lists/${encodeURIComponent(serviceID)}/sources/${encodeURIComponent(sourceID)}/update`,
+    `/v1/lists/${encodeURIComponent(listID)}/sources/${encodeURIComponent(sourceID)}/update`,
     { enabled },
-    parseServiceContents,
+    parseListContents,
   )
-  await serviceChanges.trigger({ serviceID, observed: false })
+  await listChanges.trigger({ listID, observed: false })
   return result
 }
 
-export async function addServiceSource(
-  serviceID: string,
+export async function addListSource(
+  listID: string,
   url: string,
   format: string,
 ): Promise<void> {
   await postJSON(
-    `/v1/lists/${encodeURIComponent(serviceID)}/sources`,
+    `/v1/lists/${encodeURIComponent(listID)}/sources`,
     { format, url },
     parseAcknowledgement,
   )
-  await serviceChanges.trigger({ serviceID, observed: false })
+  await listChanges.trigger({ listID, observed: false })
 }
 
-export async function removeServiceSource(
-  serviceID: string,
+export async function removeListSource(
+  listID: string,
   sourceID: string,
-): Promise<ServiceContents> {
+): Promise<ListContents> {
   const result = await postJSON(
-    `/v1/lists/${encodeURIComponent(serviceID)}/sources/${encodeURIComponent(sourceID)}/remove`,
+    `/v1/lists/${encodeURIComponent(listID)}/sources/${encodeURIComponent(sourceID)}/remove`,
     {},
-    parseServiceContents,
+    parseListContents,
   )
-  await serviceChanges.trigger({ serviceID, observed: false })
+  await listChanges.trigger({ listID, observed: false })
   return result
 }
 
@@ -429,27 +425,25 @@ export async function removeServiceSource(
 // imported routes file is one decision rather than a request per line. The
 // server refuses the whole batch when a single value is malformed, which is why
 // the caller validates before it sends.
-export async function setServiceValues(
-  serviceID: string,
+export async function setListValues(
+  listID: string,
   values: string[],
   verdict: DomainVerdict,
-): Promise<ServiceContents> {
+): Promise<ListContents> {
   const result = await postJSON(
-    `/v1/lists/${encodeURIComponent(serviceID)}/domains`,
+    `/v1/lists/${encodeURIComponent(listID)}/domains`,
     { values, verdict },
-    parseServiceContents,
+    parseListContents,
   )
-  await serviceChanges.trigger({ serviceID, observed: false })
+  await listChanges.trigger({ listID, observed: false })
   return result
 }
 
-export async function previewService(
-  serviceID: string,
-): Promise<ServicePreview> {
+export async function previewList(listID: string): Promise<ListPreview> {
   return postJSON(
-    `/v1/lists/${encodeURIComponent(serviceID)}/preview`,
+    `/v1/lists/${encodeURIComponent(listID)}/preview`,
     {},
-    parseServicePreview,
+    parseListPreview,
   )
 }
 
@@ -473,24 +467,24 @@ const contentsSourceSchema = fields({
   url: optionalText,
 })
 
-const serviceContentsSchema = v.pipe(
+const listContentsSchema = v.pipe(
   fields({
     list_id: text,
     rows: v.array(contentsRowSchema),
     sources: v.array(contentsSourceSchema),
     observed: optionalFlag,
   }),
-  v.transform((contents): ServiceContents => ({
-    serviceID: contents.list_id,
+  v.transform((contents): ListContents => ({
+    listID: contents.list_id,
     rows: contents.rows,
     sources: contents.sources,
     observed: contents.observed,
   })),
 )
 
-const customServiceSchema = v.pipe(
+const customListSchema = v.pipe(
   fields({ list: fields({ id: text, title: text, domains: texts }) }),
-  v.transform((envelope): CustomServiceRecord => envelope.list),
+  v.transform((envelope): CustomListRecord => envelope.list),
 )
 
 const sourcePreviewSchema = v.pipe(
@@ -505,7 +499,7 @@ const sourcePreviewSchema = v.pipe(
     prefix_count: count,
     skipped_count: count,
   }),
-  v.transform((source): ServiceSourcePreview => ({
+  v.transform((source): ListSourcePreview => ({
     id: source.id,
     type: source.type,
     status: source.status,
@@ -522,7 +516,7 @@ const sourcePreviewSchema = v.pipe(
   })),
 )
 
-const servicePreviewSchema = v.pipe(
+const listPreviewSchema = v.pipe(
   fields({
     list_id: text,
     sources: v.array(sourcePreviewSchema),
@@ -532,8 +526,8 @@ const servicePreviewSchema = v.pipe(
     prefix_count: count,
     skipped_count: count,
   }),
-  v.transform((preview): ServicePreview => ({
-    serviceID: preview.list_id,
+  v.transform((preview): ListPreview => ({
+    listID: preview.list_id,
     sources: preview.sources,
     domains: preview.domains,
     domainCount: preview.domain_count,
@@ -543,31 +537,31 @@ const servicePreviewSchema = v.pipe(
   })),
 )
 
-const serviceDomainSchema = v.pipe(
+const listDomainSchema = v.pipe(
   fields({ value: text, include_subdomains: v.boolean() }),
-  v.transform((domain): ServiceDomain => ({
+  v.transform((domain): ListDomain => ({
     value: domain.value,
     includeSubdomains: domain.include_subdomains,
   })),
 )
 
-const serviceSourceSchema = fields({ id: text, type: sourceType })
+const listSourceSchema = fields({ id: text, type: sourceType })
 
 // A service binary older than catalog details states neither its domains nor
 // its sources. That is an older server, not a broken one, so the fields are
 // absent rather than refused, and a stated count wins over a counted one
 // because the server may know of sources this reply does not carry.
-const serviceDetailSchema = v.pipe(
+const listDetailSchema = v.pipe(
   fields({
     id: text,
     title: text,
     categories: texts,
-    domains: v.optional(v.array(serviceDomainSchema), []),
-    sources: v.optional(v.array(serviceSourceSchema), []),
+    domains: v.optional(v.array(listDomainSchema), []),
+    sources: v.optional(v.array(listSourceSchema), []),
     source_count: v.optional(count),
     custom: optionalFlag,
   }),
-  v.transform((detail): ServiceDetail => ({
+  v.transform((detail): ListDetail => ({
     id: detail.id,
     title: detail.title,
     categories: detail.categories,
@@ -595,7 +589,7 @@ const categorySchema = v.pipe(
   v.transform((category): CategoryDetail => ({
     id: category.id,
     title: category.title,
-    services: category.lists,
+    lists: category.lists,
     custom: category.custom,
   })),
 )
@@ -612,14 +606,14 @@ function inUseSchema(error: string) {
       error: v.literal(error),
       profiles: v.array(fields({ id: text, title: text })),
     }),
-    v.transform((refused): ListReference[] => refused.profiles),
+    v.transform((refused): ProfileReference[] => refused.profiles),
   )
 }
 
-const servicesSchema = v.pipe(
+const listsSchema = v.pipe(
   fields({
     lists: texts,
-    list_details: v.array(serviceDetailSchema),
+    list_details: v.array(listDetailSchema),
     categories: v.array(categorySchema),
     default_priority: v.optional(texts),
   }),
@@ -630,12 +624,12 @@ const servicesSchema = v.pipe(
     return (
       available.size === catalog.lists.length &&
       new Set(catalog.default_priority).size === available.size &&
-      catalog.default_priority.every((serviceID) => available.has(serviceID))
+      catalog.default_priority.every((listID) => available.has(listID))
     )
   }),
   v.transform((catalog): Omit<Catalog, 'targets'> => ({
-    services: catalog.lists,
-    serviceDetails: catalog.list_details,
+    lists: catalog.lists,
+    listDetails: catalog.list_details,
     categories: catalog.categories,
     ...(catalog.default_priority === undefined
       ? {}
@@ -656,7 +650,7 @@ const targetSchema = v.pipe(
     // rendition reads in the catalog's own words in both locales.
     title_en: optionalText,
     kind: v.picklist(['router', 'app']),
-    profile_key: text,
+    format_key: text,
     renderer_id: text,
     file_extension: text,
     manual_installation_hint: text,
@@ -667,7 +661,7 @@ const targetSchema = v.pipe(
     title: target.title,
     titleEn: target.title_en,
     kind: target.kind,
-    profileKey: target.profile_key,
+    formatKey: target.format_key,
     rendererID: target.renderer_id,
     fileExtension: target.file_extension,
     manualInstallationHint: target.manual_installation_hint,
@@ -680,28 +674,25 @@ const targetsSchema = v.pipe(
   v.transform((catalog): TargetOption[] => catalog.targets),
 )
 
-const parseServiceContents: Decoder<ServiceContents> = decode(
-  serviceContentsSchema,
-)
-const parseCustomServiceEnvelope: Decoder<CustomServiceRecord> =
-  decode(customServiceSchema)
-const parseServicePreview: Decoder<ServicePreview> =
-  decode(servicePreviewSchema)
+const parseListContents: Decoder<ListContents> = decode(listContentsSchema)
+const parseCustomListEnvelope: Decoder<CustomListRecord> =
+  decode(customListSchema)
+const parseListPreview: Decoder<ListPreview> = decode(listPreviewSchema)
 const parseCategoryEnvelope: Decoder<CategoryDetail> = decode(
   categoryEnvelopeSchema,
 )
-const parseCategoryInUse: Decoder<ListReference[]> = decode(
+const parseCategoryInUse: Decoder<ProfileReference[]> = decode(
   inUseSchema('category in use'),
 )
-const parseServiceInUse: Decoder<ListReference[]> = decode(
+const parseListInUse: Decoder<ProfileReference[]> = decode(
   inUseSchema('list in use'),
 )
-const parseServices: Decoder<Omit<Catalog, 'targets'>> = decode(servicesSchema)
+const parseLists: Decoder<Omit<Catalog, 'targets'>> = decode(listsSchema)
 const parseDefaultPriority: Decoder<string[]> = decode(defaultPrioritySchema)
 const parseTargets: Decoder<TargetOption[]> = decode(targetsSchema)
 const parseAcknowledgement: Decoder<true> = decode(acknowledged)
 
-const parseServiceRefresh: Decoder<ServiceRefresh> = decode(
+const parseListRefresh: Decoder<ListRefresh> = decode(
   v.pipe(
     fields({ refresh: fields({ skipped_entries: v.optional(count, 0) }) }),
     v.transform(({ refresh }) => ({ skippedEntries: refresh.skipped_entries })),

@@ -397,7 +397,7 @@ func TestFeedRefusesAnInvalidQuery(t *testing.T) {
 		query Query
 		want  error
 	}{
-		{"missing service", Query{ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: "https://example.com/f", Format: domain.FeedFormatText}, ErrInvalidQuery},
+		{"missing list", Query{ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: "https://example.com/f", Format: domain.FeedFormatText}, ErrInvalidQuery},
 		{"missing revision", Query{ListID: "example", ComponentID: "web", SourceID: "feed", URL: "https://example.com/f", Format: domain.FeedFormatText}, ErrInvalidQuery},
 		{"unknown format", Query{ListID: "example", ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: "https://example.com/f", Format: domain.FeedFormat("xml")}, ErrUnsupportedFormat},
 		{"local url", Query{ListID: "example", ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: "https://127.0.0.1/f", Format: domain.FeedFormatText}, ErrUnsafeDestination},

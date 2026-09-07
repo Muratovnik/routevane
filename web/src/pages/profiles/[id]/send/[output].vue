@@ -2,7 +2,7 @@
 import { computed, onMounted } from 'vue'
 
 import SendPanel from '@/features/send-artifact/ui/SendPanel.vue'
-import { useListView } from '@/features/view-list/model/useListView'
+import { useProfileView } from '@/features/view-profile/model/useProfileView'
 import { useLocale } from '@/shared/i18n/useLocale'
 import AppShell from '@/widgets/app-shell/ui/AppShell.vue'
 import RvButton from '@/shared/ui/RvButton.vue'
@@ -11,7 +11,7 @@ import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 const route = useRoute()
 const { t } = useLocale()
 
-const listId = computed(() => {
+const profileId = computed(() => {
   const value = route.params.id
   return typeof value === 'string' ? value : ''
 })
@@ -20,7 +20,7 @@ const outputId = computed(() => {
   return typeof value === 'string' ? value : ''
 })
 
-const view = useListView(() => listId.value)
+const view = useProfileView(() => profileId.value)
 
 const output = computed(
   () => view.outputs.value.find((entry) => entry.id === outputId.value) ?? null,
@@ -64,14 +64,14 @@ onMounted(reload)
       <RvStateNotice
         v-if="view.state.value === 'loading'"
         live
-        :title="t('list.loading')"
+        :title="t('profile.loading')"
         tone="busy"
       />
       <RvStateNotice
         v-else-if="view.state.value === 'failed'"
-        :body="t('send.route.failed.body')"
+        :body="t('send.profile.failed.body')"
         live
-        :title="t('send.route.failed')"
+        :title="t('send.profile.failed')"
         tone="failed"
       >
         <template #action>
@@ -80,9 +80,9 @@ onMounted(reload)
       </RvStateNotice>
       <RvStateNotice
         v-else-if="view.state.value === 'missing'"
-        :body="t('list.missing.body')"
+        :body="t('profile.missing.body')"
         live
-        :title="t('list.missing')"
+        :title="t('profile.missing')"
         tone="failed"
       >
         <template #action>
@@ -97,14 +97,14 @@ onMounted(reload)
         tone="failed"
       >
         <template #action>
-          <RvButton :to="`/profiles/${listId}`" variant="secondary">{{
+          <RvButton :to="`/profiles/${profileId}`" variant="secondary">{{
             t('send.back')
           }}</RvButton>
         </template>
       </RvStateNotice>
-      <RvStateNotice v-else :title="t('library.noArtifact')" tone="waiting">
+      <RvStateNotice v-else :title="t('profiles.noArtifact')" tone="waiting">
         <template #action>
-          <RvButton :to="`/profiles/${listId}`" variant="secondary">
+          <RvButton :to="`/profiles/${profileId}`" variant="secondary">
             {{ t('send.back') }}
           </RvButton>
         </template>
@@ -113,8 +113,8 @@ onMounted(reload)
     <SendPanel
       v-else-if="output !== null && output.latest !== null"
       :artifact-id="output.latest.id"
-      :list-id="listId"
-      :list-name="view.list.value?.name ?? ''"
+      :profile-id="profileId"
+      :profile-name="view.profile.value?.name ?? ''"
       :target="target"
       :target-id="output.targetID"
     />

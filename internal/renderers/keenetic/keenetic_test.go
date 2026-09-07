@@ -52,7 +52,7 @@ func TestRenderIsDeterministicDeduplicatedAndDoesNotMutateBacking(t *testing.T) 
 		t.Fatalf("route provenance changed BAT bytes:\n%q\n%q", first, withLabels)
 	}
 	if !reflect.DeepEqual(backing, wantBacking) || !reflect.DeepEqual(listsBacking, wantLists) {
-		t.Fatalf("renderer mutated input backing: rules=%#v services=%#v", backing, listsBacking)
+		t.Fatalf("renderer mutated input backing: rules=%#v lists=%#v", backing, listsBacking)
 	}
 	count, err := ProjectedRuleCount(plan)
 	if err != nil || count != 2 {

@@ -19,8 +19,8 @@ import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
 const props = defineProps<{
   artifactId: string
-  listName: string
-  listId: string
+  profileName: string
+  profileId: string
   target: TargetOption | null
   targetId: string
 }>()
@@ -110,8 +110,8 @@ const outcomeFacts = computed<Fact[]>(() => {
 const downloadLabel = computed(() => {
   const format = props.target?.fileExtension.toUpperCase() ?? ''
   return format === ''
-    ? t('list.download.plain')
-    : t('list.download', { format })
+    ? t('profile.download.plain')
+    : t('profile.download', { format })
 })
 
 // A new artifact invalidates a plan made for the previous one.
@@ -130,7 +130,7 @@ onMounted(() => {
     <header class="send__header">
       <div class="send__identity">
         <h1 id="send-title" class="send__title">{{ t('send.title') }}</h1>
-        <p class="send__for">{{ t('send.for', { name: listName }) }}</p>
+        <p class="send__for">{{ t('send.for', { name: profileName }) }}</p>
       </div>
       <RvStatus
         :label="t(`send.status.${deployment.state.value}`)"
@@ -343,7 +343,7 @@ onMounted(() => {
     </section>
 
     <div class="send__footer">
-      <RvButton size="compact" :to="`/profiles/${listId}`" variant="quiet">
+      <RvButton size="compact" :to="`/profiles/${profileId}`" variant="quiet">
         {{ t('send.back') }}
       </RvButton>
     </div>

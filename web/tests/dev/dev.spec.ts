@@ -76,7 +76,7 @@ const draft = ref('')
       data: { name: 'HMR profile', lists: ['youtube'] },
     })
     expect(created.ok(), await created.text()).toBe(true)
-    const listsBefore = await (
+    const profilesBefore = await (
       await request.get(`${origin}/v1/profiles`)
     ).json()
     for (const foreign of ['http://evil.example', 'null', api]) {
@@ -110,7 +110,7 @@ const draft = ref('')
       ).status(),
     ).toBe(403)
     expect(await (await request.get(`${origin}/v1/profiles`)).json()).toEqual(
-      listsBefore,
+      profilesBefore,
     )
 
     await page.goto(origin)
@@ -167,7 +167,7 @@ const draft = ref('')
     await writeFile(goProbe, 'package main\nconst devProbe = "recovered"\n')
     await expect.poll(() => owner.output()).toContain('build 2)')
     expect(await (await request.get(`${origin}/v1/profiles`)).json()).toEqual(
-      listsBefore,
+      profilesBefore,
     )
     await page.reload()
     await expect(page.locator('#dev-probe')).toHaveText('after-hmr')

@@ -13,7 +13,7 @@ import (
 )
 
 const keeneticTargetYAML = `id: keenetic
-profile_key: keenetic-bat-ipv4-v1
+format_key: keenetic-bat-ipv4-v1
 kind: router
 renderer: keenetic-route-bat
 constraints:
@@ -106,7 +106,7 @@ func TestCommandMissingSecondListStateCreatesNoFile(t *testing.T) {
 func TestParseBuildCanonicalizesRepeatedListsAndPreservesRawCompatibility(t *testing.T) {
 	options, ok := parseBuild([]string{"--target", "keenetic", "--list", "beta", "--list", "alpha", "--list", "beta"})
 	if !ok || strings.Join(options.ListIDs, ",") != "alpha,beta" {
-		t.Fatalf("repeatable service parse=%#v ok=%v", options, ok)
+		t.Fatalf("repeatable list parse=%#v ok=%v", options, ok)
 	}
 	if _, ok := parseBuild([]string{"--target", "raw-json", "--list", "alpha", "--list", "beta"}); ok {
 		t.Fatal("multi-list raw JSON compatibility boundary was widened")

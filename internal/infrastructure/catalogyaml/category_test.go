@@ -67,7 +67,7 @@ func TestCategoryNamingAnUnknownListIsRefused(t *testing.T) {
 	root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
 	writeCategoryFile(t, root, "video.yaml", []byte("id: video\ntitle: Видео\nservices:\n  - absent\n"))
 	if _, err := Load(context.Background(), root); err == nil {
-		t.Fatal("expected the catalog to refuse a category with an unknown service")
+		t.Fatal("expected the catalog to refuse a category with an unknown list")
 	}
 }
 
@@ -76,10 +76,10 @@ func TestInvalidCategoryDocumentsAreRefused(t *testing.T) {
 		name    string
 		payload string
 	}{
-		{"no services", "id: video\ntitle: Видео\nservices: []\n"},
+		{"no lists", "id: video\ntitle: Видео\nservices: []\n"},
 		{"no title", "id: video\nservices:\n  - example\n"},
 		{"unknown field", "id: video\ntitle: Видео\nservices:\n  - example\nunknown: true\n"},
-		{"duplicate service", "id: video\ntitle: Видео\nservices:\n  - example\n  - example\n"},
+		{"duplicate list", "id: video\ntitle: Видео\nservices:\n  - example\n  - example\n"},
 		{"traversal id", "id: ../video\ntitle: Видео\nservices:\n  - example\n"},
 		{"second document", "id: video\ntitle: Видео\nservices:\n  - example\n---\nid: other\n"},
 	}

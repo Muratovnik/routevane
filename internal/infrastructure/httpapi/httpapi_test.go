@@ -647,7 +647,7 @@ func TestListsAndBuildUseBoundedSafeDTOs(t *testing.T) {
 	listsResponse := httptest.NewRecorder()
 	server.Handler().ServeHTTP(listsResponse, lists)
 	if listsResponse.Code != http.StatusOK || !strings.Contains(listsResponse.Body.String(), `"lists":["example"]`) || !strings.Contains(listsResponse.Body.String(), `"list_details":[{"id":"example","title":"Example","categories":["diagnostic"],"domains":[{"value":"example.com","include_subdomains":true}],"sources":[{"id":"dns","type":"dns"},{"id":"vendor","type":"http"}],"source_count":2}]`) {
-		t.Fatalf("services response=%d %s", listsResponse.Code, listsResponse.Body.String())
+		t.Fatalf("lists response=%d %s", listsResponse.Code, listsResponse.Body.String())
 	}
 	preview := mutationRequest(t, "/v1/lists/example/preview", `{}`)
 	previewResponse := httptest.NewRecorder()
@@ -683,7 +683,7 @@ func TestDefaultPriorityHTTPContractIsReadWrittenAndGuarded(t *testing.T) {
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, read)
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"default_priority":["example"]`) {
-		t.Fatalf("GET services code=%d body=%s", response.Code, response.Body.String())
+		t.Fatalf("GET lists code=%d body=%s", response.Code, response.Body.String())
 	}
 
 	write := mutationRequest(t, "/v1/lists/priority", `{"default_priority":["example"]}`)
@@ -1684,7 +1684,7 @@ func TestTheDeployRouteCarriesItsOwnBudget(t *testing.T) {
 	// device deployment.
 	refresh, owned := routes["lists.refresh"]
 	if !owned || refresh.timeout <= requestTimeout || refresh.timeout >= spec.timeout {
-		t.Fatalf("service refresh budget = %s", refresh.timeout)
+		t.Fatalf("list refresh budget = %s", refresh.timeout)
 	}
 	for route, other := range routes {
 		if route == "artifacts.deploy" || route == "lists.refresh" || other.timeout == 0 {
@@ -1717,7 +1717,7 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 	}
 	// lists is optional: a category may be created empty and filled later.
 	if empty := send("/v1/categories", `{"title":"Пустая"}`); empty.Code != http.StatusCreated {
-		t.Fatalf("create without services code=%d body=%s", empty.Code, empty.Body.String())
+		t.Fatalf("create without lists code=%d body=%s", empty.Code, empty.Body.String())
 	}
 	if invalid := send("/v1/categories", `{"title":"   "}`); invalid.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("invalid title code=%d body=%s", invalid.Code, invalid.Body.String())

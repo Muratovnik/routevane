@@ -37,15 +37,15 @@ describe('dictionaries', () => {
   it('translates and pluralises in the selected locale', () => {
     const { setLocale, t, tc } = useLocale()
     setLocale('ru')
-    expect(tc('list.rules', 1)).toBe('1 правило')
-    expect(tc('list.rules', 3)).toBe('3 правила')
-    expect(tc('list.rules', 14)).toBe('14 правил')
+    expect(tc('profile.rules', 1)).toBe('1 правило')
+    expect(tc('profile.rules', 3)).toBe('3 правила')
+    expect(tc('profile.rules', 14)).toBe('14 правил')
     setLocale('en')
-    expect(tc('list.rules', 1)).toBe('1 rule')
-    expect(tc('list.rules', 14)).toBe('14 rules')
-    expect(t('shell.nav.library')).toBe('Profiles')
+    expect(tc('profile.rules', 1)).toBe('1 rule')
+    expect(tc('profile.rules', 14)).toBe('14 rules')
+    expect(t('shell.nav.profiles')).toBe('Profiles')
     setLocale('ru')
-    expect(t('list.diagnostics.reason.unsupported_by_target')).toBe(
+    expect(t('profile.diagnostics.reason.unsupported_by_target')).toBe(
       'формат это не поддерживает',
     )
   })
@@ -81,9 +81,9 @@ describe('numbers and sizes', () => {
 
     setLocale('en')
     expect(formatNumber(1024)).toBe('1,024')
-    expect(tc('list.rules', 8192)).toBe('8,192 rules')
+    expect(tc('profile.rules', 8192)).toBe('8,192 rules')
     expect(
-      t('list.forecast.overflow', {
+      t('profile.forecast.overflow', {
         count: formatNumber(12000),
         max: formatNumber(1024),
         target: 'Keenetic',
@@ -92,7 +92,7 @@ describe('numbers and sizes', () => {
 
     setLocale('ru')
     expect(formatNumber(1024)).toBe('1 024')
-    expect(tc('list.rules', 8192)).toBe('8 192 правила')
+    expect(tc('profile.rules', 8192)).toBe('8 192 правила')
   })
 
   it('scales a size into the unit the locale names', () => {

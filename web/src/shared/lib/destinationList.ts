@@ -2,7 +2,7 @@
  * One reader for every way an operator hands Routevane a set of destinations:
  * a typed list, a JSON array, or a router's own routes file. A destination is
  * a domain, an IPv4 or IPv6 address, or a network in CIDR form — the three
- * shapes the service card shows and the service API accepts.
+ * shapes the list card shows and the list API accepts.
  *
  * The grammar is deliberately the server's rather than a looser one. The batch
  * endpoint refuses a whole submission over a single malformed value, so a token
@@ -57,7 +57,7 @@ export function parseDestinationList(text: string): DestinationList {
 
 /**
  * normalizeDomain is the domain half of the grammar on its own, for the one
- * form that may still only carry domains: a custom service's definition.
+ * form that may still only carry domains: a custom list's definition.
  */
 export function normalizeDomain(value: string): string | null {
   const domain = value.trim().replace(/\.$/, '').toLowerCase()

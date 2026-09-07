@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import CreateList from '@/features/create-list/ui/CreateList.vue'
+import CreateProfile from '@/features/create-profile/ui/CreateProfile.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
-import { listPageHash } from '@/shared/lib/listHash'
+import { profilePageHash } from '@/shared/lib/profileHash'
 import AppShell from '@/widgets/app-shell/ui/AppShell.vue'
 
 const router = useRouter()
@@ -15,15 +15,15 @@ useHead({
   ),
 })
 
-function onCreated(listID: string, targetID: string): void {
+function onCreated(profileID: string, targetID: string): void {
   void router.push(
-    `/profiles/${listID}${listPageHash({ setup: targetID, tab: 'outputs' })}`,
+    `/profiles/${profileID}${profilePageHash({ setup: targetID, tab: 'outputs' })}`,
   )
 }
 </script>
 
 <template>
   <AppShell>
-    <CreateList @created="onCreated" />
+    <CreateProfile @created="onCreated" />
   </AppShell>
 </template>

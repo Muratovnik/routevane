@@ -349,7 +349,7 @@ func TestAMembershipChangeReachesTheNextForecastAndPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	if planDirect.Plan.SemanticHash != planBefore.Plan.SemanticHash {
-		t.Fatal("a route naming no category changed with the overlay")
+		t.Fatal("a profile naming no category changed with the overlay")
 	}
 }
 

@@ -15,7 +15,7 @@ func TestDeviceConnectionMetadataAndOutputBindingRoundTrip(t *testing.T) {
 	}
 	defer store.Close()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	profile := application.Profile{ID: "11111111111111111111111111111111", Name: "Route", Lists: []string{"youtube"}, CreatedAt: now, UpdatedAt: now}
+	profile := application.Profile{ID: "11111111111111111111111111111111", Name: "Profile", Lists: []string{"youtube"}, CreatedAt: now, UpdatedAt: now}
 	if err := store.CreateProfile(context.Background(), profile); err != nil {
 		t.Fatal(err)
 	}

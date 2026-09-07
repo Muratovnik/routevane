@@ -1,7 +1,7 @@
 import * as v from 'valibot'
 
 import { decode, type Decoder, fields, getJSON, postJSON } from './http'
-import { type RefreshInterval, refreshRule } from './lists'
+import { type RefreshInterval, refreshRule } from './profiles'
 
 type DefaultSchedule = { refreshInterval: RefreshInterval }
 

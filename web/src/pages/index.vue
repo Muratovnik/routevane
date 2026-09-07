@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import LibraryView from '@/features/library/ui/LibraryView.vue'
+import ProfilesView from '@/features/profiles/ui/ProfilesView.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
 import AppShell from '@/widgets/app-shell/ui/AppShell.vue'
 
@@ -9,13 +9,13 @@ const { t } = useLocale()
 
 useHead({
   title: computed(
-    () => `${t('shell.product')} · ${t('library.title').toLowerCase()}`,
+    () => `${t('shell.product')} · ${t('profiles.title').toLowerCase()}`,
   ),
 })
 </script>
 
 <template>
   <AppShell>
-    <LibraryView />
+    <ProfilesView />
   </AppShell>
 </template>

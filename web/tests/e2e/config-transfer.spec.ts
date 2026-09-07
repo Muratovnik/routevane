@@ -131,10 +131,10 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
     headers: mutationHeaders,
   })
   expect(created.ok()).toBe(true)
-  const listID = ((await created.json()) as { profile: { id: string } }).profile
-    .id
+  const profileID = ((await created.json()) as { profile: { id: string } })
+    .profile.id
   const output = await page.request.post(
-    `${sourceOrigin}/v1/profiles/${listID}/outputs`,
+    `${sourceOrigin}/v1/profiles/${profileID}/outputs`,
     { data: { target_id: 'keenetic' }, headers: mutationHeaders },
   )
   expect(output.ok()).toBe(true)

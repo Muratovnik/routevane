@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 
 import { loadSettings, saveDefaultRefreshInterval } from '@/shared/api/settings'
-import type { RefreshInterval } from '@/shared/api/lists'
+import type { RefreshInterval } from '@/shared/api/profiles'
 
 export type SettingsReadState = 'loading' | 'ready' | 'failed'
 export type SettingsWriteState = 'idle' | 'saving' | 'failed'

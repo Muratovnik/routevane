@@ -229,7 +229,7 @@ func (s *Store) readListDomains(ctx context.Context, profile *application.Profil
 		}
 		var domains []string
 		if err := json.Unmarshal([]byte(payload), &domains); err != nil {
-			return fmt.Errorf("decode list service domains: %w", err)
+			return fmt.Errorf("decode profile list domains: %w", err)
 		}
 		if domains == nil {
 			domains = []string{}
@@ -240,7 +240,7 @@ func (s *Store) readListDomains(ctx context.Context, profile *application.Profil
 		return fmt.Errorf("read profile list domains: %w", err)
 	}
 	if !validListDomains(overrides) {
-		return fmt.Errorf("invalid stored list service domains")
+		return fmt.Errorf("invalid stored profile list domains")
 	}
 	if len(overrides) > 0 {
 		profile.ListDomains = overrides

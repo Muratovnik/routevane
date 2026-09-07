@@ -4,14 +4,14 @@ import {
   loadCatalog,
   localizedTargetHint,
   localizedTargetTitle,
-  previewService,
+  previewList,
 } from './catalog'
-import { loadExportFormats, requestListExport } from './exports'
-import { createList, loadLists, previewComposition } from './lists'
+import { loadExportFormats, requestProfileExport } from './exports'
+import { createProfile, loadProfiles, previewComposition } from './profiles'
 import { addOutput, buildOutput, setOutputDevice } from './outputs'
 import { RoutevaneAPIError } from './http'
 
-const listID = 'a'.repeat(32)
+const profileID = 'a'.repeat(32)
 const outputID = 'f'.repeat(32)
 const artifactID = 'b'.repeat(32)
 const subscription = `${window.location.origin}/v1/subscriptions/rv1.${'c'.repeat(32)}.${'d'.repeat(43)}`
@@ -27,7 +27,7 @@ function outputPayload(subscriptionURL = subscription): unknown {
   return {
     output: {
       id: outputID,
-      list_id: listID,
+      list_id: profileID,
       target_id: 'keenetic',
     },
     subscription_url: subscriptionURL,
@@ -60,7 +60,7 @@ type BuildPayload = {
 
 function buildPayload(): BuildPayload {
   return {
-    output: { id: outputID, list_id: listID, target_id: 'keenetic' },
+    output: { id: outputID, list_id: profileID, target_id: 'keenetic' },
     snapshot: { id: 'c'.repeat(32) },
     artifact: {
       id: artifactID,
@@ -133,7 +133,7 @@ describe('Routevane local API decoders', () => {
             id: 'keenetic',
             title: 'Keenetic',
             kind: 'router',
-            profile_key: 'keenetic-bat-ipv4-v1',
+            format_key: 'keenetic-bat-ipv4-v1',
             renderer_id: 'keenetic-route-bat',
             file_extension: 'bat',
             manual_installation_hint: 'Import the file.',
@@ -143,7 +143,7 @@ describe('Routevane local API decoders', () => {
             title: 'MikroTik',
             title_en: 'MikroTik router',
             kind: 'router',
-            profile_key: 'mikrotik-address-list-v1',
+            format_key: 'mikrotik-address-list-v1',
             renderer_id: 'mikrotik-address-list-rsc',
             file_extension: 'rsc',
             manual_installation_hint: 'выполните /import',
@@ -154,8 +154,8 @@ describe('Routevane local API decoders', () => {
     )
 
     await expect(loadCatalog()).resolves.toEqual({
-      services: ['discord', 'youtube'],
-      serviceDetails: [
+      lists: ['discord', 'youtube'],
+      listDetails: [
         {
           id: 'discord',
           title: 'Discord',
@@ -180,13 +180,13 @@ describe('Routevane local API decoders', () => {
         {
           id: 'communication',
           title: 'Общение',
-          services: ['discord'],
+          lists: ['discord'],
           custom: false,
         },
         {
           id: 'video',
           title: 'Видео',
-          services: ['youtube'],
+          lists: ['youtube'],
           custom: true,
         },
       ],
@@ -198,7 +198,7 @@ describe('Routevane local API decoders', () => {
           title: 'Keenetic',
           titleEn: '',
           kind: 'router',
-          profileKey: 'keenetic-bat-ipv4-v1',
+          formatKey: 'keenetic-bat-ipv4-v1',
           rendererID: 'keenetic-route-bat',
           fileExtension: 'bat',
           manualInstallationHint: 'Import the file.',
@@ -209,7 +209,7 @@ describe('Routevane local API decoders', () => {
           title: 'MikroTik',
           titleEn: 'MikroTik router',
           kind: 'router',
-          profileKey: 'mikrotik-address-list-v1',
+          formatKey: 'mikrotik-address-list-v1',
           rendererID: 'mikrotik-address-list-rsc',
           fileExtension: 'rsc',
           manualInstallationHint: 'выполните /import',
@@ -257,8 +257,8 @@ describe('Routevane local API decoders', () => {
       }),
     )
 
-    await expect(previewService('google-ai')).resolves.toMatchObject({
-      serviceID: 'google-ai',
+    await expect(previewList('google-ai')).resolves.toMatchObject({
+      listID: 'google-ai',
       domains: ['ai.google.dev', 'aistudio.google.com'],
       domainCount: 2,
       prefixCount: 32,
@@ -307,7 +307,7 @@ describe('Routevane local API decoders', () => {
       created_at: '2026-08-20T12:00:00Z',
     }
     const list = {
-      id: listID,
+      id: profileID,
       name: 'Видео',
       lists: ['discord'],
       categories: ['video'],
@@ -319,7 +319,7 @@ describe('Routevane local API decoders', () => {
       outputs: [output, gone],
     }
     fetchMock.mockResolvedValueOnce(json({ profiles: [list] }))
-    const cards = await loadLists()
+    const cards = await loadProfiles()
     expect(cards).toHaveLength(1)
     expect(cards[0]?.outputs[0]?.latest?.snapshotID).toBe('c'.repeat(32))
     expect(cards[0]?.outputs[0]?.lastAttempt).toMatchObject({
@@ -343,7 +343,7 @@ describe('Routevane local API decoders', () => {
         ],
       }),
     )
-    await expect(loadLists()).rejects.toBeInstanceOf(RoutevaneAPIError)
+    await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
   })
 
   it('lists independent export formats and downloads one without an output id', async () => {
@@ -373,15 +373,15 @@ describe('Routevane local API decoders', () => {
         status: 200,
         headers: {
           'Content-Type': 'application/json',
-          'Content-Disposition': `attachment; filename="routevane-${listID}-raw-json.json"`,
+          'Content-Disposition': `attachment; filename="routevane-${profileID}-raw-json.json"`,
         },
       }),
     )
-    const file = await requestListExport(listID, 'raw-json')
-    expect(file.fileName).toBe(`routevane-${listID}-raw-json.json`)
+    const file = await requestProfileExport(profileID, 'raw-json')
+    expect(file.fileName).toBe(`routevane-${profileID}-raw-json.json`)
     expect(await file.blob.text()).toBe('{"rules":[]}')
     expect(fetchMock).toHaveBeenLastCalledWith(
-      `/v1/profiles/${listID}/export`,
+      `/v1/profiles/${profileID}/export`,
       {
         method: 'POST',
         headers: {
@@ -397,12 +397,12 @@ describe('Routevane local API decoders', () => {
     fetchMock.mockResolvedValueOnce(
       json(outputPayload('http://other.test/v1/subscriptions/rv1.invalid')),
     )
-    await expect(addOutput(listID, 'keenetic')).rejects.toBeInstanceOf(
+    await expect(addOutput(profileID, 'keenetic')).rejects.toBeInstanceOf(
       RoutevaneAPIError,
     )
 
     fetchMock.mockResolvedValueOnce(json({ output: { id: outputID } }))
-    await expect(addOutput(listID, 'keenetic')).rejects.toBeInstanceOf(
+    await expect(addOutput(profileID, 'keenetic')).rejects.toBeInstanceOf(
       RoutevaneAPIError,
     )
   })
@@ -419,7 +419,7 @@ describe('Routevane local API decoders', () => {
         422,
       ),
     )
-    const error = await addOutput(listID, 'keenetic').catch(
+    const error = await addOutput(profileID, 'keenetic').catch(
       (reason: unknown) => reason,
     )
     expect(error).toBeInstanceOf(RoutevaneAPIError)
@@ -434,7 +434,7 @@ describe('Routevane local API decoders', () => {
     fetchMock.mockResolvedValueOnce(
       json({
         profile: {
-          id: listID,
+          id: profileID,
           name: 'Видео',
           lists: ['discord', 'youtube'],
           categories: ['video'],
@@ -444,11 +444,11 @@ describe('Routevane local API decoders', () => {
         },
       }),
     )
-    await createList('Видео', {
-      services: ['youtube', 'discord'],
+    await createProfile('Видео', {
+      lists: ['youtube', 'discord'],
       categories: ['video'],
       exclusions: [],
-      serviceDomains: {},
+      listDomains: {},
     })
     expect(fetchMock).toHaveBeenCalledWith('/v1/profiles', {
       method: 'POST',
@@ -468,7 +468,7 @@ describe('Routevane local API decoders', () => {
 
     fetchMock.mockResolvedValueOnce(json(buildPayload()))
     await expect(buildOutput(outputID)).resolves.toEqual({
-      output: { id: outputID, listID, targetID: 'keenetic', deviceID: '' },
+      output: { id: outputID, profileID, targetID: 'keenetic', deviceID: '' },
       snapshotID: 'c'.repeat(32),
       artifactID,
       artifactHash: 'd'.repeat(64),
@@ -489,7 +489,7 @@ describe('Routevane local API decoders', () => {
       json({
         output: {
           id: outputID,
-          list_id: listID,
+          list_id: profileID,
           target_id: 'keenetic',
           device_id: 'e'.repeat(32),
         },
@@ -498,7 +498,7 @@ describe('Routevane local API decoders', () => {
     await expect(setOutputDevice(outputID, 'e'.repeat(32))).resolves.toEqual({
       output: {
         id: outputID,
-        listID,
+        profileID,
         targetID: 'keenetic',
         deviceID: 'e'.repeat(32),
       },
@@ -631,10 +631,10 @@ describe('composition forecast', () => {
     await expect(
       previewComposition(
         {
-          services: ['discord'],
+          lists: ['discord'],
           categories: ['video'],
           exclusions: [],
-          serviceDomains: {},
+          listDomains: {},
         },
         ['keenetic', 'limited-fixture'],
       ),
@@ -644,9 +644,9 @@ describe('composition forecast', () => {
         maximumRules: 1024,
         projectedRules: 12,
         fits: true,
-        perService: [
-          { serviceID: 'discord', rules: 5 },
-          { serviceID: 'youtube', rules: 7 },
+        perList: [
+          { listID: 'discord', rules: 5 },
+          { listID: 'youtube', rules: 7 },
         ],
       },
       {
@@ -654,7 +654,7 @@ describe('composition forecast', () => {
         maximumRules: 1,
         projectedRules: 12,
         fits: false,
-        perService: [],
+        perList: [],
       },
     ])
     expect(fetchMock).toHaveBeenCalledWith('/v1/profiles/preview', {
@@ -680,10 +680,10 @@ describe('composition forecast', () => {
     fetchMock.mockResolvedValueOnce(json({ targets: [] }))
     await expect(
       previewComposition({
-        services: ['discord'],
+        lists: ['discord'],
         categories: [],
         exclusions: [],
-        serviceDomains: {},
+        listDomains: {},
       }),
     ).resolves.toEqual([])
     expect(String(fetchMock.mock.calls[0]?.[1]?.body)).not.toContain('targets')
@@ -697,10 +697,10 @@ describe('composition forecast', () => {
     )
     await expect(
       previewComposition({
-        services: ['discord'],
+        lists: ['discord'],
         categories: [],
         exclusions: [],
-        serviceDomains: {},
+        listDomains: {},
       }),
     ).rejects.toBeInstanceOf(RoutevaneAPIError)
   })

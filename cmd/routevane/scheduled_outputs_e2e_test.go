@@ -14,7 +14,7 @@ import (
 )
 
 const scheduledSingboxTargetYAML = `id: singbox
-profile_key: singbox-source-json-v1
+format_key: singbox-source-json-v1
 title: sing-box
 kind: app
 renderer: singbox-ruleset-json

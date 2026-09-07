@@ -20,7 +20,7 @@ export type ArtifactContent = {
 }
 
 export type DiagnosticRule = {
-  serviceID: string
+  listID: string
   value: string
   reasons: string[]
   excluded: boolean
@@ -57,7 +57,7 @@ export async function loadArtifactContent(
 const ruleSchema = v.pipe(
   fields({ service_id: text, value: text, reason_codes: texts }),
   v.transform((rule): DiagnosticRule => ({
-    serviceID: rule.service_id,
+    listID: rule.service_id,
     value: rule.value,
     reasons: rule.reason_codes,
     excluded: false,
@@ -70,7 +70,7 @@ const excludedSchema = v.pipe(
     reason_codes: texts,
   }),
   v.transform((entry): DiagnosticRule => ({
-    serviceID: entry.candidate.service_id,
+    listID: entry.candidate.service_id,
     value: entry.candidate.value,
     reasons: entry.reason_codes,
     excluded: true,

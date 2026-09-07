@@ -30,7 +30,7 @@ var (
 	// ErrFormatNotFound wraps the application's not-found sentinel so a caller
 	// can distinguish "never observed yet" from a storage failure without
 	// depending on this package.
-	ErrFormatNotFound = fmt.Errorf("%w: effective profile", application.ErrNotFound)
+	ErrFormatNotFound = fmt.Errorf("%w: effective format", application.ErrNotFound)
 )
 
 type Store struct {

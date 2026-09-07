@@ -46,7 +46,7 @@ async function chooseOption(text: string): Promise<void> {
 
 // The list opens from the keyboard as well as from the pointer, which is the
 // half a native select gives for free and this one has to state.
-async function openList(wrapper: {
+async function openProfile(wrapper: {
   get: (selector: string) => {
     trigger: (event: string, options?: object) => Promise<void>
   }
@@ -84,7 +84,7 @@ describe('RvSelect', () => {
     const trigger = wrapper.get('.rv-select__trigger')
     expect(trigger.text()).toContain('Choose one')
 
-    await openList(wrapper)
+    await openProfile(wrapper)
     await chooseOption('Daily')
 
     expect(wrapper.emitted('update:modelValue')).toEqual([['daily']])
@@ -101,7 +101,7 @@ describe('RvSelect', () => {
     const value = wrapper.get('.rv-select__value')
     expect(value.text()).toBe('Choose one')
 
-    await openList(wrapper)
+    await openProfile(wrapper)
     await chooseOption('Off')
 
     expect(wrapper.emitted('update:modelValue')).toEqual([['off']])
@@ -111,7 +111,7 @@ describe('RvSelect', () => {
     const wrapper = mountSelect({ modelValue: '', options })
     open = wrapper
 
-    await openList(wrapper)
+    await openProfile(wrapper)
     const weekly = optionWithText('Weekly')
     expect(weekly?.getAttribute('data-disabled')).not.toBeNull()
     await chooseOption('Weekly')
@@ -138,7 +138,7 @@ describe('RvSelect', () => {
     const wrapper = mountSelect({ groups, modelValue: '' })
     open = wrapper
 
-    await openList(wrapper)
+    await openProfile(wrapper)
 
     const panel = list()
     expect(panel?.textContent).toContain('Routers')

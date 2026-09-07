@@ -128,7 +128,7 @@ func scanCustomList(rows *sql.Rows) (application.CustomList, error) {
 	list.CreatedAt = unixNanos(created)
 	list.UpdatedAt = unixNanos(updated)
 	if !validCustomList(list) {
-		return application.CustomList{}, fmt.Errorf("invalid stored custom service")
+		return application.CustomList{}, fmt.Errorf("invalid stored custom list")
 	}
 	return list, nil
 }

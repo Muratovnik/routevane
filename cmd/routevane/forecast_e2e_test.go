@@ -18,7 +18,7 @@ import (
 // the shipped keenetic fixture deliberately does not, so one listing shows both
 // a translated and an untranslated target.
 const pocketTargetYAML = `id: pocket
-profile_key: keenetic-bat-ipv4-v1
+format_key: keenetic-bat-ipv4-v1
 title: Карманный роутер
 title_en: Pocket router
 kind: router

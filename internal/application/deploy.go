@@ -49,7 +49,7 @@ type DeviceInfo struct {
 	// FormatKey is the target profile this firmware is compatible with. A
 	// device that reports an unsupported version reports an empty value, which
 	// is what stops a deployment before anything is changed.
-	FormatKey string `json:"profile_key"`
+	FormatKey string `json:"format_key"`
 	// Interface is the interface the deployer will attach routes to.
 	Interface string `json:"interface"`
 }
@@ -244,7 +244,7 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 	result.Device = device
 	// An incompatible firmware is refused before anything on the device changes.
 	if device.FormatKey == "" || device.FormatKey != request.Target.FormatKey {
-		return result, fmt.Errorf("%w: firmware %q reports profile %q, target requires %q", ErrDeviceIncompatible, device.FirmwareVersion, device.FormatKey, request.Target.FormatKey)
+		return result, fmt.Errorf("%w: firmware %q reports format %q, target requires %q", ErrDeviceIncompatible, device.FirmwareVersion, device.FormatKey, request.Target.FormatKey)
 	}
 
 	managedDeployer, supportsManagedRoutes := deployer.(ManagedRouteDeployer)

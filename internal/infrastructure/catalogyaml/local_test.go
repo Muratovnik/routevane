@@ -62,7 +62,7 @@ func TestWriteLocalDraftProducesADefinitionTheProductCanLoad(t *testing.T) {
 	}
 	list, found := catalog.List("example")
 	if !found || len(list.Sources) != 1 {
-		t.Fatalf("loaded service = %#v", list)
+		t.Fatalf("loaded list = %#v", list)
 	}
 	if strings.Join(list.Sources[0].Names, ",") != "example.co.uk,www.example.co.uk" {
 		t.Fatalf("source names are not canonical: %#v", list.Sources[0].Names)

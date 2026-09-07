@@ -71,11 +71,11 @@ const formatNames: Record<string, RegExp> = {
   singbox: /sing-box/,
 }
 
-async function publishList(
+async function publishProfile(
   page: Page,
   targetID: string,
   language: 'en' | 'ru' = 'en',
-): Promise<{ listId: string; outputId: string }> {
+): Promise<{ profileId: string; outputId: string }> {
   await page.goto(`${origin}/profiles/new`)
   await expect(
     page.getByRole('heading', {
@@ -106,7 +106,7 @@ async function publishList(
   await expect(
     page.getByRole('heading', { level: 1, name: 'YouTube' }),
   ).toBeVisible()
-  const listId =
+  const profileId =
     /\/profiles\/([a-f0-9]{32})/.exec(new URL(page.url()).pathname)?.[1] ?? ''
   const outputPayload = (await (await outputsResponse).json()) as {
     output: { id: string }
@@ -114,7 +114,7 @@ async function publishList(
   // Waiting for the add-format control to re-enable is waiting for the whole
   // bind — create, refresh, build, reload — to actually finish.
   await expect(page.locator('#outputs-target')).toBeEnabled()
-  return { listId, outputId: outputPayload.output.id }
+  return { profileId, outputId: outputPayload.output.id }
 }
 
 function message(language: 'en' | 'ru', key: string): string {
@@ -232,8 +232,8 @@ test('the send screen builds its form from the deployer and applies the file loc
   page,
 }) => {
   test.setTimeout(120000)
-  const { listId, outputId } = await publishList(page, 'singbox')
-  const listURL = `${origin}/profiles/${listId}`
+  const { profileId, outputId } = await publishProfile(page, 'singbox')
+  const profileURL = `${origin}/profiles/${profileId}`
 
   // The send action exists on the profile page because this format has a
   // deployer, and it leads to that output's own send screen.
@@ -245,7 +245,7 @@ test('the send screen builds its form from the deployer and applies the file loc
     .locator('.rv-menu__panel:visible')
     .getByRole('menuitem', { name: 'Send to sing-box' })
     .click()
-  await page.waitForURL(`${listURL}/send/${outputId}`)
+  await page.waitForURL(`${profileURL}/send/${outputId}`)
   await expect(
     page.getByRole('heading', { level: 1, name: 'Send to device' }),
   ).toBeVisible()
@@ -370,9 +370,13 @@ for (const language of ['en', 'ru'] as const) {
         }
         if (previous !== null) await page.setViewportSize(previous)
       }
-      const { listId, outputId } = await publishList(page, 'singbox', language)
-      const listURL = `${origin}/profiles/${listId}`
-      const detailURL = `${origin}/v1/profiles/${listId}`
+      const { profileId, outputId } = await publishProfile(
+        page,
+        'singbox',
+        language,
+      )
+      const profileURL = `${origin}/profiles/${profileId}`
+      const detailURL = `${origin}/v1/profiles/${profileId}`
       let unavailable = true
       let pendingRead: (() => void) | undefined
       const mutations: string[] = []
@@ -401,22 +405,22 @@ for (const language of ['en', 'ru'] as const) {
       await page
         .locator('main')
         .getByRole('button', {
-          name: copy('library.menu').replace('{name}', 'YouTube'),
+          name: copy('profiles.menu').replace('{name}', 'YouTube'),
           exact: true,
         })
         .click()
       await page
         .locator('.rv-menu__panel:visible')
         .getByRole('menuitem', {
-          name: copy('library.sendTarget').replace('{target}', 'sing-box'),
+          name: copy('profiles.sendTarget').replace('{target}', 'sing-box'),
         })
         .click()
-      await page.waitForURL(`${listURL}/send/${outputId}`)
+      await page.waitForURL(`${profileURL}/send/${outputId}`)
       await expect(
-        page.getByText(copy('send.route.failed'), { exact: true }),
+        page.getByText(copy('send.profile.failed'), { exact: true }),
       ).toBeVisible()
       await expect(
-        page.getByText(copy('list.missing'), { exact: true }),
+        page.getByText(copy('profile.missing'), { exact: true }),
       ).toHaveCount(0)
       await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
       await expect(page.getByRole('main')).toHaveCount(1)
@@ -426,7 +430,7 @@ for (const language of ['en', 'ru'] as const) {
         .getByRole('button', { name: copy('action.retry'), exact: true })
         .click()
       await expect(
-        page.getByText(copy('list.loading'), { exact: true }),
+        page.getByText(copy('profile.loading'), { exact: true }),
       ).toBeVisible()
       await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
       await auditEntry()
@@ -437,16 +441,16 @@ for (const language of ['en', 'ru'] as const) {
       await page.unroute(detailURL)
 
       const missingID = '0'.repeat(32)
-      await page.goto(`${listURL}/send/${missingID}`)
+      await page.goto(`${profileURL}/send/${missingID}`)
       await expect(
         page.getByText(copy('send.connection.missing'), { exact: true }),
       ).toBeVisible()
       await expect(page.getByRole('main').getByRole('link')).toHaveAttribute(
         'href',
-        `/profiles/${listId}`,
+        `/profiles/${profileId}`,
       )
       await expect(
-        page.getByText(copy('list.missing'), { exact: true }),
+        page.getByText(copy('profile.missing'), { exact: true }),
       ).toHaveCount(0)
 
       await auditEntry()
@@ -462,10 +466,10 @@ for (const language of ['en', 'ru'] as const) {
         output!.latest = null
         await route.fulfill({ response, json: payload })
       })
-      await page.goto(`${listURL}/send/${outputId}`)
+      await page.goto(`${profileURL}/send/${outputId}`)
       await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
       await expect(
-        page.getByText(copy('library.noArtifact'), { exact: true }),
+        page.getByText(copy('profiles.noArtifact'), { exact: true }),
       ).toBeVisible()
       await expect(page.locator('#send-device')).toHaveCount(0)
       await page.unroute(detailURL)
@@ -477,7 +481,7 @@ for (const language of ['en', 'ru'] as const) {
       await page.goto(`${origin}/profiles/${missingID}/send/${outputId}`)
       expect((await absentResponse).status()).toBe(404)
       await expect(
-        page.getByText(copy('list.missing'), { exact: true }),
+        page.getByText(copy('profile.missing'), { exact: true }),
       ).toBeVisible()
       await expect(
         page.getByRole('button', { name: copy('action.retry'), exact: true }),
@@ -515,8 +519,8 @@ test('a target without a deployer is offered the manual path only', async ({
   page,
 }) => {
   test.setTimeout(120000)
-  const { listId, outputId } = await publishList(page, 'mikrotik')
-  const listURL = `${origin}/profiles/${listId}`
+  const { profileId, outputId } = await publishProfile(page, 'mikrotik')
+  const profileURL = `${origin}/profiles/${profileId}`
 
   // The profile page never offers an automatic send for this format.
   await expect(page.locator('.rv-status__label')).toBeVisible()
@@ -524,7 +528,7 @@ test('a target without a deployer is offered the manual path only', async ({
     0,
   )
 
-  await page.goto(`${listURL}/send/${outputId}`)
+  await page.goto(`${profileURL}/send/${outputId}`)
   await expect(
     page.getByRole('heading', { level: 1, name: 'Send to device' }),
   ).toBeVisible()
@@ -576,8 +580,8 @@ test('a destination the configuration cannot accept is refused before writing', 
     'utf8',
   )
 
-  const { listId, outputId } = await publishList(page, 'singbox')
-  await page.goto(`${origin}/profiles/${listId}/send/${outputId}`)
+  const { profileId, outputId } = await publishProfile(page, 'singbox')
+  await page.goto(`${origin}/profiles/${profileId}/send/${outputId}`)
   await expect(page.locator('#send-device')).toBeVisible()
   await page.locator('#send-device').fill(fileURL(foreignConfig))
   const review = page.getByRole('button', { name: 'Check the details' })

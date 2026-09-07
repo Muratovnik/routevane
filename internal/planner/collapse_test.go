@@ -143,7 +143,7 @@ func TestACommunityPrefixListIsRoutable(t *testing.T) {
 	sighting.SourceClass = domain.SourceCommunity
 	sighting.SharedNetworkEvidence = domain.SharedNetworkEvidenceTrusted
 	if declaredNetwork(sighting) {
-		t.Fatal("a shared CDN range is not service specific")
+		t.Fatal("a shared CDN range is not list specific")
 	}
 }
 

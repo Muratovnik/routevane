@@ -19,7 +19,7 @@ import (
 
 var (
 	ErrRuleLimitExceeded = errors.New("global routing rule limit exceeded")
-	ErrRequiredCoverage  = errors.New("required service component has no safe route")
+	ErrRequiredCoverage  = errors.New("required list component has no safe route")
 )
 
 const (
@@ -120,7 +120,7 @@ func firstRelations(relations [][]domain.Relation) []domain.Relation {
 func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time, withRelations bool) (domain.RoutingPlan, error) {
 	def, sightings := input.Definition, input.Sightings
 	if def.ID == "" {
-		return domain.RoutingPlan{}, fmt.Errorf("service definition has no id")
+		return domain.RoutingPlan{}, fmt.Errorf("list definition has no id")
 	}
 	if target.ID == "" {
 		return domain.RoutingPlan{}, fmt.Errorf("target profile has no id")
@@ -160,7 +160,7 @@ func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time
 		}
 	}
 	if len(components) == 0 {
-		return domain.RoutingPlan{}, fmt.Errorf("service %q has no components", def.ID)
+		return domain.RoutingPlan{}, fmt.Errorf("list %q has no components", def.ID)
 	}
 
 	accepted := make([]domain.RouteRule, 0, len(def.Seeds)+len(sightings))
@@ -353,19 +353,19 @@ func declaredNetwork(sighting domain.Sighting) bool {
 // diagnostic plan and never truncates it.
 func BuildPlanSet(inputs []ListInput, target domain.TargetDefinition, cutoff time.Time) (domain.RoutingPlan, error) {
 	if len(inputs) == 0 {
-		return domain.RoutingPlan{}, fmt.Errorf("service set is empty")
+		return domain.RoutingPlan{}, fmt.Errorf("list set is empty")
 	}
 	ordered := append([]ListInput(nil), inputs...)
 	slices.SortFunc(ordered, func(a, b ListInput) int { return cmp.Compare(a.Definition.ID, b.Definition.ID) })
 	for i := range ordered {
 		if domain.ValidateSlug(ordered[i].Definition.ID) != nil {
-			return domain.RoutingPlan{}, fmt.Errorf("invalid service identity")
+			return domain.RoutingPlan{}, fmt.Errorf("invalid list identity")
 		}
 		if i > 0 && ordered[i-1].Definition.ID == ordered[i].Definition.ID {
-			return domain.RoutingPlan{}, fmt.Errorf("duplicate service identity %q", ordered[i].Definition.ID)
+			return domain.RoutingPlan{}, fmt.Errorf("duplicate list identity %q", ordered[i].Definition.ID)
 		}
 		if i > 0 && ordered[i-1].Definition.CatalogRevision != ordered[i].Definition.CatalogRevision {
-			return domain.RoutingPlan{}, fmt.Errorf("service definitions are from different catalog revisions")
+			return domain.RoutingPlan{}, fmt.Errorf("list definitions are from different catalog revisions")
 		}
 	}
 
@@ -382,7 +382,7 @@ func BuildPlanSet(inputs []ListInput, target domain.TargetDefinition, cutoff tim
 	for _, input := range ordered {
 		listPlan, err := buildPlan(input, unboundedTarget, cutoff, true)
 		if err != nil {
-			return domain.RoutingPlan{}, fmt.Errorf("build service %q: %w", input.Definition.ID, err)
+			return domain.RoutingPlan{}, fmt.Errorf("build list %q: %w", input.Definition.ID, err)
 		}
 		combined.Lists = append(combined.Lists, listPlan.Lists...)
 		combined.Rules = append(combined.Rules, listPlan.Rules...)

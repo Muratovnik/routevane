@@ -113,7 +113,7 @@ func projectPlan(plan domain.RoutingPlan) ([]Group, error) {
 			return nil, fmt.Errorf("routing plan contains an invalid route rule")
 		}
 		if domain.ValidateSlug(rule.ListID) != nil {
-			return nil, fmt.Errorf("routing plan contains an invalid service identity")
+			return nil, fmt.Errorf("routing plan contains an invalid list identity")
 		}
 		value, err := entryValue(rule)
 		if err != nil {

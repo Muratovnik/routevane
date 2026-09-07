@@ -30,11 +30,11 @@ func TestShippedCatalogIsTypedAndDeclared(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(catalog.Lists) < 20 || len(catalog.Categories) < 5 {
-		t.Fatalf("catalog holds %d services and %d categories", len(catalog.Lists), len(catalog.Categories))
+		t.Fatalf("catalog holds %d lists and %d categories", len(catalog.Lists), len(catalog.Categories))
 	}
 	for id, list := range catalog.Lists {
 		if list.Title == "" || len(list.Sources) == 0 || len(list.Seeds) == 0 {
-			t.Fatalf("service %q = %#v", id, list)
+			t.Fatalf("list %q = %#v", id, list)
 		}
 		for _, seed := range list.Seeds {
 			if seed.Kind != domain.RuleDomainSuffix || seed.SourceClass != domain.SourceManual {
@@ -45,13 +45,13 @@ func TestShippedCatalogIsTypedAndDeclared(t *testing.T) {
 			// Every shipped source is a third party's curation, and saying
 			// official would tell the planner the vendor published it itself.
 			if source.Type != domain.SourceHTTP || source.Class != domain.SourceCommunity {
-				t.Fatalf("service %q source = %#v", id, source)
+				t.Fatalf("list %q source = %#v", id, source)
 			}
 			if !strings.HasPrefix(source.URL, "https://") {
 				t.Fatalf("service %q source is not fetched over HTTPS: %#v", id, source)
 			}
 			if source.Format != domain.FeedFormatText && source.Format != domain.FeedFormatDomainList {
-				t.Fatalf("service %q source format = %q", id, source.Format)
+				t.Fatalf("list %q source format = %q", id, source.Format)
 			}
 		}
 	}
@@ -66,7 +66,7 @@ func TestShippedCatalogIsTypedAndDeclared(t *testing.T) {
 	}
 	for id := range catalog.Lists {
 		if _, found := grouped[id]; !found {
-			t.Fatalf("service %q belongs to no category", id)
+			t.Fatalf("list %q belongs to no category", id)
 		}
 	}
 }
@@ -89,7 +89,7 @@ func TestShippedCatalogKeepsAListInMoreThanOneCategory(t *testing.T) {
 			return
 		}
 	}
-	t.Fatal("no shipped service belongs to more than one category")
+	t.Fatal("no shipped list belongs to more than one category")
 }
 
 func TestDiagnosticExampleFixtureStaysOutOfTheProductCatalog(t *testing.T) {

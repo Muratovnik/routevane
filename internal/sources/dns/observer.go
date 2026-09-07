@@ -64,7 +64,7 @@ func (o *Observer) Observe(ctx context.Context, query Query, observedAt time.Tim
 		return Result{}, fmt.Errorf("dns context is nil")
 	}
 	if query.ListID == "" {
-		return Result{}, fmt.Errorf("dns query has no service id")
+		return Result{}, fmt.Errorf("dns query has no list id")
 	}
 	if query.ComponentID == "" {
 		query.ComponentID = "web"

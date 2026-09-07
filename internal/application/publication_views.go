@@ -77,7 +77,7 @@ type TargetOption struct {
 	ID            string `json:"id"`
 	Title         string `json:"title"`
 	Kind          string `json:"kind"`
-	FormatKey     string `json:"profile_key"`
+	FormatKey     string `json:"format_key"`
 	RendererID    string `json:"renderer_id"`
 	FileExtension string `json:"file_extension"`
 	// ManualInstallationHint is what the operator does with the file. It is

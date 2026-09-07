@@ -42,7 +42,7 @@ const targetsPayload = {
       id: 'keenetic',
       title: 'Keenetic',
       kind: 'router',
-      profile_key: 'keenetic-bat-ipv4-v1',
+      format_key: 'keenetic-bat-ipv4-v1',
       renderer_id: 'keenetic-route-bat',
       file_extension: 'bat',
       manual_installation_hint: 'Upload the file.',

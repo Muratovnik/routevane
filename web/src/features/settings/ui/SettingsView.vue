@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 
 import { useSettings } from '@/features/settings/model/useSettings'
 import ConfigTransferPanel from '@/features/settings/ui/ConfigTransferPanel.vue'
-import type { RefreshInterval } from '@/shared/api/lists'
+import type { RefreshInterval } from '@/shared/api/profiles'
 import { useLocale } from '@/shared/i18n/useLocale'
 import { localeNames, type Locale } from '@/shared/i18n/messages'
 import {

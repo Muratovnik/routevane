@@ -1,0 +1,265 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+
+import {
+  cloneComposition,
+  compositionSignature,
+  normalizeComposition,
+  resolvedComposition,
+} from '@/entities/profile-composition/model/composition'
+import { useCompositionForecast } from '@/entities/profile-composition/model/forecast'
+import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
+import RvComposerForm from '@/shared/ui/RvComposerForm.vue'
+import RvComposer from '@/shared/ui/RvComposer.vue'
+import ListPicker from '@/entities/profile-composition/ui/ListPicker.vue'
+import { useLocale } from '@/shared/i18n/useLocale'
+import type { CategoryDetail, ListDetail } from '@/shared/api/catalog'
+import type { ProfileComposition } from '@/shared/api/profiles'
+import RvButton from '@/shared/ui/RvButton.vue'
+
+const props = defineProps<{
+  busy: boolean
+  name: string
+  lists: ListDetail[]
+  categories: CategoryDetail[]
+  selected: string[]
+  selectedCategories: string[]
+  exclusions: string[]
+  listDomains: Record<string, string[]>
+  priority?: string[]
+  // What this profile already publishes, already named in the operator's
+  // language. The editor asks the server what the draft would weigh in these
+  // formats; with none bound there is nothing to weigh it against.
+  outputs: { id: string; targetID: string; title: string }[]
+}>()
+
+const emit = defineEmits<{
+  save: [name: string, composition: ProfileComposition]
+}>()
+
+const { formatNumber, t } = useLocale()
+const forecast = useCompositionForecast()
+
+function storedComposition(): ProfileComposition {
+  return cloneComposition({
+    lists: props.selected,
+    categories: props.selectedCategories,
+    exclusions: props.exclusions,
+    listDomains: props.listDomains,
+    priority: props.priority ?? [],
+  })
+}
+
+const draftName = ref(props.name)
+const draftComposition = ref<ProfileComposition>(storedComposition())
+
+const resolved = computed(() =>
+  resolvedComposition(draftComposition.value, props.categories),
+)
+
+const forecastTargets = computed(() => [
+  ...new Set(props.outputs.map((output) => output.targetID)),
+])
+
+watch(
+  () =>
+    JSON.stringify([
+      draftComposition.value,
+      resolved.value,
+      forecastTargets.value,
+    ]),
+  () => {
+    // An empty target list asks the endpoint about every format there is,
+    // which is the opposite of what a profile publishing nowhere wants: with
+    // nothing bound there is nothing to weigh the draft against.
+    if (forecastTargets.value.length === 0) {
+      forecast.forget()
+      return
+    }
+    forecast.request(
+      draftComposition.value,
+      resolved.value,
+      forecastTargets.value,
+    )
+  },
+  { immediate: true },
+)
+
+// One format weighs the lists, and it is the first one this profile publishes
+// in: a list's share of the rules differs per format, so mixing two would
+// be adding numbers that do not belong to the same total.
+const firstForecast = computed(() => {
+  const first = props.outputs[0]
+  return first === undefined ? null : forecast.forTarget(first.targetID)
+})
+
+// A format that would refuse this draft says so beside the save control. It
+// does not stop the save: the operator may be fixing one format while another
+// is still over its bound, and a failed rebuild is already reported per output.
+const overflowLines = computed<string[]>(() => {
+  const lines: string[] = []
+  for (const output of props.outputs) {
+    const answer = forecast.forTarget(output.targetID)
+    if (answer === null || answer.incompleteLists?.length || answer.fits)
+      continue
+    lines.push(
+      t('profile.forecast.overflow', {
+        count: formatNumber(answer.projectedRules),
+        max: formatNumber(answer.maximumRules),
+        target: output.title,
+      }),
+    )
+  }
+  return lines
+})
+
+// Editing normalises the draft — sorted, deduplicated — while the stored profile
+// arrives in whatever order the server wrote it. Comparing the two as written
+// therefore reported a change where none was made, so both sides are compared
+// as what they select.
+const dirty = computed(
+  () =>
+    draftName.value !== props.name ||
+    compositionSignature(draftComposition.value, props.categories) !==
+      compositionSignature(storedComposition(), props.categories),
+)
+
+const canSave = computed(
+  () =>
+    !props.busy && draftName.value.trim() !== '' && resolved.value.length > 0,
+)
+
+function setPriority(ids: string[]): void {
+  if (props.busy) return
+  draftComposition.value = normalizeComposition(
+    { ...cloneComposition(draftComposition.value), priority: ids },
+    props.categories,
+  )
+}
+
+function retryForecast(): void {
+  if (forecastTargets.value.length === 0) return
+  forecast.retry(draftComposition.value, resolved.value, forecastTargets.value)
+}
+
+function submit(): void {
+  if (!canSave.value) return
+  emit('save', draftName.value.trim(), draftComposition.value)
+}
+
+// Cancel restores the stored profile: the draft returns to what the server
+// holds, and nothing leaves the page.
+function reset(): void {
+  draftName.value = props.name
+  draftComposition.value = storedComposition()
+}
+</script>
+
+<template>
+  <div class="editor">
+    <RvComposer :settings-label="t('create.settings')">
+      <section aria-labelledby="editor-composition" class="editor__composition">
+        <h2 id="editor-composition" class="editor__legend">
+          {{ t('profile.composition.lists') }}
+        </h2>
+        <div class="editor__composition-body">
+          <ListPicker
+            v-model="draftComposition"
+            fill
+            :categories="props.categories"
+            :disabled="props.busy"
+            :forecast="firstForecast"
+            :forecast-failure="
+              forecast.failure.value
+                ? t(`forecast.failure.${forecast.failure.value}`)
+                : undefined
+            "
+            :overlap-unavailable="forecastTargets.length === 0"
+            :overlap-unavailable-label="t('profile.overlap.unavailable')"
+            :forecast-pending="forecast.pending.value"
+            :refreshing="forecast.observing.value"
+            :profile-name="draftName"
+            :pending="dirty"
+            :lists="props.lists"
+            :retryable="forecastTargets.length > 0"
+            @reorder="setPriority"
+            @refresh="
+              forecast.refresh(draftComposition, resolved, forecastTargets)
+            "
+            @retry="retryForecast"
+          />
+        </div>
+      </section>
+
+      <template #settings="{ compact }">
+        <RvComposerForm
+          class="editor__settings"
+          :compact="compact"
+          @submit.prevent="submit"
+        >
+          <div class="editor__field">
+            <label class="editor__label" for="editor-name">
+              {{ t('profile.edit.name') }}
+            </label>
+            <input
+              id="editor-name"
+              v-model="draftName"
+              class="editor__input"
+              :disabled="props.busy"
+              maxlength="120"
+              type="text"
+            />
+          </div>
+
+          <div v-if="outputs.length" class="editor__field">
+            <span class="editor__label">{{ t('create.target') }}</span>
+            <p class="editor__connection-value">
+              {{ outputs.map((output) => output.title).join(', ') }}
+            </p>
+          </div>
+          <template v-if="!compact || overflowLines.length > 0" #details>
+            <p v-if="!compact" class="editor__note">
+              {{ t('profile.edit.note') }}
+            </p>
+
+            <div
+              v-if="overflowLines.length > 0"
+              class="editor__forecast"
+              role="status"
+            >
+              <p v-for="line in overflowLines" :key="line">{{ line }}</p>
+            </div>
+          </template>
+          <template #actions>
+            <RvButton
+              :disabled="!canSave || !dirty"
+              :loading="props.busy"
+              :loading-label="t('profile.edit.saving')"
+              type="submit"
+              variant="primary"
+            >
+              {{
+                props.busy ? t('profile.edit.saving') : t('profile.edit.save')
+              }}
+            </RvButton>
+            <RvInfoTip
+              v-if="compact"
+              :label="t('profile.edit.effect')"
+              :text="t('profile.edit.note')"
+            />
+            <RvButton
+              v-if="dirty"
+              :disabled="props.busy"
+              variant="quiet"
+              @click="reset"
+            >
+              {{ t('action.cancel') }}
+            </RvButton>
+          </template>
+        </RvComposerForm>
+      </template>
+    </RvComposer>
+  </div>
+</template>
+
+<style scoped src="./ProfileEditor.css"></style>

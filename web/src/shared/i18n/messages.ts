@@ -6,11 +6,11 @@
  * catalog uses, and translating it here would put this file in charge of facts
  * it does not own.
  *
- * Two vocabularies meet here (ADR 0028). The code, the store and the API still
- * say `service`, `list` and `category`; the operator reads *list*, *profile* and
- * *category*. A key is therefore named after the identifier it belongs to and
- * worded for the person reading it, and this file is the only place that
- * mapping exists until the rename lands.
+ * There is one vocabulary since `0.2.0` (ADR 0039): a rule, a list of rules, a
+ * category of lists and a profile that publishes them. The code, the store,
+ * the API and this dictionary all use it, so a key is named after the
+ * identifier it belongs to and worded for the person reading it, and no
+ * mapping is needed between the two.
  */
 
 export type PluralMessage = Partial<Record<Intl.LDMLPluralRule, string>>
@@ -40,8 +40,8 @@ const ru: Dictionary = {
   'forecast.recalculate': 'Пересчитать',
   'choice.search': 'Найти',
   'choice.empty': 'Ничего не найдено',
-  'servicePicker.selectVisible': 'Выбрать или убрать все видимые списки',
-  'list.priority.unselected':
+  'listPicker.selectVisible': 'Выбрать или убрать все видимые списки',
+  'profile.priority.unselected':
     'Приоритет списка {list}: сначала добавьте его в профиль',
   'shell.collapse': 'Свернуть меню',
   'shell.expand': 'Развернуть меню',
@@ -87,7 +87,7 @@ const ru: Dictionary = {
   'overlaps.rule.prefix6': 'IPv6-сеть',
   'shell.product': 'Routevane',
   'shell.nav': 'Разделы',
-  'shell.nav.library': 'Профили',
+  'shell.nav.profiles': 'Профили',
   'shell.nav.lists': 'Списки',
   'shell.nav.connections': 'Подключения',
 
@@ -144,72 +144,72 @@ const ru: Dictionary = {
   'shell.nav.settings': 'Настройки',
   'shell.skip': 'Перейти к содержимому',
 
-  'library.title': 'Профили',
-  'library.new': 'Собрать профиль',
-  'library.loading': 'Загружаем профили…',
-  'library.failed': 'Профили недоступны',
-  'library.failed.body':
+  'profiles.title': 'Профили',
+  'profiles.new': 'Собрать профиль',
+  'profiles.loading': 'Загружаем профили…',
+  'profiles.failed': 'Профили недоступны',
+  'profiles.failed.body':
     'Локальный сервис не ответил. Проверьте, что Routevane запущен.',
-  'library.empty': 'Профилей пока нет',
-  'library.empty.body':
+  'profiles.empty': 'Профилей пока нет',
+  'profiles.empty.body':
     'Выберите списки и устройство — Routevane подготовит правила и покажет способы подключения.',
-  'library.column.name': 'Профиль',
-  'library.column.outputs': 'Подключено',
-  'library.column.updated': 'Содержимое от',
-  'library.column.actions': 'Действия',
-  'library.menu': 'Действия с профилем {name}',
-  'library.more': 'Ещё',
-  'library.open': 'Открыть',
-  'library.configure': 'Открыть профиль',
-  'library.connections': 'Подключения и форматы',
-  'library.drawer': 'Профиль {name}',
-  'library.copy': 'Скопировать содержимое',
-  'library.copied': 'Содержимое скопировано',
-  'library.copyFailed': 'Не удалось скопировать',
-  'library.send': 'Отправить на устройство',
-  'library.noArtifact': 'Файл не опубликован',
-  'library.download': 'Скачать {format}',
-  'library.download.plain': 'Скачать файл',
-  'library.download.aria': 'Скачать файл профиля {name}',
-  'library.download.menu': 'Скачать',
-  'library.download.menu.aria': 'Выбрать формат скачивания профиля {name}',
-  'library.download.option': '{target} · {format}',
-  'library.noOutputs': 'Нет подключений',
-  'library.export.item': 'Скачать · {format}',
-  'library.export.failed': 'Файл не подготовлен',
-  'library.export.failed.body':
+  'profiles.column.name': 'Профиль',
+  'profiles.column.outputs': 'Подключено',
+  'profiles.column.updated': 'Содержимое от',
+  'profiles.column.actions': 'Действия',
+  'profiles.menu': 'Действия с профилем {name}',
+  'profiles.more': 'Ещё',
+  'profiles.open': 'Открыть',
+  'profiles.configure': 'Открыть профиль',
+  'profiles.connections': 'Подключения и форматы',
+  'profiles.drawer': 'Профиль {name}',
+  'profiles.copy': 'Скопировать содержимое',
+  'profiles.copied': 'Содержимое скопировано',
+  'profiles.copyFailed': 'Не удалось скопировать',
+  'profiles.send': 'Отправить на устройство',
+  'profiles.noArtifact': 'Файл не опубликован',
+  'profiles.download': 'Скачать {format}',
+  'profiles.download.plain': 'Скачать файл',
+  'profiles.download.aria': 'Скачать файл профиля {name}',
+  'profiles.download.menu': 'Скачать',
+  'profiles.download.menu.aria': 'Выбрать формат скачивания профиля {name}',
+  'profiles.download.option': '{target} · {format}',
+  'profiles.noOutputs': 'Нет подключений',
+  'profiles.export.item': 'Скачать · {format}',
+  'profiles.export.failed': 'Файл не подготовлен',
+  'profiles.export.failed.body':
     'Попробуйте другой формат или обновите данные профиля.',
-  'library.sendTarget': 'Отправить на {target}',
-  'library.sendTarget.aria': 'Отправить профиль {name} на {target}',
-  'library.chooseDevice': 'Выбрать устройство',
-  'library.chooseDevice.aria': 'Выбрать устройство для профиля {name}',
-  'library.imported.title': {
+  'profiles.sendTarget': 'Отправить на {target}',
+  'profiles.sendTarget.aria': 'Отправить профиль {name} на {target}',
+  'profiles.chooseDevice': 'Выбрать устройство',
+  'profiles.chooseDevice.aria': 'Выбрать устройство для профиля {name}',
+  'profiles.imported.title': {
     few: '{count} профиля восстановлено из предыдущей версии',
     many: '{count} профилей восстановлено из предыдущей версии',
     one: '{count} профиль восстановлен из предыдущей версии',
     other: '{count} профиля восстановлено из предыдущей версии',
   },
-  'library.imported.body':
+  'profiles.imported.body':
     'Каждый прежний профиль сохранён отдельным профилем. Откройте профиль, чтобы дать ему понятное название и проверить состав.',
-  'library.imported.name': 'Восстановленный профиль {number}',
-  'library.archive': 'В архив',
-  'library.archived': 'Архив',
-  'library.archived.count': {
+  'profiles.imported.name': 'Восстановленный профиль {number}',
+  'profiles.archive': 'В архив',
+  'profiles.archived': 'Архив',
+  'profiles.archived.count': {
     few: '{count} профиля',
     many: '{count} профилей',
     one: '{count} профиль',
     other: '{count} профиля',
   },
-  'library.archived.body':
+  'profiles.archived.body':
     'Эти профили не обновляются. Их файлы и ссылки подписки продолжают работать.',
-  'library.archived.since': 'В архиве с {time}',
-  'library.allArchived': 'Все профили в архиве',
-  'library.allArchived.body': 'Верните профиль из архива или соберите новый.',
-  'library.restore': 'Вернуть из архива',
-  'library.restore.aria': 'Вернуть профиль {name} из архива',
+  'profiles.archived.since': 'В архиве с {time}',
+  'profiles.allArchived': 'Все профили в архиве',
+  'profiles.allArchived.body': 'Верните профиль из архива или соберите новый.',
+  'profiles.restore': 'Вернуть из архива',
+  'profiles.restore.aria': 'Вернуть профиль {name} из архива',
 
   'create.title': 'Новый профиль',
-  'create.services': 'Списки',
+  'create.lists': 'Списки',
   'create.categories': 'Категории',
   'create.category.size': {
     few: '{count} списка',
@@ -217,7 +217,7 @@ const ru: Dictionary = {
     one: '{count} список',
     other: '{count} списка',
   },
-  'create.service.fromCategory': 'Уже в категории',
+  'create.list.fromCategory': 'Уже в категории',
   'create.search': 'Найти список',
   'create.noMatches': 'По запросу «{query}» ничего нет',
   'create.resolved': {
@@ -283,50 +283,49 @@ const ru: Dictionary = {
   'category.torrents': 'Торренты',
   'category.work': 'Работа',
 
-  'servicePicker.collections': 'Категории',
-  'servicePicker.configure': 'Состав',
-  'servicePicker.configure.aria': 'Показать состав категории {category}',
-  'servicePicker.back': 'Все категории',
-  'servicePicker.detail.title': 'Списки: {category}',
-  'servicePicker.other': 'Без категории',
-  'servicePicker.filter.more': 'Ещё',
-  'servicePicker.filter.label': 'Фильтр по категории',
-  'servicePicker.filter.all': 'Все категории',
-  'servicePicker.future.auto': 'Новые списки: автоматически',
-  'servicePicker.future.manual': 'Новые списки: вручную',
-  'servicePicker.future.enable':
-    'Автоматически включать новые списки категории',
-  'servicePicker.future.disable': 'Выбирать новые списки вручную',
-  'servicePicker.follow': 'Следовать категории «{category}»',
-  'servicePicker.follow.members': {
+  'listPicker.collections': 'Категории',
+  'listPicker.configure': 'Состав',
+  'listPicker.configure.aria': 'Показать состав категории {category}',
+  'listPicker.back': 'Все категории',
+  'listPicker.detail.title': 'Списки: {category}',
+  'listPicker.other': 'Без категории',
+  'listPicker.filter.more': 'Ещё',
+  'listPicker.filter.label': 'Фильтр по категории',
+  'listPicker.filter.all': 'Все категории',
+  'listPicker.future.auto': 'Новые списки: автоматически',
+  'listPicker.future.manual': 'Новые списки: вручную',
+  'listPicker.future.enable': 'Автоматически включать новые списки категории',
+  'listPicker.future.disable': 'Выбирать новые списки вручную',
+  'listPicker.follow': 'Следовать категории «{category}»',
+  'listPicker.follow.members': {
     few: '{count} списка',
     many: '{count} списков',
     one: '{count} список',
     other: '{count} списка',
   },
-  'servicePicker.column.include': 'Включить',
-  'servicePicker.column.list': 'Список',
-  'servicePicker.column.category': 'Категория',
-  'servicePicker.column.rules': 'Правила',
-  'servicePicker.column.overlaps': 'Пересечения',
-  'servicePicker.column.open': 'Открыть',
-  'servicePicker.group.selected': 'Выбрано в профиль',
-  'servicePicker.group.available': 'Доступные списки',
-  'servicePicker.include.aria': 'Добавить {list} в профиль',
-  'servicePicker.exclude.aria': 'Убрать {list} из профиля',
-  'servicePicker.rules.pending': 'Считаем…',
-  'servicePicker.rules.unknown': 'Нет прогноза',
-  'servicePicker.overlap.pending': 'Считаем пересечения…',
-  'servicePicker.overlap.unavailable':
+  'listPicker.column.include': 'Включить',
+  'listPicker.column.list': 'Список',
+  'listPicker.column.category': 'Категория',
+  'listPicker.column.rules': 'Правила',
+  'listPicker.column.overlaps': 'Пересечения',
+  'listPicker.column.open': 'Открыть',
+  'listPicker.group.selected': 'Выбрано в профиль',
+  'listPicker.group.available': 'Доступные списки',
+  'listPicker.include.aria': 'Добавить {list} в профиль',
+  'listPicker.exclude.aria': 'Убрать {list} из профиля',
+  'listPicker.rules.pending': 'Считаем…',
+  'listPicker.rules.unknown': 'Нет прогноза',
+  'listPicker.overlap.pending': 'Считаем пересечения…',
+  'listPicker.overlap.unavailable':
     'Выберите формат, чтобы проверить пересечения',
-  'servicePicker.overlap.unknown': 'Пересечения неизвестны',
-  'servicePicker.overlap.none': 'Нет',
+  'listPicker.overlap.unknown': 'Пересечения неизвестны',
+  'listPicker.overlap.none': 'Нет',
   'create.settings': 'Параметры профиля',
-  'servicePicker.column.priority': 'Приоритет',
-  'servicePicker.overlap.legend':
+  'listPicker.column.priority': 'Приоритет',
+  'listPicker.overlap.legend':
     'Число других выбранных списков с общими правилами. 0 — пересечений нет; прочерк — расчёта нет или список не выбран.',
-  'servicePicker.overlap.tag': 'Пересечение: {list}',
-  'servicePicker.overlap.heading': 'Пересекается со списками',
+  'listPicker.overlap.tag': 'Пересечение: {list}',
+  'listPicker.overlap.heading': 'Пересекается со списками',
 
   'lists.title': 'Списки',
   'lists.loading': 'Загружаем списки…',
@@ -391,116 +390,115 @@ const ru: Dictionary = {
   'lists.priority.failed.body':
     'Проверьте, что Routevane запущен, и повторите сохранение.',
 
-  'list.breadcrumb': 'Путь',
+  'profile.breadcrumb': 'Путь',
 
-  'serviceCard.new': 'Новый список',
+  'listCard.new': 'Новый список',
   // Свой список пока определяется только доменами, поэтому у формы создания
   // своя подсказка и свой предел — состав каталожного списка шире.
-  'serviceCard.new.domains.field': 'Домены',
-  'serviceCard.new.domains.hint':
+  'listCard.new.domains.field': 'Домены',
+  'listCard.new.domains.hint':
     'Один домен на строку. Поддомены учитываются автоматически.',
-  'serviceCard.new.domains.invalid': 'Строка {line} не похожа на домен.',
-  'serviceCard.new.domains.limit': 'За один раз — не более 64 доменов.',
-  'serviceCard.title.field': 'Название',
-  'serviceCard.title.invalid': 'Укажите название списка.',
-  'serviceCard.title.save': 'Переименовать',
-  'serviceCard.saving': 'Сохраняем…',
-  'serviceCard.create': 'Создать и добавить',
-  'serviceCard.save.failed':
+  'listCard.new.domains.invalid': 'Строка {line} не похожа на домен.',
+  'listCard.new.domains.limit': 'За один раз — не более 64 доменов.',
+  'listCard.title.field': 'Название',
+  'listCard.title.invalid': 'Укажите название списка.',
+  'listCard.title.save': 'Переименовать',
+  'listCard.saving': 'Сохраняем…',
+  'listCard.create': 'Создать и добавить',
+  'listCard.save.failed':
     'Не удалось сохранить. Проверьте, что локальный сервис Routevane запущен, и повторите.',
-  'serviceCard.sources': 'Автоматические источники',
-  'serviceCard.sources.none': 'У списка нет автоматических источников.',
-  'serviceCard.sources.open': 'Источники · {count}',
-  'serviceCard.sources.configure': 'Настроить источники',
-  'serviceCard.source.custom': 'Ваш фид',
-  'serviceCard.refresh': 'Обновить из источников',
-  'serviceCard.refresh.busy': 'Обновляем…',
-  'serviceCard.refresh.skipped': {
+  'listCard.sources': 'Автоматические источники',
+  'listCard.sources.none': 'У списка нет автоматических источников.',
+  'listCard.sources.open': 'Источники · {count}',
+  'listCard.sources.configure': 'Настроить источники',
+  'listCard.source.custom': 'Ваш фид',
+  'listCard.refresh': 'Обновить из источников',
+  'listCard.refresh.busy': 'Обновляем…',
+  'listCard.refresh.skipped': {
     one: 'Пропущено записей источников: {count}',
     few: 'Пропущено записей источников: {count}',
     many: 'Пропущено записей источников: {count}',
     other: 'Пропущено записей источников: {count}',
   },
-  'serviceCard.observing': 'Читаем источники…',
-  'serviceCard.refresh.ready': 'Источники прочитаны',
-  'serviceCard.refresh.waiting': 'Источники ещё не читались',
-  'serviceCard.refresh.none': 'Нет автоматических источников',
-  'serviceCard.refresh.failed.source':
-    'Источники недоступны. Записи сохранены.',
-  'serviceCard.refresh.failed.generic':
+  'listCard.observing': 'Читаем источники…',
+  'listCard.refresh.ready': 'Источники прочитаны',
+  'listCard.refresh.waiting': 'Источники ещё не читались',
+  'listCard.refresh.none': 'Нет автоматических источников',
+  'listCard.refresh.failed.source': 'Источники недоступны. Записи сохранены.',
+  'listCard.refresh.failed.generic':
     'Причина сбоя неизвестна. Записи сохранены.',
-  'serviceCard.domains.disabledInLibrary': 'Отключено в библиотеке',
-  'serviceCard.action.failed': 'Не удалось применить изменение. Повторите.',
-  'serviceCard.mutation.pending': 'Сохраняем изменение…',
-  'serviceCard.mutation.failed': 'Изменение не применено.',
-  'serviceCard.mutation.retry': 'Повторить',
-  'serviceCard.mutation.retry.aria': 'Повторить изменение для {entry}',
-  'serviceCard.feed.add': 'Добавить источник',
-  'serviceCard.feed.url': 'Адрес фида',
-  'serviceCard.feed.url.required': 'Укажите адрес фида.',
-  'serviceCard.feed.hint':
+  'listCard.domains.disabledInLibrary': 'Отключено в библиотеке',
+  'listCard.action.failed': 'Не удалось применить изменение. Повторите.',
+  'listCard.mutation.pending': 'Сохраняем изменение…',
+  'listCard.mutation.failed': 'Изменение не применено.',
+  'listCard.mutation.retry': 'Повторить',
+  'listCard.mutation.retry.aria': 'Повторить изменение для {entry}',
+  'listCard.feed.add': 'Добавить источник',
+  'listCard.feed.url': 'Адрес фида',
+  'listCard.feed.url.required': 'Укажите адрес фида.',
+  'listCard.feed.hint':
     'HTTPS-адрес файла с доменами или сетями. Он читается при каждом обновлении.',
-  'serviceCard.feed.format': 'Формат',
-  'serviceCard.feed.format.text': 'Текст — по записи в строке',
-  'serviceCard.feed.format.domainList': 'domain-list (v2fly)',
-  'serviceCard.feed.format.json': 'JSON-массив',
-  'serviceCard.feed.submit': 'Добавить',
-  'serviceCard.feed.failed':
+  'listCard.feed.format': 'Формат',
+  'listCard.feed.format.text': 'Текст — по записи в строке',
+  'listCard.feed.format.domainList': 'domain-list (v2fly)',
+  'listCard.feed.format.json': 'JSON-массив',
+  'listCard.feed.submit': 'Добавить',
+  'listCard.feed.failed':
     'Фид не добавлен. Нужен корректный публичный HTTPS-адрес.',
-  'serviceCard.feed.remove': 'Удалить',
-  'serviceCard.feed.remove.aria': 'Удалить источник {source}',
-  'serviceCard.domains': 'Состав списка',
-  'serviceCard.domains.info': 'Что в этой таблице',
-  'serviceCard.domains.intro':
+  'listCard.feed.remove': 'Удалить',
+  'listCard.feed.remove.aria': 'Удалить источник {source}',
+  'listCard.domains': 'Состав списка',
+  'listCard.domains.info': 'Что в этой таблице',
+  'listCard.domains.intro':
     'Домены, IP-адреса и сети. Выключенная строка не попадёт в файлы при следующей пересборке.',
-  'serviceCard.domains.count': {
+  'listCard.domains.count': {
     few: '{count} записи включено',
     many: '{count} записей включено',
     one: '{count} запись включена',
     other: '{count} записи включено',
   },
-  'serviceCard.domains.hint':
+  'listCard.domains.hint':
     'По одной на строку: домен, IP-адрес или CIDR. Поддомены входят автоматически.',
-  'serviceCard.domains.field': 'Записи',
-  'serviceCard.domains.invalid':
+  'listCard.domains.field': 'Записи',
+  'listCard.domains.invalid':
     'Строка {line} не похожа на домен, IP-адрес или сеть.',
-  'serviceCard.domains.limit': 'За один раз — не более 1024 записей.',
-  'serviceCard.domains.required': 'Укажите хотя бы одну запись.',
-  'serviceCard.domains.empty': 'Пока ни одной записи.',
-  'serviceCard.domains.add': 'Добавить записи',
-  'serviceCard.domains.submit': 'Добавить',
-  'serviceCard.import': 'Импортировать файл',
-  'serviceCard.import.none': 'Файл не выбран',
-  'serviceCard.import.hint':
+  'listCard.domains.limit': 'За один раз — не более 1024 записей.',
+  'listCard.domains.required': 'Укажите хотя бы одну запись.',
+  'listCard.domains.empty': 'Пока ни одной записи.',
+  'listCard.domains.add': 'Добавить записи',
+  'listCard.domains.submit': 'Добавить',
+  'listCard.import': 'Импортировать файл',
+  'listCard.import.none': 'Файл не выбран',
+  'listCard.import.hint':
     'Текстовый файл, JSON-массив или .bat с командами route.',
-  'serviceCard.import.empty': 'В файле не нашлось ни одной записи.',
-  'serviceCard.import.skipped': {
+  'listCard.import.empty': 'В файле не нашлось ни одной записи.',
+  'listCard.import.skipped': {
     few: '{count} строки пропущено',
     many: '{count} строк пропущено',
     one: '{count} строка пропущена',
     other: '{count} строки пропущено',
   },
-  'serviceCard.filter': 'Поиск по составу',
-  'serviceCard.filter.empty': 'Ничего не найдено.',
-  'serviceCard.origin.catalog': 'каталог',
-  'serviceCard.origin.manual': 'вручную',
-  'serviceCard.origin.missing': 'выключен; сейчас не встречается',
-  'serviceCard.loading': 'Загружаем состав списка…',
-  'serviceCard.failed': 'Состав списка не загрузился',
-  'serviceCard.failed.body':
+  'listCard.filter': 'Поиск по составу',
+  'listCard.filter.empty': 'Ничего не найдено.',
+  'listCard.origin.catalog': 'каталог',
+  'listCard.origin.manual': 'вручную',
+  'listCard.origin.missing': 'выключен; сейчас не встречается',
+  'listCard.loading': 'Загружаем состав списка…',
+  'listCard.failed': 'Состав списка не загрузился',
+  'listCard.failed.body':
     'Проверьте, что локальный сервис Routevane запущен, и повторите.',
-  'serviceCard.pending': 'применится после сохранения',
-  'serviceCard.membership.in': 'В профиле «{name}»',
-  'serviceCard.membership.out': 'Не в профиле «{name}»',
-  'serviceCard.membership.in.unnamed': 'В этом профиле',
-  'serviceCard.membership.out.unnamed': 'Не в этом профиле',
-  'serviceCard.openLibrary': 'Открыть в библиотеке',
-  'serviceCard.remove': 'Удалить список',
-  'serviceDetail.open.aria': 'Открыть состав списка {service}',
-  'serviceDetail.source.http': 'Внешний фид',
-  'serviceDetail.source.dns': 'DNS-наблюдение',
-  'serviceDetail.add': 'Добавить в профиль',
-  'serviceDetail.remove': 'Убрать из профиля',
+  'listCard.pending': 'применится после сохранения',
+  'listCard.membership.in': 'В профиле «{name}»',
+  'listCard.membership.out': 'Не в профиле «{name}»',
+  'listCard.membership.in.unnamed': 'В этом профиле',
+  'listCard.membership.out.unnamed': 'Не в этом профиле',
+  'listCard.openLibrary': 'Открыть в библиотеке',
+  'listCard.remove': 'Удалить список',
+  'listDetail.open.aria': 'Открыть состав списка {list}',
+  'listDetail.source.http': 'Внешний фид',
+  'listDetail.source.dns': 'DNS-наблюдение',
+  'listDetail.add': 'Добавить в профиль',
+  'listDetail.remove': 'Убрать из профиля',
 
   'export.format.raw-json': 'JSON · все правила',
   'export.format.keenetic-route-bat': 'BAT · маршруты',
@@ -510,181 +508,184 @@ const ru: Dictionary = {
   'export.format.amnezia-split-tunnel-json': 'JSON · split tunneling',
   'export.format.singbox-ruleset-json': 'JSON · rule-set',
 
-  'list.loading': 'Загружаем профиль…',
-  'list.missing': 'Профиль не найден',
-  'list.missing.body': 'Локальный сервис не знает такого профиля.',
-  'list.status.ready': 'Файлы опубликованы',
-  'list.status.warning': 'Опубликовано с замечаниями',
-  'list.status.empty': 'Нет опубликованных файлов',
-  'list.status.failed': 'Ошибка обновления',
-  'list.tab.overview': 'Обзор',
-  'list.tab.composition': 'Состав',
-  'list.tab.outputs': 'Подключение',
-  'list.tab.file': 'Файл',
-  'list.tab.diagnostics': 'Диагностика',
-  'list.tabs': 'Разделы профиля',
-  'list.facts.services': 'Списки',
-  'list.facts.outputs': 'Подключения',
-  'list.facts.updated': 'Содержимое от',
-  'list.facts.rules': 'Правил',
-  'list.rules': {
+  'profile.loading': 'Загружаем профиль…',
+  'profile.missing': 'Профиль не найден',
+  'profile.missing.body': 'Локальный сервис не знает такого профиля.',
+  'profile.status.ready': 'Файлы опубликованы',
+  'profile.status.warning': 'Опубликовано с замечаниями',
+  'profile.status.empty': 'Нет опубликованных файлов',
+  'profile.status.failed': 'Ошибка обновления',
+  'profile.tab.overview': 'Обзор',
+  'profile.tab.composition': 'Состав',
+  'profile.tab.outputs': 'Подключение',
+  'profile.tab.file': 'Файл',
+  'profile.tab.diagnostics': 'Диагностика',
+  'profile.tabs': 'Разделы профиля',
+  'profile.facts.lists': 'Списки',
+  'profile.facts.outputs': 'Подключения',
+  'profile.facts.updated': 'Содержимое от',
+  'profile.facts.rules': 'Правил',
+  'profile.rules': {
     few: '{count} правила',
     many: '{count} правил',
     one: '{count} правило',
     other: '{count} правила',
   },
-  'list.lines': {
+  'profile.lines': {
     few: '{count} строки',
     many: '{count} строк',
     one: '{count} строка',
     other: '{count} строки',
   },
-  'list.notice.partial': 'Покрыто не всё',
-  'list.notice.partial.body':
+  'profile.notice.partial': 'Покрыто не всё',
+  'profile.notice.partial.body':
     'Формат не принимает {count} из собранных правил. Исключённое — в диагностике.',
-  'list.notice.degraded': 'Источник данных был недоступен',
-  'list.notice.degraded.body':
+  'profile.notice.degraded': 'Источник данных был недоступен',
+  'profile.notice.degraded.body':
     'Использованы сохранённые ранее адреса ({count}). Пересоберите профиль позже.',
-  'list.notice.stale': 'Показан предыдущий проверенный файл',
-  'list.notice.stale.body':
+  'profile.notice.stale': 'Показан предыдущий проверенный файл',
+  'profile.notice.stale.body':
     'Новая сборка не завершилась — прошлый файл в силе.',
-  'list.notice.build.failed': 'Формат не обновлён',
-  'list.notice.build.ruleLimit.body':
+  'profile.notice.build.failed': 'Формат не обновлён',
+  'profile.notice.build.ruleLimit.body':
     'Для профиля нужно правил: {projected}; формат принимает не больше {maximum}. Уберите часть списков или выберите другой формат.',
-  'list.notice.build.partial_coverage.body':
+  'profile.notice.build.partial_coverage.body':
     'Обязательная часть профиля не покрыта. Проверьте состав и источники данных.',
-  'list.notice.build.target_changed.body':
+  'profile.notice.build.target_changed.body':
     'Описание формата изменилось. Добавьте формат заново после проверки каталога.',
-  'list.notice.build.list_archived.body':
+  'profile.notice.build.list_archived.body':
     'Архивный профиль нельзя пересобрать. Сначала верните его из архива.',
-  'list.notice.build.source_unavailable.body':
+  'profile.notice.build.source_unavailable.body':
     'Для сборки не хватило актуальных данных. Повторите обновление позже.',
-  'list.notice.build.profile_mismatch.body':
+  'profile.notice.build.profile_mismatch.body':
     'Сохранённые данные относятся к другой версии каталога. Обновите профиль.',
-  'list.notice.build.preflight_failed.body':
+  'profile.notice.build.preflight_failed.body':
     'Проверка плана не пройдена. Прежний опубликованный файл, если он был, сохранён.',
-  'list.notice.build.artifact_unavailable.body':
+  'profile.notice.build.artifact_unavailable.body':
     'Проверенный файл сейчас недоступен. Повторите сборку.',
-  'list.notice.build.storage_failed.body':
+  'profile.notice.build.storage_failed.body':
     'Файл не удалось безопасно записать. Проверьте каталог данных и повторите.',
-  'list.notice.build.build_failed.body':
+  'profile.notice.build.build_failed.body':
     'Сборка не завершилась. Повторите попытку; прежний файл не изменён.',
-  'list.notice.build.unknown.body':
+  'profile.notice.build.unknown.body':
     'Сборка не завершилась. Прежний опубликованный файл, если он был, сохранён.',
-  'list.subscription': 'Ссылка подписки · {target}',
-  'list.subscription.info': 'Что такое ссылка подписки',
-  'list.subscription.info.text':
+  'profile.subscription': 'Ссылка подписки · {target}',
+  'profile.subscription.info': 'Что такое ссылка подписки',
+  'profile.subscription.info.text':
     'Роутер сам забирает по ней обновления профиля. Показывается один раз: после перезапуска сервиса её не восстановить.',
-  'list.subscription.reveal': 'Показать',
-  'list.subscription.copy': 'Скопировать',
-  'list.subscription.copied': 'Скопирована',
-  'list.subscription.copyFailed': 'Не удалось скопировать',
-  'list.subscription.gone':
+  'profile.subscription.reveal': 'Показать',
+  'profile.subscription.copy': 'Скопировать',
+  'profile.subscription.copied': 'Скопирована',
+  'profile.subscription.copyFailed': 'Не удалось скопировать',
+  'profile.subscription.gone':
     'Ссылка подписки была показана при создании профиля.',
-  'list.download': 'Скачать {format}',
-  'list.download.plain': 'Скачать файл',
-  'list.send': 'Отправить на устройство',
-  'list.notice.preparing': 'Готовим подключение…',
-  'list.notice.preparing.body':
+  'profile.download': 'Скачать {format}',
+  'profile.download.plain': 'Скачать файл',
+  'profile.send': 'Отправить на устройство',
+  'profile.notice.preparing': 'Готовим подключение…',
+  'profile.notice.preparing.body':
     'Собираем правила для {target}. После этого появятся доступные способы подключения.',
-  'list.notice.action.failed': 'Изменения не сохранены',
-  'list.notice.action.failed.body':
+  'profile.notice.action.failed': 'Изменения не сохранены',
+  'profile.notice.action.failed.body':
     'Проверьте введённые данные и повторите. Опубликованные файлы не изменены.',
-  'list.rebuild': 'Обновить и пересобрать',
-  'list.rebuild.busy': 'Пересобираем…',
-  'list.file.loading': 'Читаем опубликованный файл…',
-  'list.file.failed': 'Файл не прочитан',
-  'list.file.failed.body': 'Локальный сервис не отдал содержимое.',
-  'list.file.copy': 'Скопировать',
-  'list.file.copied': 'Скопировано',
-  'list.diagnostics.loading': 'Загружаем снимок сборки…',
-  'list.diagnostics.failed': 'Диагностика недоступна',
-  'list.diagnostics.failed.body': 'Снимок сборки не прочитан.',
-  'list.diagnostics.none': 'У этого профиля нет опубликованного файла.',
-  'list.diagnostics.perService': 'Правил по спискам',
-  'list.diagnostics.included': 'Включено',
-  'list.diagnostics.excluded': 'Исключено',
-  'list.diagnostics.empty': 'Исключений нет: в файл вошли все правила.',
-  'list.diagnostics.reason.manual_rule': 'постоянное правило списка',
-  'list.diagnostics.reason.official_rule': 'официальное правило',
-  'list.diagnostics.reason.fresh_dns_observation': 'свежее DNS-наблюдение',
-  'list.diagnostics.reason.fresh_community_observation':
+  'profile.rebuild': 'Обновить и пересобрать',
+  'profile.rebuild.busy': 'Пересобираем…',
+  'profile.file.loading': 'Читаем опубликованный файл…',
+  'profile.file.failed': 'Файл не прочитан',
+  'profile.file.failed.body': 'Локальный сервис не отдал содержимое.',
+  'profile.file.copy': 'Скопировать',
+  'profile.file.copied': 'Скопировано',
+  'profile.diagnostics.loading': 'Загружаем снимок сборки…',
+  'profile.diagnostics.failed': 'Диагностика недоступна',
+  'profile.diagnostics.failed.body': 'Снимок сборки не прочитан.',
+  'profile.diagnostics.none': 'У этого профиля нет опубликованного файла.',
+  'profile.diagnostics.perList': 'Правил по спискам',
+  'profile.diagnostics.included': 'Включено',
+  'profile.diagnostics.excluded': 'Исключено',
+  'profile.diagnostics.empty': 'Исключений нет: в файл вошли все правила.',
+  'profile.diagnostics.reason.manual_rule': 'постоянное правило списка',
+  'profile.diagnostics.reason.official_rule': 'официальное правило',
+  'profile.diagnostics.reason.fresh_dns_observation': 'свежее DNS-наблюдение',
+  'profile.diagnostics.reason.fresh_community_observation':
     'свежее наблюдение сообщества',
-  'list.diagnostics.reason.stale_observation': 'наблюдение устарело',
-  'list.diagnostics.reason.invalid_resource': 'некорректный ресурс',
-  'list.diagnostics.reason.unsupported_by_target': 'формат это не поддерживает',
-  'list.diagnostics.reason.not_required_for_domain_capable_target':
+  'profile.diagnostics.reason.stale_observation': 'наблюдение устарело',
+  'profile.diagnostics.reason.invalid_resource': 'некорректный ресурс',
+  'profile.diagnostics.reason.unsupported_by_target':
+    'формат это не поддерживает',
+  'profile.diagnostics.reason.not_required_for_domain_capable_target':
     'адрес не нужен формату с доменными правилами',
-  'list.diagnostics.reason.wide_network_expansion':
+  'profile.diagnostics.reason.wide_network_expansion':
     'диапазон слишком широк для автоматического добавления',
-  'list.diagnostics.reason.shared_cdn_or_cloud': 'общая CDN- или облачная сеть',
-  'list.diagnostics.reason.critical_direct_conflict':
+  'profile.diagnostics.reason.shared_cdn_or_cloud':
+    'общая CDN- или облачная сеть',
+  'profile.diagnostics.reason.critical_direct_conflict':
     'конфликт с обязательным прямым маршрутом',
-  'list.diagnostics.reason.rule_limit_exceeded': 'превышен лимит правил',
-  'list.diagnostics.reason.optional_component_removed':
+  'profile.diagnostics.reason.rule_limit_exceeded': 'превышен лимит правил',
+  'profile.diagnostics.reason.optional_component_removed':
     'необязательный компонент исключён',
-  'list.diagnostics.reason.lossless_collapsed':
+  'profile.diagnostics.reason.lossless_collapsed':
     'соседние правила объединены без потерь',
-  'list.diagnostics.reason.source_degraded':
+  'profile.diagnostics.reason.source_degraded':
     'использованы сохранённые данные источника',
-  'list.diagnostics.reason.lower_priority_overlap':
+  'profile.diagnostics.reason.lower_priority_overlap':
     'правило принадлежит списку с более высоким приоритетом',
-  'list.diagnostics.reason.special_use_destination':
+  'profile.diagnostics.reason.special_use_destination':
     'служебный или локальный адрес',
-  'list.diagnostics.reason.prefix_too_wide': 'сетевой префикс слишком широк',
-  'list.diagnostics.reason.unknown': 'техническая причина',
-  'list.technical': 'Технические сведения',
-  'list.technical.artifact': 'Идентификатор файла',
-  'list.technical.snapshot': 'Снимок сборки',
-  'list.technical.list': 'Идентификатор профиля',
-  'list.technical.contentType': 'Тип содержимого',
-  'list.technical.size': 'Размер',
-  'list.panel.scope': 'Показано подключение: {target}',
-  'list.edit': 'Изменить',
-  'list.archive': 'В архив',
-  'list.archive.busy': 'Убираем в архив…',
-  'list.restore': 'Вернуть из архива',
-  'list.restore.busy': 'Возвращаем…',
-  'list.notice.archived': 'Профиль в архиве',
-  'list.notice.archived.body':
+  'profile.diagnostics.reason.prefix_too_wide': 'сетевой префикс слишком широк',
+  'profile.diagnostics.reason.unknown': 'техническая причина',
+  'profile.technical': 'Технические сведения',
+  'profile.technical.artifact': 'Идентификатор файла',
+  'profile.technical.snapshot': 'Снимок сборки',
+  'profile.technical.list': 'Идентификатор профиля',
+  'profile.technical.contentType': 'Тип содержимого',
+  'profile.technical.size': 'Размер',
+  'profile.panel.scope': 'Показано подключение: {target}',
+  'profile.edit': 'Изменить',
+  'profile.archive': 'В архив',
+  'profile.archive.busy': 'Убираем в архив…',
+  'profile.restore': 'Вернуть из архива',
+  'profile.restore.busy': 'Возвращаем…',
+  'profile.notice.archived': 'Профиль в архиве',
+  'profile.notice.archived.body':
     'Он не обновляется и не редактируется. Опубликованный файл и ссылка подписки продолжают работать.',
-  'list.notice.imported': 'Восстановлено из предыдущей версии',
-  'list.notice.imported.body':
+  'profile.notice.imported': 'Восстановлено из предыдущей версии',
+  'profile.notice.imported.body':
     'Это прежний профиль Routevane. Его состав и подготовленный способ подключения сохранены; при желании профиль можно переименовать или подключить иначе.',
-  'list.facts.archived': 'В архиве с',
-  'list.status.archived': 'В архиве',
-  'list.schedule': 'Обновление',
-  'list.schedule.default': 'Как в настройках',
-  'list.schedule.followsDefault': 'Как в настройках — {rule}',
-  'list.schedule.lastFailed': '{time}, с ошибкой',
-  'list.schedule.failedNote':
+  'profile.facts.archived': 'В архиве с',
+  'profile.status.archived': 'В архиве',
+  'profile.schedule': 'Обновление',
+  'profile.schedule.default': 'Как в настройках',
+  'profile.schedule.followsDefault': 'Как в настройках — {rule}',
+  'profile.schedule.lastFailed': '{time}, с ошибкой',
+  'profile.schedule.failedNote':
     'Последнее автообновление не удалось. Прежний файл продолжает работать, следующая попытка — по расписанию.',
-  'list.facts.schedule': 'Расписание',
-  'list.facts.refreshed': 'Обновлён',
-  'list.edit.name': 'Название',
-  'list.edit.save': 'Сохранить и пересобрать',
-  'list.edit.saving': 'Сохраняем…',
-  'list.edit.effect': 'Что произойдёт при сохранении',
-  'list.edit.note': 'После сохранения все подключения профиля пересобираются.',
-  'list.composition.services': 'Списки профиля',
-  'list.composition.empty': 'В профиле пока нет списков.',
-  'list.composition.add': 'Добавить списки',
-  'list.composition.hide': 'Скрыть',
-  'list.composition.hide.aria': 'Скрыть каталог',
-  'list.composition.remove.aria': 'Убрать {service} из профиля',
-  'list.priority.title': 'В профиле',
-  'list.priority.body': 'Порядок списков задаёт приоритет.',
-  'list.priority.count': {
+  'profile.facts.schedule': 'Расписание',
+  'profile.facts.refreshed': 'Обновлён',
+  'profile.edit.name': 'Название',
+  'profile.edit.save': 'Сохранить и пересобрать',
+  'profile.edit.saving': 'Сохраняем…',
+  'profile.edit.effect': 'Что произойдёт при сохранении',
+  'profile.edit.note':
+    'После сохранения все подключения профиля пересобираются.',
+  'profile.composition.lists': 'Списки профиля',
+  'profile.composition.empty': 'В профиле пока нет списков.',
+  'profile.composition.add': 'Добавить списки',
+  'profile.composition.hide': 'Скрыть',
+  'profile.composition.hide.aria': 'Скрыть каталог',
+  'profile.composition.remove.aria': 'Убрать {list} из профиля',
+  'profile.priority.title': 'В профиле',
+  'profile.priority.body': 'Порядок списков задаёт приоритет.',
+  'profile.priority.count': {
     few: '{count} списка',
     many: '{count} списков',
     one: '{count} список',
     other: '{count} списка',
   },
-  'list.priority.empty': 'Выберите списки в таблице.',
-  'list.overlap.unavailable': 'Добавьте выход, чтобы проверить пересечения',
-  'list.priority.move.aria':
+  'profile.priority.empty': 'Выберите списки в таблице.',
+  'profile.overlap.unavailable': 'Добавьте выход, чтобы проверить пересечения',
+  'profile.priority.move.aria':
     'Изменить приоритет списка {list}, позиция {position}',
-  'list.forecast.overflow': '{target}: ≈ {count} из {max} — не вместится',
+  'profile.forecast.overflow': '{target}: ≈ {count} из {max} — не вместится',
 
   'outputs.empty': 'Подключений пока нет',
   'outputs.empty.body':
@@ -720,8 +721,8 @@ const ru: Dictionary = {
   'outputs.add.none': 'Все доступные форматы уже добавлены.',
 
   'send.title': 'Отправка на устройство',
-  'send.route.failed': 'Профиль недоступен',
-  'send.route.failed.body': 'Не удалось прочитать профиль. Повторите запрос.',
+  'send.profile.failed': 'Профиль недоступен',
+  'send.profile.failed.body': 'Не удалось прочитать профиль. Повторите запрос.',
   'send.connection.missing': 'Подключение не найдено',
   'send.connection.missing.body': 'В этом профиле нет такого подключения.',
   'send.for': 'Профиль: {name}',
@@ -858,7 +859,7 @@ const ru: Dictionary = {
     many: '{count} своих источников',
     other: '{count} своего источника',
   },
-  'configTransfer.count.routes': {
+  'configTransfer.count.profiles': {
     one: '{count} профиль',
     few: '{count} профиля',
     many: '{count} профилей',
@@ -938,8 +939,9 @@ const en: Dictionary = {
   'forecast.recalculate': 'Recalculate',
   'choice.search': 'Search',
   'choice.empty': 'Nothing found',
-  'servicePicker.selectVisible': 'Select or clear all visible lists',
-  'list.priority.unselected': 'Priority of {list}: add it to the profile first',
+  'listPicker.selectVisible': 'Select or clear all visible lists',
+  'profile.priority.unselected':
+    'Priority of {list}: add it to the profile first',
   'shell.collapse': 'Collapse sidebar',
   'shell.expand': 'Expand sidebar',
   'update.available': 'Update',
@@ -985,7 +987,7 @@ const en: Dictionary = {
   'overlaps.rule.prefix6': 'IPv6 network',
   'shell.product': 'Routevane',
   'shell.nav': 'Sections',
-  'shell.nav.library': 'Profiles',
+  'shell.nav.profiles': 'Profiles',
   'shell.nav.lists': 'Lists',
   'shell.nav.connections': 'Connections',
 
@@ -1043,75 +1045,75 @@ const en: Dictionary = {
   'shell.nav.settings': 'Settings',
   'shell.skip': 'Skip to content',
 
-  'library.title': 'Profiles',
-  'library.new': 'Build a profile',
-  'library.loading': 'Loading profiles…',
-  'library.failed': 'Profiles are unavailable',
-  'library.failed.body':
+  'profiles.title': 'Profiles',
+  'profiles.new': 'Build a profile',
+  'profiles.loading': 'Loading profiles…',
+  'profiles.failed': 'Profiles are unavailable',
+  'profiles.failed.body':
     'The local service did not answer. Check that Routevane is running.',
-  'library.empty': 'No profiles yet',
-  'library.empty.body':
+  'profiles.empty': 'No profiles yet',
+  'profiles.empty.body':
     'Choose lists and a device; Routevane will prepare the rules and show the available connection methods.',
-  'library.column.name': 'Profile',
-  'library.column.outputs': 'Connected to',
-  'library.column.updated': 'Content from',
-  'library.column.actions': 'Actions',
-  'library.menu': 'Actions for profile {name}',
-  'library.more': 'More',
-  'library.open': 'Open',
-  'library.configure': 'Open profile',
-  'library.connections': 'Connections and formats',
-  'library.drawer': 'Profile {name}',
-  'library.copy': 'Copy contents',
-  'library.copied': 'Contents copied',
-  'library.copyFailed': 'Copying failed',
-  'library.send': 'Send to device',
-  'library.noArtifact': 'No published file',
-  'library.download': 'Download {format}',
-  'library.download.plain': 'Download the file',
-  'library.download.aria': 'Download the file of profile {name}',
-  'library.download.menu': 'Download',
-  'library.download.menu.aria': 'Choose a download format for profile {name}',
-  'library.download.option': '{target} · {format}',
-  'library.noOutputs': 'No connections',
-  'library.export.item': 'Download · {format}',
-  'library.export.failed': 'The file was not prepared',
-  'library.export.failed.body':
+  'profiles.column.name': 'Profile',
+  'profiles.column.outputs': 'Connected to',
+  'profiles.column.updated': 'Content from',
+  'profiles.column.actions': 'Actions',
+  'profiles.menu': 'Actions for profile {name}',
+  'profiles.more': 'More',
+  'profiles.open': 'Open',
+  'profiles.configure': 'Open profile',
+  'profiles.connections': 'Connections and formats',
+  'profiles.drawer': 'Profile {name}',
+  'profiles.copy': 'Copy contents',
+  'profiles.copied': 'Contents copied',
+  'profiles.copyFailed': 'Copying failed',
+  'profiles.send': 'Send to device',
+  'profiles.noArtifact': 'No published file',
+  'profiles.download': 'Download {format}',
+  'profiles.download.plain': 'Download the file',
+  'profiles.download.aria': 'Download the file of profile {name}',
+  'profiles.download.menu': 'Download',
+  'profiles.download.menu.aria': 'Choose a download format for profile {name}',
+  'profiles.download.option': '{target} · {format}',
+  'profiles.noOutputs': 'No connections',
+  'profiles.export.item': 'Download · {format}',
+  'profiles.export.failed': 'The file was not prepared',
+  'profiles.export.failed.body':
     'Try another format or refresh the profile data.',
-  'library.sendTarget': 'Send to {target}',
-  'library.sendTarget.aria': 'Send profile {name} to {target}',
-  'library.chooseDevice': 'Choose a device',
-  'library.chooseDevice.aria': 'Choose a device for profile {name}',
-  'library.imported.title': {
+  'profiles.sendTarget': 'Send to {target}',
+  'profiles.sendTarget.aria': 'Send profile {name} to {target}',
+  'profiles.chooseDevice': 'Choose a device',
+  'profiles.chooseDevice.aria': 'Choose a device for profile {name}',
+  'profiles.imported.title': {
     one: '{count} profile restored from the previous version',
     other: '{count} profiles restored from the previous version',
   },
-  'library.imported.body':
+  'profiles.imported.body':
     'Each former profile was preserved as a separate profile. Open a profile to give it a clear name and review its contents.',
-  'library.imported.name': 'Restored profile {number}',
-  'library.archive': 'Archive',
-  'library.archived': 'Archive',
-  'library.archived.count': {
+  'profiles.imported.name': 'Restored profile {number}',
+  'profiles.archive': 'Archive',
+  'profiles.archived': 'Archive',
+  'profiles.archived.count': {
     one: '{count} profile',
     other: '{count} profiles',
   },
-  'library.archived.body':
+  'profiles.archived.body':
     'These profiles no longer update. Their files and subscription links keep working.',
-  'library.archived.since': 'Archived since {time}',
-  'library.allArchived': 'Every profile is archived',
-  'library.allArchived.body':
+  'profiles.archived.since': 'Archived since {time}',
+  'profiles.allArchived': 'Every profile is archived',
+  'profiles.allArchived.body':
     'Restore one from the archive, or build a new one.',
-  'library.restore': 'Restore',
-  'library.restore.aria': 'Restore profile {name} from the archive',
+  'profiles.restore': 'Restore',
+  'profiles.restore.aria': 'Restore profile {name} from the archive',
 
   'create.title': 'New profile',
-  'create.services': 'Lists',
+  'create.lists': 'Lists',
   'create.categories': 'Categories',
   'create.category.size': {
     one: '{count} list',
     other: '{count} lists',
   },
-  'create.service.fromCategory': 'Already in a category',
+  'create.list.fromCategory': 'Already in a category',
   'create.search': 'Find a list',
   'create.noMatches': 'Nothing matches “{query}”',
   'create.resolved': {
@@ -1172,47 +1174,47 @@ const en: Dictionary = {
   'category.torrents': 'Torrents',
   'category.work': 'Work',
 
-  'servicePicker.collections': 'Categories',
-  'servicePicker.configure': 'Contents',
-  'servicePicker.configure.aria': 'Show the contents of category {category}',
-  'servicePicker.back': 'All categories',
-  'servicePicker.detail.title': 'Lists: {category}',
-  'servicePicker.other': 'Uncategorized',
-  'servicePicker.filter.more': 'More',
-  'servicePicker.filter.label': 'Filter by category',
-  'servicePicker.filter.all': 'All categories',
-  'servicePicker.future.auto': 'New lists: automatic',
-  'servicePicker.future.manual': 'New lists: manual',
-  'servicePicker.future.enable':
+  'listPicker.collections': 'Categories',
+  'listPicker.configure': 'Contents',
+  'listPicker.configure.aria': 'Show the contents of category {category}',
+  'listPicker.back': 'All categories',
+  'listPicker.detail.title': 'Lists: {category}',
+  'listPicker.other': 'Uncategorized',
+  'listPicker.filter.more': 'More',
+  'listPicker.filter.label': 'Filter by category',
+  'listPicker.filter.all': 'All categories',
+  'listPicker.future.auto': 'New lists: automatic',
+  'listPicker.future.manual': 'New lists: manual',
+  'listPicker.future.enable':
     'Automatically include new lists in this category',
-  'servicePicker.future.disable': 'Select new lists manually',
-  'servicePicker.follow': 'Follow “{category}”',
-  'servicePicker.follow.members': {
+  'listPicker.future.disable': 'Select new lists manually',
+  'listPicker.follow': 'Follow “{category}”',
+  'listPicker.follow.members': {
     one: '{count} list',
     other: '{count} lists',
   },
-  'servicePicker.column.include': 'Include',
-  'servicePicker.column.list': 'List',
-  'servicePicker.column.category': 'Category',
-  'servicePicker.column.rules': 'Rules',
-  'servicePicker.column.overlaps': 'Overlaps',
-  'servicePicker.column.open': 'Open',
-  'servicePicker.group.selected': 'Selected for the profile',
-  'servicePicker.group.available': 'Available lists',
-  'servicePicker.include.aria': 'Add {list} to the profile',
-  'servicePicker.exclude.aria': 'Remove {list} from the profile',
-  'servicePicker.rules.pending': 'Calculating…',
-  'servicePicker.rules.unknown': 'No forecast',
-  'servicePicker.overlap.pending': 'Calculating overlaps…',
-  'servicePicker.overlap.unavailable': 'Choose a format to check overlaps',
-  'servicePicker.overlap.unknown': 'Overlaps unknown',
-  'servicePicker.overlap.none': 'None',
+  'listPicker.column.include': 'Include',
+  'listPicker.column.list': 'List',
+  'listPicker.column.category': 'Category',
+  'listPicker.column.rules': 'Rules',
+  'listPicker.column.overlaps': 'Overlaps',
+  'listPicker.column.open': 'Open',
+  'listPicker.group.selected': 'Selected for the profile',
+  'listPicker.group.available': 'Available lists',
+  'listPicker.include.aria': 'Add {list} to the profile',
+  'listPicker.exclude.aria': 'Remove {list} from the profile',
+  'listPicker.rules.pending': 'Calculating…',
+  'listPicker.rules.unknown': 'No forecast',
+  'listPicker.overlap.pending': 'Calculating overlaps…',
+  'listPicker.overlap.unavailable': 'Choose a format to check overlaps',
+  'listPicker.overlap.unknown': 'Overlaps unknown',
+  'listPicker.overlap.none': 'None',
   'create.settings': 'Profile settings',
-  'servicePicker.column.priority': 'Priority',
-  'servicePicker.overlap.legend':
+  'listPicker.column.priority': 'Priority',
+  'listPicker.overlap.legend':
     'Number of other selected lists with shared rules. 0 means no overlaps; a dash means no calculation or an unselected list.',
-  'servicePicker.overlap.tag': 'Overlap: {list}',
-  'servicePicker.overlap.heading': 'Overlaps with lists',
+  'listPicker.overlap.tag': 'Overlap: {list}',
+  'listPicker.overlap.heading': 'Overlaps with lists',
 
   'lists.title': 'Lists',
   'lists.loading': 'Loading the lists…',
@@ -1277,108 +1279,108 @@ const en: Dictionary = {
   'lists.priority.failed.body':
     'Check that Routevane is running and retry the save.',
 
-  'list.breadcrumb': 'Path',
+  'profile.breadcrumb': 'Path',
 
-  'serviceCard.new': 'New list',
+  'listCard.new': 'New list',
   // A custom list is still defined by domains alone, so the creation form keeps
   // its own hint and its own bound; a catalog list's contents are wider.
-  'serviceCard.new.domains.field': 'Domains',
-  'serviceCard.new.domains.hint':
+  'listCard.new.domains.field': 'Domains',
+  'listCard.new.domains.hint':
     'One domain per line. Subdomains are covered automatically.',
-  'serviceCard.new.domains.invalid': 'Line {line} does not look like a domain.',
-  'serviceCard.new.domains.limit': 'At most 64 domains at a time.',
-  'serviceCard.title.field': 'Name',
-  'serviceCard.title.invalid': 'Name the list.',
-  'serviceCard.title.save': 'Rename',
-  'serviceCard.saving': 'Saving…',
-  'serviceCard.create': 'Create and add',
-  'serviceCard.save.failed':
+  'listCard.new.domains.invalid': 'Line {line} does not look like a domain.',
+  'listCard.new.domains.limit': 'At most 64 domains at a time.',
+  'listCard.title.field': 'Name',
+  'listCard.title.invalid': 'Name the list.',
+  'listCard.title.save': 'Rename',
+  'listCard.saving': 'Saving…',
+  'listCard.create': 'Create and add',
+  'listCard.save.failed':
     'The change could not be saved. Check that the local Routevane service is running and try again.',
-  'serviceCard.sources': 'Automatic sources',
-  'serviceCard.sources.none': 'This list has no automatic sources.',
-  'serviceCard.sources.open': 'Sources · {count}',
-  'serviceCard.sources.configure': 'Configure sources',
-  'serviceCard.source.custom': 'Your feed',
-  'serviceCard.refresh': 'Refresh from sources',
-  'serviceCard.refresh.busy': 'Refreshing…',
-  'serviceCard.refresh.skipped': {
+  'listCard.sources': 'Automatic sources',
+  'listCard.sources.none': 'This list has no automatic sources.',
+  'listCard.sources.open': 'Sources · {count}',
+  'listCard.sources.configure': 'Configure sources',
+  'listCard.source.custom': 'Your feed',
+  'listCard.refresh': 'Refresh from sources',
+  'listCard.refresh.busy': 'Refreshing…',
+  'listCard.refresh.skipped': {
     one: '{count} source entry skipped',
     other: '{count} source entries skipped',
   },
-  'serviceCard.observing': 'Reading the sources…',
-  'serviceCard.refresh.ready': 'Sources read',
-  'serviceCard.refresh.waiting': 'Sources not read yet',
-  'serviceCard.refresh.none': 'No automatic sources',
-  'serviceCard.refresh.failed.source': 'Sources unavailable. Entries kept.',
-  'serviceCard.refresh.failed.generic': 'Unknown refresh error. Entries kept.',
-  'serviceCard.domains.disabledInLibrary': 'Disabled in library',
-  'serviceCard.action.failed': 'The change could not be applied. Try again.',
-  'serviceCard.mutation.pending': 'Saving change…',
-  'serviceCard.mutation.failed': 'The change was not applied.',
-  'serviceCard.mutation.retry': 'Retry',
-  'serviceCard.mutation.retry.aria': 'Retry the change for {entry}',
-  'serviceCard.feed.add': 'Add a source',
-  'serviceCard.feed.url': 'Feed address',
-  'serviceCard.feed.url.required': 'Enter the feed address.',
-  'serviceCard.feed.hint':
+  'listCard.observing': 'Reading the sources…',
+  'listCard.refresh.ready': 'Sources read',
+  'listCard.refresh.waiting': 'Sources not read yet',
+  'listCard.refresh.none': 'No automatic sources',
+  'listCard.refresh.failed.source': 'Sources unavailable. Entries kept.',
+  'listCard.refresh.failed.generic': 'Unknown refresh error. Entries kept.',
+  'listCard.domains.disabledInLibrary': 'Disabled in library',
+  'listCard.action.failed': 'The change could not be applied. Try again.',
+  'listCard.mutation.pending': 'Saving change…',
+  'listCard.mutation.failed': 'The change was not applied.',
+  'listCard.mutation.retry': 'Retry',
+  'listCard.mutation.retry.aria': 'Retry the change for {entry}',
+  'listCard.feed.add': 'Add a source',
+  'listCard.feed.url': 'Feed address',
+  'listCard.feed.url.required': 'Enter the feed address.',
+  'listCard.feed.hint':
     'An HTTPS address of a file with domains or networks. It is read on every refresh.',
-  'serviceCard.feed.format': 'Format',
-  'serviceCard.feed.format.text': 'Text — one entry per line',
-  'serviceCard.feed.format.domainList': 'domain-list (v2fly)',
-  'serviceCard.feed.format.json': 'JSON array',
-  'serviceCard.feed.submit': 'Add',
-  'serviceCard.feed.failed':
+  'listCard.feed.format': 'Format',
+  'listCard.feed.format.text': 'Text — one entry per line',
+  'listCard.feed.format.domainList': 'domain-list (v2fly)',
+  'listCard.feed.format.json': 'JSON array',
+  'listCard.feed.submit': 'Add',
+  'listCard.feed.failed':
     'The feed was not added. A valid public HTTPS address is required.',
-  'serviceCard.feed.remove': 'Remove',
-  'serviceCard.feed.remove.aria': 'Remove source {source}',
-  'serviceCard.domains': 'List contents',
-  'serviceCard.domains.info': 'What this table holds',
-  'serviceCard.domains.intro':
+  'listCard.feed.remove': 'Remove',
+  'listCard.feed.remove.aria': 'Remove source {source}',
+  'listCard.domains': 'List contents',
+  'listCard.domains.info': 'What this table holds',
+  'listCard.domains.intro':
     'Domains, IP addresses and networks. A switched-off row leaves the files on the next rebuild.',
-  'serviceCard.domains.count': {
+  'listCard.domains.count': {
     one: '{count} entry on',
     other: '{count} entries on',
   },
-  'serviceCard.domains.hint':
+  'listCard.domains.hint':
     'One per line: a domain, an IP address or a CIDR. Subdomains are included automatically.',
-  'serviceCard.domains.field': 'Entries',
-  'serviceCard.domains.invalid':
+  'listCard.domains.field': 'Entries',
+  'listCard.domains.invalid':
     'Line {line} is not a domain, an IP address, or a network.',
-  'serviceCard.domains.limit': 'At most 1024 entries at a time.',
-  'serviceCard.domains.required': 'List at least one entry.',
-  'serviceCard.domains.empty': 'No entries yet.',
-  'serviceCard.domains.add': 'Add entries',
-  'serviceCard.domains.submit': 'Add',
-  'serviceCard.import': 'Import a file',
-  'serviceCard.import.none': 'No file selected',
-  'serviceCard.import.hint':
+  'listCard.domains.limit': 'At most 1024 entries at a time.',
+  'listCard.domains.required': 'List at least one entry.',
+  'listCard.domains.empty': 'No entries yet.',
+  'listCard.domains.add': 'Add entries',
+  'listCard.domains.submit': 'Add',
+  'listCard.import': 'Import a file',
+  'listCard.import.none': 'No file selected',
+  'listCard.import.hint':
     'A plain text file, a JSON array, or a .bat of route commands.',
-  'serviceCard.import.empty': 'The file contains no recognizable entries.',
-  'serviceCard.import.skipped': {
+  'listCard.import.empty': 'The file contains no recognizable entries.',
+  'listCard.import.skipped': {
     one: '{count} line skipped',
     other: '{count} lines skipped',
   },
-  'serviceCard.filter': 'Search the contents',
-  'serviceCard.filter.empty': 'Nothing found.',
-  'serviceCard.origin.catalog': 'catalog',
-  'serviceCard.origin.manual': 'by hand',
-  'serviceCard.origin.missing': 'off; not currently offered',
-  'serviceCard.loading': 'Loading the list contents…',
-  'serviceCard.failed': 'The list contents did not load',
-  'serviceCard.failed.body':
+  'listCard.filter': 'Search the contents',
+  'listCard.filter.empty': 'Nothing found.',
+  'listCard.origin.catalog': 'catalog',
+  'listCard.origin.manual': 'by hand',
+  'listCard.origin.missing': 'off; not currently offered',
+  'listCard.loading': 'Loading the list contents…',
+  'listCard.failed': 'The list contents did not load',
+  'listCard.failed.body':
     'Check that the local Routevane service is running and try again.',
-  'serviceCard.pending': 'applies when the profile is saved',
-  'serviceCard.membership.in': 'In profile “{name}”',
-  'serviceCard.membership.out': 'Not in profile “{name}”',
-  'serviceCard.membership.in.unnamed': 'In this profile',
-  'serviceCard.membership.out.unnamed': 'Not in this profile',
-  'serviceCard.openLibrary': 'Open in the library',
-  'serviceCard.remove': 'Delete the list',
-  'serviceDetail.open.aria': 'Open the contents of list {service}',
-  'serviceDetail.source.http': 'External feed',
-  'serviceDetail.source.dns': 'DNS observation',
-  'serviceDetail.add': 'Add to profile',
-  'serviceDetail.remove': 'Remove from profile',
+  'listCard.pending': 'applies when the profile is saved',
+  'listCard.membership.in': 'In profile “{name}”',
+  'listCard.membership.out': 'Not in profile “{name}”',
+  'listCard.membership.in.unnamed': 'In this profile',
+  'listCard.membership.out.unnamed': 'Not in this profile',
+  'listCard.openLibrary': 'Open in the library',
+  'listCard.remove': 'Delete the list',
+  'listDetail.open.aria': 'Open the contents of list {list}',
+  'listDetail.source.http': 'External feed',
+  'listDetail.source.dns': 'DNS observation',
+  'listDetail.add': 'Add to profile',
+  'listDetail.remove': 'Remove from profile',
 
   'export.format.raw-json': 'JSON · all rules',
   'export.format.keenetic-route-bat': 'BAT · routes',
@@ -1388,175 +1390,176 @@ const en: Dictionary = {
   'export.format.amnezia-split-tunnel-json': 'JSON · split tunneling',
   'export.format.singbox-ruleset-json': 'JSON · rule-set',
 
-  'list.loading': 'Loading the profile…',
-  'list.missing': 'Profile not found',
-  'list.missing.body': 'The local service does not know this profile.',
-  'list.status.ready': 'Files published',
-  'list.status.warning': 'Published with notes',
-  'list.status.empty': 'No published files',
-  'list.status.failed': 'Refresh failed',
-  'list.tab.overview': 'Overview',
-  'list.tab.composition': 'Contents',
-  'list.tab.outputs': 'Connection',
-  'list.tab.file': 'File',
-  'list.tab.diagnostics': 'Diagnostics',
-  'list.tabs': 'Profile sections',
-  'list.facts.services': 'Lists',
-  'list.facts.outputs': 'Connections',
-  'list.facts.updated': 'Content from',
-  'list.facts.rules': 'Rules',
-  'list.rules': {
+  'profile.loading': 'Loading the profile…',
+  'profile.missing': 'Profile not found',
+  'profile.missing.body': 'The local service does not know this profile.',
+  'profile.status.ready': 'Files published',
+  'profile.status.warning': 'Published with notes',
+  'profile.status.empty': 'No published files',
+  'profile.status.failed': 'Refresh failed',
+  'profile.tab.overview': 'Overview',
+  'profile.tab.composition': 'Contents',
+  'profile.tab.outputs': 'Connection',
+  'profile.tab.file': 'File',
+  'profile.tab.diagnostics': 'Diagnostics',
+  'profile.tabs': 'Profile sections',
+  'profile.facts.lists': 'Lists',
+  'profile.facts.outputs': 'Connections',
+  'profile.facts.updated': 'Content from',
+  'profile.facts.rules': 'Rules',
+  'profile.rules': {
     one: '{count} rule',
     other: '{count} rules',
   },
-  'list.lines': {
+  'profile.lines': {
     one: '{count} line',
     other: '{count} lines',
   },
-  'list.notice.partial': 'Coverage is incomplete',
-  'list.notice.partial.body':
+  'profile.notice.partial': 'Coverage is incomplete',
+  'profile.notice.partial.body':
     'The format does not accept {count} of the built rules. Diagnostics names them.',
-  'list.notice.degraded': 'A data source was unavailable',
-  'list.notice.degraded.body':
+  'profile.notice.degraded': 'A data source was unavailable',
+  'profile.notice.degraded.body':
     'Previously stored addresses were used ({count}). Rebuild the profile later.',
-  'list.notice.stale': 'Showing the previous verified file',
-  'list.notice.stale.body':
+  'profile.notice.stale': 'Showing the previous verified file',
+  'profile.notice.stale.body':
     'The new build did not finish — the last file stands.',
-  'list.notice.build.failed': 'Format not updated',
-  'list.notice.build.ruleLimit.body':
+  'profile.notice.build.failed': 'Format not updated',
+  'profile.notice.build.ruleLimit.body':
     'This needs {projected} rules, but the format accepts at most {maximum}. Remove some lists or choose another format.',
-  'list.notice.build.partial_coverage.body':
+  'profile.notice.build.partial_coverage.body':
     'A required part of the profile is not covered. Check its composition and data sources.',
-  'list.notice.build.target_changed.body':
+  'profile.notice.build.target_changed.body':
     'The format definition changed. Add the format again after checking the catalog.',
-  'list.notice.build.list_archived.body':
+  'profile.notice.build.list_archived.body':
     'An archived profile cannot be rebuilt. Restore it first.',
-  'list.notice.build.source_unavailable.body':
+  'profile.notice.build.source_unavailable.body':
     'The build did not have enough current data. Refresh again later.',
-  'list.notice.build.profile_mismatch.body':
+  'profile.notice.build.profile_mismatch.body':
     'Stored data belongs to another catalog version. Refresh the profile.',
-  'list.notice.build.preflight_failed.body':
+  'profile.notice.build.preflight_failed.body':
     'The plan did not pass validation. Any previous published file is unchanged.',
-  'list.notice.build.artifact_unavailable.body':
+  'profile.notice.build.artifact_unavailable.body':
     'The verified file is unavailable. Rebuild it.',
-  'list.notice.build.storage_failed.body':
+  'profile.notice.build.storage_failed.body':
     'The file could not be written safely. Check the data directory and retry.',
-  'list.notice.build.build_failed.body':
+  'profile.notice.build.build_failed.body':
     'The build did not finish. Retry; the previous file is unchanged.',
-  'list.notice.build.unknown.body':
+  'profile.notice.build.unknown.body':
     'The build did not finish. Any previous published file is unchanged.',
-  'list.subscription': 'Subscription link · {target}',
-  'list.subscription.info': 'What the subscription link is',
-  'list.subscription.info.text':
+  'profile.subscription': 'Subscription link · {target}',
+  'profile.subscription.info': 'What the subscription link is',
+  'profile.subscription.info.text':
     'The router fetches profile updates through it on its own. It is shown once: a service restart makes it unrecoverable.',
-  'list.subscription.reveal': 'Show',
-  'list.subscription.copy': 'Copy',
-  'list.subscription.copied': 'Copied',
-  'list.subscription.copyFailed': 'Copying failed',
-  'list.subscription.gone':
+  'profile.subscription.reveal': 'Show',
+  'profile.subscription.copy': 'Copy',
+  'profile.subscription.copied': 'Copied',
+  'profile.subscription.copyFailed': 'Copying failed',
+  'profile.subscription.gone':
     'The subscription link was shown when the profile was created.',
-  'list.download': 'Download {format}',
-  'list.download.plain': 'Download the file',
-  'list.send': 'Send to device',
-  'list.notice.preparing': 'Preparing the connection…',
-  'list.notice.preparing.body':
+  'profile.download': 'Download {format}',
+  'profile.download.plain': 'Download the file',
+  'profile.send': 'Send to device',
+  'profile.notice.preparing': 'Preparing the connection…',
+  'profile.notice.preparing.body':
     'Building the rules for {target}. The available connection methods will appear next.',
-  'list.notice.action.failed': 'Changes were not saved',
-  'list.notice.action.failed.body':
+  'profile.notice.action.failed': 'Changes were not saved',
+  'profile.notice.action.failed.body':
     'Check the entered values and try again. Published files were not changed.',
-  'list.rebuild': 'Refresh and rebuild',
-  'list.rebuild.busy': 'Rebuilding…',
-  'list.file.loading': 'Reading the published file…',
-  'list.file.failed': 'The file was not read',
-  'list.file.failed.body': 'The local service did not return the contents.',
-  'list.file.copy': 'Copy',
-  'list.file.copied': 'Copied',
-  'list.diagnostics.loading': 'Loading the build snapshot…',
-  'list.diagnostics.failed': 'Diagnostics unavailable',
-  'list.diagnostics.failed.body': 'The build snapshot was not read.',
-  'list.diagnostics.none': 'This profile has no published file.',
-  'list.diagnostics.perService': 'Rules per list',
-  'list.diagnostics.included': 'Included',
-  'list.diagnostics.excluded': 'Excluded',
-  'list.diagnostics.empty': 'No exclusions: every rule entered the file.',
-  'list.diagnostics.reason.manual_rule': 'permanent list rule',
-  'list.diagnostics.reason.official_rule': 'official rule',
-  'list.diagnostics.reason.fresh_dns_observation': 'fresh DNS observation',
-  'list.diagnostics.reason.fresh_community_observation':
+  'profile.rebuild': 'Refresh and rebuild',
+  'profile.rebuild.busy': 'Rebuilding…',
+  'profile.file.loading': 'Reading the published file…',
+  'profile.file.failed': 'The file was not read',
+  'profile.file.failed.body': 'The local service did not return the contents.',
+  'profile.file.copy': 'Copy',
+  'profile.file.copied': 'Copied',
+  'profile.diagnostics.loading': 'Loading the build snapshot…',
+  'profile.diagnostics.failed': 'Diagnostics unavailable',
+  'profile.diagnostics.failed.body': 'The build snapshot was not read.',
+  'profile.diagnostics.none': 'This profile has no published file.',
+  'profile.diagnostics.perList': 'Rules per list',
+  'profile.diagnostics.included': 'Included',
+  'profile.diagnostics.excluded': 'Excluded',
+  'profile.diagnostics.empty': 'No exclusions: every rule entered the file.',
+  'profile.diagnostics.reason.manual_rule': 'permanent list rule',
+  'profile.diagnostics.reason.official_rule': 'official rule',
+  'profile.diagnostics.reason.fresh_dns_observation': 'fresh DNS observation',
+  'profile.diagnostics.reason.fresh_community_observation':
     'fresh community observation',
-  'list.diagnostics.reason.stale_observation': 'stale observation',
-  'list.diagnostics.reason.invalid_resource': 'invalid resource',
-  'list.diagnostics.reason.unsupported_by_target':
+  'profile.diagnostics.reason.stale_observation': 'stale observation',
+  'profile.diagnostics.reason.invalid_resource': 'invalid resource',
+  'profile.diagnostics.reason.unsupported_by_target':
     'not supported by this format',
-  'list.diagnostics.reason.not_required_for_domain_capable_target':
+  'profile.diagnostics.reason.not_required_for_domain_capable_target':
     'address is unnecessary for a domain-capable format',
-  'list.diagnostics.reason.wide_network_expansion':
+  'profile.diagnostics.reason.wide_network_expansion':
     'network is too broad to add automatically',
-  'list.diagnostics.reason.shared_cdn_or_cloud': 'shared CDN or cloud network',
-  'list.diagnostics.reason.critical_direct_conflict':
+  'profile.diagnostics.reason.shared_cdn_or_cloud':
+    'shared CDN or cloud network',
+  'profile.diagnostics.reason.critical_direct_conflict':
     'conflicts with a required direct route',
-  'list.diagnostics.reason.rule_limit_exceeded': 'rule limit exceeded',
-  'list.diagnostics.reason.optional_component_removed':
+  'profile.diagnostics.reason.rule_limit_exceeded': 'rule limit exceeded',
+  'profile.diagnostics.reason.optional_component_removed':
     'optional component removed',
-  'list.diagnostics.reason.lossless_collapsed':
+  'profile.diagnostics.reason.lossless_collapsed':
     'adjacent rules combined without loss',
-  'list.diagnostics.reason.source_degraded': 'using saved source data',
-  'list.diagnostics.reason.lower_priority_overlap':
+  'profile.diagnostics.reason.source_degraded': 'using saved source data',
+  'profile.diagnostics.reason.lower_priority_overlap':
     'the rule belongs to a higher-priority list',
-  'list.diagnostics.reason.special_use_destination':
+  'profile.diagnostics.reason.special_use_destination':
     'special-use or local address',
-  'list.diagnostics.reason.prefix_too_wide': 'network prefix is too broad',
-  'list.diagnostics.reason.unknown': 'technical reason',
-  'list.technical': 'Technical details',
-  'list.technical.artifact': 'File identifier',
-  'list.technical.snapshot': 'Build snapshot',
-  'list.technical.list': 'Profile identifier',
-  'list.technical.contentType': 'Content type',
-  'list.technical.size': 'Size',
-  'list.panel.scope': 'Showing connection: {target}',
-  'list.edit': 'Edit',
-  'list.archive': 'Archive',
-  'list.archive.busy': 'Archiving…',
-  'list.restore': 'Restore',
-  'list.restore.busy': 'Restoring…',
-  'list.notice.archived': 'This profile is archived',
-  'list.notice.archived.body':
+  'profile.diagnostics.reason.prefix_too_wide': 'network prefix is too broad',
+  'profile.diagnostics.reason.unknown': 'technical reason',
+  'profile.technical': 'Technical details',
+  'profile.technical.artifact': 'File identifier',
+  'profile.technical.snapshot': 'Build snapshot',
+  'profile.technical.list': 'Profile identifier',
+  'profile.technical.contentType': 'Content type',
+  'profile.technical.size': 'Size',
+  'profile.panel.scope': 'Showing connection: {target}',
+  'profile.edit': 'Edit',
+  'profile.archive': 'Archive',
+  'profile.archive.busy': 'Archiving…',
+  'profile.restore': 'Restore',
+  'profile.restore.busy': 'Restoring…',
+  'profile.notice.archived': 'This profile is archived',
+  'profile.notice.archived.body':
     'It no longer updates and cannot be edited. Its published file and subscription link keep working.',
-  'list.notice.imported': 'Restored from the previous version',
-  'list.notice.imported.body':
+  'profile.notice.imported': 'Restored from the previous version',
+  'profile.notice.imported.body':
     'This was a Routevane profile. Its contents and prepared connection method were preserved; you can rename it or connect it another way.',
-  'list.facts.archived': 'Archived since',
-  'list.status.archived': 'Archived',
-  'list.schedule': 'Refresh',
-  'list.schedule.default': 'As in settings',
-  'list.schedule.followsDefault': 'As in settings — {rule}',
-  'list.schedule.lastFailed': '{time}, with an error',
-  'list.schedule.failedNote':
+  'profile.facts.archived': 'Archived since',
+  'profile.status.archived': 'Archived',
+  'profile.schedule': 'Refresh',
+  'profile.schedule.default': 'As in settings',
+  'profile.schedule.followsDefault': 'As in settings — {rule}',
+  'profile.schedule.lastFailed': '{time}, with an error',
+  'profile.schedule.failedNote':
     'The last scheduled refresh did not finish. The previous file keeps working, and the next attempt is on schedule.',
-  'list.facts.schedule': 'Schedule',
-  'list.facts.refreshed': 'Refreshed',
-  'list.edit.name': 'Name',
-  'list.edit.save': 'Save and rebuild',
-  'list.edit.saving': 'Saving…',
-  'list.edit.effect': 'What happens when saving',
-  'list.edit.note': 'Saving rebuilds every connection of this profile.',
-  'list.composition.services': 'Lists in the profile',
-  'list.composition.empty': 'The profile has no lists yet.',
-  'list.composition.add': 'Add lists',
-  'list.composition.hide': 'Hide',
-  'list.composition.hide.aria': 'Hide the catalog',
-  'list.composition.remove.aria': 'Remove {service} from the profile',
-  'list.priority.title': 'In the profile',
-  'list.priority.body': 'List order sets the priority.',
-  'list.priority.count': {
+  'profile.facts.schedule': 'Schedule',
+  'profile.facts.refreshed': 'Refreshed',
+  'profile.edit.name': 'Name',
+  'profile.edit.save': 'Save and rebuild',
+  'profile.edit.saving': 'Saving…',
+  'profile.edit.effect': 'What happens when saving',
+  'profile.edit.note': 'Saving rebuilds every connection of this profile.',
+  'profile.composition.lists': 'Lists in the profile',
+  'profile.composition.empty': 'The profile has no lists yet.',
+  'profile.composition.add': 'Add lists',
+  'profile.composition.hide': 'Hide',
+  'profile.composition.hide.aria': 'Hide the catalog',
+  'profile.composition.remove.aria': 'Remove {list} from the profile',
+  'profile.priority.title': 'In the profile',
+  'profile.priority.body': 'List order sets the priority.',
+  'profile.priority.count': {
     one: '{count} list',
     other: '{count} lists',
   },
-  'list.priority.empty': 'Choose lists in the table.',
-  'list.overlap.unavailable': 'Add an output to check overlaps',
-  'list.priority.move.aria':
+  'profile.priority.empty': 'Choose lists in the table.',
+  'profile.overlap.unavailable': 'Add an output to check overlaps',
+  'profile.priority.move.aria':
     'Change priority of list {list}, position {position}',
-  'list.forecast.overflow': '{target}: ≈ {count} of {max} — will not fit',
+  'profile.forecast.overflow': '{target}: ≈ {count} of {max} — will not fit',
 
   'outputs.empty': 'No connections yet',
   'outputs.empty.body':
@@ -1592,8 +1595,8 @@ const en: Dictionary = {
   'outputs.add.none': 'Every available format is already added.',
 
   'send.title': 'Send to device',
-  'send.route.failed': 'Profile is unavailable',
-  'send.route.failed.body': 'Could not load this profile. Retry the request.',
+  'send.profile.failed': 'Profile is unavailable',
+  'send.profile.failed.body': 'Could not load this profile. Retry the request.',
   'send.connection.missing': 'Connection not found',
   'send.connection.missing.body': 'This profile does not have that connection.',
   'send.for': 'Profile: {name}',
@@ -1678,7 +1681,7 @@ const en: Dictionary = {
   'settings.mode.simple': 'Plain',
   'settings.mode.expert': 'Full',
   'settings.mode.note': '“Full” adds identifiers, formats and build snapshots.',
-  'settings.runtime': 'Service',
+  'settings.runtime': 'List',
   'settings.refresh': 'Automatic refresh',
   'settings.refresh.label': 'Default',
   'settings.refresh.off': 'Off',
@@ -1724,7 +1727,7 @@ const en: Dictionary = {
     one: '{count} custom source',
     other: '{count} custom sources',
   },
-  'configTransfer.count.routes': {
+  'configTransfer.count.profiles': {
     one: '{count} profile',
     other: '{count} profiles',
   },

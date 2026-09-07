@@ -77,7 +77,7 @@ func TestAListOverTheBoundIsSplitIntoSubGroups(t *testing.T) {
 func TestMoreGroupsThanTheDeviceHoldsIsRefused(t *testing.T) {
 	rules := make([]domain.RouteRule, 0, MaxGroups+1)
 	for index := 0; index <= MaxGroups; index++ {
-		rules = append(rules, suffix(t, "example.com", fmt.Sprintf("service-%d", index)))
+		rules = append(rules, suffix(t, "example.com", fmt.Sprintf("list-%d", index)))
 	}
 	_, err := Render(plan(rules...))
 	if err == nil || !strings.Contains(err.Error(), fmt.Sprintf("%d", MaxGroups)) {

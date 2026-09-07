@@ -127,7 +127,7 @@ test('the library starts empty and shelves the profile the composer creates and 
   })
   page.on('console', (message) => {
     // A forecast the server cannot answer yet — nothing has observed these
-    // services on a fresh install — is reported by the browser itself. The
+    // lists on a fresh install — is reported by the browser itself. The
     // surface reads any refusal as "no forecast": it says nothing and blocks
     // nothing, which is what the rest of this walkthrough proves.
     if (message.location().url.includes(forecastPath)) return
@@ -161,7 +161,7 @@ test('the library starts empty and shelves the profile the composer creates and 
   ).toBeVisible()
 
   await page
-    .locator('.library__header')
+    .locator('.profiles__header')
     .getByRole('link', { name: 'Build a profile' })
     .click()
   await page.waitForURL(`${origin}/profiles/new`)
@@ -182,20 +182,18 @@ test('the library starts empty and shelves the profile the composer creates and 
       name: 'Open the contents of list Discord',
     })
     .click()
-  const serviceCard = page.getByRole('dialog', {
+  const listCard = page.getByRole('dialog', {
     exact: true,
     name: 'Discord',
   })
   await expect(
-    serviceCard.getByRole('heading', { name: 'List contents' }),
+    listCard.getByRole('heading', { name: 'List contents' }),
   ).toBeVisible()
-  await expect(
-    serviceCard.locator('.service-card__value').first(),
-  ).toBeVisible()
-  await expect(serviceCard.getByText('catalog').first()).toBeVisible()
+  await expect(listCard.locator('.list-card__value').first()).toBeVisible()
+  await expect(listCard.getByText('catalog').first()).toBeVisible()
   // The catalog seeds an address as well as a domain. The value says what it
   // is; the caption says only where it came from.
-  const seededAddress = cardRow(serviceCard, '192.0.2.10')
+  const seededAddress = cardRow(listCard, '192.0.2.10')
   await expect(seededAddress).toContainText('catalog')
   await expect(seededAddress).not.toContainText('IP address')
 
@@ -203,15 +201,13 @@ test('the library starts empty and shelves the profile the composer creates and 
   // library's subject (ADR 0029), so the composing card states how many there
   // are and offers nothing here that would change them.
   await expect(
-    serviceCard.getByRole('heading', { name: 'Automatic sources' }),
+    listCard.getByRole('heading', { name: 'Automatic sources' }),
   ).toHaveCount(0)
-  await expect(serviceCard.getByText(/^Sources · \d+$/)).toBeVisible()
+  await expect(listCard.getByText(/^Sources · \d+$/)).toBeVisible()
   for (const absent of [/^Sources · \d+$/])
-    await expect(serviceCard.getByRole('button', { name: absent })).toHaveCount(
-      0,
-    )
+    await expect(listCard.getByRole('button', { name: absent })).toHaveCount(0)
 
-  const refresh = serviceCard.getByRole('button', {
+  const refresh = listCard.getByRole('button', {
     name: /^Refresh from sources: Sources · \d+$/,
   })
   await expect(refresh).toBeEnabled()
@@ -225,13 +221,13 @@ test('the library starts empty and shelves the profile the composer creates and 
 
   // A list can stand for hundreds of destinations, so the card narrows them in
   // place rather than asking the operator to scroll.
-  const contentsFilter = serviceCard.getByRole('searchbox', {
+  const contentsFilter = listCard.getByRole('searchbox', {
     name: 'Search the contents',
   })
   await contentsFilter.fill('192.0.2.10')
-  await expect(serviceCard.locator('.service-card__rows li')).toHaveCount(1)
+  await expect(listCard.locator('.list-card__rows li')).toHaveCount(1)
   await contentsFilter.fill('no-such-entry')
-  await expect(serviceCard.getByText('Nothing found.')).toBeVisible()
+  await expect(listCard.getByText('Nothing found.')).toBeVisible()
   await contentsFilter.fill('')
   // A modal dialog owns the scroll: the page behind it must not move.
   expect(
@@ -239,8 +235,8 @@ test('the library starts empty and shelves the profile the composer creates and 
       () => getComputedStyle(document.body).overflow === 'hidden',
     ),
   ).toBe(true)
-  await serviceCard.getByRole('button', { name: 'Add to profile' }).click()
-  await serviceCard.getByRole('button', { name: 'Close' }).last().click()
+  await listCard.getByRole('button', { name: 'Add to profile' }).click()
+  await listCard.getByRole('button', { name: 'Close' }).last().click()
   await expect(page.locator('input[value="discord"]')).toBeChecked()
   await expect(page.getByText('1 list in the profile')).toBeVisible()
   await expect(submit).toBeDisabled()
@@ -349,8 +345,8 @@ test('the library starts empty and shelves the profile the composer creates and 
   await page.waitForURL(
     new RegExp(`^${escapeRegExp(origin)}/profiles/[a-f0-9]{32}.*$`),
   )
-  const listID = listIDFromURL(page.url())
-  expect(listID).toMatch(/^[a-f0-9]{32}$/)
+  const profileID = profileIDFromURL(page.url())
+  expect(profileID).toMatch(/^[a-f0-9]{32}$/)
   await expect(
     page.getByRole('heading', { level: 1, name: 'Discord, YouTube' }),
   ).toBeVisible()
@@ -358,7 +354,10 @@ test('the library starts empty and shelves the profile the composer creates and 
   // The chosen connection is published in the same visible flow, and the stored
   // profile carries exactly what was picked. The list card reads its own sources
   // when it opens, so the profile flow is read without the card's writes.
-  expect([listFlow(mutations)[0]?.path, listFlow(mutations)[0]?.body]).toEqual([
+  expect([
+    profileFlow(mutations)[0]?.path,
+    profileFlow(mutations)[0]?.body,
+  ]).toEqual([
     '/v1/profiles',
     JSON.stringify({
       name: 'Discord, YouTube',
@@ -390,14 +389,14 @@ test('the library starts empty and shelves the profile the composer creates and 
   const targetSelect = page.locator('#outputs-target')
   await expect(targetSelect).toBeEnabled()
 
-  const published = listFlow(mutations)
+  const published = profileFlow(mutations)
   expect(published).toHaveLength(4)
   expect([published[1]?.path, published[1]?.body]).toEqual([
-    `/v1/profiles/${listID}/outputs`,
+    `/v1/profiles/${profileID}/outputs`,
     JSON.stringify({ target_id: 'keenetic' }),
   ])
   expect([published[2]?.path, published[2]?.body]).toEqual([
-    `/v1/profiles/${listID}/refresh`,
+    `/v1/profiles/${profileID}/refresh`,
     '{}',
   ])
   expect([published[3]?.path, published[3]?.body]).toEqual([
@@ -437,12 +436,12 @@ test('the library starts empty and shelves the profile the composer creates and 
   await expect(row).toHaveCount(1)
   await expect(
     row.getByRole('link', { exact: true, name: 'Discord, YouTube' }),
-  ).toHaveAttribute('href', `/profiles/${listID}`)
+  ).toHaveAttribute('href', `/profiles/${profileID}`)
   // The profile name keeps the original proposal, while the second line makes
   // the changed priority visible on the shelf.
-  await expect(row.locator('.library__services')).toHaveText('YouTube, Discord')
-  await expect(row.locator('.library__cell-outputs')).toHaveText('Keenetic')
-  await expect(row.locator('.library__cell-outputs')).not.toContainText('BAT')
+  await expect(row.locator('.profiles__lists')).toHaveText('YouTube, Discord')
+  await expect(row.locator('.profiles__cell-outputs')).toHaveText('Keenetic')
+  await expect(row.locator('.profiles__cell-outputs')).not.toContainText('BAT')
   await expect(row.getByRole('button')).toHaveCount(1)
   await row
     .getByRole('button', {
@@ -459,11 +458,11 @@ test('the library starts empty and shelves the profile the composer creates and 
   await expect(menu.getByRole('menuitem')).toHaveCount(6)
   await expect(
     menu.getByRole('menuitem', { name: 'Send to Keenetic' }),
-  ).toHaveAttribute('href', `/profiles/${listID}/send/${outputID}`)
+  ).toHaveAttribute('href', `/profiles/${profileID}/send/${outputID}`)
   const exported = page.waitForResponse(
     (candidate) =>
       candidate.request().method() === 'POST' &&
-      new URL(candidate.url()).pathname === `/v1/profiles/${listID}/export`,
+      new URL(candidate.url()).pathname === `/v1/profiles/${profileID}/export`,
   )
   const download = page.waitForEvent('download')
   await menu.getByRole('menuitem', { name: 'Download' }).click()
@@ -489,15 +488,15 @@ test('the library starts empty and shelves the profile the composer creates and 
   await expect(reopenedMenu).toBeHidden()
 
   await row.getByRole('link', { exact: true, name: 'Discord, YouTube' }).click()
-  await page.waitForURL(`${origin}/profiles/${listID}`)
+  await page.waitForURL(`${origin}/profiles/${profileID}`)
   await expect(
     page.getByRole('heading', { level: 1, name: 'Discord, YouTube' }),
   ).toBeVisible()
   await expect(page.locator('#editor-name')).toHaveValue('Discord, YouTube')
-  const listPage = page.locator('main')
+  const profilePage = page.locator('main')
 
   // Editing uses the same stable rows and in-table membership controls.
-  const compositionRow = listPage
+  const compositionRow = profilePage
     .locator('.picker__row--selected')
     .filter({ hasText: 'Discord' })
   await expect(
@@ -506,9 +505,11 @@ test('the library starts empty and shelves the profile the composer creates and 
     }),
   ).toBeVisible()
   await expect(
-    listPage.getByRole('checkbox', { name: 'Remove YouTube from the profile' }),
+    profilePage.getByRole('checkbox', {
+      name: 'Remove YouTube from the profile',
+    }),
   ).toBeVisible()
-  const editorTable = listPage.locator('.picker__table')
+  const editorTable = profilePage.locator('.picker__table')
   await expect(editorTable).toBeVisible()
   await expect(editorTable.locator('.picker__row--selected')).toHaveCount(2)
   await editorTable
@@ -516,28 +517,30 @@ test('the library starts empty and shelves the profile the composer creates and 
     .filter({ hasText: 'Discord' })
     .getByRole('button', { name: 'Open the contents of list Discord' })
     .click()
-  const serviceDialog = page.getByRole('dialog', {
+  const listDialog = page.getByRole('dialog', {
     exact: true,
     name: 'Discord',
   })
   await expect(
-    serviceDialog.getByRole('heading', { name: 'List contents' }),
+    listDialog.getByRole('heading', { name: 'List contents' }),
   ).toBeVisible()
-  await expect(serviceDialog.getByText('catalog').first()).toBeVisible()
-  expect(await audit(page, 'service-detail')).toEqual([])
-  await assertNoOverflow(page, 'service-detail')
-  await serviceDialog.getByRole('button', { name: 'Close' }).click()
+  await expect(listDialog.getByText('catalog').first()).toBeVisible()
+  expect(await audit(page, 'list-detail')).toEqual([])
+  await assertNoOverflow(page, 'list-detail')
+  await listDialog.getByRole('button', { name: 'Close' }).click()
 
   // Filtering narrows the table without changing composition, and an
   // uncategorized list remains available in the same surface.
-  const editorSearch = listPage.getByRole('searchbox', { name: 'Find a list' })
+  const editorSearch = profilePage.getByRole('searchbox', {
+    name: 'Find a list',
+  })
   await editorSearch.fill('Limit fixture')
   await expect(
     editorTable.locator('.picker__row').filter({ hasText: 'Limit fixture' }),
   ).toHaveCount(1)
   await editorSearch.fill('')
 
-  const discord = listPage.locator('input[value="discord"]')
+  const discord = profilePage.locator('input[value="discord"]')
   const discordRow = discord.locator('xpath=ancestor::tr')
   const rowHeight = await discordRow.evaluate((element) => element.clientHeight)
   await discord.uncheck()
@@ -546,7 +549,7 @@ test('the library starts empty and shelves the profile the composer creates and 
     rowHeight,
   )
   await expect(
-    listPage.getByText('1 list in the profile', { exact: true }),
+    profilePage.getByText('1 list in the profile', { exact: true }),
   ).toBeVisible()
   await expect(compositionRow).toHaveCount(0)
 
@@ -591,11 +594,11 @@ test('the service card takes domains, addresses and networks, typed or imported'
       card.getByRole('heading', { name: 'List contents' }),
     ).toBeVisible()
     // No profile is in question here, so the card asks about none.
-    await expect(card.locator('.service-card__membership')).toHaveCount(0)
+    await expect(card.locator('.list-card__membership')).toHaveCount(0)
 
     // The filter and the control beside it share one height: a toolbar is one
     // line, not two controls that happen to be near each other.
-    const filterBox = await card.locator('.service-card__filter').boundingBox()
+    const filterBox = await card.locator('.list-card__filter').boundingBox()
     const addBox = await card
       .getByRole('button', { name: 'Add entries' })
       .boundingBox()
@@ -621,7 +624,7 @@ test('the service card takes domains, addresses and networks, typed or imported'
     ).toHaveCount(1)
 
     await entries
-      .locator('#service-add-entries')
+      .locator('#list-add-entries')
       .fill('corp.example\n203.0.113.7\n203.0.113.0/29')
     await entries.getByRole('button', { exact: true, name: 'Add' }).click()
     await expect(entries).toBeHidden()
@@ -641,7 +644,7 @@ test('the service card takes domains, addresses and networks, typed or imported'
     await expect(cardRow(card, '198.18.0.0/20')).toContainText('by hand')
     await expect(card.getByText('1 line skipped')).toBeVisible()
 
-    // Switching an added row off takes it back, which leaves the service as
+    // Switching an added row off takes it back, which leaves the list as
     // this test found it for everything that reads Discord after it.
     for (const value of [
       'corp.example',
@@ -1043,10 +1046,10 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   })
   page.on('pageerror', (error) => pageErrors.push(error.message))
 
-  const { listId, outputId } = await buildList(page)
-  const listURL = `${origin}/profiles/${listId}`
+  const { profileId, outputId } = await buildProfile(page)
+  const profileURL = `${origin}/profiles/${profileId}`
 
-  await expect(page.locator('.list__header .rv-status__label')).toHaveText(
+  await expect(page.locator('.profile__header .rv-status__label')).toHaveText(
     'Published with notes',
   )
   await expect(page.getByText('Coverage is incomplete')).toBeVisible()
@@ -1059,14 +1062,14 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
 
   // Refresh belongs to Connection. The inactive panel stays mounted for stable
   // state, but its control must not leak into the Contents tab.
-  await expect(page.locator('#list-schedule-select')).toBeHidden()
+  await expect(page.locator('#profile-schedule-select')).toBeHidden()
 
   // The subscription link is shown masked: the raw secret is not in the DOM,
   // not in any request, until the operator asks for it.
   await expect(
     page.getByRole('heading', { name: 'Subscription link · Keenetic' }),
   ).toBeVisible()
-  const secret = page.locator('.list__secret-value')
+  const secret = page.locator('.profile__secret-value')
   await expect(secret).toContainText(`${origin}/v1/subscriptions/`)
   expect(await page.content()).not.toContain('rv1.')
   await page.getByRole('button', { name: 'Show', exact: true }).click()
@@ -1086,12 +1089,12 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   // The file is read only when the operator opens it, and what is shown is
   // byte-for-byte what the device receives.
   await tablist.getByRole('tab', { name: 'Connection' }).click()
-  const scheduleTrigger = page.locator('#list-schedule-select')
+  const scheduleTrigger = page.locator('#profile-schedule-select')
   await expect(scheduleTrigger).toBeVisible()
   const scheduleGround = async (): Promise<string> =>
     scheduleTrigger.evaluate((node) => getComputedStyle(node).backgroundColor)
   const atRest = await scheduleGround()
-  await page.locator('#list-schedule').hover()
+  await page.locator('#profile-schedule').hover()
   expect(await scheduleGround()).toBe(atRest)
   await scheduleTrigger.hover()
   expect(await scheduleGround()).toBe(atRest)
@@ -1136,7 +1139,7 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
     'true',
   )
 
-  // Diagnostics counts the published rules per service and translates the
+  // Diagnostics counts the published rules per list and translates the
   // format's stable reason code into operator language.
   const snapshotResponse = page.waitForResponse(
     (candidate) =>
@@ -1145,7 +1148,7 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   )
   await tablist.getByRole('tab', { name: 'Diagnostics' }).click()
   expect((await snapshotResponse).status()).toBe(200)
-  const counts = page.locator('.list__counts')
+  const counts = page.locator('.profile__counts')
   await expect(counts).toContainText('Discord')
   await expect(counts).not.toContainText('YouTube')
   await expect(counts).toContainText('1 rule')
@@ -1167,7 +1170,7 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   expect(
     requestURLs
       .slice(requestsBeforeReload)
-      .some((url) => new URL(url).pathname === `/v1/profiles/${listId}`),
+      .some((url) => new URL(url).pathname === `/v1/profiles/${profileId}`),
   ).toBe(true)
   await expect(
     page.getByRole('heading', { name: /^Subscription link/ }),
@@ -1219,9 +1222,9 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
         list_domains: {},
         priority: ['discord', 'youtube'],
       }),
-      path: `/v1/profiles/${listId}/update`,
+      path: `/v1/profiles/${profileId}/update`,
     },
-    { body: '{}', path: `/v1/profiles/${listId}/refresh` },
+    { body: '{}', path: `/v1/profiles/${profileId}/refresh` },
     { body: '{}', path: `/v1/outputs/${outputId}/build` },
   ])
 
@@ -1231,13 +1234,13 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   await page.waitForURL(`${origin}/`)
   const renamedRow = page.getByRole('row').filter({ hasText: 'Chat and video' })
   await expect(renamedRow).toHaveCount(1)
-  await expect(renamedRow.locator('.library__services')).toHaveText(
+  await expect(renamedRow.locator('.profiles__lists')).toHaveText(
     'Discord, YouTube',
   )
   await renamedRow
     .getByRole('link', { exact: true, name: 'Chat and video' })
     .click()
-  await page.waitForURL(listURL)
+  await page.waitForURL(profileURL)
 
   // The expert mode is what states the link's fate in words, and it is also
   // the only mode that puts identifiers on the screen.
@@ -1284,11 +1287,12 @@ test('a failed first build remains retryable and exposes no subscription', async
     headers: mutationHeaders,
   })
   expect(created.ok()).toBe(true)
-  const failedListID = ((await created.json()) as { profile: { id: string } })
-    .profile.id
+  const failedProfileID = (
+    (await created.json()) as { profile: { id: string } }
+  ).profile.id
 
   const added = await page.request.post(
-    `${origin}/v1/profiles/${failedListID}/outputs`,
+    `${origin}/v1/profiles/${failedProfileID}/outputs`,
     { data: { target_id: 'limited-fixture' }, headers: mutationHeaders },
   )
   expect(added.ok()).toBe(true)
@@ -1298,7 +1302,7 @@ test('a failed first build remains retryable and exposes no subscription', async
   expect(addPayload).not.toHaveProperty('subscription_url')
 
   const refreshed = await page.request.post(
-    `${origin}/v1/profiles/${failedListID}/refresh`,
+    `${origin}/v1/profiles/${failedProfileID}/refresh`,
     { data: {}, headers: mutationHeaders },
   )
   expect(refreshed.ok()).toBe(true)
@@ -1313,8 +1317,8 @@ test('a failed first build remains retryable and exposes no subscription', async
     projected_rules: 2,
   })
 
-  await page.goto(`${origin}/profiles/${failedListID}`)
-  await expect(page.locator('.list__header .rv-status__label')).toHaveText(
+  await page.goto(`${origin}/profiles/${failedProfileID}`)
+  await expect(page.locator('.profile__header .rv-status__label')).toHaveText(
     'Refresh failed',
   )
   // The editor says the same thing the build reported, before the operator
@@ -1344,7 +1348,7 @@ test('a failed first build remains retryable and exposes no subscription', async
   await page.getByRole('link', { name: 'Profiles' }).first().click()
   await page.waitForURL(`${origin}/`)
   await page
-    .locator(`a.library__link[href="/profiles/${failedListID}"]`)
+    .locator(`a.profiles__link[href="/profiles/${failedProfileID}"]`)
     .click()
   await expect(page.getByText('Format not updated')).toBeVisible()
   await page
@@ -1372,7 +1376,7 @@ test('the composer sizes every format and refuses the pair that cannot hold the 
   page,
 }) => {
   test.setTimeout(120000)
-  // The forecast speaks the data a build would read; a service whose sources
+  // The forecast speaks the data a build would read; a list whose sources
   // were never observed has no forecast yet. Observing it first keeps this
   // test independent of which test refreshed the fixture before it.
   const observed = await page.request.post(
@@ -1463,7 +1467,7 @@ test('the composing card carries no row control and never spoils the forecast', 
   await expect(cardRow(card, '192.0.2.20')).toContainText('catalog')
   await expect(cardRow(card, '198.51.100.20')).toContainText('catalog')
   await expect(
-    card.locator('.service-card__rows input[type="checkbox"]'),
+    card.locator('.list-card__rows input[type="checkbox"]'),
   ).toHaveCount(0)
 
   // The one control the card offers, used both ways with the card open.
@@ -1771,11 +1775,11 @@ test('the library deletes a category with its lists, and composing offers none o
 
   // A list made while a category is open joins that category.
   await page.getByRole('button', { name: 'New list' }).click()
-  const newList = page.getByRole('dialog', { name: 'New list' })
-  await newList.getByLabel('Name').fill('Draft fixture')
-  await newList.getByLabel('Domains').fill('draft.example')
-  await newList.getByRole('button', { exact: true, name: 'Create' }).click()
-  await expect(newList).toBeHidden()
+  const newProfile = page.getByRole('dialog', { name: 'New list' })
+  await newProfile.getByLabel('Name').fill('Draft fixture')
+  await newProfile.getByLabel('Domains').fill('draft.example')
+  await newProfile.getByRole('button', { exact: true, name: 'Create' }).click()
+  await expect(newProfile).toBeHidden()
   await expect(page.locator('.lists')).toContainText('Draft fixture')
 
   await openCategoryActions(page, 'Черновик')
@@ -1805,7 +1809,7 @@ test('the library deletes a category with its lists, and composing offers none o
   for (const gone of ['New category', 'New list'])
     await expect(page.getByRole('button', { name: gone })).toHaveCount(0)
   await expect(page.locator('.picker .rv-menu__trigger')).toHaveCount(0)
-  await expect(page.locator('.picker__service-remove')).toHaveCount(0)
+  await expect(page.locator('.picker__list-remove')).toHaveCount(0)
   assertProductAlive()
 })
 
@@ -1825,17 +1829,17 @@ test('the list card fills the sheet rather than leaving a band above its footer'
   await page.goto(`${origin}/lists`)
   await openLibraryCategory(page, 'Uncategorized')
   await page.getByRole('button', { name: 'New list' }).click()
-  const newList = page.getByRole('dialog', { name: 'New list' })
-  await newList.getByLabel('Name').fill('Tall fixture')
-  await newList
+  const newProfile = page.getByRole('dialog', { name: 'New list' })
+  await newProfile.getByLabel('Name').fill('Tall fixture')
+  await newProfile
     .getByLabel('Domains')
     .fill(
       Array.from({ length: 40 }, (_, index) => `row${index}.example`).join(
         '\n',
       ),
     )
-  await newList.getByRole('button', { exact: true, name: 'Create' }).click()
-  await expect(newList).toBeHidden()
+  await newProfile.getByRole('button', { exact: true, name: 'Create' }).click()
+  await expect(newProfile).toBeHidden()
 
   await page.goto(`${origin}/profiles/new`)
   await page
@@ -1850,7 +1854,7 @@ test('the list card fills the sheet rather than leaving a band above its footer'
   ).toBeVisible()
 
   // The table scrolls inside itself, and the sheet behind it does not grow.
-  const rows = card.locator('.service-card__rows')
+  const rows = card.locator('.list-card__rows')
   expect(
     await rows.evaluate(
       (element) => element.scrollHeight - element.clientHeight,
@@ -2076,7 +2080,7 @@ test('hiding a format removes it from the connection picker and says where it we
     .getByRole('link', { name: 'Profiles' })
     .click()
   await page
-    .locator('.library__header')
+    .locator('.profiles__header')
     .getByRole('link', { name: 'Build a profile' })
     .click()
   await page.waitForURL(`${origin}/profiles/new`)
@@ -2132,12 +2136,12 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))
 
-  const { listId } = await buildList(page)
+  const { profileId } = await buildProfile(page)
   // Earlier walkthroughs left their own lists on the shelf, so every row here
   // is addressed by this profile's identity rather than by its title.
   const shelfRow = page
     .getByRole('row')
-    .filter({ has: page.locator(`a[href="/profiles/${listId}"]`) })
+    .filter({ has: page.locator(`a[href="/profiles/${profileId}"]`) })
   await page
     .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Connection' })
@@ -2169,14 +2173,14 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
     .getByRole('menuitem', { name: 'Archive', exact: true })
     .click()
   await expect(page.getByText('This profile is archived')).toBeVisible()
-  expect(mutations).toEqual([`/v1/profiles/${listId}/archive`])
+  expect(mutations).toEqual([`/v1/profiles/${profileId}/archive`])
 
   // What stops is change. The controls that would edit, rebuild, reschedule or
   // bind a new format are gone rather than disabled, and the file is still
   // offered from the same page.
   await expect(page.locator('.rv-status__label')).toHaveText('Archived')
   await expect(page.locator('#editor-name')).toHaveCount(0)
-  await expect(page.locator('#list-schedule-select')).toHaveCount(0)
+  await expect(page.locator('#profile-schedule-select')).toHaveCount(0)
   await expect(
     page.getByRole('link', { name: 'Download the file for Keenetic' }).first(),
   ).toHaveAttribute('href', fileHref ?? '')
@@ -2195,12 +2199,12 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
   await page.getByRole('link', { name: 'Profiles' }).first().click()
   await page.waitForURL(`${origin}/`)
   await expect(shelfRow).toHaveCount(0)
-  const archive = page.locator('.library__archive')
+  const archive = page.locator('.profiles__archive')
   await expect(archive).toContainText('Archive')
   await archive.locator('.rv-disclosure__summary').click()
   const archivedRow = archive
-    .locator('.library__archive-row')
-    .filter({ has: page.locator(`a[href="/profiles/${listId}"]`) })
+    .locator('.profiles__archive-row')
+    .filter({ has: page.locator(`a[href="/profiles/${profileId}"]`) })
   await expect(archivedRow).toHaveCount(1)
   await expect(archivedRow).toContainText('Archived since')
   await archivedRow
@@ -2235,8 +2239,8 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
     .getByRole('menuitem', { name: 'Restore' })
     .click()
   await expect(shelfRow).toHaveCount(1)
-  expect(mutations).toEqual([`/v1/profiles/${listId}/restore`])
-  await expect(page.locator('.library__archive')).toHaveCount(0)
+  expect(mutations).toEqual([`/v1/profiles/${profileId}/restore`])
+  await expect(page.locator('.profiles__archive')).toHaveCount(0)
 
   expect(pageErrors).toEqual([])
   assertProductAlive()
@@ -2271,7 +2275,7 @@ test('the surface speaks the language of the operator and declares which one', a
   ).toBeVisible()
   await expect(
     page
-      .locator('.library__header')
+      .locator('.profiles__header')
       .getByRole('link', { name: 'Собрать профиль' }),
   ).toBeVisible()
 
@@ -2357,7 +2361,7 @@ test('an output can be explicitly bound to and detached from a compatible device
   expect(created.ok()).toBe(true)
   const deviceID = ((await created.json()) as { device: { id: string } }).device
     .id
-  const { outputId } = await buildList(page)
+  const { outputId } = await buildProfile(page)
 
   await page
     .getByRole('tablist', { name: 'Profile sections' })
@@ -2632,7 +2636,7 @@ for (const language of ['en', 'ru'] as const) {
         await expect(page.getByRole('status')).toContainText(
           copy('lists.stale'),
         )
-        await expectLibraryCategory(page, copy('servicePicker.filter.all'))
+        await expectLibraryCategory(page, copy('listPicker.filter.all'))
         expect(categoryWrites).toHaveLength(1)
 
         expect(await auditWidths(page, `${language}-library-stale`)).toEqual([])
@@ -2703,23 +2707,23 @@ for (const language of ['en', 'ru'] as const) {
       ).toBeVisible()
       await page
         .getByRole('button', {
-          name: copy('serviceDetail.open.aria').replace('{service}', 'Discord'),
+          name: copy('listDetail.open.aria').replace('{list}', 'Discord'),
         })
         .click()
-      const serviceDialog = page.getByRole('dialog', { name: 'Discord' })
+      const listDialog = page.getByRole('dialog', { name: 'Discord' })
       await expect(
-        serviceDialog.getByRole('heading', {
-          name: copy('serviceCard.domains'),
+        listDialog.getByRole('heading', {
+          name: copy('listCard.domains'),
         }),
       ).toBeVisible()
       // The card reads its sources when it opens, so the audit is taken once the
       // observed rows have landed: the busy notice and the full table are both in
       // the same pass.
-      await expect(serviceDialog.getByText('dns-client').first()).toBeVisible({
+      await expect(listDialog.getByText('dns-client').first()).toBeVisible({
         timeout: 60000,
       })
-      violations.push(...(await auditWidths(page, `${language}-service-card`)))
-      await serviceDialog
+      violations.push(...(await auditWidths(page, `${language}-list-card`)))
+      await listDialog
         .getByRole('button', { name: copy('action.close') })
         .last()
         .click()
@@ -2747,7 +2751,7 @@ for (const language of ['en', 'ru'] as const) {
       // showing, so the outputs table and the secret disclosure are covered too.
       await expect(
         page.getByRole('heading', {
-          name: copy('list.subscription').replace('{target}', 'Keenetic'),
+          name: copy('profile.subscription').replace('{target}', 'Keenetic'),
         }),
       ).toBeVisible()
       const createdRoutePath = new URL(page.url()).pathname
@@ -2758,7 +2762,7 @@ for (const language of ['en', 'ru'] as const) {
       })
 
       await page
-        .getByRole('link', { name: copy('library.title') })
+        .getByRole('link', { name: copy('profiles.title') })
         .first()
         .click()
       await expect(page.locator(`a[href="${createdRoutePath}"]`)).toBeVisible()
@@ -2816,12 +2820,12 @@ for (const language of ['en', 'ru'] as const) {
   })
 }
 
-// The hidden actions column header once escaped `.library__scroll` and
+// The hidden actions column header once escaped `.profiles__scroll` and
 // stretched the document at 320px; the scroll box is its containing block now,
 // and this test keeps it that way.
 test('the populated library never scrolls sideways', async ({ page }) => {
   test.setTimeout(120000)
-  await buildList(page)
+  await buildProfile(page)
   await page.getByRole('link', { name: 'Profiles' }).first().click()
   await expect(
     page.getByRole('link', { exact: true, name: 'Discord, YouTube' }).first(),
@@ -2840,7 +2844,7 @@ test('the populated library never scrolls sideways', async ({ page }) => {
   )
   const triggerBox = await bottomTrigger.boundingBox()
   expect(triggerBox).not.toBeNull()
-  const scrollBox = page.locator('.library__scroll')
+  const scrollBox = page.locator('.profiles__scroll')
   const scrollHeight = await scrollBox.evaluate((element) =>
     Math.round(element.scrollHeight),
   )
@@ -3081,9 +3085,9 @@ test('the composition editor remains operable with text enlarged to 200%', async
  * every output-scoped mutation and address names them rather than the profile
  * alone.
  */
-async function buildList(
+async function buildProfile(
   page: Page,
-): Promise<{ listId: string; outputId: string }> {
+): Promise<{ profileId: string; outputId: string }> {
   await page.goto(`${origin}/profiles/new`)
   await expect(
     page.getByRole('heading', {
@@ -3111,7 +3115,7 @@ async function buildList(
   await expect(
     page.getByRole('heading', { level: 1, name: 'Discord, YouTube' }),
   ).toBeVisible()
-  const listId = listIDFromURL(page.url())
+  const profileId = profileIDFromURL(page.url())
   const outputPayload = (await (await outputsResponse).json()) as {
     output: { id: string }
   }
@@ -3124,7 +3128,7 @@ async function buildList(
     .getByRole('tab', { name: 'Contents' })
     .click()
 
-  return { listId, outputId: outputPayload.output.id }
+  return { profileId, outputId: outputPayload.output.id }
 }
 
 async function expectLibraryCategory(
@@ -3190,9 +3194,9 @@ async function assertPainted(panel: Locator, name: string): Promise<void> {
   expect(painted.edge, `${name} panel has no edge`).not.toBe('0px')
 }
 
-// One row of the service card's contents table, addressed by what it names.
+// One row of the list card's contents table, addressed by what it names.
 function cardRow(card: Locator, value: string): Locator {
-  return card.locator('.service-card__rows li').filter({ hasText: value })
+  return card.locator('.list-card__rows li').filter({ hasText: value })
 }
 
 /**
@@ -3217,14 +3221,14 @@ test('the forecast explains overlaps in create and edit without rewriting the li
       data: { title, domains },
     })
     expect(created.status()).toBe(201)
-    const { list: service } = (await created.json()) as {
+    const { list: list } = (await created.json()) as {
       list: { id: string }
     }
-    ids.push(service.id)
+    ids.push(list.id)
     if (values.length > 0)
       expect(
         (
-          await page.request.post(`${origin}/v1/lists/${service.id}/domains`, {
+          await page.request.post(`${origin}/v1/lists/${list.id}/domains`, {
             headers,
             data: { values, verdict: 'include' },
           })
@@ -3232,7 +3236,7 @@ test('the forecast explains overlaps in create and edit without rewriting the li
       ).toBe(true)
     expect(
       (
-        await page.request.post(`${origin}/v1/lists/${service.id}/refresh`, {
+        await page.request.post(`${origin}/v1/lists/${list.id}/refresh`, {
           headers,
           data: {},
         })
@@ -3444,13 +3448,13 @@ test('source skips are visible without changing profiles, and clear after a clea
     data: { title: 'Source diagnostic fixture', domains: ['notice.example'] },
   })
   expect(created.ok()).toBe(true)
-  const { list: service } = (await created.json()) as {
+  const { list: list } = (await created.json()) as {
     list: { id: string }
   }
   const before = await (await page.request.get(`${origin}/v1/profiles`)).text()
   let skipped = 1
   let failed = false
-  await page.route(`**/v1/lists/${service.id}/refresh`, async (route) => {
+  await page.route(`**/v1/lists/${list.id}/refresh`, async (route) => {
     await route.fulfill({
       status: failed ? 422 : 200,
       contentType: 'application/json',
@@ -3462,7 +3466,7 @@ test('source skips are visible without changing profiles, and clear after a clea
     })
   })
   try {
-    await page.goto(`${origin}/lists#list=${service.id}`)
+    await page.goto(`${origin}/lists#list=${list.id}`)
     const card = page.getByRole('dialog', {
       name: 'Source diagnostic fixture',
       exact: true,
@@ -3471,7 +3475,7 @@ test('source skips are visible without changing profiles, and clear after a clea
     const firstRefresh = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
-        new URL(response.url()).pathname === `/v1/lists/${service.id}/refresh`,
+        new URL(response.url()).pathname === `/v1/lists/${list.id}/refresh`,
     )
     await refresh.click()
     expect((await firstRefresh).ok()).toBe(true)
@@ -3497,7 +3501,7 @@ test('source skips are visible without changing profiles, and clear after a clea
     failed = true
     await refresh.click()
     await expect(card.getByRole('alert')).toContainText(
-      dictionaries.en['serviceCard.refresh.failed.generic'] as string,
+      dictionaries.en['listCard.refresh.failed.generic'] as string,
     )
     await expect(
       card.getByText('notice.example', { exact: true }),
@@ -3518,7 +3522,7 @@ test('source skips are visible without changing profiles, and clear after a clea
     await expect(card).toBeHidden()
   } finally {
     const removed = await page.request.post(
-      `${origin}/v1/lists/${service.id}/remove`,
+      `${origin}/v1/lists/${list.id}/remove`,
       { headers, data: {} },
     )
     expect(removed.status()).toBe(204)
@@ -3552,11 +3556,11 @@ for (const language of ['en', 'ru'] as const) {
         data: { domains, title },
       })
       expect(created.status()).toBe(201)
-      const { list: service } = (await created.json()) as {
+      const { list: list } = (await created.json()) as {
         list: { id: string }
       }
       const disabled = await page.request.post(
-        `${origin}/v1/lists/${service.id}/domains`,
+        `${origin}/v1/lists/${list.id}/domains`,
         {
           headers,
           data: { values: ['row-36.example'], verdict: 'exclude' },
@@ -3571,24 +3575,22 @@ for (const language of ['en', 'ru'] as const) {
           .fill(title)
         await page
           .getByRole('button', {
-            name: copy('serviceDetail.open.aria').replace('{service}', title),
+            name: copy('listDetail.open.aria').replace('{list}', title),
           })
           .click()
         const compose = page.getByRole('dialog', { name: title, exact: true })
         await expect(
-          compose.getByRole('heading', { name: copy('serviceCard.domains') }),
+          compose.getByRole('heading', { name: copy('listCard.domains') }),
         ).toBeVisible()
-        const rows = compose.locator('.service-card__rows')
+        const rows = compose.locator('.list-card__rows')
         await expect(rows.locator('li')).toHaveCount(domains.length)
         const disabledLibraryRow = rows
           .locator('li')
           .filter({ hasText: 'row-36.example' })
-        await expect(disabledLibraryRow).toHaveClass(
-          /service-card__row--disabled/,
-        )
+        await expect(disabledLibraryRow).toHaveClass(/list-card__row--disabled/)
         await expect(
           disabledLibraryRow.getByText(
-            copy('serviceCard.domains.disabledInLibrary'),
+            copy('listCard.domains.disabledInLibrary'),
           ),
         ).toBeVisible()
         await expect(disabledLibraryRow).toHaveCSS('opacity', '1')
@@ -3620,7 +3622,7 @@ for (const language of ['en', 'ru'] as const) {
         // the table's leading edge. The short row is the reference for the long
         // value, so the assertion follows the natural typography at that width.
         const filter = compose.getByRole('searchbox', {
-          name: copy('serviceCard.filter'),
+          name: copy('listCard.filter'),
         })
         for (const width of [320, 1919]) {
           await page.setViewportSize({ width, height: 900 })
@@ -3674,7 +3676,7 @@ for (const language of ['en', 'ru'] as const) {
           await filter.fill('no-such-card-entry')
           await expect(rows.locator('li')).toHaveCount(0)
           await expect(
-            compose.getByText(copy('serviceCard.filter.empty')),
+            compose.getByText(copy('listCard.filter.empty')),
           ).toBeVisible()
           await filter.fill('')
           await expect(rows.locator('li')).toHaveCount(domains.length)
@@ -3687,15 +3689,15 @@ for (const language of ['en', 'ru'] as const) {
 
         // The same dense table and long-value wrapping apply in the library flow;
         // it has no profile footer because it owns the list rather than membership.
-        await page.goto(`${origin}/lists#list=${service.id}`)
+        await page.goto(`${origin}/lists#list=${list.id}`)
         const library = page.getByRole('dialog', { name: title, exact: true })
         await expect(
-          library.getByRole('heading', { name: copy('serviceCard.domains') }),
+          library.getByRole('heading', { name: copy('listCard.domains') }),
         ).toBeVisible()
         const libraryFilter = library.getByRole('searchbox', {
-          name: copy('serviceCard.filter'),
+          name: copy('listCard.filter'),
         })
-        const libraryRows = library.locator('.service-card__rows')
+        const libraryRows = library.locator('.list-card__rows')
         await expect(libraryRows.locator('li')).toHaveCount(domains.length)
 
         // The action remains recognizable while one separate status line owns
@@ -3706,7 +3708,7 @@ for (const language of ['en', 'ru'] as const) {
           releaseRefresh = resolve
         })
         let refreshRequests = 0
-        const refreshPath = `**/v1/lists/${service.id}/refresh`
+        const refreshPath = `**/v1/lists/${list.id}/refresh`
         await page.route(refreshPath, async (route) => {
           refreshRequests += 1
           await refreshHeld
@@ -3717,10 +3719,10 @@ for (const language of ['en', 'ru'] as const) {
           })
         })
         const refresh = library
-          .locator('.service-card__commands > .rv-button')
+          .locator('.list-card__commands > .rv-button')
           .first()
         await expect(refresh).toHaveAccessibleName(
-          new RegExp(`^${copy('serviceCard.refresh')}:`),
+          new RegExp(`^${copy('listCard.refresh')}:`),
         )
         const libraryClose = library
           .getByRole('button', { name: copy('action.close') })
@@ -3731,7 +3733,7 @@ for (const language of ['en', 'ru'] as const) {
           await expect(refresh).toBeDisabled()
           await expect(refresh.locator('.rv-button__spinner')).toHaveCount(0)
           await expect(
-            library.getByText(copy('serviceCard.refresh.busy'), {
+            library.getByText(copy('listCard.refresh.busy'), {
               exact: true,
             }),
           ).toHaveCount(1)
@@ -3829,7 +3831,7 @@ for (const language of ['en', 'ru'] as const) {
           await expect(row).toBeInViewport({ ratio: 1 })
           await page.keyboard.press('Tab')
           const remove = library.getByRole('button', {
-            name: copy('serviceCard.remove'),
+            name: copy('listCard.remove'),
             exact: true,
           })
           await expect(remove).toBeFocused()
@@ -3852,7 +3854,7 @@ for (const language of ['en', 'ru'] as const) {
         const saveHeld = new Promise<void>((resolve) => {
           releaseSave = resolve
         })
-        const savePath = `**/v1/lists/${service.id}/update`
+        const savePath = `**/v1/lists/${list.id}/update`
         const renamedTitle = `${title} renamed`
         await page.route(savePath, async (route) => {
           await saveHeld
@@ -3860,15 +3862,15 @@ for (const language of ['en', 'ru'] as const) {
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
-              list: { id: service.id, title: renamedTitle, domains },
+              list: { id: list.id, title: renamedTitle, domains },
             }),
           })
         })
         const save = library.getByRole('button', {
-          name: copy('serviceCard.title.save'),
+          name: copy('listCard.title.save'),
         })
         try {
-          await library.locator('#service-title').fill(renamedTitle)
+          await library.locator('#list-title').fill(renamedTitle)
           await save.click()
           await expect(save).toHaveAttribute('aria-busy', 'true')
           await expect(save.locator('.rv-button__spinner')).toHaveCount(1)
@@ -3893,16 +3895,16 @@ for (const language of ['en', 'ru'] as const) {
         await expect(renamedLibrary).toBeVisible()
         await expect(
           renamedLibrary.getByRole('button', {
-            name: copy('serviceCard.title.save'),
+            name: copy('listCard.title.save'),
           }),
         ).not.toHaveAttribute('aria-busy', 'true')
-        await expect(renamedLibrary.locator('#service-title')).toHaveValue(
+        await expect(renamedLibrary.locator('#list-title')).toHaveValue(
           renamedTitle,
         )
         await page.unroute(savePath)
       } finally {
         const removed = await page.request.post(
-          `${origin}/v1/lists/${service.id}/remove`,
+          `${origin}/v1/lists/${list.id}/remove`,
           { headers, data: {} },
         )
         expect(removed.status()).toBe(204)
@@ -3984,11 +3986,11 @@ for (const language of ['en', 'ru'] as const) {
         data: { domains: ['retry.example'], title },
       })
       expect(created.status()).toBe(201)
-      const { list: service } = (await created.json()) as {
+      const { list: list } = (await created.json()) as {
         list: { id: string }
       }
       const source = await page.request.post(
-        `${origin}/v1/lists/${service.id}/sources`,
+        `${origin}/v1/lists/${list.id}/sources`,
         {
           headers,
           data: { format: 'text', url: 'https://feed.example/retry.txt' },
@@ -3996,7 +3998,7 @@ for (const language of ['en', 'ru'] as const) {
       )
       expect(source.ok()).toBe(true)
       const contentsResponse = await page.request.get(
-        `${origin}/v1/lists/${service.id}/contents`,
+        `${origin}/v1/lists/${list.id}/contents`,
       )
       expect(contentsResponse.ok()).toBe(true)
       const contents = (await contentsResponse.json()) as {
@@ -4017,7 +4019,7 @@ for (const language of ['en', 'ru'] as const) {
       const firstRefreshHeld = new Promise<void>((resolve) => {
         releaseFirstRefresh = resolve
       })
-      await page.route(`**/v1/lists/${service.id}/contents`, async (route) => {
+      await page.route(`**/v1/lists/${list.id}/contents`, async (route) => {
         contentsCalls += 1
         if (contentsCalls === 1) await initialContentsHeld
         await route.fulfill({
@@ -4029,7 +4031,7 @@ for (const language of ['en', 'ru'] as const) {
           }),
         })
       })
-      await page.route(`**/v1/lists/${service.id}/refresh`, async (route) => {
+      await page.route(`**/v1/lists/${list.id}/refresh`, async (route) => {
         refreshCalls += 1
         if (refreshCalls === 1) {
           await firstRefreshHeld
@@ -4058,7 +4060,7 @@ for (const language of ['en', 'ru'] as const) {
           .fill(title)
         await page
           .getByRole('button', {
-            name: copy('serviceDetail.open.aria').replace('{service}', title),
+            name: copy('listDetail.open.aria').replace('{list}', title),
           })
           .click()
         const card = page.getByRole('dialog', { name: title, exact: true })
@@ -4066,17 +4068,15 @@ for (const language of ['en', 'ru'] as const) {
           .getByRole('button', { name: copy('action.close') })
           .last()
         await expect(
-          card.getByText(copy('serviceCard.loading'), { exact: true }),
+          card.getByText(copy('listCard.loading'), { exact: true }),
         ).toBeVisible()
         // Initial reading can be dismissed; actual source work below stays guarded.
         await expect(close).toBeEnabled()
         releaseInitialContents()
         await expect(
-          card.getByRole('heading', { name: copy('serviceCard.domains') }),
+          card.getByRole('heading', { name: copy('listCard.domains') }),
         ).toBeVisible()
-        await expect(
-          card.getByText(copy('serviceCard.observing')),
-        ).toBeVisible()
+        await expect(card.getByText(copy('listCard.observing'))).toBeVisible()
         await expect(close).toBeDisabled()
         await page.keyboard.press('Escape')
         await expect(card).toBeVisible()
@@ -4086,10 +4086,10 @@ for (const language of ['en', 'ru'] as const) {
           .dispatchEvent('pointerdown')
         await expect(card).toBeVisible()
         const pendingFilterBox = await card
-          .getByRole('searchbox', { name: copy('serviceCard.filter') })
+          .getByRole('searchbox', { name: copy('listCard.filter') })
           .boundingBox()
         const pendingRefreshStatusBox = await card
-          .locator('.service-card__refresh-status')
+          .locator('.list-card__refresh-status')
           .boundingBox()
         expect(pendingFilterBox).not.toBeNull()
         expect(pendingRefreshStatusBox).not.toBeNull()
@@ -4103,13 +4103,13 @@ for (const language of ['en', 'ru'] as const) {
         })
         releaseFirstRefresh()
         await expect(card.getByRole('alert')).toContainText(
-          copy('serviceCard.refresh.failed.generic'),
+          copy('listCard.refresh.failed.generic'),
         )
         const failedFilterBox = await card
-          .getByRole('searchbox', { name: copy('serviceCard.filter') })
+          .getByRole('searchbox', { name: copy('listCard.filter') })
           .boundingBox()
         const failedRefreshStatusBox = await card
-          .locator('.service-card__refresh-status')
+          .locator('.list-card__refresh-status')
           .boundingBox()
         expect(failedFilterBox).not.toBeNull()
         expect(failedRefreshStatusBox).not.toBeNull()
@@ -4133,22 +4133,22 @@ for (const language of ['en', 'ru'] as const) {
           path: join(reviewRoot, `${language}-card-failed-320.png`),
         })
         const filter = card.getByRole('searchbox', {
-          name: copy('serviceCard.filter'),
+          name: copy('listCard.filter'),
         })
         await filter.fill('retry.example')
-        await expect(card.locator('.service-card__rows li')).toHaveCount(1)
+        await expect(card.locator('.list-card__rows li')).toHaveCount(1)
         await card
           .getByRole('button', { name: copy('action.retry'), exact: true })
           .click()
         await expect(card.getByRole('alert')).toHaveCount(0)
         await expect(
-          card.getByRole('img', { name: copy('serviceCard.refresh.ready') }),
+          card.getByRole('img', { name: copy('listCard.refresh.ready') }),
         ).toBeVisible()
         const recoveredFilterBox = await card
-          .getByRole('searchbox', { name: copy('serviceCard.filter') })
+          .getByRole('searchbox', { name: copy('listCard.filter') })
           .boundingBox()
         const recoveredRefreshStatusBox = await card
-          .locator('.service-card__refresh-status')
+          .locator('.list-card__refresh-status')
           .boundingBox()
         expect(recoveredFilterBox).not.toBeNull()
         expect(recoveredRefreshStatusBox).not.toBeNull()
@@ -4167,7 +4167,7 @@ for (const language of ['en', 'ru'] as const) {
           ),
         ).toBeLessThanOrEqual(1)
         await expect(filter).toHaveValue('retry.example')
-        await expect(card.locator('.service-card__rows li')).toHaveCount(1)
+        await expect(card.locator('.list-card__rows li')).toHaveCount(1)
         expect(refreshCalls).toBe(2)
         expect(
           await (await page.request.get(`${origin}/v1/profiles`)).text(),
@@ -4175,10 +4175,10 @@ for (const language of ['en', 'ru'] as const) {
       } finally {
         releaseInitialContents()
         releaseFirstRefresh()
-        await page.unroute(`**/v1/lists/${service.id}/contents`)
-        await page.unroute(`**/v1/lists/${service.id}/refresh`)
+        await page.unroute(`**/v1/lists/${list.id}/contents`)
+        await page.unroute(`**/v1/lists/${list.id}/refresh`)
         const removed = await page.request.post(
-          `${origin}/v1/lists/${service.id}/remove`,
+          `${origin}/v1/lists/${list.id}/remove`,
           { headers, data: {} },
         )
         expect(removed.status()).toBe(204)
@@ -4213,7 +4213,7 @@ function statesFlow(path: string): boolean {
   return !path.startsWith('/v1/lists/') && path !== forecastPath
 }
 
-function listFlow(
+function profileFlow(
   mutations: { body: string | null; path: string }[],
 ): { body: string | null; path: string }[] {
   return mutations.filter((mutation) => statesFlow(mutation.path))
@@ -4357,7 +4357,7 @@ function escapeRegExp(value: string): string {
   return value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function listIDFromURL(value: string): string {
+function profileIDFromURL(value: string): string {
   return /\/profiles\/([a-f0-9]{32})/.exec(new URL(value).pathname)?.[1] ?? ''
 }
 
@@ -4521,12 +4521,10 @@ test('library rows disclose inspection and the card keeps its controls while swi
     await page.locator('[data-id="discord"] .lists__category-column').click()
     const card = page.locator('.rv-dialog--docked')
     await expect(card).toHaveAccessibleName('Discord')
-    const filter = card.locator('.service-card__filter-input')
+    const filter = card.locator('.list-card__filter-input')
     await expect(filter).toBeEnabled()
     const before = (await filter.boundingBox())!
-    const rowsBefore = (await card
-      .locator('.service-card__rows')
-      .boundingBox())!
+    const rowsBefore = (await card.locator('.list-card__rows').boundingBox())!
     await page.locator('[data-id="youtube"] .lists__category-column').click()
     await expect(card).toHaveAccessibleName('YouTube')
     await expect(filter).toBeDisabled()
@@ -4534,12 +4532,10 @@ test('library rows disclose inspection and the card keeps its controls while swi
       card.getByText('Loading the list contents…', { exact: true }),
     ).toBeVisible()
     const loading = (await filter.boundingBox())!
-    const rowsLoading = (await card
-      .locator('.service-card__rows')
-      .boundingBox())!
+    const rowsLoading = (await card.locator('.list-card__rows').boundingBox())!
     expect(Math.abs(loading.y - before.y)).toBeLessThanOrEqual(1)
     expect(Math.abs(rowsLoading.y - rowsBefore.y)).toBeLessThanOrEqual(1)
-    await expect(card.locator('.service-card__count')).toHaveText('—')
+    await expect(card.locator('.list-card__count')).toHaveText('—')
     release()
     await expect(filter).toBeEnabled()
     expect(
@@ -4577,7 +4573,7 @@ test('composition keeps its context in docked and overlaid cards and isolates na
   expect(
     await frame.evaluate((e) => e.scrollWidth - e.clientWidth),
   ).toBeLessThanOrEqual(1)
-  const filter = card.locator('.service-card__filter-input')
+  const filter = card.locator('.list-card__filter-input')
   await filter.fill('discord')
   await filter.press('Enter')
   await expect(page).toHaveURL(`${origin}/profiles/new`)
@@ -4711,7 +4707,7 @@ test('page inspection preserves primary actions and full-height geometry in ever
   await create.click()
   await page.waitForURL(/\/profiles\/[a-f0-9]{32}/)
   expect((await firstOutput).ok()).toBe(true)
-  const id = listIDFromURL(page.url())
+  const id = profileIDFromURL(page.url())
   await page.goto(`${origin}/profiles/${id}`)
   await page.locator('#editor-name').fill('Inspection workflow saved')
   await page.locator('[data-id="discord"] .picker__open').click()
@@ -4964,22 +4960,22 @@ test('one list without IP coverage preserves other lists and domain-format forec
         data: { title, domains: ['forecast.invalid'] },
       })
       expect(created.status()).toBe(201)
-      const { list: service } = (await created.json()) as {
+      const { list: list } = (await created.json()) as {
         list: { id: string }
       }
-      ids.push(service.id)
+      ids.push(list.id)
       if (address)
         expect(
           (
-            await page.request.post(
-              `${origin}/v1/lists/${service.id}/domains`,
-              { headers, data: { values: [address], verdict: 'include' } },
-            )
+            await page.request.post(`${origin}/v1/lists/${list.id}/domains`, {
+              headers,
+              data: { values: [address], verdict: 'include' },
+            })
           ).ok(),
         ).toBe(true)
       expect(
         (
-          await page.request.post(`${origin}/v1/lists/${service.id}/refresh`, {
+          await page.request.post(`${origin}/v1/lists/${list.id}/refresh`, {
             headers,
             data: {},
           })
@@ -5086,7 +5082,7 @@ test('quick profile reads stay quiet while slow reads and failures remain visibl
   try {
     await page.goto(origin)
     await expect(
-      page.locator('.library__scroll, .library__empty'),
+      page.locator('.profiles__scroll, .profiles__empty'),
     ).toBeVisible()
     expect(await samples()).not.toContain('visible')
     mode = 'slow'
@@ -5096,7 +5092,7 @@ test('quick profile reads stay quiet while slow reads and failures remain visibl
     expect((await samples())[0]).toBe('hidden')
     release()
     await expect(
-      page.locator('.library__scroll, .library__empty'),
+      page.locator('.profiles__scroll, .profiles__empty'),
     ).toBeVisible()
     await expect(page.locator('.rv-notice--busy')).toHaveCount(0)
     mode = 'failure'
@@ -5192,19 +5188,19 @@ test('category tabs and More toggle a union that bulk selection can add to a pro
 test('profile rows navigate from their cells while menus and links keep their actions', async ({
   page,
 }) => {
-  const { listId } = await buildList(page)
+  const { profileId } = await buildProfile(page)
   await page.goto(origin)
-  const row = page.locator('.library__row').filter({
-    has: page.locator(`a[href="/profiles/${listId}"]`),
+  const row = page.locator('.profiles__row').filter({
+    has: page.locator(`a[href="/profiles/${profileId}"]`),
   })
-  await row.locator('.library__cell-outputs').click()
-  await expect(page).toHaveURL(origin + '/profiles/' + listId)
+  await row.locator('.profiles__cell-outputs').click()
+  await expect(page).toHaveURL(origin + '/profiles/' + profileId)
   await page.goto(origin)
   await row.getByRole('button').click()
   await expect(page.getByRole('menu')).toBeVisible()
   await expect(page).toHaveURL(origin + '/')
   await page.keyboard.press('Escape')
-  await row.locator(`a[href="/profiles/${listId}"]`).focus()
+  await row.locator(`a[href="/profiles/${profileId}"]`).focus()
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(origin + '/profiles/' + listId)
+  await expect(page).toHaveURL(origin + '/profiles/' + profileId)
 })

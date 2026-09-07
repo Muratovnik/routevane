@@ -65,7 +65,7 @@ func TestConfigTransferExportUsesTransferLocalReferences(t *testing.T) {
 	if err := json.Unmarshal(payload, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.CustomLists[0].Ref != "custom-service-1" || got.Profiles[0].Ref != "route-1" || got.Outputs[0].ProfileRef != "route-1" || got.Outputs[0].DeviceRef != "device-1" {
+	if got.CustomLists[0].Ref != "custom-list-1" || got.Profiles[0].Ref != "profile-1" || got.Outputs[0].ProfileRef != "profile-1" || got.Outputs[0].DeviceRef != "device-1" {
 		t.Fatalf("transfer references = %#v", got)
 	}
 }
@@ -92,7 +92,7 @@ func TestConfigTransferExportCarriesAndRemapsDefaultPriority(t *testing.T) {
 	if err := json.Unmarshal(payload, &got); err != nil {
 		t.Fatal(err)
 	}
-	if want := []string{"custom-service-1", "example"}; !slices.Equal(got.Settings.DefaultPriority, want) {
+	if want := []string{"custom-list-1", "example"}; !slices.Equal(got.Settings.DefaultPriority, want) {
 		t.Fatalf("default priority=%#v, want %#v", got.Settings.DefaultPriority, want)
 	}
 }
@@ -287,7 +287,7 @@ func TestConfigTransferEntryPointsEnforceTheSharedSizeBoundary(t *testing.T) {
 
 func TestConfigTransferRejectsInvalidUTF8(t *testing.T) {
 	publication := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x43}, 256)))
-	payload := append([]byte(`{"version":"config-transfer-v1.2","settings":{"refresh_interval":"off"},"custom_services":[{"ref":"custom-service-1","title":"`), 0xff)
+	payload := append([]byte(`{"version":"config-transfer-v1.2","settings":{"refresh_interval":"off"},"custom_services":[{"ref":"custom-list-1","title":"`), 0xff)
 	payload = append(payload, []byte(`","domains":["example.test"]}]}`)...)
 	_, _, err := publication.PreviewConfigTransfer(payload, nil)
 	var transfer TransferError
@@ -301,7 +301,7 @@ func TestConfigTransferRejectsLocalCatalogDependency(t *testing.T) {
 	publication.config.LocalListIDs = map[string]struct{}{"example": {}}
 	payload, err := json.Marshal(ConfigTransferDocument{
 		Version: ConfigTransferVersion, Settings: transferSettings(),
-		Profiles: []TransferProfile{{Ref: "route-1", Name: "Local", Lists: []string{"example"}, ListDomains: map[string][]string{}, RefreshInterval: RefreshOff}},
+		Profiles: []TransferProfile{{Ref: "profile-1", Name: "Local", Lists: []string{"example"}, ListDomains: map[string][]string{}, RefreshInterval: RefreshOff}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -399,12 +399,12 @@ func TestConfigTransferValidatesEffectiveCompositionsBeforeApply(t *testing.T) {
 		name    string
 		profile TransferProfile
 	}{
-		{"direct list contradiction", TransferProfile{Ref: "route-1", Name: "Route", Lists: []string{"example"}, Exclusions: []string{"example"}, RefreshInterval: RefreshOff}},
-		{"category excluded to empty", TransferProfile{Ref: "route-1", Name: "Route", Categories: []string{"collection"}, Exclusions: []string{"example"}, RefreshInterval: RefreshOff}},
-		{"empty category", TransferProfile{Ref: "route-1", Name: "Route", Categories: []string{"empty"}, RefreshInterval: RefreshOff}},
-		{"domain key outside effective composition", TransferProfile{Ref: "route-1", Name: "Route", Lists: []string{"example"}, ListDomains: map[string][]string{"absent": {"example.test"}}, RefreshInterval: RefreshOff}},
-		{"unnormalizable domain", TransferProfile{Ref: "route-1", Name: "Route", Lists: []string{"example"}, ListDomains: map[string][]string{"example": {"bad domain"}}, RefreshInterval: RefreshOff}},
-		{"too many profile domains", TransferProfile{Ref: "route-1", Name: "Route", Lists: []string{"example"}, ListDomains: map[string][]string{"example": domains}, RefreshInterval: RefreshOff}},
+		{"direct list contradiction", TransferProfile{Ref: "profile-1", Name: "Profile", Lists: []string{"example"}, Exclusions: []string{"example"}, RefreshInterval: RefreshOff}},
+		{"category excluded to empty", TransferProfile{Ref: "profile-1", Name: "Profile", Categories: []string{"collection"}, Exclusions: []string{"example"}, RefreshInterval: RefreshOff}},
+		{"empty category", TransferProfile{Ref: "profile-1", Name: "Profile", Categories: []string{"empty"}, RefreshInterval: RefreshOff}},
+		{"domain key outside effective composition", TransferProfile{Ref: "profile-1", Name: "Profile", Lists: []string{"example"}, ListDomains: map[string][]string{"absent": {"example.test"}}, RefreshInterval: RefreshOff}},
+		{"unnormalizable domain", TransferProfile{Ref: "profile-1", Name: "Profile", Lists: []string{"example"}, ListDomains: map[string][]string{"example": {"bad domain"}}, RefreshInterval: RefreshOff}},
+		{"too many profile domains", TransferProfile{Ref: "profile-1", Name: "Profile", Lists: []string{"example"}, ListDomains: map[string][]string{"example": domains}, RefreshInterval: RefreshOff}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			document := base
@@ -435,10 +435,10 @@ func TestConfigTransferNormalizesValidRouteDomainsBeforeApply(t *testing.T) {
 	entropy = append(entropy, bytes.Repeat([]byte{0x4b}, 32)...)
 	publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(entropy))
 	payload, err := json.Marshal(ConfigTransferDocument{
-		Version: ConfigTransferVersion, Settings: transferSettings("custom-service-1", "example"),
-		CustomLists:      []TransferCustomList{{Ref: "custom-service-1", Title: " Custom service ", Domains: []string{"CUSTOM.Example.COM."}}},
+		Version: ConfigTransferVersion, Settings: transferSettings("custom-list-1", "example"),
+		CustomLists:      []TransferCustomList{{Ref: "custom-list-1", Title: " Custom list ", Domains: []string{"CUSTOM.Example.COM."}}},
 		CustomCategories: []TransferCustomCategory{{Ref: "custom-category-1", Title: " Custom category "}},
-		Profiles:         []TransferProfile{{Ref: "route-1", Name: " Route ", Lists: []string{"example"}, Priority: []string{"example"}, ListDomains: map[string][]string{"example": {"WWW.Example.COM."}}, RefreshInterval: RefreshOff}},
+		Profiles:         []TransferProfile{{Ref: "profile-1", Name: " Profile ", Lists: []string{"example"}, Priority: []string{"example"}, ListDomains: map[string][]string{"example": {"WWW.Example.COM."}}, RefreshInterval: RefreshOff}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -458,15 +458,15 @@ func TestConfigTransferNormalizesValidRouteDomainsBeforeApply(t *testing.T) {
 	if len(got) != 1 || got[0] != "www.example.com" {
 		t.Fatalf("persisted route domains = %#v", got)
 	}
-	if name := state.(*transferFakeState).applied.Document.Profiles[0].Name; name != "Route" {
+	if name := state.(*transferFakeState).applied.Document.Profiles[0].Name; name != "Profile" {
 		t.Fatalf("persisted route name = %q", name)
 	}
 	if got := state.(*transferFakeState).applied.Document.Profiles[0].Priority; !slices.Equal(got, []string{"example"}) {
 		t.Fatalf("persisted route priority = %#v", got)
 	}
 	applied := state.(*transferFakeState).applied.Document
-	if list := applied.CustomLists[0]; list.Title != "Custom service" || len(list.Domains) != 1 || list.Domains[0] != "custom.example.com" {
-		t.Fatalf("persisted custom service = %#v", list)
+	if list := applied.CustomLists[0]; list.Title != "Custom list" || len(list.Domains) != 1 || list.Domains[0] != "custom.example.com" {
+		t.Fatalf("persisted custom list = %#v", list)
 	}
 	if title := applied.CustomCategories[0].Title; title != "Custom category" {
 		t.Fatalf("persisted custom category title = %q", title)
@@ -480,25 +480,25 @@ func TestConfigTransferRejectsMalformedDocumentLocalReferences(t *testing.T) {
 		name, path string
 		mutate     func(*ConfigTransferDocument)
 	}{
-		{"empty route ref", "routes/0/ref", func(d *ConfigTransferDocument) {
-			d.Profiles = []TransferProfile{{Name: "Route", Lists: []string{"example"}, RefreshInterval: RefreshOff}}
+		{"empty profile ref", "profiles/0/ref", func(d *ConfigTransferDocument) {
+			d.Profiles = []TransferProfile{{Name: "Profile", Lists: []string{"example"}, RefreshInterval: RefreshOff}}
 		}},
-		{"route control character", "routes/0/name", func(d *ConfigTransferDocument) {
-			d.Profiles = []TransferProfile{{Ref: "route-1", Name: "bad\nname", Lists: []string{"example"}, RefreshInterval: RefreshOff}}
+		{"profile control character", "profiles/0/name", func(d *ConfigTransferDocument) {
+			d.Profiles = []TransferProfile{{Ref: "profile-1", Name: "bad\nname", Lists: []string{"example"}, RefreshInterval: RefreshOff}}
 		}},
 		{"empty device ref", "devices/0/ref", func(d *ConfigTransferDocument) { d.Devices = []TransferDevice{{TargetID: "keenetic", Name: "Router"}} }},
 		{"empty output ref", "outputs/0/ref", func(d *ConfigTransferDocument) {
-			d.Profiles = []TransferProfile{{Ref: "route-1", Name: "Route", Lists: []string{"example"}, RefreshInterval: RefreshOff}}
-			d.Outputs = []TransferOutput{{ProfileRef: "route-1", TargetID: "keenetic"}}
+			d.Profiles = []TransferProfile{{Ref: "profile-1", Name: "Profile", Lists: []string{"example"}, RefreshInterval: RefreshOff}}
+			d.Outputs = []TransferOutput{{ProfileRef: "profile-1", TargetID: "keenetic"}}
 		}},
 		{"unversioned output route ref", "outputs/0/route_ref", func(d *ConfigTransferDocument) {
-			d.Profiles = []TransferProfile{{Ref: "route-1", Name: "Route", Lists: []string{"example"}, RefreshInterval: RefreshOff}}
+			d.Profiles = []TransferProfile{{Ref: "profile-1", Name: "Profile", Lists: []string{"example"}, RefreshInterval: RefreshOff}}
 			d.Outputs = []TransferOutput{{Ref: "output-1", ProfileRef: strings.Repeat("a", 32), TargetID: "keenetic"}}
 		}},
 		{"unversioned output device ref", "outputs/0/device_ref", func(d *ConfigTransferDocument) {
-			d.Profiles = []TransferProfile{{Ref: "route-1", Name: "Route", Lists: []string{"example"}, RefreshInterval: RefreshOff}}
+			d.Profiles = []TransferProfile{{Ref: "profile-1", Name: "Profile", Lists: []string{"example"}, RefreshInterval: RefreshOff}}
 			d.Devices = []TransferDevice{{Ref: "device-1", TargetID: "keenetic", Name: "Router"}}
-			d.Outputs = []TransferOutput{{Ref: "output-1", ProfileRef: "route-1", TargetID: "keenetic", DeviceRef: strings.Repeat("b", 32)}}
+			d.Outputs = []TransferOutput{{Ref: "output-1", ProfileRef: "profile-1", TargetID: "keenetic", DeviceRef: strings.Repeat("b", 32)}}
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -521,8 +521,8 @@ func TestConfigTransferAllowsAnExplicitlyUnboundOutput(t *testing.T) {
 	publication := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x4b}, 256)))
 	payload, err := json.Marshal(ConfigTransferDocument{
 		Version: ConfigTransferVersion, Settings: transferSettings("example"),
-		Profiles: []TransferProfile{{Ref: "route-1", Name: "Route", Lists: []string{"example"}, RefreshInterval: RefreshOff}},
-		Outputs:  []TransferOutput{{Ref: "output-1", ProfileRef: "route-1", TargetID: "keenetic"}},
+		Profiles: []TransferProfile{{Ref: "profile-1", Name: "Profile", Lists: []string{"example"}, RefreshInterval: RefreshOff}},
+		Outputs:  []TransferOutput{{Ref: "output-1", ProfileRef: "profile-1", TargetID: "keenetic"}},
 	})
 	if err != nil {
 		t.Fatal(err)

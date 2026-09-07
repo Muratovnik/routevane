@@ -38,7 +38,7 @@ const sections = computed<
     {
       id: 'library',
       icon: 'library',
-      label: t('shell.nav.library'),
+      label: t('shell.nav.profiles'),
       to: '/',
       active: path === '/' || path.startsWith('/profiles'),
     },

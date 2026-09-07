@@ -5,13 +5,13 @@ import {
   categoryInUse,
   createCategory,
   loadCatalog,
-  loadServiceContents,
-  previewService,
-  refreshService,
+  loadListContents,
+  previewList,
+  refreshList,
   removeCategory,
-  removeService,
+  removeList,
   saveDefaultPriority,
-  serviceInUse,
+  listInUse,
   updateCategory,
 } from './catalog'
 import {
@@ -20,18 +20,18 @@ import {
   planDeployment,
 } from './deploy'
 import { loadDevices } from './devices'
-import { loadExportFormats, requestListExport } from './exports'
+import { loadExportFormats, requestProfileExport } from './exports'
 import { RoutevaneAPIError } from './http'
 import {
-  loadLists,
+  loadProfiles,
   previewComposition,
   refreshInterval,
-  saveListRefreshInterval,
-} from './lists'
+  saveProfileRefreshInterval,
+} from './profiles'
 import { addOutput, buildOutput, loadOutput } from './outputs'
 import { loadSettings } from './settings'
 
-const listID = 'a'.repeat(32)
+const profileID = 'a'.repeat(32)
 const outputID = 'f'.repeat(32)
 const artifactID = 'b'.repeat(32)
 const snapshotID = 'c'.repeat(32)
@@ -65,7 +65,7 @@ const connection = {
 
 function buildPayload(): Record<string, unknown> {
   return {
-    output: { id: outputID, list_id: listID, target_id: 'keenetic' },
+    output: { id: outputID, list_id: profileID, target_id: 'keenetic' },
     snapshot: { id: snapshotID },
     artifact: {
       id: artifactID,
@@ -89,11 +89,11 @@ function buildPayload(): Record<string, unknown> {
   }
 }
 
-function listPayload(fields: Record<string, unknown> = {}): unknown {
+function profilePayload(fields: Record<string, unknown> = {}): unknown {
   return {
     profiles: [
       {
-        id: listID,
+        id: profileID,
         name: 'Video',
         lists: ['discord'],
         categories: [],
@@ -110,7 +110,7 @@ function listPayload(fields: Record<string, unknown> = {}): unknown {
 }
 
 function attemptPayload(attempt: Record<string, unknown>): unknown {
-  return listPayload({
+  return profilePayload({
     outputs: [
       {
         id: outputID,
@@ -139,10 +139,10 @@ function forecastPayload(target: Record<string, unknown>): unknown {
 }
 
 const draft = {
-  services: ['discord'],
+  lists: ['discord'],
   categories: [],
   exclusions: [],
-  serviceDomains: {},
+  listDomains: {},
 }
 
 describe('forecast overlap contract', () => {
@@ -165,7 +165,7 @@ describe('forecast overlap contract', () => {
           entry: {
             ruleKind: 'domain_suffix',
             value: 'shared.example',
-            services: ['alpha', 'beta'],
+            lists: ['alpha', 'beta'],
           },
         },
       ],
@@ -188,9 +188,9 @@ describe('forecast overlap contract', () => {
     )
     const result = await previewComposition(draft)
     expect(result[0]?.overlaps?.summary).toEqual([
-      { serviceID: 'alpha', overlaps: ['beta'] },
-      { serviceID: 'beta', overlaps: ['alpha'] },
-      { serviceID: 'solo', overlaps: [] },
+      { listID: 'alpha', overlaps: ['beta'] },
+      { listID: 'beta', overlaps: ['alpha'] },
+      { listID: 'solo', overlaps: [] },
     ])
   })
   it('refuses missing truncation, self-coverage and malformed relations', async () => {
@@ -309,47 +309,47 @@ describe('the shape of a value', () => {
   // An empty string is how this API says "absent", so it is never a stated
   // value.
   it('refuses an empty string where a value is required', async () => {
-    answer(listPayload({ name: '' }))
-    await expect(loadLists()).rejects.toBeInstanceOf(RoutevaneAPIError)
+    answer(profilePayload({ name: '' }))
+    await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
 
-    answer(listPayload({ name: 42 }))
-    await expect(loadLists()).rejects.toBeInstanceOf(RoutevaneAPIError)
+    answer(profilePayload({ name: 42 }))
+    await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
   })
 
   // A moment is admitted by being placeable on a clock and kept in the
   // server's own spelling, so what round-trips is what was published.
   it('keeps a timestamp as stated and refuses one no clock can place', async () => {
-    answer(listPayload({ created_at: '2026-08-20T12:00:00+03:00' }))
-    await expect(loadLists()).resolves.toMatchObject([
+    answer(profilePayload({ created_at: '2026-08-20T12:00:00+03:00' }))
+    await expect(loadProfiles()).resolves.toMatchObject([
       { createdAt: '2026-08-20T12:00:00+03:00' },
     ])
 
-    answer(listPayload({ created_at: 'whenever' }))
-    await expect(loadLists()).rejects.toBeInstanceOf(RoutevaneAPIError)
+    answer(profilePayload({ created_at: 'whenever' }))
+    await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
   })
 
   // An array is never a record here, and a schema of optional fields must not
   // quietly accept one.
   it('refuses an array where the contract states an object', async () => {
     answer([])
-    await expect(loadServiceContents('discord')).rejects.toBeInstanceOf(
+    await expect(loadListContents('discord')).rejects.toBeInstanceOf(
       RoutevaneAPIError,
     )
 
     answer([])
-    await expect(refreshService('discord')).rejects.toBeInstanceOf(
+    await expect(refreshList('discord')).rejects.toBeInstanceOf(
       RoutevaneAPIError,
     )
 
     answer({ refresh: {} })
-    await expect(refreshService('discord')).resolves.toEqual({
+    await expect(refreshList('discord')).resolves.toEqual({
       skippedEntries: 0,
     })
   })
 
   it('preserves skipped source entries and refuses malformed counts', async () => {
     answer({ refresh: { skipped_entries: 2 } })
-    await expect(refreshService('kinopub')).resolves.toEqual({
+    await expect(refreshList('kinopub')).resolves.toEqual({
       skippedEntries: 2,
     })
     for (const payload of [
@@ -360,7 +360,7 @@ describe('the shape of a value', () => {
       { refresh: { skipped_entries: '1' } },
     ]) {
       answer(payload)
-      await expect(refreshService('kinopub')).rejects.toBeInstanceOf(
+      await expect(refreshList('kinopub')).rejects.toBeInstanceOf(
         RoutevaneAPIError,
       )
     }
@@ -370,7 +370,7 @@ describe('the shape of a value', () => {
 describe('the envelope every endpoint shares', () => {
   it('separates a broken reply, a refusal and a reply outside the contract', async () => {
     fetchMock.mockResolvedValueOnce(new Response('not json', { status: 200 }))
-    await expect(loadLists()).rejects.toThrow(
+    await expect(loadProfiles()).rejects.toThrow(
       'Сервер вернул некорректный ответ.',
     )
 
@@ -383,7 +383,7 @@ describe('the envelope every endpoint shares', () => {
       },
       422,
     )
-    const refused = await addOutput(listID, 'keenetic').catch(
+    const refused = await addOutput(profileID, 'keenetic').catch(
       (reason: unknown) => reason,
     )
     expect(refused).toMatchObject({
@@ -393,8 +393,8 @@ describe('the envelope every endpoint shares', () => {
       status: 422,
     })
 
-    answer({ profiles: [{ id: listID }] })
-    await expect(loadLists()).rejects.toThrow(
+    answer({ profiles: [{ id: profileID }] })
+    await expect(loadProfiles()).rejects.toThrow(
       'Сервер вернул ответ вне контракта.',
     )
   })
@@ -402,7 +402,7 @@ describe('the envelope every endpoint shares', () => {
   // A refusal that states one of its counts badly still delivers the rest.
   it('reads each part of a refusal on its own', async () => {
     answer({ error: 'too many', code: 'rule_limit', projected_rules: -1 }, 422)
-    const refused = await addOutput(listID, 'keenetic').catch(
+    const refused = await addOutput(profileID, 'keenetic').catch(
       (reason: unknown) => reason,
     )
     expect(refused).toMatchObject({ code: 'rule_limit', details: {} })
@@ -469,7 +469,7 @@ describe('a build reply describes one published fact', () => {
     const refused = [
       'http://other.test/v1/subscriptions/rv1.invalid',
       `https://${window.location.host}/v1/subscriptions/rv1.invalid`,
-      `${window.location.origin}/v1/profiles/${listID}/export`,
+      `${window.location.origin}/v1/profiles/${profileID}/export`,
       'javascript:alert(1)',
       'not a url',
     ]
@@ -485,16 +485,18 @@ describe('a build reply describes one published fact', () => {
 
   // The bearer used to travel back with the output that had just been created.
   it('refuses a created output that still carries a subscription', async () => {
-    answer({ output: { id: outputID, list_id: listID, target_id: 'keenetic' } })
-    await expect(addOutput(listID, 'keenetic')).resolves.toEqual({
-      output: { id: outputID, listID, targetID: 'keenetic', deviceID: '' },
+    answer({
+      output: { id: outputID, list_id: profileID, target_id: 'keenetic' },
+    })
+    await expect(addOutput(profileID, 'keenetic')).resolves.toEqual({
+      output: { id: outputID, profileID, targetID: 'keenetic', deviceID: '' },
     })
 
     answer({
-      output: { id: outputID, list_id: listID, target_id: 'keenetic' },
+      output: { id: outputID, list_id: profileID, target_id: 'keenetic' },
       subscription_url: subscription,
     })
-    await expect(addOutput(listID, 'keenetic')).rejects.toBeInstanceOf(
+    await expect(addOutput(profileID, 'keenetic')).rejects.toBeInstanceOf(
       RoutevaneAPIError,
     )
   })
@@ -502,13 +504,13 @@ describe('a build reply describes one published fact', () => {
   it('reads a stored output and its latest file', async () => {
     answer({
       id: outputID,
-      list_id: listID,
+      list_id: profileID,
       target_id: 'keenetic',
       latest_artifact_id: artifactID,
     })
     await expect(loadOutput(outputID)).resolves.toEqual({
       id: outputID,
-      listID,
+      profileID,
       targetID: 'keenetic',
       deviceID: '',
       latestArtifactID: artifactID,
@@ -525,7 +527,7 @@ describe('a build attempt names either a file or a reason', () => {
         completed_at: '2026-08-20T12:01:00Z',
       }),
     )
-    await expect(loadLists()).resolves.toMatchObject([
+    await expect(loadProfiles()).resolves.toMatchObject([
       {
         outputs: [
           {
@@ -550,7 +552,7 @@ describe('a build attempt names either a file or a reason', () => {
         completed_at: '2026-08-20T12:01:00Z',
       }),
     )
-    await expect(loadLists()).resolves.toMatchObject([
+    await expect(loadProfiles()).resolves.toMatchObject([
       {
         outputs: [
           {
@@ -593,7 +595,7 @@ describe('a build attempt names either a file or a reason', () => {
     ]
     for (const attempt of refused) {
       answer(attemptPayload(attempt))
-      await expect(loadLists()).rejects.toBeInstanceOf(RoutevaneAPIError)
+      await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
     }
   })
 
@@ -601,10 +603,10 @@ describe('a build attempt names either a file or a reason', () => {
   // refuses the row.
   it('separates an absent attempt from a malformed one', async () => {
     answer(attemptPayload({}))
-    await expect(loadLists()).rejects.toBeInstanceOf(RoutevaneAPIError)
+    await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
 
     answer(
-      listPayload({
+      profilePayload({
         outputs: [
           {
             id: outputID,
@@ -617,7 +619,7 @@ describe('a build attempt names either a file or a reason', () => {
         ],
       }),
     )
-    await expect(loadLists()).resolves.toMatchObject([
+    await expect(loadProfiles()).resolves.toMatchObject([
       { outputs: [{ lastAttempt: null, latest: null, targetKind: '' }] },
     ])
   })
@@ -759,11 +761,13 @@ describe('a stored refresh rule', () => {
   })
 
   it('reads the same rule out of a list, a schedule and the settings', async () => {
-    answer(listPayload())
-    await expect(loadLists()).resolves.toMatchObject([{ refreshInterval: '' }])
+    answer(profilePayload())
+    await expect(loadProfiles()).resolves.toMatchObject([
+      { refreshInterval: '' },
+    ])
 
-    answer(listPayload({ refresh_interval: 'hourly' }))
-    await expect(loadLists()).resolves.toMatchObject([
+    answer(profilePayload({ refresh_interval: 'hourly' }))
+    await expect(loadProfiles()).resolves.toMatchObject([
       { refreshInterval: 'off' },
     ])
 
@@ -775,7 +779,9 @@ describe('a stored refresh rule', () => {
         next_refresh_at: '2026-08-21T12:00:00Z',
       },
     })
-    await expect(saveListRefreshInterval(listID, 'daily')).resolves.toEqual({
+    await expect(
+      saveProfileRefreshInterval(profileID, 'daily'),
+    ).resolves.toEqual({
       interval: 'daily',
       effective: 'daily',
       followsDefault: false,
@@ -792,7 +798,7 @@ describe('a stored refresh rule', () => {
 describe('the server states its fields, the screen reads its own', () => {
   it('renames every field a list card carries', async () => {
     answer(
-      listPayload({
+      profilePayload({
         priority: ['discord'],
         list_domains: { discord: ['discord.com'] },
         last_refreshed_at: '2026-08-20T11:00:00Z',
@@ -801,15 +807,15 @@ describe('the server states its fields, the screen reads its own', () => {
         missing_categories: ['gone'],
       }),
     )
-    await expect(loadLists()).resolves.toEqual([
+    await expect(loadProfiles()).resolves.toEqual([
       {
-        id: listID,
+        id: profileID,
         name: 'Video',
-        services: ['discord'],
+        lists: ['discord'],
         categories: [],
         exclusions: [],
         priority: ['discord'],
-        serviceDomains: { discord: ['discord.com'] },
+        listDomains: { discord: ['discord.com'] },
         refreshInterval: '',
         lastRefreshedAt: '2026-08-20T11:00:00Z',
         lastRefreshFailed: true,
@@ -824,12 +830,12 @@ describe('the server states its fields, the screen reads its own', () => {
   })
 
   it('reads an absent domain map as an empty one and refuses a wrong one', async () => {
-    answer(listPayload({ list_domains: null }))
-    await expect(loadLists()).resolves.toMatchObject([{ serviceDomains: {} }])
+    answer(profilePayload({ list_domains: null }))
+    await expect(loadProfiles()).resolves.toMatchObject([{ listDomains: {} }])
 
     for (const value of [[], { discord: 'discord.com' }, { discord: [''] }]) {
-      answer(listPayload({ list_domains: value }))
-      await expect(loadLists()).rejects.toBeInstanceOf(RoutevaneAPIError)
+      answer(profilePayload({ list_domains: value }))
+      await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
     }
   })
 
@@ -863,7 +869,7 @@ describe('the server states its fields, the screen reads its own', () => {
           title: 'MikroTik',
           title_en: 'MikroTik router',
           kind: 'router',
-          profile_key: 'mikrotik-address-list-v1',
+          format_key: 'mikrotik-address-list-v1',
           renderer_id: 'mikrotik-address-list-rsc',
           file_extension: 'rsc',
           manual_installation_hint: 'выполните /import',
@@ -872,8 +878,8 @@ describe('the server states its fields, the screen reads its own', () => {
       ],
     })
     await expect(loadCatalog()).resolves.toEqual({
-      services: ['discord'],
-      serviceDetails: [
+      lists: ['discord'],
+      listDetails: [
         {
           id: 'discord',
           title: 'Discord',
@@ -888,7 +894,7 @@ describe('the server states its fields, the screen reads its own', () => {
         {
           id: 'communication',
           title: 'Communication',
-          services: ['discord'],
+          lists: ['discord'],
           custom: false,
         },
       ],
@@ -898,7 +904,7 @@ describe('the server states its fields, the screen reads its own', () => {
           title: 'MikroTik',
           titleEn: 'MikroTik router',
           kind: 'router',
-          profileKey: 'mikrotik-address-list-v1',
+          formatKey: 'mikrotik-address-list-v1',
           rendererID: 'mikrotik-address-list-rsc',
           fileExtension: 'rsc',
           manualInstallationHint: 'выполните /import',
@@ -973,7 +979,7 @@ describe('the server states its fields, the screen reads its own', () => {
     await expect(createCategory('Мои списки', ['discord'])).resolves.toEqual({
       id: customCategoryID,
       title: 'Мои списки',
-      services: ['discord'],
+      lists: ['discord'],
       custom: true,
     })
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/v1/categories')
@@ -1003,7 +1009,7 @@ describe('the server states its fields, the screen reads its own', () => {
     }
   })
 
-  // `services` is the whole membership the operator wants; a field left out
+  // `lists` is the whole membership the operator wants; a field left out
   // means "leave this alone", which the body has to carry as an absence.
   it('sends only the fields a category edit states', async () => {
     const written = {
@@ -1013,7 +1019,7 @@ describe('the server states its fields, the screen reads its own', () => {
       custom: true,
     }
     answer({ category: written })
-    await updateCategory(customCategoryID, { services: ['discord'] })
+    await updateCategory(customCategoryID, { lists: ['discord'] })
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       `/v1/categories/${customCategoryID}/update`,
     )
@@ -1029,7 +1035,7 @@ describe('the server states its fields, the screen reads its own', () => {
 
     // An empty membership is a request, not an absent field.
     answer({ category: { ...written, lists: [] } })
-    await updateCategory(customCategoryID, { services: [] })
+    await updateCategory(customCategoryID, { lists: [] })
     expect((fetchMock.mock.calls[2]?.[1] as RequestInit).body).toBe(
       JSON.stringify({ lists: [] }),
     )
@@ -1075,7 +1081,7 @@ describe('the server states its fields, the screen reads its own', () => {
       {
         error: 'category in use',
         profiles: [
-          { id: listID, title: 'Дом' },
+          { id: profileID, title: 'Дом' },
           { id: outputID, title: 'Офис' },
         ],
       },
@@ -1086,7 +1092,7 @@ describe('the server states its fields, the screen reads its own', () => {
     )
     expect(refused).toBeInstanceOf(RoutevaneAPIError)
     expect(categoryInUse(refused)).toEqual([
-      { id: listID, title: 'Дом' },
+      { id: profileID, title: 'Дом' },
       { id: outputID, title: 'Офис' },
     ])
 
@@ -1095,7 +1101,7 @@ describe('the server states its fields, the screen reads its own', () => {
       [{ error: 'not found' }, 404],
       [{ error: 'operation failed' }, 422],
       [{ error: 'category in use' }, 409],
-      [{ error: 'category in use', profiles: [{ id: listID }] }, 409],
+      [{ error: 'category in use', profiles: [{ id: profileID }] }, 409],
       [{ error: 'in use', profiles: [] }, 409],
     ] as const) {
       answer(payload, status)
@@ -1113,7 +1119,7 @@ describe('the server states its fields, the screen reads its own', () => {
   // surface says list, and `lists` for the profiles standing in the way.
   it('removes a list and names the profiles that refuse it', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
-    await expect(removeService('discord')).resolves.toBeUndefined()
+    await expect(removeList('discord')).resolves.toBeUndefined()
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/v1/lists/discord/remove')
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit).headers).toMatchObject(
       {
@@ -1123,14 +1129,14 @@ describe('the server states its fields, the screen reads its own', () => {
     )
 
     answer(
-      { error: 'list in use', profiles: [{ id: listID, title: 'Дом' }] },
+      { error: 'list in use', profiles: [{ id: profileID, title: 'Дом' }] },
       409,
     )
-    const refused = await removeService('discord').catch(
+    const refused = await removeList('discord').catch(
       (reason: unknown) => reason,
     )
     expect(refused).toBeInstanceOf(RoutevaneAPIError)
-    expect(serviceInUse(refused)).toEqual([{ id: listID, title: 'Дом' }])
+    expect(listInUse(refused)).toEqual([{ id: profileID, title: 'Дом' }])
     // The two refusals are not interchangeable: each reads only its own.
     expect(categoryInUse(refused)).toBeNull()
 
@@ -1138,16 +1144,19 @@ describe('the server states its fields, the screen reads its own', () => {
       [{ error: 'not found' }, 404],
       [{ error: 'list in use' }, 409],
       [
-        { error: 'category in use', profiles: [{ id: listID, title: 'Дом' }] },
+        {
+          error: 'category in use',
+          profiles: [{ id: profileID, title: 'Дом' }],
+        },
         409,
       ],
     ] as const) {
       answer(payload, status)
-      const other = await removeService('discord').catch(
+      const other = await removeList('discord').catch(
         (reason: unknown) => reason,
       )
       expect(other).toBeInstanceOf(RoutevaneAPIError)
-      expect(serviceInUse(other)).toBeNull()
+      expect(listInUse(other)).toBeNull()
     }
   })
 
@@ -1166,7 +1175,7 @@ describe('the server states its fields, the screen reads its own', () => {
     answer({ lists: ['discord'], list_details: [detail], categories: [] })
     answer({ targets: [] })
     await expect(loadCatalog()).resolves.toMatchObject({
-      serviceDetails: [{ sourceCount: 2, domains: [] }],
+      listDetails: [{ sourceCount: 2, domains: [] }],
     })
 
     answer({
@@ -1235,8 +1244,8 @@ describe('the server states its fields, the screen reads its own', () => {
       prefix_count: 32,
       skipped_count: 1,
     })
-    await expect(previewService('google-ai')).resolves.toEqual({
-      serviceID: 'google-ai',
+    await expect(previewList('google-ai')).resolves.toEqual({
+      listID: 'google-ai',
       sources: [
         {
           id: 'iplist',
@@ -1281,11 +1290,11 @@ describe('the server states its fields, the screen reads its own', () => {
     }
 
     answer({ ...preview, sources: [source] })
-    const decoded = await previewService('google-ai')
+    const decoded = await previewList('google-ai')
     expect(decoded.sources[0] && 'errorCode' in decoded.sources[0]).toBe(false)
 
     answer({ ...preview, sources: [{ ...source, error_code: '' }] })
-    await expect(previewService('google-ai')).rejects.toBeInstanceOf(
+    await expect(previewList('google-ai')).rejects.toBeInstanceOf(
       RoutevaneAPIError,
     )
   })
@@ -1306,8 +1315,8 @@ describe('the server states its fields, the screen reads its own', () => {
       sources: [{ id: 'itdoginfo', type: 'http', custom: true, enabled: true }],
       observed: true,
     })
-    await expect(loadServiceContents('discord')).resolves.toEqual({
-      serviceID: 'discord',
+    await expect(loadListContents('discord')).resolves.toEqual({
+      listID: 'discord',
       rows: [
         {
           value: 'discord.com',
@@ -1341,7 +1350,7 @@ describe('the server states its fields, the screen reads its own', () => {
       rows: [{ value: 'discord.com', kind: 'hostname' }],
       sources: [],
     })
-    await expect(loadServiceContents('discord')).rejects.toBeInstanceOf(
+    await expect(loadListContents('discord')).rejects.toBeInstanceOf(
       RoutevaneAPIError,
     )
   })
@@ -1368,13 +1377,13 @@ describe('diagnostics name the reason at the level that owns it', () => {
     })
     await expect(loadDiagnostics(snapshotID)).resolves.toEqual([
       {
-        serviceID: 'discord',
+        listID: 'discord',
         value: 'discord.com',
         reasons: ['catalog_domain'],
         excluded: false,
       },
       {
-        serviceID: 'discord',
+        listID: 'discord',
         value: '0.0.0.0/0',
         reasons: ['too_broad'],
         excluded: true,
@@ -1437,14 +1446,14 @@ describe('an export is read through the same envelope', () => {
         headers: { 'Content-Disposition': 'attachment' },
       }),
     )
-    await expect(requestListExport(listID, 'raw-json')).rejects.toThrow(
+    await expect(requestProfileExport(profileID, 'raw-json')).rejects.toThrow(
       'Сервер не указал имя файла.',
     )
 
     fetchMock.mockResolvedValueOnce(
       new Response('nope', { status: 500, headers: {} }),
     )
-    await expect(requestListExport(listID, 'raw-json')).rejects.toThrow(
+    await expect(requestProfileExport(profileID, 'raw-json')).rejects.toThrow(
       'Операция не выполнена.',
     )
   })

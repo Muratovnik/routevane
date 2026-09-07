@@ -52,7 +52,8 @@ export const timestamp = v.pipe(
 
 // Fields the server may leave out. An absent value is a fact about the server's
 // state rather than a malformed reply: an output whose target left the catalog
-// carries no kind, and a list that has never refreshed carries no refresh time.
+// carries no kind, and a profile that has never refreshed carries no refresh
+// time.
 export const optionalText = v.fallback(text, '')
 export const optionalTimestamp = v.fallback(timestamp, '')
 export const optionalCount = v.fallback(count, 0)

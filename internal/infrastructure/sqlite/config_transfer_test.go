@@ -14,25 +14,25 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 	store := categoryTestStore(t)
 	document := application.ConfigTransferDocument{
 		Version:  application.ConfigTransferVersion,
-		Settings: application.TransferSettings{RefreshInterval: application.RefreshOff, DefaultPriority: []string{"custom-service-1"}},
+		Settings: application.TransferSettings{RefreshInterval: application.RefreshOff, DefaultPriority: []string{"custom-list-1"}},
 		CustomLists: []application.TransferCustomList{{
-			Ref: "custom-service-1", Title: "Private", Domains: []string{"private.example"},
+			Ref: "custom-list-1", Title: "Private", Domains: []string{"private.example"},
 		}},
 		Profiles: []application.TransferProfile{{
-			Ref: "route-1", Name: "Private", Lists: []string{"custom-service-1"},
-			Priority:    []string{"custom-service-1"},
+			Ref: "profile-1", Name: "Private", Lists: []string{"custom-list-1"},
+			Priority:    []string{"custom-list-1"},
 			ListDomains: map[string][]string{}, RefreshInterval: application.RefreshDaily,
 		}},
 		Devices: []application.TransferDevice{{
 			Ref: "device-1", TargetID: "keenetic", Name: "Router", Address: "http://192.168.1.1", Account: "admin", Interface: "WG0",
 		}},
-		Outputs: []application.TransferOutput{{Ref: "output-1", ProfileRef: "route-1", TargetID: "keenetic", DeviceRef: "device-1"}},
+		Outputs: []application.TransferOutput{{Ref: "output-1", ProfileRef: "profile-1", TargetID: "keenetic", DeviceRef: "device-1"}},
 	}
 	apply := application.ConfigTransferApply{
 		Document:          document,
 		AppliedAt:         time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC),
-		CustomListIDs:     map[string]string{"custom-service-1": "custom-" + strings.Repeat("a", 16)},
-		ProfileIDs:        map[string]string{"route-1": strings.Repeat("b", 32)},
+		CustomListIDs:     map[string]string{"custom-list-1": "custom-" + strings.Repeat("a", 16)},
+		ProfileIDs:        map[string]string{"profile-1": strings.Repeat("b", 32)},
 		DeviceIDs:         map[string]string{"device-1": strings.Repeat("c", 32)},
 		OutputIDs:         map[string]string{"output-1": strings.Repeat("d", 32)},
 		CustomCategoryIDs: map[string]string{}, CustomSourceIDs: map[string]string{},

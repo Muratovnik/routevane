@@ -73,10 +73,11 @@ all, so `google.com` in a list is not a route but a name the device will route
 by. The word stays free and keeps meaning what a device builds.
 
 **Freeing `profile`.** The word is currently the rendering profile of a target:
-`profile_key` in the target catalog, the `effective_profiles` table, and
-`frozenProfiles` in code. That key means the renderer's version, so it is
-renamed to `format_key` and the table to `effective_formats`. The rename is
-worth doing on its own, and only target authors ever see the catalog key.
+`profile_key` in the target catalog, in the local API's target and output
+objects, the `effective_profiles` table, and `frozenProfiles` in code. That key
+means the renderer's version, so it is renamed to `format_key` and the table to
+`effective_formats`. The rename is worth doing on its own; only target authors
+see the catalog key, and the API field travels with the rest of the API.
 
 **One entry is a `rule`.** The interface and the planner already say so
 (`plan.Rules`, `RuleKind`, «Одинаковое правило»); only the prose in `docs/`

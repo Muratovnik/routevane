@@ -10,7 +10,7 @@ function pageModel() {
   return {
     catalog: ref(null),
     initialize: vi.fn(async () => {}),
-    list: ref({ name: 'Example profile' }),
+    profile: ref({ name: 'Example profile' }),
     outputs: ref([
       { id: 'first', latest: { id: 'artifact-1' }, targetID: 'keenetic' },
       { id: 'chosen', latest: { id: 'artifact-2' }, targetID: 'keenetic' },
@@ -22,8 +22,8 @@ function pageModel() {
 
 let model: ReturnType<typeof pageModel>
 
-vi.mock('@/features/view-list/model/useListView', () => ({
-  useListView: () => model,
+vi.mock('@/features/view-profile/model/useProfileView', () => ({
+  useProfileView: () => model,
 }))
 
 function renderPage() {

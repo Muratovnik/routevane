@@ -1,27 +1,27 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import ListView from '@/features/view-list/ui/ListView.vue'
+import ProfileView from '@/features/view-profile/ui/ProfileView.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
 import AppShell from '@/widgets/app-shell/ui/AppShell.vue'
 
 const route = useRoute()
 const { t } = useLocale()
 
-const listId = computed(() => {
+const profileId = computed(() => {
   const value = route.params.id
   return typeof value === 'string' ? value : ''
 })
 
 useHead({
   title: computed(
-    () => `${t('shell.product')} · ${t('shell.nav.library').toLowerCase()}`,
+    () => `${t('shell.product')} · ${t('shell.nav.profiles').toLowerCase()}`,
   ),
 })
 </script>
 
 <template>
   <AppShell>
-    <ListView :list-id="listId" />
+    <ProfileView :profile-id="profileId" />
   </AppShell>
 </template>

@@ -16,12 +16,12 @@ import {
   timestamp,
 } from './http'
 
-// An output binds one list to one format. It owns the subscription and the
+// An output binds one profile to one format. It owns the subscription and the
 // chain of published files, which is why every build and download addresses an
-// output rather than a list.
+// output rather than a profile.
 export type Output = {
   id: string
-  listID: string
+  profileID: string
   targetID: string
   deviceID: string
 }
@@ -85,11 +85,11 @@ export type BuildResult = {
 }
 
 export function addOutput(
-  listID: string,
+  profileID: string,
   targetID: string,
 ): Promise<CreatedOutput> {
   return postJSON(
-    `/v1/profiles/${listID}/outputs`,
+    `/v1/profiles/${profileID}/outputs`,
     { target_id: targetID },
     parseCreatedOutput,
   )
@@ -118,7 +118,7 @@ const outputSchema = v.pipe(
   fields({ id: text, list_id: text, target_id: text, device_id: optionalText }),
   v.transform((output): Output => ({
     id: output.id,
-    listID: output.list_id,
+    profileID: output.list_id,
     targetID: output.target_id,
     deviceID: output.device_id,
   })),
@@ -144,7 +144,7 @@ const storedOutputSchema = v.pipe(
   }),
   v.transform((output): StoredOutput => ({
     id: output.id,
-    listID: output.list_id,
+    profileID: output.list_id,
     targetID: output.target_id,
     deviceID: output.device_id,
     latestArtifactID: output.latest_artifact_id,

@@ -26,7 +26,7 @@ func TestLibraryPriorityRoundTripsAndRejectsMalformedReplacement(t *testing.T) {
 		t.Fatalf("malformed replacement changed stored order=%#v err=%v", got, err)
 	}
 	if err := store.SetDefaultPriority(ctx, []string{"bad id"}); err == nil {
-		t.Fatal("invalid service id accepted")
+		t.Fatal("invalid list id accepted")
 	}
 	// Empty is a valid sparse store operation (the application enforces a full
 	// permutation); this boundary may still clear stale rows during import.
@@ -50,7 +50,7 @@ func TestLibraryPriorityRoundTripsMoreThan128Lists(t *testing.T) {
 	store := categoryTestStore(t)
 	want := make([]string, 129)
 	for i := range want {
-		want[i] = fmt.Sprintf("service-%03d", i)
+		want[i] = fmt.Sprintf("list-%03d", i)
 	}
 	if err := store.SetDefaultPriority(context.Background(), want); err != nil {
 		t.Fatal(err)

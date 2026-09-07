@@ -898,7 +898,7 @@ func canonicalizeTransferReferences(d *ConfigTransferDocument) {
 	listRefs := make(map[string]string, len(d.CustomLists))
 	for i := range d.CustomLists {
 		old := d.CustomLists[i].Ref
-		ref := fmt.Sprintf("custom-service-%d", i+1)
+		ref := fmt.Sprintf("custom-list-%d", i+1)
 		listRefs[old] = ref
 		d.CustomLists[i].Ref = ref
 	}
@@ -919,7 +919,7 @@ func canonicalizeTransferReferences(d *ConfigTransferDocument) {
 	profileRefs := make(map[string]string, len(d.Profiles))
 	for i := range d.Profiles {
 		old := d.Profiles[i].Ref
-		ref := fmt.Sprintf("route-%d", i+1)
+		ref := fmt.Sprintf("profile-%d", i+1)
 		profileRefs[old] = ref
 		d.Profiles[i].Ref = ref
 	}
@@ -1145,7 +1145,7 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 	seen := map[string]bool{}
 	for i := range d.CustomLists {
 		v := &d.CustomLists[i]
-		p := fmt.Sprintf("custom_services/%d", i)
+		p := fmt.Sprintf("custom_lists/%d", i)
 		if seen[v.Ref] {
 			return transferError("duplicate_key", p+"/ref")
 		}
@@ -1265,12 +1265,12 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 	seen = map[string]bool{}
 	for i := range d.Profiles {
 		r := &d.Profiles[i]
-		p := fmt.Sprintf("routes/%d", i)
+		p := fmt.Sprintf("profiles/%d", i)
 		if seen[r.Ref] {
 			return transferError("duplicate_key", p+"/ref")
 		}
 		seen[r.Ref] = true
-		if !validTransferReference(r.Ref, "route") {
+		if !validProfileReference(r.Ref) {
 			return transferError("invalid_shape", p+"/ref")
 		}
 		name, ok := validObjectName(r.Name)
@@ -1338,7 +1338,7 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		if !validTransferReference(v.Ref, "output") {
 			return transferError("invalid_shape", p+"/ref")
 		}
-		if !validTransferReference(v.ProfileRef, "route") {
+		if !validProfileReference(v.ProfileRef) {
 			return transferError("invalid_shape", p+"/route_ref")
 		}
 		if !containsRoute(d.Profiles, v.ProfileRef) {
@@ -1365,6 +1365,14 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		pairs[pair] = true
 	}
 	return nil
+}
+
+// validProfileReference accepts a profile's document-local identifier under
+// the current prefix and the one it carried before ADR 0039, for the same
+// minor version the retired field names are read for. Only the current prefix
+// is ever written.
+func validProfileReference(value string) bool {
+	return validTransferReference(value, "profile") || validTransferReference(value, "route")
 }
 
 // validTransferReference accepts only the document-local identifiers emitted

@@ -83,7 +83,7 @@ type Output struct {
 	// Empty means file/subscription only. The explicit binding prevents a timer
 	// from guessing among multiple profiles for the same kind of device.
 	DeviceID           string    `json:"device_id,omitempty"`
-	FormatKey          string    `json:"profile_key"`
+	FormatKey          string    `json:"format_key"`
 	RendererID         string    `json:"renderer_id"`
 	RendererVersion    string    `json:"renderer_version"`
 	TargetRevision     string    `json:"-"`

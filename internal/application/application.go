@@ -228,7 +228,7 @@ func (r RendererRegistry) For(target domain.TargetDefinition) (Renderer, error) 
 		return nil, fmt.Errorf("%w: no renderer registered for target %q", ErrPreflight, target.ID)
 	}
 	if renderer.Version() != target.FormatKey {
-		return nil, fmt.Errorf("%w: renderer %q does not implement profile key %q", ErrPreflight, target.RendererID, target.FormatKey)
+		return nil, fmt.Errorf("%w: renderer %q does not implement format key %q", ErrPreflight, target.RendererID, target.FormatKey)
 	}
 	return renderer, nil
 }
