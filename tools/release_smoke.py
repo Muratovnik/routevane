@@ -140,7 +140,7 @@ def smoke(archive_path: Path, version: str, target: str, temp_dir: Path | None =
                 digest = normalized.get("x-routevane-ui-digest", "")
                 if not digest.startswith("sha256-") or len(digest) != 71 or b"<html" not in document.lower():
                     raise ValueError("embedded UI identity is missing")
-                _, catalog = request(port, "/v1/services")
+                _, catalog = request(port, "/v1/lists")
                 if not json.loads(catalog):
                     raise ValueError("catalog is empty")
                 if not (product / "data/routevane.db").is_file():
