@@ -36,12 +36,12 @@ func TestAnArchivedListStopsChangingAndKeepsServing(t *testing.T) {
 		t.Fatalf("first publication=%d %s", served.status, served.body)
 	}
 
-	archived := postJSON(t, origin+"/v1/lists/"+listID+"/archive", `{}`)
+	archived := postJSON(t, origin+"/v1/profiles/"+listID+"/archive", `{}`)
 	var archivedResponse struct {
 		List struct {
 			ID         string `json:"id"`
 			ArchivedAt string `json:"archived_at"`
-		} `json:"list"`
+		} `json:"profile"`
 	}
 	if err := json.Unmarshal(archived, &archivedResponse); err != nil {
 		t.Fatal(err)
@@ -53,11 +53,11 @@ func TestAnArchivedListStopsChangingAndKeepsServing(t *testing.T) {
 	// What stops is change. Every route that would rewrite the list or its
 	// files refuses with a conflict, naming the state rather than the body.
 	refusals := map[string]struct{ path, body string }{
-		"edit":       {"/v1/lists/" + listID + "/update", `{"name":"Дача и офис","services":["youtube","discord"]}`},
-		"refresh":    {"/v1/lists/" + listID + "/refresh", `{}`},
+		"edit":       {"/v1/profiles/" + listID + "/update", `{"name":"Дача и офис","lists":["youtube","discord"]}`},
+		"refresh":    {"/v1/profiles/" + listID + "/refresh", `{}`},
 		"build":      {"/v1/outputs/" + outputID + "/build", `{}`},
-		"add output": {"/v1/lists/" + listID + "/outputs", `{"target_id":"singbox"}`},
-		"schedule":   {"/v1/lists/" + listID + "/schedule", `{"refresh_interval":"daily"}`},
+		"add output": {"/v1/profiles/" + listID + "/outputs", `{"target_id":"singbox"}`},
+		"schedule":   {"/v1/profiles/" + listID + "/schedule", `{"refresh_interval":"daily"}`},
 	}
 	for name, request := range refusals {
 		t.Run(name, func(t *testing.T) {
@@ -85,7 +85,7 @@ func TestAnArchivedListStopsChangingAndKeepsServing(t *testing.T) {
 
 	// The library still carries the list, marked. A row that vanished would
 	// leave the operator with a working subscription they could not find.
-	shelved := httpGet(t, origin+"/v1/lists", nil)
+	shelved := httpGet(t, origin+"/v1/profiles", nil)
 	var listing struct {
 		Lists []struct {
 			ID         string `json:"id"`
@@ -96,7 +96,7 @@ func TestAnArchivedListStopsChangingAndKeepsServing(t *testing.T) {
 					ID string `json:"id"`
 				} `json:"latest"`
 			} `json:"outputs"`
-		} `json:"lists"`
+		} `json:"profiles"`
 	}
 	if err := json.Unmarshal(shelved.body, &listing); err != nil {
 		t.Fatal(err)
@@ -111,7 +111,7 @@ func TestAnArchivedListStopsChangingAndKeepsServing(t *testing.T) {
 	// Restoring returns the list to every write it refused, and the
 	// subscription issued before it was archived is still the one that resolves
 	// to the new file. Tokens are never rotated (ADR 0004).
-	restored := postJSON(t, origin+"/v1/lists/"+listID+"/restore", `{}`)
+	restored := postJSON(t, origin+"/v1/profiles/"+listID+"/restore", `{}`)
 	if strings.Contains(string(restored), `"archived_at"`) {
 		t.Fatalf("restore response still carries an archival date: %s", restored)
 	}

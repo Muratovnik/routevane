@@ -26,8 +26,8 @@ const devicePayload = {
 }
 
 const servicesPayload = {
-  services: [],
-  service_details: [],
+  lists: [],
+  list_details: [],
   categories: [],
 }
 
@@ -57,7 +57,7 @@ describe('useDevices degraded dependencies', () => {
     fetchMock.mockImplementation((input: string | URL | Request) => {
       const url = String(input)
       if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
-      if (url === '/v1/services') return Promise.resolve(json(servicesPayload))
+      if (url === '/v1/lists') return Promise.resolve(json(servicesPayload))
       if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
       if (url === '/v1/deployments/targets')
         return Promise.reject(new TypeError('unavailable'))
@@ -81,7 +81,7 @@ describe('useDevices degraded dependencies', () => {
     fetchMock.mockImplementation((input: string | URL | Request) => {
       const url = String(input)
       if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
-      if (url === '/v1/services')
+      if (url === '/v1/lists')
         return Promise.reject(new TypeError('unavailable'))
       if (url === '/v1/deployments/targets')
         return Promise.resolve(json({ targets: [] }))
@@ -102,8 +102,7 @@ describe('useDevices degraded dependencies', () => {
       (input: string | URL | Request, init?: RequestInit) => {
         const url = String(input)
         if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
-        if (url === '/v1/services')
-          return Promise.resolve(json(servicesPayload))
+        if (url === '/v1/lists') return Promise.resolve(json(servicesPayload))
         if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
         if (url === '/v1/deployments/targets')
           return Promise.reject(new TypeError('unavailable'))
@@ -146,7 +145,7 @@ describe('useDevices degraded dependencies', () => {
     fetchMock.mockImplementation((input: string | URL | Request) => {
       const url = String(input)
       if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
-      if (url === '/v1/services') return Promise.resolve(json(servicesPayload))
+      if (url === '/v1/lists') return Promise.resolve(json(servicesPayload))
       if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
       if (url === '/v1/deployments/targets') {
         requirementsReads += 1
@@ -188,9 +187,7 @@ describe('useDevices degraded dependencies', () => {
       fetchMock.mock.calls.filter(([input]) => String(input) === '/v1/devices'),
     ).toHaveLength(1)
     expect(
-      fetchMock.mock.calls.filter(
-        ([input]) => String(input) === '/v1/services',
-      ),
+      fetchMock.mock.calls.filter(([input]) => String(input) === '/v1/lists'),
     ).toHaveLength(1)
   })
 
@@ -204,8 +201,7 @@ describe('useDevices degraded dependencies', () => {
           return Promise.resolve(
             json({ devices: [], secret_store_available: true }),
           )
-        if (url === '/v1/services')
-          return Promise.resolve(json(servicesPayload))
+        if (url === '/v1/lists') return Promise.resolve(json(servicesPayload))
         if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
         if (url === '/v1/deployments/targets')
           return Promise.resolve(json({ targets: [] }))
@@ -250,8 +246,7 @@ describe('useDevices degraded dependencies', () => {
               devices: [{ ...devicePayload.devices[0], auto_deliver: true }],
             }),
           )
-        if (url === '/v1/services')
-          return Promise.resolve(json(servicesPayload))
+        if (url === '/v1/lists') return Promise.resolve(json(servicesPayload))
         if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
         if (url === '/v1/deployments/targets')
           return Promise.reject(new TypeError('unavailable'))

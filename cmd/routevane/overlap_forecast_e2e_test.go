@@ -28,43 +28,43 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 		var created struct {
 			Service struct {
 				ID string `json:"id"`
-			} `json:"service"`
+			} `json:"list"`
 		}
-		if err := json.Unmarshal(postJSON(t, origin+"/v1/services", string(body)), &created); err != nil {
+		if err := json.Unmarshal(postJSON(t, origin+"/v1/lists", string(body)), &created); err != nil {
 			t.Fatal(err)
 		}
 		id := created.Service.ID
 		ids = append(ids, id)
 		value, _ := json.Marshal(map[string]any{"values": []string{fixture.value}, "verdict": "include"})
-		postJSON(t, origin+"/v1/services/"+id+"/domains", string(value))
-		postJSON(t, origin+"/v1/services/"+id+"/refresh", `{}`)
+		postJSON(t, origin+"/v1/lists/"+id+"/domains", string(value))
+		postJSON(t, origin+"/v1/lists/"+id+"/refresh", `{}`)
 	}
 	read := func(selected []string) []application.CompositionForecast {
 		t.Helper()
-		body, _ := json.Marshal(map[string]any{"services": selected, "priority": selected, "targets": []string{"keenetic-dns", "singbox"}})
+		body, _ := json.Marshal(map[string]any{"lists": selected, "priority": selected, "targets": []string{"keenetic-dns", "singbox"}})
 		var result struct {
 			Targets []application.CompositionForecast `json:"targets"`
 		}
-		if err := json.Unmarshal(postJSON(t, origin+"/v1/lists/preview", string(body)), &result); err != nil {
+		if err := json.Unmarshal(postJSON(t, origin+"/v1/profiles/preview", string(body)), &result); err != nil {
 			t.Fatal(err)
 		}
 		return result.Targets
 	}
-	beforeLists := httpGet(t, origin+"/v1/lists", nil)
+	beforeLists := httpGet(t, origin+"/v1/profiles", nil)
 	beforeContents := [][]byte{}
 	for _, id := range ids {
-		beforeContents = append(beforeContents, httpGet(t, origin+"/v1/services/"+id+"/contents", nil).body)
+		beforeContents = append(beforeContents, httpGet(t, origin+"/v1/lists/"+id+"/contents", nil).body)
 	}
 	a, b := read(ids[:1]), read(ids[1:])
 	ab := read(ids)
 	if !reflect.DeepEqual(a, read(ids[:1])) || !reflect.DeepEqual(b, read(ids[1:])) {
 		t.Fatal("combined forecast rewrote individual lists")
 	}
-	if after := httpGet(t, origin+"/v1/lists", nil); after.status != http.StatusOK || !slices.Equal(beforeLists.body, after.body) {
+	if after := httpGet(t, origin+"/v1/profiles", nil); after.status != http.StatusOK || !slices.Equal(beforeLists.body, after.body) {
 		t.Fatal("forecast created a route or output")
 	}
 	for i, id := range ids {
-		if !slices.Equal(beforeContents[i], httpGet(t, origin+"/v1/services/"+id+"/contents", nil).body) {
+		if !slices.Equal(beforeContents[i], httpGet(t, origin+"/v1/lists/"+id+"/contents", nil).body) {
 			t.Fatal("forecast changed list contents")
 		}
 	}

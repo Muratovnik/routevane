@@ -71,18 +71,18 @@ test('packaged app persists data, hides to tray, reuses its instance and quits c
     const result = await page.evaluate(async () => {
       const health = await fetch('/health')
       const ui = await fetch('/')
-      const created = await fetch('/v1/lists', {
+      const created = await fetch('/v1/profiles', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Routevane-Request': '1',
         },
         body: JSON.stringify({
-          name: 'Desktop route',
-          services: ['chatgpt'],
+          name: 'Desktop profile',
+          lists: ['chatgpt'],
           categories: [],
           exclusions: [],
-          service_domains: {},
+          list_domains: {},
           priority: ['chatgpt'],
         }),
       })
@@ -100,10 +100,10 @@ test('packaged app persists data, hides to tray, reuses its instance and quits c
     expect(result.node).toBe('undefined')
     await page.reload()
     await expect(
-      page.getByRole('heading', { name: 'Маршруты', exact: true }),
+      page.getByRole('heading', { name: 'Профили', exact: true }),
     ).toBeVisible()
     await expect(
-      page.getByRole('link', { name: 'Desktop route', exact: true }),
+      page.getByRole('link', { name: 'Desktop profile', exact: true }),
     ).toBeVisible()
     // Electron cannot create axe's helper target. This application has no
     // cross-origin frames; legacy mode runs the same rules in its actual window.
@@ -116,7 +116,7 @@ test('packaged app persists data, hides to tray, reuses its instance and quits c
       ),
     ).toEqual([])
     await page.screenshot({
-      path: join(root, 'tmp/desktop-acceptance/routes.png'),
+      path: join(root, 'tmp/desktop-acceptance/profiles.png'),
     })
 
     await app.evaluate(({ BrowserWindow }) =>
@@ -152,12 +152,12 @@ test('packaged app persists data, hides to tray, reuses its instance and quits c
     try {
       await expect(
         restarted.page.getByRole('link', {
-          name: 'Desktop route',
+          name: 'Desktop profile',
           exact: true,
         }),
       ).toBeVisible()
       await expect(
-        restarted.page.getByRole('heading', { name: 'Маршруты', exact: true }),
+        restarted.page.getByRole('heading', { name: 'Профили', exact: true }),
       ).toBeVisible()
     } finally {
       await restarted.app.close()
@@ -198,7 +198,7 @@ test('desktop composes and publishes, copies a usable subscription and downloads
   try {
     const status = await page.evaluate(async () => {
       localStorage.setItem('rv.locale', 'en')
-      const result = await fetch('/v1/services', {
+      const result = await fetch('/v1/lists', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -212,7 +212,7 @@ test('desktop composes and publishes, copies a usable subscription and downloads
       return result.status
     })
     expect(status).toBe(201)
-    await page.goto('routevane://app/lists/new')
+    await page.goto('routevane://app/profiles/new')
     await page
       .getByRole('row')
       .filter({ hasText: 'Desktop list' })

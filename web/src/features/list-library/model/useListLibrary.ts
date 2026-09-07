@@ -40,7 +40,7 @@ export type LibraryWriteResult<T = void> = {
  */
 export type LibraryRefusal = {
   kind: 'failed' | 'inUse'
-  routes: string[]
+  profiles: string[]
 }
 
 /**
@@ -231,8 +231,8 @@ export function useListLibrary() {
       }
       const nextRefusal: LibraryRefusal =
         holders === null
-          ? { kind: 'failed', routes: [] }
-          : { kind: 'inUse', routes: holders.map((held) => held.title) }
+          ? { kind: 'failed', profiles: [] }
+          : { kind: 'inUse', profiles: holders.map((held) => held.title) }
       refusal.value = nextRefusal
       mutating.value = false
       return { refusal: nextRefusal, status: 'failed' }

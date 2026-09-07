@@ -32,7 +32,7 @@ func (h *handler) createCustomService(w http.ResponseWriter, r *http.Request) {
 		h.backendError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"service": service})
+	writeJSON(w, http.StatusCreated, map[string]any{"list": service})
 }
 
 func (h *handler) updateCustomService(w http.ResponseWriter, r *http.Request, serviceID string) {
@@ -48,7 +48,7 @@ func (h *handler) updateCustomService(w http.ResponseWriter, r *http.Request, se
 		h.backendError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"service": service})
+	writeJSON(w, http.StatusOK, map[string]any{"list": service})
 }
 
 // removeService deletes one list from the library (ADR 0029). It asks nothing,

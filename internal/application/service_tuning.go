@@ -58,7 +58,7 @@ func invalidDestination(value string) error {
 
 type CustomSource struct {
 	ID        string            `json:"id"`
-	ServiceID string            `json:"service_id"`
+	ServiceID string            `json:"list_id"`
 	URL       string            `json:"url"`
 	Format    domain.FeedFormat `json:"format"`
 	CreatedAt time.Time         `json:"created_at"`

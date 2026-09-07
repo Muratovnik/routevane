@@ -151,7 +151,7 @@ export type Catalog = {
 
 export async function loadCatalog(): Promise<Catalog> {
   const [services, targets] = await Promise.all([
-    getJSON('/v1/services', parseServices),
+    getJSON('/v1/lists', parseServices),
     getJSON('/v1/targets', parseTargets),
   ])
   return { ...services, targets }
@@ -164,7 +164,7 @@ export async function saveDefaultPriority(
   priority: string[],
 ): Promise<string[]> {
   const saved = await postJSON(
-    '/v1/services/priority',
+    '/v1/lists/priority',
     { default_priority: priority },
     parseDefaultPriority,
   )
@@ -219,7 +219,7 @@ export async function createCustomService(
   domains: string[],
 ): Promise<CustomServiceRecord> {
   const record = await postJSON(
-    '/v1/services',
+    '/v1/lists',
     { title, domains },
     parseCustomServiceEnvelope,
   )
@@ -233,7 +233,7 @@ export async function updateCustomService(
   domains: string[],
 ): Promise<CustomServiceRecord> {
   const record = await postJSON(
-    `/v1/services/${encodeURIComponent(serviceID)}/update`,
+    `/v1/lists/${encodeURIComponent(serviceID)}/update`,
     { title, domains },
     parseCustomServiceEnvelope,
   )
@@ -257,7 +257,7 @@ export async function createCategory(
 ): Promise<CategoryDetail> {
   const category = await postJSON(
     '/v1/categories',
-    services === undefined ? { title } : { services, title },
+    services === undefined ? { title } : { lists: services, title },
     parseCategoryEnvelope,
   )
   invalidateCatalogCache()
@@ -274,7 +274,7 @@ export async function updateCategory(
 ): Promise<CategoryDetail> {
   const body: Record<string, unknown> = {}
   if (edit.title !== undefined) body.title = edit.title
-  if (edit.services !== undefined) body.services = edit.services
+  if (edit.services !== undefined) body.lists = edit.services
   const category = await postJSON(
     `/v1/categories/${encodeURIComponent(categoryID)}/update`,
     body,
@@ -306,10 +306,7 @@ export async function removeCategory(
 // A list the operator removed, catalog-seeded or their own. The same shape of
 // refusal guards it: a route naming the list directly keeps it.
 export async function removeService(serviceID: string): Promise<void> {
-  await postNoContent(
-    `/v1/services/${encodeURIComponent(serviceID)}/remove`,
-    {},
-  )
+  await postNoContent(`/v1/lists/${encodeURIComponent(serviceID)}/remove`, {})
   invalidateCatalogCache()
 }
 
@@ -369,7 +366,7 @@ export function loadServiceContents(
   serviceID: string,
 ): Promise<ServiceContents> {
   return getJSON(
-    `/v1/services/${encodeURIComponent(serviceID)}/contents`,
+    `/v1/lists/${encodeURIComponent(serviceID)}/contents`,
     parseServiceContents,
   )
 }
@@ -380,7 +377,7 @@ export async function refreshService(
   serviceID: string,
 ): Promise<ServiceRefresh> {
   const result = await postJSON(
-    `/v1/services/${encodeURIComponent(serviceID)}/refresh`,
+    `/v1/lists/${encodeURIComponent(serviceID)}/refresh`,
     {},
     parseServiceRefresh,
   )
@@ -394,7 +391,7 @@ export async function setServiceSourceEnabled(
   enabled: boolean,
 ): Promise<ServiceContents> {
   const result = await postJSON(
-    `/v1/services/${encodeURIComponent(serviceID)}/sources/${encodeURIComponent(sourceID)}/update`,
+    `/v1/lists/${encodeURIComponent(serviceID)}/sources/${encodeURIComponent(sourceID)}/update`,
     { enabled },
     parseServiceContents,
   )
@@ -408,7 +405,7 @@ export async function addServiceSource(
   format: string,
 ): Promise<void> {
   await postJSON(
-    `/v1/services/${encodeURIComponent(serviceID)}/sources`,
+    `/v1/lists/${encodeURIComponent(serviceID)}/sources`,
     { format, url },
     parseAcknowledgement,
   )
@@ -420,7 +417,7 @@ export async function removeServiceSource(
   sourceID: string,
 ): Promise<ServiceContents> {
   const result = await postJSON(
-    `/v1/services/${encodeURIComponent(serviceID)}/sources/${encodeURIComponent(sourceID)}/remove`,
+    `/v1/lists/${encodeURIComponent(serviceID)}/sources/${encodeURIComponent(sourceID)}/remove`,
     {},
     parseServiceContents,
   )
@@ -438,7 +435,7 @@ export async function setServiceValues(
   verdict: DomainVerdict,
 ): Promise<ServiceContents> {
   const result = await postJSON(
-    `/v1/services/${encodeURIComponent(serviceID)}/domains`,
+    `/v1/lists/${encodeURIComponent(serviceID)}/domains`,
     { values, verdict },
     parseServiceContents,
   )
@@ -450,7 +447,7 @@ export async function previewService(
   serviceID: string,
 ): Promise<ServicePreview> {
   return postJSON(
-    `/v1/services/${encodeURIComponent(serviceID)}/preview`,
+    `/v1/lists/${encodeURIComponent(serviceID)}/preview`,
     {},
     parseServicePreview,
   )
@@ -478,13 +475,13 @@ const contentsSourceSchema = fields({
 
 const serviceContentsSchema = v.pipe(
   fields({
-    service_id: text,
+    list_id: text,
     rows: v.array(contentsRowSchema),
     sources: v.array(contentsSourceSchema),
     observed: optionalFlag,
   }),
   v.transform((contents): ServiceContents => ({
-    serviceID: contents.service_id,
+    serviceID: contents.list_id,
     rows: contents.rows,
     sources: contents.sources,
     observed: contents.observed,
@@ -492,8 +489,8 @@ const serviceContentsSchema = v.pipe(
 )
 
 const customServiceSchema = v.pipe(
-  fields({ service: fields({ id: text, title: text, domains: texts }) }),
-  v.transform((envelope): CustomServiceRecord => envelope.service),
+  fields({ list: fields({ id: text, title: text, domains: texts }) }),
+  v.transform((envelope): CustomServiceRecord => envelope.list),
 )
 
 const sourcePreviewSchema = v.pipe(
@@ -527,7 +524,7 @@ const sourcePreviewSchema = v.pipe(
 
 const servicePreviewSchema = v.pipe(
   fields({
-    service_id: text,
+    list_id: text,
     sources: v.array(sourcePreviewSchema),
     domains: texts,
     domain_count: count,
@@ -536,7 +533,7 @@ const servicePreviewSchema = v.pipe(
     skipped_count: count,
   }),
   v.transform((preview): ServicePreview => ({
-    serviceID: preview.service_id,
+    serviceID: preview.list_id,
     sources: preview.sources,
     domains: preview.domains,
     domainCount: preview.domain_count,
@@ -584,51 +581,61 @@ const serviceDetailSchema = v.pipe(
 // `custom` is required rather than optional: it decides which controls a
 // category is offered, and a build that did not state it would have the surface
 // guessing at ownership instead of refusing a reply outside the contract.
-const categorySchema = fields({
+const categoryFields = fields({
   id: text,
   title: text,
-  services: texts,
+  lists: texts,
   custom: v.boolean(),
 })
+
+// The wire already says `lists`; the screen's own property is renamed by the
+// slice that owns internal identifiers, so the value is carried across here.
+const categorySchema = v.pipe(
+  categoryFields,
+  v.transform((category): CategoryDetail => ({
+    id: category.id,
+    title: category.title,
+    services: category.lists,
+    custom: category.custom,
+  })),
+)
 
 const categoryEnvelopeSchema = v.pipe(
   fields({ category: categorySchema }),
   v.transform((envelope): CategoryDetail => envelope.category),
 )
 
-// The API says `lists` for the routes that hold an object, because the rename
-// of the stored identifiers is still ahead of the surface (ADR 0028).
+// The refusal keys the profiles that hold the object being deleted (ADR 0039).
 function inUseSchema(error: string) {
   return v.pipe(
     fields({
       error: v.literal(error),
-      lists: v.array(fields({ id: text, title: text })),
+      profiles: v.array(fields({ id: text, title: text })),
     }),
-    v.transform((refused): ListReference[] => refused.lists),
+    v.transform((refused): ListReference[] => refused.profiles),
   )
 }
 
 const servicesSchema = v.pipe(
   fields({
-    services: texts,
-    service_details: v.array(serviceDetailSchema),
+    lists: texts,
+    list_details: v.array(serviceDetailSchema),
     categories: v.array(categorySchema),
     default_priority: v.optional(texts),
   }),
   v.check((catalog) => {
     if (catalog.default_priority === undefined) return true
-    if (catalog.default_priority.length !== catalog.services.length)
-      return false
-    const available = new Set(catalog.services)
+    if (catalog.default_priority.length !== catalog.lists.length) return false
+    const available = new Set(catalog.lists)
     return (
-      available.size === catalog.services.length &&
+      available.size === catalog.lists.length &&
       new Set(catalog.default_priority).size === available.size &&
       catalog.default_priority.every((serviceID) => available.has(serviceID))
     )
   }),
   v.transform((catalog): Omit<Catalog, 'targets'> => ({
-    services: catalog.services,
-    serviceDetails: catalog.service_details,
+    services: catalog.lists,
+    serviceDetails: catalog.list_details,
     categories: catalog.categories,
     ...(catalog.default_priority === undefined
       ? {}

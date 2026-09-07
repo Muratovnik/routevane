@@ -44,7 +44,7 @@ func TestDesktopLeaseAndPrivateAPI(t *testing.T) {
 		previousOrigin = origin
 		client := &http.Client{Timeout: 3 * time.Second}
 		for _, credential := range []string{"", "wrong", token} {
-			request, err := http.NewRequestWithContext(ctx, http.MethodGet, origin+"/v1/lists", nil)
+			request, err := http.NewRequestWithContext(ctx, http.MethodGet, origin+"/v1/profiles", nil)
 			if err != nil {
 				t.Fatal(err)
 			}

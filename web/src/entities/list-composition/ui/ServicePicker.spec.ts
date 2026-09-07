@@ -50,7 +50,7 @@ function json(payload: unknown, status = 200): Response {
 
 function contentsResponse(observed = true): Response {
   return json({
-    service_id: 'discord',
+    list_id: 'discord',
     rows: [
       {
         value: 'discord.com',
@@ -91,7 +91,7 @@ function acceptedResponse(): Response {
 }
 
 /**
- * The picker's traffic, answered by route. Anything a test does not name is a
+ * The picker's traffic, answered by profile. Anything a test does not name is a
  * fault in that test rather than a silent default, so an unrouted call answers
  * with a refusal it will notice.
  */
@@ -297,7 +297,7 @@ describe('ServicePicker', () => {
    * same column, computed here, and it carries no membership controls because
    * there is no category to leave.
    */
-  it('quick category filters narrow choices without changing route membership', async () => {
+  it('quick category filters narrow choices without changing profile membership', async () => {
     const wrapper = mountPicker()
     wrapper
       .findComponent({ name: 'CategoryFilters' })
@@ -342,10 +342,10 @@ describe('ServicePicker', () => {
   /**
    * Selection is a checkbox and nothing else (ADR 0029). What a category holds,
    * what a list holds and whether either exists are the library's subject, so
-   * this surface offers no control that would reach another route — and, having
+   * this surface offers no control that would reach another profile — and, having
    * none, writes nothing at all.
    */
-  it('offers no control that reaches beyond this route', async () => {
+  it('offers no control that reaches beyond this profile', async () => {
     const { keys } = stubAPI({})
     const wrapper = mountPicker()
 
@@ -413,12 +413,12 @@ describe('ServicePicker', () => {
 
   // The card opens on the contents, and a row is named by its value and the
   // source that offered it — nothing repeats what the value already says, and
-  // nothing on the row is a control: what a route takes from a list is the
+  // nothing on the row is a control: what a profile takes from a list is the
   // whole list (ADR 0029).
   it('closes during a read and ignores its late result without starting source work', async () => {
     let release!: (response: Response) => void
     const { keys } = stubAPI({
-      'GET /v1/services/discord/contents': () =>
+      'GET /v1/lists/discord/contents': () =>
         new Promise((resolve) => {
           release = resolve
         }),
@@ -434,14 +434,14 @@ describe('ServicePicker', () => {
     release(contentsResponse(false))
     await flushPromises()
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    expect(keys()).toEqual(['GET /v1/services/discord/contents'])
+    expect(keys()).toEqual(['GET /v1/lists/discord/contents'])
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
     wrapper.unmount()
   })
 
   it('opens on the contents table with origins and no row controls', async () => {
     const { keys } = stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
     })
     const wrapper = mountPicker()
 
@@ -449,7 +449,7 @@ describe('ServicePicker', () => {
     await flushPromises()
     const card = openDialog()
 
-    expect(keys()[0]).toBe('GET /v1/services/discord/contents')
+    expect(keys()[0]).toBe('GET /v1/lists/discord/contents')
     expect(card.textContent).toContain('discord.com')
     expect(card.textContent).toContain('catalog')
     expect(card.textContent).toContain('discord.gg')
@@ -475,7 +475,7 @@ describe('ServicePicker', () => {
   // empty result says so in one line.
   it('filters the contents by value and by origin', async () => {
     stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
     })
     const wrapper = mountPicker()
 
@@ -512,7 +512,7 @@ describe('ServicePicker', () => {
   // explanation on this surface unreachable.
   it('opens the informer inside the card', async () => {
     stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
     })
     const wrapper = mountPicker()
 
@@ -533,16 +533,16 @@ describe('ServicePicker', () => {
 
   // A card that shows only the permanent rows tells the operator nothing about
   // what the list currently reaches, so it reads the sources itself — once.
-  // Reading a source changes no route and no list, which is why the composing
+  // Reading a source changes no profile and no list, which is why the composing
   // card still does it.
   it('reads the sources once when the contents arrive unobserved', async () => {
     let reads = 0
     const { keys } = stubAPI({
-      'GET /v1/services/discord/contents': () => {
+      'GET /v1/lists/discord/contents': () => {
         reads += 1
         return contentsResponse(reads > 1)
       },
-      'POST /v1/services/discord/refresh': () => acceptedResponse(),
+      'POST /v1/lists/discord/refresh': () => acceptedResponse(),
     })
     const wrapper = mountPicker()
 
@@ -551,22 +551,22 @@ describe('ServicePicker', () => {
     await flushPromises()
 
     expect(keys()).toEqual([
-      'GET /v1/services/discord/contents',
-      'POST /v1/services/discord/refresh',
-      'GET /v1/services/discord/contents',
+      'GET /v1/lists/discord/contents',
+      'POST /v1/lists/discord/refresh',
+      'GET /v1/lists/discord/contents',
     ])
     wrapper.unmount()
   })
 
-  it('adds an open list to the route from the card footer', async () => {
+  it('adds an open list to the profile from the card footer', async () => {
     stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
     })
     const wrapper = mountPicker()
 
     await wrapper.findAll('.picker__open')[0]?.trigger('click')
     await flushPromises()
-    clickByText(openDialog(), 'Add to route')
+    clickByText(openDialog(), 'Add to profile')
 
     expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toMatchObject({
       services: ['discord'],
@@ -575,14 +575,14 @@ describe('ServicePicker', () => {
   })
 
   /**
-   * The composing card edits one route and says which one — except while that
-   * route is a draft nobody stored. The composer proposes the name from the
+   * The composing card edits one profile and says which one — except while that
+   * profile is a draft nobody stored. The composer proposes the name from the
    * lists picked below, so naming it in the footer would read as if the card
    * were naming the list it is showing.
    */
   it('states membership without naming an unsaved draft', async () => {
     stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
     })
     const wrapper = mountPicker({ listName: 'Chat and video', pending: true })
 
@@ -591,20 +591,22 @@ describe('ServicePicker', () => {
     const card = openDialog()
 
     // No caption explains the reach of an edit, because no surface has two.
-    expect(card.textContent).not.toContain('Edits here apply to every route.')
+    expect(card.textContent).not.toContain('Edits here apply to every profile.')
     const membership = card.querySelector('.service-card__membership')
-    expect(membership?.textContent).toContain('Not in this route')
+    expect(membership?.textContent).toContain('Not in this profile')
     expect(membership?.textContent).not.toContain('Chat and video')
     // A draft that was never stored says the membership is waiting on a save.
-    expect(membership?.textContent).toContain('applies when the route is saved')
+    expect(membership?.textContent).toContain(
+      'applies when the profile is saved',
+    )
     wrapper.unmount()
   })
 
-  // A stored route is named, because the name is the operator's own and the
+  // A stored profile is named, because the name is the operator's own and the
   // card can speak for it.
-  it('names the route once it is stored', async () => {
+  it('names the profile once it is stored', async () => {
     stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
     })
     const wrapper = mountPicker({ listName: 'Chat and video' })
 
@@ -613,14 +615,14 @@ describe('ServicePicker', () => {
 
     expect(
       openDialog().querySelector('.service-card__membership')?.textContent,
-    ).toContain('Not in route “Chat and video”')
+    ).toContain('Not in profile “Chat and video”')
     wrapper.unmount()
   })
 
   // A draft with no name yet still has a footer to label.
-  it('names an unnamed draft as this route', async () => {
+  it('names an unnamed draft as this profile', async () => {
     stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
     })
     const wrapper = mountPicker({ listName: '   ' })
 
@@ -630,7 +632,7 @@ describe('ServicePicker', () => {
 
     expect(
       card.querySelector('.service-card__membership')?.textContent?.trim(),
-    ).toBe('Not in this route')
+    ).toBe('Not in this profile')
     wrapper.unmount()
   })
 })

@@ -69,7 +69,7 @@ func TestShippedCursorPublishesOnlyItsDomainsAndSurvivesSourceFailure(t *testing
 	// A failed source refresh cannot replace a previously published file.
 	published := httpGet(t, subscription, nil)
 	failed.Store(true)
-	refresh := postGuarded(t, origin+"/v1/lists/"+listID+"/refresh")
+	refresh := postGuarded(t, origin+"/v1/profiles/"+listID+"/refresh")
 	if refresh.status != http.StatusUnprocessableEntity || !strings.Contains(string(refresh.body), `"code":"source_unavailable"`) {
 		t.Fatalf("failed source refresh=%d %s", refresh.status, refresh.body)
 	}
@@ -80,7 +80,7 @@ func TestShippedCursorPublishesOnlyItsDomainsAndSurvivesSourceFailure(t *testing
 	if old := downloadArtifact(t, origin, built.Artifact.ID); old.status != http.StatusOK || string(old.body) != string(artifact.body) {
 		t.Fatalf("original Cursor artifact changed: %d %s", old.status, old.body)
 	}
-	if removed := postGuardedBody(t, origin+"/v1/services/cursor/remove", `{}`); removed.status != http.StatusConflict || !strings.Contains(string(removed.body), listID) {
+	if removed := postGuardedBody(t, origin+"/v1/lists/cursor/remove", `{}`); removed.status != http.StatusConflict || !strings.Contains(string(removed.body), listID) {
 		t.Fatalf("a directly used Cursor list must name its owner: %d %s", removed.status, removed.body)
 	}
 }
@@ -106,7 +106,7 @@ func TestShippedCursorRemovalSurvivesCatalogReload(t *testing.T) {
 	}
 	origin, stop := start()
 	assertCursorLibrary(t, origin, true)
-	if removed := postGuardedBody(t, origin+"/v1/services/cursor/remove", `{}`); removed.status != http.StatusNoContent {
+	if removed := postGuardedBody(t, origin+"/v1/lists/cursor/remove", `{}`); removed.status != http.StatusNoContent {
 		t.Fatalf("Cursor removal=%d %s", removed.status, removed.body)
 	}
 	assertCursorLibrary(t, origin, false)
@@ -136,15 +136,15 @@ func cursorFixtureCatalog(t *testing.T) string {
 
 func assertCursorLibrary(t *testing.T, origin string, present bool) {
 	t.Helper()
-	response := httpGet(t, origin+"/v1/services", nil)
+	response := httpGet(t, origin+"/v1/lists", nil)
 	var library struct {
-		Services []string `json:"services"`
+		Services []string `json:"lists"`
 		Details  []struct {
 			ID string `json:"id"`
-		} `json:"service_details"`
+		} `json:"list_details"`
 		Categories []struct {
 			ID       string   `json:"id"`
-			Services []string `json:"services"`
+			Services []string `json:"lists"`
 		} `json:"categories"`
 	}
 	if err := json.Unmarshal(response.body, &library); response.status != http.StatusOK || err != nil {

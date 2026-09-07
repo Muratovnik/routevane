@@ -13,7 +13,7 @@ import (
 func (h *handler) createCategory(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		Title    string   `json:"title"`
-		Services []string `json:"services"`
+		Services []string `json:"lists"`
 	}
 	if !decodeJSON(w, r, &request) {
 		return
@@ -35,7 +35,7 @@ func (h *handler) createCategory(w http.ResponseWriter, r *http.Request) {
 func (h *handler) updateCategory(w http.ResponseWriter, r *http.Request, id string) {
 	var request struct {
 		Title    *string   `json:"title"`
-		Services *[]string `json:"services"`
+		Services *[]string `json:"lists"`
 	}
 	if !decodeJSON(w, r, &request) {
 		return
@@ -54,6 +54,9 @@ func (h *handler) updateCategory(w http.ResponseWriter, r *http.Request, id stri
 // request that forgot to say which is a request the server must not guess at.
 // An unknown answer is refused by the application, which owns the two words.
 func (h *handler) removeCategory(w http.ResponseWriter, r *http.Request, id string) {
+	// This key already says what ADR 0039 renames things to: a category holds
+	// lists, and these are those lists, not the routes the same word means
+	// elsewhere in this API. It survives the swap unchanged.
 	var request struct {
 		Lists string `json:"lists"`
 	}

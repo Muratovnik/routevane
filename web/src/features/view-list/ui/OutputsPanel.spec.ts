@@ -34,7 +34,7 @@ function render(overrides: Record<string, unknown> = {}) {
       busy: false,
       deployable: () => true,
       devices: [],
-      listId: 'route-1',
+      listId: 'profile-1',
       outputs: [output],
       schedule,
       selectedId: '',
@@ -57,7 +57,7 @@ describe('OutputsPanel connection readiness', () => {
     wrapper.unmount()
   })
 
-  it('states when automatic delivery is on but route refresh is off', () => {
+  it('states when automatic delivery is on but profile refresh is off', () => {
     const wrapper = render({
       devices: [
         {
@@ -74,7 +74,7 @@ describe('OutputsPanel connection readiness', () => {
       ],
       outputs: [{ ...output, deviceID: 'device-1' }],
     })
-    expect(wrapper.text()).toContain('Turn on route refresh')
+    expect(wrapper.text()).toContain('Turn on profile refresh')
     wrapper.unmount()
   })
 
@@ -86,7 +86,7 @@ describe('OutputsPanel connection readiness', () => {
     wrapper.unmount()
   })
 
-  it('does not report readiness on an archived route', () => {
+  it('does not report readiness on an archived profile', () => {
     const wrapper = render({
       archived: true,
       devices: [

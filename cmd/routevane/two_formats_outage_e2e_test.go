@@ -176,7 +176,7 @@ func TestPublishesOneProfileInTwoPracticallyDifferentFormatsAndSurvivesAFeedOuta
 	// refresh reports it, and an explicit build publishes what the healthy
 	// sources support instead of the expired range.
 	now = now.Add(24 * time.Hour)
-	hardFailure := postGuarded(t, origin+"/v1/lists/"+listID+"/refresh")
+	hardFailure := postGuarded(t, origin+"/v1/profiles/"+listID+"/refresh")
 	if hardFailure.status != http.StatusUnprocessableEntity {
 		t.Fatalf("an expired grace window must report a failed refresh: status=%d body=%s", hardFailure.status, hardFailure.body)
 	}
@@ -201,7 +201,7 @@ func TestPublishesOneProfileInTwoPracticallyDifferentFormatsAndSurvivesAFeedOuta
 	// candidate is empty. Refuse it without moving the last-good publication.
 	resolver.set(nil)
 	now = now.Add(48 * time.Hour)
-	if failed := postGuarded(t, origin+"/v1/lists/"+listID+"/refresh"); failed.status != http.StatusUnprocessableEntity {
+	if failed := postGuarded(t, origin+"/v1/profiles/"+listID+"/refresh"); failed.status != http.StatusUnprocessableEntity {
 		t.Fatalf("all-source outage refresh=%d %s", failed.status, failed.body)
 	}
 	if failed := postGuarded(t, origin+"/v1/outputs/"+routerOutput+"/build"); failed.status != http.StatusUnprocessableEntity {
@@ -215,7 +215,7 @@ func TestPublishesOneProfileInTwoPracticallyDifferentFormatsAndSurvivesAFeedOuta
 			} `json:"latest"`
 		} `json:"outputs"`
 	}
-	if err := json.Unmarshal(httpGet(t, origin+"/v1/lists/"+listID, nil).body, &detail); err != nil {
+	if err := json.Unmarshal(httpGet(t, origin+"/v1/profiles/"+listID, nil).body, &detail); err != nil {
 		t.Fatal(err)
 	}
 	latest := ""
@@ -237,7 +237,7 @@ func TestPublishesOneProfileInTwoPracticallyDifferentFormatsAndSurvivesAFeedOuta
 // one list with two outputs rather than two copies of the same composition.
 func addOutput(t *testing.T, origin, listID, targetID string) string {
 	t.Helper()
-	created := postJSON(t, origin+"/v1/lists/"+listID+"/outputs", `{"target_id":"`+targetID+`"}`)
+	created := postJSON(t, origin+"/v1/profiles/"+listID+"/outputs", `{"target_id":"`+targetID+`"}`)
 	var response struct {
 		Output struct {
 			ID       string `json:"id"`
@@ -268,7 +268,7 @@ type degradedBuildResponse struct {
 
 func guardedRefreshAndBuild(t *testing.T, origin, listID, outputID string) degradedBuildResponse {
 	t.Helper()
-	refreshed := postGuarded(t, origin+"/v1/lists/"+listID+"/refresh")
+	refreshed := postGuarded(t, origin+"/v1/profiles/"+listID+"/refresh")
 	if refreshed.status != http.StatusOK {
 		t.Fatalf("refresh status=%d body=%s", refreshed.status, refreshed.body)
 	}

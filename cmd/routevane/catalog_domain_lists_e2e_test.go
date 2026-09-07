@@ -79,7 +79,7 @@ func TestAdditionalShippedDomainListsPublishSupportedNamesEndToEnd(t *testing.T)
 					t.Errorf("serve code=%d stderr=%s", code, stderr.String())
 				}
 			}()
-			refreshBody := postJSON(t, origin+"/v1/services/"+candidate.id+"/refresh", `{}`)
+			refreshBody := postJSON(t, origin+"/v1/lists/"+candidate.id+"/refresh", `{}`)
 			var refresh struct {
 				Summary struct {
 					Skipped int `json:"skipped_entries"`
@@ -104,14 +104,14 @@ func TestAdditionalShippedDomainListsPublishSupportedNamesEndToEnd(t *testing.T)
 			}
 			before := httpGet(t, subscription, nil)
 			failed.Store(true)
-			if response := postGuarded(t, origin+"/v1/lists/"+listID+"/refresh"); response.status != http.StatusUnprocessableEntity {
+			if response := postGuarded(t, origin+"/v1/profiles/"+listID+"/refresh"); response.status != http.StatusUnprocessableEntity {
 				t.Fatalf("source failure=%d %s", response.status, response.body)
 			}
 			after := httpGet(t, subscription, nil)
 			if before.status != http.StatusOK || after.status != http.StatusOK || string(after.body) != string(before.body) {
 				t.Fatalf("source failure replaced published file: %d %s", after.status, after.body)
 			}
-			contents := httpGet(t, origin+"/v1/services/"+candidate.id+"/contents", nil)
+			contents := httpGet(t, origin+"/v1/lists/"+candidate.id+"/contents", nil)
 			if contents.status != http.StatusOK || strings.Contains(string(contents.body), "unrelated.example") {
 				t.Fatalf("HTTP error body became a destination: %d %s", contents.status, contents.body)
 			}

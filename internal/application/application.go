@@ -323,7 +323,7 @@ func RenderPrepared(prepared PreparedPlan, renderer Renderer) ([]byte, error) {
 }
 
 type RefreshSummary struct {
-	ServiceID      string `json:"service"`
+	ServiceID      string `json:"list"`
 	SourceRuns     int    `json:"source_runs"`
 	SuccessfulRuns int    `json:"successful_runs"`
 	FailedRuns     int    `json:"failed_runs"`

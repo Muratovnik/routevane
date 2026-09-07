@@ -22,7 +22,7 @@ const collapsed = useLocalStorage('rv.sidebarCollapsed', false, {
   onError: () => {},
 })
 const workspace = computed(
-  () => route.path.startsWith('/lists/') || route.path === '/library',
+  () => route.path.startsWith('/profiles/') || route.path === '/lists',
 )
 
 // The document's language is part of the head, not a one-time DOM write: a page
@@ -40,7 +40,7 @@ const sections = computed<
       icon: 'library',
       label: t('shell.nav.library'),
       to: '/',
-      active: path === '/' || path.startsWith('/lists'),
+      active: path === '/' || path.startsWith('/profiles'),
     },
     {
       id: 'lists',
@@ -48,8 +48,8 @@ const sections = computed<
       // the nearest thing this set has to "the material a route is made of".
       icon: 'copy',
       label: t('shell.nav.lists'),
-      to: '/library',
-      active: path.startsWith('/library'),
+      to: '/lists',
+      active: path.startsWith('/lists'),
     },
     {
       id: 'connections',

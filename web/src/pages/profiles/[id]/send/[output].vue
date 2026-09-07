@@ -97,14 +97,14 @@ onMounted(reload)
         tone="failed"
       >
         <template #action>
-          <RvButton :to="`/lists/${listId}`" variant="secondary">{{
+          <RvButton :to="`/profiles/${listId}`" variant="secondary">{{
             t('send.back')
           }}</RvButton>
         </template>
       </RvStateNotice>
       <RvStateNotice v-else :title="t('library.noArtifact')" tone="waiting">
         <template #action>
-          <RvButton :to="`/lists/${listId}`" variant="secondary">
+          <RvButton :to="`/profiles/${listId}`" variant="secondary">
             {{ t('send.back') }}
           </RvButton>
         </template>

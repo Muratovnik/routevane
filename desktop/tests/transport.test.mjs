@@ -58,7 +58,7 @@ test('private transport preserves mutation guards and blocks foreign callers wit
     'private-credential',
   )
   const result = await transport(
-    new Request('routevane://app/v1/lists', {
+    new Request('routevane://app/v1/profiles', {
       method: 'POST',
       body: '{"name":"test"}',
       headers: {
@@ -72,11 +72,11 @@ test('private transport preserves mutation guards and blocks foreign callers wit
   assert.equal(result.status, 201)
   assert.deepEqual(await result.json(), { saved: true })
   for (const request of [
-    new Request('https://evil.test/v1/lists'),
-    new Request('routevane://app/v1/lists', {
+    new Request('https://evil.test/v1/profiles'),
+    new Request('routevane://app/v1/profiles', {
       headers: { Origin: 'https://evil.test' },
     }),
-    new Request('routevane://app/v1/lists', { method: 'DELETE' }),
+    new Request('routevane://app/v1/profiles', { method: 'DELETE' }),
   ])
     assert.equal((await transport(request)).status, 403)
   assert.equal(calls, 1)

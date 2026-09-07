@@ -34,10 +34,10 @@ var (
 type List struct {
 	ID             string              `json:"id"`
 	Name           string              `json:"name"`
-	Services       []string            `json:"services"`
+	Services       []string            `json:"lists"`
 	Categories     []string            `json:"categories"`
 	Exclusions     []string            `json:"exclusions"`
-	ServiceDomains map[string][]string `json:"service_domains,omitempty"`
+	ServiceDomains map[string][]string `json:"list_domains,omitempty"`
 	// Priority names the currently resolved services from highest to lowest.
 	// Category references remain live; services they gain later are appended by
 	// resolution rather than making an old route invalid.
@@ -65,10 +65,10 @@ type List struct {
 // catalog. It is one argument rather than three positional slices so a caller
 // cannot silently swap the excluded set for the named one.
 type ListComposition struct {
-	Services       []string            `json:"services"`
+	Services       []string            `json:"lists"`
 	Categories     []string            `json:"categories"`
 	Exclusions     []string            `json:"exclusions"`
-	ServiceDomains map[string][]string `json:"service_domains,omitempty"`
+	ServiceDomains map[string][]string `json:"list_domains,omitempty"`
 	Priority       []string            `json:"priority"`
 }
 

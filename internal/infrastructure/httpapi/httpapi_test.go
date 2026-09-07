@@ -457,13 +457,13 @@ func TestLoopbackAuthorityAndMutationGuards(t *testing.T) {
 		{"health", http.MethodGet, "/health", "127.0.0.1:8765", "127.0.0.1:1", "", "", "", nil, 200},
 		{"host", http.MethodGet, "/health", "evil.test", "127.0.0.1:1", "", "", "", nil, 421},
 		{"remote", http.MethodGet, "/health", "127.0.0.1:8765", "192.0.2.1:1", "", "", "", nil, 421},
-		{"csrf", http.MethodPost, "/v1/lists", "127.0.0.1:8765", "127.0.0.1:1", "application/json", "", "", strings.NewReader(`{"name":"list","services":["example"]}`), 403},
-		{"origin", http.MethodPost, "/v1/lists", "127.0.0.1:8765", "127.0.0.1:1", "application/json", "1", "http://evil.test", strings.NewReader(`{"name":"list","services":["example"]}`), 403},
-		{"type", http.MethodPost, "/v1/lists", "127.0.0.1:8765", "127.0.0.1:1", "application/json; charset=utf-8", "1", "", strings.NewReader(`{}`), 403},
-		{"unknown", http.MethodPost, "/v1/lists", "127.0.0.1:8765", "127.0.0.1:1", "application/json", "1", "", strings.NewReader(`{"name":"list","services":["example"],"extra":true}`), 400},
-		{"trailing", http.MethodPost, "/v1/lists", "127.0.0.1:8765", "127.0.0.1:1", "application/json", "1", "", strings.NewReader(`{} {}`), 400},
+		{"csrf", http.MethodPost, "/v1/profiles", "127.0.0.1:8765", "127.0.0.1:1", "application/json", "", "", strings.NewReader(`{"name":"list","lists":["example"]}`), 403},
+		{"origin", http.MethodPost, "/v1/profiles", "127.0.0.1:8765", "127.0.0.1:1", "application/json", "1", "http://evil.test", strings.NewReader(`{"name":"list","lists":["example"]}`), 403},
+		{"type", http.MethodPost, "/v1/profiles", "127.0.0.1:8765", "127.0.0.1:1", "application/json; charset=utf-8", "1", "", strings.NewReader(`{}`), 403},
+		{"unknown", http.MethodPost, "/v1/profiles", "127.0.0.1:8765", "127.0.0.1:1", "application/json", "1", "", strings.NewReader(`{"name":"list","lists":["example"],"extra":true}`), 400},
+		{"trailing", http.MethodPost, "/v1/profiles", "127.0.0.1:8765", "127.0.0.1:1", "application/json", "1", "", strings.NewReader(`{} {}`), 400},
 		{"empty body must be object", http.MethodPost, "/v1/outputs/" + strings.Repeat("a", 32) + "/build", "127.0.0.1:8765", "127.0.0.1:1", "application/json", "1", "", strings.NewReader(`null`), 400},
-		{"oversize", http.MethodPost, "/v1/lists", "127.0.0.1:8765", "127.0.0.1:1", "application/json", "1", "", strings.NewReader(`{"name":"` + strings.Repeat("x", maxJSONBytes) + `"}`), 413},
+		{"oversize", http.MethodPost, "/v1/profiles", "127.0.0.1:8765", "127.0.0.1:1", "application/json", "1", "", strings.NewReader(`{"name":"` + strings.Repeat("x", maxJSONBytes) + `"}`), 413},
 		{"options", http.MethodOptions, "/health", "127.0.0.1:8765", "127.0.0.1:1", "", "", "", nil, 405},
 		{"encoded slash", http.MethodGet, "/v1/artifacts/a%2Fb", "127.0.0.1:8765", "127.0.0.1:1", "", "", "", nil, 404},
 	}
@@ -641,15 +641,15 @@ func TestServicesAndBuildUseBoundedSafeDTOs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	services := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/services", nil)
+	services := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/lists", nil)
 	services.Host = "127.0.0.1:8765"
 	services.RemoteAddr = "127.0.0.1:1"
 	servicesResponse := httptest.NewRecorder()
 	server.Handler().ServeHTTP(servicesResponse, services)
-	if servicesResponse.Code != http.StatusOK || !strings.Contains(servicesResponse.Body.String(), `"services":["example"]`) || !strings.Contains(servicesResponse.Body.String(), `"service_details":[{"id":"example","title":"Example","categories":["diagnostic"],"domains":[{"value":"example.com","include_subdomains":true}],"sources":[{"id":"dns","type":"dns"},{"id":"vendor","type":"http"}],"source_count":2}]`) {
+	if servicesResponse.Code != http.StatusOK || !strings.Contains(servicesResponse.Body.String(), `"lists":["example"]`) || !strings.Contains(servicesResponse.Body.String(), `"list_details":[{"id":"example","title":"Example","categories":["diagnostic"],"domains":[{"value":"example.com","include_subdomains":true}],"sources":[{"id":"dns","type":"dns"},{"id":"vendor","type":"http"}],"source_count":2}]`) {
 		t.Fatalf("services response=%d %s", servicesResponse.Code, servicesResponse.Body.String())
 	}
-	preview := mutationRequest(t, "/v1/services/example/preview", `{}`)
+	preview := mutationRequest(t, "/v1/lists/example/preview", `{}`)
 	previewResponse := httptest.NewRecorder()
 	server.Handler().ServeHTTP(previewResponse, preview)
 	previewBody := previewResponse.Body.String()
@@ -678,7 +678,7 @@ func TestDefaultPriorityHTTPContractIsReadWrittenAndGuarded(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	read := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/services", nil)
+	read := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/lists", nil)
 	read.RemoteAddr = "127.0.0.1:1"
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, read)
@@ -686,7 +686,7 @@ func TestDefaultPriorityHTTPContractIsReadWrittenAndGuarded(t *testing.T) {
 		t.Fatalf("GET services code=%d body=%s", response.Code, response.Body.String())
 	}
 
-	write := mutationRequest(t, "/v1/services/priority", `{"default_priority":["example"]}`)
+	write := mutationRequest(t, "/v1/lists/priority", `{"default_priority":["example"]}`)
 	response = httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, write)
 	if response.Code != http.StatusOK || response.Body.String() != `{"default_priority":["example"]}`+"\n" {
@@ -697,14 +697,14 @@ func TestDefaultPriorityHTTPContractIsReadWrittenAndGuarded(t *testing.T) {
 	}
 
 	backend.defaultPriorityErr = errors.New("invalid default priority")
-	invalid := mutationRequest(t, "/v1/services/priority", `{"default_priority":[]}`)
+	invalid := mutationRequest(t, "/v1/lists/priority", `{"default_priority":[]}`)
 	response = httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, invalid)
 	if response.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("invalid priority code=%d body=%s", response.Code, response.Body.String())
 	}
 
-	unguarded := mutationRequest(t, "/v1/services/priority", `{"default_priority":["example"]}`)
+	unguarded := mutationRequest(t, "/v1/lists/priority", `{"default_priority":["example"]}`)
 	unguarded.Header.Del("X-Routevane-Request")
 	response = httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, unguarded)
@@ -729,7 +729,7 @@ func TestOneOffExportListsFormatsAndDoesNotUseAnOutputArtifact(t *testing.T) {
 	}
 
 	listID := strings.Repeat("a", 32)
-	export := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8765/v1/lists/"+listID+"/export", strings.NewReader(`{"format_id":"keenetic"}`))
+	export := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8765/v1/profiles/"+listID+"/export", strings.NewReader(`{"format_id":"keenetic"}`))
 	export.Host = "127.0.0.1:8765"
 	export.RemoteAddr = "127.0.0.1:1"
 	export.Header.Set("Content-Type", "application/json")
@@ -1087,7 +1087,7 @@ func TestCreateListPassesListLocalDomainOverrides(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := mutationRequest(t, "/v1/lists", `{"name":"Example","services":["example"],"priority":["example"],"service_domains":{"example":["custom.example"]}}`)
+	request := mutationRequest(t, "/v1/profiles", `{"name":"Example","lists":["example"],"priority":["example"],"list_domains":{"example":["custom.example"]}}`)
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusCreated {
@@ -1114,11 +1114,11 @@ func TestCompositionForecastAnswersEveryRequestedTargetWithItsOwnNumbers(t *test
 		t.Fatal(err)
 	}
 	response := httptest.NewRecorder()
-	server.Handler().ServeHTTP(response, mutationRequest(t, "/v1/lists/preview",
-		`{"services":["youtube","twitch"],"categories":["video"],"exclusions":["vimeo"],"priority":["twitch","youtube"],"service_domains":{"youtube":["custom.example"]},"targets":["keenetic","singbox"]}`))
+	server.Handler().ServeHTTP(response, mutationRequest(t, "/v1/profiles/preview",
+		`{"lists":["youtube","twitch"],"categories":["video"],"exclusions":["vimeo"],"priority":["twitch","youtube"],"list_domains":{"youtube":["custom.example"]},"targets":["keenetic","singbox"]}`))
 	const want = `{"targets":[` +
-		`{"target_id":"keenetic","maximum_rules":1024,"projected_rules":1742,"fits":false,"per_service":[{"service_id":"twitch","rules":1230},{"service_id":"youtube","rules":512}],"overlaps":{"items":[],"truncated":false}},` +
-		`{"target_id":"singbox","maximum_rules":8192,"projected_rules":1742,"fits":true,"per_service":[{"service_id":"twitch","rules":1230},{"service_id":"youtube","rules":512}],"overlaps":{"items":[],"truncated":false}}` +
+		`{"target_id":"keenetic","maximum_rules":1024,"projected_rules":1742,"fits":false,"per_list":[{"list_id":"twitch","rules":1230},{"list_id":"youtube","rules":512}],"overlaps":{"items":[],"truncated":false}},` +
+		`{"target_id":"singbox","maximum_rules":8192,"projected_rules":1742,"fits":true,"per_list":[{"list_id":"twitch","rules":1230},{"list_id":"youtube","rules":512}],"overlaps":{"items":[],"truncated":false}}` +
 		`]}` + "\n"
 	if response.Code != http.StatusOK || response.Body.String() != want {
 		t.Fatalf("code=%d body=%s want=%s", response.Code, response.Body.String(), want)
@@ -1148,13 +1148,13 @@ func TestCompositionForecastRefusesAnUnknownTargetAndAcceptsAnOmittedSet(t *test
 		t.Fatal(err)
 	}
 	unknown := httptest.NewRecorder()
-	server.Handler().ServeHTTP(unknown, mutationRequest(t, "/v1/lists/preview",
-		`{"services":["youtube"],"targets":["absent-device"]}`))
+	server.Handler().ServeHTTP(unknown, mutationRequest(t, "/v1/profiles/preview",
+		`{"lists":["youtube"],"targets":["absent-device"]}`))
 	if unknown.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("unknown target code=%d body=%s", unknown.Code, unknown.Body.String())
 	}
 	omitted := httptest.NewRecorder()
-	server.Handler().ServeHTTP(omitted, mutationRequest(t, "/v1/lists/preview", `{"services":["youtube"]}`))
+	server.Handler().ServeHTTP(omitted, mutationRequest(t, "/v1/profiles/preview", `{"lists":["youtube"]}`))
 	if omitted.Code != http.StatusOK || omitted.Body.String() != "{\"targets\":[]}\n" {
 		t.Fatalf("omitted targets code=%d body=%s", omitted.Code, omitted.Body.String())
 	}
@@ -1163,11 +1163,11 @@ func TestCompositionForecastRefusesAnUnknownTargetAndAcceptsAnOmittedSet(t *test
 	}
 	// The forecast reads and computes; it does not deploy or re-observe, so it
 	// answers on the same budget as every other screen.
-	if spec, owned := routes["lists.preview"]; !owned || spec.timeout != 0 {
+	if spec, owned := routes["profiles.preview"]; !owned || spec.timeout != 0 {
 		t.Fatalf("forecast route owned=%v budget=%s, want the default", owned, spec.timeout)
 	}
 	// GET is not this route: the composition it forecasts travels in a body.
-	get := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/lists/preview", nil)
+	get := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/profiles/preview", nil)
 	get.RemoteAddr = "127.0.0.1:1"
 	getResponse := httptest.NewRecorder()
 	server.Handler().ServeHTTP(getResponse, get)
@@ -1187,7 +1187,7 @@ func TestDestinationVerdictsTravelAsOneBatchAndAnswerWithTheContents(t *testing.
 		t.Fatal(err)
 	}
 	response := httptest.NewRecorder()
-	server.Handler().ServeHTTP(response, mutationRequest(t, "/v1/services/example/domains",
+	server.Handler().ServeHTTP(response, mutationRequest(t, "/v1/lists/example/domains",
 		`{"values":["example.com","198.51.100.7"],"verdict":"include"}`))
 	body := response.Body.String()
 	if response.Code != http.StatusOK ||
@@ -1202,7 +1202,7 @@ func TestDestinationVerdictsTravelAsOneBatchAndAnswerWithTheContents(t *testing.
 	// An empty batch is a malformed request, not an action with no effect: the
 	// backend is never reached.
 	empty := httptest.NewRecorder()
-	server.Handler().ServeHTTP(empty, mutationRequest(t, "/v1/services/example/domains", `{"values":[],"verdict":"include"}`))
+	server.Handler().ServeHTTP(empty, mutationRequest(t, "/v1/lists/example/domains", `{"values":[],"verdict":"include"}`))
 	if empty.Code != http.StatusBadRequest || len(backend.domainVerdicts) != 1 {
 		t.Fatalf("empty batch code=%d verdicts=%#v", empty.Code, backend.domainVerdicts)
 	}
@@ -1210,13 +1210,13 @@ func TestDestinationVerdictsTravelAsOneBatchAndAnswerWithTheContents(t *testing.
 	// A refused batch names the value the operator must fix; the old single
 	// "domain" field is gone, so a request carrying it is refused outright.
 	refused := httptest.NewRecorder()
-	server.Handler().ServeHTTP(refused, mutationRequest(t, "/v1/services/example/domains",
+	server.Handler().ServeHTTP(refused, mutationRequest(t, "/v1/lists/example/domains",
 		`{"values":["example.com","not a destination"],"verdict":"exclude"}`))
 	if refused.Code != http.StatusBadRequest || !strings.Contains(refused.Body.String(), `"value":"not a destination"`) {
 		t.Fatalf("refused batch code=%d body=%s", refused.Code, refused.Body.String())
 	}
 	legacy := httptest.NewRecorder()
-	server.Handler().ServeHTTP(legacy, mutationRequest(t, "/v1/services/example/domains", `{"domain":"example.com","verdict":"exclude"}`))
+	server.Handler().ServeHTTP(legacy, mutationRequest(t, "/v1/lists/example/domains", `{"domain":"example.com","verdict":"exclude"}`))
 	if legacy.Code != http.StatusBadRequest || len(backend.domainVerdicts) != 1 {
 		t.Fatalf("single-value payload code=%d verdicts=%#v", legacy.Code, backend.domainVerdicts)
 	}
@@ -1371,7 +1371,7 @@ func TestListListingServesTheLibraryRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/lists", nil)
+	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/profiles", nil)
 	request.RemoteAddr = "127.0.0.1:54321"
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
@@ -1379,16 +1379,16 @@ func TestListListingServesTheLibraryRows(t *testing.T) {
 		t.Fatalf("code=%d body=%s", response.Code, response.Body.String())
 	}
 	var decoded struct {
-		Lists []application.ListCard `json:"lists"`
+		Profiles []application.ListCard `json:"profiles"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if len(decoded.Lists) != 1 || len(decoded.Lists[0].Outputs) != 1 || decoded.Lists[0].Outputs[0].TargetKind != "router" || decoded.Lists[0].Outputs[0].Latest == nil || decoded.Lists[0].Outputs[0].Latest.SizeBytes != 42 {
-		t.Fatalf("lists = %#v", decoded.Lists)
+	if len(decoded.Profiles) != 1 || len(decoded.Profiles[0].Outputs) != 1 || decoded.Profiles[0].Outputs[0].TargetKind != "router" || decoded.Profiles[0].Outputs[0].Latest == nil || decoded.Profiles[0].Outputs[0].Latest.SizeBytes != 42 {
+		t.Fatalf("profiles = %#v", decoded.Profiles)
 	}
 	// The same path still refuses a verb it does not serve, naming both.
-	other := httptest.NewRequest(http.MethodDelete, "http://127.0.0.1:8765/v1/lists", nil)
+	other := httptest.NewRequest(http.MethodDelete, "http://127.0.0.1:8765/v1/profiles", nil)
 	other.RemoteAddr = "127.0.0.1:54321"
 	refused := httptest.NewRecorder()
 	server.Handler().ServeHTTP(refused, other)
@@ -1419,40 +1419,40 @@ func TestArchiveAndRestoreAreSeparateVerbsAndAnArchivedEditConflicts(t *testing.
 		return response
 	}
 
-	archived := post("/v1/lists/"+listID+"/archive", `{}`)
+	archived := post("/v1/profiles/"+listID+"/archive", `{}`)
 	if archived.Code != http.StatusOK || !backend.archived {
 		t.Fatalf("archive code=%d archived=%v body=%s", archived.Code, backend.archived, archived.Body.String())
 	}
 	var decoded struct {
-		List application.List `json:"list"`
+		Profile application.List `json:"profile"`
 	}
 	if err := json.Unmarshal(archived.Body.Bytes(), &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if !decoded.List.Archived() {
+	if !decoded.Profile.Archived() {
 		t.Fatalf("the reply must state the resulting state: %s", archived.Body.String())
 	}
 
 	// Repeating the same verb is still the same state, and an edit is refused
 	// with a conflict rather than an unprocessable body.
-	if again := post("/v1/lists/"+listID+"/archive", `{}`); again.Code != http.StatusOK || !backend.archived {
+	if again := post("/v1/profiles/"+listID+"/archive", `{}`); again.Code != http.StatusOK || !backend.archived {
 		t.Fatalf("repeat archive code=%d archived=%v", again.Code, backend.archived)
 	}
-	edit := post("/v1/lists/"+listID+"/update", `{"name":"renamed","services":["example"]}`)
+	edit := post("/v1/profiles/"+listID+"/update", `{"name":"renamed","lists":["example"]}`)
 	if edit.Code != http.StatusConflict {
 		t.Fatalf("editing an archived list code=%d body=%s", edit.Code, edit.Body.String())
 	}
 
-	restored := post("/v1/lists/"+listID+"/restore", `{}`)
+	restored := post("/v1/profiles/"+listID+"/restore", `{}`)
 	if restored.Code != http.StatusOK || backend.archived {
 		t.Fatalf("restore code=%d archived=%v", restored.Code, backend.archived)
 	}
-	if edit := post("/v1/lists/"+listID+"/update", `{"name":"renamed","services":["example"]}`); edit.Code != http.StatusOK {
+	if edit := post("/v1/profiles/"+listID+"/update", `{"name":"renamed","lists":["example"]}`); edit.Code != http.StatusOK {
 		t.Fatalf("editing a restored list code=%d body=%s", edit.Code, edit.Body.String())
 	}
 
 	// Archiving is a mutation, so the guarded verb is the only one served.
-	read := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/lists/"+listID+"/archive", nil)
+	read := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/profiles/"+listID+"/archive", nil)
 	read.RemoteAddr = "127.0.0.1:54321"
 	refused := httptest.NewRecorder()
 	server.Handler().ServeHTTP(refused, read)
@@ -1501,17 +1501,17 @@ var everyAPIPath = []struct {
 	{"/v1/config-transfer/export", "config-transfer.export"},
 	{"/v1/config-transfer/preview", "config-transfer.preview"},
 	{"/v1/config-transfer/apply", "config-transfer.apply"},
-	{"/v1/services", "services.collection"},
-	{"/v1/services/priority", "services.priority"},
-	{"/v1/services/example/preview", "services.preview"},
-	{"/v1/services/custom-1234567890abcdef/update", "services.update"},
-	{"/v1/services/example/remove", "services.remove"},
-	{"/v1/services/example/contents", "services.contents"},
-	{"/v1/services/example/refresh", "services.refresh"},
-	{"/v1/services/example/sources", "services.sources"},
-	{"/v1/services/example/sources/feed-1234567890abcdef/update", "services.sources.update"},
-	{"/v1/services/example/sources/feed-1234567890abcdef/remove", "services.sources.remove"},
-	{"/v1/services/example/domains", "services.domains"},
+	{"/v1/lists", "lists.collection"},
+	{"/v1/lists/priority", "lists.priority"},
+	{"/v1/lists/example/preview", "lists.preview"},
+	{"/v1/lists/custom-1234567890abcdef/update", "lists.update"},
+	{"/v1/lists/example/remove", "lists.remove"},
+	{"/v1/lists/example/contents", "lists.contents"},
+	{"/v1/lists/example/refresh", "lists.refresh"},
+	{"/v1/lists/example/sources", "lists.sources"},
+	{"/v1/lists/example/sources/feed-1234567890abcdef/update", "services.sources.update"},
+	{"/v1/lists/example/sources/feed-1234567890abcdef/remove", "services.sources.remove"},
+	{"/v1/lists/example/domains", "lists.domains"},
 	{"/v1/categories", "categories.create"},
 	{"/v1/categories/custom-1234567890abcdef/update", "categories.update"},
 	{"/v1/categories/custom-1234567890abcdef/remove", "categories.remove"},
@@ -1520,16 +1520,16 @@ var everyAPIPath = []struct {
 	{"/v1/deployments/targets", "deployments.targets"},
 	{"/v1/settings", "settings.get"},
 	{"/v1/settings/update", "settings.update"},
-	{"/v1/lists", "lists.collection"},
-	{"/v1/lists/preview", "lists.preview"},
-	{"/v1/lists/" + testID + "", "lists.get"},
-	{"/v1/lists/" + testID + "/update", "lists.update"},
-	{"/v1/lists/" + testID + "/refresh", "lists.refresh"},
-	{"/v1/lists/" + testID + "/outputs", "lists.outputs"},
-	{"/v1/lists/" + testID + "/schedule", "lists.schedule"},
-	{"/v1/lists/" + testID + "/archive", "lists.archive"},
-	{"/v1/lists/" + testID + "/restore", "lists.restore"},
-	{"/v1/lists/" + testID + "/export", "lists.export"},
+	{"/v1/profiles", "profiles.collection"},
+	{"/v1/profiles/preview", "profiles.preview"},
+	{"/v1/profiles/" + testID + "", "profiles.get"},
+	{"/v1/profiles/" + testID + "/update", "profiles.update"},
+	{"/v1/profiles/" + testID + "/refresh", "profiles.refresh"},
+	{"/v1/profiles/" + testID + "/outputs", "profiles.outputs"},
+	{"/v1/profiles/" + testID + "/schedule", "profiles.schedule"},
+	{"/v1/profiles/" + testID + "/archive", "profiles.archive"},
+	{"/v1/profiles/" + testID + "/restore", "profiles.restore"},
+	{"/v1/profiles/" + testID + "/export", "profiles.export"},
 	{"/v1/devices", "devices.collection"},
 	{"/v1/devices/" + testID + "/update", "devices.update"},
 	{"/v1/devices/" + testID + "/forget", "devices.forget"},
@@ -1597,7 +1597,7 @@ func TestUnhandledPathFormsAreNotFound(t *testing.T) {
 		"/v1/categories" + "/custom-1234567890abcdef",
 		"/v1/settings/" + testID,
 		"/v1/artifacts/" + testID + "/install",
-		"/v1/lists/" + testID + "/publish",
+		"/v1/profiles/" + testID + "/publish",
 	} {
 		// Only the catch-all may claim these. An API route that took one would
 		// answer it, and the fallback is what turns it into not found.
@@ -1632,8 +1632,8 @@ func TestNoRequestIsAnsweredWithARedirect(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, path := range []string{
-		"/", "/health", "/health/", "/v1", "/v1/", "/v1//lists", "/v1/lists/", "//",
-		"/v1/lists/" + testID + "/", "/v1/./lists", "/_nuxt/", "/_nuxt/app.123456.js",
+		"/", "/health", "/health/", "/v1", "/v1/", "/v1//lists", "/v1/profiles/", "//",
+		"/v1/profiles/" + testID + "/", "/v1/./lists", "/_nuxt/", "/_nuxt/app.123456.js",
 		"/setup/diagnostics", "/setup/diagnostics/",
 	} {
 		request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765"+path, nil)
@@ -1682,12 +1682,12 @@ func TestTheDeployRouteCarriesItsOwnBudget(t *testing.T) {
 	// The service refresh re-observes several bounded feeds in sequence, so it
 	// carries its own budget too: larger than a screen answer, smaller than a
 	// device deployment.
-	refresh, owned := routes["services.refresh"]
+	refresh, owned := routes["lists.refresh"]
 	if !owned || refresh.timeout <= requestTimeout || refresh.timeout >= spec.timeout {
 		t.Fatalf("service refresh budget = %s", refresh.timeout)
 	}
 	for route, other := range routes {
-		if route == "artifacts.deploy" || route == "services.refresh" || other.timeout == 0 {
+		if route == "artifacts.deploy" || route == "lists.refresh" || other.timeout == 0 {
 			continue
 		}
 		t.Errorf("route %q also overrides the budget (%s); every override needs its own reason", route, other.timeout)
@@ -1710,8 +1710,8 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 		return response
 	}
 
-	created := send("/v1/categories", `{"title":"Мои списки","services":["example"]}`)
-	wantCreated := `{"category":{"id":"custom-1234567890abcdef","title":"Мои списки","services":["example"],"custom":true}}` + "\n"
+	created := send("/v1/categories", `{"title":"Мои списки","lists":["example"]}`)
+	wantCreated := `{"category":{"id":"custom-1234567890abcdef","title":"Мои списки","lists":["example"],"custom":true}}` + "\n"
 	if created.Code != http.StatusCreated || created.Body.String() != wantCreated {
 		t.Fatalf("create code=%d body=%s want=%s", created.Code, created.Body.String(), wantCreated)
 	}
@@ -1723,22 +1723,22 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 		t.Fatalf("invalid title code=%d body=%s", invalid.Code, invalid.Body.String())
 	}
 
-	updated := send("/v1/categories/custom-1234567890abcdef/update", `{"title":"Мои списки 2","services":["example"]}`)
-	wantUpdated := `{"category":{"id":"custom-1234567890abcdef","title":"Мои списки 2","services":["example"],"custom":true}}` + "\n"
+	updated := send("/v1/categories/custom-1234567890abcdef/update", `{"title":"Мои списки 2","lists":["example"]}`)
+	wantUpdated := `{"category":{"id":"custom-1234567890abcdef","title":"Мои списки 2","lists":["example"],"custom":true}}` + "\n"
 	if updated.Code != http.StatusOK || updated.Body.String() != wantUpdated {
 		t.Fatalf("update code=%d body=%s want=%s", updated.Code, updated.Body.String(), wantUpdated)
 	}
 	// A shipped category takes membership and refuses a title, because the
 	// catalog owns the words and would answer differently on the next load.
-	members := send("/v1/categories/diagnostic/update", `{"services":["example","other"]}`)
-	wantMembers := `{"category":{"id":"diagnostic","title":"Diagnostic","services":["example","other"],"custom":false}}` + "\n"
+	members := send("/v1/categories/diagnostic/update", `{"lists":["example","other"]}`)
+	wantMembers := `{"category":{"id":"diagnostic","title":"Diagnostic","lists":["example","other"],"custom":false}}` + "\n"
 	if members.Code != http.StatusOK || members.Body.String() != wantMembers {
 		t.Fatalf("catalog membership code=%d body=%s want=%s", members.Code, members.Body.String(), wantMembers)
 	}
 	if rename := send("/v1/categories/diagnostic/update", `{"title":"Диагностика"}`); rename.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("catalog rename code=%d body=%s", rename.Code, rename.Body.String())
 	}
-	if unknown := send("/v1/categories/absent/update", `{"services":[]}`); unknown.Code != http.StatusNotFound {
+	if unknown := send("/v1/categories/absent/update", `{"lists":[]}`); unknown.Code != http.StatusNotFound {
 		t.Fatalf("unknown update code=%d body=%s", unknown.Code, unknown.Body.String())
 	}
 
@@ -1764,6 +1764,8 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 			t.Fatalf("disposition %s code=%d body=%s", body, bad.Code, bad.Body.String())
 		}
 	}
+	// The retired name is now an unknown field, which is what a request written
+	// against the previous vocabulary looks like.
 	if unknownField := send("/v1/categories/custom-1234567890abcdef/remove", `{"lists":"detach","services":[]}`); unknownField.Code != http.StatusBadRequest {
 		t.Fatalf("unknown field code=%d body=%s", unknownField.Code, unknownField.Body.String())
 	}
@@ -1775,7 +1777,7 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 		{ID: strings.Repeat("b", 32), Title: "Офис"},
 	}
 	inUse := send("/v1/categories/custom-1234567890abcdef/remove", `{"lists":"delete"}`)
-	wantInUse := `{"error":"category in use","lists":[` +
+	wantInUse := `{"error":"category in use","profiles":[` +
 		`{"id":"` + strings.Repeat("a", 32) + `","title":"Дом"},` +
 		`{"id":"` + strings.Repeat("b", 32) + `","title":"Офис"}]}` + "\n"
 	if inUse.Code != http.StatusConflict || inUse.Body.String() != wantInUse {
@@ -1811,8 +1813,8 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 
 // Deleting a list is its own route with its own refusal. The control surface
 // codes against the exact document, and the word for a route in this API is
-// still "list" until the ADR 0028 rename, which is why both refusals key their
-// routes under "lists".
+// still "list" in this API, which is why the refusal below says "list in use"
+// while keying the routes that block it under "routes".
 func TestRemoveServiceRouteAnswersItsFrozenContract(t *testing.T) {
 	backend := testBackend()
 	server, err := New("http://127.0.0.1:8765", backend, nil)
@@ -1826,20 +1828,20 @@ func TestRemoveServiceRouteAnswersItsFrozenContract(t *testing.T) {
 		return response
 	}
 
-	if unknown := send("/v1/services/absent/remove", `{}`); unknown.Code != http.StatusNotFound {
+	if unknown := send("/v1/lists/absent/remove", `{}`); unknown.Code != http.StatusNotFound {
 		t.Fatalf("unknown deletion code=%d body=%s", unknown.Code, unknown.Body.String())
 	}
 	// The route asks nothing, so it carries nothing: a body with content is a
 	// request this route does not answer.
-	if extra := send("/v1/services/example/remove", `{"lists":"delete"}`); extra.Code != http.StatusBadRequest {
+	if extra := send("/v1/lists/example/remove", `{"lists":"delete"}`); extra.Code != http.StatusBadRequest {
 		t.Fatalf("non-empty body code=%d body=%s", extra.Code, extra.Body.String())
 	}
 	backend.serviceInUse = []application.ListReference{
 		{ID: strings.Repeat("a", 32), Title: "Дом"},
 		{ID: strings.Repeat("b", 32), Title: "Офис"},
 	}
-	inUse := send("/v1/services/example/remove", `{}`)
-	wantInUse := `{"error":"list in use","lists":[` +
+	inUse := send("/v1/lists/example/remove", `{}`)
+	wantInUse := `{"error":"list in use","profiles":[` +
 		`{"id":"` + strings.Repeat("a", 32) + `","title":"Дом"},` +
 		`{"id":"` + strings.Repeat("b", 32) + `","title":"Офис"}]}` + "\n"
 	if inUse.Code != http.StatusConflict || inUse.Body.String() != wantInUse {
@@ -1847,7 +1849,7 @@ func TestRemoveServiceRouteAnswersItsFrozenContract(t *testing.T) {
 	}
 
 	backend.serviceInUse = nil
-	removed := send("/v1/services/example/remove", `{}`)
+	removed := send("/v1/lists/example/remove", `{}`)
 	if removed.Code != http.StatusNoContent || removed.Body.Len() != 0 {
 		t.Fatalf("deletion code=%d body=%q", removed.Code, removed.Body.String())
 	}
@@ -1856,7 +1858,7 @@ func TestRemoveServiceRouteAnswersItsFrozenContract(t *testing.T) {
 	}
 
 	// GET is not one of these routes: they are mutations and answer POST only.
-	get := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/services/example/remove", nil)
+	get := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/lists/example/remove", nil)
 	get.RemoteAddr = "127.0.0.1:1"
 	getResponse := httptest.NewRecorder()
 	server.Handler().ServeHTTP(getResponse, get)
@@ -1875,7 +1877,7 @@ func TestLibraryDeletionsRefuseUnguardedRequests(t *testing.T) {
 		"form content type": func(r *http.Request) { r.Header.Set("Content-Type", "application/x-www-form-urlencoded") },
 	}
 	deletions := map[string]string{
-		"/v1/services/example/remove":                   `{}`,
+		"/v1/lists/example/remove":                      `{}`,
 		"/v1/categories/custom-1234567890abcdef/remove": `{"lists":"delete"}`,
 	}
 	for path, body := range deletions {
@@ -1914,7 +1916,7 @@ func TestServiceListingCarriesMergedCategoriesWithTheirOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/services", nil)
+	request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/lists", nil)
 	request.RemoteAddr = "127.0.0.1:1"
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
@@ -1930,7 +1932,7 @@ func TestServiceListingCarriesMergedCategoriesWithTheirOwnership(t *testing.T) {
 	if !reflect.DeepEqual(decoded.Categories, backend.categories) {
 		t.Fatalf("categories = %#v", decoded.Categories)
 	}
-	if !strings.Contains(response.Body.String(), `"id":"diagnostic","title":"Diagnostic","services":["example"],"custom":false`) {
+	if !strings.Contains(response.Body.String(), `"id":"diagnostic","title":"Diagnostic","lists":["example"],"custom":false`) {
 		t.Fatalf("a shipped category omitted its ownership: %s", response.Body.String())
 	}
 }

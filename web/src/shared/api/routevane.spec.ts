@@ -95,8 +95,8 @@ describe('Routevane local API decoders', () => {
   it('loads only a valid catalog and keeps requests relative', async () => {
     fetchMock.mockResolvedValueOnce(
       json({
-        services: ['discord', 'youtube'],
-        service_details: [
+        lists: ['discord', 'youtube'],
+        list_details: [
           {
             id: 'discord',
             title: 'Discord',
@@ -114,13 +114,13 @@ describe('Routevane local API decoders', () => {
           {
             id: 'communication',
             title: 'Общение',
-            services: ['discord'],
+            lists: ['discord'],
             custom: false,
           },
           {
             id: 'video',
             title: 'Видео',
-            services: ['youtube'],
+            lists: ['youtube'],
             custom: true,
           },
         ],
@@ -218,7 +218,7 @@ describe('Routevane local API decoders', () => {
       ],
     })
     expect(fetchMock.mock.calls.map(([path]) => path)).toEqual([
-      '/v1/services',
+      '/v1/lists',
       '/v1/targets',
     ])
   })
@@ -226,7 +226,7 @@ describe('Routevane local API decoders', () => {
   it('checks automatic service contents without a list mutation', async () => {
     fetchMock.mockResolvedValueOnce(
       json({
-        service_id: 'google-ai',
+        list_id: 'google-ai',
         sources: [
           {
             id: 'iplist',
@@ -267,7 +267,7 @@ describe('Routevane local API decoders', () => {
         { id: 'itdoginfo', status: 'ready', domainCount: 2 },
       ],
     })
-    expect(fetchMock).toHaveBeenCalledWith('/v1/services/google-ai/preview', {
+    expect(fetchMock).toHaveBeenCalledWith('/v1/lists/google-ai/preview', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -309,7 +309,7 @@ describe('Routevane local API decoders', () => {
     const list = {
       id: listID,
       name: 'Видео',
-      services: ['discord'],
+      lists: ['discord'],
       categories: ['video'],
       exclusions: [],
       resolved: ['discord', 'youtube'],
@@ -318,7 +318,7 @@ describe('Routevane local API decoders', () => {
       updated_at: '2026-08-20T12:00:00Z',
       outputs: [output, gone],
     }
-    fetchMock.mockResolvedValueOnce(json({ lists: [list] }))
+    fetchMock.mockResolvedValueOnce(json({ profiles: [list] }))
     const cards = await loadLists()
     expect(cards).toHaveLength(1)
     expect(cards[0]?.outputs[0]?.latest?.snapshotID).toBe('c'.repeat(32))
@@ -338,7 +338,7 @@ describe('Routevane local API decoders', () => {
 
     fetchMock.mockResolvedValueOnce(
       json({
-        lists: [
+        profiles: [
           { ...list, outputs: [{ ...output, latest: { id: artifactID } }] },
         ],
       }),
@@ -380,14 +380,17 @@ describe('Routevane local API decoders', () => {
     const file = await requestListExport(listID, 'raw-json')
     expect(file.fileName).toBe(`routevane-${listID}-raw-json.json`)
     expect(await file.blob.text()).toBe('{"rules":[]}')
-    expect(fetchMock).toHaveBeenLastCalledWith(`/v1/lists/${listID}/export`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Routevane-Request': '1',
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `/v1/profiles/${listID}/export`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Routevane-Request': '1',
+        },
+        body: JSON.stringify({ format_id: 'raw-json' }),
       },
-      body: JSON.stringify({ format_id: 'raw-json' }),
-    })
+    )
   })
 
   it('rejects malformed and cross-origin bearer-bearing output responses', async () => {
@@ -430,10 +433,10 @@ describe('Routevane local API decoders', () => {
   it('sends the exact mutation guards and rejects unsafe or inconsistent builds', async () => {
     fetchMock.mockResolvedValueOnce(
       json({
-        list: {
+        profile: {
           id: listID,
           name: 'Видео',
-          services: ['discord', 'youtube'],
+          lists: ['discord', 'youtube'],
           categories: ['video'],
           exclusions: [],
           created_at: '2026-08-20T12:00:00Z',
@@ -447,7 +450,7 @@ describe('Routevane local API decoders', () => {
       exclusions: [],
       serviceDomains: {},
     })
-    expect(fetchMock).toHaveBeenCalledWith('/v1/lists', {
+    expect(fetchMock).toHaveBeenCalledWith('/v1/profiles', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -455,10 +458,10 @@ describe('Routevane local API decoders', () => {
       },
       body: JSON.stringify({
         name: 'Видео',
-        services: ['youtube', 'discord'],
+        lists: ['youtube', 'discord'],
         categories: ['video'],
         exclusions: [],
-        service_domains: {},
+        list_domains: {},
         priority: [],
       }),
     })
@@ -609,9 +612,9 @@ describe('composition forecast', () => {
             maximum_rules: 1024,
             projected_rules: 12,
             fits: true,
-            per_service: [
-              { service_id: 'discord', rules: 5 },
-              { service_id: 'youtube', rules: 7 },
+            per_list: [
+              { list_id: 'discord', rules: 5 },
+              { list_id: 'youtube', rules: 7 },
             ],
           },
           {
@@ -619,7 +622,7 @@ describe('composition forecast', () => {
             maximum_rules: 1,
             projected_rules: 12,
             fits: false,
-            per_service: [],
+            per_list: [],
           },
         ],
       }),
@@ -654,17 +657,17 @@ describe('composition forecast', () => {
         perService: [],
       },
     ])
-    expect(fetchMock).toHaveBeenCalledWith('/v1/lists/preview', {
+    expect(fetchMock).toHaveBeenCalledWith('/v1/profiles/preview', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Routevane-Request': '1',
       },
       body: JSON.stringify({
-        services: ['discord'],
+        lists: ['discord'],
         categories: ['video'],
         exclusions: [],
-        service_domains: {},
+        list_domains: {},
         priority: [],
         targets: ['keenetic', 'limited-fixture'],
       }),
@@ -689,9 +692,7 @@ describe('composition forecast', () => {
   it('refuses a forecast that does not state its own bounds', async () => {
     fetchMock.mockResolvedValueOnce(
       json({
-        targets: [
-          { target_id: 'keenetic', projected_rules: 3, per_service: [] },
-        ],
+        targets: [{ target_id: 'keenetic', projected_rules: 3, per_list: [] }],
       }),
     )
     await expect(

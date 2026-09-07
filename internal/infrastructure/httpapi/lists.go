@@ -23,7 +23,7 @@ func (h *handler) createList(w http.ResponseWriter, r *http.Request) {
 		h.backendError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]any{"list": list})
+	writeJSON(w, http.StatusCreated, map[string]any{"profile": list})
 }
 
 // previewComposition forecasts a composition that has not been created. It
@@ -53,7 +53,7 @@ func (h *handler) listLists(w http.ResponseWriter, r *http.Request) {
 		h.backendError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"lists": cards})
+	writeJSON(w, http.StatusOK, map[string]any{"profiles": cards})
 }
 
 func (h *handler) getList(w http.ResponseWriter, r *http.Request, id string) {
@@ -73,7 +73,7 @@ func (h *handler) getList(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"list":               list,
+		"profile":            list,
 		"outputs":            outputs,
 		"resolved":           h.backend.ResolvedServices(list),
 		"missing_categories": h.backend.MissingCategories(list),
@@ -97,7 +97,7 @@ func (h *handler) updateList(w http.ResponseWriter, r *http.Request, id string) 
 		h.backendError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"list": list})
+	writeJSON(w, http.StatusOK, map[string]any{"profile": list})
 }
 
 // setListArchived takes a list off the shelf or puts it back. The reply is the
@@ -116,7 +116,7 @@ func (h *handler) setListArchived(w http.ResponseWriter, r *http.Request, id str
 		h.backendError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"list": list})
+	writeJSON(w, http.StatusOK, map[string]any{"profile": list})
 }
 
 // updateListSchedule records a list's own rule. An empty interval is not a
@@ -139,7 +139,7 @@ func (h *handler) updateListSchedule(w http.ResponseWriter, r *http.Request, id 
 		h.backendError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"list": list, "schedule": schedule})
+	writeJSON(w, http.StatusOK, map[string]any{"profile": list, "schedule": schedule})
 }
 
 // addOutput binds a list to one format. It has no credential yet: the build

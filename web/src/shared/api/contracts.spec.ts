@@ -91,11 +91,11 @@ function buildPayload(): Record<string, unknown> {
 
 function listPayload(fields: Record<string, unknown> = {}): unknown {
   return {
-    lists: [
+    profiles: [
       {
         id: listID,
         name: 'Video',
-        services: ['discord'],
+        lists: ['discord'],
         categories: [],
         exclusions: [],
         resolved: ['discord'],
@@ -131,7 +131,7 @@ function forecastPayload(target: Record<string, unknown>): unknown {
         maximum_rules: 1024,
         projected_rules: 12,
         fits: true,
-        per_service: [],
+        per_list: [],
         ...target,
       },
     ],
@@ -149,7 +149,7 @@ describe('forecast overlap contract', () => {
   const entry = {
     rule_kind: 'domain_suffix',
     value: 'shared.example',
-    services: ['alpha', 'beta'],
+    lists: ['alpha', 'beta'],
   }
   it('keeps typed ownership and the explicit detail limit', async () => {
     answer(
@@ -179,9 +179,9 @@ describe('forecast overlap contract', () => {
           items: [],
           truncated: true,
           summary: [
-            { service_id: 'alpha', overlaps: ['beta'] },
-            { service_id: 'beta', overlaps: ['alpha'] },
-            { service_id: 'solo', overlaps: [] },
+            { list_id: 'alpha', overlaps: ['beta'] },
+            { list_id: 'beta', overlaps: ['alpha'] },
+            { list_id: 'solo', overlaps: [] },
           ],
         },
       }),
@@ -198,16 +198,14 @@ describe('forecast overlap contract', () => {
       { items: [] },
       { items: [{ kind: 'similar', entry }], truncated: false },
       {
-        items: [
-          { kind: 'duplicate', entry: { ...entry, services: ['alpha'] } },
-        ],
+        items: [{ kind: 'duplicate', entry: { ...entry, lists: ['alpha'] } }],
         truncated: false,
       },
       {
         items: [
           {
             kind: 'covered',
-            entry: { ...entry, services: ['alpha'] },
+            entry: { ...entry, lists: ['alpha'] },
             covering: entry,
           },
         ],
@@ -224,32 +222,32 @@ describe('forecast overlap contract', () => {
       {
         items: [],
         truncated: false,
-        summary: [{ service_id: 'alpha', overlaps: ['alpha'] }],
+        summary: [{ list_id: 'alpha', overlaps: ['alpha'] }],
       },
       {
         items: [],
         truncated: false,
-        summary: [{ service_id: 'alpha', overlaps: ['beta', 'beta'] }],
+        summary: [{ list_id: 'alpha', overlaps: ['beta', 'beta'] }],
       },
       {
         items: [],
         truncated: false,
-        summary: [{ service_id: 'alpha', overlaps: ['zeta', 'beta'] }],
+        summary: [{ list_id: 'alpha', overlaps: ['zeta', 'beta'] }],
       },
       {
         items: [],
         truncated: false,
         summary: [
-          { service_id: 'alpha', overlaps: ['beta'] },
-          { service_id: 'beta', overlaps: [] },
+          { list_id: 'alpha', overlaps: ['beta'] },
+          { list_id: 'beta', overlaps: [] },
         ],
       },
       {
         items: [],
         truncated: false,
         summary: [
-          { service_id: 'beta', overlaps: [] },
-          { service_id: 'beta', overlaps: [] },
+          { list_id: 'beta', overlaps: [] },
+          { list_id: 'beta', overlaps: [] },
         ],
       },
     ]) {
@@ -395,7 +393,7 @@ describe('the envelope every endpoint shares', () => {
       status: 422,
     })
 
-    answer({ lists: [{ id: listID }] })
+    answer({ profiles: [{ id: listID }] })
     await expect(loadLists()).rejects.toThrow(
       'Сервер вернул ответ вне контракта.',
     )
@@ -471,7 +469,7 @@ describe('a build reply describes one published fact', () => {
     const refused = [
       'http://other.test/v1/subscriptions/rv1.invalid',
       `https://${window.location.host}/v1/subscriptions/rv1.invalid`,
-      `${window.location.origin}/v1/lists/${listID}/export`,
+      `${window.location.origin}/v1/profiles/${listID}/export`,
       'javascript:alert(1)',
       'not a url',
     ]
@@ -796,7 +794,7 @@ describe('the server states its fields, the screen reads its own', () => {
     answer(
       listPayload({
         priority: ['discord'],
-        service_domains: { discord: ['discord.com'] },
+        list_domains: { discord: ['discord.com'] },
         last_refreshed_at: '2026-08-20T11:00:00Z',
         last_refresh_failed: true,
         archived_at: '2026-08-20T12:30:00Z',
@@ -826,19 +824,19 @@ describe('the server states its fields, the screen reads its own', () => {
   })
 
   it('reads an absent domain map as an empty one and refuses a wrong one', async () => {
-    answer(listPayload({ service_domains: null }))
+    answer(listPayload({ list_domains: null }))
     await expect(loadLists()).resolves.toMatchObject([{ serviceDomains: {} }])
 
     for (const value of [[], { discord: 'discord.com' }, { discord: [''] }]) {
-      answer(listPayload({ service_domains: value }))
+      answer(listPayload({ list_domains: value }))
       await expect(loadLists()).rejects.toBeInstanceOf(RoutevaneAPIError)
     }
   })
 
   it('renames every field the catalog carries', async () => {
     answer({
-      services: ['discord'],
-      service_details: [
+      lists: ['discord'],
+      list_details: [
         {
           id: 'discord',
           title: 'Discord',
@@ -853,7 +851,7 @@ describe('the server states its fields, the screen reads its own', () => {
         {
           id: 'communication',
           title: 'Communication',
-          services: ['discord'],
+          lists: ['discord'],
           custom: false,
         },
       ],
@@ -912,8 +910,8 @@ describe('the server states its fields, the screen reads its own', () => {
 
   it('reads and saves the complete library default priority', async () => {
     answer({
-      services: ['discord', 'youtube'],
-      service_details: [],
+      lists: ['discord', 'youtube'],
+      list_details: [],
       categories: [],
       default_priority: ['youtube', 'discord'],
     })
@@ -927,7 +925,7 @@ describe('the server states its fields, the screen reads its own', () => {
       'discord',
       'youtube',
     ])
-    expect(fetchMock.mock.calls[2]?.[0]).toBe('/v1/services/priority')
+    expect(fetchMock.mock.calls[2]?.[0]).toBe('/v1/lists/priority')
     expect((fetchMock.mock.calls[2]?.[1] as RequestInit).body).toBe(
       JSON.stringify({ default_priority: ['discord', 'youtube'] }),
     )
@@ -938,25 +936,25 @@ describe('the server states its fields, the screen reads its own', () => {
   it('refuses a category that does not state who owns it', async () => {
     const detail = { id: 'discord', title: 'Discord', categories: [] }
     for (const category of [
-      { id: 'communication', title: 'Communication', services: ['discord'] },
+      { id: 'communication', title: 'Communication', lists: ['discord'] },
       {
         id: 'communication',
         title: 'Communication',
-        services: ['discord'],
+        lists: ['discord'],
         custom: 'yes',
       },
-      { id: '', title: 'Communication', services: [], custom: false },
-      { id: 'communication', title: '', services: [], custom: false },
+      { id: '', title: 'Communication', lists: [], custom: false },
+      { id: 'communication', title: '', lists: [], custom: false },
       {
         id: 'communication',
         title: 'Communication',
-        services: [''],
+        lists: [''],
         custom: false,
       },
     ]) {
       answer({
-        services: ['discord'],
-        service_details: [detail],
+        lists: ['discord'],
+        list_details: [detail],
         categories: [category],
       })
       answer({ targets: [] })
@@ -968,7 +966,7 @@ describe('the server states its fields, the screen reads its own', () => {
     const written = {
       id: customCategoryID,
       title: 'Мои списки',
-      services: ['discord'],
+      lists: ['discord'],
       custom: true,
     }
     answer({ category: written }, 201)
@@ -980,12 +978,12 @@ describe('the server states its fields, the screen reads its own', () => {
     })
     expect(fetchMock.mock.calls[0]?.[0]).toBe('/v1/categories')
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit).body).toBe(
-      JSON.stringify({ services: ['discord'], title: 'Мои списки' }),
+      JSON.stringify({ lists: ['discord'], title: 'Мои списки' }),
     )
 
     // Creating with no membership states no membership rather than an empty
     // one, because the two are different requests everywhere else.
-    answer({ category: { ...written, services: [] } }, 201)
+    answer({ category: { ...written, lists: [] } }, 201)
     await createCategory('Мои списки')
     expect((fetchMock.mock.calls[1]?.[1] as RequestInit).body).toBe(
       JSON.stringify({ title: 'Мои списки' }),
@@ -1011,7 +1009,7 @@ describe('the server states its fields, the screen reads its own', () => {
     const written = {
       id: customCategoryID,
       title: 'Мои списки',
-      services: ['discord'],
+      lists: ['discord'],
       custom: true,
     }
     answer({ category: written })
@@ -1020,7 +1018,7 @@ describe('the server states its fields, the screen reads its own', () => {
       `/v1/categories/${customCategoryID}/update`,
     )
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit).body).toBe(
-      JSON.stringify({ services: ['discord'] }),
+      JSON.stringify({ lists: ['discord'] }),
     )
 
     answer({ category: written })
@@ -1030,10 +1028,10 @@ describe('the server states its fields, the screen reads its own', () => {
     )
 
     // An empty membership is a request, not an absent field.
-    answer({ category: { ...written, services: [] } })
+    answer({ category: { ...written, lists: [] } })
     await updateCategory(customCategoryID, { services: [] })
     expect((fetchMock.mock.calls[2]?.[1] as RequestInit).body).toBe(
-      JSON.stringify({ services: [] }),
+      JSON.stringify({ lists: [] }),
     )
 
     answer({ error: 'not found' }, 404)
@@ -1047,10 +1045,10 @@ describe('the server states its fields, the screen reads its own', () => {
    * success and reading it as JSON would turn a completed removal into a
    * contract failure. What becomes of the lists the category held is the one
    * question the request has to state (ADR 0029). The one refusal that carries
-   * objects names the routes holding the category; every other refusal names
+   * objects names the profiles holding the category; every other refusal names
    * none.
    */
-  it('completes a removal with no body and names the routes that refuse one', async () => {
+  it('completes a removal with no body and names the profiles that refuse one', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
     await expect(
       removeCategory(customCategoryID, 'detach'),
@@ -1076,7 +1074,7 @@ describe('the server states its fields, the screen reads its own', () => {
     answer(
       {
         error: 'category in use',
-        lists: [
+        profiles: [
           { id: listID, title: 'Дом' },
           { id: outputID, title: 'Офис' },
         ],
@@ -1097,8 +1095,8 @@ describe('the server states its fields, the screen reads its own', () => {
       [{ error: 'not found' }, 404],
       [{ error: 'operation failed' }, 422],
       [{ error: 'category in use' }, 409],
-      [{ error: 'category in use', lists: [{ id: listID }] }, 409],
-      [{ error: 'in use', lists: [] }, 409],
+      [{ error: 'category in use', profiles: [{ id: listID }] }, 409],
+      [{ error: 'in use', profiles: [] }, 409],
     ] as const) {
       answer(payload, status)
       const other = await removeCategory(customCategoryID, 'detach').catch(
@@ -1112,11 +1110,11 @@ describe('the server states its fields, the screen reads its own', () => {
 
   // Removing a list is the same shape of act and the same shape of refusal, and
   // it answers with its own word for it: the API still says `list` where the
-  // surface says list, and `lists` for the routes standing in the way.
-  it('removes a list and names the routes that refuse it', async () => {
+  // surface says list, and `lists` for the profiles standing in the way.
+  it('removes a list and names the profiles that refuse it', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
     await expect(removeService('discord')).resolves.toBeUndefined()
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/v1/services/discord/remove')
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/v1/lists/discord/remove')
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit).headers).toMatchObject(
       {
         'Content-Type': 'application/json',
@@ -1124,7 +1122,10 @@ describe('the server states its fields, the screen reads its own', () => {
       },
     )
 
-    answer({ error: 'list in use', lists: [{ id: listID, title: 'Дом' }] }, 409)
+    answer(
+      { error: 'list in use', profiles: [{ id: listID, title: 'Дом' }] },
+      409,
+    )
     const refused = await removeService('discord').catch(
       (reason: unknown) => reason,
     )
@@ -1137,7 +1138,7 @@ describe('the server states its fields, the screen reads its own', () => {
       [{ error: 'not found' }, 404],
       [{ error: 'list in use' }, 409],
       [
-        { error: 'category in use', lists: [{ id: listID, title: 'Дом' }] },
+        { error: 'category in use', profiles: [{ id: listID, title: 'Дом' }] },
         409,
       ],
     ] as const) {
@@ -1162,15 +1163,15 @@ describe('the server states its fields, the screen reads its own', () => {
         { id: 'v2fly', type: 'http' },
       ],
     }
-    answer({ services: ['discord'], service_details: [detail], categories: [] })
+    answer({ lists: ['discord'], list_details: [detail], categories: [] })
     answer({ targets: [] })
     await expect(loadCatalog()).resolves.toMatchObject({
       serviceDetails: [{ sourceCount: 2, domains: [] }],
     })
 
     answer({
-      services: ['discord'],
-      service_details: [{ ...detail, source_count: 'many' }],
+      lists: ['discord'],
+      list_details: [{ ...detail, source_count: 'many' }],
       categories: [],
     })
     answer({ targets: [] })
@@ -1214,7 +1215,7 @@ describe('the server states its fields, the screen reads its own', () => {
 
   it('renames every field a service preview carries', async () => {
     answer({
-      service_id: 'google-ai',
+      list_id: 'google-ai',
       sources: [
         {
           id: 'iplist',
@@ -1271,7 +1272,7 @@ describe('the server states its fields, the screen reads its own', () => {
       skipped_count: 0,
     }
     const preview = {
-      service_id: 'google-ai',
+      list_id: 'google-ai',
       domains: [],
       domain_count: 0,
       address_count: 0,
@@ -1291,7 +1292,7 @@ describe('the server states its fields, the screen reads its own', () => {
 
   it('renames every field the service contents table carries', async () => {
     answer({
-      service_id: 'discord',
+      list_id: 'discord',
       rows: [
         {
           value: 'discord.com',

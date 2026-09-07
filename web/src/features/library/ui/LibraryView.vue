@@ -57,7 +57,7 @@ onMounted(() => {
   // lands on the list's page instead of an empty shelf.
   const legacyID = parseLegacyListHash(route.hash)
   if (legacyID !== '') {
-    void router.replace(`/lists/${legacyID}`)
+    void router.replace(`/profiles/${legacyID}`)
     return
   }
   void library.initialize()
@@ -99,7 +99,7 @@ function exportLabel(format: ExportFormat): string {
 }
 
 function listHref(card: ListCard, tab = ''): string {
-  return `/lists/${card.id}${listPageHash({ tab })}`
+  return `/profiles/${card.id}${listPageHash({ tab })}`
 }
 
 function archivedSince(card: ListCard): string {
@@ -133,7 +133,7 @@ function menuItems(card: ListCard): MenuItem[] {
     icon: 'send' as const,
     key: `send:${output.id}`,
     label: t('library.sendTarget', { target: library.outputTitle(output) }),
-    to: `/lists/${card.id}/send/${output.id}`,
+    to: `/profiles/${card.id}/send/${output.id}`,
   }))
   if (deployItems.length === 1) items.push(deployItems[0] as MenuItem)
   if (deployItems.length > 1) {
@@ -178,7 +178,7 @@ function onMenu(card: ListCard, key: string): void {
         {{ t('library.title') }}
       </h1>
       <p class="library__copy-message" role="status">{{ copyMessage }}</p>
-      <RvButton to="/lists/new" variant="primary">
+      <RvButton to="/profiles/new" variant="primary">
         <RvIcon name="plus" />
         {{ t('library.new') }}
       </RvButton>
@@ -213,7 +213,7 @@ function onMenu(card: ListCard, key: string): void {
     <div v-else-if="library.state.value === 'empty'" class="library__empty">
       <p class="library__empty-title">{{ t('library.empty') }}</p>
       <p class="library__empty-body">{{ t('library.empty.body') }}</p>
-      <RvButton to="/lists/new" variant="secondary">
+      <RvButton to="/profiles/new" variant="secondary">
         <RvIcon name="plus" />
         {{ t('library.new') }}
       </RvButton>

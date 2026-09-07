@@ -27,7 +27,7 @@ export async function requestListExport(
   formatID: string,
 ): Promise<{ blob: Blob; fileName: string }> {
   return requestFile(
-    `/v1/lists/${listID}/export`,
+    `/v1/profiles/${listID}/export`,
     {
       method: 'POST',
       headers: mutationHeaders,

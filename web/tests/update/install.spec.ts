@@ -42,7 +42,7 @@ async function exists(path: string) {
   }
 }
 
-test('installed app rejects a damaged update, retries, restarts into the new version and preserves routes', async () => {
+test('installed app rejects a damaged update, retries, restarts into the new version and preserves profiles', async () => {
   const parent = join(root, 'tmp/update-acceptance')
   await mkdir(parent, { recursive: true })
   const scratch = await mkdtemp(join(parent, 'run-'))
@@ -155,7 +155,7 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
     const created = await page.evaluate(async () => {
       localStorage.setItem('rv.locale', 'ru')
       return (
-        await fetch('/v1/lists', {
+        await fetch('/v1/profiles', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -163,10 +163,10 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
           },
           body: JSON.stringify({
             name: 'Survives update',
-            services: ['chatgpt'],
+            lists: ['chatgpt'],
             categories: [],
             exclusions: [],
-            service_domains: {},
+            list_domains: {},
             priority: ['chatgpt'],
           }),
         })
@@ -309,7 +309,7 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
       reopened.getByRole('link', { name: 'Survives update', exact: true }),
     ).toBeVisible()
     await expect(
-      reopened.getByRole('heading', { name: 'Маршруты', exact: true }),
+      reopened.getByRole('heading', { name: 'Профили', exact: true }),
     ).toBeVisible()
     await reopened.screenshot({ path: join(parent, 'updated.png') })
   } finally {

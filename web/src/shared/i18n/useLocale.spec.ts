@@ -43,7 +43,7 @@ describe('dictionaries', () => {
     setLocale('en')
     expect(tc('list.rules', 1)).toBe('1 rule')
     expect(tc('list.rules', 14)).toBe('14 rules')
-    expect(t('shell.nav.library')).toBe('Routes')
+    expect(t('shell.nav.library')).toBe('Profiles')
     setLocale('ru')
     expect(t('list.diagnostics.reason.unsupported_by_target')).toBe(
       'формат это не поддерживает',

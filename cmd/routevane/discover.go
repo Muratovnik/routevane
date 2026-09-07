@@ -69,7 +69,7 @@ type discoverReport struct {
 	RegistrableDomain string                `json:"registrable_domain"`
 	PublicSuffix      string                `json:"public_suffix"`
 	ICANNSuffix       bool                  `json:"icann_suffix"`
-	ServiceID         string                `json:"service_id"`
+	ServiceID         string                `json:"list_id"`
 	Confirmed         bool                  `json:"confirmed"`
 	AcceptedHosts     []string              `json:"accepted_hosts,omitempty"`
 	SeedDomains       []string              `json:"seed_domains,omitempty"`

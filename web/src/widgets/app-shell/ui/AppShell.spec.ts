@@ -57,7 +57,7 @@ describe('AppShell', () => {
     setLocale('ru')
     await nextTick()
     expect(document.documentElement.lang).toBe('ru')
-    expect(wrapper.text()).toContain('Маршруты')
+    expect(wrapper.text()).toContain('Профили')
 
     // The head declaration survives re-renders; the locale module writes the
     // attribute synchronously so a reader never lands between the render and

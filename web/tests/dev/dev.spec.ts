@@ -69,18 +69,20 @@ const draft = ref('')
     const health = await request.get(`${origin}/health`)
     expect(await health.json()).toEqual({ status: 'ok' })
     expect(health.headers()['access-control-allow-origin']).toBeUndefined()
-    expect((await request.get(`${origin}/v1/services`)).ok()).toBe(true)
+    expect((await request.get(`${origin}/v1/lists`)).ok()).toBe(true)
     const headers = { Origin: origin, 'X-Routevane-Request': '1' }
-    const created = await request.post(`${origin}/v1/lists`, {
+    const created = await request.post(`${origin}/v1/profiles`, {
       headers,
-      data: { name: 'HMR route', services: ['youtube'] },
+      data: { name: 'HMR profile', lists: ['youtube'] },
     })
     expect(created.ok(), await created.text()).toBe(true)
-    const listsBefore = await (await request.get(`${origin}/v1/lists`)).json()
+    const listsBefore = await (
+      await request.get(`${origin}/v1/profiles`)
+    ).json()
     for (const foreign of ['http://evil.example', 'null', api]) {
-      const refused = await request.post(`${origin}/v1/lists`, {
+      const refused = await request.post(`${origin}/v1/profiles`, {
         headers: { ...headers, Origin: foreign },
-        data: { name: 'must not exist', services: ['youtube'] },
+        data: { name: 'must not exist', lists: ['youtube'] },
       })
       expect(refused.status()).toBe(404)
     }
@@ -93,27 +95,27 @@ const draft = ref('')
     ).toBe(false)
     expect(
       (
-        await request.post(`${origin}/v1/lists`, {
+        await request.post(`${origin}/v1/profiles`, {
           headers: { Origin: origin },
-          data: { name: 'no marker', services: ['youtube'] },
+          data: { name: 'no marker', lists: ['youtube'] },
         })
       ).status(),
     ).toBe(403)
     expect(
       (
-        await request.post(`${api}/v1/lists`, {
+        await request.post(`${api}/v1/profiles`, {
           headers,
-          data: { name: 'direct foreign origin', services: ['youtube'] },
+          data: { name: 'direct foreign origin', lists: ['youtube'] },
         })
       ).status(),
     ).toBe(403)
-    expect(await (await request.get(`${origin}/v1/lists`)).json()).toEqual(
+    expect(await (await request.get(`${origin}/v1/profiles`)).json()).toEqual(
       listsBefore,
     )
 
     await page.goto(origin)
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Routes')
-    await expect(page.getByText('HMR route', { exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Profiles')
+    await expect(page.getByText('HMR profile', { exact: true })).toBeVisible()
     for (const width of [320, 768, 1024, 1440]) {
       await page.setViewportSize({ width, height: 900 })
       await page.screenshot({ path: testInfo.outputPath(`dev-${width}.png`) })
@@ -164,7 +166,7 @@ const draft = ref('')
     expect((await request.get(`${origin}/health`)).ok()).toBe(true)
     await writeFile(goProbe, 'package main\nconst devProbe = "recovered"\n')
     await expect.poll(() => owner.output()).toContain('build 2)')
-    expect(await (await request.get(`${origin}/v1/lists`)).json()).toEqual(
+    expect(await (await request.get(`${origin}/v1/profiles`)).json()).toEqual(
       listsBefore,
     )
     await page.reload()

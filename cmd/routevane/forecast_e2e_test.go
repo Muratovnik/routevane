@@ -100,21 +100,21 @@ func TestServeForecastsACompositionBeforeItIsCreated(t *testing.T) {
 	// One list exists and has been observed, so the forecast has real
 	// observations to plan from. The composition it is asked about is a
 	// different one, and it is never created.
-	created := postJSON(t, origin+"/v1/lists", `{"name":"Наблюдение","services":["alpha","beta"]}`)
+	created := postJSON(t, origin+"/v1/profiles", `{"name":"Наблюдение","lists":["alpha","beta"]}`)
 	var listResponse struct {
 		List struct {
 			ID string `json:"id"`
-		} `json:"list"`
+		} `json:"profile"`
 	}
 	if err := json.Unmarshal(created, &listResponse); err != nil {
 		t.Fatal(err)
 	}
-	postJSON(t, origin+"/v1/lists/"+listResponse.List.ID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/refresh", `{}`)
 
-	forecast := postJSON(t, origin+"/v1/lists/preview", `{"services":["alpha","beta"],"targets":["pocket","keenetic"]}`)
+	forecast := postJSON(t, origin+"/v1/profiles/preview", `{"lists":["alpha","beta"],"targets":["pocket","keenetic"]}`)
 	const want = `{"targets":[` +
-		`{"target_id":"keenetic","maximum_rules":1024,"projected_rules":2,"fits":true,"per_service":[{"service_id":"alpha","rules":1},{"service_id":"beta","rules":1}],"overlaps":{"items":[],"truncated":false,"summary":[{"service_id":"alpha","overlaps":[]},{"service_id":"beta","overlaps":[]}]}}` +
-		`,{"target_id":"pocket","maximum_rules":1,"projected_rules":2,"fits":false,"per_service":[{"service_id":"alpha","rules":1},{"service_id":"beta","rules":1}],"overlaps":{"items":[],"truncated":false,"summary":[{"service_id":"alpha","overlaps":[]},{"service_id":"beta","overlaps":[]}]}}` +
+		`{"target_id":"keenetic","maximum_rules":1024,"projected_rules":2,"fits":true,"per_list":[{"list_id":"alpha","rules":1},{"list_id":"beta","rules":1}],"overlaps":{"items":[],"truncated":false,"summary":[{"list_id":"alpha","overlaps":[]},{"list_id":"beta","overlaps":[]}]}}` +
+		`,{"target_id":"pocket","maximum_rules":1,"projected_rules":2,"fits":false,"per_list":[{"list_id":"alpha","rules":1},{"list_id":"beta","rules":1}],"overlaps":{"items":[],"truncated":false,"summary":[{"list_id":"alpha","overlaps":[]},{"list_id":"beta","overlaps":[]}]}}` +
 		`]}` + "\n"
 	if string(forecast) != want {
 		t.Fatalf("forecast = %s\nwant     = %s", forecast, want)
@@ -122,13 +122,13 @@ func TestServeForecastsACompositionBeforeItIsCreated(t *testing.T) {
 
 	// Nothing was created by asking. The store still holds the one observed
 	// list, with no output and no attempt behind it.
-	lists := httpGet(t, origin+"/v1/lists", nil)
+	lists := httpGet(t, origin+"/v1/profiles", nil)
 	var library struct {
 		Lists []struct {
 			ID      string            `json:"id"`
 			Name    string            `json:"name"`
 			Outputs []json.RawMessage `json:"outputs"`
-		} `json:"lists"`
+		} `json:"profiles"`
 	}
 	if err := json.Unmarshal(lists.body, &library); err != nil {
 		t.Fatal(err)
@@ -140,7 +140,7 @@ func TestServeForecastsACompositionBeforeItIsCreated(t *testing.T) {
 	// A device the catalog does not carry is refused rather than dropped from
 	// the answer: a caller that asked about it and got silence would read the
 	// silence as a fit.
-	status, body := postForecast(t, origin, `{"services":["alpha"],"targets":["absent-device"]}`)
+	status, body := postForecast(t, origin, `{"lists":["alpha"],"targets":["absent-device"]}`)
 	if status != http.StatusUnprocessableEntity {
 		t.Fatalf("unknown target status=%d body=%s", status, body)
 	}
@@ -156,7 +156,7 @@ func TestServeForecastsACompositionBeforeItIsCreated(t *testing.T) {
 // failing on it, because the refusals are part of what this route promises.
 func postForecast(t *testing.T, origin, body string) (int, string) {
 	t.Helper()
-	request, err := http.NewRequest(http.MethodPost, origin+"/v1/lists/preview", strings.NewReader(body))
+	request, err := http.NewRequest(http.MethodPost, origin+"/v1/profiles/preview", strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}

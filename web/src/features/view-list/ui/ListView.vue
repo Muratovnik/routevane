@@ -342,7 +342,7 @@ const listMenuItems = computed<MenuItem[]>(() => {
       icon: 'send' as const,
       key: `send:${output.id}`,
       label: t('library.sendTarget', { target: view.outputTitle(output) }),
-      to: `/lists/${props.listId}/send/${output.id}`,
+      to: `/profiles/${props.listId}/send/${output.id}`,
     }))
   if (deployItems.length === 1) items.push(deployItems[0] as MenuItem)
   if (deployItems.length > 1) {

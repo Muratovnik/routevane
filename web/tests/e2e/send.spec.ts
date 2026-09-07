@@ -57,8 +57,8 @@ function fileURL(path: string): string {
 }
 
 /**
- * publishList walks the surface the way an operator does — a route holding
- * YouTube, published for the chosen consumer — and answers with the route and
+ * publishList walks the surface the way an operator does — a profile holding
+ * YouTube, published for the chosen consumer — and answers with the profile and
  * output
  * identities. The send screen only exists for an output that was really
  * published, so the test never fabricates an artifact.
@@ -76,7 +76,7 @@ async function publishList(
   targetID: string,
   language: 'en' | 'ru' = 'en',
 ): Promise<{ listId: string; outputId: string }> {
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   await expect(
     page.getByRole('heading', {
       level: 1,
@@ -95,19 +95,19 @@ async function publishList(
   const outputsResponse = page.waitForResponse(
     (candidate) =>
       candidate.request().method() === 'POST' &&
-      /\/v1\/lists\/[a-f0-9]{32}\/outputs$/.test(
+      /\/v1\/profiles\/[a-f0-9]{32}\/outputs$/.test(
         new URL(candidate.url()).pathname,
       ),
   )
   await page
     .getByRole('button', { name: message(language, 'create.submit') })
     .click()
-  await page.waitForURL(/\/lists\/[a-f0-9]{32}(?:[#?].*)?$/)
+  await page.waitForURL(/\/profiles\/[a-f0-9]{32}(?:[#?].*)?$/)
   await expect(
     page.getByRole('heading', { level: 1, name: 'YouTube' }),
   ).toBeVisible()
   const listId =
-    /\/lists\/([a-f0-9]{32})/.exec(new URL(page.url()).pathname)?.[1] ?? ''
+    /\/profiles\/([a-f0-9]{32})/.exec(new URL(page.url()).pathname)?.[1] ?? ''
   const outputPayload = (await (await outputsResponse).json()) as {
     output: { id: string }
   }
@@ -233,13 +233,13 @@ test('the send screen builds its form from the deployer and applies the file loc
 }) => {
   test.setTimeout(120000)
   const { listId, outputId } = await publishList(page, 'singbox')
-  const listURL = `${origin}/lists/${listId}`
+  const listURL = `${origin}/profiles/${listId}`
 
-  // The send action exists on the route page because this format has a
+  // The send action exists on the profile page because this format has a
   // deployer, and it leads to that output's own send screen.
   await page
     .locator('main')
-    .getByRole('button', { name: 'Actions for route YouTube', exact: true })
+    .getByRole('button', { name: 'Actions for profile YouTube', exact: true })
     .click()
   await page
     .locator('.rv-menu__panel:visible')
@@ -249,7 +249,7 @@ test('the send screen builds its form from the deployer and applies the file loc
   await expect(
     page.getByRole('heading', { level: 1, name: 'Send to device' }),
   ).toBeVisible()
-  await expect(page.getByText('Route: YouTube')).toBeVisible()
+  await expect(page.getByText('Profile: YouTube')).toBeVisible()
   await expect(page.locator('.rv-status__label')).toHaveText('Not applied')
 
   // A destination on this machine has nowhere to send a credential, so the
@@ -339,7 +339,7 @@ for (const language of ['en', 'ru'] as const) {
   test.describe(`send recovery ${language}`, () => {
     test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
     const copy = (key: string): string => message(language, key)
-    test('send entry distinguishes unavailable, missing route, missing connection and missing file', async ({
+    test('send entry distinguishes unavailable, missing profile, missing connection and missing file', async ({
       page,
     }) => {
       test.setTimeout(180000)
@@ -371,17 +371,17 @@ for (const language of ['en', 'ru'] as const) {
         if (previous !== null) await page.setViewportSize(previous)
       }
       const { listId, outputId } = await publishList(page, 'singbox', language)
-      const listURL = `${origin}/lists/${listId}`
-      const detailURL = `${origin}/v1/lists/${listId}`
+      const listURL = `${origin}/profiles/${listId}`
+      const detailURL = `${origin}/v1/profiles/${listId}`
       let unavailable = true
       let pendingRead: (() => void) | undefined
       const mutations: string[] = []
       page.on('request', (request) => {
-        // A debounced draft forecast may finish as the route page is left.
+        // A debounced draft forecast may finish as the profile page is left.
         // POST carries its input; this exact endpoint writes no product state.
         const forecast =
           request.method() === 'POST' &&
-          request.url() === `${origin}/v1/lists/preview`
+          request.url() === `${origin}/v1/profiles/preview`
         if (request.method() !== 'GET' && !forecast)
           mutations.push(request.url())
       })
@@ -443,7 +443,7 @@ for (const language of ['en', 'ru'] as const) {
       ).toBeVisible()
       await expect(page.getByRole('main').getByRole('link')).toHaveAttribute(
         'href',
-        `/lists/${listId}`,
+        `/profiles/${listId}`,
       )
       await expect(
         page.getByText(copy('list.missing'), { exact: true }),
@@ -472,9 +472,9 @@ for (const language of ['en', 'ru'] as const) {
 
       await auditEntry()
       const absentResponse = page.waitForResponse(
-        `${origin}/v1/lists/${missingID}`,
+        `${origin}/v1/profiles/${missingID}`,
       )
-      await page.goto(`${origin}/lists/${missingID}/send/${outputId}`)
+      await page.goto(`${origin}/profiles/${missingID}/send/${outputId}`)
       expect((await absentResponse).status()).toBe(404)
       await expect(
         page.getByText(copy('list.missing'), { exact: true }),
@@ -501,7 +501,7 @@ for (const language of ['en', 'ru'] as const) {
             })
           }
         },
-        [`${origin}/v1/lists/preview`, updateURL],
+        [`${origin}/v1/profiles/preview`, updateURL],
       )
       expect(mutations).toEqual([updateURL])
     })
@@ -516,9 +516,9 @@ test('a target without a deployer is offered the manual path only', async ({
 }) => {
   test.setTimeout(120000)
   const { listId, outputId } = await publishList(page, 'mikrotik')
-  const listURL = `${origin}/lists/${listId}`
+  const listURL = `${origin}/profiles/${listId}`
 
-  // The route page never offers an automatic send for this format.
+  // The profile page never offers an automatic send for this format.
   await expect(page.locator('.rv-status__label')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Send to device' })).toHaveCount(
     0,
@@ -577,7 +577,7 @@ test('a destination the configuration cannot accept is refused before writing', 
   )
 
   const { listId, outputId } = await publishList(page, 'singbox')
-  await page.goto(`${origin}/lists/${listId}/send/${outputId}`)
+  await page.goto(`${origin}/profiles/${listId}/send/${outputId}`)
   await expect(page.locator('#send-device')).toBeVisible()
   await page.locator('#send-device').fill(fileURL(foreignConfig))
   const review = page.getByRole('button', { name: 'Check the details' })

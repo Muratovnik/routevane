@@ -35,13 +35,13 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 		}
 	}()
 
-	created := postJSON(t, origin+"/v1/services", `{"title":"Мои сайты","domains":["MY.example.","corp.example"]}`)
+	created := postJSON(t, origin+"/v1/lists", `{"title":"Мои сайты","domains":["MY.example.","corp.example"]}`)
 	var serviceResponse struct {
 		Service struct {
 			ID      string   `json:"id"`
 			Title   string   `json:"title"`
 			Domains []string `json:"domains"`
-		} `json:"service"`
+		} `json:"list"`
 	}
 	if err := json.Unmarshal(created, &serviceResponse); err != nil {
 		t.Fatal(err)
@@ -54,12 +54,12 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 		t.Fatalf("domains = %#v", serviceResponse.Service.Domains)
 	}
 
-	listing := httpGet(t, origin+"/v1/services", nil)
+	listing := httpGet(t, origin+"/v1/lists", nil)
 	var catalogResponse struct {
 		Details []struct {
 			ID     string `json:"id"`
 			Custom bool   `json:"custom"`
-		} `json:"service_details"`
+		} `json:"list_details"`
 	}
 	if err := json.Unmarshal(listing.body, &catalogResponse); err != nil {
 		t.Fatal(err)
@@ -85,8 +85,8 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 		t.Fatalf("published file=%d %q", first.status, first.body)
 	}
 
-	postJSON(t, origin+"/v1/services/"+serviceID+"/update", `{"title":"Мои сайты","domains":["renamed.example"]}`)
-	postJSON(t, origin+"/v1/lists/"+listID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/lists/"+serviceID+"/update", `{"title":"Мои сайты","domains":["renamed.example"]}`)
+	postJSON(t, origin+"/v1/profiles/"+listID+"/refresh", `{}`)
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 	second := httpGet(t, subscriptionURL, nil)
 	if second.status != 200 || !strings.Contains(string(second.body), "renamed.example") || strings.Contains(string(second.body), "my.example") {
@@ -95,8 +95,8 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 
 	// The destination verdict switches one specific row off wherever it came
 	// from: the static suffix leaves the file while the observed address stays.
-	postJSON(t, origin+"/v1/services/alpha/domains", `{"values":["alpha.example"],"verdict":"exclude"}`)
-	postJSON(t, origin+"/v1/lists/"+listID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/lists/alpha/domains", `{"values":["alpha.example"],"verdict":"exclude"}`)
+	postJSON(t, origin+"/v1/profiles/"+listID+"/refresh", `{}`)
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 	third := httpGet(t, subscriptionURL, nil)
 	if third.status != 200 || strings.Contains(string(third.body), "alpha.example") || !strings.Contains(string(third.body), "192.0.2.10") || !strings.Contains(string(third.body), "renamed.example") {
@@ -106,20 +106,20 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 	// Switching the catalog source off removes its observed material from the
 	// next build without deleting anything: the address leaves, the restored
 	// static suffix stays.
-	postJSON(t, origin+"/v1/services/alpha/domains", `{"values":["alpha.example"],"verdict":"auto"}`)
-	postJSON(t, origin+"/v1/services/alpha/sources/dns-main/update", `{"enabled":false}`)
-	postJSON(t, origin+"/v1/lists/"+listID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/lists/alpha/domains", `{"values":["alpha.example"],"verdict":"auto"}`)
+	postJSON(t, origin+"/v1/lists/alpha/sources/dns-main/update", `{"enabled":false}`)
+	postJSON(t, origin+"/v1/profiles/"+listID+"/refresh", `{}`)
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 	switchedOff := httpGet(t, subscriptionURL, nil)
 	if switchedOff.status != 200 || strings.Contains(string(switchedOff.body), "192.0.2.10") || !strings.Contains(string(switchedOff.body), "alpha.example") {
 		t.Fatalf("source-off file=%d %q", switchedOff.status, switchedOff.body)
 	}
-	postJSON(t, origin+"/v1/services/alpha/domains", `{"values":["alpha.example"],"verdict":"exclude"}`)
+	postJSON(t, origin+"/v1/lists/alpha/domains", `{"values":["alpha.example"],"verdict":"exclude"}`)
 
 	// The contents table tells the same story the build reads: the switched
 	// source is off, the excluded domain is off, and re-enabling both brings
 	// the material back on the next rebuild.
-	contents := httpGet(t, origin+"/v1/services/alpha/contents", nil)
+	contents := httpGet(t, origin+"/v1/lists/alpha/contents", nil)
 	var contentsResponse struct {
 		Rows []struct {
 			Value   string `json:"value"`
@@ -149,9 +149,9 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 		t.Fatalf("contents rows = %s", contents.body)
 	}
 
-	postJSON(t, origin+"/v1/services/alpha/sources/dns-main/update", `{"enabled":true}`)
-	postJSON(t, origin+"/v1/services/alpha/domains", `{"values":["alpha.example"],"verdict":"auto"}`)
-	postJSON(t, origin+"/v1/lists/"+listID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/lists/alpha/sources/dns-main/update", `{"enabled":true}`)
+	postJSON(t, origin+"/v1/lists/alpha/domains", `{"values":["alpha.example"],"verdict":"auto"}`)
+	postJSON(t, origin+"/v1/profiles/"+listID+"/refresh", `{}`)
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 	fourth := httpGet(t, subscriptionURL, nil)
 	// The domain-capable target resolves the restored suffix itself, so the
@@ -163,8 +163,8 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 	// A destination is not only a name. The operator states an address, the
 	// contents table calls it one, and the address-only target carries it into
 	// the published file beside the observed material.
-	postJSON(t, origin+"/v1/services/alpha/domains", `{"values":["198.51.100.7"],"verdict":"include"}`)
-	addressContents := httpGet(t, origin+"/v1/services/alpha/contents", nil)
+	postJSON(t, origin+"/v1/lists/alpha/domains", `{"values":["198.51.100.7"],"verdict":"include"}`)
+	addressContents := httpGet(t, origin+"/v1/lists/alpha/contents", nil)
 	if err := json.Unmarshal(addressContents.body, &contentsResponse); err != nil {
 		t.Fatal(err)
 	}

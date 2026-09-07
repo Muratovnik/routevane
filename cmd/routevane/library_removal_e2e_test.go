@@ -43,10 +43,10 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 	var categoryResponse struct {
 		Category struct {
 			ID       string   `json:"id"`
-			Services []string `json:"services"`
+			Services []string `json:"lists"`
 		} `json:"category"`
 	}
-	created := postJSON(t, origin+"/v1/categories", `{"title":"Мои списки","services":["alpha","beta"]}`)
+	created := postJSON(t, origin+"/v1/categories", `{"title":"Мои списки","lists":["alpha","beta"]}`)
 	if err := json.Unmarshal(created, &categoryResponse); err != nil {
 		t.Fatalf("create category=%s: %v", created, err)
 	}
@@ -55,9 +55,9 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 	var listResponse struct {
 		List struct {
 			ID string `json:"id"`
-		} `json:"list"`
+		} `json:"profile"`
 	}
-	body := postJSON(t, origin+"/v1/lists", `{"name":"Дом","categories":["`+categoryID+`"]}`)
+	body := postJSON(t, origin+"/v1/profiles", `{"name":"Дом","categories":["`+categoryID+`"]}`)
 	if err := json.Unmarshal(body, &listResponse); err != nil {
 		t.Fatalf("create route=%s: %v", body, err)
 	}
@@ -67,12 +67,12 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 			ID string `json:"id"`
 		} `json:"output"`
 	}
-	body = postJSON(t, origin+"/v1/lists/"+routeID+"/outputs", `{"target_id":"keenetic"}`)
+	body = postJSON(t, origin+"/v1/profiles/"+routeID+"/outputs", `{"target_id":"keenetic"}`)
 	if err := json.Unmarshal(body, &outputResponse); err != nil {
 		t.Fatalf("bind output=%s: %v", body, err)
 	}
 	outputID := outputResponse.Output.ID
-	postJSON(t, origin+"/v1/lists/"+routeID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+routeID+"/refresh", `{}`)
 	var buildResponse struct {
 		SubscriptionURL string `json:"subscription_url"`
 	}
@@ -87,23 +87,23 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 
 	// A second route names one list directly. That reference refuses the
 	// deletion and says which route holds it.
-	body = postJSON(t, origin+"/v1/lists", `{"name":"Офис","services":["alpha"]}`)
+	body = postJSON(t, origin+"/v1/profiles", `{"name":"Офис","lists":["alpha"]}`)
 	if err := json.Unmarshal(body, &listResponse); err != nil {
 		t.Fatalf("create direct route=%s: %v", body, err)
 	}
 	directID := listResponse.List.ID
-	refused := postGuardedBody(t, origin+"/v1/services/alpha/remove", `{}`)
+	refused := postGuardedBody(t, origin+"/v1/lists/alpha/remove", `{}`)
 	if refused.status != 409 || !strings.Contains(string(refused.body), `"error":"list in use"`) || !strings.Contains(string(refused.body), `"id":"`+directID+`","title":"Офис"`) {
 		t.Fatalf("direct refusal=%d %q", refused.status, refused.body)
 	}
 
 	// beta is reached only through the category, so deleting it is allowed and
 	// changes what the route that named the category publishes next.
-	if removed := postGuardedBody(t, origin+"/v1/services/beta/remove", `{}`); removed.status != 204 || len(removed.body) != 0 {
+	if removed := postGuardedBody(t, origin+"/v1/lists/beta/remove", `{}`); removed.status != 204 || len(removed.body) != 0 {
 		t.Fatalf("deletion=%d %q", removed.status, removed.body)
 	}
 	assertLibraryHoldsOnlyAlpha(t, origin, categoryID)
-	postJSON(t, origin+"/v1/lists/"+routeID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+routeID+"/refresh", `{}`)
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 	republished := httpGet(t, buildResponse.SubscriptionURL, nil)
 	if republished.status != 200 || strings.Contains(string(republished.body), "198.51.100.20") || !strings.Contains(string(republished.body), "192.0.2.10") {
@@ -139,15 +139,15 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 
 func assertLibraryHoldsOnlyAlpha(t *testing.T, origin, categoryID string) {
 	t.Helper()
-	listing := httpGet(t, origin+"/v1/services", nil)
+	listing := httpGet(t, origin+"/v1/lists", nil)
 	var decoded struct {
-		Services []string `json:"services"`
+		Services []string `json:"lists"`
 		Details  []struct {
 			ID string `json:"id"`
-		} `json:"service_details"`
+		} `json:"list_details"`
 		Categories []struct {
 			ID       string   `json:"id"`
-			Services []string `json:"services"`
+			Services []string `json:"lists"`
 		} `json:"categories"`
 	}
 	if err := json.Unmarshal(listing.body, &decoded); err != nil {

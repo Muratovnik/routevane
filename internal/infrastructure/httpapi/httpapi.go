@@ -464,24 +464,23 @@ func writeBackendError(w http.ResponseWriter, err error) {
 	// A batch of destinations is refused as a whole, so the refusal names the
 	// one value that caused it. The value is the caller's own bounded text and
 	// nothing of this process, which is why it may be repeated back.
-	// A category or a list a route still names cannot be deleted, and the
-	// refusal names the routes: they are the operator's own titles, and
+	// A category or a list a profile still names cannot be deleted, and the
+	// refusal names the profiles: they are the operator's own titles, and
 	// finding them again would otherwise cost a second request against every
-	// stored route. The key stays "lists" in both refusals because that is
-	// still this API's word for a route until the ADR 0028 rename lands.
+	// stored profile.
 	var categoryInUse application.CategoryInUseError
 	var serviceInUse application.ServiceInUseError
 	var invalidDestination application.InvalidDestinationError
 	switch {
 	case errors.As(err, &categoryInUse):
 		writeJSON(w, http.StatusConflict, map[string]any{
-			"error": "category in use",
-			"lists": categoryInUse.Lists,
+			"error":    "category in use",
+			"profiles": categoryInUse.Lists,
 		})
 	case errors.As(err, &serviceInUse):
 		writeJSON(w, http.StatusConflict, map[string]any{
-			"error": "list in use",
-			"lists": serviceInUse.Lists,
+			"error":    "list in use",
+			"profiles": serviceInUse.Lists,
 		})
 	case errors.As(err, &invalidDestination):
 		writeJSON(w, http.StatusBadRequest, map[string]any{

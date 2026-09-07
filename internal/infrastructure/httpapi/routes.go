@@ -85,7 +85,7 @@ var routes = map[string]routeSpec{
 	"health": {path: "/health", methods: readMethods, handle: func(_ *handler, w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	}},
-	"services.collection": {path: "/v1/services", methods: collectionMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"lists.collection": {path: "/v1/lists", methods: collectionMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			h.createCustomService(w, r)
 			return
@@ -95,36 +95,36 @@ var routes = map[string]routeSpec{
 			h.backendError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"services": h.backend.Services(), "service_details": h.backend.ServiceDetails(), "categories": h.backend.Categories(), "default_priority": priority})
+		writeJSON(w, http.StatusOK, map[string]any{"lists": h.backend.Services(), "list_details": h.backend.ServiceDetails(), "categories": h.backend.Categories(), "default_priority": priority})
 	}},
-	"services.priority": {path: "/v1/services/priority", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"lists.priority": {path: "/v1/lists/priority", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.setDefaultPriority(w, r)
 	}},
-	"services.preview": {path: "/v1/services/{id}/preview", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"lists.preview": {path: "/v1/lists/{id}/preview", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.previewService(w, r, r.PathValue("id"))
 	}},
-	"services.update": {path: "/v1/services/{id}/update", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"lists.update": {path: "/v1/lists/{id}/update", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.updateCustomService(w, r, r.PathValue("id"))
 	}},
-	"services.remove": {path: "/v1/services/{id}/remove", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"lists.remove": {path: "/v1/lists/{id}/remove", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.removeService(w, r, r.PathValue("id"))
 	}},
-	"services.contents": {path: "/v1/services/{id}/contents", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"lists.contents": {path: "/v1/lists/{id}/contents", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.serviceContents(w, r, r.PathValue("id"))
 	}},
-	"services.refresh": {path: "/v1/services/{id}/refresh", methods: writeMethods, timeout: refreshRequestTimeout, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"lists.refresh": {path: "/v1/lists/{id}/refresh", methods: writeMethods, timeout: refreshRequestTimeout, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.refreshService(w, r, r.PathValue("id"))
 	}},
-	"services.sources": {path: "/v1/services/{id}/sources", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"lists.sources": {path: "/v1/lists/{id}/sources", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.addServiceSource(w, r, r.PathValue("id"))
 	}},
-	"services.sources.update": {path: "/v1/services/{id}/sources/{source}/update", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"services.sources.update": {path: "/v1/lists/{id}/sources/{source}/update", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.updateServiceSource(w, r, r.PathValue("id"), r.PathValue("source"))
 	}},
-	"services.sources.remove": {path: "/v1/services/{id}/sources/{source}/remove", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"services.sources.remove": {path: "/v1/lists/{id}/sources/{source}/remove", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.removeServiceSource(w, r, r.PathValue("id"), r.PathValue("source"))
 	}},
-	"services.domains": {path: "/v1/services/{id}/domains", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"lists.domains": {path: "/v1/lists/{id}/domains", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.setServiceValues(w, r, r.PathValue("id"))
 	}},
 	// Categories have no listing of their own: GET /v1/services already answers
@@ -176,7 +176,7 @@ var routes = map[string]routeSpec{
 	"settings.update": {path: "/v1/settings/update", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.updateSettings(w, r)
 	}},
-	"lists.collection": {path: "/v1/lists", methods: collectionMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"profiles.collection": {path: "/v1/profiles", methods: collectionMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			h.createList(w, r)
 			return
@@ -184,36 +184,36 @@ var routes = map[string]routeSpec{
 		h.listLists(w, r)
 	}},
 	// The forecast is a POST because it carries a composition in its body, not
-	// because it changes anything: it creates no list, output, attempt, or
+	// because it changes anything: it creates no profile, output, attempt, or
 	// artifact, and it answers on the default budget like every other screen.
 	//
 	// Its literal path is more specific than the identifier form below, so no
-	// stored list can shadow it and "preview" is never read as a list id.
-	"lists.preview": {path: "/v1/lists/preview", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	// stored profile can shadow it and "preview" is never read as a profile id.
+	"profiles.preview": {path: "/v1/profiles/preview", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.previewComposition(w, r)
 	}},
-	"lists.get": {path: "/v1/lists/{id}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"profiles.get": {path: "/v1/profiles/{id}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.getList(w, r, r.PathValue("id"))
 	}},
-	"lists.update": {path: "/v1/lists/{id}/update", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"profiles.update": {path: "/v1/profiles/{id}/update", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.updateList(w, r, r.PathValue("id"))
 	}},
-	"lists.archive": {path: "/v1/lists/{id}/archive", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"profiles.archive": {path: "/v1/profiles/{id}/archive", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.setListArchived(w, r, r.PathValue("id"), true)
 	}},
-	"lists.restore": {path: "/v1/lists/{id}/restore", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"profiles.restore": {path: "/v1/profiles/{id}/restore", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.setListArchived(w, r, r.PathValue("id"), false)
 	}},
-	"lists.schedule": {path: "/v1/lists/{id}/schedule", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"profiles.schedule": {path: "/v1/profiles/{id}/schedule", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.updateListSchedule(w, r, r.PathValue("id"))
 	}},
-	"lists.outputs": {path: "/v1/lists/{id}/outputs", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"profiles.outputs": {path: "/v1/profiles/{id}/outputs", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.addOutput(w, r, r.PathValue("id"))
 	}},
-	"lists.refresh": {path: "/v1/lists/{id}/refresh", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"profiles.refresh": {path: "/v1/profiles/{id}/refresh", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.refresh(w, r, r.PathValue("id"))
 	}},
-	"lists.export": {path: "/v1/lists/{id}/export", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"profiles.export": {path: "/v1/profiles/{id}/export", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.exportList(w, r, r.PathValue("id"))
 	}},
 	"outputs.get": {path: "/v1/outputs/{id}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {

@@ -54,7 +54,7 @@ func TestScheduledRefreshAutomaticallyDeliversAnExplicitOutputBinding(t *testing
 	}
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/device", `{"device_id":`+mustQuote(t, created.Device.ID)+`}`)
 	postJSON(t, origin+"/v1/devices/"+created.Device.ID+"/auto-delivery", `{"enabled":true,"credential":""}`)
-	postJSON(t, origin+"/v1/lists/"+listID+"/schedule", `{"refresh_interval":"daily"}`)
+	postJSON(t, origin+"/v1/profiles/"+listID+"/schedule", `{"refresh_interval":"daily"}`)
 
 	ticks <- now
 	deadline := time.Now().Add(10 * time.Second)

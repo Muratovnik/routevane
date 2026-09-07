@@ -61,7 +61,7 @@ Releases without that file contain only the CLI package.
 The installer is not signed yet, so Windows SmartScreen can report an unknown
 publisher. Verify the checksum first, then choose **More info → Run anyway**.
 
-Routes, connections, and display preferences are stored in
+Profiles, connections, and display preferences are stored in
 `%APPDATA%\Routevane\`, with the database under its `data\` folder, outside the
 installation folder. Closing the window hides Routevane to the tray; **Quit**
 in the tray menu stops it.
@@ -88,7 +88,7 @@ or a newer version, quit it, replace the folder with your copy, and start
 Routevane again. Do not open a database migrated by a newer version with an
 older one.
 
-Data from the CLI package is not imported automatically. To move routes from a
+Data from the CLI package is not imported automatically. To move profiles from a
 CLI installation, use [configuration transfer](usage.md#moving-configuration-to-another-computer),
 enter device passwords again, and publish each connection anew.
 
@@ -98,7 +98,7 @@ Before removing Routevane, disable automatic delivery for your devices in
 **Connections** so stored passwords are removed from the Windows credential
 store. Then quit Routevane and uninstall it from **Settings → Apps**. The
 uninstaller keeps `%APPDATA%\Routevane\`; delete that folder yourself if you do
-not want to keep your routes. Removing Routevane does **not** undo routes
+not want to keep your profiles. Removing Routevane does **not** undo routes
 already applied to a device.
 
 ## CLI package (Windows, Linux, macOS)
@@ -158,7 +158,7 @@ publication history, and generated files. Keep it private; it is not a cache.
 3. Verify and extract the new release into a separate folder.
 4. Copy `data/` to the new folder. Review and merge catalog edits instead of
    overwriting the new catalog with the old one.
-5. Start the new version and check your routes. Keep the old folder and the
+5. Start the new version and check your profiles. Keep the old folder and the
    stopped-state backup until you are satisfied it works.
 
 To roll back, use the old version with the backup taken before the update. Do

@@ -53,9 +53,9 @@ let port = 0
 let managedProduct: SpawnedProduct | undefined
 let expectedUIDigest = ''
 
-// A read that stores nothing: the composer and the route editor ask what a
+// A read that stores nothing: the composer and the profile editor ask what a
 // draft would weigh, and no flow these tests state is made of that question.
-const forecastPath = '/v1/lists/preview'
+const forecastPath = '/v1/profiles/preview'
 
 // The surface negotiates its language from the browser. English is the
 // product's primary language, so the walkthrough runs against the English
@@ -103,7 +103,7 @@ test.afterAll(async () => {
   if (cleanupError !== undefined) throw cleanupError
 })
 
-test('the library starts empty and shelves the route the composer creates and publishes', async ({
+test('the library starts empty and shelves the profile the composer creates and publishes', async ({
   page,
 }) => {
   test.setTimeout(180000)
@@ -149,11 +149,11 @@ test('the library starts empty and shelves the route the composer creates and pu
   expect(root?.headers()['content-security-policy']).not.toContain('unsafe-')
 
   // The library is the home screen, and an empty shelf explains what a saved
-  // route does before asking a first-time operator to create one.
+  // profile does before asking a first-time operator to create one.
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Routes' }),
+    page.getByRole('heading', { level: 1, name: 'Profiles' }),
   ).toBeVisible()
-  await expect(page.getByText('No routes yet')).toBeVisible()
+  await expect(page.getByText('No profiles yet')).toBeVisible()
   await expect(
     page.getByText(
       'Choose lists and a device; Routevane will prepare the rules and show the available connection methods.',
@@ -162,11 +162,11 @@ test('the library starts empty and shelves the route the composer creates and pu
 
   await page
     .locator('.library__header')
-    .getByRole('link', { name: 'Build a route' })
+    .getByRole('link', { name: 'Build a profile' })
     .click()
-  await page.waitForURL(`${origin}/lists/new`)
+  await page.waitForURL(`${origin}/profiles/new`)
   await expect(
-    page.getByRole('heading', { level: 1, name: 'New route' }),
+    page.getByRole('heading', { level: 1, name: 'New profile' }),
   ).toBeVisible()
   // Nothing can be prepared before both the contents and their first
   // connection are chosen, so the primary action cannot create a
@@ -175,7 +175,7 @@ test('the library starts empty and shelves the route the composer creates and pu
   await expect(submit).toBeDisabled()
 
   // The list card is one table: every destination the list stands for with its
-  // origin, read here rather than edited. Adding to the route happens from the
+  // origin, read here rather than edited. Adding to the profile happens from the
   // same card, before or after the checkbox in the column behind it.
   await page
     .getByRole('button', {
@@ -217,7 +217,7 @@ test('the library starts empty and shelves the route the composer creates and pu
   await expect(refresh).toBeEnabled()
   const refreshed = page.waitForResponse(
     (response) =>
-      response.url().endsWith('/v1/services/discord/refresh') &&
+      response.url().endsWith('/v1/lists/discord/refresh') &&
       response.request().method() === 'POST',
   )
   await refresh.click()
@@ -239,10 +239,10 @@ test('the library starts empty and shelves the route the composer creates and pu
       () => getComputedStyle(document.body).overflow === 'hidden',
     ),
   ).toBe(true)
-  await serviceCard.getByRole('button', { name: 'Add to route' }).click()
+  await serviceCard.getByRole('button', { name: 'Add to profile' }).click()
   await serviceCard.getByRole('button', { name: 'Close' }).last().click()
   await expect(page.locator('input[value="discord"]')).toBeChecked()
-  await expect(page.getByText('1 list in the route')).toBeVisible()
+  await expect(page.getByText('1 list in the profile')).toBeVisible()
   await expect(submit).toBeDisabled()
 
   // The search narrows the checkboxes without ever unpicking a list.
@@ -250,9 +250,9 @@ test('the library starts empty and shelves the route the composer creates and pu
   await search.fill('youtu')
   await expect(page.locator('input[value="discord"]')).toHaveCount(0)
   await page.locator('input[value="youtube"]').check()
-  await expect(page.getByText('2 lists in the route')).toBeVisible()
+  await expect(page.getByText('2 lists in the profile')).toBeVisible()
 
-  // Priority is the route's overlap policy. The first row is dragged below the
+  // Priority is the profile's overlap policy. The first row is dragged below the
   // second here, while the same handle also exposes arrow-key reordering.
   await search.fill('')
   const priorityRows = page.locator('.picker__row--selected')
@@ -341,13 +341,13 @@ test('the library starts empty and shelves the route the composer creates and pu
   const outputsResponse = page.waitForResponse(
     (candidate) =>
       candidate.request().method() === 'POST' &&
-      /\/v1\/lists\/[a-f0-9]{32}\/outputs$/.test(
+      /\/v1\/profiles\/[a-f0-9]{32}\/outputs$/.test(
         new URL(candidate.url()).pathname,
       ),
   )
   await submit.click()
   await page.waitForURL(
-    new RegExp(`^${escapeRegExp(origin)}/lists/[a-f0-9]{32}.*$`),
+    new RegExp(`^${escapeRegExp(origin)}/profiles/[a-f0-9]{32}.*$`),
   )
   const listID = listIDFromURL(page.url())
   expect(listID).toMatch(/^[a-f0-9]{32}$/)
@@ -356,21 +356,21 @@ test('the library starts empty and shelves the route the composer creates and pu
   ).toBeVisible()
 
   // The chosen connection is published in the same visible flow, and the stored
-  // route carries exactly what was picked. The list card reads its own sources
-  // when it opens, so the route flow is read without the card's writes.
+  // profile carries exactly what was picked. The list card reads its own sources
+  // when it opens, so the profile flow is read without the card's writes.
   expect([listFlow(mutations)[0]?.path, listFlow(mutations)[0]?.body]).toEqual([
-    '/v1/lists',
+    '/v1/profiles',
     JSON.stringify({
       name: 'Discord, YouTube',
-      services: ['discord', 'youtube'],
+      lists: ['discord', 'youtube'],
       categories: [],
       exclusions: [],
-      service_domains: {},
+      list_domains: {},
       priority: ['youtube', 'discord'],
     }),
   ])
 
-  const tablist = page.getByRole('tablist', { name: 'Route sections' })
+  const tablist = page.getByRole('tablist', { name: 'Profile sections' })
   await expect(tablist.getByRole('tab')).toHaveText([
     'Contents',
     'Connection',
@@ -393,11 +393,11 @@ test('the library starts empty and shelves the route the composer creates and pu
   const published = listFlow(mutations)
   expect(published).toHaveLength(4)
   expect([published[1]?.path, published[1]?.body]).toEqual([
-    `/v1/lists/${listID}/outputs`,
+    `/v1/profiles/${listID}/outputs`,
     JSON.stringify({ target_id: 'keenetic' }),
   ])
   expect([published[2]?.path, published[2]?.body]).toEqual([
-    `/v1/lists/${listID}/refresh`,
+    `/v1/profiles/${listID}/refresh`,
     '{}',
   ])
   expect([published[3]?.path, published[3]?.body]).toEqual([
@@ -431,14 +431,14 @@ test('the library starts empty and shelves the route the composer creates and pu
   await expect(outputRow.getByRole('link', { name: 'Send' })).toBeVisible()
 
   // The breadcrumb returns to the shelf, which now holds the new row.
-  await page.getByRole('link', { name: 'Routes' }).first().click()
+  await page.getByRole('link', { name: 'Profiles' }).first().click()
   await page.waitForURL(`${origin}/`)
   const row = page.getByRole('row').filter({ hasText: 'Discord, YouTube' })
   await expect(row).toHaveCount(1)
   await expect(
     row.getByRole('link', { exact: true, name: 'Discord, YouTube' }),
-  ).toHaveAttribute('href', `/lists/${listID}`)
-  // The route name keeps the original proposal, while the second line makes
+  ).toHaveAttribute('href', `/profiles/${listID}`)
+  // The profile name keeps the original proposal, while the second line makes
   // the changed priority visible on the shelf.
   await expect(row.locator('.library__services')).toHaveText('YouTube, Discord')
   await expect(row.locator('.library__cell-outputs')).toHaveText('Keenetic')
@@ -446,22 +446,24 @@ test('the library starts empty and shelves the route the composer creates and pu
   await expect(row.getByRole('button')).toHaveCount(1)
   await row
     .getByRole('button', {
-      name: 'Actions for route Discord, YouTube',
+      name: 'Actions for profile Discord, YouTube',
     })
     .click()
   const menu = page.locator('.rv-menu__panel:visible')
   // Everything in the panel is a menu item, so the keyboard traverses one list
   // rather than a mixture of buttons and links.
-  await expect(menu.getByRole('menuitem', { name: 'Open route' })).toBeVisible()
+  await expect(
+    menu.getByRole('menuitem', { name: 'Open profile' }),
+  ).toBeVisible()
   await expect(menu.getByRole('menuitem', { name: 'Download' })).toBeVisible()
   await expect(menu.getByRole('menuitem')).toHaveCount(6)
   await expect(
     menu.getByRole('menuitem', { name: 'Send to Keenetic' }),
-  ).toHaveAttribute('href', `/lists/${listID}/send/${outputID}`)
+  ).toHaveAttribute('href', `/profiles/${listID}/send/${outputID}`)
   const exported = page.waitForResponse(
     (candidate) =>
       candidate.request().method() === 'POST' &&
-      new URL(candidate.url()).pathname === `/v1/lists/${listID}/export`,
+      new URL(candidate.url()).pathname === `/v1/profiles/${listID}/export`,
   )
   const download = page.waitForEvent('download')
   await menu.getByRole('menuitem', { name: 'Download' }).click()
@@ -477,7 +479,7 @@ test('the library starts empty and shelves the route the composer creates and pu
   expect((await download).suggestedFilename()).toMatch(/\.json$/)
 
   await row
-    .getByRole('button', { name: 'Actions for route Discord, YouTube' })
+    .getByRole('button', { name: 'Actions for profile Discord, YouTube' })
     .click()
   const reopenedMenu = page.locator('.rv-menu__panel:visible')
   await expect(
@@ -487,7 +489,7 @@ test('the library starts empty and shelves the route the composer creates and pu
   await expect(reopenedMenu).toBeHidden()
 
   await row.getByRole('link', { exact: true, name: 'Discord, YouTube' }).click()
-  await page.waitForURL(`${origin}/lists/${listID}`)
+  await page.waitForURL(`${origin}/profiles/${listID}`)
   await expect(
     page.getByRole('heading', { level: 1, name: 'Discord, YouTube' }),
   ).toBeVisible()
@@ -500,11 +502,11 @@ test('the library starts empty and shelves the route the composer creates and pu
     .filter({ hasText: 'Discord' })
   await expect(
     compositionRow.getByRole('checkbox', {
-      name: 'Remove Discord from the route',
+      name: 'Remove Discord from the profile',
     }),
   ).toBeVisible()
   await expect(
-    listPage.getByRole('checkbox', { name: 'Remove YouTube from the route' }),
+    listPage.getByRole('checkbox', { name: 'Remove YouTube from the profile' }),
   ).toBeVisible()
   const editorTable = listPage.locator('.picker__table')
   await expect(editorTable).toBeVisible()
@@ -544,7 +546,7 @@ test('the library starts empty and shelves the route the composer creates and pu
     rowHeight,
   )
   await expect(
-    listPage.getByText('1 list in the route', { exact: true }),
+    listPage.getByText('1 list in the profile', { exact: true }),
   ).toBeVisible()
   await expect(compositionRow).toHaveCount(0)
 
@@ -568,7 +570,7 @@ test('the service card takes domains, addresses and networks, typed or imported'
   await writeFile(
     routesFile,
     [
-      ':: routes exported from the router',
+      ':: profiles exported from the router',
       'route ADD 198.18.0.0 MASK 255.255.240.0 0.0.0.0',
       'route ADD 198.18.32.0 MASK 255.0.255.0 0.0.0.0',
       '',
@@ -578,8 +580,8 @@ test('the service card takes domains, addresses and networks, typed or imported'
 
   try {
     // Entries are the list's own material, so they are added where the list is
-    // curated rather than where a route is composed (ADR 0029).
-    await page.goto(`${origin}/library`)
+    // curated rather than where a profile is composed (ADR 0029).
+    await page.goto(`${origin}/lists`)
     await openLibraryCategory(page, 'Communication')
     await page
       .getByRole('button', { name: 'Open the contents of list Discord' })
@@ -588,7 +590,7 @@ test('the service card takes domains, addresses and networks, typed or imported'
     await expect(
       card.getByRole('heading', { name: 'List contents' }),
     ).toBeVisible()
-    // No route is in question here, so the card asks about none.
+    // No profile is in question here, so the card asks about none.
     await expect(card.locator('.service-card__membership')).toHaveCount(0)
 
     // The filter and the control beside it share one height: a toolbar is one
@@ -629,7 +631,7 @@ test('the service card takes domains, addresses and networks, typed or imported'
     await expect(cardRow(card, '203.0.113.7')).toContainText('by hand')
     await expect(cardRow(card, '203.0.113.0/29')).toContainText('by hand')
 
-    // A routes file the operator already has is read in place, and the line it
+    // A profiles file the operator already has is read in place, and the line it
     // could not read is stated rather than silently dropped — on the card,
     // beside the rows the file did land in.
     await card.getByRole('button', { name: 'Add entries' }).click()
@@ -680,9 +682,9 @@ test('the service card stays whole over a scrolled page and gives the scroll bac
       cspErrors.push(message.text())
   })
   await page.setViewportSize({ height: 500, width: 1280 })
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   await expect(
-    page.getByRole('heading', { level: 1, name: 'New route' }),
+    page.getByRole('heading', { level: 1, name: 'New profile' }),
   ).toBeVisible()
   const logo = page.locator('.shell__product-mark')
   const logoBeforeScroll = await logo.boundingBox()
@@ -986,12 +988,12 @@ test('legacy profile names are explained as restored lists', async ({
   page,
 }) => {
   await page.goto(`${origin}/`)
-  const created = await page.request.post(`${origin}/v1/lists`, {
+  const created = await page.request.post(`${origin}/v1/profiles`, {
     data: {
       categories: [],
       exclusions: [],
       name: 'Imported 42 · youtube · keenetic',
-      services: ['youtube'],
+      lists: ['youtube'],
     },
     headers: {
       Origin: origin,
@@ -999,22 +1001,25 @@ test('legacy profile names are explained as restored lists', async ({
     },
   })
   expect(created.ok()).toBe(true)
-  const payload = (await created.json()) as { list: { id: string } }
+  const payload = (await created.json()) as { profile: { id: string } }
 
   await page.reload()
   await expect(
-    page.getByText('1 route restored from the previous version'),
+    page.getByText('1 profile restored from the previous version'),
   ).toBeVisible()
   const restored = page.getByRole('link', {
     exact: true,
-    name: 'Restored route 42',
+    name: 'Restored profile 42',
   })
-  await expect(restored).toHaveAttribute('href', `/lists/${payload.list.id}`)
+  await expect(restored).toHaveAttribute(
+    'href',
+    `/profiles/${payload.profile.id}`,
+  )
   await restored.click()
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: 'Restored route 42',
+      name: 'Restored profile 42',
     }),
   ).toBeVisible()
   await expect(
@@ -1022,7 +1027,7 @@ test('legacy profile names are explained as restored lists', async ({
   ).toBeVisible()
 })
 
-test('the route page guards the secret, shows the file and its diagnostics, and republishes on rename', async ({
+test('the profile page guards the secret, shows the file and its diagnostics, and republishes on rename', async ({
   page,
 }) => {
   test.setTimeout(180000)
@@ -1039,7 +1044,7 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   page.on('pageerror', (error) => pageErrors.push(error.message))
 
   const { listId, outputId } = await buildList(page)
-  const listURL = `${origin}/lists/${listId}`
+  const listURL = `${origin}/profiles/${listId}`
 
   await expect(page.locator('.list__header .rv-status__label')).toHaveText(
     'Published with notes',
@@ -1069,8 +1074,8 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   expect(requestURLs.some((url) => url.includes('rv1.'))).toBe(false)
 
   // The tabs are one object's facets, announced as tabs. Connection sits between
-  // the overview and the file, because a route may feed several formats.
-  const tablist = page.getByRole('tablist', { name: 'Route sections' })
+  // the overview and the file, because a profile may feed several formats.
+  const tablist = page.getByRole('tablist', { name: 'Profile sections' })
   await expect(tablist.getByRole('tab')).toHaveText([
     'Contents',
     'Connection',
@@ -1152,7 +1157,7 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   await expect(diagnosticsPanel).toContainText('not supported by this format')
   await expect(diagnosticsPanel).not.toContainText('unsupported_by_target')
 
-  // A reload restores the route from the server. The one-time link does not
+  // A reload restores the profile from the server. The one-time link does not
   // come back, and in the default detail mode nothing even mentions it.
   const requestsBeforeReload = requestURLs.length
   await page.reload()
@@ -1162,7 +1167,7 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   expect(
     requestURLs
       .slice(requestsBeforeReload)
-      .some((url) => new URL(url).pathname === `/v1/lists/${listId}`),
+      .some((url) => new URL(url).pathname === `/v1/profiles/${listId}`),
   ).toBe(true)
   await expect(
     page.getByRole('heading', { name: /^Subscription link/ }),
@@ -1172,7 +1177,7 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   ).toHaveCount(0)
   await expect(
     page.getByText(
-      'The subscription link was shown when the route was created.',
+      'The subscription link was shown when the profile was created.',
     ),
   ).toHaveCount(0)
   expect(await page.content()).not.toContain('rv1.')
@@ -1193,8 +1198,8 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
     artifactBytes,
   )
 
-  // Renaming and recomposing is an edit, not a new route: it republishes every
-  // output the route already carries, and the name and the list composition
+  // Renaming and recomposing is an edit, not a new profile: it republishes every
+  // output the profile already carries, and the name and the list composition
   // stay two independent facts.
   await tablist.getByRole('tab', { name: 'Contents' }).click()
   const editorNameInput = page.locator('#editor-name')
@@ -1208,21 +1213,21 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
     {
       body: JSON.stringify({
         name: 'Chat and video',
-        services: ['discord', 'youtube'],
+        lists: ['discord', 'youtube'],
         categories: [],
         exclusions: [],
-        service_domains: {},
+        list_domains: {},
         priority: ['discord', 'youtube'],
       }),
-      path: `/v1/lists/${listId}/update`,
+      path: `/v1/profiles/${listId}/update`,
     },
-    { body: '{}', path: `/v1/lists/${listId}/refresh` },
+    { body: '{}', path: `/v1/profiles/${listId}/refresh` },
     { body: '{}', path: `/v1/outputs/${outputId}/build` },
   ])
 
-  // The renamed route is still the same row, its list composition unmoved on
+  // The renamed profile is still the same row, its list composition unmoved on
   // the second line.
-  await page.getByRole('link', { name: 'Routes' }).first().click()
+  await page.getByRole('link', { name: 'Profiles' }).first().click()
   await page.waitForURL(`${origin}/`)
   const renamedRow = page.getByRole('row').filter({ hasText: 'Chat and video' })
   await expect(renamedRow).toHaveCount(1)
@@ -1243,7 +1248,7 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   await segment(page, 'Full').click()
   await page
     .getByRole('navigation', { name: 'Sections' })
-    .getByRole('link', { name: 'Routes' })
+    .getByRole('link', { name: 'Profiles' })
     .click()
   await page.getByRole('link', { exact: true, name: 'Chat and video' }).click()
   await expect(
@@ -1251,7 +1256,7 @@ test('the route page guards the secret, shows the file and its diagnostics, and 
   ).toBeVisible()
   await expect(
     page.getByText(
-      'The subscription link was shown when the route was created.',
+      'The subscription link was shown when the profile was created.',
     ),
   ).toBeVisible()
   await expect(page.getByText('Technical details')).toBeVisible()
@@ -1265,25 +1270,25 @@ test('a failed first build remains retryable and exposes no subscription', async
 }) => {
   test.setTimeout(120000)
   // The composer no longer lets this pair be created: it forecasts the size
-  // and refuses. The state under test is a route that already carries a format
+  // and refuses. The state under test is a profile that already carries a format
   // it does not fit, so it is set up through the same API the composer calls.
   await page.goto(`${origin}/`)
   const mutationHeaders = { Origin: origin, 'X-Routevane-Request': '1' }
-  const created = await page.request.post(`${origin}/v1/lists`, {
+  const created = await page.request.post(`${origin}/v1/profiles`, {
     data: {
       categories: [],
       exclusions: [],
       name: 'Over the limit',
-      services: ['limit-fixture'],
+      lists: ['limit-fixture'],
     },
     headers: mutationHeaders,
   })
   expect(created.ok()).toBe(true)
-  const failedListID = ((await created.json()) as { list: { id: string } }).list
-    .id
+  const failedListID = ((await created.json()) as { profile: { id: string } })
+    .profile.id
 
   const added = await page.request.post(
-    `${origin}/v1/lists/${failedListID}/outputs`,
+    `${origin}/v1/profiles/${failedListID}/outputs`,
     { data: { target_id: 'limited-fixture' }, headers: mutationHeaders },
   )
   expect(added.ok()).toBe(true)
@@ -1293,7 +1298,7 @@ test('a failed first build remains retryable and exposes no subscription', async
   expect(addPayload).not.toHaveProperty('subscription_url')
 
   const refreshed = await page.request.post(
-    `${origin}/v1/lists/${failedListID}/refresh`,
+    `${origin}/v1/profiles/${failedListID}/refresh`,
     { data: {}, headers: mutationHeaders },
   )
   expect(refreshed.ok()).toBe(true)
@@ -1308,12 +1313,12 @@ test('a failed first build remains retryable and exposes no subscription', async
     projected_rules: 2,
   })
 
-  await page.goto(`${origin}/lists/${failedListID}`)
+  await page.goto(`${origin}/profiles/${failedListID}`)
   await expect(page.locator('.list__header .rv-status__label')).toHaveText(
     'Refresh failed',
   )
   // The editor says the same thing the build reported, before the operator
-  // presses anything, and still lets the route be saved.
+  // presses anything, and still lets the profile be saved.
   await expect(
     page.getByText('Limited fixture: ≈ 2 of 1 — will not fit'),
   ).toBeVisible()
@@ -1325,7 +1330,7 @@ test('a failed first build remains retryable and exposes no subscription', async
   ).toBeVisible()
   // The connection table lives on its own tab; a hidden row has no role.
   await page
-    .getByRole('tablist', { name: 'Route sections' })
+    .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Connection' })
     .click()
   const outputRow = page.getByRole('row').filter({ hasText: 'Limited fixture' })
@@ -1336,18 +1341,20 @@ test('a failed first build remains retryable and exposes no subscription', async
   ).toHaveCount(0)
   expect(await page.content()).not.toContain('rv1.')
 
-  await page.getByRole('link', { name: 'Routes' }).first().click()
+  await page.getByRole('link', { name: 'Profiles' }).first().click()
   await page.waitForURL(`${origin}/`)
-  await page.locator(`a.library__link[href="/lists/${failedListID}"]`).click()
+  await page
+    .locator(`a.library__link[href="/profiles/${failedListID}"]`)
+    .click()
   await expect(page.getByText('Format not updated')).toBeVisible()
   await page
-    .getByRole('tablist', { name: 'Route sections' })
+    .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Connection' })
     .click()
   await expect(outputRow).toContainText('Last build failed')
   await page
     .locator('main')
-    .getByRole('button', { name: /Actions for route/ })
+    .getByRole('button', { name: /Actions for profile/ })
     .click()
   await page
     .locator('.rv-menu__panel:visible')
@@ -1361,7 +1368,7 @@ test('a failed first build remains retryable and exposes no subscription', async
 
 // The failure above is the one this forecast exists to prevent, which is why
 // it runs against the same fixture right after it.
-test('the composer sizes every format and refuses the pair that cannot hold the route', async ({
+test('the composer sizes every format and refuses the pair that cannot hold the profile', async ({
   page,
 }) => {
   test.setTimeout(120000)
@@ -1369,11 +1376,11 @@ test('the composer sizes every format and refuses the pair that cannot hold the 
   // were never observed has no forecast yet. Observing it first keeps this
   // test independent of which test refreshed the fixture before it.
   const observed = await page.request.post(
-    `${origin}/v1/services/limit-fixture/refresh`,
+    `${origin}/v1/lists/limit-fixture/refresh`,
     { data: {}, headers: { Origin: origin, 'X-Routevane-Request': '1' } },
   )
   expect(observed.ok()).toBe(true)
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   // The fixture belongs to no category, but still appears in the one table.
   await page.locator('input[value="limit-fixture"]').check()
 
@@ -1385,7 +1392,7 @@ test('the composer sizes every format and refuses the pair that cannot hold the 
   ).toContainText('≈ 2 of 1 rules')
   await expect(
     formats.getByRole('option', { name: /Limited fixture/ }),
-  ).toContainText('Cannot hold this route')
+  ).toContainText('Cannot hold this profile')
   await expect(formats.getByRole('option', { name: /Keenetic/ })).toContainText(
     '≈ 2 of 1,024 rules',
   )
@@ -1398,7 +1405,7 @@ test('the composer sizes every format and refuses the pair that cannot hold the 
   await expect(page.locator('.create__forecast')).toHaveText('≈ 2 of 1 rules')
   await expect(submit).toBeDisabled()
   await expect(
-    page.getByText('The route does not fit Limited fixture.'),
+    page.getByText('The profile does not fit Limited fixture.'),
   ).toBeVisible()
   await expect(page.getByText('sing-box would fit.')).toBeVisible()
 
@@ -1409,7 +1416,7 @@ test('the composer sizes every format and refuses the pair that cannot hold the 
 })
 
 /**
- * The composing card reads the list; the one act the route owns is its footer.
+ * The composing card reads the list; the one act the profile owns is its footer.
  *
  * A switch on every row used to promise what the product cannot do. The
  * per-list override a composition carries replaces the catalog's domain seeds
@@ -1426,7 +1433,7 @@ test('the composing card carries no row control and never spoils the forecast', 
   // Only an observed list can be weighed, and this fixture is observed from a
   // source of its own, so the test does not depend on what ran before it.
   const observed = await page.request.post(
-    `${origin}/v1/services/limit-fixture/refresh`,
+    `${origin}/v1/lists/limit-fixture/refresh`,
     { data: {}, headers: { Origin: origin, 'X-Routevane-Request': '1' } },
   )
   expect(observed.ok()).toBe(true)
@@ -1442,7 +1449,7 @@ test('the composing card carries no row control and never spoils the forecast', 
     if (request.method() === 'POST' && path !== forecastPath) writes.push(path)
   })
 
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   await page
     .getByRole('button', { name: 'Open the contents of list Limit fixture' })
     .click()
@@ -1452,7 +1459,7 @@ test('the composing card carries no row control and never spoils the forecast', 
   ).toBeVisible()
 
   // The fixture stands for addresses and for no domain at all: exactly the
-  // rows the removed switch could never have taken out of a route.
+  // rows the removed switch could never have taken out of a profile.
   await expect(cardRow(card, '192.0.2.20')).toContainText('catalog')
   await expect(cardRow(card, '198.51.100.20')).toContainText('catalog')
   await expect(
@@ -1460,8 +1467,8 @@ test('the composing card carries no row control and never spoils the forecast', 
   ).toHaveCount(0)
 
   // The one control the card offers, used both ways with the card open.
-  const add = card.getByRole('button', { name: 'Add to route' })
-  const drop = card.getByRole('button', { name: 'Remove from route' })
+  const add = card.getByRole('button', { name: 'Add to profile' })
+  const drop = card.getByRole('button', { name: 'Remove from profile' })
   await add.click()
   await expect(drop).toBeVisible()
   await drop.click()
@@ -1483,20 +1490,20 @@ test('the composing card carries no row control and never spoils the forecast', 
   assertProductAlive()
 })
 
-test('the visible library order seeds new routes without rewriting saved routes', async ({
+test('the visible library order seeds new profiles without rewriting saved profiles', async ({
   page,
 }) => {
   const headers = { 'X-Routevane-Request': '1' }
   const catalog = (await (
-    await page.request.get(`${origin}/v1/services`)
+    await page.request.get(`${origin}/v1/lists`)
   ).json()) as { default_priority: string[] }
   const original = [...catalog.default_priority]
 
   try {
-    await page.goto(`${origin}/library`)
+    await page.goto(`${origin}/lists`)
     const sheet = page.locator('.lists')
     await expect(sheet).not.toContainText(
-      'New routes start with this order. Existing saved routes do not change.',
+      'New profiles start with this order. Existing saved profiles do not change.',
     )
 
     const first = sheet.locator('.lists__list-row').first()
@@ -1530,7 +1537,7 @@ test('the visible library order seeds new routes without rewriting saved routes'
     await sheet.getByRole('button', { name: 'Save order' }).click()
     await expect(sheet.getByRole('button', { name: 'Save order' })).toBeHidden()
 
-    await page.goto(`${origin}/lists/new`)
+    await page.goto(`${origin}/profiles/new`)
     const search = page.getByRole('searchbox', { name: 'Find a list' })
     await search.fill('Discord')
     await page.locator('input[value="discord"]').check()
@@ -1544,7 +1551,7 @@ test('the visible library order seeds new routes without rewriting saved routes'
       page.locator('.picker__row[data-id="discord"]'),
     ).toHaveAttribute('data-priority', '2')
   } finally {
-    const restored = await page.request.post(`${origin}/v1/services/priority`, {
+    const restored = await page.request.post(`${origin}/v1/lists/priority`, {
       data: { default_priority: original },
       headers,
     })
@@ -1554,18 +1561,18 @@ test('the visible library order seeds new routes without rewriting saved routes'
 
 /**
  * A category is the operator's as much as the catalog's (ADR 0028): they can
- * make one, fill it from the whole catalog, and every route naming it follows
- * what it holds. The one thing they cannot do is take it out from under a route
- * still built from it — and the refusal names that route, so the way forward is
+ * make one, fill it from the whole catalog, and every profile naming it follows
+ * what it holds. The one thing they cannot do is take it out from under a profile
+ * still built from it — and the refusal names that profile, so the way forward is
  * the one the message states.
  */
-test('an operator category carries its lists into a route and is kept while a route names it', async ({
+test('an operator category carries its lists into a profile and is kept while a profile names it', async ({
   page,
 }) => {
   test.setTimeout(60000)
   // Curating happens in its own section (ADR 0029), so the category exists
   // before the composer is opened at all.
-  await page.goto(`${origin}/library`)
+  await page.goto(`${origin}/lists`)
   await expect(
     page.getByRole('heading', { level: 1, name: 'Lists' }),
   ).toBeVisible()
@@ -1613,13 +1620,13 @@ test('an operator category carries its lists into a route and is kept while a ro
   await expect(addList).toBeHidden()
   await expect(details).toContainText('Discord')
 
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   await expect(
-    page.getByRole('heading', { level: 1, name: 'New route' }),
+    page.getByRole('heading', { level: 1, name: 'New profile' }),
   ).toBeVisible()
 
   // A filtered category exposes an explicit live-reference choice, so the
-  // route follows it rather than freezing today's members.
+  // profile follows it rather than freezing today's members.
   const categoryFilter = page.locator(
     '.catalog-filters .rv-search-select__trigger',
   )
@@ -1639,16 +1646,16 @@ test('an operator category carries its lists into a route and is kept while a ro
   await chooseFormat(page, /Keenetic/)
   await page.getByRole('button', { name: 'Create and prepare' }).click()
   await page.waitForURL(
-    new RegExp(`^${escapeRegExp(origin)}/lists/[a-f0-9]{32}.*$`),
+    new RegExp(`^${escapeRegExp(origin)}/profiles/[a-f0-9]{32}.*$`),
   )
   await expect(
     page.getByRole('heading', { level: 1, name: 'Домашние, YouTube' }),
   ).toBeVisible()
 
-  // The saved route still states the category reference through the filter,
+  // The saved profile still states the category reference through the filter,
   // while the ordered rail shows the concrete list it currently contributes.
   await page
-    .getByRole('tablist', { name: 'Route sections' })
+    .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Contents' })
     .click()
   const editorFilter = page.locator(
@@ -1665,10 +1672,10 @@ test('an operator category carries its lists into a route and is kept while a ro
 
   const routeURL = page.url()
 
-  // A route is built from this category, so the category stays where it is and
-  // the refusal names the route standing in the way — beside the act it
+  // A profile is built from this category, so the category stays where it is and
+  // the refusal names the profile standing in the way — beside the act it
   // refused, which is the one place the operator is standing.
-  await page.goto(`${origin}/library`)
+  await page.goto(`${origin}/lists`)
   await openCategoryActions(page, 'Домашние')
   await page
     .locator('.rv-menu__panel:visible')
@@ -1679,7 +1686,7 @@ test('an operator category carries its lists into a route and is kept while a ro
   await expect(removal.getByText('The category was not deleted')).toBeVisible()
   await expect(
     removal.getByText(
-      'It is part of these routes: Домашние, YouTube. Remove it there and try again.',
+      'It is part of these profiles: Домашние, YouTube. Remove it there and try again.',
     ),
   ).toBeVisible()
   await removal.getByRole('button', { name: 'Cancel' }).click()
@@ -1691,10 +1698,10 @@ test('an operator category carries its lists into a route and is kept while a ro
     .click()
 
   // Doing what the refusal asks is what makes the deletion possible, and the
-  // route keeps everything it did not follow through the category.
+  // profile keeps everything it did not follow through the category.
   await page.goto(routeURL)
   await page
-    .getByRole('tablist', { name: 'Route sections' })
+    .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Contents' })
     .click()
   const routeEditorFilter = page.locator(
@@ -1720,7 +1727,7 @@ test('an operator category carries its lists into a route and is kept while a ro
 
   // Nothing names it now, so it goes — and the list it held keeps the category
   // it already belonged to.
-  await page.goto(`${origin}/library`)
+  await page.goto(`${origin}/lists`)
   await openCategoryActions(page, 'Домашние')
   await page
     .locator('.rv-menu__panel:visible')
@@ -1748,7 +1755,7 @@ test('the library deletes a category with its lists, and composing offers none o
   page,
 }) => {
   test.setTimeout(180000)
-  await page.goto(`${origin}/library`)
+  await page.goto(`${origin}/lists`)
   await expect(
     page.getByRole('heading', { level: 1, name: 'Lists' }),
   ).toBeVisible()
@@ -1793,7 +1800,7 @@ test('the library deletes a category with its lists, and composing offers none o
 
   // Selection is a checkbox and nothing else: the composer has no category
   // menu, no way to make or unmake anything, and no bin on a list row.
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   await expect(page.locator('.picker__table-frame')).toBeVisible()
   for (const gone of ['New category', 'New list'])
     await expect(page.getByRole('button', { name: gone })).toHaveCount(0)
@@ -1815,7 +1822,7 @@ test('the list card fills the sheet rather than leaving a band above its footer'
 
   // A list long enough to fill a tall sheet, made and removed by this test so
   // no shipped list is edited to prove a geometry.
-  await page.goto(`${origin}/library`)
+  await page.goto(`${origin}/lists`)
   await openLibraryCategory(page, 'Uncategorized')
   await page.getByRole('button', { name: 'New list' }).click()
   const newList = page.getByRole('dialog', { name: 'New list' })
@@ -1830,7 +1837,7 @@ test('the list card fills the sheet rather than leaving a band above its footer'
   await newList.getByRole('button', { exact: true, name: 'Create' }).click()
   await expect(newList).toBeHidden()
 
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   await page
     .getByRole('searchbox', { name: 'Find a list' })
     .fill('Tall fixture')
@@ -1862,7 +1869,7 @@ test('the list card fills the sheet rather than leaving a band above its footer'
   )
 
   await card.getByRole('button', { name: 'Close' }).last().click()
-  await page.goto(`${origin}/library`)
+  await page.goto(`${origin}/lists`)
   await openLibraryCategory(page, 'Uncategorized')
   await page
     .getByRole('button', { name: 'Actions for list Tall fixture' })
@@ -1891,12 +1898,12 @@ test('every portalled overlay arrives with its own ground and edge', async ({
   page,
 }) => {
   test.setTimeout(120000)
-  const created = await page.request.post(`${origin}/v1/lists`, {
+  const created = await page.request.post(`${origin}/v1/profiles`, {
     data: {
       categories: [],
       exclusions: [],
       name: 'Overlay ground',
-      services: ['youtube'],
+      lists: ['youtube'],
     },
     headers: { Origin: origin, 'X-Routevane-Request': '1' },
   })
@@ -1904,7 +1911,7 @@ test('every portalled overlay arrives with its own ground and edge', async ({
 
   await page.goto(`${origin}/`)
   await page
-    .getByRole('button', { name: 'Actions for route Overlay ground' })
+    .getByRole('button', { name: 'Actions for profile Overlay ground' })
     .click()
   await assertPainted(page.locator('.rv-menu__panel:visible'), 'menu')
   await page.keyboard.press('Escape')
@@ -1917,7 +1924,7 @@ test('every portalled overlay arrives with its own ground and edge', async ({
   )
   await page.keyboard.press('Escape')
 
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   await openFormats(page)
   await assertPainted(page.locator('.rv-search-select__panel'), 'combobox')
   await page.keyboard.press('Escape')
@@ -1934,7 +1941,7 @@ test('every portalled overlay arrives with its own ground and edge', async ({
 test('the composition table blocks unselected drags and bulk-selects only its category', async ({
   page,
 }) => {
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   const rows = page.locator('.picker__row')
   await expect(rows.first()).toBeVisible()
   const before = await rows.evaluateAll((elements) =>
@@ -1986,7 +1993,7 @@ test('the composition table blocks unselected drags and bulk-selects only its ca
   await expect(refresh).toBeEnabled()
   const read = page.waitForResponse(
     (response) =>
-      response.url().endsWith('/v1/services/youtube/refresh') &&
+      response.url().endsWith('/v1/lists/youtube/refresh') &&
       response.request().method() === 'POST',
   )
   const forecast = page.waitForResponse(
@@ -2003,7 +2010,7 @@ test('the composition table blocks unselected drags and bulk-selects only its ca
 test('the searchable connection choice filters in its panel and reopens by keyboard', async ({
   page,
 }) => {
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   const field = page.locator('#create-target')
   await expect(field).toBeVisible()
   await field.press('Enter')
@@ -2066,13 +2073,13 @@ test('hiding a format removes it from the connection picker and says where it we
   // setup flow and when another connection is added later.
   await page
     .getByRole('navigation', { name: 'Sections' })
-    .getByRole('link', { name: 'Routes' })
+    .getByRole('link', { name: 'Profiles' })
     .click()
   await page
     .locator('.library__header')
-    .getByRole('link', { name: 'Build a route' })
+    .getByRole('link', { name: 'Build a profile' })
     .click()
-  await page.waitForURL(`${origin}/lists/new`)
+  await page.waitForURL(`${origin}/profiles/new`)
   await page.getByRole('searchbox', { name: 'Find a list' }).fill('discord')
   await page.locator('input[value="discord"]').check()
   const offered = await openFormats(page)
@@ -2081,7 +2088,7 @@ test('hiding a format removes it from the connection picker and says where it we
   await page.getByRole('option', { name: /sing-box/ }).click()
   await page.getByRole('button', { name: 'Create and prepare' }).click()
   await page.waitForURL(
-    new RegExp(`^${escapeRegExp(origin)}/lists/[a-f0-9]{32}.*$`),
+    new RegExp(`^${escapeRegExp(origin)}/profiles/[a-f0-9]{32}.*$`),
   )
   await expect(
     page.getByRole('heading', { level: 1, name: 'Discord' }),
@@ -2118,7 +2125,7 @@ test('hiding a format removes it from the connection picker and says where it we
   assertProductAlive()
 })
 
-test('an archived route leaves the shelf, keeps its file, and comes back whole', async ({
+test('an archived profile leaves the shelf, keeps its file, and comes back whole', async ({
   page,
 }) => {
   test.setTimeout(180000)
@@ -2127,12 +2134,12 @@ test('an archived route leaves the shelf, keeps its file, and comes back whole',
 
   const { listId } = await buildList(page)
   // Earlier walkthroughs left their own lists on the shelf, so every row here
-  // is addressed by this route's identity rather than by its title.
+  // is addressed by this profile's identity rather than by its title.
   const shelfRow = page
     .getByRole('row')
-    .filter({ has: page.locator(`a[href="/lists/${listId}"]`) })
+    .filter({ has: page.locator(`a[href="/profiles/${listId}"]`) })
   await page
-    .getByRole('tablist', { name: 'Route sections' })
+    .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Connection' })
     .click()
   const fileHref = await page
@@ -2142,7 +2149,7 @@ test('an archived route leaves the shelf, keeps its file, and comes back whole',
   expect(fileHref).toMatch(/^\/v1\/artifacts\/[a-f0-9]{32}$/)
 
   // Archiving is one request and does not rebuild: the file subscribers are
-  // receiving must not change because the route was shelved.
+  // receiving must not change because the profile was shelved.
   const mutations: string[] = []
   page.on('request', (request) => {
     const path = new URL(request.url()).pathname
@@ -2153,7 +2160,7 @@ test('an archived route leaves the shelf, keeps its file, and comes back whole',
   await page
     .locator('main')
     .getByRole('button', {
-      name: 'Actions for route Discord, YouTube',
+      name: 'Actions for profile Discord, YouTube',
       exact: true,
     })
     .click()
@@ -2161,8 +2168,8 @@ test('an archived route leaves the shelf, keeps its file, and comes back whole',
     .locator('.rv-menu__panel:visible')
     .getByRole('menuitem', { name: 'Archive', exact: true })
     .click()
-  await expect(page.getByText('This route is archived')).toBeVisible()
-  expect(mutations).toEqual([`/v1/lists/${listId}/archive`])
+  await expect(page.getByText('This profile is archived')).toBeVisible()
+  expect(mutations).toEqual([`/v1/profiles/${listId}/archive`])
 
   // What stops is change. The controls that would edit, rebuild, reschedule or
   // bind a new format are gone rather than disabled, and the file is still
@@ -2174,7 +2181,7 @@ test('an archived route leaves the shelf, keeps its file, and comes back whole',
     page.getByRole('link', { name: 'Download the file for Keenetic' }).first(),
   ).toHaveAttribute('href', fileHref ?? '')
   await page
-    .getByRole('tablist', { name: 'Route sections' })
+    .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Connection' })
     .click()
   await expect(page.locator('#outputs-target')).toHaveCount(0)
@@ -2182,10 +2189,10 @@ test('an archived route leaves the shelf, keeps its file, and comes back whole',
     page.locator('main').getByRole('row').filter({ hasText: 'Keenetic' }),
   ).toBeVisible()
 
-  // The archived route has left the shelf without leaving the library: the row
+  // The archived profile has left the shelf without leaving the library: the row
   // is behind one disclosure, still names when it was archived, and still
   // offers its published file.
-  await page.getByRole('link', { name: 'Routes' }).first().click()
+  await page.getByRole('link', { name: 'Profiles' }).first().click()
   await page.waitForURL(`${origin}/`)
   await expect(shelfRow).toHaveCount(0)
   const archive = page.locator('.library__archive')
@@ -2193,12 +2200,12 @@ test('an archived route leaves the shelf, keeps its file, and comes back whole',
   await archive.locator('.rv-disclosure__summary').click()
   const archivedRow = archive
     .locator('.library__archive-row')
-    .filter({ has: page.locator(`a[href="/lists/${listId}"]`) })
+    .filter({ has: page.locator(`a[href="/profiles/${listId}"]`) })
   await expect(archivedRow).toHaveCount(1)
   await expect(archivedRow).toContainText('Archived since')
   await archivedRow
     .getByRole('button', {
-      name: 'Actions for route Discord, YouTube',
+      name: 'Actions for profile Discord, YouTube',
     })
     .click()
   await page
@@ -2217,18 +2224,18 @@ test('an archived route leaves the shelf, keeps its file, and comes back whole',
   expect(await audit(page, 'library-archive')).toEqual([])
   await assertNoOverflow(page, 'library-archive')
 
-  // Restoring puts the route back on the shelf with everything it had, and
+  // Restoring puts the profile back on the shelf with everything it had, and
   // publishes nothing by itself.
   mutations.length = 0
   await archivedRow
-    .getByRole('button', { name: 'Actions for route Discord, YouTube' })
+    .getByRole('button', { name: 'Actions for profile Discord, YouTube' })
     .click()
   await page
     .locator('.rv-menu__panel:visible')
     .getByRole('menuitem', { name: 'Restore' })
     .click()
   await expect(shelfRow).toHaveCount(1)
-  expect(mutations).toEqual([`/v1/lists/${listId}/restore`])
+  expect(mutations).toEqual([`/v1/profiles/${listId}/restore`])
   await expect(page.locator('.library__archive')).toHaveCount(0)
 
   expect(pageErrors).toEqual([])
@@ -2258,14 +2265,14 @@ test('the surface speaks the language of the operator and declares which one', a
   await expect(nav.getByRole('link', { name: 'Подключения' })).toBeVisible()
   declared.russian = await documentLanguage(page)
 
-  await nav.getByRole('link', { name: 'Маршруты' }).click()
+  await nav.getByRole('link', { name: 'Профили' }).click()
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Маршруты' }),
+    page.getByRole('heading', { level: 1, name: 'Профили' }),
   ).toBeVisible()
   await expect(
     page
       .locator('.library__header')
-      .getByRole('link', { name: 'Собрать маршрут' }),
+      .getByRole('link', { name: 'Собрать профиль' }),
   ).toBeVisible()
 
   await nav.getByRole('link', { name: 'Настройки' }).click()
@@ -2353,7 +2360,7 @@ test('an output can be explicitly bound to and detached from a compatible device
   const { outputId } = await buildList(page)
 
   await page
-    .getByRole('tablist', { name: 'Route sections' })
+    .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Connection' })
     .click()
   const binding = page.locator(`#output-device-${outputId}`)
@@ -2571,7 +2578,7 @@ for (const language of ['en', 'ru'] as const) {
         )
           categoryWrites.push(request.url())
       })
-      await page.route('**/v1/services', async (route) => {
+      await page.route('**/v1/lists', async (route) => {
         if (route.request().method() === 'GET' && failCatalogRead) {
           failCatalogRead = false
           await route.fulfill({
@@ -2585,7 +2592,7 @@ for (const language of ['en', 'ru'] as const) {
       })
 
       try {
-        await page.goto(`${origin}/library`)
+        await page.goto(`${origin}/lists`)
         await expect(
           page.getByRole('heading', { level: 1, name: copy('lists.title') }),
         ).toBeVisible()
@@ -2638,7 +2645,7 @@ for (const language of ['en', 'ru'] as const) {
         assertProductAlive()
       } finally {
         failCatalogRead = false
-        await page.unroute('**/v1/services')
+        await page.unroute('**/v1/lists')
         if (categoryID !== '') {
           const removed = await page.request.post(
             `${origin}/v1/categories/${categoryID}/remove`,
@@ -2687,7 +2694,7 @@ for (const language of ['en', 'ru'] as const) {
       const violations: AuditFinding[] = []
       await mkdir(reviewRoot, { recursive: true })
 
-      await page.goto(`${origin}/lists/new`)
+      await page.goto(`${origin}/profiles/new`)
       await expect(
         page.getByRole('heading', {
           level: 1,
@@ -2730,13 +2737,13 @@ for (const language of ['en', 'ru'] as const) {
       await chooseFormat(page, /Keenetic/)
       await page.getByRole('button', { name: copy('create.submit') }).click()
       await page.waitForURL(
-        new RegExp(`^${escapeRegExp(origin)}/lists/[a-f0-9]{32}.*$`),
+        new RegExp(`^${escapeRegExp(origin)}/profiles/[a-f0-9]{32}.*$`),
       )
       await expect(
         page.getByRole('heading', { level: 1, name: 'YouTube' }),
       ).toBeVisible()
 
-      // The route audit is taken with an output bound and its subscription block
+      // The profile audit is taken with an output bound and its subscription block
       // showing, so the outputs table and the secret disclosure are covered too.
       await expect(
         page.getByRole('heading', {
@@ -2761,7 +2768,7 @@ for (const language of ['en', 'ru'] as const) {
         fullPage: true,
       })
 
-      await page.goto(`${origin}/library`)
+      await page.goto(`${origin}/lists`)
       await expect(
         page.getByRole('heading', { level: 1, name: copy('lists.title') }),
       ).toBeVisible()
@@ -2815,7 +2822,7 @@ for (const language of ['en', 'ru'] as const) {
 test('the populated library never scrolls sideways', async ({ page }) => {
   test.setTimeout(120000)
   await buildList(page)
-  await page.getByRole('link', { name: 'Routes' }).first().click()
+  await page.getByRole('link', { name: 'Profiles' }).first().click()
   await expect(
     page.getByRole('link', { exact: true, name: 'Discord, YouTube' }).first(),
   ).toBeVisible()
@@ -2826,7 +2833,7 @@ test('the populated library never scrolls sideways', async ({ page }) => {
   // own scroll box.
   await page.setViewportSize({ height: 300, width: 320 })
   const bottomTrigger = page
-    .getByRole('button', { name: /Actions for route/ })
+    .getByRole('button', { name: /Actions for profile/ })
     .last()
   await bottomTrigger.evaluate((element) =>
     element.scrollIntoView({ block: 'end', inline: 'end' }),
@@ -2864,8 +2871,8 @@ test('workspace pages share geometry and the category panel supports keyboard se
     await page.setViewportSize({ width, height: 900 })
     let reference: { x: number; width: number; background: string } | undefined
     for (const path of [
-      '/lists/new',
-      '/library',
+      '/profiles/new',
+      '/lists',
       '/connections',
       '/settings',
       '/',
@@ -2882,9 +2889,11 @@ test('workspace pages share geometry and the category panel supports keyboard se
         }))
       reference ??= geometry
       expect(geometry).toEqual(reference)
-      if (path === '/lists/new' || path === '/library') {
+      if (path === '/profiles/new' || path === '/lists') {
         const frame = page.locator(
-          path === '/lists/new' ? '.picker__table-frame' : '.lists__workspace',
+          path === '/profiles/new'
+            ? '.picker__table-frame'
+            : '.lists__workspace',
         )
         await expect(frame).toBeVisible()
         expect(
@@ -2900,7 +2909,7 @@ test('workspace pages share geometry and the category panel supports keyboard se
       }
     }
   }
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   const collapse = page.getByRole('button', { name: 'Collapse sidebar' })
   await collapse.click()
   await expect(page.locator('.shell')).toHaveClass(/shell--collapsed/)
@@ -2958,7 +2967,7 @@ test('workspace pages share geometry and the category panel supports keyboard se
 test('the composition editor keeps its geometry across selections and shell breakpoints', async ({
   page,
 }) => {
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   const table = page.locator('.picker__table-frame')
   const rail = page.locator('.rv-composer__settings')
   await expect(table).toBeVisible()
@@ -3044,7 +3053,7 @@ test('the composition editor keeps its geometry across selections and shell brea
 test('the composition editor remains operable with text enlarged to 200%', async ({
   page,
 }) => {
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   await page.evaluate(() => {
     document.documentElement.style.fontSize = '200%'
   })
@@ -3052,7 +3061,7 @@ test('the composition editor remains operable with text enlarged to 200%', async
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: 'New route',
+      name: 'New profile',
     }),
   ).toBeVisible()
   await expect(page.locator('.picker__table-frame')).toBeVisible()
@@ -3061,25 +3070,25 @@ test('the composition editor remains operable with text enlarged to 200%', async
   const search = page.getByRole('searchbox', { name: 'Find a list' })
   await search.fill('Discord')
   await page.locator('input[value="discord"]').check()
-  await expect(page.getByText('1 list in the route')).toBeVisible()
+  await expect(page.getByText('1 list in the profile')).toBeVisible()
   expect(await fits(page)).toBe(true)
 })
 
 /**
- * buildList walks the surface the way an operator does — a route holding
+ * buildList walks the surface the way an operator does — a profile holding
  * Discord and YouTube, published as a Keenetic output — and leaves the page on
- * the published route. It answers with the route and output identities, since
- * every output-scoped mutation and address names them rather than the route
+ * the published profile. It answers with the profile and output identities, since
+ * every output-scoped mutation and address names them rather than the profile
  * alone.
  */
 async function buildList(
   page: Page,
 ): Promise<{ listId: string; outputId: string }> {
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   await expect(
     page.getByRole('heading', {
       level: 1,
-      name: 'New route',
+      name: 'New profile',
     }),
   ).toBeVisible()
   const search = page.getByRole('searchbox', { name: 'Find a list' })
@@ -3091,13 +3100,13 @@ async function buildList(
   const outputsResponse = page.waitForResponse(
     (candidate) =>
       candidate.request().method() === 'POST' &&
-      /\/v1\/lists\/[a-f0-9]{32}\/outputs$/.test(
+      /\/v1\/profiles\/[a-f0-9]{32}\/outputs$/.test(
         new URL(candidate.url()).pathname,
       ),
   )
   await page.getByRole('button', { name: 'Create and prepare' }).click()
   await page.waitForURL(
-    new RegExp(`^${escapeRegExp(origin)}/lists/[a-f0-9]{32}.*$`),
+    new RegExp(`^${escapeRegExp(origin)}/profiles/[a-f0-9]{32}.*$`),
   )
   await expect(
     page.getByRole('heading', { level: 1, name: 'Discord, YouTube' }),
@@ -3111,7 +3120,7 @@ async function buildList(
   ).toBeVisible()
   await expect(page.locator('#outputs-target')).toBeEnabled()
   await page
-    .getByRole('tablist', { name: 'Route sections' })
+    .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Contents' })
     .click()
 
@@ -3203,25 +3212,27 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     ['Overlap Beta', ['shared.example', 'beta.example'], ['192.0.2.1']],
     ['Overlap Gamma', ['gamma.example'], ['198.51.100.9']],
   ] as const) {
-    const created = await page.request.post(`${origin}/v1/services`, {
+    const created = await page.request.post(`${origin}/v1/lists`, {
       headers,
       data: { title, domains },
     })
     expect(created.status()).toBe(201)
-    const { service } = (await created.json()) as { service: { id: string } }
+    const { list: service } = (await created.json()) as {
+      list: { id: string }
+    }
     ids.push(service.id)
     if (values.length > 0)
       expect(
         (
-          await page.request.post(
-            `${origin}/v1/services/${service.id}/domains`,
-            { headers, data: { values, verdict: 'include' } },
-          )
+          await page.request.post(`${origin}/v1/lists/${service.id}/domains`, {
+            headers,
+            data: { values, verdict: 'include' },
+          })
         ).ok(),
       ).toBe(true)
     expect(
       (
-        await page.request.post(`${origin}/v1/services/${service.id}/refresh`, {
+        await page.request.post(`${origin}/v1/lists/${service.id}/refresh`, {
           headers,
           data: {},
         })
@@ -3229,11 +3240,11 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     ).toBe(true)
   }
   const beforeRoutes = await (
-    await page.request.get(`${origin}/v1/lists`)
+    await page.request.get(`${origin}/v1/profiles`)
   ).text()
   const beforeContents = await Promise.all(
     ids.map(async (id) =>
-      (await page.request.get(`${origin}/v1/services/${id}/contents`)).text(),
+      (await page.request.get(`${origin}/v1/lists/${id}/contents`)).text(),
     ),
   )
   let inspecting = true
@@ -3245,7 +3256,7 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     if (inspecting && request.method() === 'POST' && path !== forecastPath)
       writes.push(path)
   })
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   async function select(index: number, title: string, checked: boolean) {
     await page.getByRole('searchbox', { name: 'Find a list' }).fill(title)
     await page.locator(`input[value="${ids[index]}"]`).setChecked(checked)
@@ -3386,13 +3397,13 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     release()
   }
   expect(writes).toEqual([])
-  expect(await (await page.request.get(`${origin}/v1/lists`)).text()).toBe(
+  expect(await (await page.request.get(`${origin}/v1/profiles`)).text()).toBe(
     beforeRoutes,
   )
   for (const [index, id] of ids.entries())
     expect(
       await (
-        await page.request.get(`${origin}/v1/services/${id}/contents`)
+        await page.request.get(`${origin}/v1/lists/${id}/contents`)
       ).text(),
     ).toBe(beforeContents[index])
   inspecting = false
@@ -3424,20 +3435,22 @@ function formatList(page: Page): Locator {
   return page.getByRole('listbox')
 }
 
-test('source skips are visible without changing routes, and clear after a clean refresh', async ({
+test('source skips are visible without changing profiles, and clear after a clean refresh', async ({
   page,
 }) => {
   const headers = { 'X-Routevane-Request': '1' }
-  const created = await page.request.post(`${origin}/v1/services`, {
+  const created = await page.request.post(`${origin}/v1/lists`, {
     headers,
     data: { title: 'Source diagnostic fixture', domains: ['notice.example'] },
   })
   expect(created.ok()).toBe(true)
-  const { service } = (await created.json()) as { service: { id: string } }
-  const before = await (await page.request.get(`${origin}/v1/lists`)).text()
+  const { list: service } = (await created.json()) as {
+    list: { id: string }
+  }
+  const before = await (await page.request.get(`${origin}/v1/profiles`)).text()
   let skipped = 1
   let failed = false
-  await page.route(`**/v1/services/${service.id}/refresh`, async (route) => {
+  await page.route(`**/v1/lists/${service.id}/refresh`, async (route) => {
     await route.fulfill({
       status: failed ? 422 : 200,
       contentType: 'application/json',
@@ -3449,7 +3462,7 @@ test('source skips are visible without changing routes, and clear after a clean 
     })
   })
   try {
-    await page.goto(`${origin}/library#list=${service.id}`)
+    await page.goto(`${origin}/lists#list=${service.id}`)
     const card = page.getByRole('dialog', {
       name: 'Source diagnostic fixture',
       exact: true,
@@ -3458,8 +3471,7 @@ test('source skips are visible without changing routes, and clear after a clean 
     const firstRefresh = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
-        new URL(response.url()).pathname ===
-          `/v1/services/${service.id}/refresh`,
+        new URL(response.url()).pathname === `/v1/lists/${service.id}/refresh`,
     )
     await refresh.click()
     expect((await firstRefresh).ok()).toBe(true)
@@ -3496,7 +3508,7 @@ test('source skips are visible without changing routes, and clear after a clean 
     await refresh.click()
     await expect(card.getByRole('alert')).toHaveCount(0)
     await expect(status).toHaveCount(0)
-    expect(await (await page.request.get(`${origin}/v1/lists`)).text()).toBe(
+    expect(await (await page.request.get(`${origin}/v1/profiles`)).text()).toBe(
       before,
     )
     await expect(
@@ -3506,7 +3518,7 @@ test('source skips are visible without changing routes, and clear after a clean 
     await expect(card).toBeHidden()
   } finally {
     const removed = await page.request.post(
-      `${origin}/v1/services/${service.id}/remove`,
+      `${origin}/v1/lists/${service.id}/remove`,
       { headers, data: {} },
     )
     expect(removed.status()).toBe(204)
@@ -3535,14 +3547,16 @@ for (const language of ['en', 'ru'] as const) {
         longValue,
         ...Array.from({ length: 37 }, (_, index) => `row-${index}.example`),
       ]
-      const created = await page.request.post(`${origin}/v1/services`, {
+      const created = await page.request.post(`${origin}/v1/lists`, {
         headers,
         data: { domains, title },
       })
       expect(created.status()).toBe(201)
-      const { service } = (await created.json()) as { service: { id: string } }
+      const { list: service } = (await created.json()) as {
+        list: { id: string }
+      }
       const disabled = await page.request.post(
-        `${origin}/v1/services/${service.id}/domains`,
+        `${origin}/v1/lists/${service.id}/domains`,
         {
           headers,
           data: { values: ['row-36.example'], verdict: 'exclude' },
@@ -3551,7 +3565,7 @@ for (const language of ['en', 'ru'] as const) {
       expect(disabled.status()).toBe(200)
 
       try {
-        await page.goto(`${origin}/lists/new`)
+        await page.goto(`${origin}/profiles/new`)
         await page
           .getByRole('searchbox', { name: copy('create.search') })
           .fill(title)
@@ -3672,8 +3686,8 @@ for (const language of ['en', 'ru'] as const) {
           .click()
 
         // The same dense table and long-value wrapping apply in the library flow;
-        // it has no route footer because it owns the list rather than membership.
-        await page.goto(`${origin}/library#list=${service.id}`)
+        // it has no profile footer because it owns the list rather than membership.
+        await page.goto(`${origin}/lists#list=${service.id}`)
         const library = page.getByRole('dialog', { name: title, exact: true })
         await expect(
           library.getByRole('heading', { name: copy('serviceCard.domains') }),
@@ -3692,7 +3706,7 @@ for (const language of ['en', 'ru'] as const) {
           releaseRefresh = resolve
         })
         let refreshRequests = 0
-        const refreshPath = `**/v1/services/${service.id}/refresh`
+        const refreshPath = `**/v1/lists/${service.id}/refresh`
         await page.route(refreshPath, async (route) => {
           refreshRequests += 1
           await refreshHeld
@@ -3838,7 +3852,7 @@ for (const language of ['en', 'ru'] as const) {
         const saveHeld = new Promise<void>((resolve) => {
           releaseSave = resolve
         })
-        const savePath = `**/v1/services/${service.id}/update`
+        const savePath = `**/v1/lists/${service.id}/update`
         const renamedTitle = `${title} renamed`
         await page.route(savePath, async (route) => {
           await saveHeld
@@ -3846,7 +3860,7 @@ for (const language of ['en', 'ru'] as const) {
             status: 200,
             contentType: 'application/json',
             body: JSON.stringify({
-              service: { id: service.id, title: renamedTitle, domains },
+              list: { id: service.id, title: renamedTitle, domains },
             }),
           })
         })
@@ -3888,7 +3902,7 @@ for (const language of ['en', 'ru'] as const) {
         await page.unroute(savePath)
       } finally {
         const removed = await page.request.post(
-          `${origin}/v1/services/${service.id}/remove`,
+          `${origin}/v1/lists/${service.id}/remove`,
           { headers, data: {} },
         )
         expect(removed.status()).toBe(204)
@@ -3958,21 +3972,23 @@ for (const language of ['en', 'ru'] as const) {
       expect(writes).toBe(2)
     })
 
-    test('card audit: compose source reads retry in place without a route write', async ({
+    test('card audit: compose source reads retry in place without a profile write', async ({
       page,
     }) => {
       test.setTimeout(60000)
       page.setDefaultTimeout(15000)
       const headers = { 'X-Routevane-Request': '1' }
       const title = 'Card source retry fixture'
-      const created = await page.request.post(`${origin}/v1/services`, {
+      const created = await page.request.post(`${origin}/v1/lists`, {
         headers,
         data: { domains: ['retry.example'], title },
       })
       expect(created.status()).toBe(201)
-      const { service } = (await created.json()) as { service: { id: string } }
+      const { list: service } = (await created.json()) as {
+        list: { id: string }
+      }
       const source = await page.request.post(
-        `${origin}/v1/services/${service.id}/sources`,
+        `${origin}/v1/lists/${service.id}/sources`,
         {
           headers,
           data: { format: 'text', url: 'https://feed.example/retry.txt' },
@@ -3980,13 +3996,13 @@ for (const language of ['en', 'ru'] as const) {
       )
       expect(source.ok()).toBe(true)
       const contentsResponse = await page.request.get(
-        `${origin}/v1/services/${service.id}/contents`,
+        `${origin}/v1/lists/${service.id}/contents`,
       )
       expect(contentsResponse.ok()).toBe(true)
       const contents = (await contentsResponse.json()) as {
         observed: boolean
         rows: unknown[]
-        service_id: string
+        list_id: string
         sources: { enabled: boolean }[]
       }
       expect(contents.sources.some((entry) => entry.enabled)).toBe(true)
@@ -4001,48 +4017,42 @@ for (const language of ['en', 'ru'] as const) {
       const firstRefreshHeld = new Promise<void>((resolve) => {
         releaseFirstRefresh = resolve
       })
-      await page.route(
-        `**/v1/services/${service.id}/contents`,
-        async (route) => {
-          contentsCalls += 1
-          if (contentsCalls === 1) await initialContentsHeld
+      await page.route(`**/v1/lists/${service.id}/contents`, async (route) => {
+        contentsCalls += 1
+        if (contentsCalls === 1) await initialContentsHeld
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ...contents,
+            observed: refreshCalls > 1,
+          }),
+        })
+      })
+      await page.route(`**/v1/lists/${service.id}/refresh`, async (route) => {
+        refreshCalls += 1
+        if (refreshCalls === 1) {
+          await firstRefreshHeld
           await route.fulfill({
-            status: 200,
+            status: 503,
             contentType: 'application/json',
-            body: JSON.stringify({
-              ...contents,
-              observed: refreshCalls > 1,
-            }),
+            body: JSON.stringify({ error: 'source unavailable' }),
           })
-        },
-      )
-      await page.route(
-        `**/v1/services/${service.id}/refresh`,
-        async (route) => {
-          refreshCalls += 1
-          if (refreshCalls === 1) {
-            await firstRefreshHeld
-            await route.fulfill({
-              status: 503,
-              contentType: 'application/json',
-              body: JSON.stringify({ error: 'source unavailable' }),
-            })
-            return
-          }
-          await route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({ refresh: { skipped_entries: 0 } }),
-          })
-        },
-      )
+          return
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ refresh: { skipped_entries: 0 } }),
+        })
+      })
 
       try {
         await page.setViewportSize({ width: 320, height: 900 })
         const beforeRoutes = await (
-          await page.request.get(`${origin}/v1/lists`)
+          await page.request.get(`${origin}/v1/profiles`)
         ).text()
-        await page.goto(`${origin}/lists/new`)
+        await page.goto(`${origin}/profiles/new`)
         await page
           .getByRole('searchbox', { name: copy('create.search') })
           .fill(title)
@@ -4160,15 +4170,15 @@ for (const language of ['en', 'ru'] as const) {
         await expect(card.locator('.service-card__rows li')).toHaveCount(1)
         expect(refreshCalls).toBe(2)
         expect(
-          await (await page.request.get(`${origin}/v1/lists`)).text(),
+          await (await page.request.get(`${origin}/v1/profiles`)).text(),
         ).toBe(beforeRoutes)
       } finally {
         releaseInitialContents()
         releaseFirstRefresh()
-        await page.unroute(`**/v1/services/${service.id}/contents`)
-        await page.unroute(`**/v1/services/${service.id}/refresh`)
+        await page.unroute(`**/v1/lists/${service.id}/contents`)
+        await page.unroute(`**/v1/lists/${service.id}/refresh`)
         const removed = await page.request.post(
-          `${origin}/v1/services/${service.id}/remove`,
+          `${origin}/v1/lists/${service.id}/remove`,
           { headers, data: {} },
         )
         expect(removed.status()).toBe(204)
@@ -4196,11 +4206,11 @@ async function chooseFormat(page: Page, name: RegExp): Promise<void> {
  *
  * Two reads are not: the list card observes a list's sources as soon as it
  * opens, and a forecast observes an unread draft's lists once so it can be
- * weighed. Both change what a list knows, neither changes a route, and neither
+ * weighed. Both change what a list knows, neither changes a profile, and neither
  * is anything the operator asked for by name.
  */
 function statesFlow(path: string): boolean {
-  return !path.startsWith('/v1/services/') && path !== forecastPath
+  return !path.startsWith('/v1/lists/') && path !== forecastPath
 }
 
 function listFlow(
@@ -4348,7 +4358,7 @@ function escapeRegExp(value: string): string {
 }
 
 function listIDFromURL(value: string): string {
-  return /\/lists\/([a-f0-9]{32})/.exec(new URL(value).pathname)?.[1] ?? ''
+  return /\/profiles\/([a-f0-9]{32})/.exec(new URL(value).pathname)?.[1] ?? ''
 }
 
 function assertProductAlive(): void {
@@ -4442,18 +4452,18 @@ test('source refresh stays available during a forecast and reports its own busy 
   })
   let forecasts = 0
   let refreshes = 0
-  await page.route('**/v1/lists/preview', async (route) => {
+  await page.route('**/v1/profiles/preview', async (route) => {
     forecasts += 1
     if (forecasts === 1) await forecastHeld
     await route.fulfill({ json: { targets: [] } })
   })
-  await page.route('**/v1/services/discord/refresh', async (route) => {
+  await page.route('**/v1/lists/discord/refresh', async (route) => {
     refreshes += 1
     await refreshHeld
     await route.fulfill({ json: { refresh: {} } })
   })
   try {
-    await page.goto(`${origin}/lists/new`)
+    await page.goto(`${origin}/profiles/new`)
     await page.locator('input[value="discord"]').check()
     await expect.poll(() => forecasts).toBe(1)
     const refresh = page
@@ -4490,24 +4500,24 @@ test('library rows disclose inspection and the card keeps its controls while swi
 }) => {
   await page.setViewportSize({ width: 1920, height: 960 })
   const first = await (
-    await page.request.get(`${origin}/v1/services/discord/contents`)
+    await page.request.get(`${origin}/v1/lists/discord/contents`)
   ).json()
   const second = await (
-    await page.request.get(`${origin}/v1/services/youtube/contents`)
+    await page.request.get(`${origin}/v1/lists/youtube/contents`)
   ).json()
   let release!: () => void
   const held = new Promise<void>((resolve) => {
     release = resolve
   })
-  await page.route('**/v1/services/discord/contents', (route) =>
+  await page.route('**/v1/lists/discord/contents', (route) =>
     route.fulfill({ json: { ...first, observed: true } }),
   )
-  await page.route('**/v1/services/youtube/contents', async (route) => {
+  await page.route('**/v1/lists/youtube/contents', async (route) => {
     await held
     await route.fulfill({ json: { ...second, observed: true } })
   })
   try {
-    await page.goto(`${origin}/library`)
+    await page.goto(`${origin}/lists`)
     await page.locator('[data-id="discord"] .lists__category-column').click()
     const card = page.locator('.rv-dialog--docked')
     await expect(card).toHaveAccessibleName('Discord')
@@ -4548,7 +4558,7 @@ test('composition keeps its context in docked and overlaid cards and isolates na
   page,
 }) => {
   await page.setViewportSize({ width: 1920, height: 960 })
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   const frame = page.locator('.picker__table-frame')
   await expect(frame).toBeVisible()
   const closedBounds = (await frame.boundingBox())!
@@ -4570,7 +4580,7 @@ test('composition keeps its context in docked and overlaid cards and isolates na
   const filter = card.locator('.service-card__filter-input')
   await filter.fill('discord')
   await filter.press('Enter')
-  await expect(page).toHaveURL(`${origin}/lists/new`)
+  await expect(page).toHaveURL(`${origin}/profiles/new`)
   expect(
     await filter.evaluate((element) => (element as HTMLInputElement).form),
   ).toBeNull()
@@ -4606,7 +4616,7 @@ test('composition keeps its context in docked and overlaid cards and isolates na
       .evaluate((e) => getComputedStyle(e).transitionProperty),
   ).toContain('grid-template-columns')
   await page.screenshot({ path: join(reviewRoot, 'composition-compact.png') })
-  // A long existing route must scroll its own content without moving navigation.
+  // A long existing profile must scroll its own content without moving navigation.
   await page.goto(`${origin}/settings`)
   const logoY = (await page.locator('.shell__product-mark').boundingBox())!.y
   await page.locator('.shell__main').evaluate((e) => {
@@ -4631,7 +4641,7 @@ test('page inspection preserves primary actions and full-height geometry in ever
   page,
 }) => {
   await page.setViewportSize({ width: 1920, height: 960 })
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   await page.locator('input[value="discord"]').check()
   await chooseFormat(page, /sing-box/)
   await page.locator('#create-name').fill('Inspection workflow')
@@ -4694,15 +4704,15 @@ test('page inspection preserves primary actions and full-height geometry in ever
   const firstOutput = page.waitForResponse(
     (response) =>
       response.request().method() === 'POST' &&
-      /\/v1\/lists\/[a-f0-9]{32}\/outputs$/.test(
+      /\/v1\/profiles\/[a-f0-9]{32}\/outputs$/.test(
         new URL(response.url()).pathname,
       ),
   )
   await create.click()
-  await page.waitForURL(/\/lists\/[a-f0-9]{32}/)
+  await page.waitForURL(/\/profiles\/[a-f0-9]{32}/)
   expect((await firstOutput).ok()).toBe(true)
   const id = listIDFromURL(page.url())
-  await page.goto(`${origin}/lists/${id}`)
+  await page.goto(`${origin}/profiles/${id}`)
   await page.locator('#editor-name').fill('Inspection workflow saved')
   await page.locator('[data-id="discord"] .picker__open').click()
   await aligned(page.locator('.picker__table-frame'))
@@ -4728,7 +4738,7 @@ test('page inspection preserves primary actions and full-height geometry in ever
   await expect(page.locator('#editor-name')).toHaveValue(
     'Inspection workflow saved',
   )
-  await page.goto(`${origin}/library`)
+  await page.goto(`${origin}/lists`)
   const libraryLeadingEdge = (await page
     .locator('.lists__workspace')
     .boundingBox())!.x
@@ -4826,7 +4836,7 @@ test('docked inspection transitions the form and table together on opening and c
   page,
 }) => {
   await page.setViewportSize({ width: 1920, height: 960 })
-  await page.goto(`${origin}/lists/new`)
+  await page.goto(`${origin}/profiles/new`)
   await expect(page.locator('[data-id="discord"] .picker__open')).toBeVisible()
   async function transitionFrames(selector: string) {
     return page.evaluate(async (selector) => {
@@ -4949,54 +4959,56 @@ test('one list without IP coverage preserves other lists and domain-format forec
       ['Partial Missing', ''],
       ['Partial Separate', '192.0.2.2'],
     ] as const) {
-      const created = await page.request.post(`${origin}/v1/services`, {
+      const created = await page.request.post(`${origin}/v1/lists`, {
         headers,
         data: { title, domains: ['forecast.invalid'] },
       })
       expect(created.status()).toBe(201)
-      const { service } = (await created.json()) as { service: { id: string } }
+      const { list: service } = (await created.json()) as {
+        list: { id: string }
+      }
       ids.push(service.id)
       if (address)
         expect(
           (
             await page.request.post(
-              `${origin}/v1/services/${service.id}/domains`,
+              `${origin}/v1/lists/${service.id}/domains`,
               { headers, data: { values: [address], verdict: 'include' } },
             )
           ).ok(),
         ).toBe(true)
       expect(
         (
-          await page.request.post(
-            `${origin}/v1/services/${service.id}/refresh`,
-            { headers, data: {} },
-          )
+          await page.request.post(`${origin}/v1/lists/${service.id}/refresh`, {
+            headers,
+            data: {},
+          })
         ).ok(),
       ).toBe(true)
     }
-    const response = await page.request.post(`${origin}/v1/lists/preview`, {
+    const response = await page.request.post(`${origin}/v1/profiles/preview`, {
       headers,
-      data: { services: ids, priority: ids },
+      data: { lists: ids, priority: ids },
     })
     expect(response.status()).toBe(200)
     const { targets } = (await response.json()) as {
       targets: {
         target_id: string
-        incomplete_services?: string[]
+        incomplete_lists?: string[]
         projected_rules: number
         fits: boolean
       }[]
     }
     expect(
-      targets.find((x) => x.target_id === 'keenetic')?.incomplete_services,
+      targets.find((x) => x.target_id === 'keenetic')?.incomplete_lists,
     ).toEqual([ids[2]])
     expect(targets.find((x) => x.target_id === 'keenetic')?.fits).toBe(false)
     expect(
-      targets.find((x) => x.target_id === 'singbox')?.incomplete_services ?? [],
+      targets.find((x) => x.target_id === 'singbox')?.incomplete_lists ?? [],
     ).toEqual([])
     expect(targets.find((x) => x.target_id === 'singbox')?.fits).toBe(true)
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(`${origin}/lists/new`)
+    await page.goto(`${origin}/profiles/new`)
     for (const id of ids) await page.locator(`input[value="${id}"]`).check()
     await chooseFormat(page, /Keenetic/)
     await expect(page.locator('.picker__forecast-status')).toContainText(
@@ -5030,7 +5042,7 @@ test('one list without IP coverage preserves other lists and domain-format forec
     for (const id of ids)
       expect(
         (
-          await page.request.post(`${origin}/v1/services/${id}/remove`, {
+          await page.request.post(`${origin}/v1/lists/${id}/remove`, {
             headers,
             data: {},
           })
@@ -5039,10 +5051,10 @@ test('one list without IP coverage preserves other lists and domain-format forec
   }
 })
 
-test('quick route reads stay quiet while slow reads and failures remain visible', async ({
+test('quick profile reads stay quiet while slow reads and failures remain visible', async ({
   page,
 }) => {
-  const payload = await (await page.request.get(`${origin}/v1/lists`)).json()
+  const payload = await (await page.request.get(`${origin}/v1/profiles`)).json()
   let mode: 'fast' | 'slow' | 'failure' = 'fast'
   let release!: () => void
   let held = new Promise<void>((resolve) => {
@@ -5058,7 +5070,7 @@ test('quick route reads stay quiet while slow reads and failures remain visible'
     }
     requestAnimationFrame(sample)
   })
-  await page.route('**/v1/lists', async (route) => {
+  await page.route('**/v1/profiles', async (route) => {
     if (mode !== 'fast') await held
     await route.fulfill({
       status: mode === 'failure' ? 503 : 200,
@@ -5109,18 +5121,18 @@ test('quick route reads stay quiet while slow reads and failures remain visible'
   }
 })
 
-test('category tabs and More toggle a union that bulk selection can add to a route', async ({
+test('category tabs and More toggle a union that bulk selection can add to a profile', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1920, height: 960 })
-  for (const path of ['/library', '/lists/new']) {
+  for (const path of ['/lists', '/profiles/new']) {
     await page.goto(origin + path)
     const filters = page.locator('.catalog-filters')
     const chips = filters.locator('.catalog-filters__chip')
     await chips.filter({ hasText: /^Communication/ }).click()
     await chips.filter({ hasText: /^Video/ }).click()
     const rows = page.locator(
-      path === '/library' ? '.lists__list-row' : '.picker__row',
+      path === '/lists' ? '.lists__list-row' : '.picker__row',
     )
     await expect
       .poll(async () =>
@@ -5131,7 +5143,7 @@ test('category tabs and More toggle a union that bulk selection can add to a rou
         ).sort(),
       )
       .toEqual(['discord', 'youtube'])
-    if (path === '/library') {
+    if (path === '/lists') {
       // Reload the committed bookmark, not an in-flight router replacement.
       await expect
         .poll(() =>
@@ -5177,22 +5189,22 @@ test('category tabs and More toggle a union that bulk selection can add to a rou
   }
 })
 
-test('route rows navigate from their cells while menus and links keep their actions', async ({
+test('profile rows navigate from their cells while menus and links keep their actions', async ({
   page,
 }) => {
   const { listId } = await buildList(page)
   await page.goto(origin)
   const row = page.locator('.library__row').filter({
-    has: page.locator(`a[href="/lists/${listId}"]`),
+    has: page.locator(`a[href="/profiles/${listId}"]`),
   })
   await row.locator('.library__cell-outputs').click()
-  await expect(page).toHaveURL(origin + '/lists/' + listId)
+  await expect(page).toHaveURL(origin + '/profiles/' + listId)
   await page.goto(origin)
   await row.getByRole('button').click()
   await expect(page.getByRole('menu')).toBeVisible()
   await expect(page).toHaveURL(origin + '/')
   await page.keyboard.press('Escape')
-  await row.locator(`a[href="/lists/${listId}"]`).focus()
+  await row.locator(`a[href="/profiles/${listId}"]`).focus()
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(origin + '/lists/' + listId)
+  await expect(page).toHaveURL(origin + '/profiles/' + listId)
 })

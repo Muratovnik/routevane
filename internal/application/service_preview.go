@@ -15,7 +15,7 @@ import (
 // counts address material: exact IP evidence belongs to build diagnostics,
 // while this projection answers the composition question a list editor asks.
 type ServicePreview struct {
-	ServiceID    string                 `json:"service_id"`
+	ServiceID    string                 `json:"list_id"`
 	Sources      []ServiceSourcePreview `json:"sources"`
 	Domains      []string               `json:"domains"`
 	DomainCount  int                    `json:"domain_count"`

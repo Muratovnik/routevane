@@ -50,7 +50,7 @@ const library = { components: { UButton: UButtonStub } }
 describe('RvButton', () => {
   it('forwards pending state while keeping one accessible progress mark', () => {
     const wrapper = mount(RvButton, {
-      props: { loading: true, loadingLabel: 'Saving route' },
+      props: { loading: true, loadingLabel: 'Saving profile' },
       slots: { default: 'Save' },
       global: library,
     })
@@ -59,7 +59,7 @@ describe('RvButton', () => {
     expect(wrapper.getComponent(UButtonStub).props('disabled')).toBe(true)
     expect(wrapper.getComponent(UButtonStub).props('loading')).toBe(true)
     expect(button.attributes('aria-busy')).toBe('true')
-    expect(button.attributes('aria-label')).toBe('Saving route')
+    expect(button.attributes('aria-label')).toBe('Saving profile')
     expect(button.text()).toContain('Save')
     expect(button.find('.rv-button__spinner').exists()).toBe(true)
   })
@@ -81,7 +81,7 @@ describe('RvButton', () => {
 
   it('forwards internal destinations to the router with the visual variant', () => {
     const wrapper = mount(RvButton, {
-      props: { disabled: true, to: '/lists/new', variant: 'primary' },
+      props: { disabled: true, to: '/profiles/new', variant: 'primary' },
       slots: { default: 'Create' },
       global: library,
     })
@@ -90,7 +90,7 @@ describe('RvButton', () => {
       disabled: true,
       external: false,
       href: undefined,
-      to: '/lists/new',
+      to: '/profiles/new',
       variant: 'link',
     })
   })

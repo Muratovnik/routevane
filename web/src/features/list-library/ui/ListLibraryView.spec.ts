@@ -11,11 +11,11 @@ const categories = [
   {
     custom: false,
     id: 'communication',
-    services: ['discord', 'telegram'],
+    lists: ['discord', 'telegram'],
     title: 'Общение',
   },
-  { custom: false, id: 'video', services: ['youtube'], title: 'Видео' },
-  { custom: true, id: 'custom-home', services: ['youtube'], title: 'Домашние' },
+  { custom: false, id: 'video', lists: ['youtube'], title: 'Видео' },
+  { custom: true, id: 'custom-home', lists: ['youtube'], title: 'Домашние' },
 ]
 
 // Steam belongs to no category, which is what fills the last row.
@@ -55,8 +55,8 @@ function json(payload: unknown, status = 200): Response {
 
 function catalogResponse(next = categories, nextServices = services): Response {
   return json({
-    services: nextServices.map((service) => service.id),
-    service_details: nextServices,
+    lists: nextServices.map((service) => service.id),
+    list_details: nextServices,
     categories: next,
     default_priority: nextServices.map((service) => service.id),
   })
@@ -64,7 +64,7 @@ function catalogResponse(next = categories, nextServices = services): Response {
 
 function contentsResponse(serviceID: string): Response {
   return json({
-    service_id: serviceID,
+    list_id: serviceID,
     rows: [
       {
         value: `${serviceID}.example`,
@@ -100,7 +100,7 @@ function stubAPI(routes: Record<string, () => Response | Promise<Response>>) {
 function catalogRoutes(after = categories): Record<string, () => Response> {
   let reads = 0
   return {
-    'GET /v1/services': () => {
+    'GET /v1/lists': () => {
       reads += 1
       return catalogResponse(reads === 1 ? categories : after)
     },
@@ -295,7 +295,7 @@ describe('ListLibraryView', () => {
   it('opens a custom list rename directly from its row menu', async () => {
     stubAPI({
       ...catalogRoutes(),
-      'GET /v1/services/telegram/contents': () => contentsResponse('telegram'),
+      'GET /v1/lists/telegram/contents': () => contentsResponse('telegram'),
     })
     const wrapper = mountLibrary()
     await flushPromises()
@@ -316,7 +316,7 @@ describe('ListLibraryView', () => {
     const created = {
       custom: true,
       id: 'custom-1234567890abcdef',
-      services: [],
+      lists: [],
       title: 'Дом',
     }
     const { keys } = stubAPI({
@@ -337,10 +337,10 @@ describe('ListLibraryView', () => {
     await flushPromises()
 
     expect(keys()).toEqual([
-      'GET /v1/services',
+      'GET /v1/lists',
       'GET /v1/targets',
       'POST /v1/categories',
-      'GET /v1/services',
+      'GET /v1/lists',
       'GET /v1/targets',
     ])
     // A category made to be filled has to be the one on screen.
@@ -353,7 +353,7 @@ describe('ListLibraryView', () => {
   it('adds a list to a category from the whole catalog', async () => {
     const widened = categories.map((category) =>
       category.id === 'video'
-        ? { ...category, services: ['youtube', 'steam'] }
+        ? { ...category, lists: ['youtube', 'steam'] }
         : category,
     )
     const { calls } = stubAPI({
@@ -395,7 +395,7 @@ describe('ListLibraryView', () => {
 
     expect(calls.at(-3)?.key).toBe('POST /v1/categories/video/update')
     expect(calls.at(-3)?.body).toBe(
-      JSON.stringify({ services: ['youtube', 'steam'] }),
+      JSON.stringify({ lists: ['youtube', 'steam'] }),
     )
     wrapper.unmount()
   })
@@ -408,7 +408,7 @@ describe('ListLibraryView', () => {
     }
     const { calls } = stubAPI({
       ...catalogRoutes(),
-      'POST /v1/services': () => json({ service: created }, 201),
+      'POST /v1/lists': () => json({ list: created }, 201),
     })
     const wrapper = mountLibrary()
     await flushPromises()
@@ -433,7 +433,7 @@ describe('ListLibraryView', () => {
 
     expect(calls.at(-1)).toEqual({
       body: JSON.stringify({ title: created.title, domains: created.domains }),
-      key: 'POST /v1/services',
+      key: 'POST /v1/lists',
     })
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
     expect(wrapper.get('.lists__pane-body').text()).toContain(created.title)
@@ -455,13 +455,13 @@ describe('ListLibraryView', () => {
     }
     const widened = categories.map((category) =>
       category.id === 'video'
-        ? { ...category, services: ['youtube', created.id] }
+        ? { ...category, lists: ['youtube', created.id] }
         : category,
     )
     let reads = 0
     let attachments = 0
     const { calls } = stubAPI({
-      'GET /v1/services': () => {
+      'GET /v1/lists': () => {
         reads += 1
         return catalogResponse(
           reads > 1 ? widened : categories,
@@ -469,7 +469,7 @@ describe('ListLibraryView', () => {
         )
       },
       'GET /v1/targets': () => json({ targets: [] }),
-      'POST /v1/services': () => json({ service: created }, 201),
+      'POST /v1/lists': () => json({ list: created }, 201),
       'POST /v1/categories/video/update': () => {
         attachments += 1
         return attachments === 1
@@ -506,9 +506,9 @@ describe('ListLibraryView', () => {
     await clickByText(dialog(), 'Try adding again')
     await flushPromises()
 
-    expect(
-      calls.filter((call) => call.key === 'POST /v1/services'),
-    ).toHaveLength(1)
+    expect(calls.filter((call) => call.key === 'POST /v1/lists')).toHaveLength(
+      1,
+    )
     expect(
       calls.filter((call) => call.key === 'POST /v1/categories/video/update'),
     ).toHaveLength(2)
@@ -517,11 +517,11 @@ describe('ListLibraryView', () => {
     wrapper.unmount()
   })
 
-  it('saves the library default order without writing any route', async () => {
+  it('saves the library default order without writing any profile', async () => {
     const saved = ['telegram', 'discord', 'youtube', 'steam']
     const { calls } = stubAPI({
       ...catalogRoutes(),
-      'POST /v1/services/priority': () => json({ default_priority: saved }),
+      'POST /v1/lists/priority': () => json({ default_priority: saved }),
     })
     const wrapper = mountLibrary()
     await flushPromises()
@@ -538,9 +538,9 @@ describe('ListLibraryView', () => {
 
     expect(calls.at(-1)).toEqual({
       body: JSON.stringify({ default_priority: saved }),
-      key: 'POST /v1/services/priority',
+      key: 'POST /v1/lists/priority',
     })
-    expect(calls.some((call) => call.key.includes('/v1/lists'))).toBe(false)
+    expect(calls.some((call) => call.key.includes('/v1/profiles'))).toBe(false)
     expect(document.body.querySelector('[role="dialog"]')).toBeNull()
     wrapper.unmount()
   })
@@ -548,7 +548,7 @@ describe('ListLibraryView', () => {
   it('keeps a failed default order available to retry', async () => {
     const { calls } = stubAPI({
       ...catalogRoutes(),
-      'POST /v1/services/priority': () =>
+      'POST /v1/lists/priority': () =>
         json({ error: 'controlled failure' }, 503),
     })
     const wrapper = mountLibrary()
@@ -566,9 +566,9 @@ describe('ListLibraryView', () => {
 
     expect(panel.isConnected).toBe(true)
     expect(panel.textContent).toContain('Order not saved')
-    expect(calls.filter((call) => call.key.includes('/v1/lists'))).toHaveLength(
-      0,
-    )
+    expect(
+      calls.filter((call) => call.key.includes('/v1/profiles')),
+    ).toHaveLength(0)
     wrapper.unmount()
   })
 
@@ -610,16 +610,16 @@ describe('ListLibraryView', () => {
     wrapper.unmount()
   })
 
-  // A category a route still names is kept, and the refusal names the routes
+  // A category a profile still names is kept, and the refusal names the profiles
   // standing in the way — beside the act that was refused.
-  it('keeps a category a route still holds and names those routes', async () => {
+  it('keeps a category a profile still holds and names those profiles', async () => {
     stubAPI({
       ...catalogRoutes(),
       'POST /v1/categories/custom-home/remove': () =>
         json(
           {
             error: 'category in use',
-            lists: [
+            profiles: [
               { id: 'a'.repeat(32), title: 'Дом' },
               { id: 'b'.repeat(32), title: 'Офис' },
             ],
@@ -649,7 +649,7 @@ describe('ListLibraryView', () => {
   it('takes a list out of its category from the row menu', async () => {
     const trimmed = categories.map((category) =>
       category.id === 'communication'
-        ? { ...category, services: ['telegram'] }
+        ? { ...category, lists: ['telegram'] }
         : category,
     )
     const { calls } = stubAPI({
@@ -666,23 +666,22 @@ describe('ListLibraryView', () => {
     await flushPromises()
 
     expect(calls.at(-3)?.key).toBe('POST /v1/categories/communication/update')
-    expect(calls.at(-3)?.body).toBe(JSON.stringify({ services: ['telegram'] }))
+    expect(calls.at(-3)?.body).toBe(JSON.stringify({ lists: ['telegram'] }))
     wrapper.unmount()
   })
 
-  it('deletes a list, and keeps one a route still holds', async () => {
+  it('deletes a list, and keeps one a profile still holds', async () => {
     const { calls, keys } = stubAPI({
       ...catalogRoutes(),
-      'POST /v1/services/telegram/remove': () =>
+      'POST /v1/lists/telegram/remove': () =>
         json(
           {
             error: 'list in use',
-            lists: [{ id: 'a'.repeat(32), title: 'Дом' }],
+            profiles: [{ id: 'a'.repeat(32), title: 'Дом' }],
           },
           409,
         ),
-      'POST /v1/services/steam/remove': () =>
-        new Response(null, { status: 204 }),
+      'POST /v1/lists/steam/remove': () => new Response(null, { status: 204 }),
     })
     const wrapper = mountLibrary()
     await flushPromises()
@@ -698,7 +697,7 @@ describe('ListLibraryView', () => {
     await clickByText(panel, 'Delete')
     await flushPromises()
 
-    expect(keys().at(-1)).toBe('POST /v1/services/telegram/remove')
+    expect(keys().at(-1)).toBe('POST /v1/lists/telegram/remove')
     expect(dialog().textContent).toContain('The list was not deleted')
     expect(dialog().textContent).toContain('Дом')
 
@@ -712,8 +711,8 @@ describe('ListLibraryView', () => {
     await clickByText(dialog(), 'Delete')
     await flushPromises()
 
-    expect(calls.at(-3)?.key).toBe('POST /v1/services/steam/remove')
-    expect(keys().slice(-2)).toEqual(['GET /v1/services', 'GET /v1/targets'])
+    expect(calls.at(-3)?.key).toBe('POST /v1/lists/steam/remove')
+    expect(keys().slice(-2)).toEqual(['GET /v1/lists', 'GET /v1/targets'])
     wrapper.unmount()
   })
 
@@ -724,7 +723,7 @@ describe('ListLibraryView', () => {
     })
     const { keys } = stubAPI({
       ...catalogRoutes(),
-      'POST /v1/services/telegram/remove': () => pending,
+      'POST /v1/lists/telegram/remove': () => pending,
     })
     const wrapper = mountLibrary()
     await flushPromises()
@@ -752,7 +751,7 @@ describe('ListLibraryView', () => {
     ).toBe(true)
     submit?.click()
     expect(
-      keys().filter((key) => key === 'POST /v1/services/telegram/remove'),
+      keys().filter((key) => key === 'POST /v1/lists/telegram/remove'),
     ).toHaveLength(1)
 
     finish(json({ error: 'controlled refusal' }, 503))
@@ -767,7 +766,7 @@ describe('ListLibraryView', () => {
   it('opens the category and the list named in the address', async () => {
     stubAPI({
       ...catalogRoutes(),
-      'GET /v1/services/youtube/contents': () => contentsResponse('youtube'),
+      'GET /v1/lists/youtube/contents': () => contentsResponse('youtube'),
     })
     const wrapper = mountLibrary('#category=video&list=youtube')
     await flushPromises()
@@ -776,7 +775,7 @@ describe('ListLibraryView', () => {
     const card = dialog()
     expect(card.textContent).toContain('YouTube')
     expect(card.textContent).toContain('youtube.example')
-    // No route is in question here, so the card asks about none.
+    // No profile is in question here, so the card asks about none.
     expect(card.querySelector('.service-card__membership')).toBeNull()
     wrapper.unmount()
   })
@@ -785,12 +784,12 @@ describe('ListLibraryView', () => {
     const created = {
       custom: true,
       id: 'custom-stale-create',
-      services: [],
+      lists: [],
       title: 'Saved while offline',
     }
     let reads = 0
     const { calls } = stubAPI({
-      'GET /v1/services': () => {
+      'GET /v1/lists': () => {
         reads += 1
         if (reads === 2) return json({ error: 'catalog unavailable' }, 503)
         return catalogResponse(
@@ -873,7 +872,7 @@ describe('ListLibraryView', () => {
     )
     let reads = 0
     const { calls } = stubAPI({
-      'GET /v1/services': () => {
+      'GET /v1/lists': () => {
         reads += 1
         if (reads === 2) return json({ error: 'catalog unavailable' }, 503)
         return catalogResponse(reads >= 3 ? renamed : categories)
@@ -922,7 +921,7 @@ describe('ListLibraryView', () => {
     let reads = 0
     const remaining = categories.filter((entry) => entry.id !== 'custom-home')
     const { calls } = stubAPI({
-      'GET /v1/services': () => {
+      'GET /v1/lists': () => {
         reads += 1
         if (reads === 2) return json({ error: 'catalog unavailable' }, 503)
         return catalogResponse(reads >= 3 ? remaining : categories)
@@ -969,12 +968,12 @@ describe('ListLibraryView', () => {
   it('library audit: keeps a stale detach visible until GET confirms membership', async () => {
     const detached = categories.map((category) =>
       category.id === 'communication'
-        ? { ...category, services: ['telegram'] }
+        ? { ...category, lists: ['telegram'] }
         : category,
     )
     let reads = 0
     const { calls } = stubAPI({
-      'GET /v1/services': () => {
+      'GET /v1/lists': () => {
         reads += 1
         if (reads === 2) return json({ error: 'catalog unavailable' }, 503)
         return catalogResponse(reads >= 3 ? detached : categories)

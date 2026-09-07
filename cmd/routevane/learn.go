@@ -82,7 +82,7 @@ func parseLearn(args []string) (learnOptions, bool) {
 type learnReport struct {
 	URL               string                `json:"url"`
 	RegistrableDomain string                `json:"registrable_domain"`
-	ServiceID         string                `json:"service_id"`
+	ServiceID         string                `json:"list_id"`
 	Confirmed         bool                  `json:"confirmed"`
 	Steps             []string              `json:"steps,omitempty"`
 	Exercised         []string              `json:"exercised_components,omitempty"`

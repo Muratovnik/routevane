@@ -34,7 +34,7 @@ it('marks retained details stale and never lands a superseded response', async (
             maximum_rules: 0,
             projected_rules: projected,
             fits: true,
-            per_service: [],
+            per_list: [],
             overlaps: { items: [], truncated: false },
           },
         ],
@@ -131,7 +131,7 @@ it('refreshes stale coverage once and invalidates the result when sources change
                   maximum_rules: 0,
                   projected_rules: projected,
                   fits: true,
-                  per_service: [],
+                  per_list: [],
                   overlaps: { items: [], truncated: false },
                 },
               ],
@@ -204,8 +204,8 @@ it('retains partial facts while reading only missing lists, then recovers the fu
                 maximum_rules: 100,
                 projected_rules: complete ? 2 : 1,
                 fits: complete,
-                per_service: [{ service_id: 'alpha', rules: 1 }],
-                incomplete_services: complete ? [] : ['beta'],
+                per_list: [{ list_id: 'alpha', rules: 1 }],
+                incomplete_lists: complete ? [] : ['beta'],
               },
             ],
           }),
@@ -224,7 +224,7 @@ it('retains partial facts while reading only missing lists, then recovers the fu
   forecast.request(draft, draft.services)
   await vi.advanceTimersByTimeAsync(2)
   await flushPromises()
-  expect(refreshed).toEqual(['/v1/services/beta/refresh'])
+  expect(refreshed).toEqual(['/v1/lists/beta/refresh'])
   expect(forecast.forTarget('keenetic')?.projectedRules).toBe(2)
   expect(forecast.failure.value).toBeNull()
   scope.stop()

@@ -109,7 +109,7 @@ type buildResponse struct {
 
 func refreshAndBuild(t *testing.T, origin, listID, outputID string) buildResponse {
 	t.Helper()
-	postJSON(t, origin+"/v1/lists/"+listID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+listID+"/refresh", `{}`)
 	payload := postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 	if strings.Contains(string(payload), `"routing_plan"`) {
 		t.Fatalf("build response exposes raw plan: %s", payload)

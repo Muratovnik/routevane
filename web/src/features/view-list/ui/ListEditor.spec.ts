@@ -33,10 +33,10 @@ const forecastPayload = {
       maximum_rules: 1024,
       projected_rules: 6,
       fits: true,
-      per_service: [
-        { service_id: 'discord', rules: 3 },
-        { service_id: 'telegram', rules: 2 },
-        { service_id: 'youtube', rules: 1 },
+      per_list: [
+        { list_id: 'discord', rules: 3 },
+        { list_id: 'telegram', rules: 2 },
+        { list_id: 'youtube', rules: 1 },
       ],
     },
     {
@@ -44,7 +44,7 @@ const forecastPayload = {
       maximum_rules: 1,
       projected_rules: 6,
       fits: false,
-      per_service: [],
+      per_list: [],
     },
   ],
 }
@@ -151,24 +151,24 @@ describe('ListEditor', () => {
     wrapper.unmount()
   })
 
-  it('weighs each list in the first format the route publishes', async () => {
+  it('weighs each list in the first format the profile publishes', async () => {
     const fetchMock = stubPreview()
     vi.advanceTimersByTime(600)
     const wrapper = mountEditor()
     vi.advanceTimersByTime(600)
     await flushPromises()
 
-    expect(fetchMock).toHaveBeenCalledWith('/v1/lists/preview', {
+    expect(fetchMock).toHaveBeenCalledWith('/v1/profiles/preview', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Routevane-Request': '1',
       },
       body: JSON.stringify({
-        services: ['youtube'],
+        lists: ['youtube'],
         categories: ['communication'],
         exclusions: [],
-        service_domains: {},
+        list_domains: {},
         priority: [],
         targets: ['keenetic', 'limited-fixture'],
       }),
@@ -195,7 +195,7 @@ describe('ListEditor', () => {
 
   // With nothing bound there is no format to weigh against, so the rows carry
   // no numbers at all rather than zeros.
-  it('asks for no forecast when the route publishes nowhere', async () => {
+  it('asks for no forecast when the profile publishes nowhere', async () => {
     const fetchMock = stubPreview()
     const wrapper = mountEditor({ outputs: [] })
     vi.advanceTimersByTime(600)
@@ -231,9 +231,9 @@ describe('ListEditor', () => {
         .map((call) => String(call[0]))
         .filter((path) => path.endsWith('/refresh')),
     ).toEqual([
-      '/v1/services/discord/refresh',
-      '/v1/services/telegram/refresh',
-      '/v1/services/youtube/refresh',
+      '/v1/lists/discord/refresh',
+      '/v1/lists/telegram/refresh',
+      '/v1/lists/youtube/refresh',
     ])
     expect(wrapper.get('.editor__forecast').text()).toBe(
       'Limited fixture: ≈ 6 of 1 — will not fit',
@@ -267,11 +267,11 @@ describe('ListEditor', () => {
     wrapper.unmount()
   })
 
-  // Save is offered when the stored route and the draft say different things.
-  // The stored route arrives in the server's order and the draft is kept in a
-  // normalised one, so comparing them as written offered a save for a route
+  // Save is offered when the stored profile and the draft say different things.
+  // The stored profile arrives in the server's order and the draft is kept in a
+  // normalised one, so comparing them as written offered a save for a profile
   // nobody had edited.
-  it('offers a save for a different route, not for a differently written one', async () => {
+  it('offers a save for a different profile, not for a differently written one', async () => {
     stubPreview()
     const wrapper = mountEditor({
       exclusions: ['discord', 'telegram'],

@@ -268,7 +268,7 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
                 <RvButton
                   v-if="props.deployable(output)"
                   size="compact"
-                  :to="`/lists/${props.listId}/send/${output.id}`"
+                  :to="`/profiles/${props.listId}/send/${output.id}`"
                   variant="quiet"
                 >
                   <RvIcon name="send" />

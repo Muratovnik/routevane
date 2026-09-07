@@ -93,7 +93,7 @@ test.afterAll(async () => {
   if (cleanupErrors.length > 0) throw cleanupErrors[0]
 })
 
-test('configuration transfer moves a reviewed route into a fresh installation', async ({
+test('configuration transfer moves a reviewed profile into a fresh installation', async ({
   page,
 }) => {
   const mutationHeaders = {
@@ -101,7 +101,7 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
     'X-Routevane-Request': '1',
   }
   const addedSource = await page.request.post(
-    `${sourceOrigin}/v1/services/youtube/sources`,
+    `${sourceOrigin}/v1/lists/youtube/sources`,
     {
       data: {
         format: 'text',
@@ -116,24 +116,25 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
   ).source.id
   for (const sourceID of ['dns-playback', customSourceID]) {
     const disabled = await page.request.post(
-      `${sourceOrigin}/v1/services/youtube/sources/${sourceID}/update`,
+      `${sourceOrigin}/v1/lists/youtube/sources/${sourceID}/update`,
       { data: { enabled: false }, headers: mutationHeaders },
     )
     expect(disabled.ok()).toBe(true)
   }
-  const created = await page.request.post(`${sourceOrigin}/v1/lists`, {
+  const created = await page.request.post(`${sourceOrigin}/v1/profiles`, {
     data: {
       categories: [],
       exclusions: [],
-      name: 'Transferred route',
-      services: ['youtube'],
+      name: 'Transferred profile',
+      lists: ['youtube'],
     },
     headers: mutationHeaders,
   })
   expect(created.ok()).toBe(true)
-  const listID = ((await created.json()) as { list: { id: string } }).list.id
+  const listID = ((await created.json()) as { profile: { id: string } }).profile
+    .id
   const output = await page.request.post(
-    `${sourceOrigin}/v1/lists/${listID}/outputs`,
+    `${sourceOrigin}/v1/profiles/${listID}/outputs`,
     { data: { target_id: 'keenetic' }, headers: mutationHeaders },
   )
   expect(output.ok()).toBe(true)
@@ -231,7 +232,7 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
   await page.getByRole('button', { name: 'Preview transfer' }).click()
   expect((await validPreviewRequest).postData()).toBe(rawTransfer)
   const preview = page.getByRole('region', { name: 'Will be imported' })
-  await expect(preview).toContainText('1 route')
+  await expect(preview).toContainText('1 profile')
   await expect(preview).toContainText('1 connection')
   await expect(preview).toContainText(
     'Publish connections again and create new subscriptions.',
@@ -289,16 +290,16 @@ test('configuration transfer moves a reviewed route into a fresh installation', 
 
   await page.goto(`${destinationOrigin}/`)
   await expect(
-    page.getByRole('link', { exact: true, name: 'Transferred route' }),
+    page.getByRole('link', { exact: true, name: 'Transferred profile' }),
   ).toBeVisible()
   const importedCatalog = (await (
-    await page.request.get(`${destinationOrigin}/v1/services`)
+    await page.request.get(`${destinationOrigin}/v1/lists`)
   ).json()) as { default_priority: string[] }
   expect(importedCatalog.default_priority).toEqual(
     portable.settings.default_priority,
   )
   const contentsResponse = await page.request.get(
-    `${destinationOrigin}/v1/services/youtube/contents`,
+    `${destinationOrigin}/v1/lists/youtube/contents`,
   )
   expect(contentsResponse.ok()).toBe(true)
   const contents = (await contentsResponse.json()) as {

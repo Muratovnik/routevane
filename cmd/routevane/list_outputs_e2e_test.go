@@ -44,13 +44,13 @@ func TestListEditsReachEveryOutputThroughTheSameSubscription(t *testing.T) {
 
 	// Editing the list is what a rebuild then publishes: the output row, its
 	// subscription and its identity are untouched by the edit.
-	updated := postJSON(t, origin+"/v1/lists/"+listID+"/update", `{"name":"Видео и общение","services":["youtube","discord"]}`)
+	updated := postJSON(t, origin+"/v1/profiles/"+listID+"/update", `{"name":"Видео и общение","lists":["youtube","discord"]}`)
 	var updateResponse struct {
 		List struct {
 			ID       string   `json:"id"`
 			Name     string   `json:"name"`
-			Services []string `json:"services"`
-		} `json:"list"`
+			Services []string `json:"lists"`
+		} `json:"profile"`
 	}
 	if err := json.Unmarshal(updated, &updateResponse); err != nil {
 		t.Fatal(err)
@@ -92,18 +92,18 @@ func TestListEditsReachEveryOutputThroughTheSameSubscription(t *testing.T) {
 
 	// One output per format: asking again returns the existing one instead of
 	// issuing a second subscription for the same file.
-	duplicate := postGuardedBody(t, origin+"/v1/lists/"+listID+"/outputs", `{"target_id":"keenetic"}`)
+	duplicate := postGuardedBody(t, origin+"/v1/profiles/"+listID+"/outputs", `{"target_id":"keenetic"}`)
 	if duplicate.status != http.StatusConflict {
 		t.Fatalf("duplicate output status=%d body=%s", duplicate.status, duplicate.body)
 	}
 
 	// The library states the list, its composition and both of its outputs.
-	library := httpGet(t, origin+"/v1/lists", nil)
+	library := httpGet(t, origin+"/v1/profiles", nil)
 	var listing struct {
 		Lists []struct {
 			ID       string   `json:"id"`
 			Name     string   `json:"name"`
-			Services []string `json:"services"`
+			Services []string `json:"lists"`
 			Outputs  []struct {
 				ID       string `json:"id"`
 				TargetID string `json:"target_id"`
@@ -111,7 +111,7 @@ func TestListEditsReachEveryOutputThroughTheSameSubscription(t *testing.T) {
 					ID string `json:"id"`
 				} `json:"latest"`
 			} `json:"outputs"`
-		} `json:"lists"`
+		} `json:"profiles"`
 	}
 	if err := json.Unmarshal(library.body, &listing); err != nil {
 		t.Fatal(err)

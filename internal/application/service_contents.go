@@ -17,7 +17,7 @@ import (
 // material the next build reads — so the card and the artifact cannot tell
 // two different stories.
 type ServiceContents struct {
-	ServiceID string                  `json:"service_id"`
+	ServiceID string                  `json:"list_id"`
 	Rows      []ServiceContentsRow    `json:"rows"`
 	Sources   []ServiceContentsSource `json:"sources"`
 	// Observed reports whether stored observations exist for this service. A

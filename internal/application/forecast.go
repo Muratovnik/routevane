@@ -28,17 +28,17 @@ type CompositionForecast struct {
 	// guesswork. Its sum may be larger than ProjectedRules: a renderer collapses
 	// and deduplicates format-identical rules, and that saving belongs to the
 	// file rather than to any one service.
-	PerService []ServiceRuleForecast `json:"per_service"`
+	PerService []ServiceRuleForecast `json:"per_list"`
 	Overlaps   CompositionOverlaps   `json:"overlaps"`
 	// Missing services are excluded from this partial calculation, never counted
 	// as zero. Fits is false until the entire composition can be measured.
-	IncompleteServices []string `json:"incomplete_services,omitempty"`
+	IncompleteServices []string `json:"incomplete_lists,omitempty"`
 }
 
 type OverlapValue struct {
 	RuleKind domain.RuleKind `json:"rule_kind"`
 	Value    string          `json:"value"`
-	Services []string        `json:"services"`
+	Services []string        `json:"lists"`
 }
 
 type CompositionOverlap struct {
@@ -61,7 +61,7 @@ type CompositionOverlaps struct {
 // CompositionOverlapSummary is one stable row of the overlap adjacency graph.
 // Overlaps never contains ServiceID itself.
 type CompositionOverlapSummary struct {
-	ServiceID string   `json:"service_id"`
+	ServiceID string   `json:"list_id"`
 	Overlaps  []string `json:"overlaps"`
 }
 
@@ -100,7 +100,7 @@ func forecastOverlaps(plan domain.RoutingPlan) CompositionOverlaps {
 
 // ServiceRuleForecast is one service's share of a forecast plan.
 type ServiceRuleForecast struct {
-	ServiceID string `json:"service_id"`
+	ServiceID string `json:"list_id"`
 	Rules     int    `json:"rules"`
 }
 

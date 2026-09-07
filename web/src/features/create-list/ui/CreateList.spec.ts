@@ -8,9 +8,9 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import CreateList from './CreateList.vue'
 
 const catalogPayload = {
-  services: ['discord', 'limit-fixture'],
+  lists: ['discord', 'limit-fixture'],
   default_priority: ['limit-fixture', 'discord'],
-  service_details: [
+  list_details: [
     { id: 'discord', title: 'Discord', categories: [] },
     { id: 'limit-fixture', title: 'Limit fixture', categories: [] },
   ],
@@ -50,21 +50,21 @@ const forecastPayload = {
       maximum_rules: 1024,
       projected_rules: 2,
       fits: true,
-      per_service: [{ service_id: 'limit-fixture', rules: 2 }],
+      per_list: [{ list_id: 'limit-fixture', rules: 2 }],
     },
     {
       target_id: 'limited-fixture',
       maximum_rules: 1,
       projected_rules: 2,
       fits: false,
-      per_service: [{ service_id: 'limit-fixture', rules: 2 }],
+      per_list: [{ list_id: 'limit-fixture', rules: 2 }],
     },
     {
       target_id: 'singbox',
       maximum_rules: 8192,
       projected_rules: 2,
       fits: true,
-      per_service: [{ service_id: 'limit-fixture', rules: 2 }],
+      per_list: [{ list_id: 'limit-fixture', rules: 2 }],
     },
   ],
 }
@@ -91,12 +91,12 @@ type Network = {
 function stubNetwork(overrides: Network = {}) {
   const fetchMock = vi.fn((input: unknown) => {
     const path = String(input)
-    if (path === '/v1/services')
+    if (path === '/v1/lists')
       return Promise.resolve(overrides.catalog?.() ?? json(catalogPayload))
     if (path === '/v1/targets') return Promise.resolve(json(targetsPayload))
     if (path === '/v1/deployments/targets')
       return Promise.resolve(json({ targets: [] }))
-    if (path === '/v1/lists/preview')
+    if (path === '/v1/profiles/preview')
       return (
         overrides.preview ?? (() => Promise.resolve(json(forecastPayload)))
       )()
@@ -112,7 +112,7 @@ function stubNetwork(overrides: Network = {}) {
 
 function previewCalls(fetchMock: { mock: { calls: unknown[][] } }): string[] {
   return fetchMock.mock.calls
-    .filter((call) => String(call[0]) === '/v1/lists/preview')
+    .filter((call) => String(call[0]) === '/v1/profiles/preview')
     .map((call) => String((call[1] as RequestInit | undefined)?.body ?? ''))
 }
 
@@ -195,10 +195,10 @@ describe('CreateList forecast', () => {
     await flushPromises()
     expect(previewCalls(fetchMock)).toEqual([
       JSON.stringify({
-        services: ['limit-fixture'],
+        lists: ['limit-fixture'],
         categories: [],
         exclusions: [],
-        service_domains: {},
+        list_domains: {},
         priority: ['limit-fixture'],
       }),
     ])
@@ -210,14 +210,14 @@ describe('CreateList forecast', () => {
     // bound carries the group separator this locale uses.
     expect(text).toContain('≈ 2 of 1,024 rules')
     expect(text).toContain('≈ 2 of 1 rules')
-    expect(text).toContain('Cannot hold this route')
+    expect(text).toContain('Cannot hold this profile')
     wrapper.unmount()
   })
 
-  // The route is named before it is filled in. The name field asked last while
+  // The profile is named before it is filled in. The name field asked last while
   // proposing itself from the catalog above it, which read as a summary of what
   // had been picked rather than as the first thing the form wants.
-  it('keeps the editable proposed name in route settings', async () => {
+  it('keeps the editable proposed name in profile settings', async () => {
     stubNetwork()
     const wrapper = mountComposer()
     await flushPromises()
@@ -272,7 +272,7 @@ describe('CreateList forecast', () => {
     wrapper.unmount()
   })
 
-  it('adopts a reread library order until the route order is edited', async () => {
+  it('adopts a reread library order until the profile order is edited', async () => {
     let priority = ['limit-fixture', 'discord']
     stubNetwork({
       catalog: () => json({ ...catalogPayload, default_priority: priority }),
@@ -352,10 +352,10 @@ describe('CreateList forecast', () => {
 
     expect(previewCalls(fetchMock)).toEqual([
       JSON.stringify({
-        services: ['discord', 'limit-fixture'],
+        lists: ['discord', 'limit-fixture'],
         categories: [],
         exclusions: [],
-        service_domains: {},
+        list_domains: {},
         priority: ['limit-fixture', 'discord'],
       }),
     ])
@@ -380,7 +380,9 @@ describe('CreateList forecast', () => {
 
     await chooseTarget(wrapper, 'Limited fixture')
     expect(submit?.attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain('The route does not fit Limited fixture.')
+    expect(wrapper.text()).toContain(
+      'The profile does not fit Limited fixture.',
+    )
     expect(wrapper.text()).toContain('sing-box would fit.')
 
     // The way out is one click, and it lands on the same choice the operator
@@ -414,13 +416,11 @@ describe('CreateList forecast', () => {
     vi.advanceTimersByTime(600)
     await flushPromises()
 
-    expect(refreshCalls(fetchMock)).toEqual([
-      '/v1/services/limit-fixture/refresh',
-    ])
+    expect(refreshCalls(fetchMock)).toEqual(['/v1/lists/limit-fixture/refresh'])
     expect(previewCalls(fetchMock)).toHaveLength(2)
     const listed = (await openTargets(wrapper)).textContent ?? ''
     expect(listed).toContain('≈ 2 of 1 rules')
-    expect(listed).toContain('Cannot hold this route')
+    expect(listed).toContain('Cannot hold this profile')
     wrapper.unmount()
   })
 
@@ -438,9 +438,7 @@ describe('CreateList forecast', () => {
     await flushPromises()
 
     // One refusal, one read, one re-ask — and the second refusal is final.
-    expect(refreshCalls(fetchMock)).toEqual([
-      '/v1/services/limit-fixture/refresh',
-    ])
+    expect(refreshCalls(fetchMock)).toEqual(['/v1/lists/limit-fixture/refresh'])
     expect(previewCalls(fetchMock)).toHaveLength(2)
 
     // A second service joins the draft: only the one never read is read.
@@ -449,8 +447,8 @@ describe('CreateList forecast', () => {
     await flushPromises()
 
     expect(refreshCalls(fetchMock)).toEqual([
-      '/v1/services/limit-fixture/refresh',
-      '/v1/services/discord/refresh',
+      '/v1/lists/limit-fixture/refresh',
+      '/v1/lists/discord/refresh',
     ])
     expect(previewCalls(fetchMock)).toHaveLength(4)
 
@@ -462,7 +460,7 @@ describe('CreateList forecast', () => {
     expect(refreshCalls(fetchMock)).toHaveLength(2)
     expect(previewCalls(fetchMock)).toHaveLength(5)
     expect((await openTargets(wrapper)).textContent).not.toContain(
-      'Cannot hold this route',
+      'Cannot hold this profile',
     )
     wrapper.unmount()
   })
@@ -499,7 +497,7 @@ describe('CreateList forecast', () => {
   it('says nothing and blocks nothing when the forecast is refused', async () => {
     const fetchMock = vi.fn((input: unknown) => {
       const path = String(input)
-      if (path === '/v1/services') return Promise.resolve(json(catalogPayload))
+      if (path === '/v1/lists') return Promise.resolve(json(catalogPayload))
       if (path === '/v1/targets') return Promise.resolve(json(targetsPayload))
       if (path === '/v1/deployments/targets')
         return Promise.resolve(json({ targets: [] }))
@@ -514,7 +512,7 @@ describe('CreateList forecast', () => {
     vi.advanceTimersByTime(600)
     await flushPromises()
 
-    expect(wrapper.text()).not.toContain('Cannot hold this route')
+    expect(wrapper.text()).not.toContain('Cannot hold this profile')
     expect(
       buttonWithText(wrapper, 'Create and prepare')?.attributes('disabled'),
     ).toBeUndefined()

@@ -17,7 +17,7 @@ useHead({
 
 function onCreated(listID: string, targetID: string): void {
   void router.push(
-    `/lists/${listID}${listPageHash({ setup: targetID, tab: 'outputs' })}`,
+    `/profiles/${listID}${listPageHash({ setup: targetID, tab: 'outputs' })}`,
   )
 }
 </script>

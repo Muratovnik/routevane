@@ -398,14 +398,14 @@ func TestManagedRouteClaimsPreserveForeignRoutesAndShareCreatedPrefixes(t *testi
 		t.Fatalf("route descriptions: shared=%q discord=%q foreign=%q", sharedDescription, discordDescription, foreignDescription)
 	}
 
-	postJSON(t, origin+"/v1/lists/"+listA+"/update", `{"name":"A","services":["discord"]}`)
+	postJSON(t, origin+"/v1/profiles/"+listA+"/update", `{"name":"A","lists":["discord"]}`)
 	artifactA = refreshAndBuild(t, origin, listA, outputA).Artifact.ID
 	deployViaCLI(t, deps, args(artifactA), devicePassword)
 	if !fakeDeviceHasRoutes(device, foreign, shared, discord) {
 		t.Fatalf("the first claimant removed a shared route: %#v", device.routes)
 	}
 
-	postJSON(t, origin+"/v1/lists/"+listB+"/update", `{"name":"B","services":["discord"]}`)
+	postJSON(t, origin+"/v1/profiles/"+listB+"/update", `{"name":"B","lists":["discord"]}`)
 	artifactB = refreshAndBuild(t, origin, listB, outputB).Artifact.ID
 	deployViaCLI(t, deps, args(artifactB), devicePassword)
 	device.mu.Lock()

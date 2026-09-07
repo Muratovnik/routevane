@@ -54,14 +54,33 @@ by ADR 0028:
 | Today | Becomes |
 | --- | --- |
 | `service`, `services` | `list`, `lists` |
-| `list`, `lists` | `route`, `routes` |
+| `list`, `lists` | `profile`, `profiles` |
 | `category`, `categories` | unchanged |
+| one entry, called a destination in prose | `rule`, as the code and interface already say |
 
 This is a swap, not two independent renames: `lists` is both a source and a
-target name. Every slice therefore renames `lists` to `routes` first and only
+target name. Every slice therefore renames `lists` to `profiles` first and only
 then renames `services` to `lists`. Performed in the other order, the first step
 walks into names the second step still needs, and the two meanings merge with
 nothing left to tell them apart.
+
+**`route` is not the word for a composition.** ADR 0028 named it «маршрут», and
+that reads wrong to the operators this product serves: in every routing table a
+route is one entry. It is also a claim the product cannot make. For the OpenWrt
+nftset and Keenetic FQDN formats the artifact deliberately carries no address at
+all, so `google.com` in a list is not a route but a name the device will route
+by. The word stays free and keeps meaning what a device builds.
+
+**Freeing `profile`.** The word is currently the rendering profile of a target:
+`profile_key` in the target catalog, the `effective_profiles` table, and
+`frozenProfiles` in code. That key means the renderer's version, so it is
+renamed to `format_key` and the table to `effective_formats`. The rename is
+worth doing on its own, and only target authors ever see the catalog key.
+
+**One entry is a `rule`.** The interface and the planner already say so
+(`plan.Rules`, `RuleKind`, «Одинаковое правило»); only the prose in `docs/`
+still calls it a destination, and it is brought to the same word. Every target
+ecosystem this product renders for calls the same thing a rule.
 
 Storage names are renamed with the rest. Leaving them behind would preserve the
 exact confusion this decision exists to end, inside the files that are hardest
@@ -71,12 +90,18 @@ migration, following the pattern `legacy_v3.go` already establishes.
 The work lands as ordered slices, each independently green, all released
 together:
 
+0. **The interface dictionary.** «Маршрут» becomes «Профиль» and Route
+   becomes Profile on every surface an operator reads. This supersedes the
+   vocabulary clause of ADR 0028, which named the composition a route.
 1. **Executable and its persisted state.** Directory, built binary, launchers,
    packaging, release tooling, CLI usage text, database filename, lock filename.
 2. **HTTP API vocabulary and the web client that consumes it.** These cannot be
-   separated: the client and the routes it calls change in one step.
-3. **Catalog format key.** `services:` becomes `lists:` in category files, with
-   the reader accepting the retired key for one minor version.
+   separated: the client and the routes it calls change in one step. The
+   browser's own addresses belong here too — they are bookmarkable and carry
+   the same two meanings the API does.
+3. **Catalog format keys.** `services:` becomes `lists:` in category files and
+   `profile_key` becomes `format_key` in target files, with the reader
+   accepting each retired key for one minor version.
 4. **Go identifiers and SQLite storage**, as one migration.
 5. **Configuration transfer format**, raising the version and keeping the
    documented ability to import the retired ones.
@@ -95,6 +120,12 @@ An operator script that calls `./routing-agent` breaks and must call
 `./routevane`. This is stated in the release notes rather than absorbed by an
 alias, because a compatibility shim would keep the retired name in the archive
 and in support conversations, which is the outcome being removed.
+
+A bookmark of a retired browser address stops resolving. `/lists/{id}` cannot
+redirect, because that address now belongs to the lists page rather than to the
+route it used to name, and a shim would have to guess which of the two a visitor
+meant. The break is stated in the release notes, for the same reason the
+executable gets no alias.
 
 The retired catalog key and the retired transfer versions are accepted for one
 minor version so an operator's edited catalog and exported configuration survive

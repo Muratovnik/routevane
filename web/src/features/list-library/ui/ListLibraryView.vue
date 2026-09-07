@@ -278,7 +278,7 @@ function closeService(): void {
 // composing card's link all land on the same category and the same open list.
 function writeLocation(): void {
   void router.replace(
-    `/library${libraryPageHash({
+    `/lists${libraryPageHash({
       category: activeCategoryIDs.value,
       list: activeServiceID.value,
     })}`,
@@ -698,7 +698,7 @@ async function submitPriority(): Promise<void> {
           priorityError ||
           (paneRefusal?.kind === 'inUse'
             ? t('lists.category.inUse.body', {
-                routes: paneRefusal.routes.join(', '),
+                profiles: paneRefusal.profiles.join(', '),
               })
             : t('lists.category.failed.body'))
         "
@@ -909,7 +909,7 @@ async function submitPriority(): Promise<void> {
           :body="
             library.refusal.value.kind === 'inUse'
               ? t('lists.category.inUse.body', {
-                  routes: library.refusal.value.routes.join(', '),
+                  profiles: library.refusal.value.profiles.join(', '),
                 })
               : t('lists.category.failed.body')
           "
@@ -984,7 +984,7 @@ async function submitPriority(): Promise<void> {
           :body="
             library.refusal.value.kind === 'inUse'
               ? t('lists.category.inUse.body', {
-                  routes: library.refusal.value.routes.join(', '),
+                  profiles: library.refusal.value.profiles.join(', '),
                 })
               : t('lists.category.failed.body')
           "
@@ -1037,7 +1037,7 @@ async function submitPriority(): Promise<void> {
           :body="
             library.refusal.value.kind === 'inUse'
               ? t('lists.list.inUse.body', {
-                  routes: library.refusal.value.routes.join(', '),
+                  profiles: library.refusal.value.profiles.join(', '),
                 })
               : t('lists.category.failed.body')
           "

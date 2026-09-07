@@ -56,7 +56,7 @@ func TestScheduledOutputsContinueAfterOneFormatFails(t *testing.T) {
 	listID := createScheduledList(t, origin, []string{"small"})
 	keeneticID := addScheduledOutput(t, origin, listID, "keenetic")
 	singboxID := addScheduledOutput(t, origin, listID, "singbox")
-	postJSON(t, origin+"/v1/lists/"+listID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+listID+"/refresh", `{}`)
 	keeneticSubscription := buildScheduledOutput(t, origin, keeneticID)
 	singboxSubscription := buildScheduledOutput(t, origin, singboxID)
 	initial := scheduledListDetail(t, origin, listID)
@@ -70,9 +70,9 @@ func TestScheduledOutputsContinueAfterOneFormatFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	postJSON(t, origin+"/v1/lists/"+listID+"/update",
-		`{"name":"Scheduled formats","services":`+string(servicesJSON)+`}`)
-	postJSON(t, origin+"/v1/lists/"+listID+"/schedule", `{"refresh_interval":"daily"}`)
+	postJSON(t, origin+"/v1/profiles/"+listID+"/update",
+		`{"name":"Scheduled formats","lists":`+string(servicesJSON)+`}`)
+	postJSON(t, origin+"/v1/profiles/"+listID+"/schedule", `{"refresh_interval":"daily"}`)
 	ticks <- now
 
 	var current scheduledDetail
@@ -149,7 +149,7 @@ func (d scheduledDetail) output(targetID string) scheduledOutputDetail {
 
 func scheduledListDetail(t *testing.T, origin, listID string) scheduledDetail {
 	t.Helper()
-	response := httpGet(t, origin+"/v1/lists/"+listID, nil)
+	response := httpGet(t, origin+"/v1/profiles/"+listID, nil)
 	if response.status != 200 {
 		t.Fatalf("list detail status=%d body=%s", response.status, response.body)
 	}
@@ -169,9 +169,9 @@ func createScheduledList(t *testing.T, origin string, services []string) string 
 	var response struct {
 		List struct {
 			ID string `json:"id"`
-		} `json:"list"`
+		} `json:"profile"`
 	}
-	body := postJSON(t, origin+"/v1/lists", `{"name":"Scheduled formats","services":`+string(encoded)+`}`)
+	body := postJSON(t, origin+"/v1/profiles", `{"name":"Scheduled formats","lists":`+string(encoded)+`}`)
 	if err := json.Unmarshal(body, &response); err != nil || len(response.List.ID) != 32 {
 		t.Fatalf("create list=%s: %v", body, err)
 	}
@@ -185,7 +185,7 @@ func addScheduledOutput(t *testing.T, origin, listID, targetID string) string {
 			ID string `json:"id"`
 		} `json:"output"`
 	}
-	body := postJSON(t, origin+"/v1/lists/"+listID+"/outputs", `{"target_id":`+strconv.Quote(targetID)+`}`)
+	body := postJSON(t, origin+"/v1/profiles/"+listID+"/outputs", `{"target_id":`+strconv.Quote(targetID)+`}`)
 	if err := json.Unmarshal(body, &response); err != nil || len(response.Output.ID) != 32 {
 		t.Fatalf("create output=%s: %v", body, err)
 	}

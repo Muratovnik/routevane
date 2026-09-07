@@ -31,8 +31,8 @@ const devicePayload = {
 }
 
 const catalogPayload = {
-  services: [],
-  service_details: [],
+  lists: [],
+  list_details: [],
   categories: [],
 }
 
@@ -90,7 +90,7 @@ describe('DevicesView prerequisite audit', () => {
     let requirementsReads = 0
     fetchMock.mockImplementation((input: string) => {
       if (input === '/v1/devices') return Promise.resolve(json(devicePayload))
-      if (input === '/v1/services') return Promise.resolve(json(catalogPayload))
+      if (input === '/v1/lists') return Promise.resolve(json(catalogPayload))
       if (input === '/v1/targets') return Promise.resolve(json(targetsPayload))
       if (input === '/v1/deployments/targets') {
         requirementsReads += 1
@@ -166,7 +166,7 @@ describe('DevicesView prerequisite audit', () => {
         return Promise.resolve(
           json({ devices: [], secret_store_available: true }),
         )
-      if (input === '/v1/services') return Promise.resolve(json(catalogPayload))
+      if (input === '/v1/lists') return Promise.resolve(json(catalogPayload))
       if (input === '/v1/targets') return Promise.resolve(json(targetsPayload))
       if (input === '/v1/deployments/targets')
         return Promise.resolve(json({ targets: [] }))

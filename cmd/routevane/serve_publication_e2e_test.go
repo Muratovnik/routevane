@@ -54,16 +54,16 @@ func TestServeCreateRefreshBuildSubscriptionAndReopen(t *testing.T) {
 	if contenderCode != 1 || contenderListened || contenderOut.Len() != 0 || !strings.Contains(contenderErr.String(), `"error_code":"server_lock_unavailable"`) {
 		t.Fatalf("lock contender code=%d stdout=%q stderr=%q", contenderCode, contenderOut.String(), contenderErr.String())
 	}
-	createdList := postJSON(t, origin+"/v1/lists", `{"name":"Альфа","services":["alpha"]}`)
+	createdList := postJSON(t, origin+"/v1/profiles", `{"name":"Альфа","lists":["alpha"]}`)
 	var listResponse struct {
 		List struct {
 			ID string `json:"id"`
-		} `json:"list"`
+		} `json:"profile"`
 	}
 	if err := json.Unmarshal(createdList, &listResponse); err != nil {
 		t.Fatal(err)
 	}
-	created := postJSON(t, origin+"/v1/lists/"+listResponse.List.ID+"/outputs", `{"target_id":"keenetic"}`)
+	created := postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/outputs", `{"target_id":"keenetic"}`)
 	var response struct {
 		Output struct {
 			ID string `json:"id"`
@@ -75,11 +75,11 @@ func TestServeCreateRefreshBuildSubscriptionAndReopen(t *testing.T) {
 	if len(listResponse.List.ID) != 32 || len(response.Output.ID) != 32 || bytes.Contains(created, []byte("subscription_url")) {
 		t.Fatalf("create response=%s / %s", createdList, created)
 	}
-	listRead := httpGet(t, origin+"/v1/lists/"+listResponse.List.ID, nil)
+	listRead := httpGet(t, origin+"/v1/profiles/"+listResponse.List.ID, nil)
 	if listRead.status != 200 || bytes.Contains(listRead.body, []byte("subscription_url")) {
 		t.Fatalf("list repeats secret: %s", listRead.body)
 	}
-	postJSON(t, origin+"/v1/lists/"+listResponse.List.ID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/refresh", `{}`)
 	built := postJSON(t, origin+"/v1/outputs/"+response.Output.ID+"/build", `{}`)
 	var buildResponse struct {
 		SubscriptionURL string `json:"subscription_url"`
@@ -153,16 +153,16 @@ func TestFailedInitialBuildPersistsReasonWithoutIssuingSubscription(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	createdList := postJSON(t, origin+"/v1/lists", `{"name":"Too many","services":`+string(encodedServices)+`}`)
+	createdList := postJSON(t, origin+"/v1/profiles", `{"name":"Too many","lists":`+string(encodedServices)+`}`)
 	var listResponse struct {
 		List struct {
 			ID string `json:"id"`
-		} `json:"list"`
+		} `json:"profile"`
 	}
 	if err := json.Unmarshal(createdList, &listResponse); err != nil {
 		t.Fatal(err)
 	}
-	createdOutput := postJSON(t, origin+"/v1/lists/"+listResponse.List.ID+"/outputs", `{"target_id":"keenetic"}`)
+	createdOutput := postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/outputs", `{"target_id":"keenetic"}`)
 	var outputResponse struct {
 		Output struct {
 			ID string `json:"id"`
@@ -171,7 +171,7 @@ func TestFailedInitialBuildPersistsReasonWithoutIssuingSubscription(t *testing.T
 	if err := json.Unmarshal(createdOutput, &outputResponse); err != nil {
 		t.Fatal(err)
 	}
-	postJSON(t, origin+"/v1/lists/"+listResponse.List.ID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/refresh", `{}`)
 	failed := postGuardedBody(t, origin+"/v1/outputs/"+outputResponse.Output.ID+"/build", `{}`)
 	if failed.status != http.StatusUnprocessableEntity {
 		t.Fatalf("failed build status=%d body=%s", failed.status, failed.body)
@@ -184,7 +184,7 @@ func TestFailedInitialBuildPersistsReasonWithoutIssuingSubscription(t *testing.T
 	if err := json.Unmarshal(failed.body, &problem); err != nil || problem.Code != application.BuildFailureRuleLimit || problem.ProjectedRules != 9*128 || problem.MaximumRules != 1024 || bytes.Contains(failed.body, []byte("subscription_url")) {
 		t.Fatalf("failed build problem=%s decoded=%#v err=%v logs=%s", failed.body, problem, err, stderr.String())
 	}
-	detail := httpGet(t, origin+"/v1/lists/"+listResponse.List.ID, nil)
+	detail := httpGet(t, origin+"/v1/profiles/"+listResponse.List.ID, nil)
 	var listDetail struct {
 		Outputs []struct {
 			Latest      any `json:"latest"`
@@ -222,9 +222,9 @@ func createListOutput(t *testing.T, origin, name, targetID string, services ...s
 	var listResponse struct {
 		List struct {
 			ID string `json:"id"`
-		} `json:"list"`
+		} `json:"profile"`
 	}
-	body := postJSON(t, origin+"/v1/lists", `{"name":`+strconv.Quote(name)+`,"services":`+string(encoded)+`,"priority":`+string(encoded)+`}`)
+	body := postJSON(t, origin+"/v1/profiles", `{"name":`+strconv.Quote(name)+`,"lists":`+string(encoded)+`,"priority":`+string(encoded)+`}`)
 	if err := json.Unmarshal(body, &listResponse); err != nil {
 		t.Fatalf("create list=%s: %v", body, err)
 	}
@@ -233,14 +233,14 @@ func createListOutput(t *testing.T, origin, name, targetID string, services ...s
 			ID string `json:"id"`
 		} `json:"output"`
 	}
-	body = postJSON(t, origin+"/v1/lists/"+listResponse.List.ID+"/outputs", `{"target_id":`+strconv.Quote(targetID)+`}`)
+	body = postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/outputs", `{"target_id":`+strconv.Quote(targetID)+`}`)
 	if err := json.Unmarshal(body, &outputResponse); err != nil {
 		t.Fatalf("create output=%s: %v", body, err)
 	}
 	if len(listResponse.List.ID) != 32 || len(outputResponse.Output.ID) != 32 {
 		t.Fatalf("create list/output identities: %s", body)
 	}
-	postJSON(t, origin+"/v1/lists/"+listResponse.List.ID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/refresh", `{}`)
 	buildBody := postJSON(t, origin+"/v1/outputs/"+outputResponse.Output.ID+"/build", `{}`)
 	var buildResponse struct {
 		SubscriptionURL string `json:"subscription_url"`

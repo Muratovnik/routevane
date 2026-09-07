@@ -65,10 +65,10 @@ function buildPayload(id: string, artifactID: string) {
 
 function listDetailPayload(): unknown {
   return {
-    list: {
+    profile: {
       id: listID,
       name: 'Список для проверки',
-      services: [],
+      lists: [],
       categories: [],
       exclusions: [],
       refresh_interval: '',
@@ -97,7 +97,7 @@ function listDetailPayload(): unknown {
 
 function emptyCatalogAndDeployables(): void {
   fetchMock.mockResolvedValueOnce(
-    json({ services: [], service_details: [], categories: [] }),
+    json({ lists: [], list_details: [], categories: [] }),
   )
   fetchMock.mockResolvedValueOnce(json({ targets: [] }))
   fetchMock.mockResolvedValueOnce(json({ targets: [] }))

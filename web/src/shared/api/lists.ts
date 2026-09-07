@@ -98,13 +98,13 @@ export function createList(
   composition: ListComposition,
 ): Promise<RouteList> {
   return postJSON(
-    '/v1/lists',
+    '/v1/profiles',
     {
       name,
-      services: composition.services,
+      lists: composition.services,
       categories: composition.categories,
       exclusions: composition.exclusions,
-      service_domains: composition.serviceDomains,
+      list_domains: composition.serviceDomains,
       priority: composition.priority ?? [],
     },
     parseListEnvelope,
@@ -178,12 +178,12 @@ export function previewComposition(
   targets: string[] = [],
 ): Promise<TargetForecast[]> {
   return postJSON(
-    '/v1/lists/preview',
+    '/v1/profiles/preview',
     {
-      services: composition.services,
+      lists: composition.services,
       categories: composition.categories,
       exclusions: composition.exclusions,
-      service_domains: composition.serviceDomains,
+      list_domains: composition.serviceDomains,
       priority: composition.priority ?? [],
       ...(targets.length === 0 ? {} : { targets }),
     },
@@ -197,13 +197,13 @@ export function updateList(
   composition: ListComposition,
 ): Promise<RouteList> {
   return postJSON(
-    `/v1/lists/${listID}/update`,
+    `/v1/profiles/${listID}/update`,
     {
       name,
-      services: composition.services,
+      lists: composition.services,
       categories: composition.categories,
       exclusions: composition.exclusions,
-      service_domains: composition.serviceDomains,
+      list_domains: composition.serviceDomains,
       priority: composition.priority ?? [],
     },
     parseListEnvelope,
@@ -214,23 +214,23 @@ export function updateList(
 // subscription keeps resolving. The reply is the list, so the caller reads the
 // resulting state rather than assuming the verb it sent.
 export function archiveList(listID: string): Promise<RouteList> {
-  return postJSON(`/v1/lists/${listID}/archive`, {}, parseListEnvelope)
+  return postJSON(`/v1/profiles/${listID}/archive`, {}, parseListEnvelope)
 }
 
 export function restoreList(listID: string): Promise<RouteList> {
-  return postJSON(`/v1/lists/${listID}/restore`, {}, parseListEnvelope)
+  return postJSON(`/v1/profiles/${listID}/restore`, {}, parseListEnvelope)
 }
 
 export async function refreshList(listID: string): Promise<void> {
-  await postJSON(`/v1/lists/${listID}/refresh`, {}, parseRefresh)
+  await postJSON(`/v1/profiles/${listID}/refresh`, {}, parseRefresh)
 }
 
 export function loadList(listID: string): Promise<ListDetail> {
-  return getJSON(`/v1/lists/${listID}`, parseListDetail)
+  return getJSON(`/v1/profiles/${listID}`, parseListDetail)
 }
 
 export function loadLists(): Promise<ListCard[]> {
-  return getJSON('/v1/lists', parseListCards)
+  return getJSON('/v1/profiles', parseListCards)
 }
 
 export function saveListRefreshInterval(
@@ -238,7 +238,7 @@ export function saveListRefreshInterval(
   interval: RefreshInterval,
 ): Promise<Schedule> {
   return postJSON(
-    `/v1/lists/${listID}/schedule`,
+    `/v1/profiles/${listID}/schedule`,
     { refresh_interval: interval },
     parseScheduleEnvelope,
   )
@@ -270,10 +270,10 @@ const serviceDomainsSchema = v.nullish(
 const listEntries = {
   id: text,
   name: text,
-  services: texts,
+  lists: texts,
   categories: texts,
   exclusions: texts,
-  service_domains: serviceDomainsSchema,
+  list_domains: serviceDomainsSchema,
   priority: v.optional(texts, []),
   refresh_interval: refreshRule,
   last_refreshed_at: optionalTimestamp,
@@ -289,10 +289,10 @@ function asRouteList(list: v.InferOutput<typeof listShape>): RouteList {
   return {
     id: list.id,
     name: list.name,
-    services: list.services,
+    services: list.lists,
     categories: list.categories,
     exclusions: list.exclusions,
-    serviceDomains: list.service_domains,
+    serviceDomains: list.list_domains,
     priority: list.priority,
     refreshInterval: list.refresh_interval,
     lastRefreshedAt: list.last_refreshed_at,
@@ -306,8 +306,8 @@ function asRouteList(list: v.InferOutput<typeof listShape>): RouteList {
 const listSchema = v.pipe(listShape, v.transform(asRouteList))
 
 const listEnvelopeSchema = v.pipe(
-  fields({ list: listSchema }),
-  v.transform((envelope): RouteList => envelope.list),
+  fields({ profile: listSchema }),
+  v.transform((envelope): RouteList => envelope.profile),
 )
 
 const scheduleSchema = v.pipe(
@@ -336,14 +336,14 @@ const scheduleEnvelopeSchema = v.pipe(
 
 const listDetailSchema = v.pipe(
   fields({
-    list: listSchema,
+    profile: listSchema,
     outputs: outputCardsSchema,
     resolved: texts,
     missing_categories: texts,
     schedule: scheduleSchema,
   }),
   v.transform((detail): ListDetail => ({
-    list: detail.list,
+    list: detail.profile,
     outputs: detail.outputs,
     resolved: detail.resolved,
     missingCategories: detail.missing_categories,
@@ -369,14 +369,14 @@ const listCardSchema = v.pipe(
 )
 
 const listCardsSchema = v.pipe(
-  fields({ lists: v.array(listCardSchema) }),
-  v.transform((library): ListCard[] => library.lists),
+  fields({ profiles: v.array(listCardSchema) }),
+  v.transform((library): ListCard[] => library.profiles),
 )
 
 const forecastServiceSchema = v.pipe(
-  fields({ service_id: text, rules: count }),
+  fields({ list_id: text, rules: count }),
   v.transform((entry): ForecastService => ({
-    serviceID: entry.service_id,
+    serviceID: entry.list_id,
     rules: entry.rules,
   })),
 )
@@ -392,12 +392,12 @@ const overlapValueSchema = v.pipe(
       'prefix6',
     ]),
     value: text,
-    services: v.pipe(texts, v.minLength(1)),
+    lists: v.pipe(texts, v.minLength(1)),
   }),
   v.transform((value): OverlapValue => ({
     ruleKind: value.rule_kind,
     value: value.value,
-    services: value.services,
+    services: value.lists,
   })),
 )
 
@@ -421,10 +421,10 @@ const overlapSchema = v.union([
 ])
 
 const overlapSummarySchema = v.pipe(
-  fields({ service_id: text, overlaps: texts }),
+  fields({ list_id: text, overlaps: texts }),
   v.check(
     (row) =>
-      !row.overlaps.includes(row.service_id) &&
+      !row.overlaps.includes(row.list_id) &&
       new Set(row.overlaps).size === row.overlaps.length &&
       row.overlaps.every(
         (serviceID, index) =>
@@ -432,7 +432,7 @@ const overlapSummarySchema = v.pipe(
       ),
   ),
   v.transform((row): OverlapSummary => ({
-    serviceID: row.service_id,
+    serviceID: row.list_id,
     overlaps: row.overlaps,
   })),
 )
@@ -476,19 +476,19 @@ const forecastSchema = v.pipe(
     maximum_rules: count,
     projected_rules: count,
     fits: v.boolean(),
-    per_service: v.array(forecastServiceSchema),
+    per_list: v.array(forecastServiceSchema),
     overlaps: v.optional(overlapsSchema),
-    incomplete_services: v.optional(texts),
+    incomplete_lists: v.optional(texts),
   }),
   v.transform((forecast): TargetForecast => ({
     targetID: forecast.target_id,
-    ...(forecast.incomplete_services === undefined
+    ...(forecast.incomplete_lists === undefined
       ? {}
-      : { incompleteServices: forecast.incomplete_services }),
+      : { incompleteServices: forecast.incomplete_lists }),
     maximumRules: forecast.maximum_rules,
     projectedRules: forecast.projected_rules,
     fits: forecast.fits,
-    perService: forecast.per_service,
+    perService: forecast.per_list,
     ...(forecast.overlaps === undefined ? {} : { overlaps: forecast.overlaps }),
   })),
 )

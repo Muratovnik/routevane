@@ -246,8 +246,8 @@ const toggleBlocked = computed(
 // other flow opens in a tab of its own rather than over it.
 const libraryHref = computed(() => {
   const service = props.service
-  if (service === null) return '/library'
-  return `/library${libraryPageHash({
+  if (service === null) return '/lists'
+  return `/lists${libraryPageHash({
     category: service.categories[0] ?? '',
     list: service.id,
   })}`

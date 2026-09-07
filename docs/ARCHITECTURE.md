@@ -47,17 +47,17 @@ a deployer changes one compatible destination. These are distinct responsibiliti
 
 ## Product objects and storage
 
-The UI's **list** is an API `service`: a named destination set. A UI **route**
+The UI's **list** is an API `service`: a named destination set. A UI **profile**
 is an API `list`: a stored composition of lists/categories and exclusions.
-An output joins that route to a target format and optionally a registered device.
+An output joins that profile to a target format and optionally a registered device.
 It owns its subscription and published artifact chain. The terminology mapping
 is deliberate compatibility debt, not two product models
 ([ADR 0028](adr/0028-lists-live-in-categories-and-a-route-publishes-them.md)).
 
 Catalog YAML seeds service definitions, categories and targets. Operator changes
 are stored as overlays in SQLite; removing a shipped item does not edit its file.
-Library writes and route selection are separate flows. A directly referenced
-library object cannot be deleted; routes can be archived and restored.
+Library writes and profile selection are separate flows. A directly referenced
+library object cannot be deleted; profiles can be archived and restored.
 Published history is immutable
 ([ADR 0029](adr/0029-composing-is-per-route-and-the-library-is-its-own-flow.md)).
 
@@ -141,11 +141,11 @@ delivery uses a declared file path and reaches no network.
 Keenetic static-route ownership is persisted per output and exact
 endpoint/target/interface scope. The application computes additions and
 authorized removals; the deployer observes and applies them without depending on
-SQLite. A route is removable only after its last claim disappears and the ledger
+SQLite. A profile is removable only after its last claim disappears and the ledger
 says Routevane created it. Missing or retired ownership is additive and preserves
-unknown same-interface routes. The immutable plan also carries human category/list
+unknown same-interface profiles. The immutable plan also carries human category/list
 labels; deployment compacts their union into the native description of an owned
-route and verifies it on read-back without changing BAT artifact bytes
+profile and verifies it on read-back without changing BAT artifact bytes
 ([exact ownership](adr/0032-persist-exact-keenetic-static-route-ownership.md),
 [descriptions](adr/0034-keenetic-route-descriptions-from-plan-provenance.md)).
 

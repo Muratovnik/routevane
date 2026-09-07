@@ -24,10 +24,10 @@ function json(payload: unknown, status = 200) {
 
 function routePayload() {
   return {
-    list: {
-      id: 'route-1',
-      name: 'Known route',
-      services: [],
+    profile: {
+      id: 'profile-1',
+      name: 'Known profile',
+      lists: [],
       categories: [],
       exclusions: [],
       created_at: timestamp,
@@ -61,14 +61,14 @@ function routePayload() {
 
 const fetchMock = vi.fn(async (input: unknown) => {
   switch (String(input)) {
-    case '/v1/lists/route-1':
+    case '/v1/profiles/profile-1':
       await holdRoute
       return json(
         routeStatus === 200 ? routePayload() : { error: 'controlled refusal' },
         routeStatus,
       )
-    case '/v1/services':
-      return json({ services: [], service_details: [], categories: [] })
+    case '/v1/lists':
+      return json({ lists: [], list_details: [], categories: [] })
     case '/v1/targets':
     case '/v1/deployments/targets':
       return json({ targets: [] })
@@ -90,7 +90,7 @@ const fetchMock = vi.fn(async (input: unknown) => {
 
 function renderRoute() {
   return mount(ListView, {
-    props: { listId: 'route-1' },
+    props: { listId: 'profile-1' },
     global: {
       stubs: {
         ListEditor: true,
@@ -123,40 +123,40 @@ beforeEach(() => {
 
 afterEach(() => vi.unstubAllGlobals())
 
-describe('route screen read boundaries', () => {
-  it('shows loading, then a failed read with retry, then the recovered route', async () => {
+describe('profile screen read boundaries', () => {
+  it('shows loading, then a failed read with retry, then the recovered profile', async () => {
     let release!: () => void
     holdRoute = new Promise<void>((resolve) => {
       release = resolve
     })
     routeStatus = 503
     const wrapper = renderRoute()
-    expect(wrapper.text()).toContain('Loading the route')
+    expect(wrapper.text()).toContain('Loading the profile')
     expect(wrapper.get('.list__loading').attributes('aria-busy')).toBe('true')
     expect(wrapper.find('.rv-notice').exists()).toBe(false)
     release()
     await flushPromises()
-    expect(wrapper.text()).toContain('Routes are unavailable')
-    expect(wrapper.text()).not.toContain('Route not found')
+    expect(wrapper.text()).toContain('Profiles are unavailable')
+    expect(wrapper.text()).not.toContain('Profile not found')
     routeStatus = 200
     await wrapper.get('button').trigger('click')
     await flushPromises()
-    expect(wrapper.get('h1').text()).toBe('Known route')
-    expect(wrapper.text()).not.toContain('Routes are unavailable')
+    expect(wrapper.get('h1').text()).toBe('Known profile')
+    expect(wrapper.text()).not.toContain('Profiles are unavailable')
     wrapper.unmount()
   })
 
-  it('renders a true 404 without advertising a retry or editable route', async () => {
+  it('renders a true 404 without advertising a retry or editable profile', async () => {
     routeStatus = 404
     const wrapper = renderRoute()
     await flushPromises()
-    expect(wrapper.text()).toContain('Route not found')
+    expect(wrapper.text()).toContain('Profile not found')
     expect(wrapper.find('button').exists()).toBe(false)
     expect(wrapper.find('list-editor-stub').exists()).toBe(false)
     wrapper.unmount()
   })
 
-  it('keeps file and diagnostics failures distinct from an unpublished route', async () => {
+  it('keeps file and diagnostics failures distinct from an unpublished profile', async () => {
     fileStatus = diagnosticsStatus = 503
     const wrapper = renderRoute()
     await flushPromises()
@@ -173,7 +173,7 @@ describe('route screen read boundaries', () => {
     expect(wrapper.get('#rv-panel-diagnostics').text()).toContain(
       'Diagnostics unavailable',
     )
-    expect(wrapper.get('h1').text()).toBe('Known route')
+    expect(wrapper.get('h1').text()).toBe('Known profile')
     wrapper.unmount()
   })
 
@@ -185,7 +185,7 @@ describe('route screen read boundaries', () => {
       await wrapper.get(`#rv-tab-${tab}`).trigger('click')
       await flushPromises()
       expect(wrapper.get(`#rv-panel-${tab}`).text()).toContain(
-        'This route has no published file.',
+        'This profile has no published file.',
       )
     }
     expect(

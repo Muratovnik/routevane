@@ -10,7 +10,7 @@ function pageModel() {
   return {
     catalog: ref(null),
     initialize: vi.fn(async () => {}),
-    list: ref({ name: 'Example route' }),
+    list: ref({ name: 'Example profile' }),
     outputs: ref([
       { id: 'first', latest: { id: 'artifact-1' }, targetID: 'keenetic' },
       { id: 'chosen', latest: { id: 'artifact-2' }, targetID: 'keenetic' },
@@ -46,7 +46,7 @@ beforeEach(() => {
   model = pageModel()
   useLocale().setLocale('en')
   vi.stubGlobal('useRoute', () => ({
-    params: { id: 'route-1', output: 'chosen' },
+    params: { id: 'profile-1', output: 'chosen' },
   }))
   vi.stubGlobal('useHead', vi.fn())
 })
@@ -54,11 +54,11 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('send entry read states', () => {
-  it('keeps a failed read distinct from a missing route and retries the requested connection', async () => {
+  it('keeps a failed read distinct from a missing profile and retries the requested connection', async () => {
     const wrapper = renderPage()
     await flushPromises()
-    expect(wrapper.text()).toContain('Route is unavailable')
-    expect(wrapper.text()).not.toContain('Route not found')
+    expect(wrapper.text()).toContain('Profile is unavailable')
+    expect(wrapper.text()).not.toContain('Profile not found')
     expect(wrapper.findAll('h1')).toHaveLength(1)
     model.initialize.mockImplementation(async () => {
       model.state.value = 'ready'
@@ -80,7 +80,7 @@ describe('send entry read states', () => {
       await flushPromises()
       expect(wrapper.findAll('h1')).toHaveLength(1)
       expect(wrapper.text()).toContain(
-        state === 'missing' ? 'Route not found' : 'Loading the route',
+        state === 'missing' ? 'Profile not found' : 'Loading the profile',
       )
       expect(wrapper.text()).not.toContain('artifact-2')
       expect(wrapper.find('button').exists()).toBe(false)
@@ -88,14 +88,14 @@ describe('send entry read states', () => {
     },
   )
 
-  it('names a missing connection, not a missing route, and returns to that route', async () => {
+  it('names a missing connection, not a missing profile, and returns to that profile', async () => {
     model.state.value = 'ready'
     model.outputs.value = []
     const wrapper = renderPage()
     await flushPromises()
     expect(wrapper.text()).toContain('Connection not found')
-    expect(wrapper.text()).not.toContain('Route not found')
-    expect(wrapper.get('a').attributes('href')).toBe('/lists/route-1')
+    expect(wrapper.text()).not.toContain('Profile not found')
+    expect(wrapper.get('a').attributes('href')).toBe('/profiles/profile-1')
     expect(wrapper.findAll('h1')).toHaveLength(1)
     wrapper.unmount()
   })
@@ -106,7 +106,7 @@ describe('send entry read states', () => {
     const wrapper = renderPage()
     await flushPromises()
     expect(wrapper.text()).not.toContain('not found')
-    expect(wrapper.get('a').attributes('href')).toBe('/lists/route-1')
+    expect(wrapper.get('a').attributes('href')).toBe('/profiles/profile-1')
     expect(wrapper.findAll('h1')).toHaveLength(1)
     expect(wrapper.text()).not.toContain('artifact-2')
     wrapper.unmount()

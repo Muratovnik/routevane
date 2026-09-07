@@ -343,7 +343,7 @@ onMounted(() => {
     </section>
 
     <div class="send__footer">
-      <RvButton size="compact" :to="`/lists/${listId}`" variant="quiet">
+      <RvButton size="compact" :to="`/profiles/${listId}`" variant="quiet">
         {{ t('send.back') }}
       </RvButton>
     </div>

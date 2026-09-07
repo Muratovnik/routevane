@@ -70,7 +70,7 @@ function contentsResponse(
   manual = false,
 ): Response {
   return json({
-    service_id: 'discord',
+    list_id: 'discord',
     rows: [
       {
         value: 'discord.com',
@@ -192,8 +192,8 @@ describe('ServiceDetailDialog', () => {
     let skipped = 2
     let failed = false
     stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
-      'POST /v1/services/discord/refresh': () =>
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
+      'POST /v1/lists/discord/refresh': () =>
         failed
           ? json({ error: 'operation failed', code: 'source_unavailable' }, 422)
           : json({ refresh: { skipped_entries: skipped } }),
@@ -226,9 +226,9 @@ describe('ServiceDetailDialog', () => {
   it('recovers an automatic source read in compose without changing membership', async () => {
     let refreshAttempts = 0
     const { keys } = stubAPI({
-      'GET /v1/services/discord/contents': () =>
+      'GET /v1/lists/discord/contents': () =>
         contentsResponse(refreshAttempts > 1),
-      'POST /v1/services/discord/refresh': () => {
+      'POST /v1/lists/discord/refresh': () => {
         refreshAttempts += 1
         return refreshAttempts === 1
           ? json({ error: 'source unavailable' }, 503)
@@ -262,10 +262,10 @@ describe('ServiceDetailDialog', () => {
 
     expect(refreshAttempts).toBe(2)
     expect(keys()).toEqual([
-      'GET /v1/services/discord/contents',
-      'POST /v1/services/discord/refresh',
-      'POST /v1/services/discord/refresh',
-      'GET /v1/services/discord/contents',
+      'GET /v1/lists/discord/contents',
+      'POST /v1/lists/discord/refresh',
+      'POST /v1/lists/discord/refresh',
+      'GET /v1/lists/discord/contents',
     ])
     expect(panel.querySelector('[role="alert"]')).toBeNull()
     expect(panel.querySelectorAll('.service-card__rows li')).toHaveLength(4)
@@ -279,8 +279,8 @@ describe('ServiceDetailDialog', () => {
       releaseRefresh = () => resolve(json({ refresh: { skipped_entries: 0 } }))
     })
     const { keys } = stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(true),
-      'POST /v1/services/discord/refresh': () => pendingRefresh,
+      'GET /v1/lists/discord/contents': () => contentsResponse(true),
+      'POST /v1/lists/discord/refresh': () => pendingRefresh,
     })
     const wrapper = mountCard({ mode: 'library' })
     await flushPromises()
@@ -303,9 +303,9 @@ describe('ServiceDetailDialog', () => {
       panel.querySelector('[role="img"][aria-label="Sources read"]'),
     ).not.toBeNull()
     expect(keys()).toEqual([
-      'GET /v1/services/discord/contents',
-      'POST /v1/services/discord/refresh',
-      'GET /v1/services/discord/contents',
+      'GET /v1/lists/discord/contents',
+      'POST /v1/lists/discord/refresh',
+      'GET /v1/lists/discord/contents',
     ])
     wrapper.unmount()
 
@@ -315,7 +315,7 @@ describe('ServiceDetailDialog', () => {
       sources: [],
     }
     stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(true, []),
+      'GET /v1/lists/discord/contents': () => contentsResponse(true, []),
     })
     const noSourceWrapper = mountCard({ mode: 'compose', service: noSources })
     await flushPromises()
@@ -333,7 +333,7 @@ describe('ServiceDetailDialog', () => {
     })
     const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
       const key = `${init?.method ?? 'GET'} ${String(input)}`
-      if (key === 'GET /v1/services/discord/contents') return pendingContents
+      if (key === 'GET /v1/lists/discord/contents') return pendingContents
       return Promise.resolve(json({ error: 'unrouted' }, 500))
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -353,12 +353,12 @@ describe('ServiceDetailDialog', () => {
   /**
    * Composing reads the list (ADR 0029) and writes nothing at all. A row is
    * the value and where it came from: the card has no way to take one entry
-   * out of one route, so it offers nothing that would claim it can, and the
+   * out of one profile, so it offers nothing that would claim it can, and the
    * single act it carries is the footer's.
    */
   it('reads the list and changes nothing but membership while composing', async () => {
     const { keys } = stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
     })
     const wrapper = mountCard({ included: false, mode: 'compose' })
     await flushPromises()
@@ -378,22 +378,22 @@ describe('ServiceDetailDialog', () => {
     // The count states what the list offers, never a selection this card made.
     expect(panel.textContent).toContain('3 entries on')
 
-    clickByText(panel, 'Add to route')
+    clickByText(panel, 'Add to profile')
     await flushPromises()
 
     expect(wrapper.emitted('include')?.at(-1)).toEqual([true])
     // Reading the contents stays the only request a composing card makes.
-    expect(keys()).toEqual(['GET /v1/services/discord/contents'])
+    expect(keys()).toEqual(['GET /v1/lists/discord/contents'])
     wrapper.unmount()
   })
 
   /**
-   * The composing card reads the list and edits the route. Every control that
+   * The composing card reads the list and edits the profile. Every control that
    * would change the list itself belongs to the other flow, and the one fact
    * about the sources stays as a fact rather than becoming a control.
    */
   it('offers no way to edit the list while composing', async () => {
-    stubAPI({ 'GET /v1/services/discord/contents': () => contentsResponse() })
+    stubAPI({ 'GET /v1/lists/discord/contents': () => contentsResponse() })
     const wrapper = mountCard({ included: false, mode: 'compose' })
     await flushPromises()
 
@@ -413,7 +413,7 @@ describe('ServiceDetailDialog', () => {
     // draft behind this card survives it.
     const link = panel.querySelector<HTMLAnchorElement>('a[target="_blank"]')
     expect(link?.getAttribute('href')).toBe(
-      '/library#category=communication&list=discord',
+      '/lists#category=communication&list=discord',
     )
     expect(link?.getAttribute('rel')).toBe('noopener')
     expect(panel.querySelector('.service-card__membership')).not.toBeNull()
@@ -422,20 +422,20 @@ describe('ServiceDetailDialog', () => {
 
   /**
    * Curating the library is the other reach: the same switch records the
-   * standing verdict every route reads, and no footer asks about a route,
-   * because no route is in question.
+   * standing verdict every profile reads, and no footer asks about a profile,
+   * because no profile is in question.
    */
   it('records a standing verdict in the library and states no membership', async () => {
     const { calls, keys } = stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
-      'POST /v1/services/discord/domains': () => contentsResponse(),
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
+      'POST /v1/lists/discord/domains': () => contentsResponse(),
     })
     const wrapper = mountCard({ mode: 'library' })
     await flushPromises()
 
     const panel = card()
     expect(panel.querySelector('.service-card__membership')).toBeNull()
-    expect(panel.textContent).not.toContain('Add to route')
+    expect(panel.textContent).not.toContain('Add to profile')
     // Reading the sources is the frequent act, so it sits on the card itself.
     expect(
       panel.querySelector('button[aria-label^="Refresh from sources:"]'),
@@ -447,8 +447,8 @@ describe('ServiceDetailDialog', () => {
     await vi.advanceTimersByTimeAsync(250)
     await flushPromises()
     expect(keys()).toEqual([
-      'GET /v1/services/discord/contents',
-      'POST /v1/services/discord/domains',
+      'GET /v1/lists/discord/contents',
+      'POST /v1/lists/discord/domains',
     ])
     expect(calls[1]?.body).toBe(
       JSON.stringify({ values: ['discord.gg'], verdict: 'exclude' }),
@@ -464,8 +464,8 @@ describe('ServiceDetailDialog', () => {
         resolve(contentsResponse(true, undefined, { 'discord.gg': false }))
     })
     const api = stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
-      'POST /v1/services/discord/domains': () => {
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
+      'POST /v1/lists/discord/domains': () => {
         const body = JSON.parse(api.calls.at(-1)?.body ?? '{}') as {
           values: string[]
         }
@@ -493,9 +493,9 @@ describe('ServiceDetailDialog', () => {
     expect(switchOf(panel, 'discord.gg').checked).toBe(false)
     expect(switchOf(panel, 'discord.com').checked).toBe(false)
     expect(api.keys()).toEqual([
-      'GET /v1/services/discord/contents',
-      'POST /v1/services/discord/domains',
-      'POST /v1/services/discord/domains',
+      'GET /v1/lists/discord/contents',
+      'POST /v1/lists/discord/domains',
+      'POST /v1/lists/discord/domains',
     ])
 
     // The second row's write can complete without waiting for the first one.
@@ -520,9 +520,9 @@ describe('ServiceDetailDialog', () => {
         resolve(contentsResponse(true, undefined, { 'discord.com': true }))
     })
     const api = stubAPI({
-      'GET /v1/services/discord/contents': () =>
+      'GET /v1/lists/discord/contents': () =>
         contentsResponse(true, undefined, {}, true),
-      'POST /v1/services/discord/domains': () => {
+      'POST /v1/lists/discord/domains': () => {
         const body = JSON.parse(api.calls.at(-1)?.body ?? '{}') as {
           values?: string[]
         }
@@ -545,8 +545,8 @@ describe('ServiceDetailDialog', () => {
     switchOf(panel, 'manual.discord.test').click()
     await vi.advanceTimersByTimeAsync(250)
     expect(api.keys()).toEqual([
-      'GET /v1/services/discord/contents',
-      'POST /v1/services/discord/domains',
+      'GET /v1/lists/discord/contents',
+      'POST /v1/lists/discord/domains',
     ])
 
     // A newer intent for a different row is queued while the manual-row write
@@ -570,9 +570,9 @@ describe('ServiceDetailDialog', () => {
     await vi.advanceTimersByTimeAsync(250)
     await flushPromises()
     expect(api.keys()).toEqual([
-      'GET /v1/services/discord/contents',
-      'POST /v1/services/discord/domains',
-      'POST /v1/services/discord/domains',
+      'GET /v1/lists/discord/contents',
+      'POST /v1/lists/discord/domains',
+      'POST /v1/lists/discord/domains',
     ])
     expect(switchOf(panel, 'discord.com').checked).toBe(false)
     wrapper.unmount()
@@ -581,8 +581,8 @@ describe('ServiceDetailDialog', () => {
   it('rolls back one failed entry and exposes a row-level retry', async () => {
     let attempts = 0
     const { keys } = stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
-      'POST /v1/services/discord/domains': () => {
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
+      'POST /v1/lists/discord/domains': () => {
         attempts += 1
         return attempts === 1
           ? Promise.resolve(json({ error: 'offline' }, 503))
@@ -611,9 +611,9 @@ describe('ServiceDetailDialog', () => {
     await vi.advanceTimersByTimeAsync(250)
     await flushPromises()
     expect(keys()).toEqual([
-      'GET /v1/services/discord/contents',
-      'POST /v1/services/discord/domains',
-      'POST /v1/services/discord/domains',
+      'GET /v1/lists/discord/contents',
+      'POST /v1/lists/discord/domains',
+      'POST /v1/lists/discord/domains',
     ])
     expect(row(panel, 'discord.gg').textContent).not.toContain(
       'The change was not applied.',
@@ -628,9 +628,9 @@ describe('ServiceDetailDialog', () => {
       release = () => resolve(contentsResponse())
     })
     stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
-      'POST /v1/services/discord/sources/itdoginfo/update': () => pending,
-      'POST /v1/services/discord/sources/v2fly/update': () =>
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
+      'POST /v1/lists/discord/sources/itdoginfo/update': () => pending,
+      'POST /v1/lists/discord/sources/v2fly/update': () =>
         Promise.resolve(contentsResponse()),
     })
     const wrapper = mountCard({ mode: 'library' })
@@ -660,7 +660,7 @@ describe('ServiceDetailDialog', () => {
   // the request and lets one confirmation and one refusal serve both ways in.
   it('asks the library to delete the list rather than deleting it itself', async () => {
     const { keys } = stubAPI({
-      'GET /v1/services/discord/contents': () => contentsResponse(),
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
     })
     const wrapper = mountCard({ mode: 'library' })
     await flushPromises()
@@ -677,7 +677,7 @@ describe('ServiceDetailDialog', () => {
     clickByText(card(), 'Delete the list')
     await flushPromises()
 
-    expect(keys()).toEqual(['GET /v1/services/discord/contents'])
+    expect(keys()).toEqual(['GET /v1/lists/discord/contents'])
     expect(wrapper.emitted('remove')?.at(-1)?.[0]).toMatchObject({
       id: 'discord',
     })
@@ -686,7 +686,7 @@ describe('ServiceDetailDialog', () => {
 
   // The feeds themselves are still a rare edit behind their own panel.
   it('keeps the feeds behind their own dialog in the library', async () => {
-    stubAPI({ 'GET /v1/services/discord/contents': () => contentsResponse() })
+    stubAPI({ 'GET /v1/lists/discord/contents': () => contentsResponse() })
     const wrapper = mountCard({ mode: 'library' })
     await flushPromises()
 

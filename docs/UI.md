@@ -24,32 +24,32 @@ the version and restart on hover/focus. One click downloads, installs and restar
 progress replaces the label, errors offer retry. Idle/offline checks and browser/dev
 sessions add no sidebar item. Application updates are independent of source refresh.
 
-The unit of the product is the **route** (ADR 0013, named by ADR 0028): a
+The unit of the product is the **profile** (ADR 0013, named by ADR 0028): a
 stored, server-owned composition of **lists** and **categories** with no
 target of its own. A _list_ is a named set of destinations — domains,
 addresses, networks — seeded by the catalog or created by the operator and
 editable either way; a _category_ contains lists, ships with the catalog and
-is edited by the operator on top of it. What a route publishes into is an
+is edited by the operator on top of it. What a profile publishes into is an
 **output** — one format, optionally one device — and an output owns its
-subscription link and its chain of published files. One route therefore feeds
+subscription link and its chain of published files. One profile therefore feeds
 a router and a phone at once, and editing it changes what both receive. The
 interface is a shelf of those objects plus the catalog facts around them —
 not a wizard. The word «сервис» / "service" appears on no surface; the code
 and the API still say `lists` and `services` until the follow-up rename.
 Sections, addressable by URL:
 
-1. `/` — **Routes / Маршруты.** Every stored route, newest first: its name
+1. `/` — **Profiles / Профили.** Every stored profile, newest first: its name
    and composition, its connections and content time. The row is a state
    summary, not a toolbar: one overflow menu owns configuration, one-off export,
    delivery, connection and archive actions. Clicking a noninteractive row cell navigates to the
-   route's own page; the title remains a native link. Nothing on the page explains what a route is: the rows
-   are the explanation. Imported v3 profiles are identified as restored routes
+   profile's own page; the title remains a native link. Nothing on the page explains what a profile is: the rows
+   are the explanation. Imported v3 profiles are identified as restored profiles
    and say what to do next rather than leaking migration names. The primary
-   action is «Build a route».
-2. `/lists/new` — **New route.** The composer keeps the first setup in one
+   action is «Build a profile».
+2. `/profiles/new` — **New profile.** The composer keeps the first setup in one
    visible flow: lists or whole categories on the left; the proposed, editable
    name and first device or application on the right. The target still
-   belongs to the output, not the route; after the route is stored, the route
+   belongs to the output, not the profile; after the profile is stored, the profile
    page creates and publishes that first output so the one-time subscription
    URL never crosses storage or a URL. **Capacity is part of composing**
    (ADR 0027): the format is one button opening a searchable choice panel. Options are
@@ -74,7 +74,7 @@ Sections, addressable by URL:
    forecast and create action, without repeating the selected lists. In a
    constrained window it stacks after the table.
    Priority begins grouped by category unless the library has a saved custom
-   order. The route stores that order as its own snapshot. When two selected lists overlap, each affected
+   order. The profile stores that order as its own snapshot. When two selected lists overlap, each affected
    table row shows the number of other selected lists it intersects; activating
    that count reveals every name. Zero means no intersections; a dash means
    unselected or not calculated, with the reason available in the table status.
@@ -85,7 +85,7 @@ Sections, addressable by URL:
    cleanup queue: the higher list owns an equal destination, a covered
    lower-priority rule is omitted, and a broader lower-priority network remains
    when removing it would lose unique addresses. A new member of a live category
-   is appended after the route's saved order. A retained forecast is marked as
+   is appended after the profile's saved order. A retained forecast is marked as
    updating. Missing coverage is reported per format and per list: the complete
    lists retain their rules and known overlap relationships, while unavailable
    lists show a dash. Partial overlap counts show confirmed matches as plain
@@ -95,13 +95,13 @@ Sections, addressable by URL:
    that the whole composition fits and never blocks saving or creation. Refresh
    retries source reads; normal automatic recovery reads only missing lists once.
    Publication still requires complete coverage.
-3. `/lists/{listId}` — **The route page.** One object with its facets as tabs:
+3. `/profiles/{profileId}` — **The profile page.** One object with its facets as tabs:
    Contents · Connection · File · Diagnostics; the active tab and the
    first-setup handoff travel in the URL hash (`#tab=…&setup=…`) because the
    embedded server rejects query strings, and the legacy `/#list={listId}`
-   fragment redirects here. A breadcrumb returns to the route shelf. The Contents
-   tab uses the same workspace as route creation: the dense composition table
-   on the left, route name, existing connections, and save/cancel on the right
+   fragment redirects here. A breadcrumb returns to the profile shelf. The Contents
+   tab uses the same workspace as profile creation: the dense composition table
+   on the left, profile name, existing connections, and save/cancel on the right
    (ADR 0027). The existing connections are a summary; adding or changing an
    output remains on the Connection tab.
    Membership changes keep row positions stable. The table owns selection,
@@ -109,7 +109,7 @@ Sections, addressable by URL:
    the list without changing membership. Intersection counts and their name disclosures on
    selected rows use the first connection's format, like the row weights, and
    name every other selected list with which that row overlaps. Save
-   is enabled only once the draft differs from the stored route, cancel
+   is enabled only once the draft differs from the stored profile, cancel
    restores it, and an output the draft would overflow is warned about beside
    the save action without blocking it. **The composition table selects and
    writes nothing else** (ADR 0029). Every
@@ -128,8 +128,8 @@ Sections, addressable by URL:
    before or after selection. When the composition workspace has at least
    80rem of available width, the card occupies a nonmodal panel beside the
    table. Placement belongs to the page workspace, shared by the composer,
-   route editor, and library. The panel starts at the page's top inset and ends
-   at its bottom inset. Route settings move above the table while inspecting,
+   profile editor, and library. The panel starts at the page's top inset and ends
+   at its bottom inset. Profile settings move above the table while inspecting,
    keeping name, connection, and create/save actions available. The same form
    stays mounted, preserving unsaved inputs and validation. The table remains
    interactive; closing the card restores the rail and keyboard focus. At smaller widths
@@ -153,16 +153,16 @@ Sections, addressable by URL:
    additions and the stored source observations as rows — domains, then IP
    addresses, then networks — each naming only its origin by name
    («catalog», «by hand», «v2fly»), because a value already shows what kind
-   it is. **Opened from a route, the card reads**: the rows carry no control,
-   because the route's own act is the footer and the list itself is edited
+   it is. **Opened from a profile, the card reads**: the rows carry no control,
+   because the profile's own act is the footer and the list itself is edited
    where lists are edited (ADR 0029). The source count («Источники · 2») labels the refresh button, which rereads
    existing sources and invalidates the draft forecast. Source configuration
    stays in the library, behind a separate settings icon.
    The footer is one line: the membership status, the toggle beside
-   it, and «applies when the route is saved» only while the card was opened
+   it, and «applies when the profile is saved» only while the card was opened
    from an unsaved draft. A draft's name is proposed from what is picked, so
    the footer does not repeat it back as if it named the list — it names the
-   route only once the route is stored. «Открыть в библиотеке» leads to the
+   profile only once the profile is stored. «Открыть в библиотеке» leads to the
    other flow in a new tab, leaving the draft behind it untouched, and the
    composing screen re-reads the catalog when its window comes back.
    Secondary actions — one-off export, send, refresh-and-rebuild, archive —
@@ -170,15 +170,15 @@ Sections, addressable by URL:
    submenus instead of forming one long flat list.
    Adding another connection on the Connection tab creates the output and
    publishes it in one move, because a format with no file is a promise the
-   screen cannot keep. The route refresh rule is configured on this tab beside
+   screen cannot keep. The profile refresh rule is configured on this tab beside
    its outputs; Settings supplies only the global default. Each output names
    its next unmet delivery condition — choose a connection, turn on automatic
-   delivery, turn on route refresh, or ready — using the persisted output,
+   delivery, turn on profile refresh, or ready — using the persisted output,
    connection, and schedule facts. Automatic delivery is primary when a
    deployer exists; subscription and manual download remain available
    connection methods.
-4. `/library` — **Lists / Списки.** The library: what a list holds and which
-   category holds it, for every route at once (ADR 0029). It uses the same
+4. `/lists` — **Lists / Списки.** The library: what a list holds and which
+   category holds it, for every profile at once (ADR 0029). It uses the same
    dense catalog table, search and category filter as the composer, with list
    management actions in place of membership checkboxes. Category labels use
    the same identity colors. The filter includes «Без категории»; «Категории»
@@ -192,31 +192,31 @@ Sections, addressable by URL:
    imports, sources, «Обновить из источников» on the card itself rather than
    inside the sources dialog, and «Удалить список» — and carries a menu whose
    words separate the two acts a bin cannot: «Убрать из категории» and
-   «Удалить список». Deleting a list or a category a route names directly is
-   refused with those routes named; removing a list _from a category_ is
-   allowed to change what a route carries, because that is what naming a
+   «Удалить список». Deleting a list or a category a profile names directly is
+   refused with those profiles named; removing a list _from a category_ is
+   allowed to change what a profile carries, because that is what naming a
    category means. The library also owns the default list priority. Its complete
    ordered table can be rearranged by its always-visible drag handles or
    keyboard. Priority numbers are visible; save and reset actions appear for a
-   changed draft, and a failed save retains the order for retry. This order initializes routes and forecasts that do not yet
-   supply their own priority; saving it never rewrites an existing route's
-   stored order. The list card has no route-membership footer. The table fills
+   changed draft, and a failed save retains the order for retry. This order initializes profiles and forecasts that do not yet
+   supply their own priority; saving it never rewrites an existing profile's
+   stored order. The list card has no profile-membership footer. The table fills
    the available workspace height and scrolls beneath its header. While the library
    is writing or a list is reading its sources, conflicting menus, switches,
    deletion and dismissal stay unavailable until the result is known.
-5. `/lists/{listId}/send/{outputId}` — **Send.** An action, not a step:
+5. `/profiles/{profileId}/send/{outputId}` — **Send.** An action, not a step:
    automatic applying with a plan, a backup and an audit trail when the format
    has a deployer, and the by-hand path always stated below it.
 6. `/connections` — **Connections / Подключения** (ADR 0027; `/devices`
    redirects here). One section answers «куда»: registered devices and
    applications first, with the catalog-backed «Добавить подключение» form.
-   Router login and route-interface fields are required when the selected
+   Router login and profile-interface fields are required when the selected
    deployer needs them; the interface help names the Keenetic ID format. A
    saved connection does not send anything. After registration the screen says
    what remains before unattended delivery, and after opt-in it points to
-   choosing that connection in a route. The reference of supported devices
+   choosing that connection in a profile. The reference of supported devices
    and formats is collapsed beneath them. The words «цель», «вывод» and
-   «потребитель» do not appear on any surface: a route feeds _connections_,
+   «потребитель» do not appear on any surface: a profile feeds _connections_,
    each made of a device or application and its format. If a catalog dependency
    is unavailable, the screen keeps known devices readable and states exactly
    which actions cannot be trusted yet.
@@ -238,9 +238,9 @@ Sections, addressable by URL:
    rewrites the document sent to the server.
 
 The URL hash carries only page location — the active tab and the first-setup
-handoff — never route contents: a refresh, bookmark, second tab or second
-browser resolves the same server-owned object via `GET /v1/lists` and
-`GET /v1/lists/{listId}`, never to an empty form. Local storage holds display
+handoff — never profile contents: a refresh, bookmark, second tab or second
+browser resolves the same server-owned object via `GET /v1/profiles` and
+`GET /v1/profiles/{profileId}`, never to an empty form. Local storage holds display
 preferences only — no product state. Each screen carries exactly one `<h1>` and
 one `<main>`. The chrome is a collapsible sidebar of sections; its bottom control switches
 between labels and icons and remembers that display preference. Navigation
@@ -251,16 +251,16 @@ border; its host paints no separate piece that could appear before the panel. Th
 server's own address is a Settings fact, not a footer — and no section is
 ever locked.
 
-A route's name and composition are editable; saving them republishes every
-output, so a stored route and the files it stands behind never quietly
+A profile's name and composition are editable; saving them republishes every
+output, so a stored profile and the files it stands behind never quietly
 disagree. What was published stays immutable: an edit adds a version, it never
 rewrites one.
 
-One-off export is not an output. `POST /v1/lists/{listId}/export` renders the
-current route in any available file dialect without adding a consumer, issuing a
+One-off export is not an output. `POST /v1/profiles/{profileId}/export` renders the
+current profile in any available file dialect without adding a consumer, issuing a
 subscription or changing publication history. File-dialect labels describe the
-bytes (for example `BAT · routes` or `JSON · all rules`), never pretend that
-downloading connects the route to a product.
+bytes (for example `BAT · profiles` or `JSON · all rules`), never pretend that
+downloading connects the profile to a product.
 
 ## Detail modes
 
@@ -286,10 +286,10 @@ Disclosures are for long secondary content, not for hints. A label or a heading
 never gets a sentence under it that restates the label, the placeholder or the
 obvious next step; a hint under a field states an input format or a
 consequence, or it does not exist. Keep edits on the surface that owns their
-scope: composing a route writes only that route; the library writes the
+scope: composing a profile writes only that profile; the library writes the
 library (ADR 0029). Explain shared effects beside an action when they affect
-the operator's decision, such as a library edit used by several routes. A
-warning does not justify placing a library edit in the route composer.
+the operator's decision, such as a library edit used by several profiles. A
+warning does not justify placing a library edit in the profile composer.
 The product never volunteers what it does not do — that it does not scan the
 network, that a password is not kept: an
 absence cannot be shown to the reader, so the sentence asks for trust instead
@@ -301,11 +301,11 @@ the thing that will happen.
 - Every screen state is `loading`, `ready`, `empty`, `degraded` or `error`, and
   every one of them says what is there or missing, why, and what to do next.
   `RvStateNotice` is that shape; a screen does not invent a sixth.
-- The first route read reserves the final page silhouette with a labelled
-  loading skeleton; it does not flash a temporary sentence above the route.
+- The first profile read reserves the final page silhouette with a labelled
+  loading skeleton; it does not flash a temporary sentence above the profile.
 - A status is an icon or a dot plus words — never a filled surface, never a
   colored edge stripe, and never colour alone.
-- The interface reports what it knows. A route restored from the server says the
+- The interface reports what it knows. A profile restored from the server says the
   subscription link was shown at creation; a target that left the catalog keeps
   its stored identity instead of disappearing. Nothing is filled in to look
   complete.
@@ -325,7 +325,7 @@ Creating an output creates no bearer credential. The subscription URL is
 issued once, after that output's first successful publication, so a failed
 initial build leaves no unusable secret behind. It lives in memory for the life
 of the tab: never in storage, never in the URL, never in a query, never in a
-log. The route that survives a refresh is the server's; it deliberately
+log. The profile that survives a refresh is the server's; it deliberately
 cannot restore the link. A device password is held for one attempt and cleared
 when it ends, unless the operator explicitly opts into unattended delivery
 backed by the operating system's secret store. The address, account and
@@ -343,11 +343,11 @@ reachable. A narrow viewport is not a requirement for a separate mobile product.
 
 The shell owns one canvas palette and consistent outer insets across every
 section. Its shared workspace centers the page content with the same width limit
-on routes, composition, library, connections and settings; features do not add
+on profiles, composition, library, connections and settings; features do not add
 their own page containers. Docked inspection divides the existing workspace
 without moving its outer edges. Reading widths belong to form fields and prose within it.
 The sidebar keeps its place on desktop and
-can collapse to icons with labels on hover or keyboard focus. The route composer
+can collapse to icons with labels on hover or keyboard focus. The profile composer
 and library allocate remaining height to their data regions; headings and filters
 keep natural height. Short windows and enlarged content may scroll to preserve
 access to actions. Invisible accessibility labels must stay within the table's
@@ -505,7 +505,7 @@ semantics or interactions.
 
 ## What the surface does not do
 
-Keep the object-based navigation: routes, the library, connections and settings
+Keep the object-based navigation: profiles, the library, connections and settings
 remain directly reachable rather than gated by a setup wizard. A local operation
 may show its sequence or prerequisites without locking unrelated sections.
 No eyebrow labels, no colored edge stripes, no arrow glyphs welded into copy.
@@ -513,7 +513,7 @@ Keep optional tutorials off the default path; retain concise guidance needed for
 the current decision, first use or recovery. No dashboard of things
 the product does not have. No status the server cannot substantiate — a live
 "the router fetched your subscription" indicator waits for the server to record
-that fact, and until then the interface does not imply it. Routes are archived,
+that fact, and until then the interface does not imply it. Profiles are archived,
 not destructively deleted; their published files remain immutable (ADR 0004).
 Library lists and categories can be removed through the guarded library flow
 (ADR 0029). Removing a library item never deletes published artifact history.
@@ -537,21 +537,21 @@ The application shell owns one viewport. Page content and overflowing navigation
 scroll independently; ordinary page scrolling never moves the logo. Sidebar width
 changes use the shared motion tokens and honor reduced-motion preferences. The
 collapse button's hit area reaches the bottom edge. Breadcrumbs sit above the
-route title in compact metadata type, preserving the title's leading alignment.
+profile title in compact metadata type, preserving the title's leading alignment.
 
 Docked inspection transitions capture the page before selection changes and
 commit the new Vue layout inside the View Transition API update callback. The
 settings form, table area, and detail pane transition together; a docked sheet
 has no second slide animation inside its column. Opening and closing use the
-same transaction in the route composer, editor and library. Without API support
+same transaction in the profile composer, editor and library. Without API support
 or with reduced motion, the layout switches immediately. Overlaid inspection
 uses the same snapshot lifecycle; standalone sheets retain their CSS entrance.
 Check the actual snapshot animation and both
 layout states, not only the final DOM bounding boxes.
 
-Shared catalog column tokens keep list names comparable in the library and route
+Shared catalog column tokens keep list names comparable in the library and profile
 tables. Category columns use the same text-width budget; utility columns remain
-reserved for selection, rules and overlaps in routes, with library actions at
+reserved for selection, rules and overlaps in profiles, with library actions at
 the trailing edge. Additional width does not expand the name beyond its measure.
 
 Loading feedback waits 160ms before becoming visible, including with reduced
@@ -561,7 +561,7 @@ without moving its reserved box. Failure and recovery actions appear immediately
 This behavior belongs to the shared notice/status components and page skeletons.
 
 Component reflow follows the available container width, including facts, file
-pickers, route tables and drawer controls. Named dialog queries also apply to
+pickers, profile tables and drawer controls. Named dialog queries also apply to
 portalled sheets. Viewport media queries are reserved for the application
 scroll-height policy, fullscreen modal boundaries and system preferences.
 
@@ -569,7 +569,7 @@ Category chips and the searchable More panel toggle a shared multiple selection.
 Lists from any selected category appear once. With no categories selected, all
 lists appear; All categories clears the selection. The table checkbox operates
 on this visible union and preserves hidden selections. Library bookmarks retain
-all selected categories. Route overview rows navigate through their noninteractive
+all selected categories. Profile overview rows navigate through their noninteractive
 cells; their native title links and action menus keep independent behavior.
 
 Inspection transitions capture the populated dialog itself, including its text,

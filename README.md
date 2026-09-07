@@ -11,7 +11,7 @@
 </p>
 
 Routevane builds routing lists for a router or VPN client. Choose services and
-categories from a supplied library, combine them into a route, and export it in
+categories from a supplied library, combine them into a profile, and export it in
 the format your device understands. Lists refresh manually or on a schedule.
 
 > [!NOTE]
@@ -20,11 +20,11 @@ the format your device understands. Lists refresh manually or on a schedule.
 
 - **Ready-made lists.** Popular services grouped into categories. Add your own
   lists, or discover a service from its URL with a browser.
-- **Routes instead of spreadsheets.** Combine lists and categories into a route.
+- **Profiles instead of spreadsheets.** Combine lists and categories into a profile.
   List priority resolves overlapping destinations, and a forecast shows how many
   rules each format would build before you build it.
 - **Five output formats.** Keenetic (IPv4 routes and FQDN groups), sing-box,
-  OpenWrt, MikroTik, and AmneziaVPN. One route can publish several formats.
+  OpenWrt, MikroTik, and AmneziaVPN. One profile can publish several formats.
 - **Safe updates.** Every published file is validated first. If a scheduled
   rebuild fails, the previous valid file stays available.
 - **Explicit delivery.** Subscription links work on this computer only. Sending
@@ -64,7 +64,7 @@ Closing the window hides Routevane to the tray, and scheduled refreshes keep
 running. **Open Routevane** in the tray menu restores the window; **Quit** stops
 the application. When a newer version is published, **Update** appears at the
 bottom of the left menu: one click downloads, installs, and restarts. Your
-routes and settings live in `%APPDATA%\Routevane\`. See
+profiles and settings live in `%APPDATA%\Routevane\`. See
 [desktop installation, updates, and backups](docs/installation.md#desktop-application-windows).
 
 ### CLI package (Windows, Linux, macOS)
@@ -88,15 +88,15 @@ executable together with the launcher and `catalog/`; double-clicking it alone
 shows command-line help instead of opening the interface. See
 [launch options, updates, and backups](docs/installation.md#cli-package-windows-linux-macos).
 
-## Build your first route
+## Build your first profile
 
 Routevane works with four things. A **list** is a named set of destinations:
-domains, addresses, networks. A **category** groups lists. A **route** combines
-lists and categories. A **connection** publishes a route in one format,
+domains, addresses, networks. A **category** groups lists. A **profile** combines
+lists and categories. A **connection** publishes a profile in one format,
 optionally to one device, and owns that format's subscription link.
 
 1. Open **Lists** to see the supplied library.
-2. Open **Routes** and choose **Build a route**. Select lists or whole
+2. Open **Profiles** and choose **Build a profile**. Select lists or whole
    categories and pick the format of your router or application. The forecast
    beside each format shows how many rules it would build.
 3. After the first successful build, save the subscription link while it is
@@ -107,7 +107,7 @@ optionally to one device, and owns that format's subscription link.
 > Subscription links work only on the computer running Routevane; a router
 > cannot fetch them.
 
-A route can publish several formats. If a scheduled update fails, the last valid
+A profile can publish several formats. If a scheduled update fails, the last valid
 file stays available. Sending rules to a device is a separate, explicit action;
 automatic delivery stays off until you enable it in **Connections**.
 
@@ -141,7 +141,7 @@ reload, and a signed installer. Desktop packages exist for Windows only. See
 | Task | Document |
 | --- | --- |
 | Verify, update, back up, remove, or troubleshoot | [Installation and maintenance](docs/installation.md) |
-| Move routes and settings to another computer | [Configuration transfer](docs/usage.md#moving-configuration-to-another-computer) |
+| Move profiles and settings to another computer | [Configuration transfer](docs/usage.md#moving-configuration-to-another-computer) |
 | Use the CLI, manual imports, or browser-assisted discovery | [Advanced usage](docs/usage.md) |
 | Install or write a plugin | [Plugin examples](examples/plugins/README.md) · [SDK](sdk/routevaneplugin/README.md) |
 | Build from source and contribute | [Contributing](CONTRIBUTING.md) |

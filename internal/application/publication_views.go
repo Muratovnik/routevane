@@ -61,7 +61,7 @@ type CategoryDetail struct {
 	// Services is the merged membership, not the catalog's own. A screen that
 	// resolved the overlay itself would answer differently from the build
 	// whenever its copy was a moment stale.
-	Services []string `json:"services"`
+	Services []string `json:"lists"`
 	// Custom marks a category the operator created: it may be renamed and
 	// deleted, while a shipped one may only gain and lose members. It carries
 	// no omitempty because false is the answer for every shipped category and
@@ -123,10 +123,10 @@ type OutputCard struct {
 type ListCard struct {
 	ID             string              `json:"id"`
 	Name           string              `json:"name"`
-	Services       []string            `json:"services"`
+	Services       []string            `json:"lists"`
 	Categories     []string            `json:"categories"`
 	Exclusions     []string            `json:"exclusions"`
-	ServiceDomains map[string][]string `json:"service_domains,omitempty"`
+	ServiceDomains map[string][]string `json:"list_domains,omitempty"`
 	Priority       []string            `json:"priority"`
 	// Resolved is what the list publishes right now: named services plus every
 	// category's members, minus exclusions, deduplicated. A screen shows this

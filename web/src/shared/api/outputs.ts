@@ -89,7 +89,7 @@ export function addOutput(
   targetID: string,
 ): Promise<CreatedOutput> {
   return postJSON(
-    `/v1/lists/${listID}/outputs`,
+    `/v1/profiles/${listID}/outputs`,
     { target_id: targetID },
     parseCreatedOutput,
   )
