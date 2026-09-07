@@ -72,8 +72,12 @@ export default defineConfig({
             // generated artifact next to the spec that produced it.
             screenshotFailures: false,
             // Routevane is a desktop interface; the default 414px viewport is
-            // not a window any of these components is laid out for.
-            viewport: { width: 1280, height: 800 },
+            // not a window any of these components is laid out for. Components
+            // run in the narrowest desktop case the UI contract inspects, 1024
+            // CSS px wide, at the contract's short-window height, so a layout
+            // that only works in a roomy window fails here first (docs/UI.md,
+            // desktop layout and window adaptation).
+            viewport: { width: 1024, height: 640 },
             instances: [{ browser: 'chromium' }],
           },
         },
