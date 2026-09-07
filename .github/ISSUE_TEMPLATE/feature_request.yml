@@ -34,7 +34,7 @@ body:
       multiple: true
       options:
         - Lists and categories
-        - Routes and priority
+        - Profiles and priority
         - Output formats
         - Device delivery
         - Desktop application

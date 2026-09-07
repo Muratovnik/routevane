@@ -17,19 +17,19 @@ For a headless run, set ROUTEVANE_NO_BROWSER=1 before launching.
 
 FIRST USE
 Open Lists to inspect the supplied library without changing anything.
-Open Routes and choose Build a route to select lists and a connection format.
+Open Profiles and choose Build a profile to select lists and a connection format.
 Copy a subscription link when first shown: its secret cannot be recovered.
 The server is local-only; a router cannot fetch this computer's loopback URL.
 Device delivery changes a device only after your explicit setup/consent.
 
 FILES
 start-routevane.*       The launcher.
-routevane[.exe]     The application it runs; "version" reports its version.
-catalog/               Supplied lists, categories, and formats.
-data/                  Created on first start: your database and published files.
-LICENSE                Routevane license.
+routevane[.exe]         The application it runs; "version" reports its version.
+catalog/                Supplied lists, categories, and formats.
+data/                   Created on first start: your database and published files.
+LICENSE                 Routevane license.
 THIRD_PARTY_NOTICES.txt Dependency license notices.
-SBOM.spdx.json         Machine-readable dependency inventory.
+SBOM.spdx.json          Machine-readable dependency inventory.
 Keep all supplied files together. Do not treat data/ as a cache.
 
 UPDATE AND BACKUP

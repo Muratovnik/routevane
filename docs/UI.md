@@ -34,9 +34,14 @@ is edited by the operator on top of it. What a profile publishes into is an
 subscription link and its chain of published files. One profile therefore feeds
 a router and a phone at once, and editing it changes what both receive. The
 interface is a shelf of those objects plus the catalog facts around them —
-not a wizard. The word «сервис» / "service" appears on no surface, and since
-`0.2.0` it appears in no identifier either: the interface, the API, the catalog,
-the schema and the code all say list and profile (ADR 0039).
+not a wizard. No object of the product is a «сервис» / "service" on any
+surface, and since `0.2.0` none is one in an identifier either: the interface,
+the API, the catalog, the schema and the code say list and profile (ADR 0039).
+Where the copy does say «сервис» / "service" it means the running local
+process — the thing that answered or did not — and the routing plan document,
+the semantic hash payload and the plugin protocol still carry `service_id` on
+the wire, which [ADR 0039](adr/0039-one-product-vocabulary-across-binary-api-and-storage.md)
+records as a separate change rather than a rename.
 Sections, addressable by URL:
 
 1. `/` — **Profiles / Профили.** Every stored profile, newest first: its name

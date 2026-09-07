@@ -120,7 +120,7 @@ The UI opens at `http://127.0.0.1:8765`:
   Host/Origin checks and CORS behavior are unchanged.
 - Development data lives in `.cache/dev-data/`, separate from the ordinary
   application's `data/`. It survives restarts; preserve it if you want to keep
-  your development routes when cleaning `.cache/`.
+  your development profiles when cleaning `.cache/`.
 - Ctrl+C stops both owned servers. On Windows they are also terminated if the
   development console closes abruptly; the supervisor fails startup rather than
   leave a server running when it cannot establish that ownership. An occupied UI

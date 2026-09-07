@@ -39,7 +39,7 @@ body:
       label: Steps to reproduce
       description: Name the screens and buttons exactly as the interface shows them.
       placeholder: |
-        1. Open Routes and choose Build a route.
+        1. Open Profiles and choose Build a profile.
         2. ...
     validations:
       required: true

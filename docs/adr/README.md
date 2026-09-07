@@ -5,6 +5,17 @@ Audience: contributors investigating a decision, not users installing Routevane.
 [UI behavior](../UI.md) describe what applies now. ADR bodies preserve the context
 of the decision; an adopted ADR can have specifically replaced clauses.
 
+Every ADR before 0039 is written in the vocabulary of its time, its title
+included. Read such a body through this mapping rather than as current naming:
+*service* is now a **list**; *list* or *route*, where it means the composition
+published to a device, is now a **profile**; and *profile*, where it means the
+renderer's version of an output such as `keenetic-bat-ipv4-v1`, is now a
+**format**. An early ADR that already calls the composition a *profile* uses the
+word the product has again.
+[ADR 0039](./0039-one-product-vocabulary-across-binary-api-and-storage.md) made
+the change and is the one place it is stated; earlier bodies are deliberately
+not rewritten, because an ADR records the decision as it was taken.
+
 Important chains: 0004 → 0013/0023 (objects and issuance), 0013 → 0016 → 0028 →
 0029 → 0036 (composition, vocabulary, library ownership, default and route priority),
 0028 → 0039 (the deferred identifiers, and the executable that carries them),

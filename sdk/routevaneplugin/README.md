@@ -57,7 +57,7 @@ The public types and method signatures are in [protocol.go](protocol.go) and
 Follow the [example build/install procedure](../../examples/plugins/README.md).
 The executable name and digest depend on the actual build; the remaining
 manifest fields must equal `Manifest()`. A renderer also needs a matching
-catalog target, and a source needs a service naming its exact type/revision.
+catalog target, and a source needs a list naming its exact type/revision.
 With `ROUTEVANE_PLUGINS_DIR` unset, Routevane starts no external plugin host.
 
 ## Protocol version

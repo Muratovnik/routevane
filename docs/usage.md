@@ -69,9 +69,9 @@ list holds strings or objects carrying `ip_prefix`, `ipv6_prefix`, `prefix`,
 `cidr`, or `ip`. Only HTTPS is accepted; the destination address, every redirect
 hop, the response size, the entry count, and the deadline are bounded, and an
 entry that does not normalize is skipped rather than recorded. A prefix from a
-published operator feed routes; an observed or inferred prefix stays
+published operator feed is accepted; an observed or inferred prefix stays
 quarantined. A source that fails while its previous success is still inside the
-grace window keeps its routes with a `source_degraded` warning instead of
+grace window keeps its rules with a `source_degraded` warning instead of
 dropping them. The policy is recorded in
 [`docs/adr/0006-official-feeds-and-source-grace.md`](adr/0006-official-feeds-and-source-grace.md).
 

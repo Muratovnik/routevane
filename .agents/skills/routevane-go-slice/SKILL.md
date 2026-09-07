@@ -13,7 +13,7 @@ network boundaries, rollback, and the end-to-end oracle before editing. Inspect
 current packages first; create only packages the slice immediately consumes.
 
 Keep policy decisions in the planner, format decisions in a renderer, device
-limits in a target profile, and deployment in a deployer. Preserve provenance,
+limits in a target definition, and deployment in a deployer. Preserve provenance,
 reason codes, deterministic ordering, semantic hashing, and stale-observation
 exclusion at every boundary.
 

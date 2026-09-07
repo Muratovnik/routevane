@@ -30,7 +30,7 @@ device, subprocess, file-import, or plugin boundary.
 - A DNS address is evidence about an observation, never proof of a suffix, ASN,
   RDAP owner, or broad network. Every accepted or rejected rule carries
   provenance and a stable reason code.
-- An observed value becomes a route only if it is a destination. The planner
+- An observed value becomes a rule only if it is a destination. The planner
   refuses a special-use address and a prefix wide enough to swallow an address
   space, whatever declared it, with a reason code. Provenance never buys an
   exemption: loopback declared by an official source is still loopback. See

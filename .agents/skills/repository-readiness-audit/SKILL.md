@@ -44,7 +44,7 @@ history rewriting, publication, delegation or deletion of real data is implied.
   health, supplied `catalog/`, UI and process cleanup. Confirm invalid inputs
   produce diagnostics and a failing result. Cross-builds and version-only runs
   do not establish installation.
-- **Use and lifecycle:** follow README's Lists → Routes → Build a route →
+- **Use and lifecycle:** follow README's Lists → Profiles → Build a profile →
   Connection/export journey on disposable state. Check start/stop, update,
   backup/restore, rollback, removal and troubleshooting where in scope. Protect
   `data/` and edited `catalog/`; they are not caches. Do not exercise real
