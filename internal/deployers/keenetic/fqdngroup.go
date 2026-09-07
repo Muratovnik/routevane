@@ -23,7 +23,7 @@ const (
 	// client tooling accepts, so it is the floor used here.
 	MinFQDNFirmware = "5.0.1"
 	// MaxFQDNEntries bounds how many names and addresses one deployment may
-	// install, matching the target profile's rule budget.
+	// install, matching the target definition's rule budget.
 	MaxFQDNEntries = keeneticdns.MaxGroups * keeneticdns.MaxEntriesPerGroup
 	// maxParseCommands bounds one request. The device reads a batch as a
 	// script, so a very long body is refused rather than partly applied; the

@@ -32,8 +32,8 @@ export function usePublishedProfile() {
     forOutput(outputID: string): FreshBuild | null {
       return published.value[outputID] ?? null
     },
-    publish(route: FreshBuild): void {
-      published.value = { ...published.value, [route.output.id]: route }
+    publish(build: FreshBuild): void {
+      published.value = { ...published.value, [build.output.id]: build }
     },
   }
 }

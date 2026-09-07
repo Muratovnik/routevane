@@ -1,6 +1,6 @@
 // Package mikrotik renders the RouterOS script that populates the firewall
 // address lists a selective-routing rule matches. It owns format only: target
-// limits and coverage decisions are supplied by the target profile and planner.
+// limits and coverage decisions are supplied by the target definition and planner.
 //
 // Two properties make this format a distinct case rather than a second copy of
 // the router dialect. It is replacing rather than additive: each section removes

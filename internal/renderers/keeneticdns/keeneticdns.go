@@ -1,6 +1,6 @@
 // Package keeneticdns renders the FQDN object groups KeeneticOS 5.0 and later
 // route by name. It owns format only: target limits and coverage decisions are
-// supplied by the target profile and planner.
+// supplied by the target definition and planner.
 //
 // Three properties make this a distinct format rather than a second copy of the
 // static-route dialect. The device expands the subdomains of a listed name
@@ -38,7 +38,7 @@ const (
 	GroupPrefix = "routevane-"
 	// MaxEntriesPerGroup bounds one group. Keenetic documents no entry limit for
 	// an FQDN group, so this is our value, not theirs: it matches the figure the
-	// field tooling settled on, and it lives here and in the target profile so a
+	// field tooling settled on, and it lives here and in the target definition so a
 	// firmware change is an edit rather than a release.
 	MaxEntriesPerGroup = 300
 	// MaxGroups bounds how many groups one artifact defines. The only published

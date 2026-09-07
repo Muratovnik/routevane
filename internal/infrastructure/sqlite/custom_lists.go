@@ -120,10 +120,10 @@ func scanCustomList(rows *sql.Rows) (application.CustomList, error) {
 	var payload string
 	var created, updated int64
 	if err := rows.Scan(&list.ID, &list.Title, &payload, &created, &updated); err != nil {
-		return application.CustomList{}, fmt.Errorf("read custom service: %w", err)
+		return application.CustomList{}, fmt.Errorf("read custom list: %w", err)
 	}
 	if err := json.Unmarshal([]byte(payload), &list.Domains); err != nil {
-		return application.CustomList{}, fmt.Errorf("decode custom service domains: %w", err)
+		return application.CustomList{}, fmt.Errorf("decode custom list domains: %w", err)
 	}
 	list.CreatedAt = unixNanos(created)
 	list.UpdatedAt = unixNanos(updated)

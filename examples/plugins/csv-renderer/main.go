@@ -23,7 +23,11 @@ import (
 const (
 	rendererID    = "example-csv"
 	formatVersion = "example-csv-v1"
-	header        = "kind,value,service,component\n"
+	// The third column deliberately repeats the plan's own key, which is
+	// still service_id (ADR 0039). Renaming the column alone would make this
+	// format disagree with the document it copies, and renaming both is a
+	// new formatVersion rather than a rewording.
+	header = "kind,value,service,component\n"
 )
 
 // plan is the part of the canonical plan document this renderer reads. Ignoring

@@ -67,7 +67,7 @@ func TestLoadRejectsHostileAndMalformedYAML(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			root := writeCatalogFile(t, "builtin", "service.yaml", []byte(test.payload))
+			root := writeCatalogFile(t, "builtin", "list.yaml", []byte(test.payload))
 			if _, err := Load(context.Background(), root); err == nil {
 				t.Fatalf("Load accepted %s", test.name)
 			}
@@ -185,7 +185,7 @@ components:
 
 func TestTargetCatalogIsOptionalStrictAndSeparatelyRevisioned(t *testing.T) {
 	t.Run("optional for old catalog", func(t *testing.T) {
-		root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+		root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 		catalog, err := Load(context.Background(), root)
 		if err != nil {
 			t.Fatal(err)
@@ -195,7 +195,7 @@ func TestTargetCatalogIsOptionalStrictAndSeparatelyRevisioned(t *testing.T) {
 		}
 	})
 	t.Run("separate revisions", func(t *testing.T) {
-		root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+		root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 		writeTargetFile(t, root, "keenetic.yaml", []byte(validTargetYAML))
 		first, err := Load(context.Background(), root)
 		if err != nil {
@@ -211,7 +211,7 @@ func TestTargetCatalogIsOptionalStrictAndSeparatelyRevisioned(t *testing.T) {
 			t.Fatal(err)
 		}
 		if first.Revision != second.Revision || first.TargetRevision == second.TargetRevision {
-			t.Fatalf("service/target revisions are not separate: %q/%q vs %q/%q", first.Revision, first.TargetRevision, second.Revision, second.TargetRevision)
+			t.Fatalf("list/target revisions are not separate: %q/%q vs %q/%q", first.Revision, first.TargetRevision, second.Revision, second.TargetRevision)
 		}
 	})
 	for _, test := range []struct {
@@ -232,7 +232,7 @@ func TestTargetCatalogIsOptionalStrictAndSeparatelyRevisioned(t *testing.T) {
 		{"open-set kind", strings.Replace(validTargetYAML, "kind: router", "kind: protocol", 1)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+			root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 			writeTargetFile(t, root, "keenetic.yaml", []byte(test.payload))
 			if _, err := Load(context.Background(), root); err == nil {
 				t.Fatalf("accepted hostile target %s", test.name)
@@ -248,7 +248,7 @@ func TestTargetCatalogIsOptionalStrictAndSeparatelyRevisioned(t *testing.T) {
 // than an empty name.
 func TestTargetCatalogCarriesAnOptionalEnglishNameAndHint(t *testing.T) {
 	t.Run("absent stays loadable", func(t *testing.T) {
-		root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+		root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 		writeTargetFile(t, root, "keenetic.yaml", []byte(validTargetYAML))
 		catalog, err := Load(context.Background(), root)
 		if err != nil {
@@ -262,7 +262,7 @@ func TestTargetCatalogCarriesAnOptionalEnglishNameAndHint(t *testing.T) {
 	t.Run("present reaches the profile", func(t *testing.T) {
 		const hintEN = "Open Routing — User-defined routes — Upload, choose the file, and point it at the VPN or WAN interface you need."
 		payload := validTargetYAML + "title: Keenetic (по доменам)\ntitle_en:  Keenetic (domain-based) \nmanual_installation_hint_en: " + hintEN + "\n"
-		root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+		root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 		writeTargetFile(t, root, "keenetic.yaml", []byte(payload))
 		catalog, err := Load(context.Background(), root)
 		if err != nil {
@@ -297,7 +297,7 @@ func TestTargetCatalogCarriesAnOptionalEnglishNameAndHint(t *testing.T) {
 }
 
 func TestTargetCatalogRejectsLinks(t *testing.T) {
-	root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+	root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 	targets := filepath.Join(root, "targets")
 	if err := os.Mkdir(targets, 0o700); err != nil {
 		t.Fatal(err)
@@ -382,7 +382,7 @@ func TestTargetReadsTheRetiredFormatKeyButRefusesBoth(t *testing.T) {
 		{"retired key", retired},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+			root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 			writeTargetFile(t, root, "keenetic.yaml", []byte(test.payload))
 			catalog, err := Load(context.Background(), root)
 			if err != nil {
@@ -396,7 +396,7 @@ func TestTargetReadsTheRetiredFormatKeyButRefusesBoth(t *testing.T) {
 	}
 
 	t.Run("both keys", func(t *testing.T) {
-		root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+		root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 		writeTargetFile(t, root, "keenetic.yaml", []byte(validTargetYAML+"profile_key: keenetic-bat-ipv4-v1\n"))
 		_, err := Load(context.Background(), root)
 		if err == nil {

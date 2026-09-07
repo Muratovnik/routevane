@@ -10,9 +10,10 @@ import (
 const uncategorizedRouteLabel = "Без категории"
 
 // routeLabelsByList derives presentation provenance from the same merged
-// category view used to resolve a route. Titles, not storage identities, cross
-// into the immutable plan so a device description remains meaningful to the
-// operator.
+// category view used to resolve a profile. The label named here is the one a
+// device route carries (ADR 0034), which is why it keeps that word. Titles,
+// not storage identities, cross into the immutable plan so a device
+// description remains meaningful to the operator.
 func routeLabelsByList(definitions []domain.ListDefinition, categories []CategoryDetail) map[string][]string {
 	titles := make(map[string]string, len(definitions))
 	for _, definition := range definitions {

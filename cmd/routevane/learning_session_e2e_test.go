@@ -181,7 +181,7 @@ func TestLearnsComponentsFromAnImportedSessionAndRecordsDependencies(t *testing.
 		t.Fatal(err)
 	}
 	if err := singbox.Validate(artifact); err != nil {
-		t.Fatalf("artifact from a learned service is invalid: %v", err)
+		t.Fatalf("artifact from a learned list is invalid: %v", err)
 	}
 	if !strings.Contains(string(artifact), "example.co.uk") {
 		t.Fatalf("artifact = %s", artifact)

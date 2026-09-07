@@ -68,8 +68,8 @@ class DevelopmentTests(unittest.TestCase):
             self.assertNotEqual(before, backend_inputs(root, catalog))
             source.unlink()
             self.assertNotIn(str(source), backend_inputs(root, catalog))
-            target = catalog / "service.yaml"
-            target.write_text("service", encoding="utf-8")
+            target = catalog / "list.yaml"
+            target.write_text("list", encoding="utf-8")
             self.assertIn(str(target), backend_inputs(root, catalog))
 
     def test_session_stops_only_the_child_it_owns(self):

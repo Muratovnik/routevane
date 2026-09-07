@@ -197,7 +197,7 @@ func TestTurnsOneURLIntoASafeLocalListUsableByTheExistingRenderers(t *testing.T)
 		t.Fatal(err)
 	}
 	if err := keenetic.Validate(artifact); err != nil {
-		t.Fatalf("artifact from a discovered service is invalid: %v", err)
+		t.Fatalf("artifact from a discovered list is invalid: %v", err)
 	}
 	if !strings.Contains(string(artifact), "203.0.113.30") {
 		t.Fatalf("artifact = %s", artifact)

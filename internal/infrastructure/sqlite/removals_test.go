@@ -207,7 +207,7 @@ func TestLibraryRemovalsRefuseWhatTheGrammarForbids(t *testing.T) {
 		name   string
 		mutate func(application.LibraryRemoval) application.LibraryRemoval
 	}{
-		{"unknown kind", func(r application.LibraryRemoval) application.LibraryRemoval { r.Kind = "route"; return r }},
+		{"unknown kind", func(r application.LibraryRemoval) application.LibraryRemoval { r.Kind = "profile"; return r }},
 		{"invalid identity", func(r application.LibraryRemoval) application.LibraryRemoval { r.ID = "Not A Slug"; return r }},
 		{"zero moment", func(r application.LibraryRemoval) application.LibraryRemoval {
 			r.RemovedAt = time.Time{}

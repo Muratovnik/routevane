@@ -158,7 +158,7 @@ func TestProbeRefusesAConfigurationThisDeployerCannotWrite(t *testing.T) {
 			if err == nil {
 				t.Fatalf("configuration accepted: %#v", device)
 			}
-			// The refusal must be visible as an empty profile key, which is what
+			// The refusal must be visible as an empty format key, which is what
 			// stops the lifecycle before a file is touched.
 			if device.FormatKey != "" {
 				t.Fatalf("device = %#v", device)

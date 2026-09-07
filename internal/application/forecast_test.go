@@ -180,9 +180,9 @@ func (s *forecastGuardStore) RecordOutputAttempt(context.Context, OutputAttempt)
 	return s.refuse("RecordOutputAttempt")
 }
 
-// ApplySuccess is the profile write: a refresh cycle carries the effective
-// target profile with it, and a forecast that ran one would rewrite what the
-// next build reads back.
+// ApplySuccess is the write a refresh performs: a cycle carries the effective
+// format with it, and a forecast that ran one would rewrite what the next
+// build reads back.
 func (s *forecastGuardStore) ApplySuccess(context.Context, SuccessCycle) error {
 	return s.refuse("ApplySuccess")
 }

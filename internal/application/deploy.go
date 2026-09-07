@@ -11,7 +11,7 @@ import (
 
 var (
 	ErrDeployComposition   = errors.New("invalid deployment composition")
-	ErrDeviceIncompatible  = errors.New("device is not compatible with the target profile")
+	ErrDeviceIncompatible  = errors.New("device is not compatible with the target format")
 	ErrBackupRequired      = errors.New("deployment requires a verified backup")
 	ErrDeployFailed        = errors.New("deployment failed")
 	ErrVerifyFailed        = errors.New("deployment verification failed")
@@ -46,7 +46,7 @@ type DeviceInfo struct {
 	Vendor          string `json:"vendor"`
 	Model           string `json:"model"`
 	FirmwareVersion string `json:"firmware_version"`
-	// FormatKey is the target profile this firmware is compatible with. A
+	// FormatKey is the target format this firmware is compatible with. A
 	// device that reports an unsupported version reports an empty value, which
 	// is what stops a deployment before anything is changed.
 	FormatKey string `json:"format_key"`

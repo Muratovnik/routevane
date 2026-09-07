@@ -1,5 +1,5 @@
-id: plugin-service
-title: Plugin service
+id: plugin-list
+title: Plugin list
 components:
   core:
     required: true

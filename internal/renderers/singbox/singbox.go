@@ -1,6 +1,6 @@
 // Package singbox renders the sing-box source rule-set JSON document. It owns
 // format only: target limits and policy decisions are supplied by the target
-// profile and the planner. Unlike the Keenetic dialect this format is a
+// definition and the planner. Unlike the Keenetic dialect this format is a
 // declarative match set rather than a list of imperative route commands, and it
 // carries domains and both address families instead of IPv4 routes alone.
 package singbox

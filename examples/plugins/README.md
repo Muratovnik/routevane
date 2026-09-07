@@ -6,7 +6,7 @@ programs with matching manifests, not generic placeholders:
 | Example | Files used by the end-to-end tests |
 | --- | --- |
 | [CSV renderer](csv-renderer/main.go) | [manifest](csv-renderer/manifest.json), [target](csv-renderer/target.yaml) |
-| [Static source](static-source/main.go) | [manifest](static-source/manifest.json), [service](static-source/service.yaml) |
+| [Static source](static-source/main.go) | [manifest](static-source/manifest.json), [list](static-source/list.yaml) |
 
 The zero digest in each manifest is an explicit build-time placeholder. Only
 `executable` and `sha256` must be filled for the binary you built; the other
@@ -34,7 +34,7 @@ $env:ROUTEVANE_PLUGINS_DIR = $Plugins
 ```
 
 For the renderer, add the supplied target YAML to the `targets/` directory of
-your chosen catalog. For the source, add its service YAML to `builtin/`.
+your chosen catalog. For the source, add its list YAML to `builtin/`.
 Use a copy of the catalog and a separate data directory for experiments; do not
 overwrite the production catalog or database. The source example answers with
 synthetic documentation addresses and is not useful as a live routing feed.
@@ -45,7 +45,7 @@ A complete test of both supplied files and real subprocesses is:
 go test ./cmd/routevane -run 'TestPublishesThroughAnExternalRenderer|TestAnInstalledExternalSource|TestPluginsAreDiscovered' -count=1
 ```
 
-The tests copy these exact manifests, target and service, filling only the binary
+The tests copy these exact manifests, target and list, filling only the binary
 name and digest. They exercise handshake, refresh, rendering and checksum refusal.
 
 ## Write your own plugin

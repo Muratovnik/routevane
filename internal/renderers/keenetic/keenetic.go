@@ -1,6 +1,6 @@
 // Package keenetic renders the bounded IPv4 route ADD BAT dialect accepted by
 // KeeneticOS 5.0.4+ static-route upload. It owns format only: target limits and
-// coverage decisions are supplied by the target profile and planner.
+// coverage decisions are supplied by the target definition and planner.
 package keenetic
 
 import (

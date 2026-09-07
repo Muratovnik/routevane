@@ -158,7 +158,7 @@ export function useLists() {
   }
 
   /**
-   * Global priority is library state, not route state. Saving replaces only the
+   * Global priority is library state, not profile state. Saving replaces only the
    * catalog's complete default permutation; existing routes are never written.
    */
   async function setDefaultPriority(

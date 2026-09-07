@@ -1424,12 +1424,12 @@ func TestArchiveAndRestoreAreSeparateVerbsAndAnArchivedEditConflicts(t *testing.
 		t.Fatalf("archive code=%d archived=%v body=%s", archived.Code, backend.archived, archived.Body.String())
 	}
 	var decoded struct {
-		Format application.Profile `json:"profile"`
+		Profile application.Profile `json:"profile"`
 	}
 	if err := json.Unmarshal(archived.Body.Bytes(), &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if !decoded.Format.Archived() {
+	if !decoded.Profile.Archived() {
 		t.Fatalf("the reply must state the resulting state: %s", archived.Body.String())
 	}
 
@@ -1440,7 +1440,7 @@ func TestArchiveAndRestoreAreSeparateVerbsAndAnArchivedEditConflicts(t *testing.
 	}
 	edit := post("/v1/profiles/"+profileID+"/update", `{"name":"renamed","lists":["example"]}`)
 	if edit.Code != http.StatusConflict {
-		t.Fatalf("editing an archived list code=%d body=%s", edit.Code, edit.Body.String())
+		t.Fatalf("editing an archived profile code=%d body=%s", edit.Code, edit.Body.String())
 	}
 
 	restored := post("/v1/profiles/"+profileID+"/restore", `{}`)
@@ -1448,7 +1448,7 @@ func TestArchiveAndRestoreAreSeparateVerbsAndAnArchivedEditConflicts(t *testing.
 		t.Fatalf("restore code=%d archived=%v", restored.Code, backend.archived)
 	}
 	if edit := post("/v1/profiles/"+profileID+"/update", `{"name":"renamed","lists":["example"]}`); edit.Code != http.StatusOK {
-		t.Fatalf("editing a restored list code=%d body=%s", edit.Code, edit.Body.String())
+		t.Fatalf("editing a restored profile code=%d body=%s", edit.Code, edit.Body.String())
 	}
 
 	// Archiving is a mutation, so the guarded verb is the only one served.

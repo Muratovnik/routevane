@@ -172,7 +172,7 @@ describe('forecast overlap contract', () => {
       truncated: true,
     })
   })
-  it('decodes complete service adjacency separately from capped details', async () => {
+  it('decodes complete list adjacency separately from capped details', async () => {
     answer(
       forecastPayload({
         overlaps: {
@@ -1222,7 +1222,7 @@ describe('the server states its fields, the screen reads its own', () => {
     })
   })
 
-  it('renames every field a service preview carries', async () => {
+  it('renames every field a list preview carries', async () => {
     answer({
       list_id: 'google-ai',
       sources: [
@@ -1299,7 +1299,7 @@ describe('the server states its fields, the screen reads its own', () => {
     )
   })
 
-  it('renames every field the service contents table carries', async () => {
+  it('renames every field the list contents table carries', async () => {
     answer({
       list_id: 'discord',
       rows: [

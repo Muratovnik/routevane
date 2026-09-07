@@ -223,7 +223,7 @@ describe('Routevane local API decoders', () => {
     ])
   })
 
-  it('checks automatic service contents without a list mutation', async () => {
+  it('reads the automatic contents of a list without mutating it', async () => {
     fetchMock.mockResolvedValueOnce(
       json({
         list_id: 'google-ai',

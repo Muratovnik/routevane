@@ -221,7 +221,7 @@ func (r RendererRegistry) Validate() error {
 	return nil
 }
 
-// For resolves the renderer a target profile asks for.
+// For resolves the renderer a target definition asks for.
 func (r RendererRegistry) For(target domain.TargetDefinition) (Renderer, error) {
 	renderer, ok := r[target.RendererID]
 	if !ok || renderer == nil {

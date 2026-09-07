@@ -10,7 +10,7 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-// ExportFormat is a renderer profile available for a one-off file. Its ID is
+// ExportFormat is a renderer format available for a one-off file. Its ID is
 // deliberately not an output ID: choosing it creates no consumer,
 // subscription or publication history.
 type ExportFormat struct {

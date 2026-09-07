@@ -560,7 +560,7 @@ test('the library starts empty and shelves the profile the composer creates and 
   assertProductAlive()
 })
 
-test('the service card takes domains, addresses and networks, typed or imported', async ({
+test('the list card takes domains, addresses and networks, typed or imported', async ({
   page,
 }) => {
   test.setTimeout(180000)
@@ -670,7 +670,7 @@ test('the service card takes domains, addresses and networks, typed or imported'
  * scrolled used to be drawn where the page was, not where the screen is, and
  * the operator saw a cut-off panel over a page that kept scrolling underneath.
  */
-test('the service card stays whole over a scrolled page and gives the scroll back', async ({
+test('the list card stays whole over a scrolled page and gives the scroll back', async ({
   page,
 }) => {
   test.setTimeout(120000)

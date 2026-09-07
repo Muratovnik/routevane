@@ -91,7 +91,7 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 		// Publishing afterward proves the forecast against real bytes. Both
 		// renderers receive the same priority-resolved plan: the first list owns
 		// the shared domain and its broader network covers the second list's IP.
-		profileID, outputID, _ := createProfileOutput(t, origin, "Overlap route", forecast.TargetID, ids...)
+		profileID, outputID, _ := createProfileOutput(t, origin, "Overlap profile", forecast.TargetID, ids...)
 		built := guardedRefreshAndBuild(t, origin, profileID, outputID)
 		payload := downloadArtifact(t, origin, built.Artifact.ID).body
 		actual := 0

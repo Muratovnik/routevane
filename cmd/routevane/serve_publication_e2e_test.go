@@ -226,7 +226,7 @@ func createProfileOutput(t *testing.T, origin, name, targetID string, lists ...s
 	}
 	body := postJSON(t, origin+"/v1/profiles", `{"name":`+strconv.Quote(name)+`,"lists":`+string(encoded)+`,"priority":`+string(encoded)+`}`)
 	if err := json.Unmarshal(body, &profileResponse); err != nil {
-		t.Fatalf("create list=%s: %v", body, err)
+		t.Fatalf("create profile=%s: %v", body, err)
 	}
 	var outputResponse struct {
 		Output struct {
@@ -238,7 +238,7 @@ func createProfileOutput(t *testing.T, origin, name, targetID string, lists ...s
 		t.Fatalf("create output=%s: %v", body, err)
 	}
 	if len(profileResponse.Profile.ID) != 32 || len(outputResponse.Output.ID) != 32 {
-		t.Fatalf("create list/output identities: %s", body)
+		t.Fatalf("create profile/output identities: %s", body)
 	}
 	postJSON(t, origin+"/v1/profiles/"+profileResponse.Profile.ID+"/refresh", `{}`)
 	buildBody := postJSON(t, origin+"/v1/outputs/"+outputResponse.Output.ID+"/build", `{}`)

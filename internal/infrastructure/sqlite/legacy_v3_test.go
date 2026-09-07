@@ -74,7 +74,7 @@ PRAGMA user_version=3;`
 	}
 	profiles, err := store.Profiles(context.Background())
 	if err != nil || len(profiles) != 1 || profiles[0].ID != profileID || len(profiles[0].Lists) != 1 || profiles[0].Lists[0] != "discord" {
-		t.Fatalf("imported lists=%#v err=%v", profiles, err)
+		t.Fatalf("imported profiles=%#v err=%v", profiles, err)
 	}
 	output, err := store.OutputBySubscription(context.Background(), tokenID, [32]byte{})
 	if err != nil || output.ID != profileID || output.LatestArtifactID != artifactID {

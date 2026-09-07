@@ -40,7 +40,7 @@ func writeCategoryFile(t *testing.T, root, name string, payload []byte) {
 // A list belongs to as many categories as fit it. The grouping is the reason
 // categories exist as their own object rather than as a field on the list.
 func TestCategoryMembershipIsManyToMany(t *testing.T) {
-	root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+	root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 	if err := os.WriteFile(filepath.Join(root, "builtin", "other.yaml"), []byte(secondListYAML), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestCategoryMembershipIsManyToMany(t *testing.T) {
 // A category naming a list the catalog does not carry would resolve to a
 // silently smaller list, so the whole catalog is refused instead.
 func TestCategoryNamingAnUnknownListIsRefused(t *testing.T) {
-	root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+	root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 	writeCategoryFile(t, root, "video.yaml", []byte("id: video\ntitle: Видео\nservices:\n  - absent\n"))
 	if _, err := Load(context.Background(), root); err == nil {
 		t.Fatal("expected the catalog to refuse a category with an unknown list")
@@ -85,7 +85,7 @@ func TestInvalidCategoryDocumentsAreRefused(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+			root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 			writeCategoryFile(t, root, "video.yaml", []byte(test.payload))
 			if _, err := Load(context.Background(), root); err == nil {
 				t.Fatalf("expected %s to be refused", test.name)
@@ -98,7 +98,7 @@ func TestInvalidCategoryDocumentsAreRefused(t *testing.T) {
 // a list changes what the next plan is built from. A revision that ignored
 // that would claim the plan came from a catalog it did not.
 func TestCatalogRevisionCoversCategories(t *testing.T) {
-	first := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+	first := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 	if err := os.WriteFile(filepath.Join(first, "builtin", "other.yaml"), []byte(secondListYAML), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +108,7 @@ func TestCatalogRevisionCoversCategories(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	second := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+	second := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 	if err := os.WriteFile(filepath.Join(second, "builtin", "other.yaml"), []byte(secondListYAML), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -119,13 +119,13 @@ func TestCatalogRevisionCoversCategories(t *testing.T) {
 	}
 
 	if before.Revision == after.Revision {
-		t.Fatalf("revision did not change when a category gained a service: %s", before.Revision)
+		t.Fatalf("revision did not change when a category gained a list: %s", before.Revision)
 	}
 }
 
 // A catalog with no categories is legitimate: a list may name lists itself.
 func TestCatalogWithoutCategoriesLoads(t *testing.T) {
-	root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+	root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 	catalog, err := Load(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
@@ -158,7 +158,7 @@ sources:
 // A feed says what it is. Only a vendor's own publication about itself is
 // official; a third-party list is community curation.
 func TestFeedDeclaresItsSourceClass(t *testing.T) {
-	root := writeCatalogFile(t, "builtin", "service.yaml", []byte(communityFeedYAML))
+	root := writeCatalogFile(t, "builtin", "list.yaml", []byte(communityFeedYAML))
 	catalog, err := Load(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
@@ -175,8 +175,8 @@ func TestFeedDeclaresItsSourceClass(t *testing.T) {
 // Filing the same bytes under a different class is a different observation
 // semantic, so the stored observations of the old class must not be reused.
 func TestSourceRevisionCoversTheClass(t *testing.T) {
-	community := writeCatalogFile(t, "builtin", "service.yaml", []byte(communityFeedYAML))
-	official := writeCatalogFile(t, "builtin", "service.yaml",
+	community := writeCatalogFile(t, "builtin", "list.yaml", []byte(communityFeedYAML))
+	official := writeCatalogFile(t, "builtin", "list.yaml",
 		[]byte(strings.Replace(communityFeedYAML, "class: community", "class: official", 1)))
 	left, err := Load(context.Background(), community)
 	if err != nil {
@@ -194,7 +194,7 @@ func TestSourceRevisionCoversTheClass(t *testing.T) {
 }
 
 func TestInvalidFeedClassIsRefused(t *testing.T) {
-	root := writeCatalogFile(t, "builtin", "service.yaml",
+	root := writeCatalogFile(t, "builtin", "list.yaml",
 		[]byte(strings.Replace(communityFeedYAML, "class: community", "class: observed", 1)))
 	if _, err := Load(context.Background(), root); err == nil {
 		t.Fatal("expected an observed feed class to be refused")
@@ -205,7 +205,7 @@ func TestInvalidFeedClassIsRefused(t *testing.T) {
 // saw, and saying otherwise would file an observation as a publication.
 func TestDNSSourceRefusesAClass(t *testing.T) {
 	payload := strings.Replace(validCatalogYAML, "      names: [example.com]", "      names: [example.com]\n      class: community", 1)
-	root := writeCatalogFile(t, "builtin", "service.yaml", []byte(payload))
+	root := writeCatalogFile(t, "builtin", "list.yaml", []byte(payload))
 	if _, err := Load(context.Background(), root); err == nil {
 		t.Fatal("expected a class on a DNS source to be refused")
 	}
@@ -223,7 +223,7 @@ func TestCategoryReadsTheRetiredMembershipKeyButRefusesBoth(t *testing.T) {
 		{"retired key", "id: video\ntitle: Видео\nservices:\n  - example\n"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+			root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 			writeCategoryFile(t, root, "video.yaml", []byte(test.payload))
 			catalog, err := Load(context.Background(), root)
 			if err != nil {
@@ -237,7 +237,7 @@ func TestCategoryReadsTheRetiredMembershipKeyButRefusesBoth(t *testing.T) {
 	}
 
 	t.Run("both keys", func(t *testing.T) {
-		root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+		root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
 		writeCategoryFile(t, root, "video.yaml", []byte("id: video\ntitle: Видео\nlists:\n  - example\nservices:\n  - example\n"))
 		_, err := Load(context.Background(), root)
 		if err == nil {

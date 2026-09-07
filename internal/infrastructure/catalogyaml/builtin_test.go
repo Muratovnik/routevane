@@ -38,7 +38,7 @@ func TestShippedCatalogIsTypedAndDeclared(t *testing.T) {
 		}
 		for _, seed := range list.Seeds {
 			if seed.Kind != domain.RuleDomainSuffix || seed.SourceClass != domain.SourceManual {
-				t.Fatalf("service %q seed widened automatic evidence: %#v", id, seed)
+				t.Fatalf("list %q seed widened automatic evidence: %#v", id, seed)
 			}
 		}
 		for _, source := range list.Sources {
@@ -48,7 +48,7 @@ func TestShippedCatalogIsTypedAndDeclared(t *testing.T) {
 				t.Fatalf("list %q source = %#v", id, source)
 			}
 			if !strings.HasPrefix(source.URL, "https://") {
-				t.Fatalf("service %q source is not fetched over HTTPS: %#v", id, source)
+				t.Fatalf("list %q source is not fetched over HTTPS: %#v", id, source)
 			}
 			if source.Format != domain.FeedFormatText && source.Format != domain.FeedFormatDomainList {
 				t.Fatalf("list %q source format = %q", id, source.Format)

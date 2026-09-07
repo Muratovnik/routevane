@@ -123,7 +123,7 @@ func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time
 		return domain.RoutingPlan{}, fmt.Errorf("list definition has no id")
 	}
 	if target.ID == "" {
-		return domain.RoutingPlan{}, fmt.Errorf("target profile has no id")
+		return domain.RoutingPlan{}, fmt.Errorf("target definition has no id")
 	}
 	if cutoff.IsZero() {
 		return domain.RoutingPlan{}, fmt.Errorf("observation cutoff is zero")

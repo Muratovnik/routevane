@@ -352,7 +352,7 @@ func TestBuildPlanSetIsCanonicalAndAppliesOneGlobalLimitWithoutTruncation(t *tes
 		t.Fatal(err)
 	}
 	if first.SemanticHash != second.SemanticHash || !reflect.DeepEqual(first.Rules, second.Rules) {
-		t.Fatalf("service permutation changed plan/hash: %#v %#v", first, second)
+		t.Fatalf("list permutation changed plan/hash: %#v %#v", first, second)
 	}
 }
 

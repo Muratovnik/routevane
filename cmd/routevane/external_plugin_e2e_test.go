@@ -202,15 +202,15 @@ func TestAnInstalledExternalSourceParticipatesInRefresh(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(catalogDir, "builtin"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	catalogPath := filepath.Join(catalogDir, "builtin", "plugin-service.yaml")
-	if err := os.WriteFile(catalogPath, exampleFile(t, "static-source", "service.yaml"), 0o600); err != nil {
+	catalogPath := filepath.Join(catalogDir, "builtin", "plugin-list.yaml")
+	if err := os.WriteFile(catalogPath, exampleFile(t, "static-source", "list.yaml"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	installPlugin(t, pluginsDir, "example-static-source", "./examples/plugins/static-source", exampleManifest(t, "static-source"))
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	deps := runtimeDeps{PluginsDir: pluginsDir, Now: func() time.Time { return now }, Context: context.Background()}
 	stdout, stderr := &syncBuffer{}, &syncBuffer{}
-	args := []string{"refresh", "--list", "plugin-service", "--catalog-dir", catalogDir, "--data-dir", dataDir}
+	args := []string{"refresh", "--list", "plugin-list", "--catalog-dir", catalogDir, "--data-dir", dataDir}
 	if code := runWithDeps(stdout, stderr, args, deps); code != 0 {
 		t.Fatalf("external source refresh failed: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}
@@ -227,20 +227,20 @@ func TestAnInstalledExternalSourceParticipatesInRefresh(t *testing.T) {
 	missingDataDir := filepath.Join(t.TempDir(), "missing-data")
 	stdout, stderr = &syncBuffer{}, &syncBuffer{}
 	missingDeps := runtimeDeps{Now: func() time.Time { return now }, Context: context.Background()}
-	missingArgs := []string{"refresh", "--list", "plugin-service", "--catalog-dir", catalogDir, "--data-dir", missingDataDir}
+	missingArgs := []string{"refresh", "--list", "plugin-list", "--catalog-dir", catalogDir, "--data-dir", missingDataDir}
 	if code := runWithDeps(stdout, stderr, missingArgs, missingDeps); code == 0 || !strings.Contains(stderr.String(), "not installed") {
 		t.Fatalf("missing plugin was not refused: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}
 
 	// The catalog revision is the operator-reviewed contract. An installed
 	// process reporting another implementation revision is also a refusal.
-	mismatched := strings.Replace(string(exampleFile(t, "static-source", "service.yaml")), "example-static-v1", "example-static-v2", 1)
+	mismatched := strings.Replace(string(exampleFile(t, "static-source", "list.yaml")), "example-static-v1", "example-static-v2", 1)
 	if err := os.WriteFile(catalogPath, []byte(mismatched), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	mismatchDataDir := filepath.Join(t.TempDir(), "mismatch-data")
 	stdout, stderr = &syncBuffer{}, &syncBuffer{}
-	mismatchArgs := []string{"refresh", "--list", "plugin-service", "--catalog-dir", catalogDir, "--data-dir", mismatchDataDir}
+	mismatchArgs := []string{"refresh", "--list", "plugin-list", "--catalog-dir", catalogDir, "--data-dir", mismatchDataDir}
 	if code := runWithDeps(stdout, stderr, mismatchArgs, deps); code == 0 || !strings.Contains(stderr.String(), "does not match") {
 		t.Fatalf("mismatched plugin revision was not refused: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}

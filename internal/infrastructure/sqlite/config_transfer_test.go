@@ -38,7 +38,7 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 		CustomCategoryIDs: map[string]string{}, CustomSourceIDs: map[string]string{},
 		Outputs: map[string]application.Output{"output-1": {
 			ID: strings.Repeat("d", 32), ProfileID: strings.Repeat("b", 32), TargetID: "keenetic", DeviceID: strings.Repeat("c", 32),
-			FormatKey: "profile", RendererID: "renderer", RendererVersion: "v1", TargetRevision: "revision",
+			FormatKey: "format", RendererID: "renderer", RendererVersion: "v1", TargetRevision: "revision",
 		}},
 	}
 	if err := store.ApplyConfigTransfer(context.Background(), apply); err != nil {
@@ -71,7 +71,7 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 		t.Fatal("preflight failure committed transfer")
 	}
 	if got := countRows(t, fresh, "SELECT count(*) FROM profiles"); got != 0 {
-		t.Fatalf("failed transaction left %d list(s)", got)
+		t.Fatalf("failed transaction left %d profile(s)", got)
 	}
 }
 

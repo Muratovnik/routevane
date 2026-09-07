@@ -16,7 +16,7 @@ import (
 )
 
 // maxPublishedBytes is a defence-in-depth ceiling for any format, not the
-// policy bound. The per-format limit is the target profile's MaxArtifactSize,
+// policy bound. The per-format limit is the target definition's MaxArtifactSize,
 // which the application enforces before an artifact reaches this layer.
 const maxPublishedBytes = 16 << 20
 

@@ -10,7 +10,7 @@ import {
  * The catalog a composing screen holds, kept current while another tab curates
  * it.
  *
- * Composing a route writes nothing global (ADR 0029), so «Списки» is a second
+ * Composing a profile writes nothing global (ADR 0029), so «Списки» is a second
  * tab and its edits land behind this screen's back. Coming back to this window
  * is when the operator expects to see them, and it is the only moment worth
  * reading: a screen that polled would re-read a catalog nobody changed.

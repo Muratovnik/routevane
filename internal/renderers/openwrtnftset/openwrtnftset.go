@@ -1,6 +1,6 @@
 // Package openwrtnftset renders the dnsmasq configuration fragment OpenWrt uses
 // to populate an nftables set from resolved answers. It owns format only: target
-// limits and coverage decisions are supplied by the target profile and planner.
+// limits and coverage decisions are supplied by the target definition and planner.
 //
 // This format is the product's first dynamic set: the artifact carries no
 // address at all. dnsmasq resolves each listed domain on the device and adds the

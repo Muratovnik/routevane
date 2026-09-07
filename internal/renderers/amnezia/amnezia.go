@@ -1,6 +1,6 @@
 // Package amnezia renders the split-tunnelling site list the AmneziaVPN client
 // imports. It owns format only: target limits and coverage decisions are
-// supplied by the target profile and planner.
+// supplied by the target definition and planner.
 //
 // The reason this adapter exists is the consumer, not the capability set: an
 // operator running that client cannot import a router script or a sing-box

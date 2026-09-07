@@ -291,7 +291,7 @@ export type CategoryLists = 'detach' | 'delete'
 
 // Answers with nothing but its status: the category is gone, or it is refused
 // and nothing changed. A route still naming it is one of those refusals, and
-// `categoryInUse` reads which routes they are.
+// `categoryInUse` reads which profiles they are.
 export async function removeCategory(
   categoryID: string,
   lists: CategoryLists,

@@ -275,7 +275,7 @@ func TestPublicationHardeningFailureHappensBeforeTransaction(t *testing.T) {
 	}
 	var profiles int
 	if err := store.db.QueryRow(`SELECT count(*) FROM profiles`).Scan(&profiles); err != nil || profiles != 0 {
-		t.Fatalf("failed create committed lists=%d err=%v", profiles, err)
+		t.Fatalf("failed create committed profiles=%d err=%v", profiles, err)
 	}
 	store.publicationPreflight = nil
 	if err := store.CreateProfile(context.Background(), profile); err != nil {
@@ -340,7 +340,7 @@ func TestProfilesListNewestFirstAndOutputsSurviveTheRoundTrip(t *testing.T) {
 		t.Fatalf("listing=%#v", profiles)
 	}
 	if len(profiles[0].Lists) != 1 || profiles[0].Lists[0] != "example" {
-		t.Fatalf("listing lost list composition: %#v", profiles[0])
+		t.Fatalf("listing lost the profile composition: %#v", profiles[0])
 	}
 	// The target and renderer identity moved from the profile to its output;
 	// the round trip through the store must not lose it either.
@@ -387,7 +387,7 @@ func TestScheduleAndCompositionAreWrittenIndependently(t *testing.T) {
 		t.Fatal(err)
 	}
 	if stored.RefreshInterval != application.RefreshDefault || !stored.LastRefreshedAt.IsZero() || stored.LastRefreshFailed {
-		t.Fatalf("a new list already carries a schedule: %#v", stored)
+		t.Fatalf("a new profile already carries a schedule: %#v", stored)
 	}
 
 	refreshed := now.Add(time.Hour)
@@ -446,7 +446,7 @@ func TestArchivalIsStoredApartFromTheRestOfTheProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	if stored.Archived() {
-		t.Fatalf("a new list is already archived: %#v", stored)
+		t.Fatalf("a new profile is already archived: %#v", stored)
 	}
 
 	archivedAt := refreshed.Add(time.Hour)
@@ -487,7 +487,7 @@ func TestArchivalIsStoredApartFromTheRestOfTheProfile(t *testing.T) {
 	}
 
 	if err := store.SetProfileArchived(context.Background(), "99999999999999999999999999999999", archivedAt, archivedAt); !errors.Is(err, application.ErrNotFound) {
-		t.Fatalf("archiving an unknown list = %v", err)
+		t.Fatalf("archiving an unknown profile = %v", err)
 	}
 }
 

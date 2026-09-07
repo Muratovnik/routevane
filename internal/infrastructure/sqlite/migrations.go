@@ -539,9 +539,10 @@ CREATE TABLE library_service_priorities (
 --   custom_services, service_*       ->  custom_lists, list_*
 --
 -- The order is not free. The word lists is both a name being retired and a
--- name being claimed, so every rename of a list runs before every rename of a service. In
--- the other order the first step walks into names the second step still needs
--- and the two meanings merge with nothing left to tell them apart.
+-- name being claimed, so every rename of a list runs before every rename of
+-- a service. In the other order the first step walks into names the second
+-- step still needs and the two meanings merge with nothing left to tell them
+-- apart.
 --
 -- SQLite rewrites a foreign key, a trigger body and an index definition to
 -- follow a renamed table or column, but it never renames a trigger or an index

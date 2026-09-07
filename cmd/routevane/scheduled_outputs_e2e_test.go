@@ -173,7 +173,7 @@ func createScheduledProfile(t *testing.T, origin string, lists []string) string 
 	}
 	body := postJSON(t, origin+"/v1/profiles", `{"name":"Scheduled formats","lists":`+string(encoded)+`}`)
 	if err := json.Unmarshal(body, &response); err != nil || len(response.Profile.ID) != 32 {
-		t.Fatalf("create list=%s: %v", body, err)
+		t.Fatalf("create profile=%s: %v", body, err)
 	}
 	return response.Profile.ID
 }

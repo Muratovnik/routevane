@@ -13,7 +13,7 @@ import (
 )
 
 // catalogTargets returns the catalog targets this build can actually serve. A
-// target is dropped when its renderer is missing, when its profile key does not
+// target is dropped when its renderer is missing, when its format key does not
 // match that renderer, when it declares a capability the renderer cannot render,
 // or when a device-specific expectation refuses it. Dropping is deliberate: an
 // unserviceable target must never be selectable.

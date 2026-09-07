@@ -158,7 +158,7 @@ type wireConfig struct {
 // There is no firmware to interrogate on this machine, so the compatibility fact
 // is the configuration's own declaration: a rule set of type local and format
 // source is what accepts the bytes this product publishes. A configuration that
-// declares anything else reports an empty profile key, which is what stops the
+// declares anything else reports an empty format key, which is what stops the
 // deployment before a file is touched.
 func (*Deployer) Probe(_ context.Context, connection application.Connection) (application.DeviceInfo, error) {
 	path, err := configPath(connection.URL)
