@@ -1,97 +1,55 @@
-import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import { defineComponent, h } from 'vue'
+import { render } from 'vitest-browser-vue'
 
 import RvButton from '@/shared/ui/RvButton.vue'
 
-// Plain Vitest does not run Nuxt's component auto-import transform. This small
-// contract double models the UButton boundary that RvButton relies on: element
-// selection and refusal of a disabled link click remain library-owned.
-const UButtonStub = defineComponent({
-  inheritAttrs: false,
-  props: {
-    disabled: Boolean,
-    external: Boolean,
-    href: String,
-    loading: Boolean,
-    to: String,
-    type: String,
-    variant: String,
-  },
-  setup(props, { attrs, slots }) {
-    return () => {
-      const link = props.href !== undefined || props.to !== undefined
-      const click = attrs.onClick
-      return h(
-        link ? 'a' : 'button',
-        {
-          ...attrs,
-          'aria-disabled': link && props.disabled ? 'true' : undefined,
-          disabled: link ? undefined : props.disabled,
-          href: link && !props.disabled ? (props.href ?? props.to) : undefined,
-          onClick: (event: MouseEvent) => {
-            if (props.disabled) {
-              event.preventDefault()
-              event.stopPropagation()
-              return
-            }
-            if (typeof click === 'function') click(event)
-          },
-          type: link ? undefined : props.type,
-        },
-        [slots.leading?.(), slots.default?.()],
-      )
-    }
-  },
-})
-
-const library = { components: { UButton: UButtonStub } }
-
 describe('RvButton', () => {
-  it('forwards pending state while keeping one accessible progress mark', () => {
-    const wrapper = mount(RvButton, {
+  it('forwards pending state while keeping one accessible progress mark', async () => {
+    const screen = await render(RvButton, {
       props: { loading: true, loadingLabel: 'Saving profile' },
       slots: { default: 'Save' },
-      global: library,
     })
 
-    const button = wrapper.get<HTMLButtonElement>('button')
-    expect(wrapper.getComponent(UButtonStub).props('disabled')).toBe(true)
-    expect(wrapper.getComponent(UButtonStub).props('loading')).toBe(true)
-    expect(button.attributes('aria-busy')).toBe('true')
-    expect(button.attributes('aria-label')).toBe('Saving profile')
-    expect(button.text()).toContain('Save')
-    expect(button.find('.rv-button__spinner').exists()).toBe(true)
+    const button = screen.getByRole('button', { name: 'Saving profile' })
+    await expect.element(button).toHaveAttribute('aria-busy', 'true')
+    await expect.element(button).toBeDisabled()
+    await expect.element(button).toHaveTextContent('Save')
+    // The spinner is decoration next to that accessible name, so it is
+    // deliberately aria-hidden and its test hook is the only way to see it.
+    await expect.element(screen.getByTestId('rv-button-spinner')).toBeVisible()
   })
 
-  it('forwards an href as an external native-link request', () => {
-    const wrapper = mount(RvButton, {
-      props: { disabled: true, href: '/artifact' },
+  it('forwards an href as an external native-link request', async () => {
+    const screen = await render(RvButton, {
+      props: { disabled: false, href: '/artifact' },
       slots: { default: 'Download' },
-      global: library,
     })
 
-    expect(wrapper.getComponent(UButtonStub).props()).toMatchObject({
-      disabled: true,
-      external: true,
-      href: '/artifact',
-      to: undefined,
-    })
+    const link = screen.getByRole('link', { name: 'Download' })
+    await expect.element(link).toHaveAttribute('href', '/artifact')
+    await expect.element(link).toHaveAttribute('data-external', 'true')
+
+    // A destination that is not available is refused rather than navigable: no
+    // href to follow, and the refusal stated where a reader hears it.
+    await screen.rerender({ disabled: true })
+    const refused = screen.getByText('Download')
+    await expect.element(refused).toHaveAttribute('aria-disabled', 'true')
+    await expect.element(refused).not.toHaveAttribute('href')
   })
 
-  it('forwards internal destinations to the router with the visual variant', () => {
-    const wrapper = mount(RvButton, {
-      props: { disabled: true, to: '/profiles/new', variant: 'primary' },
+  it('forwards internal destinations to the router with the visual variant', async () => {
+    const screen = await render(RvButton, {
+      props: { to: '/profiles/new', variant: 'primary' },
       slots: { default: 'Create' },
-      global: library,
     })
 
-    expect(wrapper.getComponent(UButtonStub).props()).toMatchObject({
-      disabled: true,
-      external: false,
-      href: undefined,
-      to: '/profiles/new',
-      variant: 'link',
-    })
+    const link = screen.getByRole('link', { name: 'Create' })
+    await expect.element(link).toHaveAttribute('href', '/profiles/new')
+    await expect.element(link).toHaveAttribute('data-external', 'false')
+    // The library button is always asked for its own `link` variant while the
+    // Routevane variant stays a facade class, so the two visual systems cannot
+    // collide on one element.
+    await expect.element(link).toHaveAttribute('data-variant', 'link')
+    await expect.element(link).toHaveClass('rv-button--primary')
   })
 })

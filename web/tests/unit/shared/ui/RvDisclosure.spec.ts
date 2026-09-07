@@ -1,27 +1,31 @@
-import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import { render } from 'vitest-browser-vue'
 
 import RvDisclosure from '@/shared/ui/RvDisclosure.vue'
 
 describe('RvDisclosure', () => {
   it('keeps progressive content inert until its named trigger opens it', async () => {
-    const wrapper = mount(RvDisclosure, {
+    const screen = await render(RvDisclosure, {
       props: { summary: 'Supported formats' },
       slots: { default: '<a href="/formats">Keenetic</a>' },
-      global: { stubs: { RvIcon: true } },
     })
 
-    const trigger = wrapper.get<HTMLButtonElement>('button')
-    const panel = wrapper.get<HTMLElement>('[role="region"]')
-    expect(trigger.attributes('aria-expanded')).toBe('false')
-    expect(panel.attributes('aria-hidden')).toBe('true')
-    expect(panel.attributes('inert')).toBe('')
+    const trigger = screen.getByRole('button', { name: 'Supported formats' })
+    // The panel names itself after the trigger and is hidden until it opens,
+    // so the accessible query has to reach past `aria-hidden` to see it shut.
+    const panel = screen.getByRole('region', {
+      includeHidden: true,
+      name: 'Supported formats',
+    })
+    await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
+    await expect.element(panel).toHaveAttribute('aria-hidden', 'true')
+    await expect.element(panel).toHaveAttribute('inert', '')
 
-    await trigger.trigger('click')
+    await trigger.click()
 
-    expect(trigger.attributes('aria-expanded')).toBe('true')
-    expect(panel.attributes('aria-hidden')).toBe('false')
-    expect(panel.attributes('inert')).toBeUndefined()
-    expect(wrapper.emitted('toggle')).toEqual([[true]])
+    await expect.element(trigger).toHaveAttribute('aria-expanded', 'true')
+    await expect.element(panel).toHaveAttribute('aria-hidden', 'false')
+    await expect.element(panel).not.toHaveAttribute('inert')
+    expect(screen.emitted('toggle')).toEqual([[true]])
   })
 })

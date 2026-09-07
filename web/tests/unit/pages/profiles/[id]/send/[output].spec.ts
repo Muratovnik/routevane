@@ -1,10 +1,12 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import { ref } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { render } from 'vitest-browser-vue'
+import { ref } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
 
 import SendPage from '@/pages/profiles/[id]/send/[output].vue'
+
+const PROFILE_LINK = '/profiles/profile-1'
 
 const pageModel = () => ({
   catalog: ref(null),
@@ -18,14 +20,17 @@ const pageModel = () => ({
   state: ref('failed'),
 })
 
-let model: ReturnType<typeof pageModel>
+// `vi.mock` is hoisted above every case, so its factory needs a binding that
+// already exists when the page module is imported. The holder is fixed; the
+// model inside it is built fresh for each case.
+const HOST: { model: ReturnType<typeof pageModel> } = { model: pageModel() }
 
 vi.mock('@/features/view-profile/model/useProfileView', () => ({
-  useProfileView: () => model,
+  useProfileView: () => HOST.model,
 }))
 
 const renderPage = () =>
-  mount(SendPage, {
+  render(SendPage, {
     global: {
       stubs: {
         AppShell: { template: '<main><slot /></main>' },
@@ -40,7 +45,7 @@ const renderPage = () =>
   })
 
 beforeEach(() => {
-  model = pageModel()
+  HOST.model = pageModel()
   useLocale().setLocale('en')
   vi.stubGlobal('useRoute', () => ({
     params: { id: 'profile-1', output: 'chosen' },
@@ -52,60 +57,77 @@ afterEach(() => vi.unstubAllGlobals())
 
 describe('send entry read states', () => {
   it('keeps a failed read distinct from a missing profile and retries the requested connection', async () => {
-    const wrapper = renderPage()
-    await flushPromises()
-    expect(wrapper.text()).toContain('Profile is unavailable')
-    expect(wrapper.text()).not.toContain('Profile not found')
-    expect(wrapper.findAll('h1')).toHaveLength(1)
+    const model = HOST.model
+    const screen = await renderPage()
+
+    await expect
+      .element(screen.getByText('Profile is unavailable'))
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('Profile not found'))
+      .not.toBeInTheDocument()
+    // One page, one first-level heading, in every state below as well.
+    expect(screen.getByRole('heading', { level: 1 }).all()).toHaveLength(1)
+
     model.initialize.mockImplementation(async () => {
       model.state.value = 'ready'
     })
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
+    await screen.getByRole('button').click()
+
+    await expect.element(screen.getByText('artifact-2')).toBeVisible()
     expect(model.initialize).toHaveBeenCalledTimes(2)
     expect(model.selectOutput).toHaveBeenLastCalledWith('chosen')
-    expect(wrapper.text()).toContain('artifact-2')
-    expect(wrapper.findAll('h1')).toHaveLength(1)
-    wrapper.unmount()
+    expect(screen.getByRole('heading', { level: 1 }).all()).toHaveLength(1)
   })
 
-  it.each(['loading', 'missing'])(
+  it.each([
+    ['loading', 'Loading the profile'],
+    ['missing', 'Profile not found'],
+  ])(
     'keeps a heading and the correct %s state without offering delivery',
-    async (state) => {
-      model.state.value = state
-      const wrapper = renderPage()
-      await flushPromises()
-      expect(wrapper.findAll('h1')).toHaveLength(1)
-      expect(wrapper.text()).toContain(
-        state === 'missing' ? 'Profile not found' : 'Loading the profile',
-      )
-      expect(wrapper.text()).not.toContain('artifact-2')
-      expect(wrapper.find('button').exists()).toBe(false)
-      wrapper.unmount()
+    async (state, message) => {
+      HOST.model.state.value = state
+      const screen = await renderPage()
+
+      await expect
+        .element(screen.getByText(message, { exact: false }))
+        .toBeVisible()
+      expect(screen.getByRole('heading', { level: 1 }).all()).toHaveLength(1)
+      await expect
+        .element(screen.getByText('artifact-2'))
+        .not.toBeInTheDocument()
+      expect(screen.getByRole('button').all()).toHaveLength(0)
     },
   )
 
   it('names a missing connection, not a missing profile, and returns to that profile', async () => {
-    model.state.value = 'ready'
-    model.outputs.value = []
-    const wrapper = renderPage()
-    await flushPromises()
-    expect(wrapper.text()).toContain('Connection not found')
-    expect(wrapper.text()).not.toContain('Profile not found')
-    expect(wrapper.get('a').attributes('href')).toBe('/profiles/profile-1')
-    expect(wrapper.findAll('h1')).toHaveLength(1)
-    wrapper.unmount()
+    HOST.model.state.value = 'ready'
+    HOST.model.outputs.value = []
+    const screen = await renderPage()
+
+    await expect.element(screen.getByText('Connection not found')).toBeVisible()
+    await expect
+      .element(screen.getByText('Profile not found'))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('link'))
+      .toHaveAttribute('href', PROFILE_LINK)
+    expect(screen.getByRole('heading', { level: 1 }).all()).toHaveLength(1)
   })
 
   it('keeps a connection without a file distinct from a missing connection', async () => {
-    model.state.value = 'ready'
-    model.outputs.value[1]!.latest = null
-    const wrapper = renderPage()
-    await flushPromises()
-    expect(wrapper.text()).not.toContain('not found')
-    expect(wrapper.get('a').attributes('href')).toBe('/profiles/profile-1')
-    expect(wrapper.findAll('h1')).toHaveLength(1)
-    expect(wrapper.text()).not.toContain('artifact-2')
-    wrapper.unmount()
+    HOST.model.state.value = 'ready'
+    HOST.model.outputs.value[1]!.latest = null
+    const screen = await renderPage()
+
+    await expect
+      .element(screen.getByRole('link'))
+      .toHaveAttribute('href', PROFILE_LINK)
+    // Nothing is reported as absent: the connection exists, its file does not.
+    await expect
+      .element(screen.getByText('not found', { exact: false }))
+      .not.toBeInTheDocument()
+    await expect.element(screen.getByText('artifact-2')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 }).all()).toHaveLength(1)
   })
 })

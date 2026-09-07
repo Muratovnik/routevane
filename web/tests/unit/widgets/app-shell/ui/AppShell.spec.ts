@@ -1,5 +1,5 @@
-import { mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { render } from 'vitest-browser-vue'
 import { nextTick, toValue, watchEffect, type MaybeRefOrGetter } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
@@ -40,30 +40,29 @@ describe('AppShell', () => {
     const { setLocale } = useLocale()
     setLocale('en')
 
-    const wrapper = mount(AppShell, {
+    const screen = await render(AppShell, {
       global: {
-        stubs: {
-          NuxtLink: { props: ['to'], template: '<a><slot /></a>' },
-          RvIcon: true,
-        },
+        stubs: { NuxtLink: { props: ['to'], template: '<a><slot /></a>' } },
       },
     })
     expect(document.documentElement.lang).toBe('en')
-    expect(wrapper.find('.shell__product-mark').attributes('aria-hidden')).toBe(
-      'true',
-    )
-    expect(wrapper.find('.shell__product').text()).toBe('Routevane')
+    await expect.element(screen.getByText('Routevane')).toBeVisible()
+    // The mark beside the product name is decoration, so it is kept out of the
+    // accessibility tree rather than read out as a second product name.
+    await expect
+      .element(screen.getByTestId('rv-shell-product-mark'))
+      .toHaveAttribute('aria-hidden', 'true')
 
     setLocale('ru')
     await nextTick()
     expect(document.documentElement.lang).toBe('ru')
-    expect(wrapper.text()).toContain('Профили')
+    await expect.element(screen.getByText('Профили')).toBeVisible()
 
     // The head declaration survives re-renders; the locale module writes the
     // attribute synchronously so a reader never lands between the render and
     // the head manager's own patch. Both writers state the same value, and the
     // immediate one answers even with the shell gone.
-    wrapper.unmount()
+    await screen.unmount()
     setLocale('en')
     await nextTick()
     expect(document.documentElement.lang).toBe('en')

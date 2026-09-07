@@ -1,12 +1,24 @@
-import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
+import { render, type RenderResult } from 'vitest-browser-vue'
 
 import { forgetForecastObservations } from '@/entities/profile-composition/model/forecast'
 import { useLocale } from '@/shared/i18n/useLocale'
 
 import ProfileEditor from '@/features/view-profile/ui/ProfileEditor.vue'
 
-const categories = [
+const SAVE = 'Save and rebuild'
+const CANCEL = 'Cancel'
+const OVERFLOW = 'Limited fixture: ≈ 6 of 1 — will not fit'
+
+// A row inside the composition has a priority handle that states its list and
+// its position; a row outside it has one that says the list must be added
+// first. The handles are therefore the composition, read by stated position
+// because the rows are drawn in the order the operator arranged them.
+const COMPOSED =
+  /^Change priority of list (?<list>.+), position (?<position>\d+)$/
+
+const CATEGORIES = [
   {
     custom: false,
     id: 'communication',
@@ -15,18 +27,18 @@ const categories = [
   },
 ]
 
-const lists = [
+const LISTS = [
   { categories: ['communication'], id: 'discord', title: 'Discord' },
   { categories: ['communication'], id: 'telegram', title: 'Telegram' },
   { categories: [], id: 'youtube', title: 'YouTube' },
 ]
 
-const outputs = [
+const OUTPUTS = [
   { id: 'output-1', targetID: 'keenetic', title: 'Keenetic' },
   { id: 'output-2', targetID: 'limited-fixture', title: 'Limited fixture' },
 ]
 
-const forecastPayload = {
+const FORECAST_PAYLOAD = {
   targets: [
     {
       target_id: 'keenetic',
@@ -59,50 +71,65 @@ const stubPreview = (preview?: () => Promise<Response>) => {
   const fetchMock = vi.fn((input: unknown) => {
     if (String(input).endsWith('/refresh'))
       return Promise.resolve(json({ refresh: {} }))
-    return (preview ?? (() => Promise.resolve(json(forecastPayload))))()
+    return (preview ?? (() => Promise.resolve(json(FORECAST_PAYLOAD))))()
   })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
 
-const mountEditor = (
+const renderEditor = (
   overrides: Partial<{
-    outputs: typeof outputs
+    outputs: typeof OUTPUTS
     busy: boolean
     exclusions: string[]
     priority: string[]
     listDomains: Record<string, string[]>
   }> = {},
 ) =>
-  mount(ProfileEditor, {
+  render(ProfileEditor, {
     props: {
       busy: false,
-      categories,
+      categories: CATEGORIES,
       exclusions: [],
       name: 'Chat and video',
-      outputs,
+      outputs: OUTPUTS,
       selected: ['youtube'],
       selectedCategories: ['communication'],
       listDomains: {},
-      lists,
+      lists: LISTS,
       ...overrides,
     },
-    global: { stubs: { RvIcon: true } },
   })
 
-const buttonByLabel = (
-  wrapper: ReturnType<typeof mountEditor>,
-  label: string,
-) =>
-  wrapper
-    .findAll('button')
-    .find((button) => button.attributes('aria-label') === label)
+const composition = (screen: RenderResult<unknown>): string[] =>
+  screen
+    .getByRole('button', { name: COMPOSED })
+    .elements()
+    .map(
+      (handle) =>
+        COMPOSED.exec(handle.getAttribute('aria-label') ?? '')?.groups ?? {},
+    )
+    .map((groups) => ({
+      list: groups.list ?? '',
+      position: Number(groups.position ?? 0),
+    }))
+    .sort((first, second) => first.position - second.position)
+    .map((row) => row.list)
 
-const buttonByText = (wrapper: ReturnType<typeof mountEditor>, text: string) =>
-  wrapper.findAll('button').find((button) => button.text() === text)
+const yieldToBrowser = (): Promise<void> =>
+  new Promise((resolve) => {
+    const channel = new MessageChannel()
+    channel.port1.addEventListener('message', () => resolve(), { once: true })
+    channel.port1.start()
+    channel.port2.postMessage(null)
+  })
 
-const rowCopies = (wrapper: ReturnType<typeof mountEditor>) =>
-  wrapper.findAll('.picker__row--selected .picker__name')
+const settle = async (): Promise<void> => {
+  await yieldToBrowser()
+  await vi.advanceTimersByTimeAsync(0)
+  await yieldToBrowser()
+  await vi.advanceTimersByTimeAsync(0)
+}
 
 describe('ProfileEditor', () => {
   beforeEach(() => {
@@ -118,43 +145,40 @@ describe('ProfileEditor', () => {
 
   it('keeps the full catalog and ordered composition visible together', async () => {
     stubPreview()
-    const wrapper = mountEditor()
-    await flushPromises()
+    const screen = await renderEditor()
+    await settle()
 
-    expect(rowCopies(wrapper).map((row) => row.text())).toEqual([
-      'Discord',
-      'Telegram',
-      'YouTube',
-    ])
-    expect(wrapper.find('.picker__table').exists()).toBe(true)
-    expect(wrapper.findAll('.picker__row--selected')).toHaveLength(3)
-    expect(buttonByText(wrapper, 'Add lists')).toBeUndefined()
-    wrapper.unmount()
+    expect(composition(screen)).toEqual(['Discord', 'Telegram', 'YouTube'])
+    // Catalog and composition are one table rather than two panes.
+    expect(screen.getByRole('table').all()).toHaveLength(1)
+    expect(screen.getByRole('row').all()).toHaveLength(LISTS.length + 1)
+    expect(screen.getByRole('button', { name: 'Add lists' }).all()).toEqual([])
   })
 
   it('does not recalculate when output objects refresh without changing the formats', async () => {
     const fetchMock = stubPreview()
-    const wrapper = mountEditor()
+    const screen = await renderEditor()
     await vi.advanceTimersByTimeAsync(600)
-    await flushPromises()
+    await settle()
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    await wrapper.setProps({
-      outputs: outputs.map((output) => ({ ...output })),
+
+    await screen.rerender({
+      outputs: OUTPUTS.map((output) => ({ ...output })),
     })
     await vi.advanceTimersByTimeAsync(600)
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    await wrapper.setProps({ outputs: [outputs[1]!] })
+
+    await screen.rerender({ outputs: [OUTPUTS[1]!] })
     await vi.advanceTimersByTimeAsync(600)
     expect(fetchMock).toHaveBeenCalledTimes(2)
-    wrapper.unmount()
   })
 
   it('weighs each list in the first format the profile publishes', async () => {
     const fetchMock = stubPreview()
-    vi.advanceTimersByTime(600)
-    const wrapper = mountEditor()
-    vi.advanceTimersByTime(600)
-    await flushPromises()
+    await vi.advanceTimersByTimeAsync(600)
+    const screen = await renderEditor()
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
 
     expect(fetchMock).toHaveBeenCalledWith('/v1/profiles/preview', {
       method: 'POST',
@@ -172,57 +196,58 @@ describe('ProfileEditor', () => {
       }),
     })
 
-    expect(
-      wrapper
-        .get('.picker__row[data-id="discord"] .picker__rules-column')
-        .attributes('aria-label'),
-    ).toBe('≈ 3 rules')
-    expect(
-      wrapper
-        .get('.picker__row[data-id="youtube"] .picker__rules-column')
-        .attributes('aria-label'),
-    ).toBe('≈ 1 rule')
+    // Each row states its own weight where a reader hears it.
+    await expect
+      .element(screen.getByRole('cell', { name: '≈ 3 rules' }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('cell', { name: '≈ 1 rule' }))
+      .toBeVisible()
 
     // A format that would refuse the draft says so; saving stays available,
     // because a failed rebuild is already reported per connection.
-    expect(wrapper.get('.editor__forecast').text()).toBe(
-      'Limited fixture: ≈ 6 of 1 — will not fit',
-    )
-    wrapper.unmount()
+    await expect.element(screen.getByText(OVERFLOW)).toBeVisible()
   })
 
   // With nothing bound there is no format to weigh against, so the rows carry
   // no numbers at all rather than zeros.
   it('asks for no forecast when the profile publishes nowhere', async () => {
     const fetchMock = stubPreview()
-    const wrapper = mountEditor({ outputs: [] })
-    vi.advanceTimersByTime(600)
-    await flushPromises()
+    const screen = await renderEditor({ outputs: [] })
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
 
     expect(fetchMock).not.toHaveBeenCalled()
-    expect(wrapper.find('.editor__forecast').exists()).toBe(false)
-    expect(wrapper.findAll('td[aria-label="No forecast"]')).toHaveLength(3)
-    expect(wrapper.text()).toContain('Add an output to check overlaps')
-    expect(wrapper.text()).not.toContain('Overlaps unknown')
-    expect(buttonByText(wrapper, 'Retry')).toBeUndefined()
-    wrapper.unmount()
+    await expect
+      .element(screen.getByText('will not fit', { exact: false }))
+      .not.toBeInTheDocument()
+    expect(
+      screen.getByRole('cell', { name: 'No forecast' }).all(),
+    ).toHaveLength(3)
+    await expect
+      .element(screen.getByText('Add an output to check overlaps').first())
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('Overlaps unknown'))
+      .not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' }).all()).toEqual([])
   })
 
   // The editor asks the same question the composer does, so it hands over the
   // same material: every resolved profile, not just how many there are.
   it('reads every unobserved list of the draft, then asks again', async () => {
-    let previews = 0
-    const fetchMock = stubPreview(() => {
-      previews += 1
-      return Promise.resolve(
-        previews === 1
+    const fetchMock = stubPreview(() =>
+      Promise.resolve(
+        fetchMock.mock.calls.filter(
+          (call) => !String(call[0]).endsWith('/refresh'),
+        ).length === 1
           ? json({ error: 'nothing observed' }, 404)
-          : json(forecastPayload),
-      )
-    })
-    const wrapper = mountEditor()
-    vi.advanceTimersByTime(600)
-    await flushPromises()
+          : json(FORECAST_PAYLOAD),
+      ),
+    )
+    const screen = await renderEditor()
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
 
     expect(
       fetchMock.mock.calls
@@ -233,24 +258,21 @@ describe('ProfileEditor', () => {
       '/v1/lists/telegram/refresh',
       '/v1/lists/youtube/refresh',
     ])
-    expect(wrapper.get('.editor__forecast').text()).toBe(
-      'Limited fixture: ≈ 6 of 1 — will not fit',
-    )
-    wrapper.unmount()
+    await expect.element(screen.getByText(OVERFLOW)).toBeVisible()
   })
 
   it('takes a list back out of the draft and saves what is left', async () => {
     stubPreview()
-    const wrapper = mountEditor()
-    await flushPromises()
+    const screen = await renderEditor()
+    await settle()
 
-    await wrapper.get('input[value="discord"]').setValue(false)
-    expect(rowCopies(wrapper).map((row) => row.text())).not.toContain(
-      expect.stringContaining('Discord'),
-    )
+    await screen
+      .getByRole('checkbox', { name: 'Remove Discord from the profile' })
+      .click()
+    expect(composition(screen)).toEqual(['Telegram', 'YouTube'])
 
-    await wrapper.get('form').trigger('submit')
-    expect(wrapper.emitted('save')?.at(-1)).toEqual([
+    await screen.getByRole('button', { name: SAVE }).click()
+    expect(screen.emitted('save')?.at(-1)).toEqual([
       'Chat and video',
       {
         lists: ['youtube'],
@@ -262,7 +284,6 @@ describe('ProfileEditor', () => {
         listDomains: {},
       },
     ])
-    wrapper.unmount()
   })
 
   // Save is offered when the stored profile and the draft say different things.
@@ -271,94 +292,90 @@ describe('ProfileEditor', () => {
   // nobody had edited.
   it('offers a save for a different profile, not for a differently written one', async () => {
     stubPreview()
-    const wrapper = mountEditor({
+    const screen = await renderEditor({
       exclusions: ['discord', 'telegram'],
       listDomains: { youtube: ['a.example', 'b.example'] },
     })
-    await flushPromises()
-    expect(buttonByText(wrapper, 'Cancel')).toBeUndefined()
+    await settle()
+    await expect
+      .element(screen.getByRole('button', { name: CANCEL }))
+      .not.toBeInTheDocument()
 
-    await wrapper.setProps({
+    await screen.rerender({
       exclusions: ['telegram', 'discord'],
       listDomains: { youtube: ['b.example', 'a.example'] },
     })
-    expect(buttonByText(wrapper, 'Cancel')).toBeUndefined()
+    await expect
+      .element(screen.getByRole('button', { name: CANCEL }))
+      .not.toBeInTheDocument()
 
-    await wrapper.setProps({ exclusions: ['discord'] })
-    expect(buttonByText(wrapper, 'Cancel')).toBeDefined()
-    wrapper.unmount()
+    await screen.rerender({ exclusions: ['discord'] })
+    await expect
+      .element(screen.getByRole('button', { name: CANCEL }))
+      .toBeVisible()
   })
 
   it('cancels the edited name and composition without saving', async () => {
     stubPreview()
-    const wrapper = mountEditor()
-    await flushPromises()
-    const storedRows = wrapper
-      .findAll('.picker__row--selected .picker__name')
-      .map((row) => row.text())
-    await wrapper.get('#editor-name').setValue('Unsaved name')
-    await wrapper.get('input[value="discord"]').setValue(false)
-    expect(rowCopies(wrapper).map((row) => row.text())).not.toEqual(storedRows)
-    const cancel = buttonByText(wrapper, 'Cancel')
-    expect(cancel).toBeDefined()
-    await cancel!.trigger('click')
-    expect(
-      (wrapper.get('#editor-name').element as HTMLInputElement).value,
-    ).toBe('Chat and video')
-    expect(
-      wrapper
-        .findAll('.picker__row--selected .picker__name')
-        .map((row) => row.text()),
-    ).toEqual(storedRows)
-    expect(wrapper.emitted('save')).toBeUndefined()
-    expect(buttonByText(wrapper, 'Cancel')).toBeUndefined()
-    wrapper.unmount()
+    const screen = await renderEditor()
+    await settle()
+    const stored = composition(screen)
+
+    const name = screen.getByLabelText('Name')
+    await name.fill('Unsaved name')
+    await screen
+      .getByRole('checkbox', { name: 'Remove Discord from the profile' })
+      .click()
+    expect(composition(screen)).not.toEqual(stored)
+
+    await screen.getByRole('button', { name: CANCEL }).click()
+
+    await expect.element(name).toHaveValue('Chat and video')
+    expect(composition(screen)).toEqual(stored)
+    expect(screen.emitted('save')).toBeUndefined()
+    await expect
+      .element(screen.getByRole('button', { name: CANCEL }))
+      .not.toBeInTheDocument()
   })
 
   it('stops following a category when its row is removed', async () => {
     stubPreview()
-    const wrapper = mountEditor()
-    await flushPromises()
+    const screen = await renderEditor()
+    await settle()
 
-    wrapper
-      .findComponent({ name: 'CategoryFilters' })
-      .vm.$emit('update:modelValue', ['communication'])
-    await wrapper.vm.$nextTick()
-    wrapper.findComponent({ name: 'RvMenu' }).vm.$emit('select', 'manual')
-    await wrapper.vm.$nextTick()
+    // Filter down to the category, stop following it, then clear the filter.
+    await screen.getByRole('button', { name: /^Communication/ }).click()
+    await screen.getByRole('button', { name: 'Follow “Communication”' }).click()
+    await screen
+      .getByRole('menuitem', { name: 'Select new lists manually' })
+      .click()
+    await screen.getByRole('button', { name: 'All categories' }).click()
 
-    wrapper
-      .findComponent({ name: 'CategoryFilters' })
-      .vm.$emit('update:modelValue', [])
-    await wrapper.vm.$nextTick()
-    expect(rowCopies(wrapper).map((row) => row.text())).toEqual(['YouTube'])
-    await wrapper.get('form').trigger('submit')
-    expect(wrapper.emitted('save')?.at(-1)?.[1]).toEqual({
+    expect(composition(screen)).toEqual(['YouTube'])
+    await screen.getByRole('button', { name: SAVE }).click()
+    expect(screen.emitted('save')?.at(-1)?.[1]).toEqual({
       lists: ['youtube'],
       categories: [],
       exclusions: [],
       priority: ['youtube'],
       listDomains: {},
     })
-    wrapper.unmount()
   })
 
   it('saves the priority changed with the keyboard drag handle', async () => {
     stubPreview()
-    const wrapper = mountEditor()
-    await flushPromises()
+    const screen = await renderEditor()
+    await settle()
 
-    const handle = buttonByLabel(
-      wrapper,
-      'Change priority of list Discord, position 1',
-    )
-    expect(handle).toBeDefined()
-    await handle!.trigger('keydown', { key: 'ArrowDown' })
-    await wrapper.get('form').trigger('submit')
+    const handle = screen.getByRole('button', {
+      name: 'Change priority of list Discord, position 1',
+    })
+    handle.element().focus()
+    await userEvent.keyboard('{ArrowDown}')
+    await screen.getByRole('button', { name: SAVE }).click()
 
-    expect(wrapper.emitted('save')?.at(-1)?.[1]).toMatchObject({
+    expect(screen.emitted('save')?.at(-1)?.[1]).toMatchObject({
       priority: ['telegram', 'discord', 'youtube'],
     })
-    wrapper.unmount()
   })
 })

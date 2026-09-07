@@ -275,6 +275,10 @@ function Get-RoutevaneBrowserPath {
 }
 
 function Invoke-WebCheck {
+    # Unit component specs render in the pinned Chromium, so the gate needs the
+    # browser before npm runs. Asserting it here fails a fresh clone with the
+    # one instruction that fixes it instead of a Vitest launch stack.
+    Get-RoutevaneBrowserPath | Out-Null
     Push-Location (Join-Path $RepositoryRoot 'web')
     try {
         Invoke-Checked 'npm' @('run', 'check')
@@ -683,8 +687,9 @@ try {
                 Invoke-Checked 'npm' @('run', 'test:dev')
             } finally { Pop-Location }
             # The discovery browser is the same owned dependency the web gate
-            # uses, so its Go tests belong to this command rather than to the
-            # default gate, which must not require a browser binary.
+            # uses. Its Go tests belong to this command for their runtime and
+            # because they drive a launched browser of their own, not because
+            # the default gate avoids the binary — the unit specs need it too.
             $env:ROUTEVANE_BROWSER = Get-RoutevaneBrowserPath
             try {
                 Invoke-Checked $GoExecutable @('test', '-count=1', './internal/discovery/...', './cmd/routevane/...')

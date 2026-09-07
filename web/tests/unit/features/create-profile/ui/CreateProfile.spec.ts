@@ -1,5 +1,6 @@
-import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
+import { render, type RenderResult } from 'vitest-browser-vue'
 
 import { forgetForecastObservations } from '@/entities/profile-composition/model/forecast'
 import { invalidateCatalogCache } from '@/shared/api/catalog'
@@ -7,7 +8,15 @@ import { useLocale } from '@/shared/i18n/useLocale'
 
 import CreateProfile from '@/features/create-profile/ui/CreateProfile.vue'
 
-const catalogPayload = {
+const SUBMIT = 'Create and prepare'
+const TARGET_FIELD = 'Where to deliver the profile'
+const SETTINGS = 'Profile settings'
+const OVERFLOW_WARNING = 'Cannot hold this profile'
+
+const CHOSEN =
+  /^Change priority of list (?<list>.+), position (?<position>\d+)$/
+
+const CATALOG_PAYLOAD = {
   lists: ['discord', 'limit-fixture'],
   default_priority: ['limit-fixture', 'discord'],
   list_details: [
@@ -31,7 +40,7 @@ const target = (
   manual_installation_hint: 'Install it by hand.',
 })
 
-const targetsPayload = {
+const TARGETS_PAYLOAD = {
   targets: [
     target('keenetic', 'Keenetic', 'router'),
     target('limited-fixture', 'Limited fixture', 'app'),
@@ -41,7 +50,7 @@ const targetsPayload = {
 
 // The one-rule format cannot hold the two rules this list needs; the other
 // two can. These are the same numbers the browser fixture produces.
-const forecastPayload = {
+const FORECAST_PAYLOAD = {
   targets: [
     {
       target_id: 'keenetic',
@@ -88,13 +97,13 @@ const stubNetwork = (overrides: Network = {}) => {
   const fetchMock = vi.fn((input: unknown) => {
     const path = String(input)
     if (path === '/v1/lists')
-      return Promise.resolve(overrides.catalog?.() ?? json(catalogPayload))
-    if (path === '/v1/targets') return Promise.resolve(json(targetsPayload))
+      return Promise.resolve(overrides.catalog?.() ?? json(CATALOG_PAYLOAD))
+    if (path === '/v1/targets') return Promise.resolve(json(TARGETS_PAYLOAD))
     if (path === '/v1/deployments/targets')
       return Promise.resolve(json({ targets: [] }))
     if (path === '/v1/profiles/preview')
       return (
-        overrides.preview ?? (() => Promise.resolve(json(forecastPayload)))
+        overrides.preview ?? (() => Promise.resolve(json(FORECAST_PAYLOAD)))
       )()
     if (path.endsWith('/refresh'))
       return (
@@ -116,44 +125,63 @@ const refreshCalls = (fetchMock: { mock: { calls: unknown[][] } }): string[] =>
     .map((call) => String(call[0]))
     .filter((path) => path.endsWith('/refresh'))
 
-const mountComposer = () =>
-  mount(CreateProfile, {
-    attachTo: document.body,
-    global: { stubs: { RvIcon: true } },
+const yieldToBrowser = (): Promise<void> =>
+  new Promise((resolve) => {
+    const channel = new MessageChannel()
+    channel.port1.addEventListener('message', () => resolve(), { once: true })
+    channel.port1.start()
+    channel.port2.postMessage(null)
   })
 
-const buttonWithText = (
-  wrapper: ReturnType<typeof mountComposer>,
-  text: string,
-) => wrapper.findAll('button').find((button) => button.text() === text)
+const settle = async (): Promise<void> => {
+  await yieldToBrowser()
+  await vi.advanceTimersByTimeAsync(0)
+  await yieldToBrowser()
+  await vi.advanceTimersByTimeAsync(0)
+}
 
-// The format list is a portalled overlay, so it is read on the document. It is
-// opened to read it, which is also how an operator meets every format's size.
-const openTargets = async (
-  wrapper: ReturnType<typeof mountComposer>,
-): Promise<HTMLElement> => {
-  await wrapper.get('.rv-search-select__trigger--field').trigger('click')
-  await flushPromises()
-  const profile = document.body.querySelector<HTMLElement>('[role="listbox"]')
-  expect(profile).not.toBeNull()
-  return profile as HTMLElement
+const renderComposer = () => render(CreateProfile)
+
+// A row states its own priority in its handle. The rows are drawn in the order
+// the operator arranged them rather than in priority order, so the composition
+// is read back through that stated position.
+const composition = (screen: RenderResult<unknown>): string[] =>
+  screen
+    .getByRole('button', { name: CHOSEN })
+    .elements()
+    .map(
+      (handle) =>
+        CHOSEN.exec(handle.getAttribute('aria-label') ?? '')?.groups ?? {},
+    )
+    .map((groups) => ({
+      list: groups.list ?? '',
+      position: Number(groups.position ?? 0),
+    }))
+    .sort((first, second) => first.position - second.position)
+    .map((row) => row.list)
+
+const chooseList = (screen: RenderResult<unknown>, title: string) =>
+  screen.getByRole('checkbox', { name: `Add ${title} to the profile` }).click()
+
+const dropList = (screen: RenderResult<unknown>, title: string) =>
+  screen
+    .getByRole('checkbox', { name: `Remove ${title} from the profile` })
+    .click()
+
+// The format list is a portalled overlay opened to be read, which is also how
+// an operator meets every format's size.
+const openTargets = async (screen: RenderResult<unknown>): Promise<void> => {
+  await screen.getByLabelText(TARGET_FIELD).click()
+  await expect.element(screen.getByRole('listbox')).toBeVisible()
 }
 
 const chooseTarget = async (
-  wrapper: ReturnType<typeof mountComposer>,
+  screen: RenderResult<unknown>,
   label: string,
 ): Promise<void> => {
-  const profile = await openTargets(wrapper)
-  const option = [
-    ...profile.querySelectorAll<HTMLElement>('[role="option"]'),
-  ].find((candidate) => candidate.textContent?.includes(label))
-  expect(option, label).toBeDefined()
-  option?.click()
-  await flushPromises()
+  await openTargets(screen)
+  await screen.getByRole('option', { name: new RegExp(`^${label}`) }).click()
 }
-
-const chosenTarget = (wrapper: ReturnType<typeof mountComposer>): string =>
-  wrapper.get('#create-target').text()
 
 describe('CreateProfile forecast', () => {
   beforeEach(() => {
@@ -170,19 +198,19 @@ describe('CreateProfile forecast', () => {
 
   it('asks once the draft settles and states each format against its bound', async () => {
     const fetchMock = stubNetwork()
-    const wrapper = mountComposer()
-    await flushPromises()
+    const screen = await renderComposer()
+    await settle()
 
     // An empty draft has nothing to weigh, and the endpoint refuses it.
     expect(previewCalls(fetchMock)).toEqual([])
 
-    await wrapper.get('input[value="limit-fixture"]').setValue(true)
-    vi.advanceTimersByTime(400)
-    await flushPromises()
+    await chooseList(screen, 'Limit fixture')
+    await vi.advanceTimersByTimeAsync(400)
+    await settle()
     expect(previewCalls(fetchMock)).toEqual([])
 
-    vi.advanceTimersByTime(200)
-    await flushPromises()
+    await vi.advanceTimersByTimeAsync(200)
+    await settle()
     expect(previewCalls(fetchMock)).toEqual([
       JSON.stringify({
         lists: ['limit-fixture'],
@@ -194,14 +222,18 @@ describe('CreateProfile forecast', () => {
     ])
 
     // Every format states what this draft would weigh in it, against its own
-    // bound, before one is chosen.
-    const text = (await openTargets(wrapper)).textContent ?? ''
-    // Four figures are read as a quantity, not as a serial number, so the
-    // bound carries the group separator this locale uses.
-    expect(text).toContain('≈ 2 of 1,024 rules')
-    expect(text).toContain('≈ 2 of 1 rules')
-    expect(text).toContain('Cannot hold this profile')
-    wrapper.unmount()
+    // bound, before one is chosen. Four figures are read as a quantity, not as
+    // a serial number, so the bound carries this locale's group separator.
+    await openTargets(screen)
+    await expect
+      .element(screen.getByText('≈ 2 of 1,024 rules', { exact: false }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('≈ 2 of 1 rules', { exact: false }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByText(OVERFLOW_WARNING, { exact: false }).first())
+      .toBeVisible()
   })
 
   // The profile is named before it is filled in. The name field asked last while
@@ -209,136 +241,98 @@ describe('CreateProfile forecast', () => {
   // had been picked rather than as the first thing the form wants.
   it('keeps the editable proposed name in profile settings', async () => {
     stubNetwork()
-    const wrapper = mountComposer()
-    await flushPromises()
+    const screen = await renderComposer()
+    await settle()
 
-    expect(wrapper.find('.rv-composer__settings #create-name').exists()).toBe(
-      true,
-    )
+    const settings = screen.getByRole('complementary', { name: SETTINGS })
+    await expect.element(settings.getByLabelText('Name')).toBeVisible()
 
-    await wrapper.get('input[value="discord"]').setValue(true)
-    await flushPromises()
-    expect(wrapper.get<HTMLInputElement>('#create-name').element.value).toBe(
-      'Discord',
-    )
-    wrapper.unmount()
+    await chooseList(screen, 'Discord')
+    await expect.element(screen.getByLabelText('Name')).toHaveValue('Discord')
   })
 
   it('applies library priority in the table and removes by checkbox', async () => {
     stubNetwork()
-    const wrapper = mountComposer()
-    await flushPromises()
+    const screen = await renderComposer()
+    await settle()
 
-    expect(wrapper.find('.rv-composer__settings').exists()).toBe(true)
-    expect(wrapper.find('.priority-list').exists()).toBe(false)
-    await wrapper.get('input[value="discord"]').setValue(true)
-    await wrapper.get('input[value="limit-fixture"]').setValue(true)
-    await flushPromises()
-    expect(
-      wrapper
-        .findAll('.picker__row--selected')
-        .sort(
-          (a, b) =>
-            Number(a.attributes('data-priority')) -
-            Number(b.attributes('data-priority')),
-        )
-        .map((row) => row.get('.picker__name').text()),
-    ).toEqual(['Limit fixture', 'Discord'])
-    expect(wrapper.text()).toContain('Choose a format to check overlaps')
-    expect(wrapper.text()).not.toContain('Overlaps unknown')
-    expect(buttonWithText(wrapper, 'Retry')).toBeUndefined()
-    expect(wrapper.findAll('.picker__handle')).toHaveLength(2)
-    await wrapper.get('input[value="limit-fixture"]').setValue(false)
-    expect(
-      wrapper
-        .findAll('.picker__row--selected')
-        .sort(
-          (a, b) =>
-            Number(a.attributes('data-priority')) -
-            Number(b.attributes('data-priority')),
-        )
-        .map((row) => row.get('.picker__name').text()),
-    ).toEqual(['Discord'])
-    wrapper.unmount()
+    await expect
+      .element(screen.getByRole('complementary', { name: SETTINGS }))
+      .toBeVisible()
+    // The composition is the picker's own table rather than a second list
+    // beside it.
+    await expect
+      .element(screen.getByRole('region', { name: 'In the profile' }))
+      .not.toBeInTheDocument()
+
+    await chooseList(screen, 'Discord')
+    await chooseList(screen, 'Limit fixture')
+    expect(composition(screen)).toEqual(['Limit fixture', 'Discord'])
+    await expect
+      .element(screen.getByText('Choose a format to check overlaps').first())
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('Overlaps unknown'))
+      .not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' }).all()).toEqual([])
+
+    await dropList(screen, 'Limit fixture')
+    expect(composition(screen)).toEqual(['Discord'])
   })
 
   it('adopts a reread library order until the profile order is edited', async () => {
-    let priority = ['limit-fixture', 'discord']
+    const library = { priority: ['limit-fixture', 'discord'] }
     stubNetwork({
-      catalog: () => json({ ...catalogPayload, default_priority: priority }),
+      catalog: () =>
+        json({ ...CATALOG_PAYLOAD, default_priority: library.priority }),
     })
-    const wrapper = mountComposer()
-    await flushPromises()
-    await wrapper.get('input[value="discord"]').setValue(true)
-    await wrapper.get('input[value="limit-fixture"]').setValue(true)
-    await flushPromises()
-    expect(
-      wrapper
-        .findAll('.picker__row--selected')
-        .sort(
-          (a, b) =>
-            Number(a.attributes('data-priority')) -
-            Number(b.attributes('data-priority')),
-        )
-        .map((row) => row.get('.picker__name').text()),
-    ).toEqual(['Limit fixture', 'Discord'])
+    const screen = await renderComposer()
+    await settle()
+    await chooseList(screen, 'Discord')
+    await chooseList(screen, 'Limit fixture')
+    expect(composition(screen)).toEqual(['Limit fixture', 'Discord'])
 
-    priority = ['discord', 'limit-fixture']
-    window.dispatchEvent(new Event('focus'))
-    await flushPromises()
-    expect(
-      wrapper
-        .findAll('.picker__row--selected')
-        .sort(
-          (a, b) =>
-            Number(a.attributes('data-priority')) -
-            Number(b.attributes('data-priority')),
-        )
-        .map((row) => row.get('.picker__name').text()),
-    ).toEqual(['Discord', 'Limit fixture'])
+    // Landing on a control focuses this window, which is itself a reason to
+    // re-read: let those reads finish before the library changes underneath.
+    await settle()
+    await settle()
 
-    await wrapper
-      .get('.picker__row[data-id="discord"] .picker__handle')
-      .trigger('keydown', {
-        key: 'ArrowDown',
-      })
-    expect(
-      wrapper
-        .findAll('.picker__row--selected')
-        .sort(
-          (a, b) =>
-            Number(a.attributes('data-priority')) -
-            Number(b.attributes('data-priority')),
-        )
-        .map((row) => row.get('.picker__name').text()),
-    ).toEqual(['Limit fixture', 'Discord'])
+    library.priority = ['discord', 'limit-fixture']
     window.dispatchEvent(new Event('focus'))
-    await flushPromises()
-    expect(
-      wrapper
-        .findAll('.picker__row--selected')
-        .sort(
-          (a, b) =>
-            Number(a.attributes('data-priority')) -
-            Number(b.attributes('data-priority')),
-        )
-        .map((row) => row.get('.picker__name').text()),
-    ).toEqual(['Limit fixture', 'Discord'])
-    wrapper.unmount()
+    // Returning to the window re-reads the catalog, which is a round trip
+    // through the browser's own queue rather than a tick of the fake clock.
+    // Returning to the window re-reads the catalog, which is a round trip
+    // through the browser's own queue rather than a tick of the fake clock.
+    await vi.waitFor(async () => {
+      await settle()
+      expect(composition(screen)).toEqual(['Discord', 'Limit fixture'])
+    })
+
+    // An edited order is the operator's own, so a later reread leaves it alone.
+    const handle = screen.getByRole('button', {
+      name: 'Change priority of list Discord, position 1',
+    })
+    handle.element().focus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(composition(screen)).toEqual(['Limit fixture', 'Discord'])
+
+    window.dispatchEvent(new Event('focus'))
+    await settle()
+    expect(composition(screen)).toEqual(['Limit fixture', 'Discord'])
   })
 
   // Several clicks in a row are one question, and only the answer to the last
   // one is allowed to land.
   it('collapses a burst of edits into a single read', async () => {
     const fetchMock = stubNetwork()
-    const wrapper = mountComposer()
-    await flushPromises()
+    const screen = await renderComposer()
+    await settle()
 
-    await wrapper.get('input[value="limit-fixture"]').setValue(true)
-    vi.advanceTimersByTime(200)
-    await wrapper.get('input[value="discord"]').setValue(true)
-    vi.advanceTimersByTime(600)
-    await flushPromises()
+    await chooseList(screen, 'Limit fixture')
+    await vi.advanceTimersByTimeAsync(200)
+    await chooseList(screen, 'Discord')
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
 
     expect(previewCalls(fetchMock)).toEqual([
       JSON.stringify({
@@ -349,69 +343,74 @@ describe('CreateProfile forecast', () => {
         priority: ['limit-fixture', 'discord'],
       }),
     ])
-    wrapper.unmount()
   })
 
   it('refuses the overflowing pair and offers one that fits', async () => {
     stubNetwork()
-    const wrapper = mountComposer()
-    await flushPromises()
-    await wrapper.get('input[value="limit-fixture"]').setValue(true)
-    vi.advanceTimersByTime(600)
-    await flushPromises()
+    const screen = await renderComposer()
+    await settle()
+    await chooseList(screen, 'Limit fixture')
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
 
-    // A format that holds the profile is created without comment, and the chosen
-    // one keeps its size on the screen after the profile closes over it.
-    const submit = buttonWithText(wrapper, 'Create and prepare')
-    await chooseTarget(wrapper, 'Keenetic')
-    expect(submit?.attributes('disabled')).toBeUndefined()
-    expect(chosenTarget(wrapper)).toBe('Keenetic')
-    expect(wrapper.get('.create__forecast').text()).toBe('≈ 2 of 1,024 rules')
+    // A format that holds the profile is created without comment, and the
+    // chosen one keeps its size on the screen after the profile closes over it.
+    const submit = screen.getByRole('button', { name: SUBMIT })
+    await chooseTarget(screen, 'Keenetic')
+    await expect.element(submit).toBeEnabled()
+    await expect
+      .element(screen.getByLabelText(TARGET_FIELD))
+      .toHaveTextContent('Keenetic')
+    await expect.element(screen.getByText('≈ 2 of 1,024 rules')).toBeVisible()
 
-    await chooseTarget(wrapper, 'Limited fixture')
-    expect(submit?.attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).toContain(
-      'The profile does not fit Limited fixture.',
-    )
-    expect(wrapper.text()).toContain('sing-box would fit.')
+    await chooseTarget(screen, 'Limited fixture')
+    await expect.element(submit).toBeDisabled()
+    await expect
+      .element(screen.getByText('The profile does not fit Limited fixture.'))
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('sing-box would fit.', { exact: false }))
+      .toBeVisible()
 
     // The way out is one click, and it lands on the same choice the operator
     // would have had to find themselves.
-    await buttonWithText(wrapper, 'Choose sing-box')?.trigger('click')
-    await flushPromises()
-    expect(chosenTarget(wrapper)).toBe('sing-box')
-    expect(
-      buttonWithText(wrapper, 'Create and prepare')?.attributes('disabled'),
-    ).toBeUndefined()
-    wrapper.unmount()
+    await screen.getByRole('button', { name: 'Choose sing-box' }).click()
+    await expect
+      .element(screen.getByLabelText(TARGET_FIELD))
+      .toHaveTextContent('sing-box')
+    await expect.element(submit).toBeEnabled()
   })
 
   // A composition nothing has observed is the flagship case: a fresh install
   // where the operator picks «Видео» and the guard would otherwise stay silent
   // through exactly the pair it exists to refuse.
   it('observes an unread draft once and then asks again', async () => {
-    let previews = 0
+    const previews: string[] = []
     const fetchMock = stubNetwork({
       preview: () => {
-        previews += 1
+        previews.push('preview')
         return Promise.resolve(
-          previews === 1 ? unobserved() : json(forecastPayload),
+          previews.length === 1 ? unobserved() : json(FORECAST_PAYLOAD),
         )
       },
     })
-    const wrapper = mountComposer()
-    await flushPromises()
+    const screen = await renderComposer()
+    await settle()
 
-    await wrapper.get('input[value="limit-fixture"]').setValue(true)
-    vi.advanceTimersByTime(600)
-    await flushPromises()
+    await chooseList(screen, 'Limit fixture')
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
 
     expect(refreshCalls(fetchMock)).toEqual(['/v1/lists/limit-fixture/refresh'])
     expect(previewCalls(fetchMock)).toHaveLength(2)
-    const listed = (await openTargets(wrapper)).textContent ?? ''
-    expect(listed).toContain('≈ 2 of 1 rules')
-    expect(listed).toContain('Cannot hold this profile')
-    wrapper.unmount()
+
+    await openTargets(screen)
+    await expect
+      .element(screen.getByText('≈ 2 of 1 rules', { exact: false }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByText(OVERFLOW_WARNING, { exact: false }).first())
+      .toBeVisible()
   })
 
   // Once per list and once per draft. A catalog that genuinely cannot be
@@ -420,21 +419,21 @@ describe('CreateProfile forecast', () => {
     const fetchMock = stubNetwork({
       preview: () => Promise.resolve(unobserved()),
     })
-    const wrapper = mountComposer()
-    await flushPromises()
+    const screen = await renderComposer()
+    await settle()
 
-    await wrapper.get('input[value="limit-fixture"]').setValue(true)
-    vi.advanceTimersByTime(600)
-    await flushPromises()
+    await chooseList(screen, 'Limit fixture')
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
 
     // One refusal, one read, one re-ask — and the second refusal is final.
     expect(refreshCalls(fetchMock)).toEqual(['/v1/lists/limit-fixture/refresh'])
     expect(previewCalls(fetchMock)).toHaveLength(2)
 
     // A second list joins the draft: only the one never read is read.
-    await wrapper.get('input[value="discord"]').setValue(true)
-    vi.advanceTimersByTime(600)
-    await flushPromises()
+    await chooseList(screen, 'Discord')
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
 
     expect(refreshCalls(fetchMock)).toEqual([
       '/v1/lists/limit-fixture/refresh',
@@ -443,69 +442,70 @@ describe('CreateProfile forecast', () => {
     expect(previewCalls(fetchMock)).toHaveLength(4)
 
     // Taking it back out asks once more and reads nothing at all.
-    await wrapper.get('input[value="discord"]').setValue(false)
-    vi.advanceTimersByTime(600)
-    await flushPromises()
+    await dropList(screen, 'Discord')
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
 
     expect(refreshCalls(fetchMock)).toHaveLength(2)
     expect(previewCalls(fetchMock)).toHaveLength(5)
-    expect((await openTargets(wrapper)).textContent).not.toContain(
-      'Cannot hold this profile',
-    )
-    wrapper.unmount()
+
+    await openTargets(screen)
+    await expect
+      .element(screen.getByText(OVERFLOW_WARNING, { exact: false }))
+      .not.toBeInTheDocument()
   })
 
   it('lets a fresh edit supersede a retry that is still reading', async () => {
-    let release!: () => void
-    const held = new Promise<void>((resolve) => {
-      release = resolve
-    })
+    const held = Promise.withResolvers<undefined>()
     const fetchMock = stubNetwork({
       preview: () => Promise.resolve(unobserved()),
-      refresh: () => held.then(() => json({ refresh: {} })),
+      refresh: () => held.promise.then(() => json({ refresh: {} })),
     })
-    const wrapper = mountComposer()
-    await flushPromises()
+    const screen = await renderComposer()
+    await settle()
 
-    await wrapper.get('input[value="limit-fixture"]').setValue(true)
-    vi.advanceTimersByTime(600)
-    await flushPromises()
+    await chooseList(screen, 'Limit fixture')
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
     expect(previewCalls(fetchMock)).toHaveLength(1)
 
     // The draft moves on while the sources are still being read. The answer
     // that read was going to fetch no longer describes anything on screen.
-    await wrapper.get('input[value="discord"]').setValue(true)
-    release()
-    await flushPromises()
+    await chooseList(screen, 'Discord')
+    held.resolve(undefined)
+    await settle()
 
     expect(previewCalls(fetchMock)).toHaveLength(1)
-    wrapper.unmount()
   })
 
   // The forecast is a guard, not a gate on availability: a refused preview
   // leaves the screen saying nothing and creating still possible.
   it('says nothing and blocks nothing when the forecast is refused', async () => {
-    const fetchMock = vi.fn((input: unknown) => {
-      const path = String(input)
-      if (path === '/v1/lists') return Promise.resolve(json(catalogPayload))
-      if (path === '/v1/targets') return Promise.resolve(json(targetsPayload))
-      if (path === '/v1/deployments/targets')
-        return Promise.resolve(json({ targets: [] }))
-      return Promise.reject(new Error('offline'))
-    })
-    vi.stubGlobal('fetch', fetchMock)
-    const wrapper = mountComposer()
-    await flushPromises()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: unknown) => {
+        const path = String(input)
+        if (path === '/v1/lists') return Promise.resolve(json(CATALOG_PAYLOAD))
+        if (path === '/v1/targets')
+          return Promise.resolve(json(TARGETS_PAYLOAD))
+        if (path === '/v1/deployments/targets')
+          return Promise.resolve(json({ targets: [] }))
+        return Promise.reject(new Error('offline'))
+      }),
+    )
+    const screen = await renderComposer()
+    await settle()
 
-    await wrapper.get('input[value="limit-fixture"]').setValue(true)
-    await chooseTarget(wrapper, 'Limited fixture')
-    vi.advanceTimersByTime(600)
-    await flushPromises()
+    await chooseList(screen, 'Limit fixture')
+    await chooseTarget(screen, 'Limited fixture')
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
 
-    expect(wrapper.text()).not.toContain('Cannot hold this profile')
-    expect(
-      buttonWithText(wrapper, 'Create and prepare')?.attributes('disabled'),
-    ).toBeUndefined()
-    wrapper.unmount()
+    await expect
+      .element(screen.getByText(OVERFLOW_WARNING, { exact: false }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: SUBMIT }))
+      .toBeEnabled()
   })
 })

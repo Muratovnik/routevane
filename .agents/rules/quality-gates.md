@@ -12,9 +12,12 @@ commands. Do not add a second runner whose result can drift.
 - Tool modules are pinned in `go.mod` with Go's `tool` directive. Do not replace
   them with unversioned global installs.
 - Frontend checks are typecheck, ESLint, Stylelint, Prettier, unit tests, and a
-  production build. Browser and axe checks are blocking for browser-facing work
-  and remain a separate local command because browser binaries are an owned
-  dependency installed by `tools/dev.ps1 setup-browser`.
+  production build. Unit component specs render in the pinned Chromium through
+  Vitest Browser Mode, so `check` requires the browser `tools/dev.ps1
+  setup-browser` installs and asserts it is there before npm runs. The Playwright
+  end-to-end and axe suites stay a separate command for their runtime and because
+  they drive the built product, not because of the binary; they remain blocking
+  for browser-facing work.
 - ESLint runs without `--max-warnings`: an error is the gate and a warning is
   advice. The warn-level rules are the advisory size and complexity signals
   (`max-lines`, `max-lines-per-function`, `complexity`,

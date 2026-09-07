@@ -61,6 +61,10 @@ jobs:
 
   web:
     runs-on: ubuntu-latest
+    env:
+      # The repository cache, the same location tools/dev.ps1 defaults to, so
+      # the unit gate and the browser suites exercise one pinned revision.
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/source tree/.cache/browsers
     defaults:
       run:
         working-directory: source tree/web
@@ -75,6 +79,11 @@ jobs:
           cache-dependency-path: source tree/web/package-lock.json
       - name: Install web dependencies
         run: npm ci
+      # Unit component specs render in this browser, so `npm run check` needs
+      # it. Playwright launches it with its own sandbox off, so the AppArmor
+      # exception the browser job adds for the Go discovery tests is not needed.
+      - name: Install Chromium
+        run: npx --no-install playwright install chromium
       - name: Check web surface
         run: npm run check
 

@@ -1,9 +1,16 @@
-import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
+import { render } from 'vitest-browser-vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
 
 import DevicesView from '@/features/devices/ui/DevicesView.vue'
+
+const DEVICES = '/v1/devices'
+const LISTS = '/v1/lists'
+const TARGETS = '/v1/targets'
+const REQUIREMENTS = '/v1/deployments/targets'
+const MISSING_FIELD = 'Fill in this field'
 
 const json = (payload: unknown, status = 200): Response =>
   new Response(JSON.stringify(payload), {
@@ -11,9 +18,7 @@ const json = (payload: unknown, status = 200): Response =>
     headers: { 'Content-Type': 'application/json' },
   })
 
-const fetchMock = vi.fn()
-
-const devicePayload = {
+const DEVICE_PAYLOAD = {
   devices: [
     {
       id: 'device-1',
@@ -29,13 +34,9 @@ const devicePayload = {
   secret_store_available: true,
 }
 
-const catalogPayload = {
-  lists: [],
-  list_details: [],
-  categories: [],
-}
+const CATALOG_PAYLOAD = { lists: [], list_details: [], categories: [] }
 
-const targetsPayload = {
+const TARGETS_PAYLOAD = {
   targets: [
     {
       id: 'keenetic',
@@ -49,7 +50,7 @@ const targetsPayload = {
   ],
 }
 
-const requirementsPayload = {
+const REQUIREMENTS_PAYLOAD = {
   targets: [
     {
       target_id: 'keenetic',
@@ -66,138 +67,140 @@ const requirementsPayload = {
   ],
 }
 
-const mountDevices = () =>
-  mount(DevicesView, {
-    attachTo: document.body,
-    global: { stubs: { RvIcon: true } },
-  })
+// One fetch double per case, so no case inherits another's answers, and the
+// record of calls is the double's own.
+const installFetch = (
+  answer: (input: string, init?: RequestInit) => Promise<Response>,
+): ReturnType<typeof vi.fn> => {
+  const fetchMock = vi.fn(answer)
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+const callsTo = (
+  fetchMock: ReturnType<typeof vi.fn>,
+  url: string,
+): unknown[][] => fetchMock.mock.calls.filter(([input]) => input === url)
 
 describe('DevicesView prerequisite audit', () => {
   beforeEach(() => {
     useLocale().setLocale('en')
-    fetchMock.mockReset()
-    vi.stubGlobal('fetch', fetchMock)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    document.body.innerHTML = ''
   })
 
   it('keeps the form and devices visible while requirements fail, then retries in place', async () => {
-    let requirementsReads = 0
-    fetchMock.mockImplementation((input: string) => {
-      if (input === '/v1/devices') return Promise.resolve(json(devicePayload))
-      if (input === '/v1/lists') return Promise.resolve(json(catalogPayload))
-      if (input === '/v1/targets') return Promise.resolve(json(targetsPayload))
-      if (input === '/v1/deployments/targets') {
-        requirementsReads += 1
-        return requirementsReads === 1
+    const fetchMock = installFetch((input: string) => {
+      if (input === DEVICES) return Promise.resolve(json(DEVICE_PAYLOAD))
+      if (input === LISTS) return Promise.resolve(json(CATALOG_PAYLOAD))
+      if (input === TARGETS) return Promise.resolve(json(TARGETS_PAYLOAD))
+      if (input === REQUIREMENTS) {
+        return callsTo(fetchMock, REQUIREMENTS).length === 1
           ? Promise.reject(new TypeError('unavailable'))
-          : Promise.resolve(json(requirementsPayload))
+          : Promise.resolve(json(REQUIREMENTS_PAYLOAD))
       }
       return Promise.reject(new Error(`unexpected request ${input}`))
     })
-    const wrapper = mountDevices()
-    await flushPromises()
+    const screen = await render(DevicesView)
 
-    expect(wrapper.text()).toContain('Home router')
-    expect(wrapper.text()).toContain('Connection requirements unavailable')
-    expect(wrapper.find('#device-target').exists()).toBe(true)
-    expect(
-      wrapper
-        .findAll('button')
-        .some((button) => button.text() === 'Turn on automatic delivery'),
-    ).toBe(false)
+    // The registered connection and the form are both still readable: a failed
+    // prerequisite read is not a reason to take the screen away.
+    await expect.element(screen.getByText('Home router')).toBeVisible()
+    await expect
+      .element(screen.getByText('Connection requirements unavailable'))
+      .toBeVisible()
+    await expect
+      .element(screen.getByLabelText('Device or application'))
+      .toBeVisible()
+    // Automatic delivery cannot be offered while its requirements are unknown.
+    await expect
+      .element(
+        screen.getByRole('button', { name: 'Turn on automatic delivery' }),
+      )
+      .not.toBeInTheDocument()
 
-    await wrapper.get('#device-target').trigger('click')
-    await flushPromises()
-    const option = [
-      ...document.body.querySelectorAll<HTMLElement>('[role="option"]'),
-    ].find((candidate) => candidate.textContent?.includes('Keenetic'))
-    expect(option).toBeDefined()
-    option?.click()
-    await flushPromises()
+    await screen.getByLabelText('Device or application').click()
+    await screen.getByRole('option', { name: /^Keenetic/ }).click()
 
-    expect(wrapper.text()).not.toContain('Fill in this field')
+    // Nothing has been touched yet, so nothing is reported as missing.
+    await expect
+      .element(screen.getByText(MISSING_FIELD))
+      .not.toBeInTheDocument()
 
-    await wrapper.get('#device-name').setValue('Draft router')
-    await wrapper.get('#device-address').setValue('http://192.168.1.2')
-    expect(
-      wrapper.get<HTMLButtonElement>('button[type="submit"]').element.disabled,
-    ).toBe(true)
+    await screen.getByLabelText('Connection name').fill('Draft router')
+    await screen.getByLabelText('Device address').fill('http://192.168.1.2')
+    const submit = screen.getByRole('button', { name: 'Save' })
+    await expect.element(submit).toBeDisabled()
 
-    const retry = wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Retry')
-    expect(retry).toBeDefined()
-    await retry?.trigger('click')
-    await flushPromises()
+    await screen.getByRole('button', { name: 'Retry' }).click()
 
-    expect(wrapper.get<HTMLInputElement>('#device-name').element.value).toBe(
-      'Draft router',
-    )
-    expect(wrapper.get<HTMLInputElement>('#device-address').element.value).toBe(
-      'http://192.168.1.2',
-    )
-    expect(wrapper.find('#device-account').exists()).toBe(true)
-    expect(wrapper.find('#device-interface').exists()).toBe(true)
-    await wrapper.get('#device-interface').setValue('Wireguard0')
-    await wrapper.get('#device-account').trigger('blur')
-    expect(
-      wrapper.get<HTMLButtonElement>('button[type="submit"]').element.disabled,
-    ).toBe(true)
-    expect(wrapper.text()).toContain('Fill in this field')
-    await wrapper.get('#device-account').setValue('admin')
-    expect(
-      wrapper.get<HTMLButtonElement>('button[type="submit"]').element.disabled,
-    ).toBe(false)
-    expect(requirementsReads).toBe(2)
-    wrapper.unmount()
+    // The retry lands in place: what was typed is still typed.
+    await expect
+      .element(screen.getByLabelText('Connection name'))
+      .toHaveValue('Draft router')
+    await expect
+      .element(screen.getByLabelText('Device address'))
+      .toHaveValue('http://192.168.1.2')
+    // With the requirements read, the fields they ask for appear.
+    const account = screen.getByLabelText('Router login')
+    const deviceInterface = screen.getByLabelText('Interface for routes')
+    await expect.element(account).toBeVisible()
+    await expect.element(deviceInterface).toBeVisible()
+
+    await deviceInterface.fill('Wireguard0')
+    await account.click()
+    await userEvent.tab()
+    await expect.element(submit).toBeDisabled()
+    await expect.element(screen.getByText(MISSING_FIELD)).toBeVisible()
+
+    await account.fill('admin')
+    await expect.element(submit).toBeEnabled()
+    expect(callsTo(fetchMock, REQUIREMENTS)).toHaveLength(2)
   })
 
   it('keeps a no-deployer target registerable without inventing credential fields', async () => {
-    fetchMock.mockImplementation((input: string, init?: RequestInit) => {
-      if (input === '/v1/devices' && init?.method === 'POST')
+    const fetchMock = installFetch((input: string, init?: RequestInit) => {
+      if (input === DEVICES && init?.method === 'POST')
         return Promise.resolve(json({}))
-      if (input === '/v1/devices')
+      if (input === DEVICES)
         return Promise.resolve(
           json({ devices: [], secret_store_available: true }),
         )
-      if (input === '/v1/lists') return Promise.resolve(json(catalogPayload))
-      if (input === '/v1/targets') return Promise.resolve(json(targetsPayload))
-      if (input === '/v1/deployments/targets')
-        return Promise.resolve(json({ targets: [] }))
+      if (input === LISTS) return Promise.resolve(json(CATALOG_PAYLOAD))
+      if (input === TARGETS) return Promise.resolve(json(TARGETS_PAYLOAD))
+      if (input === REQUIREMENTS) return Promise.resolve(json({ targets: [] }))
       return Promise.reject(new Error(`unexpected request ${input}`))
     })
-    const wrapper = mountDevices()
-    await flushPromises()
+    const screen = await render(DevicesView)
 
-    await wrapper.get('#device-target').trigger('click')
-    await flushPromises()
-    const option = [
-      ...document.body.querySelectorAll<HTMLElement>('[role="option"]'),
-    ].find((candidate) => candidate.textContent?.includes('Keenetic'))
-    expect(option).toBeDefined()
-    option?.click()
-    await flushPromises()
-    await wrapper.get('#device-name').setValue('Manual router')
-    await wrapper.get('#device-address').setValue('file:///router.conf')
+    await screen.getByLabelText('Device or application').click()
+    await screen.getByRole('option', { name: /^Keenetic/ }).click()
+    await screen.getByLabelText('Connection name').fill('Manual router')
+    await screen.getByLabelText('Device address').fill('file:///router.conf')
 
-    expect(wrapper.find('#device-account').exists()).toBe(false)
-    expect(wrapper.find('#device-interface').exists()).toBe(false)
-    expect(
-      wrapper.get<HTMLButtonElement>('button[type="submit"]').element.disabled,
-    ).toBe(false)
-    await wrapper.get('form').trigger('submit')
-    await flushPromises()
-    expect(
-      fetchMock.mock.calls.filter(
-        ([input, request]) =>
-          input === '/v1/devices' &&
-          (request as RequestInit | undefined)?.method === 'POST',
-      ),
-    ).toHaveLength(1)
-    wrapper.unmount()
+    // A target with no deployer asks for nothing beyond a name and an address,
+    // so no credential field is invented for it.
+    await expect
+      .element(screen.getByLabelText('Router login'))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByLabelText('Interface for routes'))
+      .not.toBeInTheDocument()
+
+    const submit = screen.getByRole('button', { name: 'Save' })
+    await expect.element(submit).toBeEnabled()
+    await submit.click()
+
+    await vi.waitFor(() => {
+      expect(
+        fetchMock.mock.calls.filter(
+          ([input, request]) =>
+            input === DEVICES &&
+            (request as RequestInit | undefined)?.method === 'POST',
+        ),
+      ).toHaveLength(1)
+    })
   })
 })

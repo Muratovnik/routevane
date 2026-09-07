@@ -1,47 +1,22 @@
-import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { defineComponent, h, nextTick } from 'vue'
+import { render, type RenderResult } from 'vitest-browser-vue'
+import { nextTick } from 'vue'
 
 import { invalidateCatalogCache } from '@/shared/api/catalog'
 import { useLocale } from '@/shared/i18n/useLocale'
 
 import ListDetailDialog from '@/entities/profile-composition/ui/ListDetailDialog.vue'
 
-const UButtonStub = defineComponent({
-  inheritAttrs: false,
-  props: { disabled: Boolean, href: String, to: String, type: String },
-  setup(props, { attrs, slots }) {
-    return () =>
-      h(
-        props.href !== undefined || props.to !== undefined ? 'a' : 'button',
-        {
-          ...attrs,
-          disabled: props.disabled,
-          href: props.disabled ? undefined : (props.href ?? props.to),
-          type: props.type,
-        },
-        [slots.leading?.(), slots.default?.()],
-      )
-  },
-})
+const CONTENTS = 'List contents'
+const SEARCH_CONTENTS = 'Search the contents'
+const REFRESH = /^Refresh from sources/
+const CONFIGURE = 'Configure sources'
+const DELETE = 'Delete the list'
+const SAVING = 'Saving change…'
+const NOT_APPLIED = 'The change was not applied.'
+const SOURCES_READ = 'Sources read'
 
-const USlideoverStub = defineComponent({
-  props: { open: Boolean, title: String },
-  setup(props, { slots }) {
-    return () =>
-      props.open
-        ? h('div', { role: 'dialog' }, [
-            h('h2', props.title),
-            slots.actions?.(),
-            slots.close?.(),
-            slots.body?.(),
-            slots.footer?.(),
-          ])
-        : null
-  },
-})
-
-const discord = {
+const DISCORD = {
   categories: ['communication'],
   domains: [{ includeSubdomains: true, value: 'discord.com' }],
   id: 'discord',
@@ -126,54 +101,40 @@ const stubAPI = (
   return { calls, keys: () => calls.map((call) => call.key) }
 }
 
-// The card is portalled, so it is read on the document rather than in the
-// wrapper's own subtree.
-const card = (): HTMLElement => {
-  const dialogs = document.body.querySelectorAll<HTMLElement>('[role="dialog"]')
-  const panel = dialogs.item(dialogs.length - 1)
-  expect(panel).not.toBeNull()
-  return panel
-}
-
-const row = (scope: HTMLElement, value: string): HTMLElement => {
-  const found = [
-    ...scope.querySelectorAll<HTMLElement>('.list-card__rows li'),
-  ].find(
-    (item) => item.querySelector('.list-card__value')?.textContent === value,
-  )
-  expect(found, value).toBeDefined()
-  return found as HTMLElement
-}
-
-const switchOf = (scope: HTMLElement, value: string): HTMLInputElement => {
-  const input = row(scope, value).querySelector<HTMLInputElement>(
-    'input[type="checkbox"]',
-  )
-  expect(input).not.toBeNull()
-  return input as HTMLInputElement
-}
-
-const clickByText = (scope: HTMLElement, text: string): void => {
-  const control = [...scope.querySelectorAll('button')].find((button) =>
-    (button.getAttribute('aria-label') ?? button.textContent)?.includes(text),
-  )
-  expect(control, text).toBeDefined()
-  control?.click()
-}
-
 // Which flow opened the card is not optional anywhere, tests included: the two
 // modes are the component's contract rather than a default it can fall back to.
-const mountCard = (
+const renderCard = (
   props: Record<string, unknown> & { mode: 'compose' | 'library' },
 ) =>
-  mount(ListDetailDialog, {
-    attachTo: document.body,
-    props: { list: discord, ...props },
-    global: {
-      components: { UButton: UButtonStub, USlideover: USlideoverStub },
-      stubs: { RvIcon: true },
+  render(ListDetailDialog, {
+    props: {
+      disabled: false,
+      list: DISCORD as typeof DISCORD | null,
+      ...props,
     },
   })
+
+// The contents are one named section of the card, so its rows are reached
+// through that name rather than through the card's markup.
+const contents = (screen: RenderResult<unknown>) =>
+  screen.getByRole('region', { name: CONTENTS })
+
+const entries = (screen: RenderResult<unknown>) =>
+  contents(screen).getByRole('listitem')
+
+const entry = (screen: RenderResult<unknown>, value: string) =>
+  entries(screen).filter({ hasText: value })
+
+// A row's switch is labelled by the row itself: the value first, then where the
+// value came from, so the value anchors the name.
+const named = (value: string): RegExp =>
+  new RegExp(`^${value.replaceAll('.', '\\.')}`)
+
+const entrySwitch = (screen: RenderResult<unknown>, value: string) =>
+  screen.getByRole('checkbox', { name: named(value) })
+
+const isChecked = (box: { element: () => Element }): boolean =>
+  (box.element() as HTMLInputElement).checked
 
 describe('ListDetailDialog', () => {
   beforeEach(() => {
@@ -184,169 +145,160 @@ describe('ListDetailDialog', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
-    document.body.innerHTML = ''
   })
 
   it('reports skipped source entries in both languages and clears them on recovery', async () => {
-    let skipped = 2
-    let failed = false
+    const refresh = { failed: false, skipped: 2 }
     stubAPI({
       'GET /v1/lists/discord/contents': () => contentsResponse(),
       'POST /v1/lists/discord/refresh': () =>
-        failed
+        refresh.failed
           ? json({ error: 'operation failed', code: 'source_unavailable' }, 422)
-          : json({ refresh: { skipped_entries: skipped } }),
+          : json({ refresh: { skipped_entries: refresh.skipped } }),
     })
-    const wrapper = mountCard({ mode: 'library' })
-    await flushPromises()
-    clickByText(card(), 'Refresh from sources')
-    await flushPromises()
-    expect(card().textContent).toContain('2 source entries skipped')
+    const screen = await renderCard({ mode: 'library' })
+
+    await screen.getByRole('button', { name: REFRESH }).click()
+    await expect
+      .element(screen.getByText('2 source entries skipped'))
+      .toBeVisible()
+
     useLocale().setLocale('ru')
-    await flushPromises()
-    expect(card().textContent).toContain('Пропущено записей источников: 2')
+    await expect
+      .element(screen.getByText('Пропущено записей источников: 2'))
+      .toBeVisible()
     useLocale().setLocale('en')
-    await flushPromises()
-    failed = true
-    clickByText(card(), 'Refresh from sources')
-    await flushPromises()
-    expect(card().textContent).toContain('Sources unavailable. Entries kept.')
-    expect(card().querySelectorAll('.list-card__rows li')).toHaveLength(4)
-    expect(card().textContent).not.toContain('source entries skipped')
-    failed = false
-    skipped = 0
-    clickByText(card(), 'Refresh from sources')
-    await flushPromises()
-    expect(card().textContent).not.toContain('source entries skipped')
-    expect(card().textContent).not.toContain('Refresh failed; entries kept')
-    wrapper.unmount()
+
+    refresh.failed = true
+    await screen.getByRole('button', { name: REFRESH }).click()
+    await expect
+      .element(screen.getByText('Sources unavailable. Entries kept.'))
+      .toBeVisible()
+    // A refused read keeps the entries it already had.
+    expect(entries(screen).all()).toHaveLength(4)
+    await expect
+      .element(screen.getByText('source entries skipped', { exact: false }))
+      .not.toBeInTheDocument()
+
+    refresh.failed = false
+    refresh.skipped = 0
+    await screen.getByRole('button', { name: REFRESH }).click()
+    await expect
+      .element(screen.getByText('source entries skipped', { exact: false }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(
+        screen.getByText('Refresh failed; entries kept', { exact: false }),
+      )
+      .not.toBeInTheDocument()
   })
 
   it('recovers an automatic source read in compose without changing membership', async () => {
-    let refreshAttempts = 0
+    const attempts: string[] = []
     const { keys } = stubAPI({
       'GET /v1/lists/discord/contents': () =>
-        contentsResponse(refreshAttempts > 1),
+        contentsResponse(attempts.length > 1),
       'POST /v1/lists/discord/refresh': () => {
-        refreshAttempts += 1
-        return refreshAttempts === 1
+        attempts.push('refresh')
+        return attempts.length === 1
           ? json({ error: 'source unavailable' }, 503)
           : json({ refresh: { skipped_entries: 0 } })
       },
     })
-    const wrapper = mountCard({
+    const screen = await renderCard({
       included: false,
       mode: 'compose',
       pending: true,
     })
-    await flushPromises()
 
-    const panel = card()
     // The initial contents remain in place when the automatic read fails, and
     // the same card now offers an in-context retry even though compose has no
     // source-editing controls.
-    expect(panel.querySelectorAll('.list-card__rows li')).toHaveLength(4)
-    expect(panel.querySelector('input[type="search"]')).not.toBeNull()
-    expect(panel.querySelector('.list-card__membership')).not.toBeNull()
-    expect(panel.textContent).toContain('Unknown refresh error. Entries kept.')
-    expect(
-      [...panel.querySelectorAll('button')].find((button) =>
-        button.textContent?.includes('Retry'),
-      ),
-    ).not.toBeUndefined()
-    expect(wrapper.emitted('include')).toBeUndefined()
+    await expect
+      .element(screen.getByText('Unknown refresh error. Entries kept.'))
+      .toBeVisible()
+    expect(entries(screen).all()).toHaveLength(4)
+    await expect.element(screen.getByLabelText(SEARCH_CONTENTS)).toBeVisible()
+    await expect.element(screen.getByText('Not in this profile')).toBeVisible()
+    expect(screen.emitted('include')).toBeUndefined()
 
-    clickByText(panel, 'Retry')
-    await flushPromises()
+    await screen.getByRole('button', { name: 'Retry' }).click()
 
-    expect(refreshAttempts).toBe(2)
+    await expect.element(screen.getByRole('alert')).not.toBeInTheDocument()
+    expect(attempts).toHaveLength(2)
     expect(keys()).toEqual([
       'GET /v1/lists/discord/contents',
       'POST /v1/lists/discord/refresh',
       'POST /v1/lists/discord/refresh',
       'GET /v1/lists/discord/contents',
     ])
-    expect(panel.querySelector('[role="alert"]')).toBeNull()
-    expect(panel.querySelectorAll('.list-card__rows li')).toHaveLength(4)
-    expect(wrapper.emitted('include')).toBeUndefined()
-    wrapper.unmount()
+    expect(entries(screen).all()).toHaveLength(4)
+    expect(screen.emitted('include')).toBeUndefined()
   })
 
   it('keeps manual refresh pending and does not claim a read for source-less lists', async () => {
-    let releaseRefresh!: () => void
-    const pendingRefresh = new Promise<Response>((resolve) => {
-      releaseRefresh = () => resolve(json({ refresh: { skipped_entries: 0 } }))
-    })
+    const held = Promise.withResolvers<Response>()
     const { keys } = stubAPI({
       'GET /v1/lists/discord/contents': () => contentsResponse(true),
-      'POST /v1/lists/discord/refresh': () => pendingRefresh,
+      'POST /v1/lists/discord/refresh': () => held.promise,
     })
-    const wrapper = mountCard({ mode: 'library' })
-    await flushPromises()
-    const panel = card()
-    clickByText(panel, 'Refresh from sources')
-    await flushPromises()
-    expect(panel.textContent).toContain('Refreshing…')
-    expect(
-      panel.querySelector('[role="img"][aria-label="Sources read"]'),
-    ).toBeNull()
-    const remove = [
-      ...panel.querySelectorAll<HTMLButtonElement>('button'),
-    ].find((button) => button.textContent?.includes('Delete the list'))
-    expect(remove?.disabled).toBe(true)
-    remove?.click()
-    expect(wrapper.emitted('remove')).toBeUndefined()
-    releaseRefresh()
-    await flushPromises()
-    expect(
-      panel.querySelector('[role="img"][aria-label="Sources read"]'),
-    ).not.toBeNull()
+    const screen = await renderCard({ mode: 'library' })
+
+    await screen.getByRole('button', { name: REFRESH }).click()
+    await expect.element(screen.getByText('Refreshing…')).toBeVisible()
+    // Nothing claims the sources were read while the read is still in flight.
+    await expect
+      .element(screen.getByRole('img', { name: SOURCES_READ }))
+      .not.toBeInTheDocument()
+
+    // Deleting waits for the work in flight rather than racing it.
+    const remove = screen.getByRole('button', { name: DELETE })
+    await expect.element(remove).toBeDisabled()
+    expect(screen.emitted('remove')).toBeUndefined()
+
+    held.resolve(json({ refresh: { skipped_entries: 0 } }))
+    await expect
+      .element(screen.getByRole('img', { name: SOURCES_READ }))
+      .toBeVisible()
     expect(keys()).toEqual([
       'GET /v1/lists/discord/contents',
       'POST /v1/lists/discord/refresh',
       'GET /v1/lists/discord/contents',
     ])
-    wrapper.unmount()
+  })
 
-    const noSources = {
-      ...discord,
-      sourceCount: 0,
-      sources: [],
-    }
+  it('claims no source read for a list that has no sources', async () => {
     stubAPI({
       'GET /v1/lists/discord/contents': () => contentsResponse(true, []),
     })
-    const noSourceWrapper = mountCard({ mode: 'compose', list: noSources })
-    await flushPromises()
-    expect(card().textContent).toContain('No automatic sources')
-    expect(
-      card().querySelector('[role="img"][aria-label="Sources read"]'),
-    ).toBeNull()
-    noSourceWrapper.unmount()
+    const screen = await renderCard({
+      list: { ...DISCORD, sourceCount: 0, sources: [] },
+      mode: 'compose',
+    })
+
+    await expect
+      .element(screen.getByText('No automatic sources', { exact: false }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('img', { name: SOURCES_READ }))
+      .not.toBeInTheDocument()
   })
 
   it('ignores a late contents response after the card closes', async () => {
-    let resolveContents!: (response: Response) => void
-    const pendingContents = new Promise<Response>((resolve) => {
-      resolveContents = resolve
-    })
+    const held = Promise.withResolvers<Response>()
     const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
       const key = `${init?.method ?? 'GET'} ${String(input)}`
-      if (key === 'GET /v1/lists/discord/contents') return pendingContents
+      if (key === 'GET /v1/lists/discord/contents') return held.promise
       return Promise.resolve(json({ error: 'unrouted' }, 500))
     })
     vi.stubGlobal('fetch', fetchMock)
 
-    const wrapper = mountCard({ included: false, mode: 'compose' })
-    await flushPromises()
-    await wrapper.setProps({ list: null })
-    await flushPromises()
-    resolveContents(contentsResponse())
-    await flushPromises()
+    const screen = await renderCard({ included: false, mode: 'compose' })
+    await screen.rerender({ list: null })
+    held.resolve(contentsResponse())
 
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    wrapper.unmount()
   })
 
   /**
@@ -359,31 +311,30 @@ describe('ListDetailDialog', () => {
     const { keys } = stubAPI({
       'GET /v1/lists/discord/contents': () => contentsResponse(),
     })
-    const wrapper = mountCard({ included: false, mode: 'compose' })
-    await flushPromises()
+    const screen = await renderCard({ included: false, mode: 'compose' })
 
-    const panel = card()
     // Every entry the list holds is drawn, whatever offered it and whether the
     // library still stands behind it.
-    expect(panel.querySelectorAll('.list-card__rows li')).toHaveLength(4)
-    expect(row(panel, '198.51.100.7').textContent).toContain('iplist')
-    const disabled = row(panel, 'old.discord.media')
-    expect(disabled.classList).toContain('list-card__row--disabled')
-    expect(disabled.textContent).toContain('Disabled in library')
+    await expect.element(entries(screen).first()).toBeVisible()
+    expect(entries(screen).all()).toHaveLength(4)
+    await expect
+      .element(entry(screen, '198.51.100.7'))
+      .toMatchTextContent('iplist')
+    const disabled = entry(screen, 'old.discord.media')
+    await expect.element(disabled).toHaveClass('list-card__row--disabled')
+    await expect.element(disabled).toMatchTextContent('Disabled in library')
     // Not one of them carries a control.
-    expect(
-      panel.querySelectorAll('.list-card__rows input[type="checkbox"]'),
-    ).toHaveLength(0)
+    expect(contents(screen).getByRole('checkbox').all()).toEqual([])
     // The count states what the list offers, never a selection this card made.
-    expect(panel.textContent).toContain('3 entries on')
+    await expect
+      .element(screen.getByText('3 entries on', { exact: false }))
+      .toBeVisible()
 
-    clickByText(panel, 'Add to profile')
-    await flushPromises()
+    await screen.getByRole('button', { name: 'Add to profile' }).click()
 
-    expect(wrapper.emitted('include')?.at(-1)).toEqual([true])
+    expect(screen.emitted('include')?.at(-1)).toEqual([true])
     // Reading the contents stays the only request a composing card makes.
     expect(keys()).toEqual(['GET /v1/lists/discord/contents'])
-    wrapper.unmount()
   })
 
   /**
@@ -393,30 +344,30 @@ describe('ListDetailDialog', () => {
    */
   it('offers no way to edit the list while composing', async () => {
     stubAPI({ 'GET /v1/lists/discord/contents': () => contentsResponse() })
-    const wrapper = mountCard({ included: false, mode: 'compose' })
-    await flushPromises()
+    const screen = await renderCard({ included: false, mode: 'compose' })
 
-    const panel = card()
-    for (const absent of ['Add entries', 'Rename', 'Delete the list']) {
-      expect(panel.textContent, absent).not.toContain(absent)
-    }
+    await expect.element(screen.getByRole('dialog')).toBeVisible()
+    for (const absent of ['Add entries', 'Rename', DELETE])
+      await expect
+        .element(screen.getByText(absent, { exact: false }))
+        .not.toBeInTheDocument()
     // The fact is stated; nothing in the heading offers to change it.
-    expect(panel.textContent).toContain('Sources · 2')
-    expect(
-      [...panel.querySelectorAll('button')].some(
-        (button) => button.getAttribute('aria-label') === 'Configure sources',
-      ),
-    ).toBe(false)
+    await expect
+      .element(screen.getByText('Sources · 2', { exact: false }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('button', { name: CONFIGURE }))
+      .not.toBeInTheDocument()
 
     // The way to the other flow is a link, in a tab of its own, so the unsaved
     // draft behind this card survives it.
-    const link = panel.querySelector<HTMLAnchorElement>('a[target="_blank"]')
-    expect(link?.getAttribute('href')).toBe(
-      '/lists#category=communication&list=discord',
-    )
-    expect(link?.getAttribute('rel')).toBe('noopener')
-    expect(panel.querySelector('.list-card__membership')).not.toBeNull()
-    wrapper.unmount()
+    const link = screen.getByRole('link', { name: 'Open in the library' })
+    await expect
+      .element(link)
+      .toHaveAttribute('href', '/lists#category=communication&list=discord')
+    await expect.element(link).toHaveAttribute('rel', 'noopener')
+    await expect.element(link).toHaveAttribute('target', '_blank')
+    await expect.element(screen.getByText('Not in this profile')).toBeVisible()
   })
 
   /**
@@ -429,39 +380,36 @@ describe('ListDetailDialog', () => {
       'GET /v1/lists/discord/contents': () => contentsResponse(),
       'POST /v1/lists/discord/domains': () => contentsResponse(),
     })
-    const wrapper = mountCard({ mode: 'library' })
-    await flushPromises()
+    const screen = await renderCard({ mode: 'library' })
 
-    const panel = card()
-    expect(panel.querySelector('.list-card__membership')).toBeNull()
-    expect(panel.textContent).not.toContain('Add to profile')
+    await expect.element(entries(screen).first()).toBeVisible()
+    await expect
+      .element(screen.getByText('this profile', { exact: false }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByText('Add to profile'))
+      .not.toBeInTheDocument()
     // Reading the sources is the frequent act, so it sits on the card itself.
-    expect(
-      panel.querySelector('button[aria-label^="Refresh from sources:"]'),
-    ).not.toBeNull()
-    expect(panel.textContent).toContain('Add entries')
+    await expect
+      .element(screen.getByRole('button', { name: REFRESH }))
+      .toBeVisible()
+    await expect.element(screen.getByText('Add entries')).toBeVisible()
 
-    vi.useFakeTimers()
-    switchOf(panel, 'discord.gg').click()
-    await vi.advanceTimersByTimeAsync(250)
-    await flushPromises()
-    expect(keys()).toEqual([
-      'GET /v1/lists/discord/contents',
-      'POST /v1/lists/discord/domains',
-    ])
+    await entrySwitch(screen, 'discord.gg').click()
+
+    await vi.waitFor(() => {
+      expect(keys()).toEqual([
+        'GET /v1/lists/discord/contents',
+        'POST /v1/lists/discord/domains',
+      ])
+    })
     expect(calls[1]?.body).toBe(
       JSON.stringify({ values: ['discord.gg'], verdict: 'exclude' }),
     )
-    wrapper.unmount()
-    vi.useRealTimers()
   })
 
   it('keeps entry switches optimistic and independent while writes settle', async () => {
-    let releaseFirst!: () => void
-    const firstResponse = new Promise<Response>((resolve) => {
-      releaseFirst = () =>
-        resolve(contentsResponse(true, undefined, { 'discord.gg': false }))
-    })
+    const held = Promise.withResolvers<Response>()
     const api = stubAPI({
       'GET /v1/lists/discord/contents': () => contentsResponse(),
       'POST /v1/lists/discord/domains': () => {
@@ -469,7 +417,7 @@ describe('ListDetailDialog', () => {
           values: string[]
         }
         return body.values[0] === 'discord.gg'
-          ? firstResponse
+          ? held.promise
           : Promise.resolve(
               contentsResponse(true, undefined, {
                 [body.values[0] ?? '']: false,
@@ -478,46 +426,39 @@ describe('ListDetailDialog', () => {
       },
     })
 
-    const wrapper = mountCard({ mode: 'library' })
-    await flushPromises()
-    const panel = card()
-    vi.useFakeTimers()
-    switchOf(panel, 'discord.gg').click()
-    switchOf(panel, 'discord.com').click()
-    await nextTick()
-    expect(panel.textContent).toContain('Saving change…')
-    await vi.advanceTimersByTimeAsync(250)
-    await flushPromises()
+    const screen = await renderCard({ mode: 'library' })
+    await expect.element(entries(screen).first()).toBeVisible()
 
-    expect(switchOf(panel, 'discord.gg').checked).toBe(false)
-    expect(switchOf(panel, 'discord.com').checked).toBe(false)
-    expect(api.keys()).toEqual([
-      'GET /v1/lists/discord/contents',
-      'POST /v1/lists/discord/domains',
-      'POST /v1/lists/discord/domains',
-    ])
+    await entrySwitch(screen, 'discord.gg').click()
+    await entrySwitch(screen, 'discord.com').click()
+    await nextTick()
+    await expect.element(screen.getByText(SAVING).first()).toBeVisible()
+
+    await vi.waitFor(() => {
+      expect(api.keys()).toEqual([
+        'GET /v1/lists/discord/contents',
+        'POST /v1/lists/discord/domains',
+        'POST /v1/lists/discord/domains',
+      ])
+    })
+    expect(isChecked(entrySwitch(screen, 'discord.gg'))).toBe(false)
+    expect(isChecked(entrySwitch(screen, 'discord.com'))).toBe(false)
 
     // The second row's write can complete without waiting for the first one.
-    expect(switchOf(panel, 'discord.com').disabled).toBe(false)
-    const refresh = [...panel.querySelectorAll('button')].find((button) =>
-      button.getAttribute('aria-label')?.startsWith('Refresh from sources:'),
-    ) as HTMLButtonElement | undefined
-    expect(refresh?.disabled).toBe(true)
-    const remove = [...panel.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('Delete the list'),
-    ) as HTMLButtonElement | undefined
-    expect(remove?.disabled).toBe(true)
-    releaseFirst()
-    await flushPromises()
-    wrapper.unmount()
+    await expect.element(entrySwitch(screen, 'discord.com')).toBeEnabled()
+    // Work that reaches the whole list waits for the rows to settle.
+    await expect
+      .element(screen.getByRole('button', { name: REFRESH }))
+      .toBeDisabled()
+    await expect
+      .element(screen.getByRole('button', { name: DELETE }))
+      .toBeDisabled()
+
+    held.resolve(contentsResponse(true, undefined, { 'discord.gg': false }))
   })
 
   it('settles an authoritative entry response without reverting another queued intent', async () => {
-    let releaseManual!: () => void
-    const manualResponse = new Promise<Response>((resolve) => {
-      releaseManual = () =>
-        resolve(contentsResponse(true, undefined, { 'discord.com': true }))
-    })
+    const manual = Promise.withResolvers<Response>()
     const api = stubAPI({
       'GET /v1/lists/discord/contents': () =>
         contentsResponse(true, undefined, {}, true),
@@ -527,132 +468,115 @@ describe('ListDetailDialog', () => {
         }
         const value = body.values?.[0]
         return value === 'manual.discord.test'
-          ? manualResponse
+          ? manual.promise
           : Promise.resolve(
-              contentsResponse(true, undefined, {
-                [value ?? '']: false,
-              }),
+              contentsResponse(true, undefined, { [value ?? '']: false }),
             )
       },
     })
 
-    const wrapper = mountCard({ mode: 'library' })
-    await flushPromises()
-    const panel = card()
-    vi.useFakeTimers()
+    const screen = await renderCard({ mode: 'library' })
+    await expect.element(entries(screen).first()).toBeVisible()
 
-    switchOf(panel, 'manual.discord.test').click()
-    await vi.advanceTimersByTimeAsync(250)
-    expect(api.keys()).toEqual([
-      'GET /v1/lists/discord/contents',
-      'POST /v1/lists/discord/domains',
-    ])
+    await entrySwitch(screen, 'manual.discord.test').click()
+    await vi.waitFor(() => {
+      expect(api.keys()).toEqual([
+        'GET /v1/lists/discord/contents',
+        'POST /v1/lists/discord/domains',
+      ])
+    })
 
     // A newer intent for a different row is queued while the manual-row write
     // is in flight. Its optimistic value must survive the older response.
-    switchOf(panel, 'discord.com').click()
-    expect(switchOf(panel, 'discord.com').checked).toBe(false)
-    releaseManual()
-    await flushPromises()
+    await entrySwitch(screen, 'discord.com').click()
+    expect(isChecked(entrySwitch(screen, 'discord.com'))).toBe(false)
 
-    const manual = [
-      ...panel.querySelectorAll<HTMLElement>('.list-card__rows li'),
-    ].find(
-      (item) =>
-        item.querySelector('.list-card__value')?.textContent ===
-        'manual.discord.test',
-    )
-    expect(manual).toBeUndefined()
-    expect(switchOf(panel, 'discord.com').checked).toBe(false)
-    expect(panel.textContent).toContain('Saving change…')
+    manual.resolve(contentsResponse(true, undefined, { 'discord.com': true }))
 
-    await vi.advanceTimersByTimeAsync(250)
-    await flushPromises()
-    expect(api.keys()).toEqual([
-      'GET /v1/lists/discord/contents',
-      'POST /v1/lists/discord/domains',
-      'POST /v1/lists/discord/domains',
-    ])
-    expect(switchOf(panel, 'discord.com').checked).toBe(false)
-    wrapper.unmount()
+    // The authoritative answer drops the manual row and leaves the queued
+    // intent for the other row exactly as the operator left it.
+    await expect
+      .element(entry(screen, 'manual.discord.test'))
+      .not.toBeInTheDocument()
+    expect(isChecked(entrySwitch(screen, 'discord.com'))).toBe(false)
+    await expect.element(screen.getByText(SAVING).first()).toBeVisible()
+
+    await vi.waitFor(() => {
+      expect(api.keys()).toEqual([
+        'GET /v1/lists/discord/contents',
+        'POST /v1/lists/discord/domains',
+        'POST /v1/lists/discord/domains',
+      ])
+    })
+    expect(isChecked(entrySwitch(screen, 'discord.com'))).toBe(false)
   })
 
   it('rolls back one failed entry and exposes a row-level retry', async () => {
-    let attempts = 0
+    const attempts: string[] = []
     const { keys } = stubAPI({
       'GET /v1/lists/discord/contents': () => contentsResponse(),
       'POST /v1/lists/discord/domains': () => {
-        attempts += 1
-        return attempts === 1
+        attempts.push('write')
+        return attempts.length === 1
           ? Promise.resolve(json({ error: 'offline' }, 503))
           : Promise.resolve(
               contentsResponse(true, undefined, { 'discord.gg': false }),
             )
       },
     })
-    const wrapper = mountCard({ mode: 'library' })
-    await flushPromises()
-    const panel = card()
-    vi.useFakeTimers()
-    switchOf(panel, 'discord.gg').click()
-    await vi.advanceTimersByTimeAsync(250)
-    await flushPromises()
+    const screen = await renderCard({ mode: 'library' })
+    await expect.element(entries(screen).first()).toBeVisible()
 
-    const failed = row(panel, 'discord.gg')
-    expect(switchOf(panel, 'discord.gg').checked).toBe(true)
-    expect(failed.textContent).toContain('The change was not applied.')
-    const retry = [...failed.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('Retry'),
-    )
-    expect(retry).toBeDefined()
+    await entrySwitch(screen, 'discord.gg').click()
 
-    retry?.click()
-    await vi.advanceTimersByTimeAsync(250)
-    await flushPromises()
-    expect(keys()).toEqual([
-      'GET /v1/lists/discord/contents',
-      'POST /v1/lists/discord/domains',
-      'POST /v1/lists/discord/domains',
-    ])
-    expect(row(panel, 'discord.gg').textContent).not.toContain(
-      'The change was not applied.',
-    )
-    expect(switchOf(panel, 'discord.gg').checked).toBe(false)
-    wrapper.unmount()
+    const failed = entry(screen, 'discord.gg')
+    await expect.element(failed).toMatchTextContent(NOT_APPLIED)
+    expect(isChecked(entrySwitch(screen, 'discord.gg'))).toBe(true)
+
+    await screen
+      .getByRole('button', { name: 'Retry the change for discord.gg' })
+      .click()
+
+    await vi.waitFor(() => {
+      expect(keys()).toEqual([
+        'GET /v1/lists/discord/contents',
+        'POST /v1/lists/discord/domains',
+        'POST /v1/lists/discord/domains',
+      ])
+    })
+    await expect
+      .element(entry(screen, 'discord.gg'))
+      .not.toMatchTextContent(NOT_APPLIED)
+    expect(isChecked(entrySwitch(screen, 'discord.gg'))).toBe(false)
   })
 
   it('uses the same independent optimistic state for source switches', async () => {
-    let release!: () => void
-    const pending = new Promise<Response>((resolve) => {
-      release = () => resolve(contentsResponse())
-    })
+    const held = Promise.withResolvers<Response>()
     stubAPI({
       'GET /v1/lists/discord/contents': () => contentsResponse(),
-      'POST /v1/lists/discord/sources/itdoginfo/update': () => pending,
+      'POST /v1/lists/discord/sources/itdoginfo/update': () => held.promise,
       'POST /v1/lists/discord/sources/v2fly/update': () =>
         Promise.resolve(contentsResponse()),
     })
-    const wrapper = mountCard({ mode: 'library' })
-    await flushPromises()
-    clickByText(card(), 'Configure sources')
-    await flushPromises()
-    const panel = card()
-    vi.useFakeTimers()
-    const inputs = panel.querySelectorAll<HTMLInputElement>(
-      '.list-card__switch input',
-    )
-    expect(inputs).toHaveLength(2)
-    inputs[0]?.click()
-    await vi.advanceTimersByTimeAsync(250)
-    await flushPromises()
-    expect(inputs[0]?.checked).toBe(false)
-    expect(panel.textContent).toContain('Saving change…')
-    expect(inputs[0]?.disabled).toBe(false)
-    expect(inputs[1]?.disabled).toBe(false)
-    release()
-    await flushPromises()
-    expect(panel.textContent).not.toContain('Saving change…')
-    wrapper.unmount()
+    const screen = await renderCard({ mode: 'library' })
+
+    await screen.getByRole('button', { name: CONFIGURE }).click()
+    await expect
+      .element(screen.getByRole('dialog', { name: 'Automatic sources' }))
+      .toBeVisible()
+
+    // The panel is modal, so the only switches a reader can reach are its own.
+    const switches = screen.getByRole('checkbox')
+    expect(switches.all()).toHaveLength(2)
+
+    await switches.first().click()
+    expect(isChecked(switches.first())).toBe(false)
+    await expect.element(screen.getByText(SAVING).first()).toBeVisible()
+    await expect.element(switches.first()).toBeEnabled()
+    await expect.element(switches.last()).toBeEnabled()
+
+    held.resolve(contentsResponse())
+    await expect.element(screen.getByText(SAVING)).not.toBeInTheDocument()
   })
 
   // Deleting is confirmed by the flow that owns the library, so the card states
@@ -661,43 +585,38 @@ describe('ListDetailDialog', () => {
     const { keys } = stubAPI({
       'GET /v1/lists/discord/contents': () => contentsResponse(),
     })
-    const wrapper = mountCard({ mode: 'library' })
-    await flushPromises()
+    const screen = await renderCard({ mode: 'library' })
+    await expect.element(entries(screen).first()).toBeVisible()
 
-    await wrapper.setProps({ disabled: true })
-    const remove = [
-      ...card().querySelectorAll<HTMLButtonElement>('button'),
-    ].find((button) => button.textContent?.includes('Delete the list'))
-    expect(remove?.disabled).toBe(true)
-    remove?.click()
-    expect(wrapper.emitted('remove')).toBeUndefined()
+    await screen.rerender({ disabled: true })
+    await expect
+      .element(screen.getByRole('button', { name: DELETE }))
+      .toBeDisabled()
+    expect(screen.emitted('remove')).toBeUndefined()
 
-    await wrapper.setProps({ disabled: false })
-    clickByText(card(), 'Delete the list')
-    await flushPromises()
+    await screen.rerender({ disabled: false })
+    await screen.getByRole('button', { name: DELETE }).click()
 
     expect(keys()).toEqual(['GET /v1/lists/discord/contents'])
-    expect(wrapper.emitted('remove')?.at(-1)?.[0]).toMatchObject({
+    expect(screen.emitted('remove')?.at(-1)?.[0]).toMatchObject({
       id: 'discord',
     })
-    wrapper.unmount()
   })
 
   // The feeds themselves are still a rare edit behind their own panel.
   it('keeps the feeds behind their own dialog in the library', async () => {
     stubAPI({ 'GET /v1/lists/discord/contents': () => contentsResponse() })
-    const wrapper = mountCard({ mode: 'library' })
-    await flushPromises()
+    const screen = await renderCard({ mode: 'library' })
 
-    const opened = card()
-    clickByText(opened, 'Configure sources')
-    await flushPromises()
-    const panel = card()
+    await expect
+      .element(screen.getByRole('dialog', { name: 'Discord' }))
+      .toBeVisible()
+    await screen.getByRole('button', { name: CONFIGURE }).click()
 
-    expect(panel).not.toBe(opened)
-    expect(panel.textContent).toContain('Automatic sources')
-    expect(panel.textContent).toContain('itdoginfo')
-    expect(panel.querySelectorAll('.list-card__switch input')).toHaveLength(2)
-    wrapper.unmount()
+    // Its own dialog, named for its own subject rather than for the list.
+    const panel = screen.getByRole('dialog', { name: 'Automatic sources' })
+    await expect.element(panel).toBeVisible()
+    await expect.element(panel).toMatchTextContent('itdoginfo')
+    expect(screen.getByRole('checkbox').all()).toHaveLength(2)
   })
 })

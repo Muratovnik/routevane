@@ -77,7 +77,13 @@ const sections = computed<
       <a class="shell__skip" href="#content">{{ t('shell.skip') }}</a>
       <header class="shell__side">
         <p class="shell__product">
-          <span aria-hidden="true" class="shell__product-mark" />
+          <!-- Decoration beside the product name, so it is hidden from the
+               accessibility tree and carries a test hook instead of a role. -->
+          <span
+            aria-hidden="true"
+            class="shell__product-mark"
+            data-testid="rv-shell-product-mark"
+          />
           <span class="shell__product-name">{{ t('shell.product') }}</span>
         </p>
         <nav :aria-label="t('shell.nav')" class="shell__nav">

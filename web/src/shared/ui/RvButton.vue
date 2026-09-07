@@ -45,10 +45,13 @@ const unavailable = computed(
     :aria-label="loading === true ? loadingLabel : undefined"
   >
     <template #leading>
+      <!-- Decoration beside the accessible name, so it is aria-hidden and
+           carries a test hook rather than a role a reader would hear. -->
       <span
         v-if="loading === true"
         aria-hidden="true"
         class="rv-button__spinner"
+        data-testid="rv-button-spinner"
       />
     </template>
     <slot />

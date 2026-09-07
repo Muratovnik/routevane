@@ -1,10 +1,12 @@
-import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { userEvent } from 'vitest/browser'
+import { render } from 'vitest-browser-vue'
+import { defineComponent, h } from 'vue'
 
 import type { ChoiceGroup } from '@/shared/ui/kinds'
 import RvCombobox from '@/shared/ui/RvCombobox.vue'
 
-const groups: ChoiceGroup[] = [
+const GROUPS: ChoiceGroup[] = [
   {
     key: 'router',
     label: 'Routers',
@@ -37,151 +39,135 @@ const groups: ChoiceGroup[] = [
   },
 ]
 
-const list = (): HTMLElement | null =>
-  document.body.querySelector<HTMLElement>('[role="listbox"]')
+const PROPS = {
+  emptyLabel: 'Nothing found.',
+  groups: GROUPS,
+  inputId: 'target',
+  modelValue: '',
+  placeholder: 'Choose a device or application',
+  toggleLabel: 'Show the list',
+}
 
-const visibleOptions = (): string[] =>
-  [...(list()?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])].map(
-    (option) => option.textContent?.trim() ?? '',
-  )
-const groupLabels = (): string[] =>
-  [...document.querySelectorAll('.rv-search-select__group-label')].map(
-    (label) => label.textContent?.trim() ?? '',
-  )
-const search = () =>
-  new DOMWrapper(
-    document.querySelector<HTMLInputElement>(
-      '.rv-search-select__search input',
-    )!,
-  )
-const mountCombobox = (props: Record<string, unknown> = {}) =>
-  mount(RvCombobox, {
-    attachTo: document.body,
-    props: {
-      emptyLabel: 'Nothing found.',
-      groups,
-      inputId: 'target',
-      modelValue: '',
-      placeholder: 'Choose a device or application',
-      toggleLabel: 'Show the list',
-      ...props,
-    },
-    global: { stubs: { RvIcon: true } },
-  })
+const renderCombobox = (props: Record<string, unknown> = {}) =>
+  render(RvCombobox, { props: { ...PROPS, ...props } })
 
 describe('RvCombobox', () => {
-  let open: { unmount: () => void } | null = null
-
-  afterEach(() => {
-    open?.unmount()
-    open = null
-    document.body.innerHTML = ''
-  })
-
   it('opens the whole list under its group names', async () => {
-    const wrapper = mountCombobox()
-    open = wrapper
+    const screen = await renderCombobox()
 
-    await wrapper.get('.rv-search-select__trigger').trigger('click')
-    await flushPromises()
+    await screen
+      .getByRole('button', { name: 'Choose a device or application' })
+      .click()
 
-    expect(groupLabels()).toEqual(['Routers', 'Applications'])
-    expect(visibleOptions()).toHaveLength(3)
+    await expect.element(screen.getByText('Routers')).toBeVisible()
+    await expect.element(screen.getByText('Applications')).toBeVisible()
+    expect(screen.getByRole('option').all()).toHaveLength(3)
     // A choice states its format and, when it has one, the limit that stops it
     // being used — in words, not in colour alone.
-    expect(list()?.textContent).toContain('.bat')
-    expect(list()?.textContent).toContain('Cannot hold this list')
+    await expect.element(screen.getByText('.bat')).toBeVisible()
+    await expect
+      .element(screen.getByText('Cannot hold this list'))
+      .toBeVisible()
   })
 
   // Typing narrows the list in place, and a run that keeps nothing stops being
   // drawn rather than standing empty under its own heading.
   it('filters by name and by format, dropping the runs that keep nothing', async () => {
-    const wrapper = mountCombobox()
-    open = wrapper
+    const screen = await renderCombobox()
 
-    await wrapper.get('.rv-search-select__trigger').trigger('click')
-    await flushPromises()
+    await screen
+      .getByRole('button', { name: 'Choose a device or application' })
+      .click()
+    const search = screen.getByLabelText('Search')
 
-    await search().setValue('sing')
-    await flushPromises()
-    expect(visibleOptions()).toHaveLength(1)
-    expect(groupLabels()).toEqual(['Applications'])
+    await search.fill('sing')
+    expect(screen.getByRole('option').all()).toHaveLength(1)
+    await expect.element(screen.getByText('Applications')).toBeVisible()
+    await expect.element(screen.getByText('Routers')).not.toBeInTheDocument()
 
-    await search().setValue('.bat')
-    await flushPromises()
-    expect(groupLabels()).toEqual(['Routers'])
+    await search.fill('.bat')
+    await expect.element(screen.getByText('Routers')).toBeVisible()
+    await expect
+      .element(screen.getByText('Applications'))
+      .not.toBeInTheDocument()
 
-    await search().setValue('nothing-here')
-    await flushPromises()
-    expect(visibleOptions()).toHaveLength(0)
-    expect(document.querySelector('[role="status"]')?.textContent).toContain(
-      'Nothing found.',
-    )
+    await search.fill('nothing-here')
+    expect(screen.getByRole('option').all()).toHaveLength(0)
+    await expect
+      .element(screen.getByRole('status'))
+      .toHaveTextContent('Nothing found.')
   })
 
   it('chooses with the keyboard and reads the choice back in the field', async () => {
-    const wrapper = mountCombobox()
-    open = wrapper
+    const screen = await renderCombobox()
 
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
-    await search().setValue('sing')
-    await flushPromises()
+    const trigger = screen.getByRole('button', {
+      name: 'Choose a device or application',
+    })
+    await trigger.click()
+    await screen.getByLabelText('Search').fill('sing')
 
-    await search().trigger('keydown', { key: 'ArrowDown' })
-    await flushPromises()
-    await search().trigger('keydown', { key: 'Enter' })
-    await flushPromises()
+    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.keyboard('{Enter}')
 
-    expect(wrapper.emitted('update:modelValue')).toEqual([['singbox']])
-    await wrapper.setProps({ modelValue: 'singbox' })
-    await flushPromises()
-    expect(wrapper.get('button').text()).toBe('sing-box')
+    expect(screen.emitted('update:modelValue')).toEqual([['singbox']])
+    await screen.rerender({ modelValue: 'singbox' })
+    await expect
+      .element(screen.getByRole('button', { name: 'sing-box' }))
+      .toBeVisible()
   })
 
   it('clears a closed search and offers all options when reopened', async () => {
-    const wrapper = mountCombobox()
-    open = wrapper
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
-    await search().setValue('sing')
-    await flushPromises()
-    expect(visibleOptions()).toHaveLength(1)
-    await search().trigger('keydown', { key: 'Escape' })
-    await flushPromises()
-    expect(wrapper.get('button').attributes('aria-expanded')).toBe('false')
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
-    expect(search().element.value).toBe('')
-    expect(visibleOptions()).toHaveLength(3)
+    const screen = await renderCombobox()
+
+    const trigger = screen.getByRole('button', {
+      name: 'Choose a device or application',
+    })
+    await trigger.click()
+    await screen.getByLabelText('Search').fill('sing')
+    expect(screen.getByRole('option').all()).toHaveLength(1)
+
+    await userEvent.keyboard('{Escape}')
+    await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
+
+    await trigger.click()
+    await expect.element(screen.getByLabelText('Search')).toHaveValue('')
+    expect(screen.getByRole('option').all()).toHaveLength(3)
   })
 
+  // The field's own label has to reach the control it names, which is what the
+  // caller's `inputId` is for.
   it('preserves the field label and refuses disabled choices', async () => {
-    const wrapper = mountCombobox({
-      groups: undefined,
-      options: [{ value: 'blocked', label: 'Blocked', disabled: true }],
+    const LabelHost = defineComponent({
+      setup() {
+        return () =>
+          h('div', [
+            h('label', { for: 'target' }, 'Target'),
+            h(RvCombobox, {
+              ...PROPS,
+              groups: undefined,
+              options: [{ disabled: true, label: 'Blocked', value: 'blocked' }],
+            }),
+          ])
+      },
     })
-    open = wrapper
-    expect(wrapper.get('button').attributes('id')).toBe('target')
-    await wrapper.get('button').trigger('click')
-    await flushPromises()
-    document.querySelector<HTMLElement>('[role="option"]')!.click()
-    await flushPromises()
-    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    const screen = await render(LabelHost)
+
+    const trigger = screen.getByLabelText('Target')
+    await trigger.click()
+
+    await screen.getByRole('option', { name: 'Blocked' }).click({ force: true })
+    expect(screen.emitted('update:modelValue')).toBeUndefined()
   })
 
   it('chooses with the pointer', async () => {
-    const wrapper = mountCombobox()
-    open = wrapper
+    const screen = await renderCombobox()
 
-    await wrapper.get('.rv-search-select__trigger').trigger('click')
-    await flushPromises()
-    const option = [
-      ...(list()?.querySelectorAll<HTMLElement>('[role="option"]') ?? []),
-    ].find((candidate) => candidate.textContent?.includes('Keenetic'))
-    option?.click()
-    await flushPromises()
+    await screen
+      .getByRole('button', { name: 'Choose a device or application' })
+      .click()
+    await screen.getByRole('option', { name: /^Keenetic/ }).click()
 
-    expect(wrapper.emitted('update:modelValue')).toEqual([['keenetic']])
+    expect(screen.emitted('update:modelValue')).toEqual([['keenetic']])
   })
 })

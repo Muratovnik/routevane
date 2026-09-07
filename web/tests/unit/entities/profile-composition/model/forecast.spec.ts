@@ -1,4 +1,3 @@
-import { flushPromises } from '@vue/test-utils'
 import { effectScope } from 'vue'
 import { afterEach, expect, it, vi } from 'vitest'
 
@@ -7,6 +6,24 @@ import {
   useCompositionForecast,
   forgetForecastObservations,
 } from '@/entities/profile-composition/model/forecast'
+
+// A real browser reads a response body on a task of its own, and a fake clock
+// does not drive the browser's task queue. Settling therefore yields to that
+// queue first, then lets the fake clock run whatever the answer scheduled.
+const yieldToBrowser = (): Promise<void> =>
+  new Promise((resolve) => {
+    const channel = new MessageChannel()
+    channel.port1.addEventListener('message', () => resolve(), { once: true })
+    channel.port1.start()
+    channel.port2.postMessage(null)
+  })
+
+const settle = async (): Promise<void> => {
+  await yieldToBrowser()
+  await vi.advanceTimersByTimeAsync(0)
+  await yieldToBrowser()
+  await vi.advanceTimersByTimeAsync(0)
+}
 
 afterEach(() => {
   vi.useRealTimers()
@@ -48,7 +65,7 @@ it('marks retained details stale and never lands a superseded response', async (
   expect(forecast.pending.value).toBe(true)
   await vi.advanceTimersByTimeAsync(2)
   responses[0]!(response(1))
-  await flushPromises()
+  await settle()
   expect(forecast.pending.value).toBe(false)
   forecast.request(draft, draft.lists)
   await vi.advanceTimersByTimeAsync(2)
@@ -57,11 +74,11 @@ it('marks retained details stale and never lands a superseded response', async (
   forecast.request(draft, draft.lists)
   await vi.advanceTimersByTimeAsync(2)
   responses[1]!(response(99))
-  await flushPromises()
+  await settle()
   expect(forecast.forTarget('singbox')?.projectedRules).toBe(1)
   expect(forecast.pending.value).toBe(true)
   responses[2]!(response(2))
-  await flushPromises()
+  await settle()
   expect(forecast.forTarget('singbox')?.projectedRules).toBe(2)
   expect(forecast.pending.value).toBe(false)
   forecast.request(draft, [])
@@ -96,7 +113,7 @@ it('lets an explicit retry read sources again after the session guard', async ()
 
   forecast.request(draft, draft.lists)
   await vi.advanceTimersByTimeAsync(2)
-  await flushPromises()
+  await settle()
   expect(
     fetchMock.mock.calls.filter(([input]) =>
       String(input).endsWith('/refresh'),
@@ -105,7 +122,7 @@ it('lets an explicit retry read sources again after the session guard', async ()
 
   forecast.retry(draft, draft.lists)
   await vi.advanceTimersByTimeAsync(2)
-  await flushPromises()
+  await settle()
   expect(
     fetchMock.mock.calls.filter(([input]) =>
       String(input).endsWith('/refresh'),
@@ -161,7 +178,7 @@ it('refreshes stale coverage once and invalidates the result when sources change
   try {
     forecast.request(draft, draft.lists)
     await vi.advanceTimersByTimeAsync(2)
-    await flushPromises()
+    await settle()
     expect(forecast.forTarget('keenetic')?.projectedRules).toBe(1)
     expect(forecast.failure.value).toBeNull()
     expect(
@@ -171,7 +188,7 @@ it('refreshes stale coverage once and invalidates the result when sources change
     await refreshList('stale-source')
     expect(forecast.pending.value).toBe(true)
     await vi.advanceTimersByTimeAsync(2)
-    await flushPromises()
+    await settle()
     expect(forecast.forTarget('keenetic')?.projectedRules).toBe(2)
     projected = 3
     await forecast.refresh(draft, draft.lists)
@@ -226,7 +243,7 @@ it('retains partial facts while reading only missing lists, then recovers the fu
   }
   forecast.request(draft, draft.lists)
   await vi.advanceTimersByTimeAsync(2)
-  await flushPromises()
+  await settle()
   expect(refreshed).toEqual(['/v1/lists/beta/refresh'])
   expect(forecast.forTarget('keenetic')?.projectedRules).toBe(2)
   expect(forecast.failure.value).toBeNull()

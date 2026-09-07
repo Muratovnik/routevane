@@ -27,6 +27,17 @@ in `web/tests/{e2e,desktop,dev,update}`, and `src/` holds no test file.
 `web/tests/unit/structure.spec.ts` enforces that placement and the stylesheet
 placement above.
 
+A unit spec renders through `vitest-browser-vue` in the pinned Chromium and
+queries by role, accessible name, label, or text; `data-testid` is for an
+element none of those identifies, which in practice means one that is
+deliberately `aria-hidden`. DOM ids stay accessibility bindings — `label for`,
+`aria-labelledby`, a field's `input-id` — and are never test hooks. A spec keeps
+no mutable module state: it builds a scenario per case, awaits deferred work
+through `Promise.withResolvers`, and counts calls on a `vi.fn` record.
+`vitest.config.ts` names the specs that run in Node instead; everything else
+runs in the browser, because that is where a document, browser storage and the
+service-origin lookup actually behave.
+
 A component is a black box. A host styles its own root class, passes props,
 places slot content, or supplies a documented custom property. It does not
 reach through another component with element or implementation selectors.

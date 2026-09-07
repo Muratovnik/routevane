@@ -232,9 +232,12 @@ const sheetUI = computed(() => ({
 
   <DialogRoot v-else :open="open" @update:open="updateOpen">
     <DialogPortal>
+      <!-- The ground behind the panel. It has no role and no name of its own,
+           so a test hook is the only way to identify it. -->
       <DialogOverlay
         class="rv-dialog__scrim"
         :class="{ 'rv-dialog__scrim--nested': nested }"
+        data-testid="rv-dialog-scrim"
       />
       <DialogContent
         class="rv-dialog rv-dialog--panel"

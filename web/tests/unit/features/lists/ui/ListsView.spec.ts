@@ -1,13 +1,22 @@
-import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
+import { render, type RenderResult } from 'vitest-browser-vue'
 
 import { invalidateCatalogCache } from '@/shared/api/catalog'
 import { useLocale } from '@/shared/i18n/useLocale'
-import RvDialog from '@/shared/ui/RvDialog.vue'
 
 import ListsView from '@/features/lists/ui/ListsView.vue'
 
-const categories = [
+const CATEGORIES_DIALOG = 'Categories'
+const NEW_CATEGORY = 'New category'
+const NEW_LIST = 'New list'
+const REFRESH = 'Refresh lists'
+const STALE = 'Saved, but the lists were not reread'
+const ALL_CATEGORIES = 'All categories'
+const UNCATEGORIZED = 'Uncategorized'
+const CATEGORY_NAME_FIELD = 'Name'
+
+const CATEGORIES = [
   {
     custom: false,
     id: 'communication',
@@ -19,7 +28,7 @@ const categories = [
 ]
 
 // Steam belongs to no category, which is what fills the last row.
-const lists = [
+const LISTS = [
   { categories: ['communication'], id: 'discord', title: 'Discord' },
   {
     categories: ['communication'],
@@ -31,28 +40,13 @@ const lists = [
   { categories: [], custom: true, id: 'steam', title: 'Steam' },
 ]
 
-const activeCategory = (scope: Element): string => {
-  const selected = scope.querySelector(
-    '.catalog-filters__categories [aria-pressed="true"]',
-  )
-  const trigger =
-    selected ??
-    scope.querySelector(
-      '.catalog-filters__categories .rv-search-select__trigger',
-    )
-  expect(trigger).not.toBeNull()
-  const copy = trigger!.cloneNode(true) as Element
-  copy.querySelectorAll('small').forEach((count) => count.remove())
-  return copy.textContent!.trim()
-}
-
 const json = (payload: unknown, status = 200): Response =>
   new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
 
-const catalogResponse = (next = categories, nextLists = lists): Response =>
+const catalogResponse = (next = CATEGORIES, nextLists = LISTS): Response =>
   json({
     lists: nextLists.map((list) => list.id),
     list_details: nextLists,
@@ -96,102 +90,110 @@ const stubAPI = (
  * with. The first read is always the catalog as it stood, so a test states the
  * result of its own edit rather than the state it wanted to start in.
  */
-const catalogRoutes = (after = categories): Record<string, () => Response> => {
-  let reads = 0
+const catalogRoutes = (after = CATEGORIES): Record<string, () => Response> => {
+  const reads: string[] = []
   return {
     'GET /v1/lists': () => {
-      reads += 1
-      return catalogResponse(reads === 1 ? categories : after)
+      reads.push('read')
+      return catalogResponse(reads.length === 1 ? CATEGORIES : after)
     },
     'GET /v1/targets': () => json({ targets: [] }),
   }
 }
 
-const dialog = (): HTMLElement => {
-  const panels = document.body.querySelectorAll<HTMLElement>('[role="dialog"]')
-  const panel = panels.item(panels.length - 1)
-  expect(panel).not.toBeNull()
-  return panel
-}
-
-const menuItem = (text: string): HTMLElement | undefined => {
-  const panels = document.body.querySelectorAll<HTMLElement>('[role="menu"]')
-  const panel = panels.item(panels.length - 1)
-  return [
-    ...(panel?.querySelectorAll<HTMLElement>('[data-menu-key]') ?? []),
-  ].find((item) => item.textContent?.includes(text))
-}
-
-const menuText = (): string => {
-  const panels = document.body.querySelectorAll<HTMLElement>('[role="menu"]')
-  return panels.item(panels.length - 1)?.textContent ?? ''
-}
-
-const clickByText = async (scope: HTMLElement, text: string): Promise<void> => {
-  if (text === 'New category' && !scope.querySelector('.lists__collections')) {
-    ;[...scope.querySelectorAll('button')]
-      .find((button) => button.textContent?.trim() === 'Categories')
-      ?.click()
-    await flushPromises()
-    scope = dialog()
-  }
-  const control = [...scope.querySelectorAll('button')].find(
-    (button) =>
-      button.textContent?.includes(text) ||
-      button.getAttribute('aria-label') === text,
-  )
-  expect(control, text).toBeDefined()
-  control?.click()
-}
-
-const mountLibrary = (hash = '') => {
+const renderLibrary = (hash = '') => {
   vi.stubGlobal('useRoute', () => ({ hash }))
   vi.stubGlobal('useRouter', () => ({ replace: vi.fn() }))
-  return mount(ListsView, {
-    attachTo: document.body,
-    global: { stubs: { RvIcon: true } },
+  return render(ListsView)
+}
+
+type Library = RenderResult<unknown>
+
+// A category is drawn as its name followed by how many lists it holds, and the
+// count is not part of the name, so the name is what stands before the figure.
+const beforeCount = (text: string): string => {
+  const figure = text.search(/\d/)
+  return (figure < 0 ? text : text.slice(0, figure)).trim()
+}
+
+// Which category the pane is showing. Exactly one filter chip is pressed at a
+// time, and that chip is the answer.
+const activeCategory = (screen: Library): string =>
+  beforeCount(
+    screen.getByRole('button', { pressed: true }).element().textContent ?? '',
+  )
+
+const rowNames = (screen: Library): string[] =>
+  screen
+    .getByRole('rowheader')
+    .elements()
+    .map((header) => header.textContent?.trim() ?? '')
+
+const openCategories = async (screen: Library): Promise<void> => {
+  const standing = screen.getByRole('dialog', {
+    includeHidden: true,
+    name: CATEGORIES_DIALOG,
   })
+  if (standing.query() !== null) return
+  await screen.getByRole('button', { name: CATEGORIES_DIALOG }).click()
+  await expect
+    .element(screen.getByRole('dialog', { name: CATEGORIES_DIALOG }))
+    .toBeVisible()
 }
 
-type Library = ReturnType<typeof mountLibrary>
-
-const openCategories = async (wrapper: Library): Promise<void> => {
-  if (!document.querySelector('.lists__collections')) {
-    await clickByText(wrapper.element as HTMLElement, 'Categories')
-    await flushPromises()
-  }
-}
-const openCategory = async (wrapper: Library, label: string): Promise<void> => {
-  await openCategories(wrapper)
-  const opener = [
-    ...document.querySelectorAll<HTMLButtonElement>('.lists__category'),
-  ].find((entry) => entry.textContent?.includes(label))
-  expect(opener, label).toBeDefined()
-  opener?.click()
-  await flushPromises()
-}
-const categoryText = async (wrapper: Library): Promise<string> => {
-  await openCategories(wrapper)
-  const text = document.querySelector('.lists__groups')?.textContent ?? ''
-  await clickByText(dialog(), 'Close')
-  await flushPromises()
-  return text
-}
-const openMenu = async (wrapper: Library, label: string): Promise<void> => {
-  if (label.startsWith('Actions for category')) await openCategories(wrapper)
-  const trigger = [
-    ...document.querySelectorAll<HTMLButtonElement>('.rv-menu__trigger'),
-  ].find((entry) => entry.getAttribute('aria-label') === label)
-  expect(trigger, label).toBeDefined()
-  trigger?.click()
-  await flushPromises()
+// Leaving a menu is a step of its own: the panel behind it only takes the
+// pointer again once the menu has actually gone.
+const closeMenu = async (screen: Library): Promise<void> => {
+  await userEvent.keyboard('{Escape}')
+  await expect.element(screen.getByRole('menu')).not.toBeInTheDocument()
 }
 
-const openedDialogVariant = (wrapper: Library): string | undefined =>
-  wrapper
-    .findAllComponents(RvDialog)
-    .find((candidate) => candidate.props('open') === true)
-    ?.props('variant')
+const openCategory = async (screen: Library, label: string): Promise<void> => {
+  await openCategories(screen)
+  await screen
+    .getByRole('dialog', { name: CATEGORIES_DIALOG })
+    .getByRole('button', { name: new RegExp(`^${label}`) })
+    .click()
+}
+
+// Reading the category pane closes it again, because it is a modal panel and
+// the pane behind it is what the rest of a case is about.
+const categoryNames = async (screen: Library): Promise<string[]> => {
+  await openCategories(screen)
+  const dialog = screen.getByRole('dialog', { name: CATEGORIES_DIALOG })
+  const names = dialog
+    .getByRole('listitem')
+    .elements()
+    .map((entry) => beforeCount(entry.textContent ?? ''))
+  await dialog.getByRole('button', { name: 'Close' }).click()
+  await expect.element(dialog).not.toBeInTheDocument()
+  return names
+}
+
+const openMenu = async (screen: Library, label: string): Promise<void> => {
+  if (label.startsWith('Actions for category')) await openCategories(screen)
+  await screen.getByRole('button', { name: label }).click()
+}
+
+// An open panel is modal, so the page behind it is hidden from assistive
+// technology while it stands; a control read during that time needs a query
+// that reaches hidden content.
+const hiddenButton = (screen: Library, name: string | RegExp) =>
+  screen.getByRole('button', { includeHidden: true, name })
+
+// A field is filled inside the panel that asked for it: two panels can be
+// standing, and both name their own field the same thing.
+const fillField = async (
+  scope: {
+    getByLabelText: (label: string) => {
+      fill: (value: string) => Promise<void>
+    }
+  },
+  label: string,
+  value: string,
+): Promise<void> => {
+  await scope.getByLabelText(label).fill(value)
+}
 
 describe('ListsView', () => {
   beforeEach(() => {
@@ -201,93 +203,114 @@ describe('ListsView', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    document.body.innerHTML = ''
   })
 
   // Every category, then the lists no category claims — the same column the
   // composer draws, without a checkbox, because nothing is being selected.
   it('lists every category and the lists none of them claims', async () => {
     stubAPI(catalogRoutes())
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
 
-    await openCategories(wrapper)
-    const rows = [...document.querySelectorAll('.lists__group')]
-    expect(rows).toHaveLength(4)
-    expect(rows.at(-1)?.textContent).toContain('Uncategorized')
-    expect(wrapper.findAll('input[type="checkbox"]')).toHaveLength(0)
+    await expect.element(screen.getByRole('table')).toBeVisible()
+    // Nothing is being selected here, so no row carries a choice.
+    expect(screen.getByRole('checkbox').all()).toEqual([])
 
-    await openCategory(wrapper, 'Uncategorized')
-    expect(wrapper.get('.lists__pane-body').text()).toContain('Steam')
-    wrapper.unmount()
+    const names = await categoryNames(screen)
+    expect(names).toHaveLength(4)
+    expect(names.at(-1)).toBe(UNCATEGORIZED)
+
+    await openCategory(screen, UNCATEGORIZED)
+    expect(rowNames(screen)).toEqual(['Steam'])
   })
 
   it('offers category management and list creation through their owning actions', async () => {
     stubAPI(catalogRoutes())
-    const wrapper = mountLibrary()
-    await flushPromises()
-    expect(wrapper.findAll('.lists__list-row')).toHaveLength(4)
-    await clickByText(wrapper.element as HTMLElement, 'New category')
-    await flushPromises()
-    expect(openedDialogVariant(wrapper)).toBe('sheet')
-    await clickByText(dialog(), 'Cancel')
-    await flushPromises()
-    await openCategory(wrapper, 'Communication')
-    await clickByText(wrapper.element as HTMLElement, 'New list')
-    await flushPromises()
-    expect(openedDialogVariant(wrapper)).toBe('sheet')
-    expect(dialog().textContent).toContain('Existing list')
-    wrapper.unmount()
+    const screen = await renderLibrary()
+
+    await expect.element(screen.getByRole('table')).toBeVisible()
+    expect(rowNames(screen)).toHaveLength(4)
+
+    await openCategories(screen)
+    await screen.getByRole('button', { name: NEW_CATEGORY }).click()
+    // A new category is a full working surface rather than a centred box.
+    const sheet = screen.getByRole('dialog', { name: NEW_CATEGORY })
+    await expect.element(sheet).toHaveClass('rv-dialog--sheet')
+    await sheet.getByRole('button', { name: 'Cancel' }).click()
+
+    await openCategory(screen, 'Communication')
+    await screen.getByRole('button', { name: NEW_LIST }).click()
+    const listSheet = screen.getByRole('dialog', { name: NEW_LIST })
+    await expect.element(listSheet).toHaveClass('rv-dialog--sheet')
+    await expect
+      .element(listSheet.getByRole('radio', { name: 'Existing list' }))
+      .toBeVisible()
   })
 
   it('keeps category and list actions on their rows without a duplicate add action', async () => {
     stubAPI(catalogRoutes())
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
     // This menu belongs to an unselected built-in category. Built-in records
     // can be removed through the server overlay, but their catalog title is not
     // renamed and list creation stays at the pane footer.
-    await openMenu(wrapper, 'Actions for category Video')
-    expect(menuText()).toContain('Delete the category')
-    expect(menuText()).not.toContain('Rename')
-    expect(menuText()).not.toContain('Add a list')
+    await openMenu(screen, 'Actions for category Video')
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'Delete the category' }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'Rename' }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'Add a list' }))
+      .not.toBeInTheDocument()
+    await closeMenu(screen)
 
-    await openCategory(wrapper, 'Communication')
-    await openMenu(wrapper, 'Actions for list Discord')
-    const builtIn = menuText()
-    expect(builtIn).toContain('Remove from the category')
-    expect(builtIn).toContain('Delete the list')
-    expect(builtIn).not.toContain('Rename')
+    await openCategory(screen, 'Communication')
+    await openMenu(screen, 'Actions for list Discord')
+    for (const item of ['Remove from the category', 'Delete the list'])
+      await expect
+        .element(screen.getByRole('menuitem', { name: item }))
+        .toBeVisible()
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'Rename' }))
+      .not.toBeInTheDocument()
+    await closeMenu(screen)
 
-    await openMenu(wrapper, 'Actions for list Telegram')
-    const custom = menuText()
-    expect(custom).toContain('Rename')
-    expect(custom).toContain('Remove from the category')
-    expect(custom).toContain('Delete the list')
-    wrapper.unmount()
+    await openMenu(screen, 'Actions for list Telegram')
+    for (const item of [
+      'Rename',
+      'Remove from the category',
+      'Delete the list',
+    ])
+      await expect
+        .element(screen.getByRole('menuitem', { name: item }))
+        .toBeVisible()
   })
 
   it('acts on an unselected category without moving the current pane', async () => {
-    const remaining = categories.filter((category) => category.id !== 'video')
+    const remaining = CATEGORIES.filter((category) => category.id !== 'video')
     const { keys } = stubAPI({
       ...catalogRoutes(remaining),
       'POST /v1/categories/video/remove': () =>
         new Response(null, { status: 204 }),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
-    expect(activeCategory(wrapper.element)).toBe('All categories')
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
+    expect(activeCategory(screen)).toBe(ALL_CATEGORIES)
 
-    await openMenu(wrapper, 'Actions for category Video')
-    menuItem('Delete the category')?.click()
-    await flushPromises()
-    await clickByText(dialog(), 'Delete')
-    await flushPromises()
+    await openMenu(screen, 'Actions for category Video')
+    await screen.getByRole('menuitem', { name: 'Delete the category' }).click()
+    await screen
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Delete' })
+      .click()
 
-    expect(keys().at(-3)).toBe('POST /v1/categories/video/remove')
-    expect(activeCategory(wrapper.element)).toBe('All categories')
-    wrapper.unmount()
+    await vi.waitFor(() => {
+      expect(keys()).toContain('POST /v1/categories/video/remove')
+    })
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+    expect(activeCategory(screen)).toBe(ALL_CATEGORIES)
   })
 
   it('opens a custom list rename directly from its row menu', async () => {
@@ -295,19 +318,18 @@ describe('ListsView', () => {
       ...catalogRoutes(),
       'GET /v1/lists/telegram/contents': () => contentsResponse('telegram'),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await openCategory(wrapper, 'Communication')
-    await openMenu(wrapper, 'Actions for list Telegram')
-    menuItem('Rename')?.click()
-    await flushPromises()
+    await openCategory(screen, 'Communication')
+    await openMenu(screen, 'Actions for list Telegram')
+    await screen.getByRole('menuitem', { name: 'Rename' }).click()
 
-    expect(dialog().textContent).toContain('Telegram')
-    expect(dialog().querySelector<HTMLInputElement>('#list-title')?.value).toBe(
-      'Telegram',
-    )
-    wrapper.unmount()
+    const rename = screen.getByRole('dialog', { name: 'Telegram' })
+    await expect.element(rename).toBeVisible()
+    await expect
+      .element(rename.getByRole('textbox', { name: CATEGORY_NAME_FIELD }))
+      .toHaveValue('Telegram')
   })
 
   it('creates a category and opens it', async () => {
@@ -318,38 +340,43 @@ describe('ListsView', () => {
       title: 'Дом',
     }
     const { keys } = stubAPI({
-      ...catalogRoutes([...categories, created]),
+      ...catalogRoutes([...CATEGORIES, created]),
       'POST /v1/categories': () => json({ category: created }, 201),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await clickByText(wrapper.element as HTMLElement, 'New category')
-    await flushPromises()
-    const panel = dialog()
-    const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
-    expect(field).not.toBeNull()
-    field!.value = 'Дом'
-    field!.dispatchEvent(new Event('input'))
-    await clickByText(panel, 'Create')
-    await flushPromises()
+    await openCategories(screen)
+    await screen.getByRole('button', { name: NEW_CATEGORY }).click()
+    await fillField(
+      screen.getByRole('dialog', { name: NEW_CATEGORY }),
+      CATEGORY_NAME_FIELD,
+      'Дом',
+    )
+    await screen
+      .getByRole('dialog', { name: NEW_CATEGORY })
+      .getByRole('button', { name: 'Create' })
+      .click()
 
-    expect(keys()).toEqual([
-      'GET /v1/lists',
-      'GET /v1/targets',
-      'POST /v1/categories',
-      'GET /v1/lists',
-      'GET /v1/targets',
-    ])
+    await vi.waitFor(() => {
+      expect(keys()).toEqual([
+        'GET /v1/lists',
+        'GET /v1/targets',
+        'POST /v1/categories',
+        'GET /v1/lists',
+        'GET /v1/targets',
+      ])
+    })
     // A category made to be filled has to be the one on screen.
-    expect(activeCategory(wrapper.element)).toBe('Дом')
-    wrapper.unmount()
+    await vi.waitFor(() => {
+      expect(activeCategory(screen)).toBe('Дом')
+    })
   })
 
   // The server works the overlay out itself, so an edit states the whole
   // membership the operator wants rather than the one list that moved.
   it('adds a list to a category from the whole catalog', async () => {
-    const widened = categories.map((category) =>
+    const widened = CATEGORIES.map((category) =>
       category.id === 'video'
         ? { ...category, lists: ['youtube', 'steam'] }
         : category,
@@ -358,44 +385,27 @@ describe('ListsView', () => {
       ...catalogRoutes(widened),
       'POST /v1/categories/video/update': () => json({ category: widened[1] }),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await openCategory(wrapper, 'Video')
-    await clickByText(wrapper.element as HTMLElement, 'New list')
-    await flushPromises()
+    await openCategory(screen, 'Video')
+    await screen.getByRole('button', { name: NEW_LIST }).click()
 
-    const panel = dialog()
-    const existing = [
-      ...panel.querySelectorAll<HTMLLabelElement>('.rv-segmented__option'),
-    ].find((option) => option.textContent?.includes('Existing list'))
-    expect(existing).toBeDefined()
-    existing?.querySelector('input')?.click()
-    await flushPromises()
-    panel
-      .querySelector<HTMLButtonElement>('.rv-search-select__trigger')!
-      .click()
-    await flushPromises()
-    const field = document.querySelector<HTMLInputElement>(
-      '.rv-search-select__search input',
-    )
-    expect(field).not.toBeNull()
-    field!.focus()
-    field!.value = 'Steam'
-    field!.dispatchEvent(new Event('input', { bubbles: true }))
-    await flushPromises()
-    for (const key of ['ArrowDown', 'Enter']) {
-      field!.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key }))
-      await flushPromises()
-    }
-    await clickByText(dialog(), 'Add')
-    await flushPromises()
+    const sheet = screen.getByRole('dialog', { name: NEW_LIST })
+    // The native radio is kept out of sight; its segment is the hit area.
+    await sheet.getByText('Existing list').click()
+    await sheet.getByRole('button', { name: 'Choose a list' }).click()
+    await screen.getByLabelText('Search').fill('Steam')
+    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.keyboard('{Enter}')
+    await sheet.getByRole('button', { name: 'Add' }).click()
 
-    expect(calls.at(-3)?.key).toBe('POST /v1/categories/video/update')
-    expect(calls.at(-3)?.body).toBe(
-      JSON.stringify({ lists: ['youtube', 'steam'] }),
-    )
-    wrapper.unmount()
+    await vi.waitFor(() => {
+      const write = calls.find(
+        (call) => call.key === 'POST /v1/categories/video/update',
+      )
+      expect(write?.body).toBe(JSON.stringify({ lists: ['youtube', 'steam'] }))
+    })
   })
 
   it('creates a new list in the same sheet without rereading the whole library', async () => {
@@ -408,34 +418,23 @@ describe('ListsView', () => {
       ...catalogRoutes(),
       'POST /v1/lists': () => json({ list: created }, 201),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
-    await openCategory(wrapper, 'Uncategorized')
-    await clickByText(wrapper.element as HTMLElement, 'New list')
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
+    await openCategory(screen, UNCATEGORIZED)
+    await screen.getByRole('button', { name: NEW_LIST }).click()
 
-    const panel = dialog()
-    expect(openedDialogVariant(wrapper)).toBe('sheet')
-    const title = panel.querySelector<HTMLInputElement>('#library-list-title')
-    const domains = panel.querySelector<HTMLTextAreaElement>(
-      '#library-list-domains',
-    )
-    expect(title).not.toBeNull()
-    expect(domains).not.toBeNull()
-    title!.value = created.title
-    title!.dispatchEvent(new Event('input', { bubbles: true }))
-    domains!.value = created.domains.join('\n')
-    domains!.dispatchEvent(new Event('input', { bubbles: true }))
-    await clickByText(panel, 'Create')
-    await flushPromises()
+    const sheet = screen.getByRole('dialog', { name: NEW_LIST })
+    await expect.element(sheet).toHaveClass('rv-dialog--sheet')
+    await fillField(screen, CATEGORY_NAME_FIELD, created.title)
+    await fillField(screen, 'Domains', created.domains.join('\n'))
+    await sheet.getByRole('button', { name: 'Create' }).click()
 
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
     expect(calls.at(-1)).toEqual({
       body: JSON.stringify({ title: created.title, domains: created.domains }),
       key: 'POST /v1/lists',
     })
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    expect(wrapper.get('.lists__pane-body').text()).toContain(created.title)
-    wrapper.unmount()
+    expect(rowNames(screen)).toContain(created.title)
   })
 
   it('retries only category attachment after a list was already created', async () => {
@@ -451,68 +450,63 @@ describe('ListsView', () => {
       id: created.id,
       title: created.title,
     }
-    const widened = categories.map((category) =>
+    const widened = CATEGORIES.map((category) =>
       category.id === 'video'
         ? { ...category, lists: ['youtube', created.id] }
         : category,
     )
-    let reads = 0
-    let attachments = 0
+    const reads: string[] = []
+    const attachments: string[] = []
     const { calls } = stubAPI({
       'GET /v1/lists': () => {
-        reads += 1
+        reads.push('read')
         return catalogResponse(
-          reads > 1 ? widened : categories,
-          reads > 1 ? [...lists, catalogCreated] : lists,
+          reads.length > 1 ? widened : CATEGORIES,
+          reads.length > 1 ? [...LISTS, catalogCreated] : LISTS,
         )
       },
       'GET /v1/targets': () => json({ targets: [] }),
       'POST /v1/lists': () => json({ list: created }, 201),
       'POST /v1/categories/video/update': () => {
-        attachments += 1
-        return attachments === 1
+        attachments.push('attach')
+        return attachments.length === 1
           ? json({ error: 'controlled attachment failure' }, 503)
           : json({ category: widened[1] })
       },
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
-    await openCategory(wrapper, 'Video')
-    await clickByText(wrapper.element as HTMLElement, 'New list')
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
+    await openCategory(screen, 'Video')
+    await screen.getByRole('button', { name: NEW_LIST }).click()
 
-    const panel = dialog()
-    const title = panel.querySelector<HTMLInputElement>('#library-list-title')
-    const domains = panel.querySelector<HTMLTextAreaElement>(
-      '#library-list-domains',
-    )
-    expect(title).not.toBeNull()
-    expect(domains).not.toBeNull()
-    title!.value = created.title
-    title!.dispatchEvent(new Event('input', { bubbles: true }))
-    domains!.value = 'local.example'
-    domains!.dispatchEvent(new Event('input', { bubbles: true }))
-    await clickByText(panel, 'Create')
-    await flushPromises()
+    const sheet = screen.getByRole('dialog', { name: NEW_LIST })
+    await fillField(sheet, CATEGORY_NAME_FIELD, created.title)
+    await fillField(sheet, 'Domains', 'local.example')
+    await sheet.getByRole('button', { name: 'Create' }).click()
 
-    expect(dialog().textContent).toContain(
-      'The list was created but was not added to the category.',
-    )
-    expect(
-      dialog().querySelector<HTMLInputElement>('#library-list-title'),
-    ).toBeNull()
-    await clickByText(dialog(), 'Try adding again')
-    await flushPromises()
+    // The list exists now, so the sheet stops offering to create it again and
+    // offers only the step that failed.
+    await expect
+      .element(
+        screen.getByText('The list was created but was not added', {
+          exact: false,
+        }),
+      )
+      .toBeVisible()
+    await expect
+      .element(sheet.getByLabelText(CATEGORY_NAME_FIELD))
+      .not.toBeInTheDocument()
 
+    await screen.getByRole('button', { name: 'Try adding again' }).click()
+
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
     expect(calls.filter((call) => call.key === 'POST /v1/lists')).toHaveLength(
       1,
     )
     expect(
       calls.filter((call) => call.key === 'POST /v1/categories/video/update'),
     ).toHaveLength(2)
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    expect(wrapper.get('.lists__pane-body').text()).toContain(created.title)
-    wrapper.unmount()
+    expect(rowNames(screen)).toContain(created.title)
   })
 
   it('saves the library default order without writing any profile', async () => {
@@ -521,26 +515,24 @@ describe('ListsView', () => {
       ...catalogRoutes(),
       'POST /v1/lists/priority': () => json({ default_priority: saved }),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
-    const panel = wrapper.element as HTMLElement
-    const handles = panel.querySelectorAll<HTMLButtonElement>('.lists__handle')
-    expect(handles).toHaveLength(4)
-    handles[0]?.dispatchEvent(
-      new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }),
-    )
-    await flushPromises()
-    await clickByText(panel, 'Save order')
-    await flushPromises()
+    const handle = screen.getByRole('button', {
+      name: 'Change priority of list Discord, position 1',
+    })
+    handle.element().focus()
+    await userEvent.keyboard('{ArrowDown}')
+    await screen.getByRole('button', { name: 'Save order' }).click()
 
-    expect(calls.at(-1)).toEqual({
-      body: JSON.stringify({ default_priority: saved }),
-      key: 'POST /v1/lists/priority',
+    await vi.waitFor(() => {
+      expect(calls.at(-1)).toEqual({
+        body: JSON.stringify({ default_priority: saved }),
+        key: 'POST /v1/lists/priority',
+      })
     })
     expect(calls.some((call) => call.key.includes('/v1/profiles'))).toBe(false)
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    wrapper.unmount()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('keeps a failed default order available to retry', async () => {
@@ -549,25 +541,21 @@ describe('ListsView', () => {
       'POST /v1/lists/priority': () =>
         json({ error: 'controlled failure' }, 503),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
-    const panel = wrapper.element as HTMLElement
-    panel
-      .querySelector<HTMLButtonElement>('.lists__handle')
-      ?.dispatchEvent(
-        new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowDown' }),
-      )
-    await flushPromises()
-    await clickByText(panel, 'Save order')
-    await flushPromises()
+    const handle = screen.getByRole('button', {
+      name: 'Change priority of list Discord, position 1',
+    })
+    handle.element().focus()
+    await userEvent.keyboard('{ArrowDown}')
+    await screen.getByRole('button', { name: 'Save order' }).click()
 
-    expect(panel.isConnected).toBe(true)
-    expect(panel.textContent).toContain('Order not saved')
+    await expect.element(screen.getByText('Order not saved')).toBeVisible()
+    await expect.element(screen.getByRole('table')).toBeVisible()
     expect(
       calls.filter((call) => call.key.includes('/v1/profiles')),
     ).toHaveLength(0)
-    wrapper.unmount()
   })
 
   /**
@@ -578,34 +566,32 @@ describe('ListsView', () => {
     ['Move them to Uncategorized', 'detach'],
     ['Delete them with it', 'delete'],
   ])('deletes a category, %s', async (choice, disposition) => {
-    const { calls, keys } = stubAPI({
-      ...catalogRoutes(categories.filter((entry) => entry.custom !== true)),
+    const { calls } = stubAPI({
+      ...catalogRoutes(CATEGORIES.filter((entry) => entry.custom !== true)),
       'POST /v1/categories/custom-home/remove': () =>
         new Response(null, { status: 204 }),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await openCategory(wrapper, 'Домашние')
-    await openMenu(wrapper, 'Actions for category Домашние')
-    menuItem('Delete the category')?.click()
-    await flushPromises()
+    await openCategory(screen, 'Домашние')
+    await openMenu(screen, 'Actions for category Домашние')
+    await screen.getByRole('menuitem', { name: 'Delete the category' }).click()
 
-    const panel = dialog()
-    expect(panel.textContent).toContain('What happens to its lists')
-    const answer = [
-      ...panel.querySelectorAll<HTMLLabelElement>('.rv-segmented__option'),
-    ].find((option) => option.textContent?.includes(choice))
-    expect(answer, choice).toBeDefined()
-    answer?.querySelector('input')?.click()
-    await flushPromises()
-    await clickByText(panel, 'Delete')
-    await flushPromises()
+    const confirm = screen.getByRole('dialog')
+    await expect
+      .element(screen.getByText('What happens to its lists', { exact: false }))
+      .toBeVisible()
+    await confirm.getByText(choice).click()
+    await confirm.getByRole('button', { name: 'Delete' }).click()
 
-    expect(keys().at(-3)).toBe('POST /v1/categories/custom-home/remove')
-    expect(calls.at(-3)?.body).toBe(JSON.stringify({ lists: disposition }))
-    expect(await categoryText(wrapper)).not.toContain('Домашние')
-    wrapper.unmount()
+    await vi.waitFor(() => {
+      const write = calls.find(
+        (call) => call.key === 'POST /v1/categories/custom-home/remove',
+      )
+      expect(write?.body).toBe(JSON.stringify({ lists: disposition }))
+    })
+    expect(await categoryNames(screen)).not.toContain('Домашние')
   })
 
   // A category a profile still names is kept, and the refusal names the profiles
@@ -625,27 +611,36 @@ describe('ListsView', () => {
           409,
         ),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await openCategory(wrapper, 'Домашние')
-    await openMenu(wrapper, 'Actions for category Домашние')
-    menuItem('Delete the category')?.click()
-    await flushPromises()
-    await clickByText(dialog(), 'Delete')
-    await flushPromises()
+    await openCategory(screen, 'Домашние')
+    await openMenu(screen, 'Actions for category Домашние')
+    await screen.getByRole('menuitem', { name: 'Delete the category' }).click()
+    await screen
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Delete' })
+      .click()
 
-    const panel = dialog()
-    expect(panel.textContent).toContain('The category was not deleted')
-    expect(panel.textContent).toContain('Дом, Офис')
-    expect(await categoryText(wrapper)).toContain('Домашние')
-    wrapper.unmount()
+    await expect
+      .element(
+        screen.getByText('The category was not deleted', { exact: false }),
+      )
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('Дом, Офис', { exact: false }))
+      .toBeVisible()
+    await screen
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Cancel' })
+      .click()
+    expect(await categoryNames(screen)).toContain('Домашние')
   })
 
   // The bin means deletion and nothing else now: leaving a category is a menu
   // item with words on it.
   it('takes a list out of its category from the row menu', async () => {
-    const trimmed = categories.map((category) =>
+    const trimmed = CATEGORIES.map((category) =>
       category.id === 'communication'
         ? { ...category, lists: ['telegram'] }
         : category,
@@ -655,17 +650,21 @@ describe('ListsView', () => {
       'POST /v1/categories/communication/update': () =>
         json({ category: trimmed[0] }),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await openCategory(wrapper, 'Communication')
-    await openMenu(wrapper, 'Actions for list Discord')
-    menuItem('Remove from the category')?.click()
-    await flushPromises()
+    await openCategory(screen, 'Communication')
+    await openMenu(screen, 'Actions for list Discord')
+    await screen
+      .getByRole('menuitem', { name: 'Remove from the category' })
+      .click()
 
-    expect(calls.at(-3)?.key).toBe('POST /v1/categories/communication/update')
-    expect(calls.at(-3)?.body).toBe(JSON.stringify({ lists: ['telegram'] }))
-    wrapper.unmount()
+    await vi.waitFor(() => {
+      const write = calls.find(
+        (call) => call.key === 'POST /v1/categories/communication/update',
+      )
+      expect(write?.body).toBe(JSON.stringify({ lists: ['telegram'] }))
+    })
   })
 
   it('deletes a list, and keeps one a profile still holds', async () => {
@@ -681,82 +680,86 @@ describe('ListsView', () => {
         ),
       'POST /v1/lists/steam/remove': () => new Response(null, { status: 204 }),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await openCategory(wrapper, 'Communication')
-    await openMenu(wrapper, 'Actions for list Telegram')
-    menuItem('Delete the list')?.click()
-    await flushPromises()
-    const panel = dialog()
-    expect(panel.textContent).toContain(
-      'List “Telegram” and its entries are removed.',
-    )
-    await clickByText(panel, 'Delete')
-    await flushPromises()
+    await openCategory(screen, 'Communication')
+    await openMenu(screen, 'Actions for list Telegram')
+    await screen.getByRole('menuitem', { name: 'Delete the list' }).click()
+    await expect
+      .element(
+        screen.getByText('List “Telegram” and its entries are removed.', {
+          exact: false,
+        }),
+      )
+      .toBeVisible()
+    await screen
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Delete' })
+      .click()
 
+    await expect
+      .element(screen.getByText('The list was not deleted', { exact: false }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('dialog').getByText('Дом', { exact: false }))
+      .toBeVisible()
     expect(keys().at(-1)).toBe('POST /v1/lists/telegram/remove')
-    expect(dialog().textContent).toContain('The list was not deleted')
-    expect(dialog().textContent).toContain('Дом')
 
     // The one nothing holds goes, and the catalog is read back after it.
-    await clickByText(dialog(), 'Cancel')
-    await flushPromises()
-    await openCategory(wrapper, 'Uncategorized')
-    await openMenu(wrapper, 'Actions for list Steam')
-    menuItem('Delete the list')?.click()
-    await flushPromises()
-    await clickByText(dialog(), 'Delete')
-    await flushPromises()
+    await screen
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Cancel' })
+      .click()
+    await openCategory(screen, UNCATEGORIZED)
+    await openMenu(screen, 'Actions for list Steam')
+    await screen.getByRole('menuitem', { name: 'Delete the list' }).click()
+    await screen
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Delete' })
+      .click()
 
-    expect(calls.at(-3)?.key).toBe('POST /v1/lists/steam/remove')
-    expect(keys().slice(-2)).toEqual(['GET /v1/lists', 'GET /v1/targets'])
-    wrapper.unmount()
+    await vi.waitFor(() => {
+      expect(keys().slice(-2)).toEqual(['GET /v1/lists', 'GET /v1/targets'])
+    })
+    expect(
+      calls.some((call) => call.key === 'POST /v1/lists/steam/remove'),
+    ).toBe(true)
   })
 
   it('blocks every conflicting library action while a deletion is pending', async () => {
-    let finish!: (response: Response) => void
-    const pending = new Promise<Response>((resolve) => {
-      finish = resolve
-    })
+    const held = Promise.withResolvers<Response>()
     const { keys } = stubAPI({
       ...catalogRoutes(),
-      'POST /v1/lists/telegram/remove': () => pending,
+      'POST /v1/lists/telegram/remove': () => held.promise,
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await openCategory(wrapper, 'Communication')
-    await openMenu(wrapper, 'Actions for list Telegram')
-    menuItem('Delete the list')?.click()
-    await flushPromises()
-    const panel = dialog()
-    await clickByText(panel, 'Delete')
-    await flushPromises()
+    await openCategory(screen, 'Communication')
+    await openMenu(screen, 'Actions for list Telegram')
+    await screen.getByRole('menuitem', { name: 'Delete the list' }).click()
+    const confirm = screen.getByRole('dialog')
+    const submit = confirm.getByRole('button', { name: 'Delete' })
+    await submit.click()
 
-    const submit = [
-      ...panel.querySelectorAll<HTMLButtonElement>('button'),
-    ].find((button) => button.textContent?.includes('Delete'))
-    expect(submit?.disabled).toBe(true)
-    expect(submit?.getAttribute('aria-busy')).toBe('true')
-    expect(
-      panel.querySelector<HTMLButtonElement>('.rv-dialog__close')?.disabled,
-    ).toBe(true)
-    expect(
-      wrapper
-        .findAll<HTMLButtonElement>('.rv-menu__trigger')
-        .every((trigger) => trigger.element.disabled),
-    ).toBe(true)
-    submit?.click()
+    await expect.element(submit).toBeDisabled()
+    await expect.element(submit).toHaveAttribute('aria-busy', 'true')
+    await expect
+      .element(confirm.getByRole('button', { name: 'Close' }))
+      .toBeDisabled()
+    for (const trigger of hiddenButton(screen, /^Actions for/).elements())
+      expect((trigger as HTMLButtonElement).disabled).toBe(true)
+
+    // A second press starts no second deletion.
+    await submit.click({ force: true })
     expect(
       keys().filter((key) => key === 'POST /v1/lists/telegram/remove'),
     ).toHaveLength(1)
 
-    finish(json({ error: 'controlled refusal' }, 503))
-    await flushPromises()
-    expect(submit?.disabled).toBe(false)
-    expect(panel.isConnected).toBe(true)
-    wrapper.unmount()
+    held.resolve(json({ error: 'controlled refusal' }, 503))
+    await expect.element(submit).toBeEnabled()
+    await expect.element(confirm).toBeVisible()
   })
 
   // The address states where the operator is, so the composing card's link
@@ -766,16 +769,16 @@ describe('ListsView', () => {
       ...catalogRoutes(),
       'GET /v1/lists/youtube/contents': () => contentsResponse('youtube'),
     })
-    const wrapper = mountLibrary('#category=video&list=youtube')
-    await flushPromises()
+    const screen = await renderLibrary('#category=video&list=youtube')
 
-    expect(activeCategory(wrapper.element)).toBe('Video')
-    const card = dialog()
-    expect(card.textContent).toContain('YouTube')
-    expect(card.textContent).toContain('youtube.example')
+    const card = screen.getByRole('dialog', { name: 'YouTube' })
+    await expect.element(card).toBeVisible()
+    await expect.element(card).toMatchTextContent('youtube.example')
+    expect(activeCategory(screen)).toBe('Video')
     // No profile is in question here, so the card asks about none.
-    expect(card.querySelector('.list-card__membership')).toBeNull()
-    wrapper.unmount()
+    await expect
+      .element(screen.getByText('this profile', { exact: false }))
+      .not.toBeInTheDocument()
   })
 
   it('library audit: keeps a committed create stale until a GET-only retry confirms its row', async () => {
@@ -785,52 +788,56 @@ describe('ListsView', () => {
       lists: [],
       title: 'Saved while offline',
     }
-    let reads = 0
+    const reads: string[] = []
     const { calls } = stubAPI({
       'GET /v1/lists': () => {
-        reads += 1
-        if (reads === 2) return json({ error: 'catalog unavailable' }, 503)
+        reads.push('read')
+        if (reads.length === 2)
+          return json({ error: 'catalog unavailable' }, 503)
         return catalogResponse(
-          reads >= 3 ? [...categories, created] : categories,
+          reads.length >= 3 ? [...CATEGORIES, created] : CATEGORIES,
         )
       },
       'GET /v1/targets': () => json({ targets: [] }),
       'POST /v1/categories': () => json({ category: created }, 201),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await clickByText(wrapper.element as HTMLElement, 'New category')
-    await flushPromises()
-    const panel = dialog()
-    const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
-    expect(field).not.toBeNull()
-    field!.value = created.title
-    field!.dispatchEvent(new Event('input', { bubbles: true }))
-    await clickByText(panel, 'Create')
-    await flushPromises()
+    await openCategories(screen)
+    await screen.getByRole('button', { name: NEW_CATEGORY }).click()
+    await fillField(
+      screen.getByRole('dialog', { name: NEW_CATEGORY }),
+      CATEGORY_NAME_FIELD,
+      created.title,
+    )
+    await screen
+      .getByRole('dialog', { name: NEW_CATEGORY })
+      .getByRole('button', { name: 'Create' })
+      .click()
 
     // The POST landed exactly once, but the retained copy cannot contain the
     // new row. The form is closed so its old input is not a resubmit prompt.
+    await expect.element(screen.getByText(STALE)).toBeVisible()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
     expect(
       calls.filter((call) => call.key === 'POST /v1/categories'),
     ).toHaveLength(1)
-    expect(panel.isConnected).toBe(false)
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    expect(wrapper.text()).toContain('Saved, but the lists were not reread')
-    expect(activeCategory(wrapper.element)).toBe('All categories')
-    expect(wrapper.text()).not.toContain('Saved while offline')
+    expect(activeCategory(screen)).toBe(ALL_CATEGORIES)
+    await expect
+      .element(screen.getByText(created.title))
+      .not.toBeInTheDocument()
 
     // Recovery is only GET. Once it confirms the category, the saved identity
     // completes selection; no second POST is sent.
-    await clickByText(wrapper.element as HTMLElement, 'Refresh lists')
-    await flushPromises()
+    await screen.getByRole('button', { name: REFRESH }).click()
+    await vi.waitFor(() => {
+      expect(activeCategory(screen)).toBe(created.title)
+    })
     expect(
       calls.filter((call) => call.key === 'POST /v1/categories'),
     ).toHaveLength(1)
-    expect(activeCategory(wrapper.element)).toBe('Saved while offline')
-    expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
-    wrapper.unmount()
+    await expect.element(screen.getByText(STALE)).not.toBeInTheDocument()
   })
 
   it('library audit: preserves the category input when the write itself fails', async () => {
@@ -839,172 +846,175 @@ describe('ListsView', () => {
       'POST /v1/categories': () =>
         json({ error: 'catalog unavailable while writing' }, 503),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await clickByText(wrapper.element as HTMLElement, 'New category')
-    await flushPromises()
-    const panel = dialog()
-    const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
-    expect(field).not.toBeNull()
-    field!.value = 'Keep this draft'
-    field!.dispatchEvent(new Event('input', { bubbles: true }))
-    await clickByText(panel, 'Create')
-    await flushPromises()
+    await openCategories(screen)
+    await screen.getByRole('button', { name: NEW_CATEGORY }).click()
+    await fillField(
+      screen.getByRole('dialog', { name: NEW_CATEGORY }),
+      CATEGORY_NAME_FIELD,
+      'Keep this draft',
+    )
+    await screen
+      .getByRole('dialog', { name: NEW_CATEGORY })
+      .getByRole('button', { name: 'Create' })
+      .click()
 
-    expect(
-      calls.filter((call) => call.key === 'POST /v1/categories'),
-    ).toHaveLength(1)
-    expect(
-      dialog().querySelector<HTMLInputElement>('#lists-category-title')?.value,
-    ).toBe('Keep this draft')
-    expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
-    wrapper.unmount()
+    await vi.waitFor(() => {
+      expect(
+        calls.filter((call) => call.key === 'POST /v1/categories'),
+      ).toHaveLength(1)
+    })
+    await expect
+      .element(screen.getByLabelText(CATEGORY_NAME_FIELD))
+      .toHaveValue('Keep this draft')
+    await expect.element(screen.getByText(STALE)).not.toBeInTheDocument()
   })
 
   it('library audit: closes a committed stale rename and updates it on GET retry', async () => {
-    const renamed = categories.map((category) =>
+    const renamed = CATEGORIES.map((category) =>
       category.id === 'custom-home'
         ? { ...category, title: 'Renamed later' }
         : category,
     )
-    let reads = 0
+    const reads: string[] = []
     const { calls } = stubAPI({
       'GET /v1/lists': () => {
-        reads += 1
-        if (reads === 2) return json({ error: 'catalog unavailable' }, 503)
-        return catalogResponse(reads >= 3 ? renamed : categories)
+        reads.push('read')
+        if (reads.length === 2)
+          return json({ error: 'catalog unavailable' }, 503)
+        return catalogResponse(reads.length >= 3 ? renamed : CATEGORIES)
       },
       'GET /v1/targets': () => json({ targets: [] }),
       'POST /v1/categories/custom-home/update': () =>
         json({ category: renamed[2] }),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
-    await openCategory(wrapper, 'Домашние')
-    await openMenu(wrapper, 'Actions for category Домашние')
-    menuItem('Rename')?.click()
-    await flushPromises()
-    const panel = dialog()
-    const field = panel.querySelector<HTMLInputElement>('#lists-category-title')
-    expect(field).not.toBeNull()
-    field!.value = 'Renamed later'
-    field!.dispatchEvent(new Event('input', { bubbles: true }))
-    await clickByText(panel, 'Save')
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
+    await openCategory(screen, 'Домашние')
+    await openMenu(screen, 'Actions for category Домашние')
+    await screen.getByRole('menuitem', { name: 'Rename' }).click()
+    await fillField(
+      screen.getByRole('dialog'),
+      CATEGORY_NAME_FIELD,
+      'Renamed later',
+    )
+    await screen
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Save' })
+      .click()
 
-    expect(panel.isConnected).toBe(false)
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    expect(activeCategory(wrapper.element)).toBe('Домашние')
-    expect(wrapper.text()).toContain('Saved, but the lists were not reread')
+    await expect.element(screen.getByText(STALE)).toBeVisible()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+    expect(activeCategory(screen)).toBe('Домашние')
     expect(
       calls.filter(
         (call) => call.key === 'POST /v1/categories/custom-home/update',
       ),
     ).toHaveLength(1)
 
-    await clickByText(wrapper.element as HTMLElement, 'Refresh lists')
-    await flushPromises()
-    expect(activeCategory(wrapper.element)).toBe('Renamed later')
-    expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
+    await screen.getByRole('button', { name: REFRESH }).click()
+    await vi.waitFor(() => {
+      expect(activeCategory(screen)).toBe('Renamed later')
+    })
+    await expect.element(screen.getByText(STALE)).not.toBeInTheDocument()
     expect(
       calls.filter(
         (call) => call.key === 'POST /v1/categories/custom-home/update',
       ),
     ).toHaveLength(1)
-    wrapper.unmount()
   })
 
   it('library audit: closes a committed stale category deletion on a safe row', async () => {
-    let reads = 0
-    const remaining = categories.filter((entry) => entry.id !== 'custom-home')
+    const reads: string[] = []
+    const remaining = CATEGORIES.filter((entry) => entry.id !== 'custom-home')
     const { calls } = stubAPI({
       'GET /v1/lists': () => {
-        reads += 1
-        if (reads === 2) return json({ error: 'catalog unavailable' }, 503)
-        return catalogResponse(reads >= 3 ? remaining : categories)
+        reads.push('read')
+        if (reads.length === 2)
+          return json({ error: 'catalog unavailable' }, 503)
+        return catalogResponse(reads.length >= 3 ? remaining : CATEGORIES)
       },
       'GET /v1/targets': () => json({ targets: [] }),
       'POST /v1/categories/custom-home/remove': () =>
         new Response(null, { status: 204 }),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
-    await openCategory(wrapper, 'Домашние')
-    await openMenu(wrapper, 'Actions for category Домашние')
-    menuItem('Delete the category')?.click()
-    await flushPromises()
-    const panel = dialog()
-    expect(panel.isConnected).toBe(true)
-    await clickByText(panel, 'Delete')
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
+    await openCategory(screen, 'Домашние')
+    await openMenu(screen, 'Actions for category Домашние')
+    await screen.getByRole('menuitem', { name: 'Delete the category' }).click()
+    await screen
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Delete' })
+      .click()
 
-    expect(panel.isConnected).toBe(false)
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
-    expect(activeCategory(wrapper.element)).toBe('Uncategorized')
-    expect(await categoryText(wrapper)).toContain('Домашние')
-    expect(wrapper.text()).toContain('Saved, but the lists were not reread')
+    await expect.element(screen.getByText(STALE)).toBeVisible()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+    expect(activeCategory(screen)).toBe(UNCATEGORIZED)
+    expect(await categoryNames(screen)).toContain('Домашние')
     expect(
       calls.filter(
         (call) => call.key === 'POST /v1/categories/custom-home/remove',
       ),
     ).toHaveLength(1)
 
-    await clickByText(wrapper.element as HTMLElement, 'Refresh lists')
-    await flushPromises()
-    expect(activeCategory(wrapper.element)).toBe('Uncategorized')
-    expect(await categoryText(wrapper)).not.toContain('Домашние')
-    expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
+    await screen.getByRole('button', { name: REFRESH }).click()
+    await expect.element(screen.getByText(STALE)).not.toBeInTheDocument()
+    expect(activeCategory(screen)).toBe(UNCATEGORIZED)
+    expect(await categoryNames(screen)).not.toContain('Домашние')
     expect(
       calls.filter(
         (call) => call.key === 'POST /v1/categories/custom-home/remove',
       ),
     ).toHaveLength(1)
-    wrapper.unmount()
   })
 
   it('library audit: keeps a stale detach visible until GET confirms membership', async () => {
-    const detached = categories.map((category) =>
+    const detached = CATEGORIES.map((category) =>
       category.id === 'communication'
         ? { ...category, lists: ['telegram'] }
         : category,
     )
-    let reads = 0
+    const reads: string[] = []
     const { calls } = stubAPI({
       'GET /v1/lists': () => {
-        reads += 1
-        if (reads === 2) return json({ error: 'catalog unavailable' }, 503)
-        return catalogResponse(reads >= 3 ? detached : categories)
+        reads.push('read')
+        if (reads.length === 2)
+          return json({ error: 'catalog unavailable' }, 503)
+        return catalogResponse(reads.length >= 3 ? detached : CATEGORIES)
       },
       'GET /v1/targets': () => json({ targets: [] }),
       'POST /v1/categories/communication/update': () =>
         json({ category: detached[0] }),
     })
-    const wrapper = mountLibrary()
-    await flushPromises()
-    await openCategory(wrapper, 'Communication')
-    await openMenu(wrapper, 'Actions for list Discord')
-    menuItem('Remove from the category')?.click()
-    await flushPromises()
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
+    await openCategory(screen, 'Communication')
+    await openMenu(screen, 'Actions for list Discord')
+    await screen
+      .getByRole('menuitem', { name: 'Remove from the category' })
+      .click()
 
-    expect(wrapper.get('.lists__pane-body').text()).toContain('Discord')
-    expect(wrapper.text()).toContain('Saved, but the lists were not reread')
+    await expect.element(screen.getByText(STALE)).toBeVisible()
+    expect(rowNames(screen)).toContain('Discord')
     expect(
       calls.filter(
         (call) => call.key === 'POST /v1/categories/communication/update',
       ),
     ).toHaveLength(1)
 
-    await clickByText(wrapper.element as HTMLElement, 'Refresh lists')
-    await flushPromises()
-    expect(wrapper.get('.lists__pane-body').text()).not.toContain('Discord')
-    expect(wrapper.get('.lists__pane-body').text()).toContain('Telegram')
-    expect(wrapper.text()).not.toContain('Saved, but the lists were not reread')
+    await screen.getByRole('button', { name: REFRESH }).click()
+    await vi.waitFor(() => {
+      expect(rowNames(screen)).not.toContain('Discord')
+    })
+    expect(rowNames(screen)).toContain('Telegram')
+    await expect.element(screen.getByText(STALE)).not.toBeInTheDocument()
     expect(
       calls.filter(
         (call) => call.key === 'POST /v1/categories/communication/update',
       ),
     ).toHaveLength(1)
-    wrapper.unmount()
   })
 })

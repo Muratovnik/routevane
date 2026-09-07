@@ -1,4 +1,12 @@
-import { config } from '@vue/test-utils'
+// A real browser needs real geometry. A control whose size is a design token
+// measures zero without these, and a zero-sized control can be neither seen
+// nor clicked. The Nuxt UI bridge stylesheet is deliberately absent: it pulls
+// in the library build, and this suite replaces those components with the
+// behavioral doubles below.
+import '@/assets/styles/tokens.css'
+import '@/assets/styles/global.css'
+
+import { config } from 'vitest-browser-vue'
 import {
   defineComponent,
   getCurrentInstance,
@@ -16,6 +24,12 @@ const children = (parts: Array<VNodeChild | VNodeChild[] | undefined>) =>
 // boundary double rather than dozens of feature-local blank stubs. This keeps
 // the contracts tests rely on: honest element types, disabled-link refusal,
 // named slots and update events.
+//
+// Two decisions the library makes for itself in production — whether a
+// destination is an external navigation or a router link, and which of its own
+// variants it was asked for — have no rendered form of their own. The double
+// states them on the element it renders, so a spec reads them from the DOM
+// instead of reaching into the component instance.
 const UButtonDouble = defineComponent({
   inheritAttrs: false,
   props: {
@@ -38,6 +52,8 @@ const UButtonDouble = defineComponent({
         {
           ...attrs,
           'aria-disabled': isLink && unavailable ? 'true' : undefined,
+          'data-external': isLink ? String(props.external) : undefined,
+          'data-variant': props.variant,
           disabled: isLink ? undefined : unavailable,
           href: isLink && !unavailable ? (props.href ?? props.to) : undefined,
           onClick: (event: MouseEvent) => {
@@ -66,6 +82,14 @@ const USlideoverDouble = defineComponent({
     open: Boolean,
     side: String,
     title: String,
+    // The library applies the content classes it is handed to the panel it
+    // renders, so the double does too, and states the entrance decision that
+    // has no rendered form of its own.
+    transition: { type: Boolean, default: true },
+    ui: {
+      type: Object as PropType<Record<string, unknown>>,
+      default: () => ({}),
+    },
   },
   emits: { 'update:open': (_open: boolean) => true },
   setup(props, { emit, slots }) {
@@ -87,7 +111,10 @@ const USlideoverDouble = defineComponent({
               ? `${id}-description`
               : undefined,
             'aria-labelledby': `${id}-title`,
+            class: props.ui.content,
+            'data-dismissible': String(props.dismissible),
             'data-side': props.side,
+            'data-transition': String(props.transition),
             role: 'dialog',
           },
           children([

@@ -1,98 +1,73 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { page, userEvent } from 'vitest/browser'
+import { render } from 'vitest-browser-vue'
+import { defineComponent, h } from 'vue'
 
 import type { MenuItem } from '@/shared/ui/kinds'
 import RvMenu from '@/shared/ui/RvMenu.vue'
 
-// The panel is a viewport overlay portalled to the document, so it is read
-// there rather than inside the component that opened it.
-const panel = (): HTMLElement | null => {
-  const panels = document.body.querySelectorAll<HTMLElement>('[role="menu"]')
-  return panels.item(panels.length - 1)
-}
+const GLOBAL = { stubs: { NuxtLink: true } }
 
-const items = (scope: HTMLElement | null): HTMLElement[] => [
-  ...(scope?.querySelectorAll<HTMLElement>(
-    '[role="menuitem"], [data-menu-key]',
-  ) ?? []),
-]
+// Every panel is a viewport overlay portalled to the document, so it is read
+// there rather than inside the component that opened it. The innermost one is
+// the last: a submenu is its own panel on top of the menu that opened it.
+const panels = () => page.getByRole('menu')
+const innermost = () => panels().last()
 
-const itemWithText = (text: string): HTMLElement | undefined =>
-  items(panel()).find((item) => item.textContent?.includes(text))
+// An open panel is modal, so everything behind it — the trigger included — is
+// hidden from assistive technology while it stands. Reading the trigger's
+// expanded state during that time needs a query that reaches hidden content.
+const hidden = (name: string) =>
+  page.getByRole('button', { includeHidden: true, name })
 
-// Closing a panel hands the focus back on a macrotask, so a test that asks
-// where the keyboard went waits for one.
-const settle = async (): Promise<void> => {
-  await flushPromises()
-  await new Promise((resolve) => {
-    setTimeout(resolve, 0)
-  })
-}
-
-const mountMenu = (props: { items: MenuItem[]; label: string }) =>
-  mount(RvMenu, {
-    attachTo: document.body,
-    props,
-    global: { stubs: { NuxtLink: true, RvIcon: true } },
-  })
+const renderMenu = (props: { items: MenuItem[]; label: string }) =>
+  render(RvMenu, { global: GLOBAL, props })
 
 describe('RvMenu', () => {
-  // Every panel is portalled to the document, so a component left mounted by a
-  // failing assertion would still be answering the next test's queries.
-  let open: { unmount: () => void } | null = null
-
-  afterEach(() => {
-    open?.unmount()
-    open = null
-    document.body.innerHTML = ''
-  })
-
   // The panel must not belong to whatever container the trigger sits in: a
   // table that owned it would grow its own scroll box around it.
   it('opens a panel that lives outside the trigger container', async () => {
-    const wrapper = mountMenu({
+    const screen = await renderMenu({
       items: [{ key: 'download', label: 'Keenetic · BAT' }],
       label: 'Выбрать формат',
     })
-    open = wrapper
 
-    const trigger = wrapper.get('.rv-menu__trigger')
-    expect(panel()).toBeNull()
+    const trigger = screen.getByRole('button', { name: 'Выбрать формат' })
+    await expect.element(innermost()).not.toBeInTheDocument()
 
-    await trigger.trigger('click')
-    await flushPromises()
+    await trigger.click()
 
-    const opened = panel()
-    expect(opened).not.toBeNull()
-    expect(opened?.classList.contains('rv-menu__panel')).toBe(true)
-    expect(wrapper.element.contains(opened)).toBe(false)
-    expect(opened?.textContent).toContain('Keenetic · BAT')
-    expect(trigger.attributes('aria-expanded')).toBe('true')
+    const opened = innermost()
+    await expect.element(opened).toBeVisible()
+    await expect.element(opened).toHaveClass('rv-menu__panel')
+    expect(screen.container.contains(opened.element())).toBe(false)
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'Keenetic · BAT' }))
+      .toBeVisible()
+    await expect
+      .element(hidden('Выбрать формат'))
+      .toHaveAttribute('aria-expanded', 'true')
   })
 
   it('emits the chosen key and closes', async () => {
-    const wrapper = mountMenu({
+    const screen = await renderMenu({
       items: [
         { key: 'open', label: 'Открыть' },
         { key: 'archive', label: 'В архив' },
       ],
       label: 'Действия',
     })
-    open = wrapper
 
-    await wrapper.get('.rv-menu__trigger').trigger('click')
-    await flushPromises()
-    itemWithText('В архив')?.click()
-    await flushPromises()
+    const trigger = screen.getByRole('button', { name: 'Действия' })
+    await trigger.click()
+    await screen.getByRole('menuitem', { name: 'В архив' }).click()
 
-    expect(wrapper.emitted('select')).toEqual([['archive']])
-    expect(wrapper.get('.rv-menu__trigger').attributes('aria-expanded')).toBe(
-      'false',
-    )
+    expect(screen.emitted('select')).toEqual([['archive']])
+    await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('drills into grouped choices and returns without closing the menu', async () => {
-    const wrapper = mountMenu({
+    const screen = await renderMenu({
       items: [
         { key: 'open', label: 'Открыть' },
         {
@@ -106,85 +81,84 @@ describe('RvMenu', () => {
       ],
       label: 'Действия',
     })
-    open = wrapper
 
-    const trigger = wrapper.get('.rv-menu__trigger')
-    await trigger.trigger('click')
-    await flushPromises()
+    const trigger = screen.getByRole('button', { name: 'Действия' })
+    await trigger.click()
 
-    const group = itemWithText('Скачать')
-    expect(group).toBeDefined()
-    expect(group?.getAttribute('aria-haspopup')).toBe('menu')
+    const group = screen.getByRole('menuitem', { name: 'Скачать' })
+    await expect.element(group).toHaveAttribute('aria-haspopup', 'menu')
 
-    group?.click()
-    await flushPromises()
+    await group.click()
 
     // The submenu is its own panel; the menu that opened it is still standing.
-    const panels = document.body.querySelectorAll('[role="menu"]')
-    expect(panels).toHaveLength(2)
-    expect(panel()?.textContent).toContain('JSON · все правила')
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'JSON · все правила' }))
+      .toBeVisible()
+    expect(panels().all()).toHaveLength(2)
 
-    // Leaving the group closes only the group.
-    panel()?.dispatchEvent(
-      new KeyboardEvent('keydown', { bubbles: true, key: 'ArrowLeft' }),
-    )
-    await flushPromises()
-    expect(document.body.querySelectorAll('[role="menu"]')).toHaveLength(1)
-    expect(trigger.attributes('aria-expanded')).toBe('true')
+    // Leaving the group closes only the group: the keyboard walks into the
+    // submenu and back out of it, and the menu behind is still standing.
+    await userEvent.keyboard('{ArrowRight}')
+    await userEvent.keyboard('{ArrowLeft}')
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'JSON · все правила' }))
+      .not.toBeInTheDocument()
+    expect(panels().all()).toHaveLength(1)
+    await expect
+      .element(hidden('Действия'))
+      .toHaveAttribute('aria-expanded', 'true')
 
     // Choosing inside the group still reports the child's key.
-    group?.click()
-    await flushPromises()
-    itemWithText('JSON · все правила')?.click()
-    await flushPromises()
-    expect(wrapper.emitted('select')).toEqual([['json']])
+    await group.click()
+    await screen.getByRole('menuitem', { name: 'JSON · все правила' }).click()
+    expect(screen.emitted('select')).toEqual([['json']])
   })
 
   // Escape is the keyboard's way out, and the way out has to land somewhere:
   // focus returns to the control that opened the panel rather than to the top
   // of the document.
   it('closes on Escape and hands focus back to its trigger', async () => {
-    const wrapper = mountMenu({
+    const screen = await renderMenu({
       items: [{ key: 'archive', label: 'В архив' }],
       label: 'Действия',
     })
-    open = wrapper
 
-    const trigger = wrapper.get<HTMLButtonElement>('.rv-menu__trigger')
-    await trigger.trigger('click')
-    await flushPromises()
-    expect(panel()).not.toBeNull()
+    const trigger = screen.getByRole('button', { name: 'Действия' })
+    await trigger.click()
+    await expect.element(innermost()).toBeVisible()
 
-    document.dispatchEvent(
-      new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }),
-    )
-    await settle()
+    await userEvent.keyboard('{Escape}')
 
-    expect(trigger.attributes('aria-expanded')).toBe('false')
-    expect(document.activeElement).toBe(trigger.element)
+    await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
+    await expect.element(trigger).toHaveFocus()
   })
 
   it('closes when a click lands outside it', async () => {
-    const wrapper = mountMenu({
-      items: [{ key: 'archive', label: 'В архив' }],
-      label: 'Действия',
+    // An open menu is modal, so the page behind it stops taking the pointer.
+    // The dismissing click is forced for that reason: what it must not do is
+    // activate the control underneath, and what it must do is close the panel.
+    const Host = defineComponent({
+      setup() {
+        return () =>
+          h('div', [
+            h(RvMenu, {
+              items: [{ key: 'archive', label: 'В архив' }] as MenuItem[],
+              label: 'Действия',
+            }),
+            h('button', { type: 'button' }, 'Elsewhere'),
+          ])
+      },
     })
-    open = wrapper
+    const screen = await render(Host, { global: GLOBAL })
 
-    const trigger = wrapper.get('.rv-menu__trigger')
-    await trigger.trigger('click')
-    // The panel starts listening for the next gesture, not for the one that
-    // opened it, so the dismissing click is a separate turn of the loop.
-    await settle()
-    expect(trigger.attributes('aria-expanded')).toBe('true')
+    const trigger = screen.getByRole('button', { name: 'Действия' })
+    await trigger.click()
+    await expect
+      .element(hidden('Действия'))
+      .toHaveAttribute('aria-expanded', 'true')
 
-    const outside = document.createElement('button')
-    document.body.append(outside)
-    outside.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
-    outside.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    await settle()
+    await hidden('Elsewhere').click({ force: true })
 
-    expect(trigger.attributes('aria-expanded')).toBe('false')
-    outside.remove()
+    await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
   })
 })

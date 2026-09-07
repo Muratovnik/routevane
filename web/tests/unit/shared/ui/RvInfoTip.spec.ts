@@ -1,72 +1,48 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
+import { userEvent } from 'vitest/browser'
+import { render } from 'vitest-browser-vue'
 
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 
-const panel = (): HTMLElement | null =>
-  document.body.querySelector<HTMLElement>('.rv-infotip__panel')
+const LABEL = 'How this works'
+const EXPLANATION =
+  'A subscription link is fetched by the device on its own schedule.'
 
-const settle = async (): Promise<void> => {
-  await flushPromises()
-  await new Promise((resolve) => {
-    setTimeout(resolve, 0)
-  })
-}
-
-const mountInfoTip = () =>
-  mount(RvInfoTip, {
-    attachTo: document.body,
-    props: {
-      label: 'How this works',
-      text: 'A subscription link is fetched by the device on its own schedule.',
-    },
-    global: { stubs: { RvIcon: true } },
+const renderInfoTip = () =>
+  render(RvInfoTip, {
+    props: { label: LABEL, text: EXPLANATION },
   })
 
 describe('RvInfoTip', () => {
-  let open: { unmount: () => void } | null = null
-
-  afterEach(() => {
-    open?.unmount()
-    open = null
-    document.body.innerHTML = ''
-  })
-
   // The panel stays open once it is open: it closes on a deliberate dismissal,
   // never because the focus arrived in it. An informer that vanished when the
   // keyboard reached it could not be read by the keyboard at all.
   it('opens on its trigger and stays open while it is being read', async () => {
-    const wrapper = mountInfoTip()
-    open = wrapper
+    const screen = await renderInfoTip()
 
-    const trigger = wrapper.get('.rv-infotip__trigger')
-    expect(panel()).toBeNull()
+    const trigger = screen.getByRole('button', { name: LABEL })
+    const explanation = screen.getByText(EXPLANATION)
+    await expect.element(explanation).not.toBeInTheDocument()
 
-    await trigger.trigger('click')
-    await settle()
+    await trigger.click()
 
-    expect(trigger.attributes('aria-expanded')).toBe('true')
-    expect(panel()?.textContent).toContain('A subscription link')
+    await expect.element(trigger).toHaveAttribute('aria-expanded', 'true')
+    await expect.element(explanation).toBeVisible()
     // The explanation is a viewport overlay, not part of whatever it explains.
-    expect(wrapper.element.contains(panel())).toBe(false)
+    expect(screen.container.contains(explanation.element())).toBe(false)
   })
 
   it('closes on Escape and hands focus back to its trigger', async () => {
-    const wrapper = mountInfoTip()
-    open = wrapper
+    const screen = await renderInfoTip()
 
-    const trigger = wrapper.get<HTMLButtonElement>('.rv-infotip__trigger')
-    await trigger.trigger('click')
-    await settle()
-    expect(panel()).not.toBeNull()
+    const trigger = screen.getByRole('button', { name: LABEL })
+    await trigger.click()
+    await expect.element(screen.getByText(EXPLANATION)).toBeVisible()
 
-    document.dispatchEvent(
-      new KeyboardEvent('keydown', { bubbles: true, key: 'Escape' }),
-    )
-    await settle()
+    await userEvent.keyboard('{Escape}')
 
-    expect(panel()).toBeNull()
-    expect(trigger.attributes('aria-expanded')).toBe('false')
-    expect(document.activeElement).toBe(trigger.element)
+    await expect.element(screen.getByText(EXPLANATION)).not.toBeInTheDocument()
+    await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
+    await expect.element(trigger).toHaveFocus()
   })
 })

@@ -1,5 +1,5 @@
-import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { render } from 'vitest-browser-vue'
 import { defineComponent, h } from 'vue'
 
 import {
@@ -7,23 +7,40 @@ import {
   type DebouncedMutation,
 } from '@/shared/model/useDebouncedMutation'
 
-type Harness = {
-  mutation: DebouncedMutation<boolean>
-  wrapper: ReturnType<typeof mount>
+// The mutation cancels its unsent work when its owner unmounts, which only a
+// mounted component has, so the subject is exercised through a host of its own.
+const harness = <T>(
+  build: () => DebouncedMutation<T>,
+  captured: { mutation?: DebouncedMutation<T> },
+) =>
+  defineComponent({
+    setup() {
+      captured.mutation = build()
+      return () => h('div')
+    },
+  })
+
+type Harness<T> = {
+  mutation: DebouncedMutation<T>
+  unmount: () => Promise<void>
+}
+
+const mount = async <T>(
+  build: () => DebouncedMutation<T>,
+): Promise<Harness<T>> => {
+  const captured: { mutation?: DebouncedMutation<T> } = {}
+  const screen = await render(harness(build, captured))
+  return { mutation: captured.mutation!, unmount: screen.unmount }
 }
 
 const setup = (
   request: (key: string, value: boolean) => Promise<boolean | undefined>,
-): Harness => {
-  let mutation!: DebouncedMutation<boolean>
-  const component = defineComponent({
-    setup() {
-      mutation = useDebouncedMutation(request)
-      return () => h('div')
-    },
-  })
-  const wrapper = mount(component)
-  return { mutation, wrapper }
+): Promise<Harness<boolean>> => mount(() => useDebouncedMutation(request))
+
+// Every case below drives the clock itself, so settling the promise chain has to
+// go through the same fake clock rather than through a real task queue.
+const settle = async (): Promise<void> => {
+  await vi.advanceTimersByTimeAsync(0)
 }
 
 afterEach(() => {
@@ -34,7 +51,7 @@ describe('useDebouncedMutation', () => {
   it('coalesces a key within the debounce window and keeps the last intent', async () => {
     vi.useFakeTimers()
     const request = vi.fn(async (_key: string, value: boolean) => value)
-    const { mutation, wrapper } = setup(request)
+    const { mutation, unmount } = await setup(request)
     mutation.seed('entry', true)
 
     mutation.mutate('entry', false)
@@ -45,7 +62,7 @@ describe('useDebouncedMutation', () => {
     expect(request).not.toHaveBeenCalled()
 
     await vi.advanceTimersByTimeAsync(1)
-    await flushPromises()
+    await settle()
     expect(request).toHaveBeenCalledTimes(1)
     expect(request).toHaveBeenCalledWith('entry', false)
     expect(mutation.getState('entry')).toMatchObject({
@@ -53,19 +70,16 @@ describe('useDebouncedMutation', () => {
       status: 'idle',
       value: false,
     })
-    wrapper.unmount()
+    await unmount()
   })
 
   it('keeps independent keys operable while one request is in flight', async () => {
     vi.useFakeTimers()
-    let release!: (value: boolean) => void
-    const first = new Promise<boolean>((resolve) => {
-      release = resolve
-    })
+    const first = Promise.withResolvers<boolean>()
     const request = vi.fn((key: string, value: boolean) =>
-      key === 'first' ? first : Promise.resolve(value),
+      key === 'first' ? first.promise : Promise.resolve(value),
     )
-    const { mutation, wrapper } = setup(request)
+    const { mutation, unmount } = await setup(request)
     mutation.seed('first', false)
     mutation.seed('second', false)
 
@@ -77,25 +91,22 @@ describe('useDebouncedMutation', () => {
     mutation.mutate('second', true)
     expect(mutation.getValue('second')).toBe(true)
     await vi.advanceTimersByTimeAsync(250)
-    await flushPromises()
+    await settle()
     expect(request).toHaveBeenCalledWith('second', true)
 
-    release(true)
-    await flushPromises()
+    first.resolve(true)
+    await settle()
     expect(mutation.pending.value).toBe(false)
-    wrapper.unmount()
+    await unmount()
   })
 
   it('does not let an older response overwrite a newer in-flight intent', async () => {
     vi.useFakeTimers()
-    let releaseFirst!: (value: boolean) => void
-    const first = new Promise<boolean>((resolve) => {
-      releaseFirst = resolve
-    })
+    const first = Promise.withResolvers<boolean>()
     const request = vi.fn((_: string, value: boolean) =>
-      request.mock.calls.length === 1 ? first : Promise.resolve(value),
+      request.mock.calls.length === 1 ? first.promise : Promise.resolve(value),
     )
-    const { mutation, wrapper } = setup(request)
+    const { mutation, unmount } = await setup(request)
     mutation.seed('entry', false)
 
     mutation.mutate('entry', true)
@@ -103,64 +114,50 @@ describe('useDebouncedMutation', () => {
     mutation.mutate('entry', false)
     expect(mutation.getValue('entry')).toBe(false)
 
-    releaseFirst(true)
-    await flushPromises()
+    first.resolve(true)
+    await settle()
     expect(mutation.getValue('entry')).toBe(false)
     expect(request).toHaveBeenCalledTimes(2)
     expect(request).toHaveBeenLastCalledWith('entry', false)
 
-    await flushPromises()
+    await settle()
     expect(mutation.getState('entry')).toMatchObject({
       confirmed: false,
       status: 'idle',
       value: false,
     })
-    wrapper.unmount()
+    await unmount()
   })
 
   it('adapts a richer response and reports the superseded success before retrying the latest intent', async () => {
     vi.useFakeTimers()
-    let releaseFirst!: (result: { enabled: boolean }) => void
-    const first = new Promise<{ enabled: boolean }>((resolve) => {
-      releaseFirst = resolve
-    })
-    let releaseSecond!: (result: { enabled: boolean }) => void
-    const second = new Promise<{ enabled: boolean }>((resolve) => {
-      releaseSecond = resolve
-    })
+    const first = Promise.withResolvers<{ enabled: boolean }>()
+    const second = Promise.withResolvers<{ enabled: boolean }>()
     const events: { confirmed: boolean; superseded: boolean }[] = []
     const request = vi.fn((_: string, _value: boolean) =>
-      request.mock.calls.length === 1 ? first : second,
+      request.mock.calls.length === 1 ? first.promise : second.promise,
     )
-    let mutation!: DebouncedMutation<boolean>
-    const component = defineComponent({
-      setup() {
-        mutation = useDebouncedMutation<boolean, { enabled: boolean }>(
-          request,
-          {
-            onSuccess: ({ confirmed, superseded }) =>
-              events.push({ confirmed, superseded }),
-            resolve: (result, attempted) => result?.enabled ?? attempted,
-          },
-        )
-        return () => h('div')
-      },
-    })
-    const wrapper = mount(component)
+    const { mutation, unmount } = await mount(() =>
+      useDebouncedMutation<boolean, { enabled: boolean }>(request, {
+        onSuccess: ({ confirmed, superseded }) =>
+          events.push({ confirmed, superseded }),
+        resolve: (result, attempted) => result?.enabled ?? attempted,
+      }),
+    )
     mutation.seed('entry', false)
 
     mutation.mutate('entry', true)
     await vi.advanceTimersByTimeAsync(250)
     mutation.mutate('entry', false)
-    releaseFirst({ enabled: true })
-    await flushPromises()
+    first.resolve({ enabled: true })
+    await settle()
 
     expect(events).toEqual([{ confirmed: true, superseded: true }])
     expect(mutation.getValue('entry')).toBe(false)
     expect(request).toHaveBeenCalledTimes(2)
 
-    releaseSecond({ enabled: false })
-    await flushPromises()
+    second.resolve({ enabled: false })
+    await settle()
     expect(events).toEqual([
       { confirmed: true, superseded: true },
       { confirmed: false, superseded: false },
@@ -170,28 +167,24 @@ describe('useDebouncedMutation', () => {
       status: 'idle',
       value: false,
     })
-    wrapper.unmount()
+    await unmount()
   })
 
   it('rolls back one failed key and retries it without affecting another key', async () => {
     vi.useFakeTimers()
-    let reject!: (reason: unknown) => void
-    let attempt = 0
-    const request = vi.fn((_: string, value: boolean) => {
-      attempt += 1
-      if (attempt === 1)
-        return new Promise<boolean>((_, fail) => {
-          reject = fail
-        })
-      return Promise.resolve(value)
-    })
-    const { mutation, wrapper } = setup(request)
+    const offline = Promise.withResolvers<boolean>()
+    const request = vi.fn((_: string, value: boolean) =>
+      request.mock.calls.length === 1
+        ? offline.promise
+        : Promise.resolve(value),
+    )
+    const { mutation, unmount } = await setup(request)
     mutation.seed('failed', false)
     mutation.seed('untouched', true)
     mutation.mutate('failed', true)
     await vi.advanceTimersByTimeAsync(250)
-    reject(new Error('offline'))
-    await flushPromises()
+    offline.reject(new Error('offline'))
+    await settle()
 
     expect(mutation.getValue('failed')).toBe(false)
     expect(mutation.getState('failed')).toMatchObject({ status: 'error' })
@@ -200,26 +193,26 @@ describe('useDebouncedMutation', () => {
     mutation.retry('failed')
     expect(mutation.getValue('failed')).toBe(true)
     await vi.advanceTimersByTimeAsync(250)
-    await flushPromises()
+    await settle()
     expect(mutation.getState('failed')).toMatchObject({
       confirmed: true,
       error: null,
       status: 'idle',
       value: true,
     })
-    wrapper.unmount()
+    await unmount()
   })
 
   it('cancels unsent work when its owner unmounts', async () => {
     vi.useFakeTimers()
     const request = vi.fn(async (_key: string, value: boolean) => value)
-    const { mutation, wrapper } = setup(request)
+    const { mutation, unmount } = await setup(request)
     mutation.seed('entry', false)
     mutation.mutate('entry', true)
-    wrapper.unmount()
+    await unmount()
 
     await vi.advanceTimersByTimeAsync(250)
-    await flushPromises()
+    await settle()
     expect(request).not.toHaveBeenCalled()
     expect(mutation.pending.value).toBe(false)
   })
@@ -227,21 +220,21 @@ describe('useDebouncedMutation', () => {
   it('flushes one queued key and cancels another without crossing their state', async () => {
     vi.useFakeTimers()
     const request = vi.fn(async (_key: string, value: boolean) => value)
-    const { mutation, wrapper } = setup(request)
+    const { mutation, unmount } = await setup(request)
     mutation.seed('flushed', false)
     mutation.seed('cancelled', false)
     mutation.mutate('flushed', true)
     mutation.mutate('cancelled', true)
 
     mutation.flush('flushed')
-    await flushPromises()
+    await settle()
     expect(request).toHaveBeenCalledTimes(1)
     expect(request).toHaveBeenCalledWith('flushed', true)
 
     mutation.cancel('cancelled')
     await vi.advanceTimersByTimeAsync(250)
-    await flushPromises()
+    await settle()
     expect(request).toHaveBeenCalledTimes(1)
-    wrapper.unmount()
+    await unmount()
   })
 })

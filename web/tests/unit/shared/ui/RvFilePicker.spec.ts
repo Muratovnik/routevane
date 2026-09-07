@@ -1,9 +1,9 @@
-import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import { render } from 'vitest-browser-vue'
 
 import RvFilePicker from '@/shared/ui/RvFilePicker.vue'
 
-const props = {
+const PROPS = {
   actionLabel: 'Choose file',
   emptyLabel: 'No file selected',
   inputId: 'transfer-file',
@@ -12,34 +12,37 @@ const props = {
 
 describe('RvFilePicker', () => {
   it('keeps a labelled native chooser behind the custom surface', async () => {
-    const wrapper = mount(RvFilePicker, {
-      props,
-      global: { stubs: { RvIcon: true } },
+    const screen = await render(RvFilePicker, {
+      props: PROPS,
     })
-    const input = wrapper.get<HTMLInputElement>('input[type="file"]')
-    expect(wrapper.get('label').attributes('for')).toBe('transfer-file')
-    expect(input.attributes('id')).toBe('transfer-file')
-    expect(wrapper.text()).toContain('No file selected')
+
+    // The drawn surface is a button; the file input is what the visible label
+    // names, so reaching the native chooser through that label is the check
+    // that the two are still wired to each other.
+    const chooser = screen.getByLabelText('Configuration file')
+    await expect.element(chooser).toHaveAttribute('type', 'file')
+    await expect.element(screen.getByText('No file selected')).toBeVisible()
 
     const file = new File(['{}'], 'routevane.json', {
       type: 'application/json',
     })
-    Object.defineProperty(input.element, 'files', {
-      configurable: true,
-      value: { item: () => file, length: 1 },
-    })
-    await input.trigger('change')
+    await chooser.upload(file)
 
-    expect(wrapper.emitted('select')?.at(-1)).toEqual([file])
+    const selected = screen.emitted<[File]>('select')?.at(-1)
+    expect(selected?.[0]?.name).toBe('routevane.json')
   })
 
   it('does not open or accept a file while disabled', async () => {
-    const wrapper = mount(RvFilePicker, {
-      props: { ...props, disabled: true },
-      global: { stubs: { RvIcon: true } },
+    const screen = await render(RvFilePicker, {
+      props: { ...PROPS, disabled: true },
     })
-    expect(wrapper.get<HTMLButtonElement>('button').element.disabled).toBe(true)
-    expect(wrapper.get<HTMLInputElement>('input').element.disabled).toBe(true)
-    expect(wrapper.emitted('select')).toBeUndefined()
+
+    await expect
+      .element(screen.getByRole('button', { name: 'Choose file' }))
+      .toBeDisabled()
+    await expect
+      .element(screen.getByLabelText('Configuration file'))
+      .toBeDisabled()
+    expect(screen.emitted('select')).toBeUndefined()
   })
 })

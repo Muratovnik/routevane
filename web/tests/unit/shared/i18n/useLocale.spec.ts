@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { dictionaries, locales } from '@/shared/i18n/messages'
 import {
@@ -6,6 +6,25 @@ import {
   resolveLocale,
   useLocale,
 } from '@/shared/i18n/useLocale'
+
+// One locale for the whole surface means one module instance per page, and it
+// reads the stored key once, while the page evaluates it. A first visit can
+// therefore only be observed here, above the cases that go on to choose.
+const LOCALE_ON_FIRST_VISIT = useLocale().locale.value
+const STORED_ON_FIRST_VISIT = window.localStorage.getItem('rv.locale')
+
+// Another tab on this origin writing the same key. The browser delivers that
+// as a storage event; a write from this page never fires one.
+const storeInAnotherTab = (key: string, value: string): void => {
+  window.localStorage.setItem(key, value)
+  window.dispatchEvent(
+    new StorageEvent('storage', {
+      key,
+      newValue: value,
+      storageArea: window.localStorage,
+    }),
+  )
+}
 
 describe('locale resolution', () => {
   it('prefers a stored choice over the browser preference', () => {
@@ -115,35 +134,34 @@ describe('numbers and sizes', () => {
 // Storage is a convenience: it carries the choice between visits, it does not
 // decide what a locale is, and it is never written on the operator's behalf.
 describe('the remembered choice', () => {
-  beforeEach(() => {
-    vi.resetModules()
-    window.localStorage.clear()
-  })
-
-  it('takes a stored locale this build speaks', async () => {
-    window.localStorage.setItem('rv.locale', 'ru')
-    const module = await import('@/shared/i18n/useLocale')
-    expect(module.useLocale().locale.value).toBe('ru')
-  })
-
-  it('falls back to the browser when the stored value is not one', async () => {
-    window.localStorage.setItem('rv.locale', 'klingon')
-    const module = await import('@/shared/i18n/useLocale')
-    expect(module.useLocale().locale.value).toBe('en')
-  })
-
-  it('records a switch under the key an earlier build reads', async () => {
-    const module = await import('@/shared/i18n/useLocale')
-    module.useLocale().setLocale('ru')
-    expect(window.localStorage.getItem('rv.locale')).toBe('ru')
-  })
-
   // Following the browser is not a choice the operator made, so it is not
   // stored as one: a laptop switched to Russian next month still switches the
   // surface with it.
-  it('leaves the browser preference unrecorded until one is chosen', async () => {
-    const module = await import('@/shared/i18n/useLocale')
-    expect(module.useLocale().locale.value).toBe('en')
-    expect(window.localStorage.getItem('rv.locale')).toBeNull()
+  it('leaves the browser preference unrecorded until one is chosen', () => {
+    expect(LOCALE_ON_FIRST_VISIT).toBe('en')
+    expect(STORED_ON_FIRST_VISIT).toBeNull()
+  })
+
+  it('records a switch under the key an earlier build reads', () => {
+    const { setLocale } = useLocale()
+
+    setLocale('ru')
+    expect(window.localStorage.getItem('rv.locale')).toBe('ru')
+
+    setLocale('en')
+    expect(window.localStorage.getItem('rv.locale')).toBe('en')
+  })
+
+  // The stored choice is also the same choice in a second tab: the browser's
+  // storage event carries it across without either tab asking. What arrives is
+  // resolved rather than trusted, because anything on this origin can write it.
+  it('takes a locale a second tab stored and resolves one this build cannot speak', () => {
+    const { locale } = useLocale()
+
+    storeInAnotherTab('rv.locale', 'ru')
+    expect(locale.value).toBe('ru')
+
+    storeInAnotherTab('rv.locale', 'klingon')
+    expect(locale.value).toBe('en')
   })
 })
