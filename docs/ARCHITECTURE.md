@@ -47,14 +47,15 @@ a deployer changes one compatible destination. These are distinct responsibiliti
 
 ## Product objects and storage
 
-The UI's **list** is an API `service`: a named destination set. A UI **profile**
-is an API `list`: a stored composition of lists/categories and exclusions.
-An output joins that profile to a target format and optionally a registered device.
-It owns its subscription and published artifact chain. The terminology mapping
-is deliberate compatibility debt, not two product models
-([ADR 0028](adr/0028-lists-live-in-categories-and-a-route-publishes-them.md)).
+A **list** is a named set of rules. A **profile** is a stored composition of
+lists and categories with its exclusions. An output joins that profile to a
+target format and optionally a registered device. It owns its subscription and
+published artifact chain. The interface, the API and the schema use these same
+words; the mapping they needed until `0.2.0` is gone
+([ADR 0028](adr/0028-lists-live-in-categories-and-a-route-publishes-them.md),
+[ADR 0039](adr/0039-one-product-vocabulary-across-binary-api-and-storage.md)).
 
-Catalog YAML seeds service definitions, categories and targets. Operator changes
+Catalog YAML seeds list definitions, categories and targets. Operator changes
 are stored as overlays in SQLite; removing a shipped item does not edit its file.
 Library writes and profile selection are separate flows. A directly referenced
 library object cannot be deleted; profiles can be archived and restored.
@@ -141,11 +142,11 @@ delivery uses a declared file path and reaches no network.
 Keenetic static-route ownership is persisted per output and exact
 endpoint/target/interface scope. The application computes additions and
 authorized removals; the deployer observes and applies them without depending on
-SQLite. A profile is removable only after its last claim disappears and the ledger
-says Routevane created it. Missing or retired ownership is additive and preserves
-unknown same-interface profiles. The immutable plan also carries human category/list
-labels; deployment compacts their union into the native description of an owned
-profile and verifies it on read-back without changing BAT artifact bytes
+SQLite. A static route is removable only after its last claim disappears and the
+ledger says Routevane created it. Missing or retired ownership is additive and
+preserves unknown same-interface routes. The immutable plan also carries human
+category/list labels; deployment compacts their union into the native description
+of an owned route and verifies it on read-back without changing BAT artifact bytes
 ([exact ownership](adr/0032-persist-exact-keenetic-static-route-ownership.md),
 [descriptions](adr/0034-keenetic-route-descriptions-from-plan-provenance.md)).
 

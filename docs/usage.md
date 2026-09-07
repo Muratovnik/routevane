@@ -69,9 +69,9 @@ list holds strings or objects carrying `ip_prefix`, `ipv6_prefix`, `prefix`,
 `cidr`, or `ip`. Only HTTPS is accepted; the destination address, every redirect
 hop, the response size, the entry count, and the deadline are bounded, and an
 entry that does not normalize is skipped rather than recorded. A prefix from a
-published operator feed profiles; an observed or inferred prefix stays
+published operator feed routes; an observed or inferred prefix stays
 quarantined. A source that fails while its previous success is still inside the
-grace window keeps its profiles with a `source_degraded` warning instead of
+grace window keeps its routes with a `source_degraded` warning instead of
 dropping them. The policy is recorded in
 [`docs/adr/0006-official-feeds-and-source-grace.md`](adr/0006-official-feeds-and-source-grace.md).
 
@@ -128,7 +128,7 @@ output directory must resolve inside `--data-dir`; omitting `--output` uses
 `data/artifacts`. Unsupported domain or IPv6 candidates produce a structured
 `partial_coverage` warning only when every required component still has a safe
 IPv4 rule. Missing required coverage or more than 1024 unique projected BAT
-profile lines creates no file.
+route lines creates no file.
 
 Before importing the file:
 
@@ -136,11 +136,11 @@ Before importing the file:
 2. Make a router configuration backup and keep independent recovery access.
 3. Schedule a maintenance window; the documented importer is treated as
    additive and its transactional/rollback behavior is unknown.
-4. Inspect the BAT file and note its profile-line count.
-5. Open **Routing → User-Defined Profiles → Upload**, select the file, and choose
+4. Inspect the BAT file and note its route-line count.
+5. Open **Routing → User-Defined Routes → Upload**, select the file, and choose
    the intended existing VPN or WAN interface.
-6. After import, verify the profile count and test that representative service
-   destinations use the intended profile while recovery access still works.
+6. After import, verify the route count and test that representative list
+   destinations use the intended route while recovery access still works.
 
 This manual file-build workflow does not connect to the router, probe its version or
 interface, apply the file, verify traffic, create a backup, or roll back. Hardware
@@ -170,10 +170,10 @@ nft add set inet fw4 routevane4 '{ type ipv4_addr; flags interval; }'
 nft add set inet fw4 routevane6 '{ type ipv6_addr; flags interval; }'
 ```
 
-Add firewall rules that profile members of those two sets through the intended
+Add firewall rules that route members of those two sets through the intended
 interface, then copy the fragment into `/etc/dnsmasq.d/` and restart dnsmasq.
 Existing entries stay in a set until it is flushed, so flush both sets when a
-service is removed from the profile.
+list is removed from the profile.
 
 Hardware acceptance on a physical OpenWrt device is **unverified** in this
 repository; the option syntax follows the dnsmasq manual.
@@ -215,7 +215,7 @@ The `amnezia` target builds the site list the AmneziaVPN client imports:
 In the client, open split tunnelling, use the menu to import the file, and choose
 whether it replaces the existing site list or is added to it.
 
-Every entry carries an empty address list on purpose: the client profiles a prefix
+Every entry carries an empty address list on purpose: the client routes a prefix
 entry directly and resolves a name entry when the tunnel comes up, so the file
 never freezes the addresses observed at build time. IPv6 and suffix rules are
 refused because the client would store such an entry without routing it.
@@ -267,7 +267,7 @@ and the first-success subscription lifecycle in
 
 The device selector lists every catalog target this build can serve. The same
 service selection can be published for each of them: Keenetic receives the IPv4
-profile dialect, and `singbox` receives a sing-box source rule-set document that
+route dialect, and `singbox` receives a sing-box source rule-set document that
 carries the domain suffixes the router format has to drop. Each artifact is
 validated by its own independent parser before publication, and the download
 name and content type come from the renderer descriptor rather than a constant.
@@ -404,10 +404,10 @@ $env:ROUTEVANE_DEVICE_PASSWORD = Read-Host -AsSecureString | ConvertFrom-SecureS
 
 The first call changes nothing. A confirmed deployment probes the firmware,
 refuses an incompatible one before touching the device, stores and verifies a
-configuration backup, reconciles the artifact's exact persisted profile claims on
+configuration backup, reconciles the artifact's exact persisted route claims on
 the named interface, reads the device's route table back, and rolls back from
-that backup if deployment or verification fails. Profiles Routevane did not create
-are preserved even on the same interface. A pre-existing desired profile remains
+that backup if deployment or verification fails. Routes Routevane did not create
+are preserved even on the same interface. A pre-existing desired route remains
 foreign, shared prefixes remain until their last output claim leaves, and a
 repeated deployment changes nothing. Missing ownership history is additive and
 never guesses from interface membership. Every step is recorded with its outcome
@@ -419,12 +419,12 @@ For a route Routevane creates, Keenetic's **Description** shows its provenance a
 prefix comes from several lists, the lexicographically first label is followed
 by `+N`; the complete label set remains in the plan snapshot. Routevane reads
 this value back and rolls back if Keenetic omits or changes it. A pre-existing same-prefix
-profile and its description remain untouched. Downloaded BAT files deliberately
+route and its description remain untouched. Downloaded BAT files deliberately
 stay unchanged; this description applies to automatic RCI delivery. See
 [`ADR 0034`](adr/0034-keenetic-route-descriptions-from-plan-provenance.md).
 
 Keenetic rollback uploads the complete captured configuration, not a scoped
-profile delta. Avoid concurrent router changes during delivery: unrelated changes
+route delta. Avoid concurrent router changes during delivery: unrelated changes
 made after the backup may also be undone. Physical recovery remains unverified.
 Use an interface ID such as `Wireguard0`, not its description. For DNS-based
 delivery, an exclusive (`reject=true`) or ambiguously attached Routevane group
@@ -449,7 +449,7 @@ A failed format is not delivered from an older file, a failed device does not
 stop sibling outputs, and the previously published artifact remains available.
 Disabling automatic delivery deletes the stored credential; forgetting the
 device detaches it from outputs without deleting their files or subscriptions
-and retires its profile-ownership scope without changing the router.
+and retires its route-ownership scope without changing the router.
 The consent, binding, and credential-free target rules are recorded in
 [`docs/adr/0031-explicit-scheduled-device-delivery.md`](adr/0031-explicit-scheduled-device-delivery.md).
 
@@ -473,7 +473,7 @@ The destination is the file your own configuration declares:
 
 ```json
 {
-  "profile": {
+  "route": {
     "rule_set": [
       { "tag": "routevane", "type": "local", "format": "source", "path": "routevane.json" }
     ]

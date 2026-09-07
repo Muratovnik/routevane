@@ -472,7 +472,7 @@ const ru: Dictionary = {
   'serviceCard.import': 'Импортировать файл',
   'serviceCard.import.none': 'Файл не выбран',
   'serviceCard.import.hint':
-    'Текстовый файл, JSON-массив или .bat с командами profile.',
+    'Текстовый файл, JSON-массив или .bat с командами route.',
   'serviceCard.import.empty': 'В файле не нашлось ни одной записи.',
   'serviceCard.import.skipped': {
     few: '{count} строки пропущено',
@@ -619,7 +619,7 @@ const ru: Dictionary = {
     'диапазон слишком широк для автоматического добавления',
   'list.diagnostics.reason.shared_cdn_or_cloud': 'общая CDN- или облачная сеть',
   'list.diagnostics.reason.critical_direct_conflict':
-    'конфликт с обязательным прямым профилем',
+    'конфликт с обязательным прямым маршрутом',
   'list.diagnostics.reason.rule_limit_exceeded': 'превышен лимит правил',
   'list.diagnostics.reason.optional_component_removed':
     'необязательный компонент исключён',
@@ -1352,7 +1352,7 @@ const en: Dictionary = {
   'serviceCard.import': 'Import a file',
   'serviceCard.import.none': 'No file selected',
   'serviceCard.import.hint':
-    'A plain text file, a JSON array, or a .bat of profile commands.',
+    'A plain text file, a JSON array, or a .bat of route commands.',
   'serviceCard.import.empty': 'The file contains no recognizable entries.',
   'serviceCard.import.skipped': {
     one: '{count} line skipped',
@@ -1494,7 +1494,7 @@ const en: Dictionary = {
     'network is too broad to add automatically',
   'list.diagnostics.reason.shared_cdn_or_cloud': 'shared CDN or cloud network',
   'list.diagnostics.reason.critical_direct_conflict':
-    'conflicts with a required direct profile',
+    'conflicts with a required direct route',
   'list.diagnostics.reason.rule_limit_exceeded': 'rule limit exceeded',
   'list.diagnostics.reason.optional_component_removed':
     'optional component removed',

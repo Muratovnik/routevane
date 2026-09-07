@@ -210,7 +210,7 @@ Sections, addressable by URL:
 6. `/connections` — **Connections / Подключения** (ADR 0027; `/devices`
    redirects here). One section answers «куда»: registered devices and
    applications first, with the catalog-backed «Добавить подключение» form.
-   Router login and profile-interface fields are required when the selected
+   Router login and route-interface fields are required when the selected
    deployer needs them; the interface help names the Keenetic ID format. A
    saved connection does not send anything. After registration the screen says
    what remains before unattended delivery, and after opt-in it points to
@@ -259,7 +259,7 @@ rewrites one.
 One-off export is not an output. `POST /v1/profiles/{profileId}/export` renders the
 current profile in any available file dialect without adding a consumer, issuing a
 subscription or changing publication history. File-dialect labels describe the
-bytes (for example `BAT · profiles` or `JSON · all rules`), never pretend that
+bytes (for example `BAT · routes` or `JSON · all rules`), never pretend that
 downloading connects the profile to a product.
 
 ## Detail modes
