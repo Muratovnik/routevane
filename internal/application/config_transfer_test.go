@@ -580,3 +580,61 @@ func TestConfigTransferRejectsDocumentsThatWouldCollideInStorage(t *testing.T) {
 		}
 	}
 }
+
+// ADR 0039 renamed the fields this format carries. A file exported by an
+// earlier version still imports, and one that names a field twice under both
+// names is refused rather than reconciled by guesswork.
+func TestConfigTransferReadsTheRetiredFieldNamesButRefusesBoth(t *testing.T) {
+	store := &publicationFakeStore{}
+	transferFakeStates.Store(store, &transferFakeState{document: ConfigTransferDocument{
+		Version: ConfigTransferVersion, Settings: TransferSettings{RefreshInterval: RefreshOff},
+	}})
+	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x61}, 256)))
+
+	// What this build writes is what it reads back, under the current names.
+	exported, err := service.ExportConfigTransfer(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(exported, []byte(`"version":"config-transfer-v1.4"`)) {
+		t.Fatalf("export must state the current version: %s", exported)
+	}
+	for _, name := range []string{`"custom_lists"`, `"profiles"`} {
+		if !bytes.Contains(exported, []byte(name)) {
+			t.Fatalf("export must use %s: %s", name, exported)
+		}
+	}
+	for _, retired := range []string{`"custom_services"`, `"routes"`, `"route_ref"`, `"service_ref"`} {
+		if bytes.Contains(exported, []byte(retired)) {
+			t.Fatalf("export must not write the retired %s: %s", retired, exported)
+		}
+	}
+	if _, _, err := service.PreviewConfigTransfer(exported, nil); err != nil {
+		t.Fatalf("an exported document must import: %v", err)
+	}
+
+	// A document written before the rename still names its parts the old way.
+	// v1.2 is used because the default-priority requirement arrived in v1.3 and
+	// is a separate contract from the field names.
+	retired := []byte(`{"version":"config-transfer-v1.2","settings":{"refresh_interval":"off"},` +
+		`"custom_services":[],"custom_categories":[],"memberships":[],"removals":[],"tunings":[],` +
+		`"routes":[],"devices":[],"outputs":[],"omitted_custom_sources":0}`)
+	if _, _, err := service.PreviewConfigTransfer(retired, nil); err != nil {
+		t.Fatalf("a document written before the rename must still import: %v", err)
+	}
+
+	// Naming both leaves nobody able to read the author's intent.
+	var transfer TransferError
+	both := []byte(`{"version":"config-transfer-v1.2","settings":{"refresh_interval":"off"},` +
+		`"custom_lists":[],"custom_services":[],"custom_categories":[],"memberships":[],"removals":[],` +
+		`"tunings":[],"profiles":[],"devices":[],"outputs":[],"omitted_custom_sources":0}`)
+	if _, _, err := service.PreviewConfigTransfer(both, nil); !errors.As(err, &transfer) {
+		t.Fatalf("a document naming both must be refused, got %#v", err)
+	}
+
+	// A version this build never wrote is still refused.
+	future := []byte(`{"version":"config-transfer-v1.5","settings":{"refresh_interval":"off"},"omitted_custom_sources":0}`)
+	if _, _, err := service.PreviewConfigTransfer(future, nil); !errors.As(err, &transfer) || transfer.Code != "config_transfer_unsupported_version" {
+		t.Fatalf("unsupported version = %#v", err)
+	}
+}

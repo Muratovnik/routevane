@@ -97,11 +97,12 @@ results. Device doubles and parser tests do not prove physical-device acceptance
 - One product vocabulary is adopted and lands as ordered slices in a breaking
   `0.2.0` (ADR 0039). The executable, the HTTP API, the browser addresses, the
   interface dictionary and the catalog keys now say `list` for a set of rules
-  and `profile` for the composition that publishes it. Go identifiers, SQLite
-  table names and the configuration transfer format still say `service` and
-  `list`; documentation keeps explaining that mapping until those land. The
-  retired catalog keys `services:` and `profile_key:` are read for one minor
-  version, and a file naming both a current and a retired key is refused.
+  and `profile` for the composition that publishes it, and the configuration
+  transfer format states it at `config-transfer-v1.4`. Go identifiers and
+  SQLite table names still say `service` and `list`; documentation keeps
+  explaining that mapping until they land. The retired catalog keys and
+  transfer field names are read for one minor version, and a file naming one
+  thing under both a current and a retired name is refused.
 - Scaling changes are conditional on measured workload.
   PostgreSQL, separate workers, and telemetry infrastructure are not planned
   merely to complete a checklist.

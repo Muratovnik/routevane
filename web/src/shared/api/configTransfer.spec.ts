@@ -26,7 +26,7 @@ function counts(): Record<string, number> {
     custom_lists: 2,
     custom_categories: 1,
     custom_sources: 3,
-    routes: 4,
+    profiles: 4,
     devices: 5,
     outputs: 6,
   }
@@ -141,7 +141,7 @@ describe('configuration transfer API contract', () => {
     for (const payload of [
       { ...valid, unexpected: true },
       { ...valid, can_apply: false },
-      { ...valid, counts: { ...counts(), routes: -1 } },
+      { ...valid, counts: { ...counts(), profiles: -1 } },
       { ...valid, counts: { ...counts(), extra: 1 } },
       { ...valid, warnings: [{ code: 'new_warning' }] },
       {

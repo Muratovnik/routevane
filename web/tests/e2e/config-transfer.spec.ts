@@ -157,22 +157,22 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
     tunings: {
       custom_sources: unknown[]
       disabled_sources: string[]
-      service_ref: string
+      list_ref: string
     }[]
     version: string
   }
   const youtubeTuning = portable.tunings.find(
-    (tuning) => tuning.service_ref === 'youtube',
+    (tuning) => tuning.list_ref === 'youtube',
   )
   expect(portable.omitted_custom_sources).toBe(1)
-  expect(portable.version).toBe('config-transfer-v1.3')
+  expect(portable.version).toBe('config-transfer-v1.4')
   expect(portable.settings.default_priority).toContain('youtube')
   expect(youtubeTuning?.custom_sources).toEqual([])
   expect(youtubeTuning?.disabled_sources).toEqual(['dns-playback'])
 
   const topDuplicate = rawTransfer.replace(
     '{',
-    '{"version":"config-transfer-v1.3",',
+    '{"version":"config-transfer-v1.4",',
   )
   const nestedDuplicate = rawTransfer.replace(
     '"settings":{',

@@ -21,7 +21,10 @@ import (
 const transferCodePrefix = "config_transfer_"
 
 const (
-	ConfigTransferVersion               = "config-transfer-v1.3"
+	ConfigTransferVersion = "config-transfer-v1.4"
+	// configTransferServiceVersion is the last version that named a list a
+	// service and a profile a route (ADR 0039). It is still imported.
+	configTransferServiceVersion        = "config-transfer-v1.3"
 	configTransferPriorityVersion       = "config-transfer-v1.3"
 	configTransferOmissionVersion       = "config-transfer-v1.2"
 	configTransferLegacyOmissionVersion = "config-transfer-v1.1"
@@ -73,7 +76,7 @@ type ConfigTransferCounts struct {
 	CustomLists      uint `json:"custom_lists"`
 	CustomCategories uint `json:"custom_categories"`
 	CustomSources    uint `json:"custom_sources"`
-	Routes           uint `json:"routes"`
+	Routes           uint `json:"profiles"`
 	Devices          uint `json:"devices"`
 	Outputs          uint `json:"outputs"`
 }
@@ -166,22 +169,28 @@ type TransferMembership struct {
 func (v TransferMembership) MarshalJSON() ([]byte, error) {
 	type w struct {
 		CategoryRef string          `json:"category_ref"`
-		ServiceRef  string          `json:"service_ref"`
+		ListRef     string          `json:"list_ref"`
 		State       MembershipState `json:"state"`
 	}
-	return json.Marshal(w(v))
+	return json.Marshal(w{CategoryRef: v.CategoryRef, ListRef: v.ServiceRef, State: v.State})
 }
 func (v *TransferMembership) UnmarshalJSON(b []byte) error {
 	type w struct {
-		CategoryRef string          `json:"category_ref"`
-		ServiceRef  string          `json:"service_ref"`
-		State       MembershipState `json:"state"`
+		CategoryRef string  `json:"category_ref"`
+		ListRef     *string `json:"list_ref"`
+		// The name this format used before ADR 0039 renamed it.
+		ServiceRef *string         `json:"service_ref"`
+		State      MembershipState `json:"state"`
 	}
 	var x w
 	if err := strictUnmarshal(b, &x); err != nil {
 		return err
 	}
-	*v = TransferMembership(x)
+	ref, ok := retiredField(x.ListRef, x.ServiceRef)
+	if !ok {
+		return transferError("invalid_shape", "list_ref")
+	}
+	*v = TransferMembership{CategoryRef: x.CategoryRef, ServiceRef: ref, State: x.State}
 	return nil
 }
 
@@ -246,17 +255,19 @@ type TransferTuning struct {
 
 func (v TransferTuning) MarshalJSON() ([]byte, error) {
 	type w struct {
-		ServiceRef      string                 `json:"service_ref"`
+		ListRef         string                 `json:"list_ref"`
 		DisabledSources []string               `json:"disabled_sources"`
 		CustomSources   []TransferCustomSource `json:"custom_sources"`
 		Includes        []string               `json:"includes"`
 		Excludes        []string               `json:"excludes"`
 	}
-	return json.Marshal(w(v))
+	return json.Marshal(w{ListRef: v.ServiceRef, DisabledSources: v.DisabledSources, CustomSources: v.CustomSources, Includes: v.Includes, Excludes: v.Excludes})
 }
 func (v *TransferTuning) UnmarshalJSON(b []byte) error {
 	type w struct {
-		ServiceRef      string                 `json:"service_ref"`
+		ListRef *string `json:"list_ref"`
+		// The name this format used before ADR 0039 renamed it.
+		ServiceRef      *string                `json:"service_ref"`
 		DisabledSources []string               `json:"disabled_sources"`
 		CustomSources   []TransferCustomSource `json:"custom_sources"`
 		Includes        []string               `json:"includes"`
@@ -266,7 +277,11 @@ func (v *TransferTuning) UnmarshalJSON(b []byte) error {
 	if err := strictUnmarshal(b, &x); err != nil {
 		return err
 	}
-	*v = TransferTuning(x)
+	ref, ok := retiredField(x.ListRef, x.ServiceRef)
+	if !ok {
+		return transferError("invalid_shape", "list_ref")
+	}
+	*v = TransferTuning{ServiceRef: ref, DisabledSources: x.DisabledSources, CustomSources: x.CustomSources, Includes: x.Includes, Excludes: x.Excludes}
 	return nil
 }
 
@@ -283,36 +298,51 @@ func (v TransferRoute) MarshalJSON() ([]byte, error) {
 	type w struct {
 		Ref             string              `json:"ref"`
 		Name            string              `json:"name"`
-		Services        []string            `json:"services"`
+		Lists           []string            `json:"lists"`
 		Categories      []string            `json:"categories"`
 		Exclusions      []string            `json:"exclusions"`
 		Priority        []string            `json:"priority"`
-		ServiceDomains  map[string][]string `json:"service_domains"`
+		ListDomains     map[string][]string `json:"list_domains"`
 		RefreshInterval RefreshInterval     `json:"refresh_interval"`
 		Archived        bool                `json:"archived"`
 	}
 	if v.ServiceDomains == nil {
 		v.ServiceDomains = map[string][]string{}
 	}
-	return json.Marshal(w(v))
+	return json.Marshal(w{Ref: v.Ref, Name: v.Name, Lists: v.Services, Categories: v.Categories,
+		Exclusions: v.Exclusions, Priority: v.Priority, ListDomains: v.ServiceDomains,
+		RefreshInterval: v.RefreshInterval, Archived: v.Archived})
 }
 func (v *TransferRoute) UnmarshalJSON(b []byte) error {
 	type w struct {
-		Ref             string              `json:"ref"`
-		Name            string              `json:"name"`
-		Services        []string            `json:"services"`
-		Categories      []string            `json:"categories"`
-		Exclusions      []string            `json:"exclusions"`
-		Priority        []string            `json:"priority"`
-		ServiceDomains  map[string][]string `json:"service_domains"`
-		RefreshInterval RefreshInterval     `json:"refresh_interval"`
-		Archived        bool                `json:"archived"`
+		Ref         string               `json:"ref"`
+		Name        string               `json:"name"`
+		Lists       *[]string            `json:"lists"`
+		ListDomains *map[string][]string `json:"list_domains"`
+		// The names this format used before ADR 0039 renamed them.
+		Services        *[]string            `json:"services"`
+		ServiceDomains  *map[string][]string `json:"service_domains"`
+		Categories      []string             `json:"categories"`
+		Exclusions      []string             `json:"exclusions"`
+		Priority        []string             `json:"priority"`
+		RefreshInterval RefreshInterval      `json:"refresh_interval"`
+		Archived        bool                 `json:"archived"`
 	}
 	var x w
 	if err := strictUnmarshal(b, &x); err != nil {
 		return err
 	}
-	*v = TransferRoute(x)
+	lists, listsOK := retiredField(x.Lists, x.Services)
+	domains, domainsOK := retiredField(x.ListDomains, x.ServiceDomains)
+	if !listsOK {
+		return transferError("invalid_shape", "lists")
+	}
+	if !domainsOK {
+		return transferError("invalid_shape", "list_domains")
+	}
+	*v = TransferRoute{Ref: x.Ref, Name: x.Name, Services: lists, Categories: x.Categories,
+		Exclusions: x.Exclusions, Priority: x.Priority, ServiceDomains: domains,
+		RefreshInterval: x.RefreshInterval, Archived: x.Archived}
 	return nil
 }
 
@@ -350,40 +380,102 @@ type TransferOutput struct{ Ref, RouteRef, TargetID, DeviceRef string }
 
 func (v TransferOutput) MarshalJSON() ([]byte, error) {
 	type w struct {
-		Ref       string `json:"ref"`
-		RouteRef  string `json:"route_ref"`
-		TargetID  string `json:"target_id"`
-		DeviceRef string `json:"device_ref,omitempty"`
+		Ref        string `json:"ref"`
+		ProfileRef string `json:"profile_ref"`
+		TargetID   string `json:"target_id"`
+		DeviceRef  string `json:"device_ref,omitempty"`
 	}
-	return json.Marshal(w(v))
+	return json.Marshal(w{Ref: v.Ref, ProfileRef: v.RouteRef, TargetID: v.TargetID, DeviceRef: v.DeviceRef})
 }
 func (v *TransferOutput) UnmarshalJSON(b []byte) error {
 	type w struct {
-		Ref       string `json:"ref"`
-		RouteRef  string `json:"route_ref"`
-		TargetID  string `json:"target_id"`
-		DeviceRef string `json:"device_ref,omitempty"`
+		Ref        string  `json:"ref"`
+		ProfileRef *string `json:"profile_ref"`
+		// The name this format used before ADR 0039 renamed it.
+		RouteRef  *string `json:"route_ref"`
+		TargetID  string  `json:"target_id"`
+		DeviceRef string  `json:"device_ref,omitempty"`
 	}
 	var x w
 	if err := strictUnmarshal(b, &x); err != nil {
 		return err
 	}
-	*v = TransferOutput(x)
+	ref, ok := retiredField(x.ProfileRef, x.RouteRef)
+	if !ok {
+		return transferError("invalid_shape", "profile_ref")
+	}
+	*v = TransferOutput{Ref: x.Ref, RouteRef: ref, TargetID: x.TargetID, DeviceRef: x.DeviceRef}
 	return nil
 }
 
 type ConfigTransferDocument struct {
-	Version              string                   `json:"version"`
-	Settings             TransferSettings         `json:"settings"`
-	CustomServices       []TransferCustomService  `json:"custom_services"`
-	CustomCategories     []TransferCustomCategory `json:"custom_categories"`
-	Memberships          []TransferMembership     `json:"memberships"`
-	Removals             []TransferRemoval        `json:"removals"`
-	Tunings              []TransferTuning         `json:"tunings"`
-	Routes               []TransferRoute          `json:"routes"`
-	Devices              []TransferDevice         `json:"devices"`
-	Outputs              []TransferOutput         `json:"outputs"`
-	OmittedCustomSources uint                     `json:"omitted_custom_sources"`
+	Version              string
+	Settings             TransferSettings
+	CustomServices       []TransferCustomService
+	CustomCategories     []TransferCustomCategory
+	Memberships          []TransferMembership
+	Removals             []TransferRemoval
+	Tunings              []TransferTuning
+	Routes               []TransferRoute
+	Devices              []TransferDevice
+	Outputs              []TransferOutput
+	OmittedCustomSources uint
+}
+
+func (v ConfigTransferDocument) MarshalJSON() ([]byte, error) {
+	type w struct {
+		Version              string                   `json:"version"`
+		Settings             TransferSettings         `json:"settings"`
+		CustomLists          []TransferCustomService  `json:"custom_lists"`
+		CustomCategories     []TransferCustomCategory `json:"custom_categories"`
+		Memberships          []TransferMembership     `json:"memberships"`
+		Removals             []TransferRemoval        `json:"removals"`
+		Tunings              []TransferTuning         `json:"tunings"`
+		Profiles             []TransferRoute          `json:"profiles"`
+		Devices              []TransferDevice         `json:"devices"`
+		Outputs              []TransferOutput         `json:"outputs"`
+		OmittedCustomSources uint                     `json:"omitted_custom_sources"`
+	}
+	return json.Marshal(w{Version: v.Version, Settings: v.Settings, CustomLists: v.CustomServices,
+		CustomCategories: v.CustomCategories, Memberships: v.Memberships, Removals: v.Removals,
+		Tunings: v.Tunings, Profiles: v.Routes, Devices: v.Devices, Outputs: v.Outputs,
+		OmittedCustomSources: v.OmittedCustomSources})
+}
+
+func (v *ConfigTransferDocument) UnmarshalJSON(b []byte) error {
+	type w struct {
+		Version     string                   `json:"version"`
+		Settings    TransferSettings         `json:"settings"`
+		CustomLists *[]TransferCustomService `json:"custom_lists"`
+		Profiles    *[]TransferRoute         `json:"profiles"`
+		// The names this format used before ADR 0039 renamed them.
+		CustomServices       *[]TransferCustomService `json:"custom_services"`
+		Routes               *[]TransferRoute         `json:"routes"`
+		CustomCategories     []TransferCustomCategory `json:"custom_categories"`
+		Memberships          []TransferMembership     `json:"memberships"`
+		Removals             []TransferRemoval        `json:"removals"`
+		Tunings              []TransferTuning         `json:"tunings"`
+		Devices              []TransferDevice         `json:"devices"`
+		Outputs              []TransferOutput         `json:"outputs"`
+		OmittedCustomSources uint                     `json:"omitted_custom_sources"`
+	}
+	var x w
+	if err := strictUnmarshal(b, &x); err != nil {
+		return err
+	}
+	lists, listsOK := retiredField(x.CustomLists, x.CustomServices)
+	profiles, profilesOK := retiredField(x.Profiles, x.Routes)
+	if !listsOK {
+		return transferError("invalid_shape", "custom_lists")
+	}
+	if !profilesOK {
+		return transferError("invalid_shape", "profiles")
+	}
+	*v = ConfigTransferDocument{Version: x.Version, Settings: x.Settings, CustomServices: lists,
+		CustomCategories: x.CustomCategories, Memberships: x.Memberships, Removals: x.Removals,
+		Tunings: x.Tunings, Routes: profiles, Devices: x.Devices, Outputs: x.Outputs,
+		OmittedCustomSources: x.OmittedCustomSources}
+	return nil
 }
 
 type ConfigTransferRepository interface {
@@ -511,7 +603,7 @@ func (s *PublicationService) prepareTransferRegistries(a ConfigTransferApply) (t
 	for _, item := range a.Document.CustomServices {
 		value, err := normalizedCustomService(CustomService{ID: a.CustomServiceIDs[item.Ref], Title: item.Title, Domains: item.Domains, CreatedAt: now, UpdatedAt: now})
 		if err != nil {
-			return state, transferError("invalid_shape", "custom_services")
+			return state, transferError("invalid_shape", "custom_lists")
 		}
 		state.custom[value.ID] = value
 	}
@@ -592,7 +684,7 @@ func (s *PublicationService) validateTransfer(payload []byte, validateDevice fun
 		return ConfigTransferDocument{}, transferError("invalid_json", "version")
 	}
 	_, hasOmissionMetadata := top["omitted_custom_sources"]
-	if version != ConfigTransferVersion && version != configTransferOmissionVersion && version != configTransferLegacyOmissionVersion && version != configTransferLegacyVersion {
+	if version != ConfigTransferVersion && version != configTransferServiceVersion && version != configTransferOmissionVersion && version != configTransferLegacyOmissionVersion && version != configTransferLegacyVersion {
 		return ConfigTransferDocument{}, transferError("unsupported_version", "version")
 	}
 	if version == configTransferLegacyVersion && hasOmissionMetadata {
@@ -604,7 +696,7 @@ func (s *PublicationService) validateTransfer(payload []byte, validateDevice fun
 	if version != configTransferLegacyVersion && strings.TrimSpace(string(top["omitted_custom_sources"])) == "null" {
 		return ConfigTransferDocument{}, transferError("invalid_shape", "omitted_custom_sources")
 	}
-	if version == configTransferPriorityVersion {
+	if carriesDefaultPriority(version) {
 		var settings map[string]json.RawMessage
 		raw := top["settings"]
 		if raw == nil {
@@ -660,6 +752,30 @@ func omitCustomSources(d *ConfigTransferDocument) {
 		t.DisabledSources = kept
 	}
 	d.OmittedCustomSources += omitted
+}
+
+// carriesDefaultPriority reports whether a document version states the
+// library-wide default order. Versions before v1.3 omit it and fall back to
+// canonical catalog order.
+func carriesDefaultPriority(version string) bool {
+	return version == ConfigTransferVersion || version == configTransferPriorityVersion
+}
+
+// retiredField reconciles a value with the field name this format used before
+// ADR 0039 renamed it. Both names mean the same thing, so a document naming
+// both is refused rather than merged: neither is more authoritative, and
+// choosing one would be a guess about what its author meant.
+func retiredField[T any](current, retired *T) (T, bool) {
+	var zero T
+	switch {
+	case current != nil && retired != nil:
+		return zero, false
+	case current != nil:
+		return *current, true
+	case retired != nil:
+		return *retired, true
+	}
+	return zero, true
 }
 
 func strictUnmarshal(payload []byte, destination any) error {
@@ -1142,7 +1258,7 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		}
 	}
 	effectiveServices, effectiveCategories, members := s.transferCompositionCatalog(*d, services, categories)
-	if d.Version == configTransferPriorityVersion && d.Settings.DefaultPriority != nil {
+	if carriesDefaultPriority(d.Version) && d.Settings.DefaultPriority != nil {
 		available := slices.Sorted(maps.Keys(effectiveServices))
 		if !validPriorityPermutation(d.Settings.DefaultPriority, available) {
 			return transferError("invalid_shape", "settings/default_priority")

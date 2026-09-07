@@ -311,7 +311,7 @@ the JSON file. On a fresh Routevane installation, select that file, review the
 preview, and apply it. The destination must be empty; transfer does not merge
 with an installation that already has profiles, connections, or custom lists.
 
-The current `config-transfer-v1.3` file contains the global refresh setting, the
+The current `config-transfer-v1.4` file contains the global refresh setting, the
 library's default list priority, custom lists and categories, catalog-source
 on/off choices, per-destination source corrections, profiles with their own
 priority, non-secret connection details, and output bindings. It does not contain
@@ -325,7 +325,10 @@ After import, enter each device password again, publish every output to create a
 new artifact and subscription, and then enable automatic delivery where wanted.
 Imported devices always start with automatic delivery off. Preview and apply
 validate the same file digest; editing or replacing the file requires a new
-preview. This is a portable settings transfer, not a database backup. See
+preview. A file exported by an earlier version still imports: the fields ADR 0039
+renamed are read under their retired names for one minor version. A file
+naming one field under both names is refused rather than reconciled.
+This is a portable settings transfer, not a database backup. See
 [`ADR 0033`](adr/0033-portable-configuration-transfers.md).
 
 ## Adding a service by URL
