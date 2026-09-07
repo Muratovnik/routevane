@@ -1,6 +1,6 @@
 id: work
 title: Работа
-services:
+lists:
   - notion
   - proton
   - medium

@@ -1,5 +1,5 @@
 id: keenetic-dns
-profile_key: keenetic-fqdn-group-v1
+format_key: keenetic-fqdn-group-v1
 title: Keenetic (по доменам)
 title_en: Keenetic (domain-based)
 kind: router

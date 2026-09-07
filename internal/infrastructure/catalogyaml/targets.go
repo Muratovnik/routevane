@@ -9,7 +9,11 @@ import (
 )
 
 type rawTarget struct {
-	ID                     string         `yaml:"id"`
+	ID        string `yaml:"id"`
+	FormatKey string `yaml:"format_key"`
+	// ProfileKey is the key this format used before ADR 0039 renamed it, so the
+	// word profile could name the operator's own object instead. It is read for
+	// one minor version; a file naming both is refused rather than merged.
 	ProfileKey             string         `yaml:"profile_key"`
 	Title                  string         `yaml:"title"`
 	Kind                   string         `yaml:"kind"`
@@ -86,7 +90,14 @@ func decodeTarget(payload []byte) (domain.TargetProfile, error) {
 }
 
 func normalizeTarget(raw rawTarget) (domain.TargetProfile, error) {
-	if domain.ValidateSlug(raw.ID) != nil || domain.ValidateSlug(raw.ProfileKey) != nil || domain.ValidateSlug(raw.Renderer) != nil {
+	formatKey := raw.FormatKey
+	if raw.ProfileKey != "" {
+		if raw.FormatKey != "" {
+			return domain.TargetProfile{}, fmt.Errorf("%w: target %q names both format_key and the retired profile_key", ErrInvalidCatalog, raw.ID)
+		}
+		formatKey = raw.ProfileKey
+	}
+	if domain.ValidateSlug(raw.ID) != nil || domain.ValidateSlug(formatKey) != nil || domain.ValidateSlug(raw.Renderer) != nil {
 		return domain.TargetProfile{}, fmt.Errorf("%w: invalid target identity", ErrInvalidCatalog)
 	}
 	if len(raw.RendererOptions) != 0 {
@@ -147,7 +158,7 @@ func normalizeTarget(raw rawTarget) (domain.TargetProfile, error) {
 	if (!constraints.SupportsDomainExact && !constraints.SupportsDomainSuffix && !constraints.SupportsIPv4 && !constraints.SupportsIPv6) || constraints.MaxRules <= 0 || constraints.MaxRules > 100000 || constraints.MaxArtifactSize <= 0 || constraints.MaxArtifactSize > 16<<20 {
 		return domain.TargetProfile{}, fmt.Errorf("%w: invalid target constraints", ErrInvalidCatalog)
 	}
-	return domain.TargetProfile{ID: raw.ID, ProfileKey: raw.ProfileKey, Title: title, TitleEN: titleEN, Kind: kind, RendererID: raw.Renderer, Constraints: constraints, RendererOptions: []string{}, ManualInstallationHint: hint, ManualInstallationHintEN: hintEN}, nil
+	return domain.TargetProfile{ID: raw.ID, ProfileKey: formatKey, Title: title, TitleEN: titleEN, Kind: kind, RendererID: raw.Renderer, Constraints: constraints, RendererOptions: []string{}, ManualInstallationHint: hint, ManualInstallationHintEN: hintEN}, nil
 }
 
 // optionalTargetText normalizes one catalog field a file may omit entirely.

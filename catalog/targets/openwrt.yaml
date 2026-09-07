@@ -1,5 +1,5 @@
 id: openwrt
-profile_key: openwrt-nftset-conf-v1
+format_key: openwrt-nftset-conf-v1
 title: OpenWrt
 title_en: OpenWrt
 kind: router

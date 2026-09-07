@@ -1,6 +1,6 @@
 id: music
 title: Музыка
-services:
+lists:
   - spotify
   - soundcloud
   - deezer

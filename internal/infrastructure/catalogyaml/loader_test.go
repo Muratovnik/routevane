@@ -367,3 +367,43 @@ func writeTargetFile(t *testing.T, root, name string, payload []byte) {
 		t.Fatal(err)
 	}
 }
+
+// ADR 0039 renames this key to free the word profile for the operator's own
+// object. The retired name is read for one minor version so a target file an
+// operator wrote or vendored keeps loading; naming both is refused, because the
+// two mean the same thing and neither is more authoritative.
+func TestTargetReadsTheRetiredFormatKeyButRefusesBoth(t *testing.T) {
+	current := strings.Replace(validTargetYAML, "profile_key:", "format_key:", 1)
+	for _, test := range []struct {
+		name    string
+		payload string
+	}{
+		{"current key", current},
+		{"retired key", validTargetYAML},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+			writeTargetFile(t, root, "keenetic.yaml", []byte(test.payload))
+			catalog, err := Load(context.Background(), root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			target, ok := catalog.Target("keenetic")
+			if !ok || target.ProfileKey != "keenetic-bat-ipv4-v1" {
+				t.Fatalf("target = %#v", target)
+			}
+		})
+	}
+
+	t.Run("both keys", func(t *testing.T) {
+		root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+		writeTargetFile(t, root, "keenetic.yaml", []byte(current+"profile_key: keenetic-bat-ipv4-v1\n"))
+		_, err := Load(context.Background(), root)
+		if err == nil {
+			t.Fatal("a target naming both keys must be refused")
+		}
+		if !strings.Contains(err.Error(), "retired profile_key") {
+			t.Fatalf("error=%v, want it to name the retired key", err)
+		}
+	})
+}

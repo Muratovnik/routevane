@@ -1,6 +1,6 @@
 id: games
 title: Игры
-services:
+lists:
   - roblox
   - discord
   - itchio

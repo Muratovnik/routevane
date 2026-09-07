@@ -1,5 +1,5 @@
 id: mikrotik
-profile_key: mikrotik-address-list-rsc-v1
+format_key: mikrotik-address-list-rsc-v1
 title: MikroTik
 title_en: MikroTik
 kind: router

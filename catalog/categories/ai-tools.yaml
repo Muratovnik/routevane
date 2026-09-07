@@ -1,6 +1,6 @@
 id: ai-tools
 title: ИИ-инструменты
-services:
+lists:
   - deepl
   - canva
   - elevenlabs

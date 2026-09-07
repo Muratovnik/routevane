@@ -1,6 +1,6 @@
 id: ai
 title: ИИ-ассистенты
-services:
+lists:
   - chatgpt
   - claude
   - google-ai

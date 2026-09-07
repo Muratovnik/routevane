@@ -1,6 +1,6 @@
 id: video
 title: Видео
-services:
+lists:
   - youtube
   - tiktok
   - hdrezka

@@ -1,6 +1,6 @@
 id: messengers
 title: Мессенджеры
-services:
+lists:
   - telegram
   - discord
   - signal

@@ -1,6 +1,6 @@
 id: infrastructure
 title: Инфраструктура
-services:
+lists:
   - cloudflare
   - cloudfront
   - digitalocean

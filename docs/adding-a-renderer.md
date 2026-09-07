@@ -17,7 +17,7 @@ Create `internal/renderers/<name>/`. Implement, in this order:
 1. `ID`, `Version`, `ContentType`, `FileExtension`, and the format's own byte and
    entry bounds as constants. `ID` and `Version` must satisfy
    `domain.ValidateSlug`; `Version` is the value a target profile declares as its
-   `profile_key`. `FileExtension` is a bare lowercase suffix with no dot.
+   `format_key`. `FileExtension` is a bare lowercase suffix with no dot.
 2. `Render(domain.RoutingPlan) ([]byte, error)` — project already-decided rules.
    A renderer never adds, drops, or reorders a policy decision; it may only
    deduplicate values the format cannot express twice.
@@ -41,7 +41,7 @@ an id a built-in already holds.
 
 ## 3. Describe the target
 
-Add `catalog/targets/<target>.yaml` with `profile_key` equal to the renderer's
+Add `catalog/targets/<target>.yaml` with `format_key` equal to the renderer's
 `Version`, `renderer` equal to its `ID`, and constraints that describe the real
 device or client. A target may not claim a capability the renderer cannot
 express: `renderableTarget` drops such a target instead of letting it be

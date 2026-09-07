@@ -95,10 +95,13 @@ results. Device doubles and parser tests do not prove physical-device acceptance
 - Per-profile exclusion of individual observed values is not implemented; profile
   composition includes or excludes whole lists (ADR 0029).
 - One product vocabulary is adopted and lands as ordered slices in a breaking
-  `0.2.0` (ADR 0039). The executable, its database and its lock file carry the
-  product name; the API, catalog key, Go identifiers and storage names still
-  say `services` for lists and `lists` for profiles. Documentation must keep
-  explaining that mapping until the last slice removes it.
+  `0.2.0` (ADR 0039). The executable, the HTTP API, the browser addresses, the
+  interface dictionary and the catalog keys now say `list` for a set of rules
+  and `profile` for the composition that publishes it. Go identifiers, SQLite
+  table names and the configuration transfer format still say `service` and
+  `list`; documentation keeps explaining that mapping until those land. The
+  retired catalog keys `services:` and `profile_key:` are read for one minor
+  version, and a file naming both a current and a retired key is refused.
 - Scaling changes are conditional on measured workload.
   PostgreSQL, separate workers, and telemetry infrastructure are not planned
   merely to complete a checklist.

@@ -10,8 +10,13 @@ import (
 )
 
 type rawCategory struct {
-	ID       string   `yaml:"id"`
-	Title    string   `yaml:"title"`
+	ID    string   `yaml:"id"`
+	Title string   `yaml:"title"`
+	Lists []string `yaml:"lists"`
+	// Services is the key this format used before ADR 0039 renamed it. It is
+	// read for one minor version so an operator's edited catalog survives the
+	// upgrade; a file naming both is refused rather than merged, because the
+	// two would have to be reconciled and neither is more authoritative.
 	Services []string `yaml:"services"`
 }
 
@@ -37,11 +42,11 @@ func loadCategories(ctx context.Context, root string, services map[string]domain
 		if _, collision := categories[category.ID]; collision {
 			return nil, fmt.Errorf("%w: duplicate category id %q", ErrInvalidCatalog, category.ID)
 		}
-		// A category naming a service that does not exist would resolve to a
+		// A category naming a list that does not exist would resolve to a
 		// silently smaller list. The catalog is refused instead.
 		for _, serviceID := range category.Services {
 			if _, known := services[serviceID]; !known {
-				return nil, fmt.Errorf("%w: category %q names unknown service %q", ErrInvalidCatalog, category.ID, serviceID)
+				return nil, fmt.Errorf("%w: category %q names unknown list %q", ErrInvalidCatalog, category.ID, serviceID)
 			}
 		}
 		categories[category.ID] = category
@@ -66,17 +71,24 @@ func normalizeCategory(raw rawCategory) (domain.CategoryDefinition, error) {
 	if domain.ValidateSlug(raw.ID) != nil || title == "" || len(title) > 64 || containsControl(title) {
 		return domain.CategoryDefinition{}, fmt.Errorf("%w: invalid category identity", ErrInvalidCatalog)
 	}
-	if len(raw.Services) == 0 || len(raw.Services) > MaxListItems {
-		return domain.CategoryDefinition{}, fmt.Errorf("%w: category must name between 1 and %d services", ErrInvalidCatalog, MaxListItems)
+	members := raw.Lists
+	if raw.Services != nil {
+		if raw.Lists != nil {
+			return domain.CategoryDefinition{}, fmt.Errorf("%w: category %q names both lists and the retired services key", ErrInvalidCatalog, raw.ID)
+		}
+		members = raw.Services
 	}
-	seen := make(map[string]struct{}, len(raw.Services))
-	services := make([]string, 0, len(raw.Services))
-	for _, serviceID := range raw.Services {
+	if len(members) == 0 || len(members) > MaxListItems {
+		return domain.CategoryDefinition{}, fmt.Errorf("%w: category must name between 1 and %d lists", ErrInvalidCatalog, MaxListItems)
+	}
+	seen := make(map[string]struct{}, len(members))
+	services := make([]string, 0, len(members))
+	for _, serviceID := range members {
 		if domain.ValidateSlug(serviceID) != nil {
-			return domain.CategoryDefinition{}, fmt.Errorf("%w: invalid service id in category %q", ErrInvalidCatalog, raw.ID)
+			return domain.CategoryDefinition{}, fmt.Errorf("%w: invalid list id in category %q", ErrInvalidCatalog, raw.ID)
 		}
 		if _, duplicate := seen[serviceID]; duplicate {
-			return domain.CategoryDefinition{}, fmt.Errorf("%w: duplicate service %q in category %q", ErrInvalidCatalog, serviceID, raw.ID)
+			return domain.CategoryDefinition{}, fmt.Errorf("%w: duplicate list %q in category %q", ErrInvalidCatalog, serviceID, raw.ID)
 		}
 		seen[serviceID] = struct{}{}
 		services = append(services, serviceID)

@@ -1,5 +1,5 @@
 id: examplecsv
-profile_key: example-csv-v1
+format_key: example-csv-v1
 kind: app
 renderer: example-csv
 constraints:

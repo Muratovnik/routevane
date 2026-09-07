@@ -210,3 +210,41 @@ func TestDNSSourceRefusesAClass(t *testing.T) {
 		t.Fatal("expected a class on a DNS source to be refused")
 	}
 }
+
+// The retired key is read for one minor version so an operator's edited
+// catalog survives the upgrade (ADR 0039). Both keys mean the same thing, so a
+// file naming both is refused rather than reconciled by guesswork.
+func TestCategoryReadsTheRetiredMembershipKeyButRefusesBoth(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		payload string
+	}{
+		{"current key", "id: video\ntitle: Видео\nlists:\n  - example\n"},
+		{"retired key", "id: video\ntitle: Видео\nservices:\n  - example\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+			writeCategoryFile(t, root, "video.yaml", []byte(test.payload))
+			catalog, err := Load(context.Background(), root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			video, found := catalog.Category("video")
+			if !found || strings.Join(video.Services, ",") != "example" {
+				t.Fatalf("video = %#v", video)
+			}
+		})
+	}
+
+	t.Run("both keys", func(t *testing.T) {
+		root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
+		writeCategoryFile(t, root, "video.yaml", []byte("id: video\ntitle: Видео\nlists:\n  - example\nservices:\n  - example\n"))
+		_, err := Load(context.Background(), root)
+		if err == nil {
+			t.Fatal("a category naming both keys must be refused")
+		}
+		if !strings.Contains(err.Error(), "retired services key") {
+			t.Fatalf("error=%v, want it to name the retired key", err)
+		}
+	})
+}
