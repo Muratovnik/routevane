@@ -120,7 +120,12 @@ together:
 3. **Catalog format keys.** `services:` becomes `lists:` in category files and
    `profile_key` becomes `format_key` in target files, with the reader
    accepting each retired key for one minor version.
-4. **Go identifiers and SQLite storage**, as one migration.
+4. **Go identifiers and SQLite storage**, as one migration. The prose around
+   them — comments, error texts and test names — travels with the identifiers,
+   because a name and the sentence explaining it are read together.
+   **Web identifiers** are the same slice one layer up: the dictionary key
+   families, the feature directories, the class and DOM-id tokens, and the
+   TypeScript names, in the same order the schema uses.
 5. **Configuration transfer format**, raising the version and keeping the
    documented ability to import the retired ones.
 6. **CLI flags and the structured log field.** `--service` becomes `--list`,
