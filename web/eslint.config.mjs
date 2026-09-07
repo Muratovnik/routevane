@@ -58,6 +58,18 @@ const lowercaseModuleLiteralConstant = moduleConstDeclarators
   )
   .join(', ')
 
+// A unit spec reaches the DOM the way a reader perceives it. These are the
+// query methods a markup-coupled test reaches for, and a first argument that
+// starts with `#` or `.` is an id or class selector on whichever receiver it is
+// called on — `wrapper.find('.row')`, `panel.querySelectorAll('.row')`, a bare
+// `locator('#id')`.
+const NODE_QUERY_METHODS = 'find|findAll|querySelector|querySelectorAll|locator'
+
+const idOrClassQuery = [
+  `CallExpression[callee.property.name=/^(${NODE_QUERY_METHODS})$/][arguments.0.value=/^[#.]/]`,
+  `CallExpression[callee.name=/^(${NODE_QUERY_METHODS})$/][arguments.0.value=/^[#.]/]`,
+].join(', ')
+
 /** @param {import('eslint').Linter.RuleEntry} entry */
 const toErrorSeverity = (entry) => {
   if (Array.isArray(entry)) {
@@ -264,6 +276,25 @@ export default withNuxt(
       ...vitest.configs.recommended.rules,
       // Vitest's own `expect(value, message)` names the case a loop is on.
       'vitest/valid-expect': ['error', { maxArgs: 2 }],
+      // `no-restricted-syntax` is replaced rather than merged, so the
+      // application rule above is restated here alongside the spec ones.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: lowercaseModuleLiteralConstant,
+          message: 'Module-level literal constants are UPPER_CASE.',
+        },
+        {
+          selector: 'Program > VariableDeclaration[kind="let"]',
+          message:
+            'Specs keep no mutable module state; build a scenario per test.',
+        },
+        {
+          selector: idOrClassQuery,
+          message:
+            'Query by role, label, or text; data-testid only as a last resort.',
+        },
+      ],
     },
   },
   {
