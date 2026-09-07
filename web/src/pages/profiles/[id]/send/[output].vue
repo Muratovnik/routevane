@@ -38,7 +38,7 @@ useHead({
   ),
 })
 
-async function reload(): Promise<void> {
+const reload = async (): Promise<void> => {
   await view.initialize()
   if (view.state.value === 'ready' && outputId.value !== '')
     view.selectOutput(outputId.value)

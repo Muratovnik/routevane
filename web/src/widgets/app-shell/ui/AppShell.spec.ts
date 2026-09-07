@@ -13,7 +13,7 @@ type HeadInput = { htmlAttrs?: { lang?: MaybeRefOrGetter<string> } }
  * repository is which value the shell hands it and whether that value tracks
  * the operator's choice.
  */
-function stubNuxtContext(): void {
+const stubNuxtContext = (): void => {
   vi.stubGlobal('useHead', (input: HeadInput) => {
     watchEffect(() => {
       const lang = input.htmlAttrs?.lang

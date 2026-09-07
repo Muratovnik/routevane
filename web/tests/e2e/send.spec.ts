@@ -51,7 +51,7 @@ let managedProduct: SpawnedProduct | undefined
 test.use({ locale: 'en-US' })
 
 // A file URL always uses forward slashes, including on Windows.
-function fileURL(path: string): string {
+const fileURL = (path: string): string => {
   const normalized = path.replaceAll('\\', '/')
   return `file://${normalized.startsWith('/') ? '' : '/'}${normalized}`
 }
@@ -71,11 +71,11 @@ const formatNames: Record<string, RegExp> = {
   singbox: /sing-box/,
 }
 
-async function publishProfile(
+const publishProfile = async (
   page: Page,
   targetID: string,
   language: 'en' | 'ru' = 'en',
-): Promise<{ profileId: string; outputId: string }> {
+): Promise<{ profileId: string; outputId: string }> => {
   await page.goto(`${origin}/profiles/new`)
   await expect(
     page.getByRole('heading', {
@@ -117,7 +117,7 @@ async function publishProfile(
   return { profileId, outputId: outputPayload.output.id }
 }
 
-function message(language: 'en' | 'ru', key: string): string {
+const message = (language: 'en' | 'ru', key: string): string => {
   const value = dictionaries[language][key]
   if (typeof value !== 'string') throw new Error(`Not a string message: ${key}`)
   return value
@@ -342,7 +342,7 @@ for (const language of ['en', 'ru'] as const) {
       page,
     }) => {
       test.setTimeout(180000)
-      async function auditEntry(): Promise<void> {
+      const auditEntry = async (): Promise<void> => {
         const previous = page.viewportSize()
         for (const width of [320, 768, 1024, 1440]) {
           await page.setViewportSize({ width, height: 900 })

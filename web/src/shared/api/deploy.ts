@@ -65,32 +65,30 @@ export type DeployOutcome = {
   error: string
 }
 
-export function loadDeployableTargets(): Promise<DeployableTarget[]> {
-  return getJSON('/v1/deployments/targets', parseDeployableTargets)
-}
+export const loadDeployableTargets = (): Promise<DeployableTarget[]> =>
+  getJSON('/v1/deployments/targets', parseDeployableTargets)
 
 // planDeployment asks what a deployment would do without contacting the device.
 // The credential is sent because the deployer validates it, and it is never
 // stored by this module.
-export function planDeployment(
+export const planDeployment = (
   artifactID: string,
   connection: DeployConnection,
-): Promise<DeployPlan> {
-  return postJSON(
+): Promise<DeployPlan> =>
+  postJSON(
     `/v1/artifacts/${artifactID}/deploy`,
     deployBody(connection, false),
     parseDeployPlan,
   )
-}
 
 // applyDeployment keeps the audit trail on failure. A refused or rolled-back
 // deployment answers with a non-2xx status and a body that still describes every
 // step, and that record is the most useful thing an operator can be shown.
-export async function applyDeployment(
+export const applyDeployment = async (
   artifactID: string,
   connection: DeployConnection,
-): Promise<DeployOutcome> {
-  return requestDescribed(
+): Promise<DeployOutcome> =>
+  requestDescribed(
     `/v1/artifacts/${artifactID}/deploy`,
     {
       method: 'POST',
@@ -100,20 +98,17 @@ export async function applyDeployment(
     parseDeployOutcome,
     'Применение не выполнено.',
   )
-}
 
-function deployBody(
+const deployBody = (
   connection: DeployConnection,
   confirm: boolean,
-): Record<string, unknown> {
-  return {
-    device: connection.device,
-    username: connection.username,
-    password: connection.password,
-    interface: connection.interfaceName,
-    confirm,
-  }
-}
+): Record<string, unknown> => ({
+  device: connection.device,
+  username: connection.username,
+  password: connection.password,
+  interface: connection.interfaceName,
+  confirm,
+})
 
 const requirementsSchema = v.pipe(
   fields({

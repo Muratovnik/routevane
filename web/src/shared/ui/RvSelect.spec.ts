@@ -24,19 +24,17 @@ const groups: ChoiceGroup[] = [
   },
 ]
 
-function list(): HTMLElement | null {
-  return document.body.querySelector<HTMLElement>('[role="listbox"]')
-}
+const list = (): HTMLElement | null =>
+  document.body.querySelector<HTMLElement>('[role="listbox"]')
 
-function optionWithText(text: string): HTMLElement | undefined {
-  return [
-    ...(list()?.querySelectorAll<HTMLElement>('[role="option"]') ?? []),
-  ].find((item) => item.textContent?.includes(text))
-}
+const optionWithText = (text: string): HTMLElement | undefined =>
+  [...(list()?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])].find(
+    (item) => item.textContent?.includes(text),
+  )
 
 // A list option commits on pointer release, the way an operating system's own
 // select does: pressing and dragging off it must not choose anything.
-async function chooseOption(text: string): Promise<void> {
+const chooseOption = async (text: string): Promise<void> => {
   const option = optionWithText(text)
   expect(option, text).toBeDefined()
   option?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }))
@@ -46,17 +44,17 @@ async function chooseOption(text: string): Promise<void> {
 
 // The list opens from the keyboard as well as from the pointer, which is the
 // half a native select gives for free and this one has to state.
-async function openProfile(wrapper: {
+const openProfile = async (wrapper: {
   get: (selector: string) => {
     trigger: (event: string, options?: object) => Promise<void>
   }
-}): Promise<void> {
+}): Promise<void> => {
   await wrapper.get('.rv-select__trigger').trigger('keydown', { key: 'Enter' })
   await flushPromises()
 }
 
-function mountSelect(props: Record<string, unknown>) {
-  return mount(RvSelect, {
+const mountSelect = (props: Record<string, unknown>) =>
+  mount(RvSelect, {
     attachTo: document.body,
     props: {
       inputId: 'choice',
@@ -66,7 +64,6 @@ function mountSelect(props: Record<string, unknown>) {
     },
     global: { stubs: { RvIcon: true } },
   })
-}
 
 describe('RvSelect', () => {
   let open: { unmount: () => void } | null = null

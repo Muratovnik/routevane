@@ -3,19 +3,18 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 
-function panel(): HTMLElement | null {
-  return document.body.querySelector<HTMLElement>('.rv-infotip__panel')
-}
+const panel = (): HTMLElement | null =>
+  document.body.querySelector<HTMLElement>('.rv-infotip__panel')
 
-async function settle(): Promise<void> {
+const settle = async (): Promise<void> => {
   await flushPromises()
   await new Promise((resolve) => {
     setTimeout(resolve, 0)
   })
 }
 
-function mountInfoTip() {
-  return mount(RvInfoTip, {
+const mountInfoTip = () =>
+  mount(RvInfoTip, {
     attachTo: document.body,
     props: {
       label: 'How this works',
@@ -23,7 +22,6 @@ function mountInfoTip() {
     },
     global: { stubs: { RvIcon: true } },
   })
-}
 
 describe('RvInfoTip', () => {
   let open: { unmount: () => void } | null = null

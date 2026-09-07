@@ -49,14 +49,13 @@ const forecastPayload = {
   ],
 }
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
-function stubPreview(preview?: () => Promise<Response>) {
+const stubPreview = (preview?: () => Promise<Response>) => {
   const fetchMock = vi.fn((input: unknown) => {
     if (String(input).endsWith('/refresh'))
       return Promise.resolve(json({ refresh: {} }))
@@ -66,7 +65,7 @@ function stubPreview(preview?: () => Promise<Response>) {
   return fetchMock
 }
 
-function mountEditor(
+const mountEditor = (
   overrides: Partial<{
     outputs: typeof outputs
     busy: boolean
@@ -74,8 +73,8 @@ function mountEditor(
     priority: string[]
     listDomains: Record<string, string[]>
   }> = {},
-) {
-  return mount(ProfileEditor, {
+) =>
+  mount(ProfileEditor, {
     props: {
       busy: false,
       categories,
@@ -90,21 +89,20 @@ function mountEditor(
     },
     global: { stubs: { RvIcon: true } },
   })
-}
 
-function buttonByLabel(wrapper: ReturnType<typeof mountEditor>, label: string) {
-  return wrapper
+const buttonByLabel = (
+  wrapper: ReturnType<typeof mountEditor>,
+  label: string,
+) =>
+  wrapper
     .findAll('button')
     .find((button) => button.attributes('aria-label') === label)
-}
 
-function buttonByText(wrapper: ReturnType<typeof mountEditor>, text: string) {
-  return wrapper.findAll('button').find((button) => button.text() === text)
-}
+const buttonByText = (wrapper: ReturnType<typeof mountEditor>, text: string) =>
+  wrapper.findAll('button').find((button) => button.text() === text)
 
-function rowCopies(wrapper: ReturnType<typeof mountEditor>) {
-  return wrapper.findAll('.picker__row--selected .picker__name')
-}
+const rowCopies = (wrapper: ReturnType<typeof mountEditor>) =>
+  wrapper.findAll('.picker__row--selected .picker__name')
 
 describe('ProfileEditor', () => {
   beforeEach(() => {

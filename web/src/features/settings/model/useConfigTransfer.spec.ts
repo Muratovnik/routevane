@@ -5,15 +5,14 @@ import { useConfigTransfer } from './useConfigTransfer'
 const fetchMock = vi.fn()
 const digest = `sha256:${'b'.repeat(64)}`
 
-function json(payload: unknown): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown): Response =>
+  new Response(JSON.stringify(payload), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
-function previewResponse(): Response {
-  return json({
+const previewResponse = (): Response =>
+  json({
     digest,
     can_apply: true,
     counts: {
@@ -26,15 +25,12 @@ function previewResponse(): Response {
     },
     warnings: [],
   })
-}
 
-function file(name: string, body = '{}'): File {
-  return new File([body], name, { type: 'application/json' })
-}
+const file = (name: string, body = '{}'): File =>
+  new File([body], name, { type: 'application/json' })
 
-function byteFile(name: string, parts: BlobPart[]): File {
-  return new File(parts, name, { type: 'application/json' })
-}
+const byteFile = (name: string, parts: BlobPart[]): File =>
+  new File(parts, name, { type: 'application/json' })
 
 beforeEach(() => {
   fetchMock.mockReset()

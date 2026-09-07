@@ -2,12 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useSettings } from '@/features/settings/model/useSettings'
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
 const fetchMock = vi.fn()
 

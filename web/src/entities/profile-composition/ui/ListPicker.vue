@@ -188,7 +188,7 @@ watch(
   { flush: 'sync' },
 )
 
-function movePriority(id: string, offset: number): void {
+const movePriority = (id: string, offset: number): void => {
   if (props.disabled) return
   const priority = [...resolved.value]
   const from = priority.indexOf(id)
@@ -223,24 +223,21 @@ const ruleCounts = computed(
     ),
 )
 
-function categoryLabel(category: CategoryDetail): string {
-  return tor(`category.${category.id}`, category.title)
-}
+const categoryLabel = (category: CategoryDetail): string =>
+  tor(`category.${category.id}`, category.title)
 
-function listCategories(list: ListDetail): CategoryDetail[] {
-  return props.categories.filter((category) => category.lists.includes(list.id))
-}
+const listCategories = (list: ListDetail): CategoryDetail[] =>
+  props.categories.filter((category) => category.lists.includes(list.id))
 
-function categoryNames(list: ListDetail): string {
+const categoryNames = (list: ListDetail): string => {
   const categories = listCategories(list)
   return categories.length === 0
     ? t('listPicker.other')
     : categories.map(categoryLabel).join(', ')
 }
 
-function included(listID: string): boolean {
-  return listIncluded(props.modelValue, props.categories, listID)
-}
+const included = (listID: string): boolean =>
+  listIncluded(props.modelValue, props.categories, listID)
 
 const visibleSelected = computed(
   () => orderedRows.value.filter((row) => included(row.id)).length,
@@ -250,7 +247,7 @@ const allVisibleSelected = computed(
     orderedRows.value.length > 0 &&
     visibleSelected.value === orderedRows.value.length,
 )
-function toggleVisible(): void {
+const toggleVisible = (): void => {
   if (props.disabled) return
   const select = !allVisibleSelected.value
   let next = props.modelValue
@@ -261,14 +258,14 @@ function toggleVisible(): void {
   emit('update:modelValue', next)
 }
 
-function toggleList(listID: string): void {
+const toggleList = (listID: string): void => {
   emit(
     'update:modelValue',
     toggleCompositionList(props.modelValue, props.categories, listID),
   )
 }
 
-function toggleCategoryReference(follow: boolean): void {
+const toggleCategoryReference = (follow: boolean): void => {
   const category = selectedCategory.value
   if (category === null) return
   emit(
@@ -282,37 +279,37 @@ function toggleCategoryReference(follow: boolean): void {
   )
 }
 
-function openList(listID: string): void {
+const openList = (listID: string): void => {
   inspectWorkspace(true, () => {
     activeListID.value = listID
   })
 }
 
-function closeList(): void {
+const closeList = (): void => {
   inspectWorkspace(false, () => {
     activeListID.value = ''
   })
 }
 
-function onDialogInclude(add: boolean): void {
+const onDialogInclude = (add: boolean): void => {
   const list = activeList.value
   if (list === null || included(list.id) === add) return
   toggleList(list.id)
 }
 
-function overlapCount(listID: string): string {
+const overlapCount = (listID: string): string => {
   const count = formatNumber(overlapTitles(listID)?.length ?? 0)
   return count
 }
 
-function ruleLabel(listID: string): string {
+const ruleLabel = (listID: string): string => {
   const count = ruleCounts.value.get(listID)
   if (count !== undefined) return tc('create.forecast.rules', count)
   const pending = props.forecastPending && resolvedSet.value.has(listID)
   return t(pending ? 'listPicker.rules.pending' : 'listPicker.rules.unknown')
 }
 
-function overlapTitles(listID: string): string[] | null {
+const overlapTitles = (listID: string): string[] | null => {
   if (
     !resolvedSet.value.has(listID) ||
     props.forecastFailure ||
@@ -326,9 +323,8 @@ function overlapTitles(listID: string): string[] | null {
     .map((id) => listLabels.value.get(id) ?? id)
 }
 
-function listLabel(listID: string): string {
-  return listLabels.value.get(listID) ?? listID
-}
+const listLabel = (listID: string): string =>
+  listLabels.value.get(listID) ?? listID
 </script>
 
 <template>

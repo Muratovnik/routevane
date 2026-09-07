@@ -31,11 +31,11 @@ export interface SpawnedProduct {
  * caller can diagnose an early exit or a spawn failure without inventing its
  * own listeners at every call site.
  */
-export function spawnProduct(
+export const spawnProduct = (
   command: string,
   args: string[],
   options: SpawnOptions,
-): SpawnedProduct {
+): SpawnedProduct => {
   const child = spawn(command, args, options)
   let output = ''
   let spawnError: Error | undefined
@@ -60,19 +60,14 @@ export function spawnProduct(
   return { process: child, output: () => output, isAlive, assertAlive }
 }
 
-export function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds))
-}
+export const delay = (milliseconds: number): Promise<void> =>
+  new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds))
 
-export async function resolvesWithin(
+export const resolvesWithin = async (
   value: Promise<unknown>,
   milliseconds: number,
-): Promise<boolean> {
-  return Promise.race([
-    value.then(() => true),
-    delay(milliseconds).then(() => false),
-  ])
-}
+): Promise<boolean> =>
+  Promise.race([value.then(() => true), delay(milliseconds).then(() => false)])
 
 /**
  * stopOwnedProduct asks a child process this suite owns to exit, waits up to
@@ -82,10 +77,10 @@ export async function resolvesWithin(
  * held — unlike a bare `kill()` plus an unbounded `once(child, 'exit')`,
  * which hangs forever if the first signal is ignored.
  */
-export async function stopOwnedProduct(
+export const stopOwnedProduct = async (
   child: ChildProcess,
   timeoutMilliseconds = STOP_TIMEOUT_MILLISECONDS,
-): Promise<void> {
+): Promise<void> => {
   if (child.exitCode !== null)
     throw new Error('owned Routevane child exited before teardown')
   const exited = once(child, 'exit')
@@ -103,7 +98,7 @@ export async function stopOwnedProduct(
  * port and provably bindable again immediately after release, so the caller
  * never hands the product a port number that only looked free.
  */
-export async function reserveLoopbackPort(): Promise<number> {
+export const reserveLoopbackPort = async (): Promise<number> => {
   const listener = createServer()
   await listenOnLoopback(listener, 0)
   const address = listener.address()
@@ -122,16 +117,18 @@ export async function reserveLoopbackPort(): Promise<number> {
 }
 
 /** assertPortBindable proves a port is actually free by binding and releasing it. */
-export async function assertPortBindable(candidatePort: number): Promise<void> {
+export const assertPortBindable = async (
+  candidatePort: number,
+): Promise<void> => {
   const listener = createServer()
   await listenOnLoopback(listener, candidatePort)
   await closeServer(listener)
 }
 
-async function listenOnLoopback(
+const listenOnLoopback = async (
   listener: Server,
   candidatePort: number,
-): Promise<void> {
+): Promise<void> => {
   await new Promise<void>((resolveListen, rejectListen) => {
     const rejectOnce = (error: Error) => {
       listener.off('listening', resolveListen)
@@ -146,7 +143,7 @@ async function listenOnLoopback(
   })
 }
 
-async function closeServer(listener: Server): Promise<void> {
+const closeServer = async (listener: Server): Promise<void> => {
   await new Promise<void>((resolveClose, rejectClose) => {
     listener.close((error) =>
       error === undefined ? resolveClose() : rejectClose(error),

@@ -26,16 +26,17 @@ export type DiagnosticRule = {
   excluded: boolean
 }
 
-export function loadDiagnostics(snapshotID: string): Promise<DiagnosticRule[]> {
-  return getJSON(`/v1/snapshots/${snapshotID}`, parseDiagnostics)
-}
+export const loadDiagnostics = (
+  snapshotID: string,
+): Promise<DiagnosticRule[]> =>
+  getJSON(`/v1/snapshots/${snapshotID}`, parseDiagnostics)
 
 // loadArtifactContent reads the published file itself. It is text because the
 // operator is going to look at it, and its size comes from the bytes rather than
 // from a claim about them.
-export async function loadArtifactContent(
+export const loadArtifactContent = async (
   artifactID: string,
-): Promise<ArtifactContent> {
+): Promise<ArtifactContent> => {
   const response = await fetch(`/v1/artifacts/${artifactID}`, {
     headers: { Accept: 'text/plain, */*' },
     method: 'GET',

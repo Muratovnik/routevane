@@ -5,10 +5,10 @@ import type { ProfileComposition, TargetForecast } from '@/shared/api/profiles'
 
 export type CategorySelectionState = 'none' | 'partial' | 'all'
 
-export function resolvedComposition(
+export const resolvedComposition = (
   composition: ProfileComposition,
   categories: CategoryDetail[],
-): string[] {
+): string[] => {
   const resolved = new Set(composition.lists)
   for (const id of composition.categories) {
     const category = categories.find((entry) => entry.id === id)
@@ -25,10 +25,10 @@ export function resolvedComposition(
   return [...ordered, ...remaining.filter((id) => resolved.has(id))]
 }
 
-export function categoryListIDs(
+export const categoryListIDs = (
   composition: ProfileComposition,
   categories: CategoryDetail[],
-): Set<string> {
+): Set<string> => {
   const carried = new Set<string>()
   for (const id of composition.categories) {
     const category = categories.find((entry) => entry.id === id)
@@ -37,19 +37,17 @@ export function categoryListIDs(
   return carried
 }
 
-export function listIncluded(
+export const listIncluded = (
   composition: ProfileComposition,
   categories: CategoryDetail[],
   listID: string,
-): boolean {
-  return resolvedComposition(composition, categories).includes(listID)
-}
+): boolean => resolvedComposition(composition, categories).includes(listID)
 
-export function categorySelectionState(
+export const categorySelectionState = (
   composition: ProfileComposition,
   categories: CategoryDetail[],
   categoryID: string,
-): CategorySelectionState {
+): CategorySelectionState => {
   const members =
     categories.find((category) => category.id === categoryID)?.lists ?? []
   if (members.length === 0) return 'none'
@@ -60,11 +58,11 @@ export function categorySelectionState(
   return included === members.length ? 'all' : 'partial'
 }
 
-export function toggleCompositionList(
+export const toggleCompositionList = (
   composition: ProfileComposition,
   categories: CategoryDetail[],
   listID: string,
-): ProfileComposition {
+): ProfileComposition => {
   const next = cloneComposition(composition)
   const carried = categoryListIDs(next, categories)
   if (listIncluded(next, categories, listID)) {
@@ -77,11 +75,11 @@ export function toggleCompositionList(
   return normalizeComposition(next, categories)
 }
 
-export function toggleCompositionCategory(
+export const toggleCompositionCategory = (
   composition: ProfileComposition,
   categories: CategoryDetail[],
   categoryID: string,
-): ProfileComposition {
+): ProfileComposition => {
   const next = cloneComposition(composition)
   const members =
     categories.find((category) => category.id === categoryID)?.lists ?? []
@@ -113,12 +111,12 @@ export function toggleCompositionCategory(
 }
 
 /** Set whether a draft follows one live category reference. */
-export function setCompositionCategoryReference(
+export const setCompositionCategoryReference = (
   composition: ProfileComposition,
   categories: CategoryDetail[],
   categoryID: string,
   selected: boolean,
-): ProfileComposition {
+): ProfileComposition => {
   const next = cloneComposition(composition)
   const members =
     categories.find((category) => category.id === categoryID)?.lists ?? []
@@ -137,10 +135,10 @@ export function setCompositionCategoryReference(
   return normalizeComposition(next, categories)
 }
 
-export function normalizeComposition(
+export const normalizeComposition = (
   composition: ProfileComposition,
   categories: CategoryDetail[] = [],
-): ProfileComposition {
+): ProfileComposition => {
   const normalized: ProfileComposition = {
     lists: [...new Set(composition.lists)].sort(),
     categories: [...new Set(composition.categories)].sort(),
@@ -169,11 +167,11 @@ export function normalizeComposition(
  * preference into a live dependency. The caller decides when to stop applying
  * it; existing routes keep using their stored priority.
  */
-export function applyDefaultPriority(
+export const applyDefaultPriority = (
   composition: ProfileComposition,
   categories: CategoryDetail[],
   defaultPriority: string[],
-): ProfileComposition {
+): ProfileComposition => {
   const included = new Set(resolvedComposition(composition, categories))
   const priority = defaultPriority.filter((id) => included.delete(id))
   priority.push(...[...included].sort())
@@ -187,10 +185,10 @@ export function applyDefaultPriority(
  * The summary is optional for compatibility with an older local service. A
  * missing summary is unknown, not proof that the list has no intersections.
  */
-export function overlapListIDs(
+export const overlapListIDs = (
   forecast: TargetForecast | null | undefined,
   listID: string,
-): string[] | null {
+): string[] | null => {
   const summary = forecast?.overlaps?.summary
   if (summary === undefined) return null
   return summary.find((entry) => entry.listID === listID)?.overlaps ?? null
@@ -201,7 +199,9 @@ export function overlapListIDs(
  * label terse, but add the shortest stable id prefix when two lists share the
  * same title so an overlap tag can still name the row it refers to.
  */
-export function listIdentityLabels(lists: ListDetail[]): Map<string, string> {
+export const listIdentityLabels = (
+  lists: ListDetail[],
+): Map<string, string> => {
   const byTitle = new Map<string, ListDetail[]>()
   for (const list of lists) {
     const peers = byTitle.get(list.title) ?? []
@@ -242,10 +242,10 @@ export function listIdentityLabels(lists: ListDetail[]): Map<string, string> {
  * selection rather than a different order before a save control can be
  * believed.
  */
-export function compositionSignature(
+export const compositionSignature = (
   composition: ProfileComposition,
   categories: CategoryDetail[] = [],
-): string {
+): string => {
   const normalized = normalizeComposition(composition, categories)
   return JSON.stringify([
     normalized.lists,
@@ -264,9 +264,9 @@ export function compositionSignature(
  * stands for. Reactivity is shallow at each of those objects, which is why one
  * unwrapping per field reaches all the way down.
  */
-export function cloneComposition(
+export const cloneComposition = (
   composition: ProfileComposition,
-): ProfileComposition {
+): ProfileComposition => {
   const source = toRaw(composition)
   return structuredClone({
     lists: toRaw(source.lists),
@@ -278,12 +278,12 @@ export function cloneComposition(
 }
 
 /** Move one resolved list without changing how the route references it. */
-export function moveCompositionPriority(
+export const moveCompositionPriority = (
   composition: ProfileComposition,
   categories: CategoryDetail[],
   from: number,
   to: number,
-): ProfileComposition {
+): ProfileComposition => {
   const ordered = resolvedComposition(composition, categories)
   if (
     from < 0 ||

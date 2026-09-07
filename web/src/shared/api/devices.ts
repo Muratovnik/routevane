@@ -32,48 +32,43 @@ type DeviceRegistry = {
   secretStoreAvailable: boolean
 }
 
-export async function loadDevices(): Promise<DeviceRegistry> {
-  return getJSON('/v1/devices', parseDevices)
-}
+export const loadDevices = async (): Promise<DeviceRegistry> =>
+  getJSON('/v1/devices', parseDevices)
 
-export function registerDevice(
+export const registerDevice = (
   targetID: string,
   name: string,
   address: string,
   account: string,
   interfaceName: string,
-): Promise<true> {
-  return postJSON(
+): Promise<true> =>
+  postJSON(
     '/v1/devices',
     { target_id: targetID, name, address, account, interface: interfaceName },
     parseAcknowledgement,
   )
-}
 
-export function forgetDevice(id: string): Promise<true> {
-  return postJSON(`/v1/devices/${id}/forget`, {}, parseAcknowledgement)
-}
+export const forgetDevice = (id: string): Promise<true> =>
+  postJSON(`/v1/devices/${id}/forget`, {}, parseAcknowledgement)
 
 // The credential leaves this tab once and is never read back. Nothing here
 // keeps it, and no reply carries it.
-export function enableAutoDelivery(
+export const enableAutoDelivery = (
   id: string,
   credential: string,
-): Promise<true> {
-  return postJSON(
+): Promise<true> =>
+  postJSON(
     `/v1/devices/${id}/auto-delivery`,
     { enabled: true, credential },
     parseAcknowledgement,
   )
-}
 
-export function disableAutoDelivery(id: string): Promise<true> {
-  return postJSON(
+export const disableAutoDelivery = (id: string): Promise<true> =>
+  postJSON(
     `/v1/devices/${id}/auto-delivery`,
     { enabled: false },
     parseAcknowledgement,
   )
-}
 
 const deviceSchema = v.pipe(
   fields({

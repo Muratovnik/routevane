@@ -29,10 +29,10 @@ export type TargetsState = 'loading' | 'ready' | 'unsupported' | 'failed'
  * Failures answer with a message key. A server code the operator cannot act on
  * never reaches the screen as itself.
  */
-export function useDeployment(
+export const useDeployment = (
   artifactID: () => string,
   targetID: () => string,
-) {
+) => {
   const targets = ref<DeployableTarget[]>([])
   const targetsState = ref<TargetsState>('loading')
   const state = ref<DeploymentState>('idle')
@@ -73,7 +73,7 @@ export function useDeployment(
     return true
   })
 
-  async function initialize(): Promise<void> {
+  const initialize = async (): Promise<void> => {
     targetsState.value = 'loading'
     try {
       targets.value = await loadDeployableTargets()
@@ -83,7 +83,7 @@ export function useDeployment(
     }
   }
 
-  function connection() {
+  const connection = () => {
     const needed = requirements.value
     return {
       device: device.value.trim(),
@@ -96,7 +96,7 @@ export function useDeployment(
 
   // review asks the server what would happen. Nothing is contacted and nothing
   // is changed, so an operator can correct an address before a device is touched.
-  async function review(): Promise<void> {
+  const review = async (): Promise<void> => {
     addressTouched.value = true
     if (!canSubmit.value) return
     state.value = 'planning'
@@ -112,7 +112,7 @@ export function useDeployment(
     }
   }
 
-  async function apply(): Promise<void> {
+  const apply = async (): Promise<void> => {
     if (state.value !== 'planned' || !canSubmit.value) return
     state.value = 'applying'
     errorKey.value = null
@@ -130,7 +130,7 @@ export function useDeployment(
     }
   }
 
-  function reset(): void {
+  const reset = (): void => {
     state.value = 'idle'
     plan.value = null
     outcome.value = null
@@ -177,28 +177,25 @@ const failureCodes = new Set([
 // address, never an address that merely turns out to be unreachable — that
 // answer belongs to the destination. The host is read label by label rather
 // than by one nested pattern, so no input can make the check backtrack.
-const httpSchemePattern = /^https?:\/\//i
-const hostLabelPattern = /^[a-z\d-]+$/i
-const portPattern = /^\d{1,5}$/
+const HTTP_SCHEME_PATTERN = /^https?:\/\//i
+const HOST_LABEL_PATTERN = /^[a-z\d-]+$/i
+const PORT_PATTERN = /^\d{1,5}$/
 
-function validHostLabel(label: string): boolean {
-  return (
-    !label.startsWith('-') &&
-    !label.endsWith('-') &&
-    hostLabelPattern.test(label)
-  )
-}
+const validHostLabel = (label: string): boolean =>
+  !label.startsWith('-') &&
+  !label.endsWith('-') &&
+  HOST_LABEL_PATTERN.test(label)
 
-function validHostAndPort(value: string): boolean {
+const validHostAndPort = (value: string): boolean => {
   const authority = value.endsWith('/') ? value.slice(0, -1) : value
   const [host, port, ...extra] = authority.split(':')
   if (extra.length > 0 || host === undefined || host === '') return false
   if (!host.split('.').every(validHostLabel)) return false
   if (port === undefined) return true
-  return portPattern.test(port) && Number(port) >= 1 && Number(port) <= 65535
+  return PORT_PATTERN.test(port) && Number(port) >= 1 && Number(port) <= 65535
 }
 
-export function validAddress(value: string): boolean {
+export const validAddress = (value: string): boolean => {
   if (value === '') return false
   // A local configuration file is a legitimate destination, and its own
   // deployer offers it as the example, so the form must accept what it shows.
@@ -209,13 +206,13 @@ export function validAddress(value: string): boolean {
       return false
     }
   }
-  if (/^[a-z][a-z\d+.-]*:/i.test(value) && !httpSchemePattern.test(value)) {
+  if (/^[a-z][a-z\d+.-]*:/i.test(value) && !HTTP_SCHEME_PATTERN.test(value)) {
     return false
   }
-  return validHostAndPort(value.replace(httpSchemePattern, ''))
+  return validHostAndPort(value.replace(HTTP_SCHEME_PATTERN, ''))
 }
 
-export function messageKey(error: unknown): string {
+export const messageKey = (error: unknown): string => {
   if (!(error instanceof RoutevaneAPIError)) return 'error.network'
   if (failureCodes.has(error.message)) return `error.${error.message}`
   if (error.status === 404) return 'error.notFound'
@@ -227,25 +224,24 @@ export function messageKey(error: unknown): string {
   return 'error.unexpected'
 }
 
-function outcomeKey(result: DeployOutcome): string {
-  return failureCodes.has(result.error)
+const outcomeKey = (result: DeployOutcome): string =>
+  failureCodes.has(result.error)
     ? `error.${result.error}`
     : 'error.deploy_failed'
-}
 
-const storagePrefix = 'rv.deploy.'
+const STORAGE_PREFIX = 'rv.deploy.'
 
-function readRemembered(field: string): string {
+const readRemembered = (field: string): string => {
   try {
-    return window.sessionStorage.getItem(`${storagePrefix}${field}`) ?? ''
+    return window.sessionStorage.getItem(`${STORAGE_PREFIX}${field}`) ?? ''
   } catch {
     return ''
   }
 }
 
-function remember(field: string, value: string): void {
+const remember = (field: string, value: string): void => {
   try {
-    window.sessionStorage.setItem(`${storagePrefix}${field}`, value)
+    window.sessionStorage.setItem(`${STORAGE_PREFIX}${field}`, value)
   } catch {
     // Convenience only: the operator can always type it again.
   }

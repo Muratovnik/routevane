@@ -12,9 +12,9 @@ type Harness = {
   wrapper: ReturnType<typeof mount>
 }
 
-function setup(
+const setup = (
   request: (key: string, value: boolean) => Promise<boolean | undefined>,
-): Harness {
+): Harness => {
   let mutation!: DebouncedMutation<boolean>
   const component = defineComponent({
     setup() {

@@ -23,11 +23,11 @@ const emit = defineEmits<{
 
 const buttons = ref<HTMLButtonElement[]>([])
 
-function select(id: string): void {
+const select = (id: string): void => {
   if (id !== props.modelValue) emit('update:modelValue', id)
 }
 
-function onKeydown(event: KeyboardEvent, index: number): void {
+const onKeydown = (event: KeyboardEvent, index: number): void => {
   const last = props.tabs.length - 1
   let next: number | null = null
   if (event.key === 'ArrowRight') next = index === last ? 0 : index + 1

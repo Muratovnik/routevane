@@ -35,7 +35,7 @@ const profileID = 'a'.repeat(32)
 const outputID = 'f'.repeat(32)
 const artifactID = 'b'.repeat(32)
 const snapshotID = 'c'.repeat(32)
-const customCategoryID = 'custom-1234567890abcdef'
+const CUSTOM_CATEGORY_ID = 'custom-1234567890abcdef'
 const subscription = `${window.location.origin}/v1/subscriptions/rv1.${'c'.repeat(32)}.${'d'.repeat(43)}`
 
 const fetchMock = vi.fn()
@@ -45,14 +45,13 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock)
 })
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
-function answer(payload: unknown, status = 200): void {
+const answer = (payload: unknown, status = 200): void => {
   fetchMock.mockResolvedValueOnce(json(payload, status))
 }
 
@@ -63,54 +62,50 @@ const connection = {
   interfaceName: 'wan',
 }
 
-function buildPayload(): Record<string, unknown> {
-  return {
-    output: { id: outputID, list_id: profileID, target_id: 'keenetic' },
-    snapshot: { id: snapshotID },
-    artifact: {
-      id: artifactID,
-      artifact_hash: 'd'.repeat(64),
-      content_created_at: '2026-08-20T12:00:00Z',
-      validation_status: 'valid',
-      status: 'published',
-      renderer_id: 'keenetic-route-bat',
-      renderer_version: '1.0.0',
-      content_type: 'application/x-bat',
-    },
-    summary: {
-      rule_count: 2,
-      partial_coverage: false,
-      partial_coverage_count: 0,
-      content_created_at: '2026-08-20T12:00:00Z',
-      validation_status: 'valid',
-      status: 'published',
-    },
-    subscription_url: subscription,
-  }
-}
+const buildPayload = (): Record<string, unknown> => ({
+  output: { id: outputID, list_id: profileID, target_id: 'keenetic' },
+  snapshot: { id: snapshotID },
+  artifact: {
+    id: artifactID,
+    artifact_hash: 'd'.repeat(64),
+    content_created_at: '2026-08-20T12:00:00Z',
+    validation_status: 'valid',
+    status: 'published',
+    renderer_id: 'keenetic-route-bat',
+    renderer_version: '1.0.0',
+    content_type: 'application/x-bat',
+  },
+  summary: {
+    rule_count: 2,
+    partial_coverage: false,
+    partial_coverage_count: 0,
+    content_created_at: '2026-08-20T12:00:00Z',
+    validation_status: 'valid',
+    status: 'published',
+  },
+  subscription_url: subscription,
+})
 
-function profilePayload(fields: Record<string, unknown> = {}): unknown {
-  return {
-    profiles: [
-      {
-        id: profileID,
-        name: 'Video',
-        lists: ['discord'],
-        categories: [],
-        exclusions: [],
-        resolved: ['discord'],
-        missing_categories: [],
-        created_at: '2026-08-20T12:00:00Z',
-        updated_at: '2026-08-20T12:00:00Z',
-        outputs: [],
-        ...fields,
-      },
-    ],
-  }
-}
+const profilePayload = (fields: Record<string, unknown> = {}): unknown => ({
+  profiles: [
+    {
+      id: profileID,
+      name: 'Video',
+      lists: ['discord'],
+      categories: [],
+      exclusions: [],
+      resolved: ['discord'],
+      missing_categories: [],
+      created_at: '2026-08-20T12:00:00Z',
+      updated_at: '2026-08-20T12:00:00Z',
+      outputs: [],
+      ...fields,
+    },
+  ],
+})
 
-function attemptPayload(attempt: Record<string, unknown>): unknown {
-  return profilePayload({
+const attemptPayload = (attempt: Record<string, unknown>): unknown =>
+  profilePayload({
     outputs: [
       {
         id: outputID,
@@ -121,22 +116,19 @@ function attemptPayload(attempt: Record<string, unknown>): unknown {
       },
     ],
   })
-}
 
-function forecastPayload(target: Record<string, unknown>): unknown {
-  return {
-    targets: [
-      {
-        target_id: 'keenetic',
-        maximum_rules: 1024,
-        projected_rules: 12,
-        fits: true,
-        per_list: [],
-        ...target,
-      },
-    ],
-  }
-}
+const forecastPayload = (target: Record<string, unknown>): unknown => ({
+  targets: [
+    {
+      target_id: 'keenetic',
+      maximum_rules: 1024,
+      projected_rules: 12,
+      fits: true,
+      per_list: [],
+      ...target,
+    },
+  ],
+})
 
 const draft = {
   lists: ['discord'],
@@ -259,35 +251,33 @@ describe('forecast overlap contract', () => {
   })
 })
 
-function requirementsPayload(requirements: Record<string, unknown>): unknown {
-  return {
-    targets: [
-      {
-        target_id: 'keenetic',
-        title: 'Keenetic',
-        deployer_id: 'keenetic-telnet',
-        requirements: {
-          address_label: 'Address',
-          address_example: '192.168.1.1',
-          needs_credential: true,
-          needs_interface: false,
-          ...requirements,
-        },
+const requirementsPayload = (
+  requirements: Record<string, unknown>,
+): unknown => ({
+  targets: [
+    {
+      target_id: 'keenetic',
+      title: 'Keenetic',
+      deployer_id: 'keenetic-telnet',
+      requirements: {
+        address_label: 'Address',
+        address_example: '192.168.1.1',
+        needs_credential: true,
+        needs_interface: false,
+        ...requirements,
       },
-    ],
-  }
-}
-
-function outcomePayload(result: Record<string, unknown>): unknown {
-  return {
-    result: {
-      applied: true,
-      rolled_back: false,
-      device: { deployer_id: 'keenetic-telnet', vendor: 'Keenetic' },
-      ...result,
     },
-  }
-}
+  ],
+})
+
+const outcomePayload = (result: Record<string, unknown>): unknown => ({
+  result: {
+    applied: true,
+    rolled_back: false,
+    device: { deployer_id: 'keenetic-telnet', vendor: 'Keenetic' },
+    ...result,
+  },
+})
 
 describe('the shape of a value', () => {
   // A count is a whole, non-negative, exactly representable number. Everything
@@ -970,14 +960,14 @@ describe('the server states its fields, the screen reads its own', () => {
 
   it('reads a written category back and refuses an envelope without one', async () => {
     const written = {
-      id: customCategoryID,
+      id: CUSTOM_CATEGORY_ID,
       title: 'Мои списки',
       lists: ['discord'],
       custom: true,
     }
     answer({ category: written }, 201)
     await expect(createCategory('Мои списки', ['discord'])).resolves.toEqual({
-      id: customCategoryID,
+      id: CUSTOM_CATEGORY_ID,
       title: 'Мои списки',
       lists: ['discord'],
       custom: true,
@@ -1013,35 +1003,35 @@ describe('the server states its fields, the screen reads its own', () => {
   // means "leave this alone", which the body has to carry as an absence.
   it('sends only the fields a category edit states', async () => {
     const written = {
-      id: customCategoryID,
+      id: CUSTOM_CATEGORY_ID,
       title: 'Мои списки',
       lists: ['discord'],
       custom: true,
     }
     answer({ category: written })
-    await updateCategory(customCategoryID, { lists: ['discord'] })
+    await updateCategory(CUSTOM_CATEGORY_ID, { lists: ['discord'] })
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      `/v1/categories/${customCategoryID}/update`,
+      `/v1/categories/${CUSTOM_CATEGORY_ID}/update`,
     )
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit).body).toBe(
       JSON.stringify({ lists: ['discord'] }),
     )
 
     answer({ category: written })
-    await updateCategory(customCategoryID, { title: 'Мои списки' })
+    await updateCategory(CUSTOM_CATEGORY_ID, { title: 'Мои списки' })
     expect((fetchMock.mock.calls[1]?.[1] as RequestInit).body).toBe(
       JSON.stringify({ title: 'Мои списки' }),
     )
 
     // An empty membership is a request, not an absent field.
     answer({ category: { ...written, lists: [] } })
-    await updateCategory(customCategoryID, { lists: [] })
+    await updateCategory(CUSTOM_CATEGORY_ID, { lists: [] })
     expect((fetchMock.mock.calls[2]?.[1] as RequestInit).body).toBe(
       JSON.stringify({ lists: [] }),
     )
 
     answer({ error: 'not found' }, 404)
-    await expect(updateCategory(customCategoryID, {})).rejects.toBeInstanceOf(
+    await expect(updateCategory(CUSTOM_CATEGORY_ID, {})).rejects.toBeInstanceOf(
       RoutevaneAPIError,
     )
   })
@@ -1057,10 +1047,10 @@ describe('the server states its fields, the screen reads its own', () => {
   it('completes a removal with no body and names the profiles that refuse one', async () => {
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
     await expect(
-      removeCategory(customCategoryID, 'detach'),
+      removeCategory(CUSTOM_CATEGORY_ID, 'detach'),
     ).resolves.toBeUndefined()
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      `/v1/categories/${customCategoryID}/remove`,
+      `/v1/categories/${CUSTOM_CATEGORY_ID}/remove`,
     )
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit).headers).toMatchObject(
       {
@@ -1072,7 +1062,7 @@ describe('the server states its fields, the screen reads its own', () => {
     )
 
     fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }))
-    await removeCategory(customCategoryID, 'delete')
+    await removeCategory(CUSTOM_CATEGORY_ID, 'delete')
     expect((fetchMock.mock.calls[1]?.[1] as RequestInit).body).toBe(
       JSON.stringify({ lists: 'delete' }),
     )
@@ -1087,7 +1077,7 @@ describe('the server states its fields, the screen reads its own', () => {
       },
       409,
     )
-    const refused = await removeCategory(customCategoryID, 'detach').catch(
+    const refused = await removeCategory(CUSTOM_CATEGORY_ID, 'detach').catch(
       (reason: unknown) => reason,
     )
     expect(refused).toBeInstanceOf(RoutevaneAPIError)
@@ -1105,7 +1095,7 @@ describe('the server states its fields, the screen reads its own', () => {
       [{ error: 'in use', profiles: [] }, 409],
     ] as const) {
       answer(payload, status)
-      const other = await removeCategory(customCategoryID, 'detach').catch(
+      const other = await removeCategory(CUSTOM_CATEGORY_ID, 'detach').catch(
         (reason: unknown) => reason,
       )
       expect(other).toBeInstanceOf(RoutevaneAPIError)

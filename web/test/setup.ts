@@ -8,9 +8,8 @@ import {
   type VNodeChild,
 } from 'vue'
 
-function children(parts: Array<VNodeChild | VNodeChild[] | undefined>) {
-  return parts.flat().filter((part) => part !== undefined)
-}
+const children = (parts: Array<VNodeChild | VNodeChild[] | undefined>) =>
+  parts.flat().filter((part) => part !== undefined)
 
 // Production gets these components from Nuxt's auto-import transform. The
 // unit suite intentionally runs as plain Vite, so it needs one behavioral

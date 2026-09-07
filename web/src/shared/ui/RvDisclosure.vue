@@ -31,7 +31,7 @@ watch(
   },
 )
 
-function toggle(): void {
+const toggle = (): void => {
   const next = !expanded.value
   if (props.open === undefined) localOpen.value = next
   emit('toggle', next)

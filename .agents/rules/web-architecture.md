@@ -10,6 +10,11 @@ enforces that order, including the refusal of a same-layer import between two
 slices; entities present what they are given and do not import `shared/api`,
 which features orchestrate.
 
+A function is an arrow expression, and the `function` keyword appears only
+where an arrow cannot express the same thing — a class, or an Options-API stub
+that needs `this`. A module-level constant whose value is a literal is
+UPPER_CASE.
+
 Styling is semantic tokens plus named classes. Raw palette, typography,
 spacing, radius, shadow, and motion values are declared in
 `src/assets/styles/tokens.css`; component code consumes semantic variables.

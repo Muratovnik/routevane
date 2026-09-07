@@ -12,15 +12,14 @@ import {
 
 const root = resolve(import.meta.dirname, '../../..')
 
-function packageDirectory(): string {
+const packageDirectory = (): string => {
   if (process.platform === 'win32') return 'win-unpacked'
   if (process.platform !== 'darwin') return 'linux-unpacked'
   return process.arch === 'arm64' ? 'mac-arm64' : 'mac'
 }
 
-function executableName(): string {
-  return process.platform === 'win32' ? 'Routevane.exe' : 'Routevane'
-}
+const executableName = (): string =>
+  process.platform === 'win32' ? 'Routevane.exe' : 'Routevane'
 
 const packageRoot = join(root, '.cache/desktop', packageDirectory())
 const executablePath =
@@ -28,7 +27,7 @@ const executablePath =
     ? join(packageRoot, 'Routevane.app/Contents/MacOS/Routevane')
     : join(packageRoot, executableName())
 
-async function scratch() {
+const scratch = async () => {
   const parent = join(root, 'tmp/desktop-acceptance')
   await mkdir(parent, { recursive: true })
   const directory = await mkdtemp(join(parent, 'profile '))
@@ -39,7 +38,7 @@ async function scratch() {
   }
 }
 
-async function start(env: NodeJS.ProcessEnv) {
+const start = async (env: NodeJS.ProcessEnv) => {
   const app = await electron.launch({ executablePath, env })
   const page = await app.firstWindow()
   await page.waitForURL('routevane://app/')
@@ -47,7 +46,7 @@ async function start(env: NodeJS.ProcessEnv) {
   return { app, page }
 }
 
-async function backendReachable(origin: string) {
+const backendReachable = async (origin: string) => {
   try {
     return (
       (await fetch(`${origin}/health`, { signal: AbortSignal.timeout(500) }))

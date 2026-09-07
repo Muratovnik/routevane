@@ -12,16 +12,38 @@ import { computed } from 'vue'
 export type DetailMode = 'simple' | 'expert'
 export type Appearance = 'dark' | 'light' | 'system'
 
-const modeKey = 'rv.mode'
-const appearanceKey = 'rv.appearance'
-const hiddenTargetsKey = 'rv.hiddenTargets'
+const MODE_KEY = 'rv.mode'
+const APPEARANCE_KEY = 'rv.appearance'
+const HIDDEN_TARGETS_KEY = 'rv.hiddenTargets'
 
 // Keys an earlier version stored and nothing reads anymore. Local storage
 // holds display preferences only, so an orphaned record of product state is
 // removed on the first visit rather than kept in the browser forever.
 const retiredKeys = ['rv.lastBuild']
 
-const mode = useLocalStorage<DetailMode>(modeKey, 'simple', {
+const noteStorageRefusal = (): void => {
+  // A preference that cannot be remembered still applies to this session.
+}
+
+const readHiddenTargets = (raw: string): string[] => {
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((entry): entry is string => typeof entry === 'string')
+  } catch {
+    return []
+  }
+}
+
+const forget = (key: string): void => {
+  try {
+    window.localStorage.removeItem(key)
+  } catch {
+    // Cleanup is best-effort: a browser that refuses it loses nothing.
+  }
+}
+
+const mode = useLocalStorage<DetailMode>(MODE_KEY, 'simple', {
   flush: 'sync',
   onError: noteStorageRefusal,
   serializer: {
@@ -31,7 +53,7 @@ const mode = useLocalStorage<DetailMode>(modeKey, 'simple', {
   writeDefaults: false,
 })
 
-const appearance = useLocalStorage<Appearance>(appearanceKey, 'system', {
+const appearance = useLocalStorage<Appearance>(APPEARANCE_KEY, 'system', {
   flush: 'sync',
   onError: noteStorageRefusal,
   serializer: {
@@ -45,7 +67,7 @@ const appearance = useLocalStorage<Appearance>(appearanceKey, 'system', {
 // Target ids the operator asked the builder not to offer. A hidden target is a
 // display preference of this browser, never a server fact: its lists, files
 // and deployments stay exactly as they are.
-const hiddenTargets = useLocalStorage<string[]>(hiddenTargetsKey, [], {
+const hiddenTargets = useLocalStorage<string[]>(HIDDEN_TARGETS_KEY, [], {
   flush: 'sync',
   onError: noteStorageRefusal,
   serializer: {
@@ -85,16 +107,16 @@ if (typeof window !== 'undefined') {
   for (const key of retiredKeys) forget(key)
 }
 
-export function useSurfacePreferences() {
-  function setMode(next: DetailMode): void {
+export const useSurfacePreferences = () => {
+  const setMode = (next: DetailMode): void => {
     mode.value = next
   }
 
-  function setAppearance(next: Appearance): void {
+  const setAppearance = (next: Appearance): void => {
     appearance.value = next
   }
 
-  function setTargetHidden(id: string, hidden: boolean): void {
+  const setTargetHidden = (id: string, hidden: boolean): void => {
     const without = hiddenTargets.value.filter((entry) => entry !== id)
     hiddenTargets.value = hidden ? [...without, id].sort() : without
   }
@@ -108,26 +130,4 @@ export function useSurfacePreferences() {
     setMode,
     setTargetHidden,
   }
-}
-
-function readHiddenTargets(raw: string): string[] {
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((entry): entry is string => typeof entry === 'string')
-  } catch {
-    return []
-  }
-}
-
-function forget(key: string): void {
-  try {
-    window.localStorage.removeItem(key)
-  } catch {
-    // Cleanup is best-effort: a browser that refuses it loses nothing.
-  }
-}
-
-function noteStorageRefusal(): void {
-  // A preference that cannot be remembered still applies to this session.
 }

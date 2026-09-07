@@ -28,7 +28,7 @@ defineProps<{
 // The panel closes when the reader looks elsewhere with the pointer or presses
 // Escape, not when the focus merely moves: an informer that vanished the moment
 // the keyboard entered it could never be read by the keyboard at all.
-function onFocusOutside(event: Event): void {
+const onFocusOutside = (event: Event): void => {
   event.preventDefault()
 }
 </script>

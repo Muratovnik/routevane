@@ -27,14 +27,14 @@ import {
 
 // The locale suites read their expected text from the shipped dictionary, so a
 // message the product renames fails the test instead of passing silently.
-function copyFor(language: keyof typeof dictionaries): (key: string) => string {
-  return (key) => {
+const copyFor =
+  (language: keyof typeof dictionaries): ((key: string) => string) =>
+  (key) => {
     const value = dictionaries[language][key]
     if (typeof value !== 'string')
       throw new Error(`Not a string message: ${key}`)
     return value
   }
-}
 
 const testDirectory = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(testDirectory, '..', '..', '..')
@@ -66,7 +66,7 @@ let expectedUIDigest = ''
 
 // A read that stores nothing: the composer and the profile editor ask what a
 // draft would weigh, and no flow these tests state is made of that question.
-const forecastPath = '/v1/profiles/preview'
+const FORECAST_PATH = '/v1/profiles/preview'
 
 // The surface negotiates its language from the browser. English is the
 // product's primary language, so the walkthrough runs against the English
@@ -141,7 +141,7 @@ test('the library starts empty and shelves the profile the composer creates and 
     // lists on a fresh install — is reported by the browser itself. The
     // surface reads any refusal as "no forecast": it says nothing and blocks
     // nothing, which is what the rest of this walkthrough proves.
-    if (message.location().url.includes(forecastPath)) return
+    if (message.location().url.includes(FORECAST_PATH)) return
     if (message.type() === 'error') {
       const location = message.location()
       consoleErrors.push(
@@ -1455,13 +1455,13 @@ test('the composing card carries no row control and never spoils the forecast', 
 
   const forecastStatuses: number[] = []
   page.on('response', (response) => {
-    if (new URL(response.url()).pathname === forecastPath)
+    if (new URL(response.url()).pathname === FORECAST_PATH)
       forecastStatuses.push(response.status())
   })
   const writes: string[] = []
   page.on('request', (request) => {
     const path = new URL(request.url()).pathname
-    if (request.method() === 'POST' && path !== forecastPath) writes.push(path)
+    if (request.method() === 'POST' && path !== FORECAST_PATH) writes.push(path)
   })
 
   await page.goto(`${origin}/profiles/new`)
@@ -2013,7 +2013,7 @@ test('the composition table blocks unselected drags and bulk-selects only its ca
   )
   const forecast = page.waitForResponse(
     (response) =>
-      response.url().endsWith(forecastPath) &&
+      response.url().endsWith(FORECAST_PATH) &&
       response.request().method() === 'POST',
   )
   await refresh.click()
@@ -3093,9 +3093,9 @@ test('the composition editor remains operable with text enlarged to 200%', async
  * every output-scoped mutation and address names them rather than the profile
  * alone.
  */
-async function buildProfile(
+const buildProfile = async (
   page: Page,
-): Promise<{ profileId: string; outputId: string }> {
+): Promise<{ profileId: string; outputId: string }> => {
   await page.goto(`${origin}/profiles/new`)
   await expect(
     page.getByRole('heading', {
@@ -3139,10 +3139,10 @@ async function buildProfile(
   return { profileId, outputId: outputPayload.output.id }
 }
 
-async function expectLibraryCategory(
+const expectLibraryCategory = async (
   page: Page,
   category: string,
-): Promise<void> {
+): Promise<void> => {
   await expect
     .poll(() =>
       page.locator('.catalog-filters').evaluate((scope) => {
@@ -3159,10 +3159,10 @@ async function expectLibraryCategory(
 }
 
 /** One category's pane in «Списки», opened the way the column opens it. */
-async function openLibraryCategory(
+const openLibraryCategory = async (
   page: Page,
   category: string,
-): Promise<void> {
+): Promise<void> => {
   await page.locator('.catalog-filters__chip').first().click()
   await page.locator('.catalog-filters .rv-search-select__trigger').click()
   await page.getByRole('option', { name: category }).click()
@@ -3174,10 +3174,10 @@ async function openLibraryCategory(
  * The action menu of one category. Every act it offers is global, so it lives
  * in «Списки» and nowhere else (ADR 0029).
  */
-async function openCategoryActions(
+const openCategoryActions = async (
   page: Page,
   category: string,
-): Promise<void> {
+): Promise<void> => {
   await openLibraryCategory(page, category)
   await page.getByRole('button', { name: 'Categories', exact: true }).click()
   await page
@@ -3190,7 +3190,7 @@ async function openCategoryActions(
  * come from one read, so a panel that lost its stylesheet fails on the ground
  * it should have had rather than on a coincidence of geometry.
  */
-async function assertPainted(panel: Locator, name: string): Promise<void> {
+const assertPainted = async (panel: Locator, name: string): Promise<void> => {
   await expect(panel).toBeVisible()
   const painted = await panel.evaluate((element) => {
     const style = getComputedStyle(element)
@@ -3203,9 +3203,8 @@ async function assertPainted(panel: Locator, name: string): Promise<void> {
 }
 
 // One row of the list card's contents table, addressed by what it names.
-function cardRow(card: Locator, value: string): Locator {
-  return card.locator('.list-card__rows li').filter({ hasText: value })
-}
+const cardRow = (card: Locator, value: string): Locator =>
+  card.locator('.list-card__rows li').filter({ hasText: value })
 
 /**
  * The connection format is one searchable list, so a test chooses it the way an
@@ -3265,11 +3264,11 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   page.on('pageerror', (error) => errors.push(error.message))
   page.on('request', (request) => {
     const path = new URL(request.url()).pathname
-    if (inspecting && request.method() === 'POST' && path !== forecastPath)
+    if (inspecting && request.method() === 'POST' && path !== FORECAST_PATH)
       writes.push(path)
   })
   await page.goto(`${origin}/profiles/new`)
-  async function select(index: number, title: string, checked: boolean) {
+  const select = async (index: number, title: string, checked: boolean) => {
     await page.getByRole('searchbox', { name: 'Find a list' }).fill(title)
     await page.locator(`input[value="${ids[index]}"]`).setChecked(checked)
   }
@@ -3331,7 +3330,7 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   let fail = false
   let release = () => {}
   let held: Promise<void> | undefined
-  await page.route(`**${forecastPath}`, async (route) => {
+  await page.route(`**${FORECAST_PATH}`, async (route) => {
     if (held !== undefined) await held
     if (fail)
       await route.fulfill({
@@ -3351,7 +3350,7 @@ test('the forecast explains overlaps in create and edit without rewriting the li
       .locator('.picker__table-frame')
       .boundingBox())!.y
     const recalculated = page.waitForResponse(
-      (response) => new URL(response.url()).pathname === forecastPath,
+      (response) => new URL(response.url()).pathname === FORECAST_PATH,
     )
     release()
     held = undefined
@@ -3366,7 +3365,7 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     ).toBeCloseTo(pendingTableY, 0)
     fail = true
     const failed = page.waitForResponse(
-      (response) => new URL(response.url()).pathname === forecastPath,
+      (response) => new URL(response.url()).pathname === FORECAST_PATH,
     )
     await select(2, 'Overlap Gamma', false)
     expect((await failed).status()).toBe(503)
@@ -3443,9 +3442,7 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   assertProductAlive()
 })
 
-function formatList(page: Page): Locator {
-  return page.getByRole('listbox')
-}
+const formatList = (page: Page): Locator => page.getByRole('listbox')
 
 test('source skips are visible without changing profiles, and clear after a clean refresh', async ({
   page,
@@ -4193,13 +4190,13 @@ for (const language of ['en', 'ru'] as const) {
   })
 }
 
-async function openFormats(page: Page): Promise<Locator> {
+const openFormats = async (page: Page): Promise<Locator> => {
   await page.locator('.rv-search-select__trigger--field').click()
   await expect(formatList(page)).toBeVisible()
   return formatList(page)
 }
 
-async function chooseFormat(page: Page, name: RegExp): Promise<void> {
+const chooseFormat = async (page: Page, name: RegExp): Promise<void> => {
   await openFormats(page)
   await page.getByRole('option', { name }).click()
   await expect(page.locator('#create-target')).not.toHaveText(
@@ -4215,25 +4212,22 @@ async function chooseFormat(page: Page, name: RegExp): Promise<void> {
  * weighed. Both change what a list knows, neither changes a profile, and neither
  * is anything the operator asked for by name.
  */
-function statesFlow(path: string): boolean {
-  return !path.startsWith('/v1/lists/') && path !== forecastPath
-}
+const statesFlow = (path: string): boolean =>
+  !path.startsWith('/v1/lists/') && path !== FORECAST_PATH
 
-function profileFlow(
+const profileFlow = (
   mutations: { body: string | null; path: string }[],
-): { body: string | null; path: string }[] {
-  return mutations.filter((mutation) => statesFlow(mutation.path))
-}
+): { body: string | null; path: string }[] =>
+  mutations.filter((mutation) => statesFlow(mutation.path))
 
-function segment(page: Page, label: string) {
+const segment = (page: Page, label: string) => {
   // The radio itself is visually hidden behind its own label, which is exactly
   // what an operator clicks.
   return page.locator(`label.rv-segmented__option:has-text("${label}")`)
 }
 
-function documentLanguage(page: Page): Promise<string> {
-  return page.evaluate(() => document.documentElement.lang)
-}
+const documentLanguage = (page: Page): Promise<string> =>
+  page.evaluate(() => document.documentElement.lang)
 
 type AuditFinding = {
   detail: string
@@ -4242,7 +4236,7 @@ type AuditFinding = {
   targets: string[]
 }
 
-async function audit(page: Page, screen: string): Promise<AuditFinding[]> {
+const audit = async (page: Page, screen: string): Promise<AuditFinding[]> => {
   // Measure settled contrast, not the intermediate opacity of an opening panel.
   // Loading indicators may run indefinitely; they are still audited as drawn.
   await page.evaluate(async () => {
@@ -4268,10 +4262,10 @@ async function audit(page: Page, screen: string): Promise<AuditFinding[]> {
   }))
 }
 
-async function auditWidths(
+const auditWidths = async (
   page: Page,
   screen: string,
-): Promise<AuditFinding[]> {
+): Promise<AuditFinding[]> => {
   const findings: AuditFinding[] = []
   const previous = page.viewportSize()
   for (const width of [320, 768, 1024, 1440]) {
@@ -4343,7 +4337,7 @@ async function auditWidths(
   return findings
 }
 
-async function assertNoOverflow(page: Page, screen: string): Promise<void> {
+const assertNoOverflow = async (page: Page, screen: string): Promise<void> => {
   for (const width of [320, 768, 1024, 1440]) {
     await page.setViewportSize({ height: 900, width })
     expect(await fits(page), `${screen} overflows at ${width}px`).toBe(true)
@@ -4351,29 +4345,26 @@ async function assertNoOverflow(page: Page, screen: string): Promise<void> {
   await page.setViewportSize({ height: 900, width: 1280 })
 }
 
-function fits(page: Page): Promise<boolean> {
-  return page.evaluate(
+const fits = (page: Page): Promise<boolean> =>
+  page.evaluate(
     () =>
       document.documentElement.scrollWidth <=
       document.documentElement.clientWidth,
   )
-}
 
-function escapeRegExp(value: string): string {
-  return value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
+const escapeRegExp = (value: string): string =>
+  value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-function profileIDFromURL(value: string): string {
-  return /\/profiles\/([a-f0-9]{32})/.exec(new URL(value).pathname)?.[1] ?? ''
-}
+const profileIDFromURL = (value: string): string =>
+  /\/profiles\/([a-f0-9]{32})/.exec(new URL(value).pathname)?.[1] ?? ''
 
-function assertProductAlive(): void {
+const assertProductAlive = (): void => {
   if (managedProduct === undefined)
     throw new Error('Routevane browser server exited early: not started')
   managedProduct.assertAlive()
 }
 
-async function waitForAuthenticatedRoot(): Promise<void> {
+const waitForAuthenticatedRoot = async (): Promise<void> => {
   const deadline = Date.now() + 10000
   let lastFailure = 'listener did not accept a request'
   while (Date.now() < deadline) {
@@ -4413,7 +4404,7 @@ async function waitForAuthenticatedRoot(): Promise<void> {
   )
 }
 
-async function embeddedUIDigest(): Promise<string> {
+const embeddedUIDigest = async (): Promise<string> => {
   const files = await embeddedFiles(embeddedUIRoot)
   const rows: string[] = []
   for (const relativePath of files.sort()) {
@@ -4424,7 +4415,7 @@ async function embeddedUIDigest(): Promise<string> {
   return `sha256-${sha256(rows.join(''))}`
 }
 
-async function embeddedFiles(root: string, prefix = ''): Promise<string[]> {
+const embeddedFiles = async (root: string, prefix = ''): Promise<string[]> => {
   const files: string[] = []
   for (const entry of await readdir(join(root, prefix), {
     withFileTypes: true,
@@ -4441,9 +4432,8 @@ async function embeddedFiles(root: string, prefix = ''): Promise<string[]> {
   return files
 }
 
-function sha256(value: string | Uint8Array): string {
-  return createHash('sha256').update(value).digest('hex')
-}
+const sha256 = (value: string | Uint8Array): string =>
+  createHash('sha256').update(value).digest('hex')
 
 test('source refresh stays available during a forecast and reports its own busy state', async ({
   page,
@@ -4649,7 +4639,7 @@ test('page inspection preserves primary actions and full-height geometry in ever
   await page.locator('#create-name').fill('Inspection workflow')
   await page.locator('[data-id="discord"] .picker__open').click()
   const card = page.getByRole('dialog', { name: 'Discord', exact: true })
-  async function aligned(frame: Locator) {
+  const aligned = async (frame: Locator) => {
     await expect(card).toHaveClass(/rv-dialog--docked/)
     await expect
       .poll(async () => {
@@ -4840,8 +4830,8 @@ test('docked inspection transitions the form and table together on opening and c
   await page.setViewportSize({ width: 1920, height: 960 })
   await page.goto(`${origin}/profiles/new`)
   await expect(page.locator('[data-id="discord"] .picker__open')).toBeVisible()
-  async function transitionFrames(selector: string) {
-    return page.evaluate(async (selector) => {
+  const transitionFrames = async (selector: string) =>
+    page.evaluate(async (selector) => {
       const rect = (name: string) => {
         const r = document.querySelector(name)!.getBoundingClientRect()
         return { x: r.x, y: r.y }
@@ -4901,8 +4891,7 @@ test('docked inspection transitions the form and table together on opening and c
       document.startViewTransition = native
       return { before, after, frames, nestedSlide }
     }, selector)
-  }
-  function check(result: Awaited<ReturnType<typeof transitionFrames>>) {
+  const check = (result: Awaited<ReturnType<typeof transitionFrames>>) => {
     for (const part of ['form', 'table'] as const) {
       for (const axis of ['x', 'y'] as const) {
         expect(
@@ -5065,7 +5054,7 @@ test('quick profile reads stay quiet while slow reads and failures remain visibl
   await page.addInitScript(() => {
     const feedback = { samples: [] as string[] }
     Object.assign(window, { routeFeedback: feedback })
-    function sample() {
+    const sample = () => {
       const notice = document.querySelector('.rv-notice--busy')
       if (notice) feedback.samples.push(getComputedStyle(notice).visibility)
       requestAnimationFrame(sample)

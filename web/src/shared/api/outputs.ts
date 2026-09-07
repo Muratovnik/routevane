@@ -84,35 +84,31 @@ export type BuildResult = {
   subscriptionURL: string
 }
 
-export function addOutput(
+export const addOutput = (
   profileID: string,
   targetID: string,
-): Promise<CreatedOutput> {
-  return postJSON(
+): Promise<CreatedOutput> =>
+  postJSON(
     `/v1/profiles/${profileID}/outputs`,
     { target_id: targetID },
     parseCreatedOutput,
   )
-}
 
-export function buildOutput(outputID: string): Promise<BuildResult> {
-  return postJSON(`/v1/outputs/${outputID}/build`, {}, parseBuild)
-}
+export const buildOutput = (outputID: string): Promise<BuildResult> =>
+  postJSON(`/v1/outputs/${outputID}/build`, {}, parseBuild)
 
-export function setOutputDevice(
+export const setOutputDevice = (
   outputID: string,
   deviceID: string,
-): Promise<CreatedOutput> {
-  return postJSON(
+): Promise<CreatedOutput> =>
+  postJSON(
     `/v1/outputs/${outputID}/device`,
     { device_id: deviceID },
     parseCreatedOutput,
   )
-}
 
-export function loadOutput(outputID: string): Promise<StoredOutput> {
-  return getJSON(`/v1/outputs/${outputID}`, parseStoredOutput)
-}
+export const loadOutput = (outputID: string): Promise<StoredOutput> =>
+  getJSON(`/v1/outputs/${outputID}`, parseStoredOutput)
 
 const outputSchema = v.pipe(
   fields({ id: text, list_id: text, target_id: text, device_id: optionalText }),
@@ -302,7 +298,7 @@ const parseCreatedOutput: Decoder<CreatedOutput> = decode(createdOutputSchema)
 const parseBuild: Decoder<BuildResult> = decode(buildSchema)
 const parseStoredOutput: Decoder<StoredOutput> = decode(storedOutputSchema)
 
-function validSubscriptionURL(value: string): boolean {
+const validSubscriptionURL = (value: string): boolean => {
   try {
     const url = new URL(value)
     return (

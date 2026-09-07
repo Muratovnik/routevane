@@ -20,7 +20,7 @@ type DownloadState = 'idle' | 'downloading' | 'failed'
 type ApplyState = 'idle' | 'applying' | 'failed'
 type TransferFailure = 'fileType' | 'fileSize' | 'fileRead' | 'preview' | ''
 
-export function useConfigTransfer() {
+export const useConfigTransfer = () => {
   const state = ref<TransferState>('idle')
   const downloadState = ref<DownloadState>('idle')
   const applyState = ref<ApplyState>('idle')
@@ -45,7 +45,7 @@ export function useConfigTransfer() {
       applyState.value !== 'applying',
   )
 
-  async function choose(file: File): Promise<void> {
+  const choose = async (file: File): Promise<void> => {
     generation += 1
     const currentGeneration = generation
     preview.value = null
@@ -89,7 +89,7 @@ export function useConfigTransfer() {
     }
   }
 
-  async function previewSelected(): Promise<boolean> {
+  const previewSelected = async (): Promise<boolean> => {
     const transfer = document.value
     if (transfer === null || state.value === 'reading') return false
 
@@ -115,7 +115,7 @@ export function useConfigTransfer() {
     }
   }
 
-  async function apply(): Promise<boolean> {
+  const apply = async (): Promise<boolean> => {
     const currentPreview = preview.value
     const transfer = document.value
     if (
@@ -150,7 +150,7 @@ export function useConfigTransfer() {
     }
   }
 
-  async function download(): Promise<boolean> {
+  const download = async (): Promise<boolean> => {
     if (downloadState.value === 'downloading') return false
     downloadState.value = 'downloading'
     try {

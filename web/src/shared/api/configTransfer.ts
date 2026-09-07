@@ -39,8 +39,8 @@ export type ConfigTransferApplyResult = {
 
 export type ConfigTransferExport = { blob: Blob; fileName: string }
 
-const fallbackFileName = 'routevane-config.json'
-const configTransferDigestHeader = 'X-Routevane-Transfer-Digest'
+const FALLBACK_FILE_NAME = 'routevane-config.json'
+const CONFIG_TRANSFER_DIGEST_HEADER = 'X-Routevane-Transfer-Digest'
 
 export const configTransferMaximumFileBytes = 64 * 1024 * 1024
 
@@ -55,8 +55,8 @@ export type ConfigTransferDocument = string & {
   readonly [configTransferDocument]: true
 }
 
-export function requestConfigTransferExport(): Promise<ConfigTransferExport> {
-  return requestFile(
+export const requestConfigTransferExport = (): Promise<ConfigTransferExport> =>
+  requestFile(
     '/v1/config-transfer/export',
     { method: 'GET' },
     async (response) => ({
@@ -66,9 +66,8 @@ export function requestConfigTransferExport(): Promise<ConfigTransferExport> {
       ),
     }),
   )
-}
 
-export async function downloadConfigTransfer(): Promise<void> {
+export const downloadConfigTransfer = async (): Promise<void> => {
   const file = await requestConfigTransferExport()
   const url = URL.createObjectURL(file.blob)
   try {
@@ -84,39 +83,37 @@ export async function downloadConfigTransfer(): Promise<void> {
   }
 }
 
-export function previewConfigTransfer(
+export const previewConfigTransfer = (
   document: ConfigTransferDocument,
-): Promise<ConfigTransferPreview> {
-  return requestJSON(
+): Promise<ConfigTransferPreview> =>
+  requestJSON(
     '/v1/config-transfer/preview',
     { method: 'POST', headers: mutationHeaders, body: document },
     parsePreview,
   )
-}
 
-export function applyConfigTransfer(
+export const applyConfigTransfer = (
   previewDigest: string,
   transfer: ConfigTransferDocument,
-): Promise<ConfigTransferApplyResult> {
-  return requestJSON(
+): Promise<ConfigTransferApplyResult> =>
+  requestJSON(
     '/v1/config-transfer/apply',
     {
       method: 'POST',
       headers: {
         ...mutationHeaders,
-        [configTransferDigestHeader]: previewDigest,
+        [CONFIG_TRANSFER_DIGEST_HEADER]: previewDigest,
       },
       body: transfer,
     },
     parseApplyResult,
   )
-}
 
 // Content-Disposition is an HTTP header, not a trusted path. The exported
 // document is JSON, so any name outside this compact portable-file grammar is
 // replaced instead of giving the browser a path, control character or another
 // file type to interpret.
-function fileNameFromDisposition(disposition: string): string {
+const fileNameFromDisposition = (disposition: string): string => {
   // Prefer RFC 5987's UTF-8 form, then the ordinary filename parameter. The
   // value is still reduced to a basename-like, JSON-only name before it is
   // handed to `download`; a header must never supply a path or control byte.
@@ -131,7 +128,7 @@ function fileNameFromDisposition(disposition: string): string {
     try {
       fileName = decodeURIComponent(candidate)
     } catch {
-      return fallbackFileName
+      return FALLBACK_FILE_NAME
     }
   }
   if (
@@ -147,7 +144,7 @@ function fileNameFromDisposition(disposition: string): string {
     fileName === '..' ||
     fileName.includes('..')
   ) {
-    return fallbackFileName
+    return FALLBACK_FILE_NAME
   }
   return fileName
 }
@@ -240,18 +237,17 @@ const parsePreview: Decoder<ConfigTransferPreview> = decode(previewSchema)
 const parseApplyResult: Decoder<ConfigTransferApplyResult> =
   decode(applyResultSchema)
 
-function warningOrder(warning: ConfigTransferWarning): number {
-  return [
+const warningOrder = (warning: ConfigTransferWarning): number =>
+  [
     'custom_sources_require_recreation',
     'devices_require_credentials',
     'automatic_delivery_disabled',
     'outputs_require_publication',
   ].indexOf(warning)
-}
 
-export function parseConfigTransferDocument(
+export const parseConfigTransferDocument = (
   textContent: string,
-): ConfigTransferDocument {
+): ConfigTransferDocument => {
   let parsed: unknown
   try {
     parsed = JSON.parse(textContent)

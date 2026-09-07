@@ -53,7 +53,7 @@ export type LibraryRefusal = {
  * The cached catalog is dropped with each write, so a composing screen returning
  * to focus reads the same thing.
  */
-export function useLists() {
+export const useLists = () => {
   const catalog = ref<Catalog | null>(null)
   const state = ref<LibraryState>('loading')
   const mutating = ref(false)
@@ -76,7 +76,7 @@ export function useLists() {
     return [...saved, ...listIDs.filter((id) => !included.has(id))]
   })
 
-  async function initialize(): Promise<void> {
+  const initialize = async (): Promise<void> => {
     if (busy.value) return
     state.value = 'loading'
     refreshing.value = true
@@ -92,7 +92,7 @@ export function useLists() {
     }
   }
 
-  function clearRefusal(): void {
+  const clearRefusal = (): void => {
     refusal.value = null
   }
 
@@ -102,10 +102,10 @@ export function useLists() {
    * The API helper invalidates the shared cache, so another screen still reads
    * the server rather than this local projection.
    */
-  async function addCustomList(
+  const addCustomList = async (
     title: string,
     domains: string[],
-  ): Promise<LibraryWriteResult<ListDetail>> {
+  ): Promise<LibraryWriteResult<ListDetail>> => {
     if (busy.value || stale.value) return { status: 'blocked' }
     mutating.value = true
     refusal.value = null
@@ -138,7 +138,7 @@ export function useLists() {
   }
 
   /** A renamed custom list is equally authoritative and needs no catalog flash. */
-  function acceptUpdatedList(detail: ListDetail): void {
+  const acceptUpdatedList = (detail: ListDetail): void => {
     const current = catalog.value
     if (current === null) return
     catalog.value = {
@@ -161,9 +161,9 @@ export function useLists() {
    * Global priority is library state, not profile state. Saving replaces only the
    * catalog's complete default permutation; existing routes are never written.
    */
-  async function setDefaultPriority(
+  const setDefaultPriority = async (
     priority: string[],
-  ): Promise<LibraryWriteResult<string[]>> {
+  ): Promise<LibraryWriteResult<string[]>> => {
     if (busy.value || stale.value) return { status: 'blocked' }
     mutating.value = true
     refusal.value = null
@@ -188,18 +188,18 @@ export function useLists() {
    */
   type WriteKind = 'membership' | 'independent'
 
-  async function readCatalog(): Promise<void> {
+  const readCatalog = async (): Promise<void> => {
     invalidateCatalogCache()
     catalog.value = await loadCatalogCached()
     stale.value = false
     state.value = 'ready'
   }
 
-  async function write<T>(
+  const write = async <T>(
     mutate: () => Promise<T>,
     refused: (reason: unknown) => ProfileReference[] | null,
     kind: WriteKind = 'independent',
-  ): Promise<LibraryWriteResult<T>> {
+  ): Promise<LibraryWriteResult<T>> => {
     // A membership edit states the whole membership. Rebuilding it from an
     // old copy would silently overwrite an edit made by the successful write,
     // so it remains unavailable until a fresh catalog is read. Independent
@@ -252,7 +252,7 @@ export function useLists() {
    * races another retry is ignored, and all controls remain guarded until it
    * settles so two reads cannot reorder the visible catalog.
    */
-  async function refresh(): Promise<boolean> {
+  const refresh = async (): Promise<boolean> => {
     if (busy.value) return false
     refreshing.value = true
     try {
@@ -271,30 +271,28 @@ export function useLists() {
 
   // A created category has to be the one on screen, so its identity travels
   // back to the caller rather than being looked up again.
-  function addCategory(
+  const addCategory = (
     title: string,
-  ): Promise<LibraryWriteResult<CategoryDetail>> {
-    return write(() => createCategory(title), categoryInUse, 'independent')
-  }
+  ): Promise<LibraryWriteResult<CategoryDetail>> =>
+    write(() => createCategory(title), categoryInUse, 'independent')
 
-  function renameCategory(
+  const renameCategory = (
     categoryID: string,
     title: string,
-  ): Promise<LibraryWriteResult<CategoryDetail>> {
-    return write(
+  ): Promise<LibraryWriteResult<CategoryDetail>> =>
+    write(
       () => updateCategory(categoryID, { title }),
       categoryInUse,
       'independent',
     )
-  }
 
   // The server works the overlay out itself, so a membership edit states the
   // whole membership the operator wants rather than the one list that moved.
-  function addList(
+  const addList = (
     category: CategoryDetail,
     listID: string,
-  ): Promise<LibraryWriteResult<CategoryDetail>> {
-    return write(
+  ): Promise<LibraryWriteResult<CategoryDetail>> =>
+    write(
       () =>
         updateCategory(category.id, {
           lists: [...category.lists, listID],
@@ -302,13 +300,12 @@ export function useLists() {
       categoryInUse,
       'membership',
     )
-  }
 
-  function detachList(
+  const detachList = (
     category: CategoryDetail,
     listID: string,
-  ): Promise<LibraryWriteResult<CategoryDetail>> {
-    return write(
+  ): Promise<LibraryWriteResult<CategoryDetail>> =>
+    write(
       () =>
         updateCategory(category.id, {
           lists: category.lists.filter((id) => id !== listID),
@@ -316,18 +313,15 @@ export function useLists() {
       categoryInUse,
       'membership',
     )
-  }
 
-  function deleteCategory(
+  const deleteCategory = (
     categoryID: string,
     lists: CategoryLists,
-  ): Promise<LibraryWriteResult> {
-    return write(() => removeCategory(categoryID, lists), categoryInUse)
-  }
+  ): Promise<LibraryWriteResult> =>
+    write(() => removeCategory(categoryID, lists), categoryInUse)
 
-  function deleteList(listID: string): Promise<LibraryWriteResult> {
-    return write(() => removeList(listID), listInUse)
-  }
+  const deleteList = (listID: string): Promise<LibraryWriteResult> =>
+    write(() => removeList(listID), listInUse)
 
   return {
     acceptUpdatedList,

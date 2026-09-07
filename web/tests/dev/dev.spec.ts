@@ -269,7 +269,7 @@ test('abrupt Windows supervisor termination releases its servers', async ({
   }
 })
 
-function processIsRunning(pid: number): boolean {
+const processIsRunning = (pid: number): boolean => {
   try {
     process.kill(pid, 0)
     return true

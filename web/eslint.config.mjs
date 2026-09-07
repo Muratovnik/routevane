@@ -5,6 +5,7 @@ import vitest from '@vitest/eslint-plugin'
 import eslintConfigPrettier from 'eslint-config-prettier'
 import boundaries from 'eslint-plugin-boundaries'
 import playwright from 'eslint-plugin-playwright'
+import preferArrowFunctions from 'eslint-plugin-prefer-arrow-functions'
 import security from 'eslint-plugin-security'
 import sonarjs from 'eslint-plugin-sonarjs'
 import vuejsAccessibility from 'eslint-plugin-vuejs-accessibility'
@@ -15,7 +16,7 @@ import vuejsAccessibility from 'eslint-plugin-vuejs-accessibility'
 // complexity signals below stay at `warn`. `gateWarnings` promotes every other
 // `warn` a preset ships, so a preset upgrade cannot quietly downgrade a gate.
 // A config whose `name` starts with this prefix is exempt from that promotion.
-const advisoryNamePrefix = 'routevane/advisory-'
+const ADVISORY_NAME_PREFIX = 'routevane/advisory-'
 
 const playwrightRecommended = playwright.configs['flat/recommended']
 
@@ -26,8 +27,35 @@ const typescriptProject = fileURLToPath(
   new URL('./tsconfig.json', import.meta.url),
 )
 
+// A module-level literal constant is written UPPER_CASE. The declarator forms
+// below are the ones whose value is fixed at parse time: a literal, a template
+// with no expression, a negated literal, and any of those behind a TypeScript
+// `as`. `Program` is the root of a `<script setup>` block too, so both module
+// forms a linted file can use are covered.
+const literalInitializers = [
+  '[init.type="Literal"]',
+  '[init.type="TemplateLiteral"][init.expressions.length=0]',
+  '[init.type="UnaryExpression"][init.argument.type="Literal"]',
+  '[init.type="TSAsExpression"][init.expression.type="Literal"]',
+  '[init.type="TSAsExpression"][init.expression.type="TemplateLiteral"][init.expression.expressions.length=0]',
+  '[init.type="TSAsExpression"][init.expression.type="UnaryExpression"][init.expression.argument.type="Literal"]',
+]
+
+const moduleConstDeclarators = [
+  'Program > VariableDeclaration[kind="const"] > VariableDeclarator',
+  'Program > ExportNamedDeclaration > VariableDeclaration[kind="const"] > VariableDeclarator',
+]
+
+const lowercaseModuleLiteralConstant = moduleConstDeclarators
+  .flatMap((declarator) =>
+    literalInitializers.map(
+      (initializer) => `${declarator}[id.name=/[a-z]/]${initializer}`,
+    ),
+  )
+  .join(', ')
+
 /** @param {import('eslint').Linter.RuleEntry} entry */
-function toErrorSeverity(entry) {
+const toErrorSeverity = (entry) => {
   if (Array.isArray(entry)) {
     return entry[0] === 'warn' || entry[0] === 1
       ? ['error', ...entry.slice(1)]
@@ -37,11 +65,11 @@ function toErrorSeverity(entry) {
 }
 
 /** @param {import('eslint').Linter.Config[]} configs */
-function gateWarnings(configs) {
-  return configs.map((config) => {
+const gateWarnings = (configs) =>
+  configs.map((config) => {
     if (
       !config.rules ||
-      String(config.name ?? '').startsWith(advisoryNamePrefix)
+      String(config.name ?? '').startsWith(ADVISORY_NAME_PREFIX)
     ) {
       return config
     }
@@ -55,12 +83,12 @@ function gateWarnings(configs) {
       ),
     }
   })
-}
 
 export default withNuxt(
   {
     name: 'routevane/application-rules',
     plugins: {
+      'prefer-arrow-functions': preferArrowFunctions,
       security,
       sonarjs,
       'vuejs-accessibility': vuejsAccessibility,
@@ -77,6 +105,47 @@ export default withNuxt(
       // missing constant.
       'sonarjs/no-duplicate-string': 'off',
       'no-multi-assign': 'error',
+      // A function is an arrow expression. The `function` keyword is left only
+      // where an arrow cannot express the same behaviour, which the plugin
+      // detects for itself: `this`, `arguments`, `super`, `new.target`, a
+      // generator, an overload signature, and — through
+      // `allowObjectProperties` — a method shorthand that an Options-API stub
+      // needs. `returnStyle: 'unchanged'` keeps every existing body as it is.
+      'prefer-arrow-functions/prefer-arrow-functions': [
+        'error',
+        {
+          allowedNames: [],
+          allowNamedFunctions: false,
+          allowObjectProperties: true,
+          classPropertiesAllowed: false,
+          disallowPrototype: false,
+          returnStyle: 'unchanged',
+          singleReturnOnly: false,
+        },
+      ],
+      'func-style': ['error', 'expression'],
+      'prefer-arrow-callback': 'error',
+      // An arrow constant is not hoisted the way a function declaration was.
+      // `variables: false` reports the reference that would actually throw —
+      // one evaluated at module scope above its own definition — while still
+      // allowing the mutual references that live inside function bodies.
+      '@typescript-eslint/no-use-before-define': [
+        'error',
+        {
+          functions: true,
+          classes: true,
+          variables: false,
+          allowNamedExports: false,
+          ignoreTypeReferences: true,
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: lowercaseModuleLiteralConstant,
+          message: 'Module-level literal constants are UPPER_CASE.',
+        },
+      ],
       'vuejs-accessibility/anchor-has-content': 'error',
       'vuejs-accessibility/aria-props': 'error',
       'vuejs-accessibility/aria-role': 'error',

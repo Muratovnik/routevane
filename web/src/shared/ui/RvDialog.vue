@@ -94,14 +94,14 @@ const nested = ref(false)
 // the stack twice and leave the next panel believing it is nested.
 let counted = false
 
-function enter(): void {
+const enter = (): void => {
   if (counted) return
   nested.value = openDialogs.value > 0
   openDialogs.value += 1
   counted = true
 }
 
-function leave(): void {
+const leave = (): void => {
   if (!counted) return
   openDialogs.value -= 1
   counted = false
@@ -139,7 +139,7 @@ const describedBy = computed<{ 'aria-describedby'?: string }>(() =>
   props.description === undefined ? { 'aria-describedby': 'undefined' } : {},
 )
 
-function onCloseAutoFocus(event: Event): void {
+const onCloseAutoFocus = (event: Event): void => {
   const element = opener.value
   if (element === null || !element.isConnected) return
   event.preventDefault()
@@ -150,7 +150,7 @@ function onCloseAutoFocus(event: Event): void {
 // is the close control in the header. A panel opened to be filled in starts in
 // its first field instead: that is where the next keystroke belongs, and a
 // keystroke that lands before this delayed focus is not undone by it.
-function onOpenAutoFocus(event: Event): void {
+const onOpenAutoFocus = (event: Event): void => {
   const panel = event.target
   if (!(panel instanceof HTMLElement)) return
   const field = panel.querySelector<HTMLElement>(
@@ -161,7 +161,7 @@ function onOpenAutoFocus(event: Event): void {
   field.focus()
 }
 
-function updateOpen(open: boolean): void {
+const updateOpen = (open: boolean): void => {
   if (!open && !canDismiss.value) return
   emit('update:open', open)
 }

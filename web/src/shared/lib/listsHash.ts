@@ -8,9 +8,9 @@ export type LibraryLocation = {
   list: string
 }
 
-export function libraryPageHash(
+export const libraryPageHash = (
   options: { category?: string | string[]; list?: string } = {},
-): string {
+): string => {
   const values = new URLSearchParams()
   const requested = Array.isArray(options.category)
     ? options.category
@@ -26,7 +26,7 @@ export function libraryPageHash(
   return encoded === '' ? '' : `#${encoded}`
 }
 
-export function parseLibraryPageHash(hash: string): LibraryLocation {
+export const parseLibraryPageHash = (hash: string): LibraryLocation => {
   const values = new URLSearchParams(hash.replace(/^#/, ''))
   return {
     category: [...new Set(values.getAll('category').filter(Boolean))],

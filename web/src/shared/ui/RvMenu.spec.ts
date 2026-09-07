@@ -6,39 +6,35 @@ import RvMenu from '@/shared/ui/RvMenu.vue'
 
 // The panel is a viewport overlay portalled to the document, so it is read
 // there rather than inside the component that opened it.
-function panel(): HTMLElement | null {
+const panel = (): HTMLElement | null => {
   const panels = document.body.querySelectorAll<HTMLElement>('[role="menu"]')
   return panels.item(panels.length - 1)
 }
 
-function items(scope: HTMLElement | null): HTMLElement[] {
-  return [
-    ...(scope?.querySelectorAll<HTMLElement>(
-      '[role="menuitem"], [data-menu-key]',
-    ) ?? []),
-  ]
-}
+const items = (scope: HTMLElement | null): HTMLElement[] => [
+  ...(scope?.querySelectorAll<HTMLElement>(
+    '[role="menuitem"], [data-menu-key]',
+  ) ?? []),
+]
 
-function itemWithText(text: string): HTMLElement | undefined {
-  return items(panel()).find((item) => item.textContent?.includes(text))
-}
+const itemWithText = (text: string): HTMLElement | undefined =>
+  items(panel()).find((item) => item.textContent?.includes(text))
 
 // Closing a panel hands the focus back on a macrotask, so a test that asks
 // where the keyboard went waits for one.
-async function settle(): Promise<void> {
+const settle = async (): Promise<void> => {
   await flushPromises()
   await new Promise((resolve) => {
     setTimeout(resolve, 0)
   })
 }
 
-function mountMenu(props: { items: MenuItem[]; label: string }) {
-  return mount(RvMenu, {
+const mountMenu = (props: { items: MenuItem[]; label: string }) =>
+  mount(RvMenu, {
     attachTo: document.body,
     props,
     global: { stubs: { NuxtLink: true, RvIcon: true } },
   })
-}
 
 describe('RvMenu', () => {
   // Every panel is portalled to the document, so a component left mounted by a

@@ -16,7 +16,7 @@ export const workspacePane: InjectionKey<{
 
 // Capture before the selection changes, not from a watcher after Vue has
 // already moved the form and table. All inspection entry points share this.
-export function useWorkspaceInspection() {
+export const useWorkspaceInspection = () => {
   const pane = inject(workspacePane, null)
   let transition: ViewTransition | undefined
   let generation = 0

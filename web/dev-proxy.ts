@@ -1,13 +1,13 @@
 import type { IncomingMessage } from 'node:http'
 
-function loopbackOrigin(value: string): URL {
+const loopbackOrigin = (value: string): URL => {
   if (!/^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}$/.test(value)) {
     throw new Error('Development origins must be explicit IPv4 loopback ports')
   }
   return new URL(value)
 }
 
-export function createDevProxy(apiOrigin: string, uiOrigin: string) {
+export const createDevProxy = (apiOrigin: string, uiOrigin: string) => {
   loopbackOrigin(apiOrigin)
   const ui = loopbackOrigin(uiOrigin)
   return {

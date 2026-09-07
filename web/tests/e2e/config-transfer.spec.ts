@@ -320,8 +320,8 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
   destinationProduct?.assertAlive()
 })
 
-function startProduct(port: number, dataRoot: string): SpawnedProduct {
-  return spawnProduct(
+const startProduct = (port: number, dataRoot: string): SpawnedProduct =>
+  spawnProduct(
     binary,
     [
       'serve',
@@ -334,12 +334,11 @@ function startProduct(port: number, dataRoot: string): SpawnedProduct {
     ],
     { cwd: repositoryRoot, stdio: 'pipe', windowsHide: true },
   )
-}
 
-async function waitForHealth(
+const waitForHealth = async (
   origin: string,
   product: SpawnedProduct,
-): Promise<void> {
+): Promise<void> => {
   const deadline = Date.now() + 15_000
   while (Date.now() < deadline) {
     product.assertAlive()

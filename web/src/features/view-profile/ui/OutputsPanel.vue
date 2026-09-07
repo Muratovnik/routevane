@@ -42,23 +42,22 @@ const emit = defineEmits<{
 const { dateTime, t } = useLocale()
 const chosenTarget = ref('')
 
-function formatTime(value: string): string {
+const formatTime = (value: string): string => {
   const parsed = new Date(value)
   return Number.isNaN(parsed.valueOf()) ? '—' : dateTime.value.format(parsed)
 }
 
-function add(): void {
+const add = (): void => {
   if (chosenTarget.value === '') return
   emit('bind', chosenTarget.value)
   chosenTarget.value = ''
 }
 
-function outputTitle(output: OutputCard): string {
-  return props.targetTitle(output.targetID, output.targetTitle)
-}
+const outputTitle = (output: OutputCard): string =>
+  props.targetTitle(output.targetID, output.targetTitle)
 
-function deviceChoices(output: OutputCard): ChoiceOption[] {
-  return props.devices
+const deviceChoices = (output: OutputCard): ChoiceOption[] =>
+  props.devices
     .filter(
       (device) =>
         device.targetID === output.targetID &&
@@ -69,11 +68,10 @@ function deviceChoices(output: OutputCard): ChoiceOption[] {
       label: `${device.name} · ${t(device.autoDeliver ? 'outputs.device.ready' : 'outputs.device.disabled')}`,
       value: device.id,
     }))
-}
 
-const followSettings = 'default'
+const FOLLOW_SETTINGS = 'default'
 const scheduleOptions = computed<ChoiceOption[]>(() => [
-  { label: t('profile.schedule.default'), value: followSettings },
+  { label: t('profile.schedule.default'), value: FOLLOW_SETTINGS },
   { label: t('settings.refresh.off'), value: 'off' },
   { label: t('settings.refresh.daily'), value: 'daily' },
   { label: t('settings.refresh.weekly'), value: 'weekly' },
@@ -82,19 +80,19 @@ const scheduleOptions = computed<ChoiceOption[]>(() => [
 const scheduleValue = computed<string>({
   get: () => {
     const interval = props.schedule?.interval ?? ''
-    return interval === '' ? followSettings : interval
+    return interval === '' ? FOLLOW_SETTINGS : interval
   },
   set: (value) => {
     emit(
       'setSchedule',
-      (value === followSettings ? '' : value) as RefreshInterval,
+      (value === FOLLOW_SETTINGS ? '' : value) as RefreshInterval,
     )
   },
 })
 
-function readiness(
+const readiness = (
   output: OutputCard,
-): 'choose' | 'auto' | 'refresh' | 'ready' {
+): 'choose' | 'auto' | 'refresh' | 'ready' => {
   if (output.deviceID === '') return 'choose'
   const device = props.devices.find(
     (candidate) => candidate.id === output.deviceID,
@@ -104,7 +102,7 @@ function readiness(
   return 'ready'
 }
 
-function readinessLabel(output: OutputCard): string {
+const readinessLabel = (output: OutputCard): string => {
   const state = readiness(output)
   if (state === 'ready' && output.targetKind === 'router') {
     return t('outputs.readiness.ready.router')

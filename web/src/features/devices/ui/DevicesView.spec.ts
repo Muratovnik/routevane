@@ -5,12 +5,11 @@ import { useLocale } from '@/shared/i18n/useLocale'
 
 import DevicesView from './DevicesView.vue'
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
 const fetchMock = vi.fn()
 
@@ -67,12 +66,11 @@ const requirementsPayload = {
   ],
 }
 
-function mountDevices() {
-  return mount(DevicesView, {
+const mountDevices = () =>
+  mount(DevicesView, {
     attachTo: document.body,
     global: { stubs: { RvIcon: true } },
   })
-}
 
 describe('DevicesView prerequisite audit', () => {
   beforeEach(() => {

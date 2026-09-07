@@ -1,9 +1,9 @@
 import type { SortableEvent } from 'sortablejs'
 
 /** Preserve a row when Sortable moves its fallback outside the table's container. */
-export function tableDragGeometry() {
+export const tableDragGeometry = () => {
   const originals = new Map<HTMLElement, string | null>()
-  function onChoose(event: SortableEvent): void {
+  const onChoose = (event: SortableEvent): void => {
     // Read everything before writing: fixed cell typography must not change the
     // inherited metrics we subsequently capture for compact labels.
     const snapshots = Array.from(event.item.querySelectorAll('*'))
@@ -44,7 +44,7 @@ export function tableDragGeometry() {
       Object.assign(node.style, styles)
     }
   }
-  function onUnchoose(): void {
+  const onUnchoose = (): void => {
     for (const [node, style] of originals) {
       if (style === null) node.removeAttribute('style')
       else node.setAttribute('style', style)

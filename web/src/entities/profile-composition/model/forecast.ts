@@ -14,7 +14,7 @@ import {
 // that picking three lists in a row is one question to the server, and short
 // enough that the answer arrives while the operator is still looking at what
 // they picked.
-const settleDelay = 500
+const SETTLE_DELAY = 500
 
 /**
  * Which lists this tab has already asked the local service to observe on a
@@ -33,7 +33,7 @@ const observedForForecast = new Set<string>()
  * it — a reload is what ends a session — and it exists so a test can state the
  * once-per-list guarantee from a known starting point.
  */
-export function forgetForecastObservations(): void {
+export const forgetForecastObservations = (): void => {
   observedForForecast.clear()
 }
 
@@ -55,13 +55,10 @@ type Outcome = 'landed' | 'unread' | 'silent'
 
 // A forecast for a composition nothing has ever observed is not a malformed
 // request; it is a question the service cannot answer yet.
-function unobserved(reason: unknown): boolean {
-  return (
-    reason instanceof RoutevaneAPIError &&
-    (reason.status === 404 ||
-      (reason.status === 422 && reason.code === 'partial_coverage'))
-  )
-}
+const unobserved = (reason: unknown): boolean =>
+  reason instanceof RoutevaneAPIError &&
+  (reason.status === 404 ||
+    (reason.status === 422 && reason.code === 'partial_coverage'))
 
 /**
  * What the draft would weigh, per format, kept beside the draft itself.
@@ -82,7 +79,7 @@ function unobserved(reason: unknown): boolean {
  * blinked out on every checkbox would be harder to read than one that is
  * briefly a click behind.
  */
-export function useCompositionForecast(delay = settleDelay) {
+export const useCompositionForecast = (delay = SETTLE_DELAY) => {
   const forecasts = ref<TargetForecast[]>([])
   const pending = ref(false)
   // True only while sources are being read for a forecast. It explains a wait;
@@ -111,13 +108,10 @@ export function useCompositionForecast(delay = settleDelay) {
 
   // The server answers sorted by identifier and deduplicated, so a forecast is
   // found by the format it names rather than by the order it was asked for.
-  function forTarget(targetID: string): TargetForecast | null {
-    return (
-      forecasts.value.find((forecast) => forecast.targetID === targetID) ?? null
-    )
-  }
+  const forTarget = (targetID: string): TargetForecast | null =>
+    forecasts.value.find((forecast) => forecast.targetID === targetID) ?? null
 
-  async function attemptRead(next: Ask): Promise<Outcome> {
+  const attemptRead = async (next: Ask): Promise<Outcome> => {
     try {
       const answer = await previewComposition(next.composition, next.targets)
       if (next.attempt !== issued) return 'silent'
@@ -134,7 +128,7 @@ export function useCompositionForecast(delay = settleDelay) {
     }
   }
 
-  async function read(next: Ask, retried: boolean): Promise<void> {
+  const read = async (next: Ask, retried: boolean): Promise<void> => {
     try {
       const outcome = await attemptRead(next)
       // A draft that was already read once and still cannot be weighed is a
@@ -146,7 +140,7 @@ export function useCompositionForecast(delay = settleDelay) {
     }
   }
 
-  async function observeThenRetry(next: Ask, all = false): Promise<void> {
+  const observeThenRetry = async (next: Ask, all = false): Promise<void> => {
     const incomplete = new Set(
       forecasts.value.flatMap((row) => row.incompleteLists ?? []),
     )
@@ -176,11 +170,11 @@ export function useCompositionForecast(delay = settleDelay) {
    * resolves to no list is not asked about at all — the endpoint refuses it,
    * and there is nothing to forecast.
    */
-  function request(
+  const request = (
     composition: ProfileComposition,
     resolved: string[],
     targets: string[] = [],
-  ): void {
+  ): void => {
     issued += 1
     current = { attempt: issued, composition, resolved, targets }
     failure.value = null
@@ -195,20 +189,20 @@ export function useCompositionForecast(delay = settleDelay) {
 
   // An explicit retry is new operator intent. Let it read the sources again;
   // the session guard above is only for automatic retries inside one attempt.
-  function retry(
+  const retry = (
     composition: ProfileComposition,
     resolved: string[],
     targets: string[] = [],
-  ): void {
+  ): void => {
     for (const id of resolved) observedForForecast.delete(id)
     request(composition, resolved, targets)
   }
 
-  async function refresh(
+  const refresh = async (
     composition: ProfileComposition,
     resolved: string[],
     targets: string[] = [],
-  ): Promise<void> {
+  ): Promise<void> => {
     if (observing.value) return
     ask.cancel()
     issued += 1
@@ -224,7 +218,7 @@ export function useCompositionForecast(delay = settleDelay) {
     }
   }
 
-  function forget(): void {
+  const forget = (): void => {
     issued += 1
     current = null
     failure.value = null

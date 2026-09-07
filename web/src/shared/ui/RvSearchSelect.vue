@@ -62,7 +62,7 @@ const matches = computed(() =>
     }))
     .filter((group) => group.options.length > 0),
 )
-function choose(value: unknown): void {
+const choose = (value: unknown): void => {
   const valid = (item: unknown): item is string =>
     typeof item === 'string' &&
     choices.value.some((choice) => choice.value === item && !choice.disabled)

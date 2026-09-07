@@ -17,21 +17,19 @@ const catalogPayload = {
   categories: [],
 }
 
-function target(
+const target = (
   id: string,
   title: string,
   kind: 'router' | 'app',
-): Record<string, unknown> {
-  return {
-    id,
-    title,
-    kind,
-    format_key: `${id}-v1`,
-    renderer_id: 'keenetic-route-bat',
-    file_extension: 'bat',
-    manual_installation_hint: 'Install it by hand.',
-  }
-}
+): Record<string, unknown> => ({
+  id,
+  title,
+  kind,
+  format_key: `${id}-v1`,
+  renderer_id: 'keenetic-route-bat',
+  file_extension: 'bat',
+  manual_installation_hint: 'Install it by hand.',
+})
 
 const targetsPayload = {
   targets: [
@@ -69,18 +67,16 @@ const forecastPayload = {
   ],
 }
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
 // A composition nothing has ever observed is not malformed; the service simply
 // cannot answer it yet, and says so with 404.
-function unobserved(): Response {
-  return json({ error: 'nothing observed for this composition' }, 404)
-}
+const unobserved = (): Response =>
+  json({ error: 'nothing observed for this composition' }, 404)
 
 type Network = {
   catalog?: () => Promise<Response> | Response
@@ -88,7 +84,7 @@ type Network = {
   refresh?: () => Promise<Response>
 }
 
-function stubNetwork(overrides: Network = {}) {
+const stubNetwork = (overrides: Network = {}) => {
   const fetchMock = vi.fn((input: unknown) => {
     const path = String(input)
     if (path === '/v1/lists')
@@ -110,37 +106,32 @@ function stubNetwork(overrides: Network = {}) {
   return fetchMock
 }
 
-function previewCalls(fetchMock: { mock: { calls: unknown[][] } }): string[] {
-  return fetchMock.mock.calls
+const previewCalls = (fetchMock: { mock: { calls: unknown[][] } }): string[] =>
+  fetchMock.mock.calls
     .filter((call) => String(call[0]) === '/v1/profiles/preview')
     .map((call) => String((call[1] as RequestInit | undefined)?.body ?? ''))
-}
 
-function refreshCalls(fetchMock: { mock: { calls: unknown[][] } }): string[] {
-  return fetchMock.mock.calls
+const refreshCalls = (fetchMock: { mock: { calls: unknown[][] } }): string[] =>
+  fetchMock.mock.calls
     .map((call) => String(call[0]))
     .filter((path) => path.endsWith('/refresh'))
-}
 
-function mountComposer() {
-  return mount(CreateProfile, {
+const mountComposer = () =>
+  mount(CreateProfile, {
     attachTo: document.body,
     global: { stubs: { RvIcon: true } },
   })
-}
 
-function buttonWithText(
+const buttonWithText = (
   wrapper: ReturnType<typeof mountComposer>,
   text: string,
-) {
-  return wrapper.findAll('button').find((button) => button.text() === text)
-}
+) => wrapper.findAll('button').find((button) => button.text() === text)
 
 // The format list is a portalled overlay, so it is read on the document. It is
 // opened to read it, which is also how an operator meets every format's size.
-async function openTargets(
+const openTargets = async (
   wrapper: ReturnType<typeof mountComposer>,
-): Promise<HTMLElement> {
+): Promise<HTMLElement> => {
   await wrapper.get('.rv-search-select__trigger--field').trigger('click')
   await flushPromises()
   const profile = document.body.querySelector<HTMLElement>('[role="listbox"]')
@@ -148,10 +139,10 @@ async function openTargets(
   return profile as HTMLElement
 }
 
-async function chooseTarget(
+const chooseTarget = async (
   wrapper: ReturnType<typeof mountComposer>,
   label: string,
-): Promise<void> {
+): Promise<void> => {
   const profile = await openTargets(wrapper)
   const option = [
     ...profile.querySelectorAll<HTMLElement>('[role="option"]'),
@@ -161,9 +152,8 @@ async function chooseTarget(
   await flushPromises()
 }
 
-function chosenTarget(wrapper: ReturnType<typeof mountComposer>): string {
-  return wrapper.get('#create-target').text()
-}
+const chosenTarget = (wrapper: ReturnType<typeof mountComposer>): string =>
+  wrapper.get('#create-target').text()
 
 describe('CreateProfile forecast', () => {
   beforeEach(() => {

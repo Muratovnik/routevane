@@ -20,7 +20,7 @@ import { join, resolve } from 'node:path'
 const root = resolve(import.meta.dirname, '../../..')
 const exec = promisify(execFile)
 const quote = (value: string) => `'${value.replaceAll("'", "''")}'`
-async function powershell(script: string) {
+const powershell = async (script: string) => {
   const result = await exec(
     'pwsh',
     [
@@ -33,7 +33,7 @@ async function powershell(script: string) {
   )
   return result.stdout.trim()
 }
-async function exists(path: string) {
+const exists = async (path: string) => {
   try {
     await access(path)
     return true
@@ -99,13 +99,13 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
   if (!address || typeof address === 'string')
     throw new Error('no fixture port')
   const feed = `http://127.0.0.1:${address.port}/`
-  async function running(): Promise<number[]> {
+  const running = async (): Promise<number[]> => {
     const json = await powershell(
       `ConvertTo-Json -InputObject @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq ${quote(exe)} -and $_.CommandLine -notmatch ' --type=' } | ForEach-Object ProcessId)`,
     )
     return JSON.parse(json) as number[]
   }
-  async function stopOwned() {
+  const stopOwned = async () => {
     await powershell(
       `Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq ${quote(exe)} -and $_.CommandLine -notmatch ' --type=' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }`,
     )

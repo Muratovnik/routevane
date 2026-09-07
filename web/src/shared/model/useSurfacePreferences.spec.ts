@@ -8,7 +8,7 @@ type SchemeListener = (event: { matches: boolean }) => void
  * from a test, and the behaviour under test is precisely what happens when it
  * changes while the page is open.
  */
-function stubColorScheme(dark: boolean) {
+const stubColorScheme = (dark: boolean) => {
   const listeners = new Set<SchemeListener>()
   let matches = dark
   vi.stubGlobal('matchMedia', (query: string) => ({
@@ -28,14 +28,11 @@ function stubColorScheme(dark: boolean) {
   }
 }
 
-async function loadPreferences() {
-  return (await import('@/shared/model/useSurfacePreferences'))
-    .useSurfacePreferences
-}
+const loadPreferences = async () =>
+  (await import('@/shared/model/useSurfacePreferences')).useSurfacePreferences
 
-function theme(): string | null {
-  return document.documentElement.getAttribute('data-rv-theme')
-}
+const theme = (): string | null =>
+  document.documentElement.getAttribute('data-rv-theme')
 
 describe('surface preferences', () => {
   beforeEach(() => {

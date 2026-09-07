@@ -47,7 +47,7 @@ onMounted(async () => {
   }
 })
 onUnmounted(() => unsubscribe?.())
-async function apply() {
+const apply = async () => {
   try {
     await window.routevaneDesktop?.updates?.apply()
   } catch {

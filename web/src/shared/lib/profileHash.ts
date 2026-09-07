@@ -7,9 +7,9 @@ export type ProfilePageLocation = {
   tab: string
 }
 
-export function profilePageHash(
+export const profilePageHash = (
   options: { setup?: string; tab?: string } = {},
-): string {
+): string => {
   const values = new URLSearchParams()
   if (options.setup !== undefined && options.setup !== '')
     values.set('setup', options.setup)
@@ -23,7 +23,7 @@ export function profilePageHash(
   return encoded === '' ? '' : `#${encoded}`
 }
 
-export function parseProfilePageHash(hash: string): ProfilePageLocation {
+export const parseProfilePageHash = (hash: string): ProfilePageLocation => {
   const values = new URLSearchParams(hash.replace(/^#/, ''))
   return {
     setup: values.get('setup') ?? '',
@@ -33,6 +33,5 @@ export function parseProfilePageHash(hash: string): ProfilePageLocation {
 
 // parseLegacyProfileHash reads the retired drawer address `/#list={id}`, so an
 // old bookmark still resolves to the profile's page instead of an empty shelf.
-export function parseLegacyProfileHash(hash: string): string {
-  return new URLSearchParams(hash.replace(/^#/, '')).get('profile') ?? ''
-}
+export const parseLegacyProfileHash = (hash: string): string =>
+  new URLSearchParams(hash.replace(/^#/, '')).get('profile') ?? ''

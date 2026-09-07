@@ -1,9 +1,9 @@
 import { createDevProxy } from './dev-proxy'
 
-function disableNuxtUIColorRuntime(
+const disableNuxtUIColorRuntime = (
   _options: Record<string, never>,
   nuxt: { options: { plugins: ({ src?: string } | string)[] } },
-): void {
+): void => {
   // Routevane's palette is static and token-owned. Nuxt UI otherwise injects
   // the same generated palette twice at runtime, which strict style-src blocks.
   nuxt.options.plugins = nuxt.options.plugins.filter((plugin) => {

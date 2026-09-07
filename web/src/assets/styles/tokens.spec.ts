@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 const stylesRoot = join(process.cwd(), 'src')
 const tokensPath = join(stylesRoot, 'assets', 'styles', 'tokens.css')
 
-function sourceFiles(root: string): string[] {
+const sourceFiles = (root: string): string[] => {
   const files: string[] = []
   const visit = (directory: string): void => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {

@@ -64,7 +64,7 @@ watch(
   },
 )
 
-function parsedDomains(): string[] | null {
+const parsedDomains = (): string[] | null => {
   const result: string[] = []
   const lines = domains.value.split(/\r?\n/)
   for (let index = 0; index < lines.length; index += 1) {
@@ -92,7 +92,7 @@ function parsedDomains(): string[] | null {
   return unique
 }
 
-function submit(): void {
+const submit = (): void => {
   if (props.busy) return
   if (mode.value === 'existing') {
     if (picked.value !== '') emit('add', picked.value)

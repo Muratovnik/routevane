@@ -23,7 +23,7 @@ const library = useProfiles()
 const route = useRoute()
 const router = useRouter()
 
-function openRoute(event: MouseEvent, card: ProfileCard): void {
+const openRoute = (event: MouseEvent, card: ProfileCard): void => {
   if (
     event.defaultPrevented ||
     event.button !== 0 ||
@@ -66,7 +66,7 @@ onMounted(() => {
   void library.initialize()
 })
 
-function updatedAt(card: ProfileCard): string {
+const updatedAt = (card: ProfileCard): string => {
   const output = publishedOutputs(card).sort((left, right) =>
     (right.latest?.contentCreatedAt ?? '').localeCompare(
       left.latest?.contentCreatedAt ?? '',
@@ -78,41 +78,35 @@ function updatedAt(card: ProfileCard): string {
   return Number.isNaN(parsed.valueOf()) ? '—' : dateTime.value.format(parsed)
 }
 
-function publishedOutputs(card: ProfileCard): OutputCard[] {
-  return card.outputs.filter((output) => output.latest !== null)
-}
+const publishedOutputs = (card: ProfileCard): OutputCard[] =>
+  card.outputs.filter((output) => output.latest !== null)
 
-function displayName(card: ProfileCard): string {
+const displayName = (card: ProfileCard): string => {
   const ordinal = legacyImportedOrdinal(card.name)
   return ordinal === null
     ? card.name
     : t('profiles.imported.name', { number: ordinal })
 }
 
-function outputSummary(card: ProfileCard): string {
+const outputSummary = (card: ProfileCard): string => {
   if (card.outputs.length === 0) return t('profiles.noOutputs')
   return card.outputs.map(library.outputTitle).join(', ')
 }
 
-function exportLabel(format: ExportFormat): string {
-  return tor(
-    `export.format.${format.rendererID}`,
-    format.fileExtension.toUpperCase(),
-  )
-}
+const exportLabel = (format: ExportFormat): string =>
+  tor(`export.format.${format.rendererID}`, format.fileExtension.toUpperCase())
 
-function profileHref(card: ProfileCard, tab = ''): string {
-  return `/profiles/${card.id}${profilePageHash({ tab })}`
-}
+const profileHref = (card: ProfileCard, tab = ''): string =>
+  `/profiles/${card.id}${profilePageHash({ tab })}`
 
-function archivedSince(card: ProfileCard): string {
+const archivedSince = (card: ProfileCard): string => {
   const parsed = new Date(card.archivedAt)
   return Number.isNaN(parsed.valueOf())
     ? '—'
     : t('profiles.archived.since', { time: dateTime.value.format(parsed) })
 }
 
-function menuItems(card: ProfileCard): MenuItem[] {
+const menuItems = (card: ProfileCard): MenuItem[] => {
   const items: MenuItem[] = [
     {
       icon: 'edit',
@@ -166,7 +160,7 @@ function menuItems(card: ProfileCard): MenuItem[] {
   return items
 }
 
-function onMenu(card: ProfileCard, key: string): void {
+const onMenu = (card: ProfileCard, key: string): void => {
   if (key.startsWith('export:'))
     void library.exportFile(card, key.slice('export:'.length))
   if (key === 'copy') void library.copyContents(card)

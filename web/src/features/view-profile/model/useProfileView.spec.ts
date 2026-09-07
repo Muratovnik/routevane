@@ -3,99 +3,92 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProfileView } from '@/features/view-profile/model/useProfileView'
 import { invalidateCatalogCache } from '@/shared/api/catalog'
 
-const profileID = 'profile-1'
-const outputA = 'output-a'
-const outputB = 'output-b'
-const artifactA = 'artifact-a'
-const artifactB = 'artifact-b'
+const PROFILE_ID = 'profile-1'
+const OUTPUT_A = 'output-a'
+const OUTPUT_B = 'output-b'
+const ARTIFACT_A = 'artifact-a'
+const ARTIFACT_B = 'artifact-b'
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
-function outputCard(id: string, artifactID: string, snapshotID: string) {
-  return {
+const outputCard = (id: string, artifactID: string, snapshotID: string) => ({
+  id,
+  target_id: `${id}-target`,
+  target_title: `${id} target`,
+  target_kind: 'router',
+  file_extension: 'bat',
+  created_at: '2026-08-20T12:00:00Z',
+  latest: {
+    id: artifactID,
+    snapshot_id: snapshotID,
+    size_bytes: 10,
+    content_type: 'text/plain',
+    content_created_at: '2026-08-20T12:00:00Z',
+  },
+})
+
+const buildPayload = (id: string, artifactID: string) => ({
+  output: {
     id,
+    list_id: PROFILE_ID,
     target_id: `${id}-target`,
-    target_title: `${id} target`,
-    target_kind: 'router',
-    file_extension: 'bat',
+  },
+  snapshot: { id: `snapshot-${id}` },
+  artifact: {
+    id: artifactID,
+    artifact_hash: 'd'.repeat(64),
+    content_created_at: '2026-08-20T12:00:00Z',
+    validation_status: 'valid',
+    status: 'published',
+    renderer_id: 'test-renderer',
+    renderer_version: '1.0.0',
+    content_type: 'text/plain',
+  },
+  summary: {
+    rule_count: 1,
+    partial_coverage: false,
+    partial_coverage_count: 0,
+    content_created_at: '2026-08-20T12:00:00Z',
+    validation_status: 'valid',
+    status: 'published',
+  },
+})
+
+const profileDetailPayload = (): unknown => ({
+  profile: {
+    id: PROFILE_ID,
+    name: 'Список для проверки',
+    lists: [],
+    categories: [],
+    exclusions: [],
+    refresh_interval: '',
+    last_refreshed_at: '',
+    last_refresh_failed: false,
+    archived_at: '',
     created_at: '2026-08-20T12:00:00Z',
-    latest: {
-      id: artifactID,
-      snapshot_id: snapshotID,
-      size_bytes: 10,
-      content_type: 'text/plain',
-      content_created_at: '2026-08-20T12:00:00Z',
-    },
-  }
-}
+    updated_at: '2026-08-20T12:00:00Z',
+  },
+  outputs: [
+    outputCard(OUTPUT_A, ARTIFACT_A, 'snapshot-a'),
+    outputCard(OUTPUT_B, ARTIFACT_B, 'snapshot-b'),
+  ],
+  resolved: [],
+  missing_categories: [],
+  schedule: {
+    interval: '',
+    effective: 'off',
+    follows_default: true,
+    last_refreshed_at: '',
+    last_refresh_failed: false,
+    next_refresh_at: '',
+  },
+})
 
-function buildPayload(id: string, artifactID: string) {
-  return {
-    output: {
-      id,
-      list_id: profileID,
-      target_id: `${id}-target`,
-    },
-    snapshot: { id: `snapshot-${id}` },
-    artifact: {
-      id: artifactID,
-      artifact_hash: 'd'.repeat(64),
-      content_created_at: '2026-08-20T12:00:00Z',
-      validation_status: 'valid',
-      status: 'published',
-      renderer_id: 'test-renderer',
-      renderer_version: '1.0.0',
-      content_type: 'text/plain',
-    },
-    summary: {
-      rule_count: 1,
-      partial_coverage: false,
-      partial_coverage_count: 0,
-      content_created_at: '2026-08-20T12:00:00Z',
-      validation_status: 'valid',
-      status: 'published',
-    },
-  }
-}
-
-function profileDetailPayload(): unknown {
-  return {
-    profile: {
-      id: profileID,
-      name: 'Список для проверки',
-      lists: [],
-      categories: [],
-      exclusions: [],
-      refresh_interval: '',
-      last_refreshed_at: '',
-      last_refresh_failed: false,
-      archived_at: '',
-      created_at: '2026-08-20T12:00:00Z',
-      updated_at: '2026-08-20T12:00:00Z',
-    },
-    outputs: [
-      outputCard(outputA, artifactA, 'snapshot-a'),
-      outputCard(outputB, artifactB, 'snapshot-b'),
-    ],
-    resolved: [],
-    missing_categories: [],
-    schedule: {
-      interval: '',
-      effective: 'off',
-      follows_default: true,
-      last_refreshed_at: '',
-      last_refresh_failed: false,
-      next_refresh_at: '',
-    },
-  }
-}
-
-function emptyCatalogAndDeployables(): void {
+const emptyCatalogAndDeployables = (): void => {
   fetchMock.mockResolvedValueOnce(
     json({ lists: [], list_details: [], categories: [] }),
   )
@@ -104,7 +97,7 @@ function emptyCatalogAndDeployables(): void {
 }
 
 /** The four requests `initialize()` fires, in the order it fires them. */
-function queueInitializeFetches(profile: Response | Error): void {
+const queueInitializeFetches = (profile: Response | Error): void => {
   if (profile instanceof Error) {
     fetchMock.mockRejectedValueOnce(profile)
   } else {
@@ -113,10 +106,10 @@ function queueInitializeFetches(profile: Response | Error): void {
   emptyCatalogAndDeployables()
 }
 
-function deferred<T>(): {
+const deferred = <T>(): {
   promise: Promise<T>
   resolve: (value: T) => void
-} {
+} => {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((res) => {
     resolve = res
@@ -141,7 +134,7 @@ describe('initialize', () => {
   // land on 'failed', where ProfileView.vue renders a working retry button.
   it('reads a 404 as the list not existing, not as the service being down', async () => {
     queueInitializeFetches(json({ error: 'list not found' }, 404))
-    const view = useProfileView(() => profileID)
+    const view = useProfileView(() => PROFILE_ID)
 
     await view.initialize()
 
@@ -150,7 +143,7 @@ describe('initialize', () => {
 
   it('reads a 5xx as the service being unavailable, not as the list not existing', async () => {
     queueInitializeFetches(json({ error: 'internal' }, 500))
-    const view = useProfileView(() => profileID)
+    const view = useProfileView(() => PROFILE_ID)
 
     await view.initialize()
 
@@ -159,7 +152,7 @@ describe('initialize', () => {
 
   it('reads a network failure as the service being unavailable', async () => {
     queueInitializeFetches(new TypeError('Failed to fetch'))
-    const view = useProfileView(() => profileID)
+    const view = useProfileView(() => PROFILE_ID)
 
     await view.initialize()
 
@@ -168,7 +161,7 @@ describe('initialize', () => {
 
   it('recovers to ready once the service answers again', async () => {
     queueInitializeFetches(json({ error: 'internal' }, 500))
-    const view = useProfileView(() => profileID)
+    const view = useProfileView(() => PROFILE_ID)
     await view.initialize()
     expect(view.state.value).toBe('failed')
 
@@ -186,9 +179,9 @@ describe('openContent race with output selection', () => {
   // output's (idle) state.
   it('does not let a stale content response overwrite the state after switching output', async () => {
     queueInitializeFetches(json(profileDetailPayload()))
-    const view = useProfileView(() => profileID)
+    const view = useProfileView(() => PROFILE_ID)
     await view.initialize()
-    expect(view.selectedOutputID.value).toBe(outputA)
+    expect(view.selectedOutputID.value).toBe(OUTPUT_A)
 
     const staleResponse = deferred<Response>()
     fetchMock.mockImplementationOnce(() => staleResponse.promise)
@@ -197,7 +190,7 @@ describe('openContent race with output selection', () => {
     expect(view.contentState.value).toBe('loading')
 
     // The operator picks a different output before output A's file arrives.
-    view.selectOutput(outputB)
+    view.selectOutput(OUTPUT_B)
     expect(view.contentState.value).toBe('idle')
     expect(view.content.value).toBeNull()
 
@@ -212,12 +205,12 @@ describe('openContent race with output selection', () => {
 
     expect(view.contentState.value).toBe('idle')
     expect(view.content.value).toBeNull()
-    expect(view.selectedOutputID.value).toBe(outputB)
+    expect(view.selectedOutputID.value).toBe(OUTPUT_B)
   })
 
   it('loads content normally for the output currently selected', async () => {
     queueInitializeFetches(json(profileDetailPayload()))
-    const view = useProfileView(() => profileID)
+    const view = useProfileView(() => PROFILE_ID)
     await view.initialize()
 
     fetchMock.mockResolvedValueOnce(
@@ -236,7 +229,7 @@ describe('openContent race with output selection', () => {
 describe('rebuild', () => {
   it('continues with the remaining outputs when one build fails', async () => {
     queueInitializeFetches(json(profileDetailPayload()))
-    const view = useProfileView(() => profileID)
+    const view = useProfileView(() => PROFILE_ID)
     await view.initialize()
 
     fetchMock.mockResolvedValueOnce(json({ refresh: [] }))
@@ -251,14 +244,14 @@ describe('rebuild', () => {
         422,
       ),
     )
-    fetchMock.mockResolvedValueOnce(json(buildPayload(outputB, artifactB)))
+    fetchMock.mockResolvedValueOnce(json(buildPayload(OUTPUT_B, ARTIFACT_B)))
     queueInitializeFetches(json(profileDetailPayload()))
 
     await view.rebuild()
 
     const requested = fetchMock.mock.calls.map(([url]) => String(url))
-    expect(requested).toContain(`/v1/outputs/${outputA}/build`)
-    expect(requested).toContain(`/v1/outputs/${outputB}/build`)
+    expect(requested).toContain(`/v1/outputs/${OUTPUT_A}/build`)
+    expect(requested).toContain(`/v1/outputs/${OUTPUT_B}/build`)
     expect(view.rebuildFailed.value).toBe(true)
     expect(view.work.value).toBe('failed')
   })

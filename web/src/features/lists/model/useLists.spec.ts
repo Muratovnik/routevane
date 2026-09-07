@@ -13,7 +13,7 @@ type CategoryFixture = {
 
 // The fixture is the wire shape. The library holds the parsed one, whose own
 // property is renamed by a later slice, so the comparison converts.
-function asParsedCategory(fixture: CategoryFixture) {
+const asParsedCategory = (fixture: CategoryFixture) => {
   const { lists, ...rest } = fixture
   return { ...rest, lists: lists }
 }
@@ -30,29 +30,24 @@ const lists = [
   { categories: [], id: 'steam', title: 'Steam' },
 ]
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
-function catalogResponse(categories: CategoryFixture[]): Response {
-  return json({
+const catalogResponse = (categories: CategoryFixture[]): Response =>
+  json({
     categories,
     default_priority: lists.map((list) => list.id),
     list_details: lists,
     lists: lists.map((list) => list.id),
   })
-}
 
-function targetResponse(): Response {
-  return json({ targets: [] })
-}
+const targetResponse = (): Response => json({ targets: [] })
 
-function postCategoryResponse(category: CategoryFixture): Response {
-  return json({ category }, 201)
-}
+const postCategoryResponse = (category: CategoryFixture): Response =>
+  json({ category }, 201)
 
 describe('library audit: write/read reconciliation', () => {
   beforeEach(() => {

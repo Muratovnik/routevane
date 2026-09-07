@@ -44,7 +44,7 @@ const router = useRouter()
 // The row for lists no category claims. Unlike the composer's, it is always
 // drawn: it is where a detached list goes, so it is a place rather than a
 // leftover.
-const uncategorizedID = 'rv:uncategorized'
+const UNCATEGORIZED_ID = 'rv:uncategorized'
 
 type CategoryRow = {
   id: string
@@ -110,7 +110,7 @@ const rows = computed<CategoryRow[]>(() => [
   })),
   {
     category: null,
-    id: uncategorizedID,
+    id: UNCATEGORIZED_ID,
     label: t('listPicker.other'),
     members: uncategorized.value,
   },
@@ -136,7 +136,7 @@ const paneRefusal = computed(() =>
 // What a category can be asked to do. The catalog ships the words and the
 // operator owns what is inside; the title belongs only to a category they
 // created, and the operator may remove either kind (ADR 0029).
-function categoryActions(entry: CategoryRow): MenuItem[] {
+const categoryActions = (entry: CategoryRow): MenuItem[] => {
   const category = entry.category
   if (category === null) return []
   const items: MenuItem[] = []
@@ -157,7 +157,7 @@ function categoryActions(entry: CategoryRow): MenuItem[] {
   return items
 }
 
-function profileActions(list: ListDetail): MenuItem[] {
+const profileActions = (list: ListDetail): MenuItem[] => {
   const items: MenuItem[] = []
   if (list.custom === true)
     items.push({
@@ -234,25 +234,25 @@ watch(
   },
 )
 
-function select(categoryID: string): void {
+const select = (categoryID: string): void => {
   activeCategoryIDs.value = categoryID ? [categoryID] : []
   library.clearRefusal()
   writeLocation()
 }
 
-function showCategory(categoryID: string): void {
+const showCategory = (categoryID: string): void => {
   select(categoryID)
   categoriesOpen.value = false
 }
 
-function openList(listID: string): void {
+const openList = (listID: string): void => {
   inspectWorkspace(true, () => {
     activeListID.value = listID
     writeLocation()
   })
 }
 
-function openRow(event: MouseEvent, listID: string): void {
+const openRow = (event: MouseEvent, listID: string): void => {
   if (tableDisabled.value || event.defaultPrevented) return
   const target = event.target
   if (target instanceof Element && target.closest('button, a, input, select'))
@@ -260,14 +260,14 @@ function openRow(event: MouseEvent, listID: string): void {
   openList(listID)
 }
 
-function startCreateList(): void {
+const startCreateList = (): void => {
   if (library.stale.value) return
   listSheetError.value = ''
   pendingCreatedListID.value = ''
   listSheetOpen.value = true
 }
 
-function closeList(): void {
+const closeList = (): void => {
   inspectWorkspace(false, () => {
     activeListID.value = ''
     writeLocation()
@@ -276,7 +276,7 @@ function closeList(): void {
 
 // The address states where the operator is, so a refresh, a bookmark and the
 // composing card's link all land on the same category and the same open list.
-function writeLocation(): void {
+const writeLocation = (): void => {
   void router.replace(
     `/lists${libraryPageHash({
       category: activeCategoryIDs.value,
@@ -285,7 +285,7 @@ function writeLocation(): void {
   )
 }
 
-function startCreateCategory(): void {
+const startCreateCategory = (): void => {
   categoriesOpen.value = false
   if (library.stale.value) return
   library.clearRefusal()
@@ -295,29 +295,28 @@ function startCreateCategory(): void {
   categoryForm.value = 'create'
 }
 
-function closeCategoryForm(): void {
+const closeCategoryForm = (): void => {
   if (library.busy.value) return
   categoryForm.value = 'closed'
   categorySubject.value = null
   library.clearRefusal()
 }
 
-function closeCategoryRemoval(): void {
+const closeCategoryRemoval = (): void => {
   if (library.busy.value) return
   removingCategory.value = false
   categorySubject.value = null
 }
 
-function closeListRemoval(): void {
+const closeListRemoval = (): void => {
   if (library.busy.value) return
   removingList.value = null
 }
 
-function committed(status: string): boolean {
-  return status === 'saved' || status === 'stale'
-}
+const committed = (status: string): boolean =>
+  status === 'saved' || status === 'stale'
 
-function settlePendingCategory(): void {
+const settlePendingCategory = (): void => {
   const created = pendingCategoryID.value
   if (created === '' || library.stale.value) return
   pendingCategoryID.value = ''
@@ -328,14 +327,14 @@ function settlePendingCategory(): void {
   // A successful read is authoritative. If the server omitted the created
   // row, stay on an existing safe context instead of writing a bogus URL.
   if (!rows.value.some((entry) => entry.id === activeCategoryID.value))
-    select(rows.value[0]?.id ?? uncategorizedID)
+    select(rows.value[0]?.id ?? UNCATEGORIZED_ID)
 }
 
-async function retryLibraryRead(): Promise<void> {
+const retryLibraryRead = async (): Promise<void> => {
   if (await library.refresh()) settlePendingCategory()
 }
 
-function onCategoryAction(entry: CategoryRow, key: string): void {
+const onCategoryAction = (entry: CategoryRow, key: string): void => {
   categoriesOpen.value = false
   const category = entry.category
   if (category === null || library.busy.value) return
@@ -355,7 +354,7 @@ function onCategoryAction(entry: CategoryRow, key: string): void {
   }
 }
 
-function onProfileAction(list: ListDetail, key: string): void {
+const onProfileAction = (list: ListDetail, key: string): void => {
   if (library.busy.value) return
   const category = activeRow.value?.category ?? null
   if (key === 'rename' && list.custom === true) {
@@ -376,13 +375,13 @@ function onProfileAction(list: ListDetail, key: string): void {
   if (key === 'remove') startRemoveList(list)
 }
 
-function startRemoveList(list: ListDetail): void {
+const startRemoveList = (list: ListDetail): void => {
   if (library.busy.value) return
   library.clearRefusal()
   removingList.value = list
 }
 
-async function submitCategoryTitle(): Promise<void> {
+const submitCategoryTitle = async (): Promise<void> => {
   categoryTitleTouched.value = true
   const title = categoryTitle.value.trim()
   if (title === '') return
@@ -410,7 +409,7 @@ async function submitCategoryTitle(): Promise<void> {
   }
 }
 
-async function submitPickedLists(listID: string): Promise<void> {
+const submitPickedLists = async (listID: string): Promise<void> => {
   const category = activeRow.value?.category ?? null
   if (category === null || listID === '') return
   const result = await library.addList(category, listID)
@@ -424,7 +423,7 @@ async function submitPickedLists(listID: string): Promise<void> {
     listSheetError.value = t('lists.list.attach.failed')
 }
 
-async function confirmRemoveCategory(): Promise<void> {
+const confirmRemoveCategory = async (): Promise<void> => {
   const category = categorySubject.value
   if (category === null) return
   const result = await library.deleteCategory(category.id, categoryLists.value)
@@ -433,11 +432,11 @@ async function confirmRemoveCategory(): Promise<void> {
     categorySubject.value = null
     // Only the category that was on screen needs a safe replacement. Removing
     // another row from its overflow menu must not move the operator.
-    if (activeCategoryID.value === category.id) select(uncategorizedID)
+    if (activeCategoryID.value === category.id) select(UNCATEGORIZED_ID)
   }
 }
 
-async function confirmRemoveList(): Promise<void> {
+const confirmRemoveList = async (): Promise<void> => {
   const list = removingList.value
   if (list === null) return
   const result = await library.deleteList(list.id)
@@ -452,10 +451,10 @@ async function confirmRemoveList(): Promise<void> {
  * after the one that created it. The computed row holds nothing, so a list made
  * there is simply a list no category claims.
  */
-async function createList(draft: {
+const createList = async (draft: {
   domains: string[]
   title: string
-}): Promise<void> {
+}): Promise<void> => {
   listSheetError.value = ''
   const created = await library.addCustomList(draft.title, draft.domains)
   if (created.status !== 'saved' || created.value === undefined) {
@@ -473,23 +472,23 @@ async function createList(draft: {
   await submitPickedLists(created.value.id)
 }
 
-async function retryCreatedListAttachment(): Promise<void> {
+const retryCreatedListAttachment = async (): Promise<void> => {
   if (pendingCreatedListID.value === '') return
   await submitPickedLists(pendingCreatedListID.value)
 }
 
-function onListUpdated(detail: ListDetail): void {
+const onListUpdated = (detail: ListDetail): void => {
   library.acceptUpdatedList(detail)
 }
 
-function closeListSheet(): void {
+const closeListSheet = (): void => {
   if (library.busy.value) return
   listSheetOpen.value = false
   listSheetError.value = ''
   pendingCreatedListID.value = ''
 }
 
-function resetPriority(): void {
+const resetPriority = (): void => {
   priorityDraft.value = [...library.defaultPriority.value]
   priorityError.value = ''
 }
@@ -519,13 +518,12 @@ watch(
   },
   { immediate: true },
 )
-function listCategories(list: ListDetail): CategoryRow[] {
-  return rows.value.filter(
+const listCategories = (list: ListDetail): CategoryRow[] =>
+  rows.value.filter(
     (row) =>
       row.category !== null &&
       row.members.some((member) => member.id === list.id),
   )
-}
 const visibleLists = computed(() => {
   const needle = query.value.trim().toLocaleLowerCase()
   return priorityDraft.value
@@ -572,7 +570,7 @@ const sortable = useSortable(tableBody, visibleOrder, {
 watch(tableDisabled, (disabled) => sortable.option('disabled', disabled), {
   flush: 'sync',
 })
-function movePriority(id: string, offset: number): void {
+const movePriority = (id: string, offset: number): void => {
   if (tableDisabled.value) return
   const ids = [...visibleOrder.value]
   const from = ids.indexOf(id)
@@ -583,7 +581,7 @@ function movePriority(id: string, offset: number): void {
   visibleOrder.value = ids
 }
 
-async function submitPriority(): Promise<void> {
+const submitPriority = async (): Promise<void> => {
   if (!priorityDirty.value) return
   const result = await library.setDefaultPriority(priorityDraft.value)
   if (result.status === 'saved') {

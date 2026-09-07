@@ -41,15 +41,14 @@ const emptyComposition = {
   lists: [],
 }
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
-function contentsResponse(observed = true): Response {
-  return json({
+const contentsResponse = (observed = true): Response =>
+  json({
     list_id: 'discord',
     rows: [
       {
@@ -84,18 +83,17 @@ function contentsResponse(observed = true): Response {
     ],
     observed,
   })
-}
 
-function acceptedResponse(): Response {
-  return json({ refresh: {} })
-}
+const acceptedResponse = (): Response => json({ refresh: {} })
 
 /**
  * The picker's traffic, answered by profile. Anything a test does not name is a
  * fault in that test rather than a silent default, so an unrouted call answers
  * with a refusal it will notice.
  */
-function stubAPI(routes: Record<string, () => Response | Promise<Response>>) {
+const stubAPI = (
+  routes: Record<string, () => Response | Promise<Response>>,
+) => {
   const calls: { body: string | null; key: string }[] = []
   const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
     const key = `${init?.method ?? 'GET'} ${String(input)}`
@@ -111,14 +109,14 @@ function stubAPI(routes: Record<string, () => Response | Promise<Response>>) {
 
 // The card is a portalled modal, so it is read where it actually lands: on the
 // document, not inside the picker's own subtree.
-function openDialog(): HTMLElement {
+const openDialog = (): HTMLElement => {
   const dialogs = document.body.querySelectorAll<HTMLElement>('[role="dialog"]')
   const panel = dialogs.item(dialogs.length - 1)
   expect(panel).not.toBeNull()
   return panel
 }
 
-function clickByText(scope: HTMLElement, text: string): void {
+const clickByText = (scope: HTMLElement, text: string): void => {
   const control = [...scope.querySelectorAll('button')].find((button) =>
     button.textContent?.includes(text),
   )
@@ -126,13 +124,12 @@ function clickByText(scope: HTMLElement, text: string): void {
   control?.click()
 }
 
-function mountPicker(props: Record<string, unknown> = {}) {
-  return mount(ListPicker, {
+const mountPicker = (props: Record<string, unknown> = {}) =>
+  mount(ListPicker, {
     attachTo: document.body,
     props: { categories, modelValue: emptyComposition, lists, ...props },
     global: { stubs: { RvIcon: true } },
   })
-}
 
 describe('ListPicker', () => {
   beforeEach(() => {

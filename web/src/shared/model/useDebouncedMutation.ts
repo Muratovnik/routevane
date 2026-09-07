@@ -68,7 +68,7 @@ export type DebouncedMutation<Value> = {
   valueFor: (key: string, fallback?: Value) => ComputedRef<Value | undefined>
 }
 
-const defaultDebounce = 250
+const DEFAULT_DEBOUNCE = 250
 
 /**
  * Keep small, independent optimistic writes from making an entire card wait.
@@ -79,17 +79,17 @@ const defaultDebounce = 250
  * therefore can only confirm the request that produced it and never overwrite a
  * newer intent.
  */
-export function useDebouncedMutation<Value, Result = Value>(
+export const useDebouncedMutation = <Value, Result = Value>(
   mutateRequest: (key: string, value: Value) => Promise<Result | undefined>,
   options: DebouncedMutationOptions<Value, Result> = {},
-): DebouncedMutation<Value> {
+): DebouncedMutation<Value> => {
   const entries = shallowReactive(new Map<string, Entry<string, Value>>())
-  const debounce = Math.max(0, options.debounce ?? defaultDebounce)
+  const debounce = Math.max(0, options.debounce ?? DEFAULT_DEBOUNCE)
   const equals = options.equals ?? Object.is
   let disposed = false
 
-  function createEntry(key: string, value?: Value): Entry<string, Value> {
-    return shallowReactive({
+  const createEntry = (key: string, value?: Value): Entry<string, Value> =>
+    shallowReactive({
       confirmed: value,
       error: null,
       hasConfirmed: value !== undefined,
@@ -103,9 +103,8 @@ export function useDebouncedMutation<Value, Result = Value>(
       retryValue: undefined,
       timer: undefined,
     }) as Entry<string, Value>
-  }
 
-  function ensure(key: string): Entry<string, Value> {
+  const ensure = (key: string): Entry<string, Value> => {
     const existing = entries.get(key)
     if (existing !== undefined) return existing
     const created = createEntry(key)
@@ -113,37 +112,34 @@ export function useDebouncedMutation<Value, Result = Value>(
     return created
   }
 
-  function statusOf(entry: Entry<string, Value>): DebouncedMutationStatus {
+  const statusOf = (entry: Entry<string, Value>): DebouncedMutationStatus => {
     if (entry.error !== null && !entry.queued && !entry.inFlight) return 'error'
     if (entry.inFlight) return 'in-flight'
     if (entry.queued) return 'queued'
     return 'idle'
   }
 
-  function snapshot(
+  const snapshot = (
     entry: Entry<string, Value>,
-  ): DebouncedMutationState<Value> {
-    return {
-      confirmed: entry.hasConfirmed ? entry.confirmed : undefined,
-      error: entry.error,
-      inFlight: entry.inFlight,
-      queued: entry.queued,
-      status: statusOf(entry),
-      value: entry.hasOptimistic ? entry.optimistic : undefined,
-    }
-  }
+  ): DebouncedMutationState<Value> => ({
+    confirmed: entry.hasConfirmed ? entry.confirmed : undefined,
+    error: entry.error,
+    inFlight: entry.inFlight,
+    queued: entry.queued,
+    status: statusOf(entry),
+    value: entry.hasOptimistic ? entry.optimistic : undefined,
+  })
 
-  function clearTimer(entry: Entry<string, Value>): void {
+  const clearTimer = (entry: Entry<string, Value>): void => {
     if (entry.timer === undefined) return
     clearTimeout(entry.timer)
     entry.timer = undefined
   }
 
-  function shouldContinue(key: string, entry: Entry<string, Value>): boolean {
-    return !disposed && entries.get(key) === entry
-  }
+  const shouldContinue = (key: string, entry: Entry<string, Value>): boolean =>
+    !disposed && entries.get(key) === entry
 
-  function dispatch(key: string, entry: Entry<string, Value>): void {
+  const dispatch = (key: string, entry: Entry<string, Value>): void => {
     if (
       !shouldContinue(key, entry) ||
       !entry.queued ||
@@ -174,7 +170,7 @@ export function useDebouncedMutation<Value, Result = Value>(
     )
   }
 
-  function schedule(key: string, entry: Entry<string, Value>): void {
+  const schedule = (key: string, entry: Entry<string, Value>): void => {
     clearTimer(entry)
     entry.timer = setTimeout(() => {
       entry.timer = undefined
@@ -182,18 +178,18 @@ export function useDebouncedMutation<Value, Result = Value>(
     }, debounce)
   }
 
-  function queueLatest(key: string, entry: Entry<string, Value>): void {
+  const queueLatest = (key: string, entry: Entry<string, Value>): void => {
     entry.queued = true
     if (!entry.inFlight) schedule(key, entry)
   }
 
-  function settleSuccess(
+  const settleSuccess = (
     key: string,
     entry: Entry<string, Value>,
     version: number,
     attempted: Value,
     result: Result | undefined,
-  ): void {
+  ): void => {
     if (!shouldContinue(key, entry)) return
     let confirmed: Value
     if (options.resolve) confirmed = options.resolve(result, attempted, key)
@@ -235,13 +231,13 @@ export function useDebouncedMutation<Value, Result = Value>(
     dispatch(key, entry)
   }
 
-  function settleFailure(
+  const settleFailure = (
     key: string,
     entry: Entry<string, Value>,
     version: number,
     attempted: Value,
     error: unknown,
-  ): void {
+  ): void => {
     if (!shouldContinue(key, entry)) return
     entry.inFlight = false
     entry.inFlightVersion = null
@@ -272,7 +268,7 @@ export function useDebouncedMutation<Value, Result = Value>(
     dispatch(key, entry)
   }
 
-  function mutate(key: string, value: Value): void {
+  const mutate = (key: string, value: Value): void => {
     if (disposed) return
     const entry = ensure(key)
     if (!entry.hasConfirmed) {
@@ -287,7 +283,7 @@ export function useDebouncedMutation<Value, Result = Value>(
     queueLatest(key, entry)
   }
 
-  function seed(key: string, value: Value): void {
+  const seed = (key: string, value: Value): void => {
     if (disposed) return
     const entry = ensure(key)
     if (entry.inFlight || entry.queued) return
@@ -301,7 +297,7 @@ export function useDebouncedMutation<Value, Result = Value>(
     entry.intentVersion += 1
   }
 
-  function retry(key: string): void {
+  const retry = (key: string): void => {
     if (disposed) return
     const entry = entries.get(key)
     if (entry === undefined || entry.retryValue === undefined) return
@@ -314,7 +310,7 @@ export function useDebouncedMutation<Value, Result = Value>(
     queueLatest(key, entry)
   }
 
-  function flush(key?: string): void {
+  const flush = (key?: string): void => {
     const keys = key === undefined ? [...entries.keys()] : [key]
     for (const currentKey of keys) {
       const entry = entries.get(currentKey)
@@ -324,7 +320,7 @@ export function useDebouncedMutation<Value, Result = Value>(
     }
   }
 
-  function cancel(key?: string): void {
+  const cancel = (key?: string): void => {
     const keys = key === undefined ? [...entries.keys()] : [key]
     for (const currentKey of keys) {
       const entry = entries.get(currentKey)
@@ -337,12 +333,12 @@ export function useDebouncedMutation<Value, Result = Value>(
     }
   }
 
-  function getValue(key: string): Value | undefined {
+  const getValue = (key: string): Value | undefined => {
     const entry = entries.get(key)
     return entry?.hasOptimistic ? entry.optimistic : undefined
   }
 
-  function getState(key: string): DebouncedMutationState<Value> {
+  const getState = (key: string): DebouncedMutationState<Value> => {
     const entry = entries.get(key)
     return entry === undefined
       ? {
@@ -356,33 +352,26 @@ export function useDebouncedMutation<Value, Result = Value>(
       : snapshot(entry)
   }
 
-  function stateFor(key: string): ComputedRef<DebouncedMutationState<Value>> {
-    return computed(() => getState(key))
-  }
+  const stateFor = (key: string): ComputedRef<DebouncedMutationState<Value>> =>
+    computed(() => getState(key))
 
-  function valueFor(
+  const valueFor = (
     key: string,
     fallback?: Value,
-  ): ComputedRef<Value | undefined> {
-    return computed(() => getValue(key) ?? fallback)
-  }
+  ): ComputedRef<Value | undefined> => computed(() => getValue(key) ?? fallback)
 
-  function optimistic(
+  const optimistic = (
     key: string,
     fallback?: Value,
-  ): ComputedRef<Value | undefined> {
-    return valueFor(key, fallback)
-  }
+  ): ComputedRef<Value | undefined> => valueFor(key, fallback)
 
-  function pendingFor(key: string): ComputedRef<boolean> {
-    return computed(() => isPending(key))
-  }
+  const pendingFor = (key: string): ComputedRef<boolean> =>
+    computed(() => isPending(key))
 
-  function errorFor(key: string): ComputedRef<unknown | null> {
-    return computed(() => getState(key).error)
-  }
+  const errorFor = (key: string): ComputedRef<unknown | null> =>
+    computed(() => getState(key).error)
 
-  function isPending(key: string): boolean {
+  const isPending = (key: string): boolean => {
     const entry = entries.get(key)
     return entry?.queued === true || entry?.inFlight === true
   }

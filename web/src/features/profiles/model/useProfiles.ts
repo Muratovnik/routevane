@@ -33,7 +33,7 @@ export type LibraryState = 'loading' | 'ready' | 'empty' | 'failed'
  * titles, which outputs can offer "send"). Their failure degrades the
  * decoration, never the shelf itself.
  */
-export function useProfiles() {
+export const useProfiles = () => {
   const { locale } = useLocale()
   const cards = ref<ProfileCard[]>([])
   const state = ref<LibraryState>('loading')
@@ -53,7 +53,7 @@ export function useProfiles() {
   const rows = computed(() => cards.value.filter((card) => !isArchived(card)))
   const archived = computed(() => cards.value.filter(isArchived))
 
-  async function initialize(): Promise<void> {
+  const initialize = async (): Promise<void> => {
     state.value = 'loading'
     const [profiles, loadedCatalog, deployables, formats] =
       await Promise.allSettled([
@@ -79,54 +79,46 @@ export function useProfiles() {
     state.value = profiles.value.length === 0 ? 'empty' : 'ready'
   }
 
-  function listTitle(id: string): string {
-    return (
-      catalog.value?.listDetails.find((detail) => detail.id === id)?.title ?? id
-    )
-  }
+  const listTitle = (id: string): string =>
+    catalog.value?.listDetails.find((detail) => detail.id === id)?.title ?? id
 
   // The row states what the profile publishes, not how it was written: a
   // reference and a named list are the same thing to whoever reads the
   // library.
-  function composition(card: ProfileCard): string {
-    return card.resolved.map(listTitle).join(', ')
-  }
+  const composition = (card: ProfileCard): string =>
+    card.resolved.map(listTitle).join(', ')
 
   // A row names its formats in the reader's language where the catalog offers
   // one, and keeps the stored title when the target has left the catalog.
-  function outputTitle(output: OutputCard): string {
-    return localizedTargetTitle(
+  const outputTitle = (output: OutputCard): string =>
+    localizedTargetTitle(
       catalog.value?.targets.find((target) => target.id === output.targetID),
       locale.value,
       output.targetTitle,
     )
-  }
 
   // The first published output anchors the row timestamp and the copy fallback.
   // Download choices themselves are enumerated by the view, so several formats
   // never collapse into an arbitrary default.
-  function downloadable(card: ProfileCard): OutputCard | null {
-    return card.outputs.find((output) => output.latest !== null) ?? null
-  }
+  const downloadable = (card: ProfileCard): OutputCard | null =>
+    card.outputs.find((output) => output.latest !== null) ?? null
 
-  function deployableOutputs(card: ProfileCard): OutputCard[] {
-    return card.outputs.filter(
+  const deployableOutputs = (card: ProfileCard): OutputCard[] =>
+    card.outputs.filter(
       (output) =>
         output.latest !== null && deployableIDs.value.has(output.targetID),
     )
-  }
 
-  function sendable(card: ProfileCard): boolean {
-    return deployableOutputs(card).length > 0
-  }
+  const sendable = (card: ProfileCard): boolean =>
+    deployableOutputs(card).length > 0
 
   // Archiving is offered on the row and restoring where the archived profile is
   // found. Neither rebuilds: what the profile publishes is what it published when
   // it was archived, and changing that is the operator's next decision.
-  async function setArchived(
+  const setArchived = async (
     card: ProfileCard,
     next: boolean,
-  ): Promise<boolean> {
+  ): Promise<boolean> => {
     if (shelving.value !== '') return false
     shelving.value = card.id
     try {
@@ -151,7 +143,7 @@ export function useProfiles() {
    * a success regardless — a row would then say "copied" for a clipboard that
    * refused. The row states what happened, so the refusal is the browser's own.
    */
-  async function copyContents(card: ProfileCard): Promise<void> {
+  const copyContents = async (card: ProfileCard): Promise<void> => {
     copiedID.value = ''
     copyFailedID.value = ''
     const output = downloadable(card)
@@ -173,10 +165,10 @@ export function useProfiles() {
     }
   }
 
-  async function exportFile(
+  const exportFile = async (
     card: ProfileCard,
     formatID: string,
-  ): Promise<void> {
+  ): Promise<void> => {
     if (exporting.value !== '') return
     exporting.value = `${card.id}:${formatID}`
     exportFailedID.value = ''

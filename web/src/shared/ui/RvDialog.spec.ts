@@ -6,14 +6,14 @@ import RvDialog from '@/shared/ui/RvDialog.vue'
 
 // The lock reserves the width the scrollbar was taking, which it can only work
 // out from a viewport that states one. A document with no layout states none.
-function stubViewportWidth(clientWidth: number): void {
+const stubViewportWidth = (clientWidth: number): void => {
   Object.defineProperty(document.documentElement, 'clientWidth', {
     configurable: true,
     value: clientWidth,
   })
 }
 
-async function settle(): Promise<void> {
+const settle = async (): Promise<void> => {
   await flushPromises()
   await new Promise((resolve) => {
     setTimeout(resolve, 0)
@@ -62,21 +62,19 @@ const Host = defineComponent({
   },
 })
 
-function dialog(): HTMLElement | null {
-  return document.body.querySelector<HTMLElement>('[role="dialog"]')
-}
+const dialog = (): HTMLElement | null =>
+  document.body.querySelector<HTMLElement>('[role="dialog"]')
 
-function scrims(): HTMLElement[] {
-  return [...document.body.querySelectorAll<HTMLElement>('.rv-dialog__scrim')]
-}
+const scrims = (): HTMLElement[] => [
+  ...document.body.querySelectorAll<HTMLElement>('.rv-dialog__scrim'),
+]
 
 // The scrims that actually paint: a nested one keeps its layer and drops its
 // ground.
-function dimming(): HTMLElement[] {
-  return scrims().filter(
+const dimming = (): HTMLElement[] =>
+  scrims().filter(
     (scrim) => !scrim.classList.contains('rv-dialog__scrim--nested'),
   )
-}
 
 describe('RvDialog', () => {
   let host: ReturnType<typeof mount> | null = null

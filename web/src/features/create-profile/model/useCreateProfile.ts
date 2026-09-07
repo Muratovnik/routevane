@@ -48,7 +48,7 @@ export type CreatedProfileSetup = { profileID: string; targetID: string }
  * The name is proposed from what was picked and stays editable, so creating a
  * profile never waits on the operator inventing a title.
  */
-export function useCreateProfile() {
+export const useCreateProfile = () => {
   const preferences = useSurfacePreferences()
   const { locale, tor } = useLocale()
   const forecast = useCompositionForecast()
@@ -99,9 +99,8 @@ export function useCreateProfile() {
     resolvedComposition(composition.value, categories.value),
   )
 
-  function titleOf(listID: string): string {
-    return lists.value.find((detail) => detail.id === listID)?.title ?? listID
-  }
+  const titleOf = (listID: string): string =>
+    lists.value.find((detail) => detail.id === listID)?.title ?? listID
 
   // The proposal speaks the interface's language: a collection is named by the
   // dictionary where it has a word for it, by the catalog otherwise — the same
@@ -203,7 +202,7 @@ export function useCreateProfile() {
       selectedTargetID.value !== '',
   )
 
-  async function initialize(): Promise<void> {
+  const initialize = async (): Promise<void> => {
     catalogState.value = 'loading'
     const [loadedCatalog, deployables] = await Promise.allSettled([
       loadCatalogCached(),
@@ -226,12 +225,12 @@ export function useCreateProfile() {
     }
   }
 
-  function setName(value: string): void {
+  const setName = (value: string): void => {
     nameEdited.value = true
     name.value = value
   }
 
-  function setPriority(ids: string[]): void {
+  const setPriority = (ids: string[]): void => {
     if (busy.value) return
     priorityCustomized.value = true
     composition.value = normalizeComposition(
@@ -240,7 +239,7 @@ export function useCreateProfile() {
     )
   }
 
-  function removeList(id: string): void {
+  const removeList = (id: string): void => {
     if (busy.value || !listIncluded(composition.value, categories.value, id))
       return
     composition.value = toggleCompositionList(
@@ -257,7 +256,7 @@ export function useCreateProfile() {
    * that fact. Composing writes nothing global (ADR 0029), so the change always
    * came from «Списки» in another tab.
    */
-  function registerCatalog(next: Catalog): void {
+  const registerCatalog = (next: Catalog): void => {
     catalog.value = next
     defaultPriority.value =
       next.defaultPriority ?? next.listDetails.map((list) => list.id)
@@ -265,22 +264,19 @@ export function useCreateProfile() {
 
   useFreshCatalog(registerCatalog, () => busy.value)
 
-  function setTarget(id: string): void {
+  const setTarget = (id: string): void => {
     if (busy.value || !targets.value.some((target) => target.id === id)) return
     selectedTargetID.value = id
   }
 
-  function deployable(targetID: string): boolean {
-    return deployableIDs.value.has(targetID)
-  }
+  const deployable = (targetID: string): boolean =>
+    deployableIDs.value.has(targetID)
 
-  function forecastFor(targetID: string): TargetForecast | null {
-    return forecast.forTarget(targetID)
-  }
+  const forecastFor = (targetID: string): TargetForecast | null =>
+    forecast.forTarget(targetID)
 
-  function targetTitle(target: TargetOption): string {
-    return localizedTargetTitle(target, locale.value)
-  }
+  const targetTitle = (target: TargetOption): string =>
+    localizedTargetTitle(target, locale.value)
 
   const selectedTargetTitle = computed(() =>
     localizedTargetTitle(
@@ -290,7 +286,7 @@ export function useCreateProfile() {
   )
 
   /** create stores the profile and carries the chosen first output to its page. */
-  async function create(): Promise<CreatedProfileSetup | null> {
+  const create = async (): Promise<CreatedProfileSetup | null> => {
     if (!canCreate.value) return null
     try {
       flowState.value = 'creating'

@@ -27,8 +27,8 @@ const schedule: Schedule = {
   nextRefreshAt: '',
 }
 
-function render(overrides: Record<string, unknown> = {}) {
-  return mount(OutputsPanel, {
+const render = (overrides: Record<string, unknown> = {}) =>
+  mount(OutputsPanel, {
     props: {
       archived: false,
       busy: false,
@@ -44,7 +44,6 @@ function render(overrides: Record<string, unknown> = {}) {
     },
     global: { stubs: { NuxtLink: true, RvIcon: true } },
   })
-}
 
 describe('OutputsPanel connection readiness', () => {
   beforeEach(() => useLocale().setLocale('en'))

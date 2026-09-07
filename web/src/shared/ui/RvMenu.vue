@@ -43,11 +43,10 @@ const routerLink = computed<string | Component>(() =>
   resolveComponent('NuxtLink'),
 )
 
-function grouped(item: MenuItem): boolean {
-  return item.children !== undefined && item.children.length > 0
-}
+const grouped = (item: MenuItem): boolean =>
+  item.children !== undefined && item.children.length > 0
 
-function choose(item: MenuItem): void {
+const choose = (item: MenuItem): void => {
   if (item.disabled !== true) emit('select', item.key)
 }
 
@@ -55,7 +54,7 @@ function choose(item: MenuItem): void {
 // action has already moved it somewhere else — a dialog that opened and took
 // its first field — the trigger does not take it back a frame later, because
 // that late focus would blur the field and undo what was typed into it.
-function onCloseAutoFocus(event: Event): void {
+const onCloseAutoFocus = (event: Event): void => {
   const active = document.activeElement
   if (
     !(active instanceof HTMLElement) ||

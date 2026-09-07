@@ -7,7 +7,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 
 import ProfileView from './ProfileView.vue'
 
-const timestamp = '2026-09-03T09:00:00Z'
+const TIMESTAMP = '2026-09-03T09:00:00Z'
 let routeStatus = 200
 let fileStatus = 200
 let diagnosticsStatus = 200
@@ -15,49 +15,46 @@ let published = true
 let failedRebuild = false
 let holdRoute: Promise<void> | undefined
 
-function json(payload: unknown, status = 200) {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200) =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
-function routePayload() {
-  return {
-    profile: {
-      id: 'profile-1',
-      name: 'Known profile',
-      lists: [],
-      categories: [],
-      exclusions: [],
-      created_at: timestamp,
-      updated_at: timestamp,
+const routePayload = () => ({
+  profile: {
+    id: 'profile-1',
+    name: 'Known profile',
+    lists: [],
+    categories: [],
+    exclusions: [],
+    created_at: TIMESTAMP,
+    updated_at: TIMESTAMP,
+  },
+  outputs: [
+    {
+      id: 'output-1',
+      target_id: 'keenetic',
+      target_title: 'Keenetic',
+      created_at: TIMESTAMP,
+      latest: published
+        ? {
+            id: 'artifact-1',
+            snapshot_id: 'snapshot-1',
+            size_bytes: 14,
+            content_type: 'text/plain',
+            content_created_at: TIMESTAMP,
+          }
+        : null,
+      last_attempt: failedRebuild
+        ? { status: 'failed', code: 'source_failed', completed_at: TIMESTAMP }
+        : null,
     },
-    outputs: [
-      {
-        id: 'output-1',
-        target_id: 'keenetic',
-        target_title: 'Keenetic',
-        created_at: timestamp,
-        latest: published
-          ? {
-              id: 'artifact-1',
-              snapshot_id: 'snapshot-1',
-              size_bytes: 14,
-              content_type: 'text/plain',
-              content_created_at: timestamp,
-            }
-          : null,
-        last_attempt: failedRebuild
-          ? { status: 'failed', code: 'source_failed', completed_at: timestamp }
-          : null,
-      },
-    ],
-    resolved: [],
-    missing_categories: [],
-    schedule: { interval: '', effective: 'off', follows_default: true },
-  }
-}
+  ],
+  resolved: [],
+  missing_categories: [],
+  schedule: { interval: '', effective: 'off', follows_default: true },
+})
 
 const fetchMock = vi.fn(async (input: unknown) => {
   switch (String(input)) {
@@ -88,8 +85,8 @@ const fetchMock = vi.fn(async (input: unknown) => {
   }
 })
 
-function renderRoute() {
-  return mount(ProfileView, {
+const renderRoute = () =>
+  mount(ProfileView, {
     props: { profileId: 'profile-1' },
     global: {
       stubs: {
@@ -102,7 +99,6 @@ function renderRoute() {
       },
     },
   })
-}
 
 beforeEach(() => {
   routeStatus = 200

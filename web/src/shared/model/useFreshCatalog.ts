@@ -20,13 +20,13 @@ import {
  * replacing the catalog under a request in flight would judge its result
  * against material it never saw.
  */
-export function useFreshCatalog(
+export const useFreshCatalog = (
   apply: (catalog: Catalog) => void,
   busy: () => boolean,
-): void {
+): void => {
   let reading = false
 
-  async function reread(): Promise<void> {
+  const reread = async (): Promise<void> => {
     if (reading || busy()) return
     reading = true
     try {

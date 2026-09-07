@@ -96,7 +96,7 @@ const saving = ref(false)
 // --- existing list: contents ---------------------------------------------
 // The batch endpoint takes at most this many values in one request, so a long
 // import is sent in several rather than refused.
-const batchLimit = 1024
+const BATCH_LIMIT = 1024
 
 const contents = ref<ListContents | null>(null)
 const contentsState = ref<'idle' | 'loading' | 'ready' | 'failed'>('idle')
@@ -264,6 +264,30 @@ const membershipLabel = computed(() => {
     : t('listCard.membership.out', { name })
 })
 
+// Declared above the watch that starts it, because that watch runs immediately:
+// the first read of a card begins while this setup is still evaluating. The
+// helpers this reaches after its own `await` are declared below.
+const openContents = async (listID: string): Promise<void> => {
+  const request = ++contentsRequest
+  contentsState.value = 'loading'
+  try {
+    const loaded = await loadListContents(listID)
+    if (request !== contentsRequest) return
+    applyContents(request, loaded)
+  } catch {
+    if (request !== contentsRequest) return
+    contentsState.value = 'failed'
+    return
+  }
+  if (shouldObserve()) {
+    // The card may have closed or switched while the contents request was in
+    // flight. Do not let a late first read start source work for another card.
+    if (request !== contentsRequest) return
+    autoObserved = true
+    await runRefresh(true)
+  }
+}
+
 watch(
   [() => props.list, () => props.creating],
   ([list, creating]) => {
@@ -317,32 +341,11 @@ watch(contentsState, async (state) => {
   input.focus()
 })
 
-async function openContents(listID: string): Promise<void> {
-  const request = ++contentsRequest
-  contentsState.value = 'loading'
-  try {
-    const loaded = await loadListContents(listID)
-    if (request !== contentsRequest) return
-    applyContents(request, loaded)
-  } catch {
-    if (request !== contentsRequest) return
-    contentsState.value = 'failed'
-    return
-  }
-  if (shouldObserve()) {
-    // The card may have closed or switched while the contents request was in
-    // flight. Do not let a late first read start source work for another card.
-    if (request !== contentsRequest) return
-    autoObserved = true
-    await runRefresh(true)
-  }
-}
-
 // A card that shows a list before its sources were ever read shows almost
 // nothing, and the operator has no way to know that. So the card reads them
 // itself the first time it is opened on unread contents — in either flow,
 // because reading a source changes no route and no list.
-function shouldObserve(): boolean {
+const shouldObserve = (): boolean => {
   const loaded = contents.value
   return (
     !autoObserved &&
@@ -355,7 +358,7 @@ function shouldObserve(): boolean {
 }
 
 // applyContents lands a mutation's answer, unless the card moved on.
-function applyContents(request: number, next: ListContents): void {
+const applyContents = (request: number, next: ListContents): void => {
   if (request !== contentsRequest) return
   contents.value = next
   for (const row of next.rows) entryMutations.seed(row.value, row.enabled)
@@ -369,7 +372,7 @@ function applyContents(request: number, next: ListContents): void {
 // queued or in flight. Keep pending rows/sources that the response omitted so
 // their latest visible value remains available to the effective projections;
 // non-pending omissions (notably a removed manual row) settle immediately.
-function reconcileMutationContents(next: ListContents): void {
+const reconcileMutationContents = (next: ListContents): void => {
   const current = contents.value
   if (current === null) {
     contents.value = next
@@ -412,20 +415,16 @@ function reconcileMutationContents(next: ListContents): void {
   contentsState.value = 'ready'
 }
 
-function onRefreshSources(): Promise<void> {
-  return runRefresh(false)
-}
+const onRefreshSources = (): Promise<void> => runRefresh(false)
 
 // The composing flow has no source-editing controls, but an automatic read is
 // still recoverable in place. Its retry is the same read as the library button;
 // it never changes route membership or opens the library editor.
-function onRetryRefresh(): Promise<void> {
-  return runRefresh(composing.value)
-}
+const onRetryRefresh = (): Promise<void> => runRefresh(composing.value)
 
 // One read of the sources, whether the card asked for it or the operator did.
 // A failed read never removes the rows already on the table.
-async function runRefresh(automatic: boolean): Promise<void> {
+const runRefresh = async (automatic: boolean): Promise<void> => {
   const list = props.list
   if (
     list === null ||
@@ -466,13 +465,13 @@ async function runRefresh(automatic: boolean): Promise<void> {
   }
 }
 
-function onToggleSource(sourceID: string, enabled: boolean): void {
+const onToggleSource = (sourceID: string, enabled: boolean): void => {
   if (props.list === null || toggleBlocked.value) return
   sourceError.value = ''
   sourceMutations.mutate(sourceID, enabled)
 }
 
-async function onRemoveSource(sourceID: string): Promise<void> {
+const onRemoveSource = async (sourceID: string): Promise<void> => {
   const list = props.list
   if (list === null || interactionBusy.value) return
   const request = contentsRequest
@@ -492,17 +491,17 @@ async function onRemoveSource(sourceID: string): Promise<void> {
 // language: switching an offered row off records an exclude; switching it back
 // on removes the standing verdict; a row the operator added and then switched
 // off is simply taken back.
-function onToggleRow(row: ListContentsRow, enabled: boolean): void {
+const onToggleRow = (row: ListContentsRow, enabled: boolean): void => {
   if (props.list === null || toggleBlocked.value) return
   entryMutations.mutate(row.value, enabled)
 }
 
 // The creation form still writes a custom list, which the catalog defines by
 // domains alone, so it keeps the narrower grammar and says so.
-function parsedDomains(
+const parsedDomains = (
   raw: string,
   assign: (message: string) => void,
-): string[] | null {
+): string[] | null => {
   const lines = raw.split(/\r?\n/)
   const result: string[] = []
   for (let index = 0; index < lines.length; index += 1) {
@@ -527,7 +526,7 @@ function parsedDomains(
 // The batch endpoint refuses everything when one value is malformed, so a
 // rejected line is named rather than counted, and nothing is sent until the
 // whole draft reads.
-function firstRejectedLine(raw: string): number {
+const firstRejectedLine = (raw: string): number => {
   const lines = raw.split(/\r?\n/)
   for (let index = 0; index < lines.length; index += 1) {
     if (parseDestinationList(lines[index] ?? '').skipped > 0) return index + 1
@@ -535,20 +534,23 @@ function firstRejectedLine(raw: string): number {
   return 1
 }
 
-async function includeValues(listID: string, values: string[]): Promise<void> {
+const includeValues = async (
+  listID: string,
+  values: string[],
+): Promise<void> => {
   const request = contentsRequest
   let latest: ListContents | null = null
-  for (let index = 0; index < values.length; index += batchLimit) {
+  for (let index = 0; index < values.length; index += BATCH_LIMIT) {
     latest = await setListValues(
       listID,
-      values.slice(index, index + batchLimit),
+      values.slice(index, index + BATCH_LIMIT),
       'include',
     )
   }
   if (latest !== null) applyContents(request, latest)
 }
 
-async function onAddValues(): Promise<void> {
+const onAddValues = async (): Promise<void> => {
   const list = props.list
   if (list === null || interactionBusy.value) return
   const parsed = parseDestinationList(addValuesDraft.value)
@@ -564,7 +566,7 @@ async function onAddValues(): Promise<void> {
   }
   // A hand-typed batch past the endpoint's bound is a paste accident; the file
   // import is the path built for a set that large.
-  if (parsed.values.length > batchLimit) {
+  if (parsed.values.length > BATCH_LIMIT) {
     addError.value = t('listCard.domains.limit')
     return
   }
@@ -585,13 +587,13 @@ async function onAddValues(): Promise<void> {
 
 // Closing the panel drops the complaint, never the typing: an operator who
 // closes it to read the table behind finds the draft where they left it.
-function onAddValuesOpen(open: boolean): void {
+const onAddValuesOpen = (open: boolean): void => {
   if (!open && interactionBusy.value) return
   addValuesOpen.value = open
   if (!open) addError.value = ''
 }
 
-function onSourcesOpenChange(open: boolean): void {
+const onSourcesOpenChange = (open: boolean): void => {
   if (!open && interactionBusy.value) return
   sourcesOpen.value = open
 }
@@ -599,7 +601,7 @@ function onSourcesOpenChange(open: boolean): void {
 // A routes file an operator already has is a set of destinations, so it is read
 // here rather than retyped. The file never leaves the browser: what is sent is
 // the destinations it named.
-async function onImportFile(file: File): Promise<void> {
+const onImportFile = async (file: File): Promise<void> => {
   const list = props.list
   if (list === null || interactionBusy.value) return
   addError.value = ''
@@ -624,7 +626,7 @@ async function onImportFile(file: File): Promise<void> {
   }
 }
 
-async function onAddFeed(): Promise<void> {
+const onAddFeed = async (): Promise<void> => {
   const list = props.list
   if (list === null || interactionBusy.value) return
   if (feedURL.value.trim() === '') {
@@ -647,7 +649,7 @@ async function onAddFeed(): Promise<void> {
   }
 }
 
-async function onRenameCustom(): Promise<void> {
+const onRenameCustom = async (): Promise<void> => {
   const list = props.list
   if (list === null || list.custom !== true || interactionBusy.value) return
   const title = titleDraft.value.trim()
@@ -671,7 +673,7 @@ async function onRenameCustom(): Promise<void> {
   }
 }
 
-async function onCreate(): Promise<void> {
+const onCreate = async (): Promise<void> => {
   if (saving.value) return
   const domains = parsedDomains(domainsDraft.value, (message) => {
     domainsError.value = message
@@ -699,33 +701,33 @@ async function onCreate(): Promise<void> {
   }
 }
 
-function onRemove(): void {
+const onRemove = (): void => {
   if (props.list !== null && !interactionBusy.value) emit('remove', props.list)
 }
 
 // A row is named by what it is and where it came from — the source's own name,
 // the catalog, or the operator. The value already says whether it is a domain,
 // an address or a network, so the caption does not repeat it.
-function originLabel(row: ListContentsRow): string {
+const originLabel = (row: ListContentsRow): string => {
   if (row.missing) return t('listCard.origin.missing')
   if (row.origin === 'catalog') return t('listCard.origin.catalog')
   if (row.origin === 'manual') return t('listCard.origin.manual')
   return row.origin
 }
 
-function sourceLabel(id: string, type: string): string {
+const sourceLabel = (id: string, type: string): string => {
   if (id.startsWith('feed-')) return t('listCard.source.custom')
   return tor(`listDetail.source.${type}`, type)
 }
 
-function requestClose(): void {
+const requestClose = (): void => {
   if (dismissalBlocked.value) return
   contentsRequest += 1
   sourcesOpen.value = false
   emit('close')
 }
 
-function onOpenChange(open: boolean): void {
+const onOpenChange = (open: boolean): void => {
   if (!open && !dismissalBlocked.value) requestClose()
 }
 </script>

@@ -8,12 +8,12 @@ import {
   type PluralMessage,
 } from '@/shared/i18n/messages'
 
-const storageKey = 'rv.locale'
+const STORAGE_KEY = 'rv.locale'
 
 // Sizes are stated in the decimal units CLDR names — 1 kB is 1000 B — because
 // the unit word is printed by the same table that groups the digits. A scale
 // invented here would disagree with the word Intl puts beside the number.
-const byteScale = 1000
+const BYTE_SCALE = 1000
 const byteUnits = [
   'byte',
   'kilobyte',
@@ -23,10 +23,18 @@ const byteUnits = [
   'petabyte',
 ] as const
 
-export function resolveLocale(
+const isLocale = (value: string | null | undefined): value is Locale =>
+  value !== null && value !== undefined && locales.includes(value as Locale)
+
+const preferredLanguages = (): readonly string[] => {
+  if (typeof navigator === 'undefined') return []
+  return navigator.languages ?? [navigator.language]
+}
+
+export const resolveLocale = (
   stored: string | null,
   preferred: readonly string[],
-): Locale {
+): Locale => {
   if (isLocale(stored)) return stored
   for (const candidate of preferred) {
     const base = candidate.toLowerCase().split('-')[0]
@@ -35,14 +43,20 @@ export function resolveLocale(
   return 'en'
 }
 
-export function formatMessage(
+export const formatMessage = (
   template: string,
   params: Record<string, string | number> = {},
-): string {
-  return template.replaceAll(/\{(\w+)\}/g, (match, name: string) => {
+): string =>
+  template.replaceAll(/\{(\w+)\}/g, (match, name: string) => {
     const value = params[name]
     return value === undefined ? match : String(value)
   })
+
+const initialLocale = (): Locale => resolveLocale(null, preferredLanguages())
+
+const noteStorageRefusal = (): void => {
+  // A refusal to remember the choice is not a reason to reject it, and not a
+  // failure the operator can act on either.
 }
 
 /**
@@ -55,7 +69,7 @@ export function formatMessage(
  * can write to it. The stored choice is also the same choice in a second tab —
  * the browser's storage event carries it across without either tab asking.
  */
-const current = useLocalStorage<Locale>(storageKey, initialLocale, {
+const current = useLocalStorage<Locale>(STORAGE_KEY, initialLocale, {
   flush: 'sync',
   onError: noteStorageRefusal,
   serializer: {
@@ -100,21 +114,21 @@ const byteFormats = computed(() =>
   ),
 )
 
-export function useLocale() {
-  function translate(
+export const useLocale = () => {
+  const translate = (
     key: string,
     params: Record<string, string | number> = {},
-  ): string {
+  ): string => {
     const message = dictionaries[current.value][key]
     if (typeof message !== 'string') return key
     return formatMessage(message, params)
   }
 
-  function translatePlural(
+  const translatePlural = (
     key: string,
     count: number,
     params: Record<string, string | number> = {},
-  ): string {
+  ): string => {
     const message = dictionaries[current.value][key]
     if (message === undefined || typeof message === 'string') return key
     // The category is chosen by the count itself and the digits are printed by
@@ -132,16 +146,16 @@ export function useLocale() {
    * local category and it must still be readable — so a missing key is a fact
    * about our dictionary, not an error to show as a raw key.
    */
-  function translateOr(
+  const translateOr = (
     key: string,
     fallback: string,
     params: Record<string, string | number> = {},
-  ): string {
+  ): string => {
     const translated = translate(key, params)
     return translated === key ? fallback : translated
   }
 
-  function setLocale(next: Locale): void {
+  const setLocale = (next: Locale): void => {
     current.value = next
   }
 
@@ -169,9 +183,8 @@ export function useLocale() {
  * property of the language, not of the sentence, so the dictionary states the
  * sentence and this states the number.
  */
-export function formatNumber(value: number): string {
-  return numberFormat.value.format(value)
-}
+export const formatNumber = (value: number): string =>
+  numberFormat.value.format(value)
 
 /**
  * A size in the units the reader's locale names — «12,3 кБ», "12.3 kB". The
@@ -179,42 +192,22 @@ export function formatNumber(value: number): string {
  * spell a byte prefix in two languages, and a file stops being reported as six
  * figures of bytes.
  */
-export function formatBytes(value: number): string {
+export const formatBytes = (value: number): string => {
   let amount = Math.max(0, value)
   let unit = 0
-  while (amount >= byteScale && unit < byteUnits.length - 1) {
-    amount /= byteScale
+  while (amount >= BYTE_SCALE && unit < byteUnits.length - 1) {
+    amount /= BYTE_SCALE
     unit += 1
   }
   const format = byteFormats.value[unit] ?? byteFormats.value[0]
   return format === undefined ? String(value) : format.format(amount)
 }
 
-function selectPlural(
+const selectPlural = (
   message: PluralMessage,
   count: number,
   locale: Locale,
-): string {
+): string => {
   const category = new Intl.PluralRules(locale).select(count)
   return message[category] ?? message.other ?? ''
-}
-
-function isLocale(value: string | null | undefined): value is Locale {
-  return (
-    value !== null && value !== undefined && locales.includes(value as Locale)
-  )
-}
-
-function preferredLanguages(): readonly string[] {
-  if (typeof navigator === 'undefined') return []
-  return navigator.languages ?? [navigator.language]
-}
-
-function initialLocale(): Locale {
-  return resolveLocale(null, preferredLanguages())
-}
-
-function noteStorageRefusal(): void {
-  // A refusal to remember the choice is not a reason to reject it, and not a
-  // failure the operator can act on either.
 }

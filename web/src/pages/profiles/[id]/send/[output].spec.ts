@@ -6,19 +6,17 @@ import { useLocale } from '@/shared/i18n/useLocale'
 
 import SendPage from './[output].vue'
 
-function pageModel() {
-  return {
-    catalog: ref(null),
-    initialize: vi.fn(async () => {}),
-    profile: ref({ name: 'Example profile' }),
-    outputs: ref([
-      { id: 'first', latest: { id: 'artifact-1' }, targetID: 'keenetic' },
-      { id: 'chosen', latest: { id: 'artifact-2' }, targetID: 'keenetic' },
-    ] as { id: string; latest: { id: string } | null; targetID: string }[]),
-    selectOutput: vi.fn(),
-    state: ref('failed'),
-  }
-}
+const pageModel = () => ({
+  catalog: ref(null),
+  initialize: vi.fn(async () => {}),
+  profile: ref({ name: 'Example profile' }),
+  outputs: ref([
+    { id: 'first', latest: { id: 'artifact-1' }, targetID: 'keenetic' },
+    { id: 'chosen', latest: { id: 'artifact-2' }, targetID: 'keenetic' },
+  ] as { id: string; latest: { id: string } | null; targetID: string }[]),
+  selectOutput: vi.fn(),
+  state: ref('failed'),
+})
 
 let model: ReturnType<typeof pageModel>
 
@@ -26,8 +24,8 @@ vi.mock('@/features/view-profile/model/useProfileView', () => ({
   useProfileView: () => model,
 }))
 
-function renderPage() {
-  return mount(SendPage, {
+const renderPage = () =>
+  mount(SendPage, {
     global: {
       stubs: {
         AppShell: { template: '<main><slot /></main>' },
@@ -40,7 +38,6 @@ function renderPage() {
       },
     },
   })
-}
 
 beforeEach(() => {
   model = pageModel()

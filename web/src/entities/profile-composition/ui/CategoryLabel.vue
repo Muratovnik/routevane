@@ -15,14 +15,11 @@ const categoryTones: Record<string, string> = {
   work: 'blue',
   torrents: 'amber',
 }
-function categoryTone(id: string): string {
-  return (
-    categoryTones[id] ??
-    ['violet', 'cyan', 'amber', 'green', 'pink', 'blue'][
-      [...id].reduce((value, char) => value + char.codePointAt(0)!, 0) % 6
-    ]!
-  )
-}
+const categoryTone = (id: string): string =>
+  categoryTones[id] ??
+  ['violet', 'cyan', 'amber', 'green', 'pink', 'blue'][
+    [...id].reduce((value, char) => value + char.codePointAt(0)!, 0) % 6
+  ]!
 </script>
 <template>
   <span class="category-label"

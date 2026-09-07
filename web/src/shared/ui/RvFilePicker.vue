@@ -23,23 +23,23 @@ const emit = defineEmits<{ select: [file: File] }>()
 const input = ref<HTMLInputElement | null>(null)
 const dragging = ref(false)
 
-function openPicker(): void {
+const openPicker = (): void => {
   if (!props.disabled) input.value?.click()
 }
 
-function choose(file: File | null): void {
+const choose = (file: File | null): void => {
   dragging.value = false
   if (file !== null && !props.disabled) emit('select', file)
 }
 
-function onChange(event: Event): void {
+const onChange = (event: Event): void => {
   const field = event.target
   if (!(field instanceof HTMLInputElement)) return
   choose(field.files?.item(0) ?? null)
   field.value = ''
 }
 
-function onDrop(event: DragEvent): void {
+const onDrop = (event: DragEvent): void => {
   event.preventDefault()
   choose(event.dataTransfer?.files.item(0) ?? null)
 }

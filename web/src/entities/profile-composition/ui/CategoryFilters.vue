@@ -59,7 +59,7 @@ const triggerLabel = computed(
       .map((option) => option.label)
       .join(', ') || t('listPicker.filter.more'),
 )
-function toggle(id: string): void {
+const toggle = (id: string): void => {
   emit(
     'update:modelValue',
     props.modelValue.includes(id)

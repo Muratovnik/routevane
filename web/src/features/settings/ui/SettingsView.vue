@@ -53,23 +53,23 @@ onMounted(() => {
   void settings.initialize()
 })
 
-async function onRefreshInterval(value: string): Promise<void> {
+const onRefreshInterval = async (value: string): Promise<void> => {
   await settings.setRefreshInterval(value as RefreshInterval)
 }
 
-function onLocale(value: string): void {
+const onLocale = (value: string): void => {
   setLocale(value as Locale)
 }
 
-function onAppearance(value: string): void {
+const onAppearance = (value: string): void => {
   preferences.setAppearance(value as Appearance)
 }
 
-function onMode(value: string): void {
+const onMode = (value: string): void => {
   preferences.setMode(value as DetailMode)
 }
 
-function onConfigTransferApplied(): void {
+const onConfigTransferApplied = (): void => {
   // Routes are server-owned. Landing on their shelf creates a fresh read from
   // the imported state instead of keeping any pre-import rows in this view.
   void router.push('/')

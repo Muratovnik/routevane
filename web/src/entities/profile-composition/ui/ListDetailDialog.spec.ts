@@ -53,14 +53,13 @@ const discord = {
   title: 'Discord',
 }
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
-function contentsResponse(
+const contentsResponse = (
   observed = true,
   sources = [
     { id: 'itdoginfo', type: 'http', custom: false, enabled: true },
@@ -68,8 +67,8 @@ function contentsResponse(
   ],
   enabledOverrides: Record<string, boolean> = {},
   manual = false,
-): Response {
-  return json({
+): Response =>
+  json({
     list_id: 'discord',
     rows: [
       {
@@ -110,9 +109,10 @@ function contentsResponse(
     sources,
     observed,
   })
-}
 
-function stubAPI(routes: Record<string, () => Response | Promise<Response>>) {
+const stubAPI = (
+  routes: Record<string, () => Response | Promise<Response>>,
+) => {
   const calls: { body: string | null; key: string }[] = []
   const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
     const key = `${init?.method ?? 'GET'} ${String(input)}`
@@ -128,14 +128,14 @@ function stubAPI(routes: Record<string, () => Response | Promise<Response>>) {
 
 // The card is portalled, so it is read on the document rather than in the
 // wrapper's own subtree.
-function card(): HTMLElement {
+const card = (): HTMLElement => {
   const dialogs = document.body.querySelectorAll<HTMLElement>('[role="dialog"]')
   const panel = dialogs.item(dialogs.length - 1)
   expect(panel).not.toBeNull()
   return panel
 }
 
-function row(scope: HTMLElement, value: string): HTMLElement {
+const row = (scope: HTMLElement, value: string): HTMLElement => {
   const found = [
     ...scope.querySelectorAll<HTMLElement>('.list-card__rows li'),
   ].find(
@@ -145,7 +145,7 @@ function row(scope: HTMLElement, value: string): HTMLElement {
   return found as HTMLElement
 }
 
-function switchOf(scope: HTMLElement, value: string): HTMLInputElement {
+const switchOf = (scope: HTMLElement, value: string): HTMLInputElement => {
   const input = row(scope, value).querySelector<HTMLInputElement>(
     'input[type="checkbox"]',
   )
@@ -153,7 +153,7 @@ function switchOf(scope: HTMLElement, value: string): HTMLInputElement {
   return input as HTMLInputElement
 }
 
-function clickByText(scope: HTMLElement, text: string): void {
+const clickByText = (scope: HTMLElement, text: string): void => {
   const control = [...scope.querySelectorAll('button')].find((button) =>
     (button.getAttribute('aria-label') ?? button.textContent)?.includes(text),
   )
@@ -163,10 +163,10 @@ function clickByText(scope: HTMLElement, text: string): void {
 
 // Which flow opened the card is not optional anywhere, tests included: the two
 // modes are the component's contract rather than a default it can fall back to.
-function mountCard(
+const mountCard = (
   props: Record<string, unknown> & { mode: 'compose' | 'library' },
-) {
-  return mount(ListDetailDialog, {
+) =>
+  mount(ListDetailDialog, {
     attachTo: document.body,
     props: { list: discord, ...props },
     global: {
@@ -174,7 +174,6 @@ function mountCard(
       stubs: { RvIcon: true },
     },
   })
-}
 
 describe('ListDetailDialog', () => {
   beforeEach(() => {

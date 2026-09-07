@@ -5,12 +5,12 @@ import RvCopyButton from '@/shared/ui/RvCopyButton.vue'
 
 const original = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
 
-function stubClipboard(value: unknown): void {
+const stubClipboard = (value: unknown): void => {
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value })
 }
 
-function mountButton() {
-  return mount(RvCopyButton, {
+const mountButton = () =>
+  mount(RvCopyButton, {
     props: {
       copiedLabel: 'Copied',
       failedLabel: 'Could not copy',
@@ -18,9 +18,10 @@ function mountButton() {
       value: 'https://127.0.0.1/s/token',
     },
   })
-}
 
-async function press(wrapper: ReturnType<typeof mountButton>): Promise<string> {
+const press = async (
+  wrapper: ReturnType<typeof mountButton>,
+): Promise<string> => {
   await wrapper.get('button').trigger('click')
   await flushPromises()
   return wrapper.get('.rv-copy__outcome').text()

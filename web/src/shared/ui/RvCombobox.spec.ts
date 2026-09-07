@@ -37,29 +37,25 @@ const groups: ChoiceGroup[] = [
   },
 ]
 
-function list(): HTMLElement | null {
-  return document.body.querySelector<HTMLElement>('[role="listbox"]')
-}
+const list = (): HTMLElement | null =>
+  document.body.querySelector<HTMLElement>('[role="listbox"]')
 
-function visibleOptions(): string[] {
-  return [
-    ...(list()?.querySelectorAll<HTMLElement>('[role="option"]') ?? []),
-  ].map((option) => option.textContent?.trim() ?? '')
-}
-function groupLabels(): string[] {
-  return [...document.querySelectorAll('.rv-search-select__group-label')].map(
+const visibleOptions = (): string[] =>
+  [...(list()?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])].map(
+    (option) => option.textContent?.trim() ?? '',
+  )
+const groupLabels = (): string[] =>
+  [...document.querySelectorAll('.rv-search-select__group-label')].map(
     (label) => label.textContent?.trim() ?? '',
   )
-}
-function search() {
-  return new DOMWrapper(
+const search = () =>
+  new DOMWrapper(
     document.querySelector<HTMLInputElement>(
       '.rv-search-select__search input',
     )!,
   )
-}
-function mountCombobox(props: Record<string, unknown> = {}) {
-  return mount(RvCombobox, {
+const mountCombobox = (props: Record<string, unknown> = {}) =>
+  mount(RvCombobox, {
     attachTo: document.body,
     props: {
       emptyLabel: 'Nothing found.',
@@ -72,7 +68,6 @@ function mountCombobox(props: Record<string, unknown> = {}) {
     },
     global: { stubs: { RvIcon: true } },
   })
-}
 
 describe('RvCombobox', () => {
   let open: { unmount: () => void } | null = null

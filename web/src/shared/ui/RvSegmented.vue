@@ -24,7 +24,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
-function select(value: string, event: Event): void {
+const select = (value: string, event: Event): void => {
   // Native activation checks a radio before change fires. Restore the controlled
   // value even when its owner defers or rejects the change: an unchanged prop
   // alone does not cause Vue to patch the browser's optimistic checked state.

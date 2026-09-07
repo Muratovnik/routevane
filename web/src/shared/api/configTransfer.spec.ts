@@ -9,28 +9,25 @@ import {
 import { RoutevaneAPIError } from './http'
 
 const fetchMock = vi.fn()
-const document = ' {"version":1,"routes":[]} ' as ReturnType<
+const DOCUMENT = ' {"version":1,"routes":[]} ' as ReturnType<
   typeof parseConfigTransferDocument
 >
 const digest = `sha256:${'a'.repeat(64)}`
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
-function counts(): Record<string, number> {
-  return {
-    custom_lists: 2,
-    custom_categories: 1,
-    custom_sources: 3,
-    profiles: 4,
-    devices: 5,
-    outputs: 6,
-  }
-}
+const counts = (): Record<string, number> => ({
+  custom_lists: 2,
+  custom_categories: 1,
+  custom_sources: 3,
+  profiles: 4,
+  devices: 5,
+  outputs: 6,
+})
 
 beforeEach(() => {
   fetchMock.mockReset()
@@ -81,7 +78,7 @@ describe('configuration transfer API contract', () => {
         ],
       }),
     )
-    await expect(previewConfigTransfer(document)).resolves.toEqual({
+    await expect(previewConfigTransfer(DOCUMENT)).resolves.toEqual({
       digest,
       canApply: true,
       counts: {
@@ -105,11 +102,11 @@ describe('configuration transfer API contract', () => {
         'Content-Type': 'application/json',
         'X-Routevane-Request': '1',
       },
-      body: document,
+      body: DOCUMENT,
     })
 
     fetchMock.mockResolvedValueOnce(json({ applied: true, counts: counts() }))
-    await expect(applyConfigTransfer(digest, document)).resolves.toEqual({
+    await expect(applyConfigTransfer(digest, DOCUMENT)).resolves.toEqual({
       applied: true,
       counts: {
         customLists: 2,
@@ -127,7 +124,7 @@ describe('configuration transfer API contract', () => {
         'X-Routevane-Request': '1',
         'X-Routevane-Transfer-Digest': digest,
       },
-      body: document,
+      body: DOCUMENT,
     })
   })
 
@@ -167,7 +164,7 @@ describe('configuration transfer API contract', () => {
       },
     ]) {
       fetchMock.mockResolvedValueOnce(json(payload))
-      await expect(previewConfigTransfer(document)).rejects.toBeInstanceOf(
+      await expect(previewConfigTransfer(DOCUMENT)).rejects.toBeInstanceOf(
         RoutevaneAPIError,
       )
     }
@@ -183,7 +180,7 @@ describe('configuration transfer API contract', () => {
         ],
       }),
     )
-    await expect(previewConfigTransfer(document)).resolves.toMatchObject({
+    await expect(previewConfigTransfer(DOCUMENT)).resolves.toMatchObject({
       warnings: [
         'custom_sources_require_recreation',
         'devices_require_credentials',

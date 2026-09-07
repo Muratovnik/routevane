@@ -4,25 +4,24 @@ import { describe, expect, it } from 'vitest'
 
 import { createDevProxy } from './dev-proxy'
 
-const ui = 'http://127.0.0.1:8765'
-const api = 'http://127.0.0.1:43210'
+const UI = 'http://127.0.0.1:8765'
+const API = 'http://127.0.0.1:43210'
 
 describe('development API authority', () => {
-  function request(headers: IncomingMessage['headers']) {
-    return { headers } as IncomingMessage
-  }
+  const request = (headers: IncomingMessage['headers']) =>
+    ({ headers }) as IncomingMessage
 
-  const proxy = Object.values(createDevProxy(api, ui))[0]!
+  const proxy = Object.values(createDevProxy(API, UI))[0]!
 
   it('translates only the trusted UI origin and preserves mutation headers', () => {
     const input = request({
       host: '127.0.0.1:8765',
-      origin: ui,
+      origin: UI,
       'content-type': 'application/json',
       'x-routevane-request': '1',
     })
     expect(proxy.bypass(input)).toBeUndefined()
-    expect(input.headers.origin).toBe(api)
+    expect(input.headers.origin).toBe(API)
     expect(input.headers['x-routevane-request']).toBe('1')
   })
 
@@ -34,10 +33,10 @@ describe('development API authority', () => {
   })
 
   it.each([
-    { host: 'evil.example', origin: ui },
-    { host: '127.0.0.1:9000', origin: ui },
+    { host: 'evil.example', origin: UI },
+    { host: '127.0.0.1:9000', origin: UI },
     { host: '127.0.0.1:8765', origin: 'http://evil.example' },
-    { host: '127.0.0.1:8765', origin: api },
+    { host: '127.0.0.1:8765', origin: API },
     { host: '127.0.0.1:8765', origin: 'null' },
     { host: '127.0.0.1:8765', 'sec-fetch-site': 'cross-site' },
   ])('refuses foreign authority before rewriting it: %j', (headers) => {
@@ -55,7 +54,7 @@ describe('development API authority', () => {
     'http://127.0.0.1:0',
     'https://127.0.0.1:8765',
   ])('rejects noncanonical configured origins: %s', (origin) => {
-    expect(() => createDevProxy(origin, ui)).toThrow()
-    expect(() => createDevProxy(api, origin)).toThrow()
+    expect(() => createDevProxy(origin, UI)).toThrow()
+    expect(() => createDevProxy(API, origin)).toThrow()
   })
 })

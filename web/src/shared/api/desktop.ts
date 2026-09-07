@@ -18,7 +18,7 @@ declare global {
   }
 }
 
-export function servingOrigin(): string {
+export const servingOrigin = (): string => {
   if (
     window.location.protocol === 'routevane:' &&
     window.location.hostname === 'app'

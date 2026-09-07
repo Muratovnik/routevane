@@ -16,23 +16,20 @@ const outputID = 'f'.repeat(32)
 const artifactID = 'b'.repeat(32)
 const subscription = `${window.location.origin}/v1/subscriptions/rv1.${'c'.repeat(32)}.${'d'.repeat(43)}`
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
-function outputPayload(subscriptionURL = subscription): unknown {
-  return {
-    output: {
-      id: outputID,
-      list_id: profileID,
-      target_id: 'keenetic',
-    },
-    subscription_url: subscriptionURL,
-  }
-}
+const outputPayload = (subscriptionURL = subscription): unknown => ({
+  output: {
+    id: outputID,
+    list_id: profileID,
+    target_id: 'keenetic',
+  },
+  subscription_url: subscriptionURL,
+})
 
 type BuildPayload = {
   output: { id: string; list_id: string; target_id: string }
@@ -58,31 +55,29 @@ type BuildPayload = {
   subscription_url?: string
 }
 
-function buildPayload(): BuildPayload {
-  return {
-    output: { id: outputID, list_id: profileID, target_id: 'keenetic' },
-    snapshot: { id: 'c'.repeat(32) },
-    artifact: {
-      id: artifactID,
-      artifact_hash: 'd'.repeat(64),
-      content_created_at: '2026-08-20T12:00:00Z',
-      validation_status: 'valid',
-      status: 'published',
-      renderer_id: 'keenetic-route-bat',
-      renderer_version: '1.0.0',
-      content_type: 'application/x-bat',
-    },
-    summary: {
-      rule_count: 2,
-      partial_coverage: false,
-      partial_coverage_count: 0,
-      content_created_at: '2026-08-20T12:00:00Z',
-      validation_status: 'valid',
-      status: 'published',
-    },
-    subscription_url: subscription,
-  }
-}
+const buildPayload = (): BuildPayload => ({
+  output: { id: outputID, list_id: profileID, target_id: 'keenetic' },
+  snapshot: { id: 'c'.repeat(32) },
+  artifact: {
+    id: artifactID,
+    artifact_hash: 'd'.repeat(64),
+    content_created_at: '2026-08-20T12:00:00Z',
+    validation_status: 'valid',
+    status: 'published',
+    renderer_id: 'keenetic-route-bat',
+    renderer_version: '1.0.0',
+    content_type: 'application/x-bat',
+  },
+  summary: {
+    rule_count: 2,
+    partial_coverage: false,
+    partial_coverage_count: 0,
+    content_created_at: '2026-08-20T12:00:00Z',
+    validation_status: 'valid',
+    status: 'published',
+  },
+  subscription_url: subscription,
+})
 
 describe('Routevane local API decoders', () => {
   const fetchMock = vi.fn()

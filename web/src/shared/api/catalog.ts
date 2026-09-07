@@ -116,23 +116,23 @@ export type TargetOption = {
 // rendition when the operator reads English and the catalog supplied one, the
 // catalog's own words otherwise. The fallback carries a stored title for an
 // output whose target has since left the catalog.
-export function localizedTargetTitle(
+export const localizedTargetTitle = (
   target: Pick<TargetOption, 'title' | 'titleEn'> | null | undefined,
   locale: string,
   fallback = '',
-): string {
+): string => {
   if (target === null || target === undefined) return fallback
   if (locale === 'en' && target.titleEn !== '') return target.titleEn
   return target.title === '' ? fallback : target.title
 }
 
-export function localizedTargetHint(
+export const localizedTargetHint = (
   target:
     | Pick<TargetOption, 'manualInstallationHint' | 'manualInstallationHintEn'>
     | null
     | undefined,
   locale: string,
-): string {
+): string => {
   if (target === null || target === undefined) return ''
   if (locale === 'en' && target.manualInstallationHintEn !== '')
     return target.manualInstallationHintEn
@@ -149,7 +149,7 @@ export type Catalog = {
   defaultPriority?: string[]
 }
 
-export async function loadCatalog(): Promise<Catalog> {
+export const loadCatalog = async (): Promise<Catalog> => {
   const [lists, targets] = await Promise.all([
     getJSON('/v1/lists', parseLists),
     getJSON('/v1/targets', parseTargets),
@@ -160,9 +160,9 @@ export async function loadCatalog(): Promise<Catalog> {
 // saveDefaultPriority sends one complete list permutation and reads the
 // server's normalized order back. Validation of membership and transactionality
 // belongs to the application boundary, not this shared transport helper.
-export async function saveDefaultPriority(
+export const saveDefaultPriority = async (
   priority: string[],
-): Promise<string[]> {
+): Promise<string[]> => {
   const saved = await postJSON(
     '/v1/lists/priority',
     { default_priority: priority },
@@ -180,14 +180,14 @@ export const setDefaultPriority = saveDefaultPriority
 // every list open. Writes below invalidate it; a failure is never cached.
 let cachedCatalog: Catalog | null = null
 
-export async function loadCatalogCached(): Promise<Catalog> {
+export const loadCatalogCached = async (): Promise<Catalog> => {
   if (cachedCatalog !== null) return cachedCatalog
   const catalog = await loadCatalog()
   cachedCatalog = catalog
   return catalog
 }
 
-export function invalidateCatalogCache(): void {
+export const invalidateCatalogCache = (): void => {
   cachedCatalog = null
 }
 
@@ -199,25 +199,23 @@ export type CustomListRecord = {
 
 // asListDetail is the catalog shape of a just-written custom list, so a
 // screen can extend its loaded catalog without re-reading the collection.
-export function asListDetail(record: CustomListRecord): ListDetail {
-  return {
-    id: record.id,
-    title: record.title,
-    categories: [],
-    domains: record.domains.map((value) => ({
-      value,
-      includeSubdomains: true,
-    })),
-    sources: [],
-    sourceCount: 0,
-    custom: true,
-  }
-}
+export const asListDetail = (record: CustomListRecord): ListDetail => ({
+  id: record.id,
+  title: record.title,
+  categories: [],
+  domains: record.domains.map((value) => ({
+    value,
+    includeSubdomains: true,
+  })),
+  sources: [],
+  sourceCount: 0,
+  custom: true,
+})
 
-export async function createCustomList(
+export const createCustomList = async (
   title: string,
   domains: string[],
-): Promise<CustomListRecord> {
+): Promise<CustomListRecord> => {
   const record = await postJSON(
     '/v1/lists',
     { title, domains },
@@ -227,11 +225,11 @@ export async function createCustomList(
   return record
 }
 
-export async function updateCustomList(
+export const updateCustomList = async (
   listID: string,
   title: string,
   domains: string[],
-): Promise<CustomListRecord> {
+): Promise<CustomListRecord> => {
   const record = await postJSON(
     `/v1/lists/${encodeURIComponent(listID)}/update`,
     { title, domains },
@@ -251,10 +249,10 @@ export async function updateCustomList(
  * cached catalog: the next screen to ask must not be handed the membership
  * from before the edit.
  */
-export async function createCategory(
+export const createCategory = async (
   title: string,
   lists?: string[],
-): Promise<CategoryDetail> {
+): Promise<CategoryDetail> => {
   const category = await postJSON(
     '/v1/categories',
     lists === undefined ? { title } : { lists: lists, title },
@@ -268,10 +266,10 @@ export async function createCategory(
 // server works out the overlay against the catalog seed itself. The body
 // therefore carries only what the caller actually stated, because a field left
 // out means "leave this alone" and an empty array means "make it empty".
-export async function updateCategory(
+export const updateCategory = async (
   categoryID: string,
   edit: CategoryEdit,
-): Promise<CategoryDetail> {
+): Promise<CategoryDetail> => {
   const body: Record<string, unknown> = {}
   if (edit.title !== undefined) body.title = edit.title
   if (edit.lists !== undefined) body.lists = edit.lists
@@ -292,10 +290,10 @@ export type CategoryLists = 'detach' | 'delete'
 // Answers with nothing but its status: the category is gone, or it is refused
 // and nothing changed. A route still naming it is one of those refusals, and
 // `categoryInUse` reads which profiles they are.
-export async function removeCategory(
+export const removeCategory = async (
   categoryID: string,
   lists: CategoryLists,
-): Promise<void> {
+): Promise<void> => {
   await postNoContent(
     `/v1/categories/${encodeURIComponent(categoryID)}/remove`,
     { lists },
@@ -305,7 +303,7 @@ export async function removeCategory(
 
 // A list the operator removed, catalog-seeded or their own. The same shape of
 // refusal guards it: a route naming the list directly keeps it.
-export async function removeList(listID: string): Promise<void> {
+export const removeList = async (listID: string): Promise<void> => {
   await postNoContent(`/v1/lists/${encodeURIComponent(listID)}/remove`, {})
   invalidateCatalogCache()
 }
@@ -314,18 +312,16 @@ export async function removeList(listID: string): Promise<void> {
 // route still names is kept, and the reply names those routes so the screen can
 // say which ones stand in the way. Anything else — another status, another
 // shape — is not that refusal and answers null.
-export function categoryInUse(reason: unknown): ProfileReference[] | null {
-  return refusedBy(reason, parseCategoryInUse)
-}
+export const categoryInUse = (reason: unknown): ProfileReference[] | null =>
+  refusedBy(reason, parseCategoryInUse)
 
-export function listInUse(reason: unknown): ProfileReference[] | null {
-  return refusedBy(reason, parseListInUse)
-}
+export const listInUse = (reason: unknown): ProfileReference[] | null =>
+  refusedBy(reason, parseListInUse)
 
-function refusedBy(
+const refusedBy = (
   reason: unknown,
   read: Decoder<ProfileReference[]>,
-): ProfileReference[] | null {
+): ProfileReference[] | null => {
   if (!(reason instanceof RoutevaneAPIError) || reason.status !== 409)
     return null
   return read(reason.payload)
@@ -362,16 +358,12 @@ export type ListContents = {
 
 export type DomainVerdict = 'include' | 'exclude' | 'auto'
 
-export function loadListContents(listID: string): Promise<ListContents> {
-  return getJSON(
-    `/v1/lists/${encodeURIComponent(listID)}/contents`,
-    parseListContents,
-  )
-}
+export const loadListContents = (listID: string): Promise<ListContents> =>
+  getJSON(`/v1/lists/${encodeURIComponent(listID)}/contents`, parseListContents)
 
 export type ListRefresh = { skippedEntries: number }
 
-export async function refreshList(listID: string): Promise<ListRefresh> {
+export const refreshList = async (listID: string): Promise<ListRefresh> => {
   const result = await postJSON(
     `/v1/lists/${encodeURIComponent(listID)}/refresh`,
     {},
@@ -381,11 +373,11 @@ export async function refreshList(listID: string): Promise<ListRefresh> {
   return result
 }
 
-export async function setListSourceEnabled(
+export const setListSourceEnabled = async (
   listID: string,
   sourceID: string,
   enabled: boolean,
-): Promise<ListContents> {
+): Promise<ListContents> => {
   const result = await postJSON(
     `/v1/lists/${encodeURIComponent(listID)}/sources/${encodeURIComponent(sourceID)}/update`,
     { enabled },
@@ -395,11 +387,11 @@ export async function setListSourceEnabled(
   return result
 }
 
-export async function addListSource(
+export const addListSource = async (
   listID: string,
   url: string,
   format: string,
-): Promise<void> {
+): Promise<void> => {
   await postJSON(
     `/v1/lists/${encodeURIComponent(listID)}/sources`,
     { format, url },
@@ -408,10 +400,10 @@ export async function addListSource(
   await listChanges.trigger({ listID, observed: false })
 }
 
-export async function removeListSource(
+export const removeListSource = async (
   listID: string,
   sourceID: string,
-): Promise<ListContents> {
+): Promise<ListContents> => {
   const result = await postJSON(
     `/v1/lists/${encodeURIComponent(listID)}/sources/${encodeURIComponent(sourceID)}/remove`,
     {},
@@ -425,11 +417,11 @@ export async function removeListSource(
 // imported routes file is one decision rather than a request per line. The
 // server refuses the whole batch when a single value is malformed, which is why
 // the caller validates before it sends.
-export async function setListValues(
+export const setListValues = async (
   listID: string,
   values: string[],
   verdict: DomainVerdict,
-): Promise<ListContents> {
+): Promise<ListContents> => {
   const result = await postJSON(
     `/v1/lists/${encodeURIComponent(listID)}/domains`,
     { values, verdict },
@@ -439,13 +431,12 @@ export async function setListValues(
   return result
 }
 
-export async function previewList(listID: string): Promise<ListPreview> {
-  return postJSON(
+export const previewList = async (listID: string): Promise<ListPreview> =>
+  postJSON(
     `/v1/lists/${encodeURIComponent(listID)}/preview`,
     {},
     parseListPreview,
   )
-}
 
 // A source states which of the two kinds it is. Anything else is a source this
 // build does not know how to read, not a source to guess at.
@@ -600,15 +591,14 @@ const categoryEnvelopeSchema = v.pipe(
 )
 
 // The refusal keys the profiles that hold the object being deleted (ADR 0039).
-function inUseSchema(error: string) {
-  return v.pipe(
+const inUseSchema = (error: string) =>
+  v.pipe(
     fields({
       error: v.literal(error),
       profiles: v.array(fields({ id: text, title: text })),
     }),
     v.transform((refused): ProfileReference[] => refused.profiles),
   )
-}
 
 const listsSchema = v.pipe(
   fields({

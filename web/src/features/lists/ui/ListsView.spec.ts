@@ -31,7 +31,7 @@ const lists = [
   { categories: [], custom: true, id: 'steam', title: 'Steam' },
 ]
 
-function activeCategory(scope: Element): string {
+const activeCategory = (scope: Element): string => {
   const selected = scope.querySelector(
     '.catalog-filters__categories [aria-pressed="true"]',
   )
@@ -46,24 +46,22 @@ function activeCategory(scope: Element): string {
   return copy.textContent!.trim()
 }
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
-function catalogResponse(next = categories, nextLists = lists): Response {
-  return json({
+const catalogResponse = (next = categories, nextLists = lists): Response =>
+  json({
     lists: nextLists.map((list) => list.id),
     list_details: nextLists,
     categories: next,
     default_priority: nextLists.map((list) => list.id),
   })
-}
 
-function contentsResponse(listID: string): Response {
-  return json({
+const contentsResponse = (listID: string): Response =>
+  json({
     list_id: listID,
     rows: [
       {
@@ -76,9 +74,10 @@ function contentsResponse(listID: string): Response {
     sources: [],
     observed: true,
   })
-}
 
-function stubAPI(routes: Record<string, () => Response | Promise<Response>>) {
+const stubAPI = (
+  routes: Record<string, () => Response | Promise<Response>>,
+) => {
   const calls: { body: string | null; key: string }[] = []
   const fetchMock = vi.fn((input: unknown, init?: RequestInit) => {
     const key = `${init?.method ?? 'GET'} ${String(input)}`
@@ -97,7 +96,7 @@ function stubAPI(routes: Record<string, () => Response | Promise<Response>>) {
  * with. The first read is always the catalog as it stood, so a test states the
  * result of its own edit rather than the state it wanted to start in.
  */
-function catalogRoutes(after = categories): Record<string, () => Response> {
+const catalogRoutes = (after = categories): Record<string, () => Response> => {
   let reads = 0
   return {
     'GET /v1/lists': () => {
@@ -108,14 +107,14 @@ function catalogRoutes(after = categories): Record<string, () => Response> {
   }
 }
 
-function dialog(): HTMLElement {
+const dialog = (): HTMLElement => {
   const panels = document.body.querySelectorAll<HTMLElement>('[role="dialog"]')
   const panel = panels.item(panels.length - 1)
   expect(panel).not.toBeNull()
   return panel
 }
 
-function menuItem(text: string): HTMLElement | undefined {
+const menuItem = (text: string): HTMLElement | undefined => {
   const panels = document.body.querySelectorAll<HTMLElement>('[role="menu"]')
   const panel = panels.item(panels.length - 1)
   return [
@@ -123,12 +122,12 @@ function menuItem(text: string): HTMLElement | undefined {
   ].find((item) => item.textContent?.includes(text))
 }
 
-function menuText(): string {
+const menuText = (): string => {
   const panels = document.body.querySelectorAll<HTMLElement>('[role="menu"]')
   return panels.item(panels.length - 1)?.textContent ?? ''
 }
 
-async function clickByText(scope: HTMLElement, text: string): Promise<void> {
+const clickByText = async (scope: HTMLElement, text: string): Promise<void> => {
   if (text === 'New category' && !scope.querySelector('.lists__collections')) {
     ;[...scope.querySelectorAll('button')]
       .find((button) => button.textContent?.trim() === 'Categories')
@@ -145,9 +144,7 @@ async function clickByText(scope: HTMLElement, text: string): Promise<void> {
   control?.click()
 }
 
-type Library = ReturnType<typeof mountLibrary>
-
-function mountLibrary(hash = '') {
+const mountLibrary = (hash = '') => {
   vi.stubGlobal('useRoute', () => ({ hash }))
   vi.stubGlobal('useRouter', () => ({ replace: vi.fn() }))
   return mount(ListsView, {
@@ -156,13 +153,15 @@ function mountLibrary(hash = '') {
   })
 }
 
-async function openCategories(wrapper: Library): Promise<void> {
+type Library = ReturnType<typeof mountLibrary>
+
+const openCategories = async (wrapper: Library): Promise<void> => {
   if (!document.querySelector('.lists__collections')) {
     await clickByText(wrapper.element as HTMLElement, 'Categories')
     await flushPromises()
   }
 }
-async function openCategory(wrapper: Library, label: string): Promise<void> {
+const openCategory = async (wrapper: Library, label: string): Promise<void> => {
   await openCategories(wrapper)
   const opener = [
     ...document.querySelectorAll<HTMLButtonElement>('.lists__category'),
@@ -171,14 +170,14 @@ async function openCategory(wrapper: Library, label: string): Promise<void> {
   opener?.click()
   await flushPromises()
 }
-async function categoryText(wrapper: Library): Promise<string> {
+const categoryText = async (wrapper: Library): Promise<string> => {
   await openCategories(wrapper)
   const text = document.querySelector('.lists__groups')?.textContent ?? ''
   await clickByText(dialog(), 'Close')
   await flushPromises()
   return text
 }
-async function openMenu(wrapper: Library, label: string): Promise<void> {
+const openMenu = async (wrapper: Library, label: string): Promise<void> => {
   if (label.startsWith('Actions for category')) await openCategories(wrapper)
   const trigger = [
     ...document.querySelectorAll<HTMLButtonElement>('.rv-menu__trigger'),
@@ -188,12 +187,11 @@ async function openMenu(wrapper: Library, label: string): Promise<void> {
   await flushPromises()
 }
 
-function openedDialogVariant(wrapper: Library): string | undefined {
-  return wrapper
+const openedDialogVariant = (wrapper: Library): string | undefined =>
+  wrapper
     .findAllComponents(RvDialog)
     .find((candidate) => candidate.props('open') === true)
     ?.props('variant')
-}
 
 describe('ListsView', () => {
   beforeEach(() => {

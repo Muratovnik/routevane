@@ -28,7 +28,7 @@ onMounted(() => {
   void initialize()
 })
 
-async function initialize(): Promise<void> {
+const initialize = async (): Promise<void> => {
   state.value = 'loading'
   deployabilityKnown.value = false
   const [catalog, deployables] = await Promise.allSettled([
@@ -49,19 +49,16 @@ async function initialize(): Promise<void> {
   state.value = targets.value.length === 0 ? 'empty' : 'ready'
 }
 
-function visible(target: TargetOption): boolean {
-  return !preferences.hiddenTargets.value.includes(target.id)
-}
+const visible = (target: TargetOption): boolean =>
+  !preferences.hiddenTargets.value.includes(target.id)
 
-function title(target: TargetOption): string {
-  return localizedTargetTitle(target, locale.value, target.id)
-}
+const title = (target: TargetOption): string =>
+  localizedTargetTitle(target, locale.value, target.id)
 
-function hint(target: TargetOption): string {
-  return localizedTargetHint(target, locale.value)
-}
+const hint = (target: TargetOption): string =>
+  localizedTargetHint(target, locale.value)
 
-function onToggle(target: TargetOption, event: Event): void {
+const onToggle = (target: TargetOption, event: Event): void => {
   const input = event.target as HTMLInputElement
   preferences.setTargetHidden(target.id, !input.checked)
 }

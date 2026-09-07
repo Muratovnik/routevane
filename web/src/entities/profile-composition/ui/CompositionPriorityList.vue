@@ -33,9 +33,8 @@ const list = useTemplateRef<HTMLElement>('list')
 const ordered = ref<string[]>([])
 const baseId = useId()
 
-function same(left: string[], right: string[]): boolean {
-  return left.join('\0') === right.join('\0')
-}
+const same = (left: string[], right: string[]): boolean =>
+  left.join('\0') === right.join('\0')
 
 watch(
   () => props.items.map((item) => item.id),
@@ -72,7 +71,7 @@ watch(
   { flush: 'sync' },
 )
 
-function move(from: number, to: number): void {
+const move = (from: number, to: number): void => {
   if (props.disabled || to < 0 || to >= ordered.value.length) return
   const next = [...ordered.value]
   const [moved] = next.splice(from, 1)
@@ -81,11 +80,10 @@ function move(from: number, to: number): void {
   ordered.value = next
 }
 
-function item(id: string): PriorityItem | undefined {
-  return props.items.find((entry) => entry.id === id)
-}
+const item = (id: string): PriorityItem | undefined =>
+  props.items.find((entry) => entry.id === id)
 
-function overlapState(): 'hidden' | 'pending' | 'unavailable' | 'unknown' {
+const overlapState = (): 'hidden' | 'pending' | 'unavailable' | 'unknown' => {
   if (props.items.length < 2) return 'hidden'
   if (props.overlapUnavailable) return 'unavailable'
   if (props.overlapPending) return 'pending'
@@ -94,7 +92,7 @@ function overlapState(): 'hidden' | 'pending' | 'unavailable' | 'unknown' {
     : 'hidden'
 }
 
-function overlapMessage(): string {
+const overlapMessage = (): string => {
   const state = overlapState()
   if (state === 'pending') return t('listPicker.overlap.pending')
   if (state === 'unavailable')

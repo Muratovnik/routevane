@@ -51,9 +51,8 @@ export type ProfileRecord = ProfileComposition & {
 
 // An archived profile is read from its date. The helper exists so no screen has to
 // remember which of the two questions the field answers.
-export function isArchived(profile: { archivedAt: string }): boolean {
-  return profile.archivedAt !== ''
-}
+export const isArchived = (profile: { archivedAt: string }): boolean =>
+  profile.archivedAt !== ''
 
 // One row of the library: a profile and the outputs it feeds.
 export type ProfileCard = ProfileRecord & {
@@ -93,11 +92,11 @@ export type ListDetail = {
   missingCategories: string[]
 }
 
-export function createProfile(
+export const createProfile = (
   name: string,
   composition: ProfileComposition,
-): Promise<ProfileRecord> {
-  return postJSON(
+): Promise<ProfileRecord> =>
+  postJSON(
     '/v1/profiles',
     {
       name,
@@ -109,7 +108,6 @@ export function createProfile(
     },
     parseProfileEnvelope,
   )
-}
 
 // What a composition would weigh, per format, before anything is stored. The
 // answer belongs to the server: the same planner that will build the file
@@ -173,11 +171,11 @@ export type TargetForecast = {
  * Missing coverage is represented per target by incompleteLists; facts
  * for complete lists remain available without claiming the draft fits.
  */
-export function previewComposition(
+export const previewComposition = (
   composition: ProfileComposition,
   targets: string[] = [],
-): Promise<TargetForecast[]> {
-  return postJSON(
+): Promise<TargetForecast[]> =>
+  postJSON(
     '/v1/profiles/preview',
     {
       lists: composition.lists,
@@ -189,14 +187,13 @@ export function previewComposition(
     },
     parseForecasts,
   )
-}
 
-export function updateProfile(
+export const updateProfile = (
   profileID: string,
   name: string,
   composition: ProfileComposition,
-): Promise<ProfileRecord> {
-  return postJSON(
+): Promise<ProfileRecord> =>
+  postJSON(
     `/v1/profiles/${profileID}/update`,
     {
       name,
@@ -208,41 +205,35 @@ export function updateProfile(
     },
     parseProfileEnvelope,
   )
-}
 
 // Archiving takes a profile off the shelf; nothing it published is removed and its
 // subscription keeps resolving. The reply is the profile, so the caller reads the
 // resulting state rather than assuming the verb it sent.
-export function archiveProfile(profileID: string): Promise<ProfileRecord> {
-  return postJSON(`/v1/profiles/${profileID}/archive`, {}, parseProfileEnvelope)
-}
+export const archiveProfile = (profileID: string): Promise<ProfileRecord> =>
+  postJSON(`/v1/profiles/${profileID}/archive`, {}, parseProfileEnvelope)
 
-export function restoreProfile(profileID: string): Promise<ProfileRecord> {
-  return postJSON(`/v1/profiles/${profileID}/restore`, {}, parseProfileEnvelope)
-}
+export const restoreProfile = (profileID: string): Promise<ProfileRecord> =>
+  postJSON(`/v1/profiles/${profileID}/restore`, {}, parseProfileEnvelope)
 
-export async function refreshProfile(profileID: string): Promise<void> {
+export const refreshProfile = async (profileID: string): Promise<void> => {
   await postJSON(`/v1/profiles/${profileID}/refresh`, {}, parseRefresh)
 }
 
-export function loadProfile(profileID: string): Promise<ListDetail> {
-  return getJSON(`/v1/profiles/${profileID}`, parseProfileDetail)
-}
+export const loadProfile = (profileID: string): Promise<ListDetail> =>
+  getJSON(`/v1/profiles/${profileID}`, parseProfileDetail)
 
-export function loadProfiles(): Promise<ProfileCard[]> {
-  return getJSON('/v1/profiles', parseProfileCards)
-}
+export const loadProfiles = (): Promise<ProfileCard[]> =>
+  getJSON('/v1/profiles', parseProfileCards)
 
-export function saveProfileRefreshInterval(
+export const saveProfileRefreshInterval = (
   profileID: string,
   interval: RefreshInterval,
-): Promise<Schedule> {
-  return postJSON(
+): Promise<Schedule> =>
+  postJSON(
     `/v1/profiles/${profileID}/schedule`,
     { refresh_interval: interval },
     parseScheduleEnvelope,
   )
-}
 
 // An unrecognised stored rule reads as off: a timer nobody implements must not
 // be inferred from a value nobody wrote. A rule the reply does not state at all
@@ -255,9 +246,8 @@ export const refreshRule = v.fallback(
   'off',
 )
 
-export function refreshInterval(value: unknown): RefreshInterval {
-  return readRefreshInterval(value) ?? 'off'
-}
+export const refreshInterval = (value: unknown): RefreshInterval =>
+  readRefreshInterval(value) ?? 'off'
 
 // A list the profile names carries the operator's own additions for that
 // list. An absent map is an empty one; a map that is not a map of names is a
@@ -285,25 +275,23 @@ const profileEntries = {
 
 const profileShape = fields(profileEntries)
 
-function asProfileRecord(
+const asProfileRecord = (
   profile: v.InferOutput<typeof profileShape>,
-): ProfileRecord {
-  return {
-    id: profile.id,
-    name: profile.name,
-    lists: profile.lists,
-    categories: profile.categories,
-    exclusions: profile.exclusions,
-    listDomains: profile.list_domains,
-    priority: profile.priority,
-    refreshInterval: profile.refresh_interval,
-    lastRefreshedAt: profile.last_refreshed_at,
-    lastRefreshFailed: profile.last_refresh_failed,
-    archivedAt: profile.archived_at,
-    createdAt: profile.created_at,
-    updatedAt: profile.updated_at,
-  }
-}
+): ProfileRecord => ({
+  id: profile.id,
+  name: profile.name,
+  lists: profile.lists,
+  categories: profile.categories,
+  exclusions: profile.exclusions,
+  listDomains: profile.list_domains,
+  priority: profile.priority,
+  refreshInterval: profile.refresh_interval,
+  lastRefreshedAt: profile.last_refreshed_at,
+  lastRefreshFailed: profile.last_refresh_failed,
+  archivedAt: profile.archived_at,
+  createdAt: profile.created_at,
+  updatedAt: profile.updated_at,
+})
 
 const profileSchema = v.pipe(profileShape, v.transform(asProfileRecord))
 

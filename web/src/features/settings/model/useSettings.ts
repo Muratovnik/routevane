@@ -11,7 +11,7 @@ export type SettingsWriteState = 'idle' | 'saving' | 'failed'
  * received an authoritative answer yet, so it is deliberately different from
  * the server's explicit `off` value.
  */
-export function useSettings() {
+export const useSettings = () => {
   const refreshInterval = ref<RefreshInterval | null>(null)
   const readState = ref<SettingsReadState>('loading')
   const writeState = ref<SettingsWriteState>('idle')
@@ -27,7 +27,7 @@ export function useSettings() {
   // A retry changes the read state but never replaces a confirmed value until
   // the server answers. That lets the view show stale-but-honest data while it
   // is checking again, and leaves the first-read value as genuinely unknown.
-  async function initialize(): Promise<boolean> {
+  const initialize = async (): Promise<boolean> => {
     const request = ++readRequest
     readState.value = 'loading'
     try {
@@ -43,11 +43,11 @@ export function useSettings() {
     }
   }
 
-  async function retry(): Promise<boolean> {
-    return initialize()
-  }
+  const retry = async (): Promise<boolean> => initialize()
 
-  async function setRefreshInterval(value: RefreshInterval): Promise<boolean> {
+  const setRefreshInterval = async (
+    value: RefreshInterval,
+  ): Promise<boolean> => {
     if (!canChange.value) return false
     const request = ++writeRequest
     writeState.value = 'saving'

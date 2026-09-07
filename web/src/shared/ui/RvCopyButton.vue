@@ -32,7 +32,7 @@ const outcome = ref<'idle' | 'copied' | 'failed'>('idle')
  * "copied". A confirmation has to be a fact that happened, which means the
  * refusal has to be the one the browser gave.
  */
-async function copy(): Promise<void> {
+const copy = async (): Promise<void> => {
   // A browser with no clipboard to write to says so, instead of showing a
   // confirmation for something that did not happen.
   const target: Clipboard | undefined =

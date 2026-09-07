@@ -15,7 +15,7 @@ useHead({
   ),
 })
 
-function onCreated(profileID: string, targetID: string): void {
+const onCreated = (profileID: string, targetID: string): void => {
   void router.push(
     `/profiles/${profileID}${profilePageHash({ setup: targetID, tab: 'outputs' })}`,
   )

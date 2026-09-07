@@ -5,21 +5,19 @@ import { useLocale } from '@/shared/i18n/useLocale'
 
 import SettingsView from './SettingsView.vue'
 
-function json(payload: unknown, status = 200): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown, status = 200): Response =>
+  new Response(JSON.stringify(payload), {
     status,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
 const fetchMock = vi.fn()
 
-function mountSettings() {
-  return mount(SettingsView, {
+const mountSettings = () =>
+  mount(SettingsView, {
     attachTo: document.body,
     global: { stubs: { RvIcon: true } },
   })
-}
 
 describe('SettingsView prerequisite audit', () => {
   beforeEach(() => {

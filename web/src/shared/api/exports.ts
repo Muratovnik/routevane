@@ -18,15 +18,14 @@ export type ExportFormat = {
   contentType: string
 }
 
-export async function loadExportFormats(): Promise<ExportFormat[]> {
-  return getJSON('/v1/export-formats', parseExportFormats)
-}
+export const loadExportFormats = async (): Promise<ExportFormat[]> =>
+  getJSON('/v1/export-formats', parseExportFormats)
 
-export async function requestProfileExport(
+export const requestProfileExport = async (
   profileID: string,
   formatID: string,
-): Promise<{ blob: Blob; fileName: string }> {
-  return requestFile(
+): Promise<{ blob: Blob; fileName: string }> =>
+  requestFile(
     `/v1/profiles/${profileID}/export`,
     {
       method: 'POST',
@@ -45,12 +44,11 @@ export async function requestProfileExport(
       return { blob: await response.blob(), fileName: match[1] }
     },
   )
-}
 
-export async function downloadProfileExport(
+export const downloadProfileExport = async (
   profileID: string,
   formatID: string,
-): Promise<void> {
+): Promise<void> => {
   const file = await requestProfileExport(profileID, formatID)
   const url = URL.createObjectURL(file.blob)
   try {

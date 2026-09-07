@@ -4,12 +4,11 @@ import { useDevices } from '@/features/devices/model/useDevices'
 
 type FetchInput = string | URL | Request
 
-function json(payload: unknown): Response {
-  return new Response(JSON.stringify(payload), {
+const json = (payload: unknown): Response =>
+  new Response(JSON.stringify(payload), {
     status: 200,
     headers: { 'Content-Type': 'application/json' },
   })
-}
 
 const devicePayload = {
   devices: [

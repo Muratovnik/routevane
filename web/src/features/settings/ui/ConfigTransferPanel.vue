@@ -13,7 +13,7 @@ const emit = defineEmits<{ applied: [] }>()
 const { t, tc } = useLocale()
 const transfer = useConfigTransfer()
 const confirming = ref(false)
-const fileInputID = 'config-transfer-file'
+const FILE_INPUT_ID = 'config-transfer-file'
 
 const countRows = computed(() => {
   const counts = transfer.preview.value?.counts
@@ -51,16 +51,16 @@ const failureMessage = computed(() => {
   return t(`configTransfer.failure.${transfer.failure.value}`)
 })
 
-function onFileSelected(file: File): void {
+const onFileSelected = (file: File): void => {
   confirming.value = false
   void transfer.choose(file)
 }
 
-function requestConfirmation(): void {
+const requestConfirmation = (): void => {
   if (transfer.canApply.value) confirming.value = true
 }
 
-async function apply(): Promise<void> {
+const apply = async (): Promise<void> => {
   if (!(await transfer.apply())) return
   confirming.value = false
   emit('applied')
@@ -110,7 +110,7 @@ async function apply(): Promise<void> {
         :empty-label="t('configTransfer.file.empty')"
         :file-name="transfer.fileName.value"
         :hint="t('configTransfer.file.limit')"
-        :input-id="fileInputID"
+        :input-id="FILE_INPUT_ID"
         :label="t('configTransfer.file.label')"
         @select="onFileSelected"
       />

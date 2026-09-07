@@ -27,7 +27,7 @@ export type RequirementsState = 'unknown' | 'loading' | 'ready' | 'failed'
  * arrives with the list. A screen that offered unattended delivery where
  * nothing can hold a password would be promising something it cannot keep.
  */
-export function useDevices() {
+export const useDevices = () => {
   const devices = ref<DeviceCard[]>([])
   const catalog = ref<Catalog | null>(null)
   const secretStoreAvailable = ref(false)
@@ -47,7 +47,7 @@ export function useDevices() {
   // Requirements are a separate read from the device registry. `ready` means
   // this tab has a current authoritative answer; an empty deployable list is a
   // successful answer that a target has no deployer, not an unknown failure.
-  async function initialize(): Promise<void> {
+  const initialize = async (): Promise<void> => {
     const request = ++initializeRequest
     const requirements = ++requirementsRequest
     if (!deviceRead) state.value = 'loading'
@@ -83,7 +83,7 @@ export function useDevices() {
     deviceRead = true
   }
 
-  async function retryRequirements(): Promise<boolean> {
+  const retryRequirements = async (): Promise<boolean> => {
     // A dependency retry must not blank either the known device cards or the
     // draft fields owned by the view. Only this endpoint is called here.
     if (requirementsState.value === 'loading') return false
@@ -104,7 +104,7 @@ export function useDevices() {
     }
   }
 
-  async function run(action: () => Promise<unknown>): Promise<boolean> {
+  const run = async (action: () => Promise<unknown>): Promise<boolean> => {
     if (busy.value) return false
     work.value = 'working'
     try {
@@ -118,29 +118,27 @@ export function useDevices() {
     }
   }
 
-  function register(
+  const register = (
     targetID: string,
     name: string,
     address: string,
     account: string,
     interfaceName: string,
-  ): Promise<boolean> {
+  ): Promise<boolean> => {
     if (requirementsState.value !== 'ready') return Promise.resolve(false)
     return run(() =>
       registerDevice(targetID, name, address, account, interfaceName),
     )
   }
 
-  function forget(id: string): Promise<boolean> {
-    return run(() => forgetDevice(id))
-  }
+  const forget = (id: string): Promise<boolean> => run(() => forgetDevice(id))
 
   /**
    * Turning delivery on carries the password once, to the server, which hands
    * it to the operating system. It is never stored in this tab and never read
    * back: the surface can say that a credential is held, and nothing more.
    */
-  function enable(id: string, credential: string): Promise<boolean> {
+  const enable = (id: string, credential: string): Promise<boolean> => {
     const device = devices.value.find((candidate) => candidate.id === id)
     if (
       requirementsState.value !== 'ready' ||
@@ -154,9 +152,8 @@ export function useDevices() {
     return run(() => enableAutoDelivery(id, credential))
   }
 
-  function disable(id: string): Promise<boolean> {
-    return run(() => disableAutoDelivery(id))
-  }
+  const disable = (id: string): Promise<boolean> =>
+    run(() => disableAutoDelivery(id))
 
   return {
     busy,

@@ -61,7 +61,7 @@ export type WorkState =
  * the one-time subscription link and the build summary. Nothing is invented to
  * fill a gap: a fact the session does not hold is simply not stated.
  */
-export function useProfileView(profileID: () => string) {
+export const useProfileView = (profileID: () => string) => {
   const publishedProfile = usePublishedProfile()
   const preferences = useSurfacePreferences()
   const { locale } = useLocale()
@@ -151,32 +151,26 @@ export function useProfileView(profileID: () => string) {
         .filter((group) => group.targets.length > 0),
   )
 
-  function deployable(output: OutputCard): boolean {
-    return output.latest !== null && deployableIDs.value.has(output.targetID)
-  }
+  const deployable = (output: OutputCard): boolean =>
+    output.latest !== null && deployableIDs.value.has(output.targetID)
 
-  function targetOption(targetID: string): TargetOption | null {
-    return (
-      catalog.value?.targets.find((target) => target.id === targetID) ?? null
-    )
-  }
+  const targetOption = (targetID: string): TargetOption | null =>
+    catalog.value?.targets.find((target) => target.id === targetID) ?? null
 
   /**
    * What to call a format on this screen. The catalog answers in the reader's
    * language where it can; an output whose target has since left the catalog
    * keeps the title stored with it rather than showing an identifier.
    */
-  function targetTitle(targetID: string, fallback = ''): string {
-    return localizedTargetTitle(
+  const targetTitle = (targetID: string, fallback = ''): string =>
+    localizedTargetTitle(
       targetOption(targetID),
       locale.value,
       fallback === '' ? targetID : fallback,
     )
-  }
 
-  function outputTitle(output: OutputCard): string {
-    return targetTitle(output.targetID, output.targetTitle)
-  }
+  const outputTitle = (output: OutputCard): string =>
+    targetTitle(output.targetID, output.targetTitle)
 
   const ruleCount = computed(() => fresh.value?.ruleCount ?? 0)
   const partialCoverageCount = computed(() =>
@@ -223,7 +217,7 @@ export function useProfileView(profileID: () => string) {
       .sort((left, right) => left.id.localeCompare(right.id))
   })
 
-  async function initialize(): Promise<void> {
+  const initialize = async (): Promise<void> => {
     state.value = 'loading'
     devices.value = []
     const [detail, loadedCatalog, deployables, formats, registry] =
@@ -277,13 +271,13 @@ export function useProfileView(profileID: () => string) {
   // whatever is selected now.
   const detailRequestKey = ref(0)
 
-  function selectOutput(id: string): void {
+  const selectOutput = (id: string): void => {
     if (id === selectedOutputID.value) return
     selectedOutputID.value = id
     forgetLoadedDetail()
   }
 
-  function forgetLoadedDetail(): void {
+  const forgetLoadedDetail = (): void => {
     detailRequestKey.value += 1
     content.value = null
     contentState.value = 'idle'
@@ -294,11 +288,11 @@ export function useProfileView(profileID: () => string) {
   // The one loading automaton both content and diagnostics run: guard while
   // already loading or loaded, mark loading, fetch, and land on 'ready' or
   // 'failed' — but only if nothing has forgotten this detail meanwhile.
-  async function loadOnce<T>(
+  const loadOnce = async <T>(
     loadState: Ref<LoadState>,
     fetcher: () => Promise<T>,
     assign: (value: T) => void,
-  ): Promise<void> {
+  ): Promise<void> => {
     if (loadState.value === 'loading' || loadState.value === 'ready') return
     loadState.value = 'loading'
     const key = detailRequestKey.value
@@ -313,7 +307,7 @@ export function useProfileView(profileID: () => string) {
     }
   }
 
-  async function openContent(): Promise<void> {
+  const openContent = async (): Promise<void> => {
     if (latest.value === null) return
     const artifactID = latest.value.id
     await loadOnce(
@@ -325,7 +319,7 @@ export function useProfileView(profileID: () => string) {
     )
   }
 
-  async function openDiagnostics(): Promise<void> {
+  const openDiagnostics = async (): Promise<void> => {
     if (snapshotID.value === '') return
     const id = snapshotID.value
     await loadOnce(
@@ -342,7 +336,7 @@ export function useProfileView(profileID: () => string) {
    * never removes a published file — the previous artifact stays and the screen
    * says the shown file is the previous verified one.
    */
-  async function publish(ids: string[]): Promise<boolean> {
+  const publish = async (ids: string[]): Promise<boolean> => {
     if (ids.length === 0) return true
     try {
       await refreshProfile(profileID())
@@ -370,7 +364,7 @@ export function useProfileView(profileID: () => string) {
     return complete
   }
 
-  async function rebuild(): Promise<void> {
+  const rebuild = async (): Promise<void> => {
     if (busy.value || outputs.value.length === 0) return
     work.value = 'rebuilding'
     rebuildFailed.value = false
@@ -384,10 +378,10 @@ export function useProfileView(profileID: () => string) {
    * save stores a new name and composition and republishes every output, so a
    * saved profile and its files never quietly disagree.
    */
-  async function save(
+  const save = async (
     name: string,
     composition: ProfileComposition,
-  ): Promise<boolean> {
+  ): Promise<boolean> => {
     if (busy.value || profile.value === null) return false
     work.value = 'saving'
     rebuildFailed.value = false
@@ -409,7 +403,7 @@ export function useProfileView(profileID: () => string) {
    * operator chose when, not now, and refreshing on the click would be a second
    * unrequested trip to the network.
    */
-  async function setSchedule(interval: RefreshInterval): Promise<boolean> {
+  const setSchedule = async (interval: RefreshInterval): Promise<boolean> => {
     if (busy.value) return false
     try {
       schedule.value = await saveProfileRefreshInterval(profileID(), interval)
@@ -424,7 +418,7 @@ export function useProfileView(profileID: () => string) {
    * refreshes or rebuilds: archiving must not touch the file subscribers are
    * receiving, and restoring returns the profile exactly as it left.
    */
-  async function setArchived(next: boolean): Promise<boolean> {
+  const setArchived = async (next: boolean): Promise<boolean> => {
     if (busy.value || profile.value === null) return false
     work.value = 'archiving'
     try {
@@ -444,7 +438,7 @@ export function useProfileView(profileID: () => string) {
    * with no file is a promise the screen cannot keep. The subscription URL it
    * returns is shown once and never read back.
    */
-  async function bind(targetID: string): Promise<boolean> {
+  const bind = async (targetID: string): Promise<boolean> => {
     if (busy.value) return false
     work.value = 'adding'
     rebuildFailed.value = false
@@ -469,10 +463,10 @@ export function useProfileView(profileID: () => string) {
     }
   }
 
-  async function bindDevice(
+  const bindDevice = async (
     outputID: string,
     deviceID: string,
-  ): Promise<boolean> {
+  ): Promise<boolean> => {
     if (busy.value) return false
     work.value = 'binding'
     try {
@@ -486,7 +480,7 @@ export function useProfileView(profileID: () => string) {
     }
   }
 
-  async function download(formatID: string): Promise<boolean> {
+  const download = async (formatID: string): Promise<boolean> => {
     if (exporting.value !== '') return false
     exporting.value = formatID
     exportFailed.value = false
@@ -501,15 +495,12 @@ export function useProfileView(profileID: () => string) {
     }
   }
 
-  function reveal(): void {
+  const reveal = (): void => {
     if (subscriptionURL.value !== '') revealed.value = true
   }
 
-  function listTitle(id: string): string {
-    return (
-      catalog.value?.listDetails.find((detail) => detail.id === id)?.title ?? id
-    )
-  }
+  const listTitle = (id: string): string =>
+    catalog.value?.listDetails.find((detail) => detail.id === id)?.title ?? id
 
   /**
    * registerCatalog replaces the whole copy this screen holds rather than
@@ -518,7 +509,7 @@ export function useProfileView(profileID: () => string) {
    * that fact. Editing a profile writes nothing global (ADR 0029), so the change
    * always came from «Списки» in another tab.
    */
-  function registerCatalog(next: Catalog): void {
+  const registerCatalog = (next: Catalog): void => {
     catalog.value = next
   }
 

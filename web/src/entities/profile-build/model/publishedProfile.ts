@@ -23,17 +23,15 @@ export type FreshBuild = BuildResult & {
 
 const published = ref<Record<string, FreshBuild>>({})
 
-export function usePublishedProfile() {
-  return {
-    /** clear drops every secret as soon as they stop describing a build. */
-    clear(): void {
-      published.value = {}
-    },
-    forOutput(outputID: string): FreshBuild | null {
-      return published.value[outputID] ?? null
-    },
-    publish(build: FreshBuild): void {
-      published.value = { ...published.value, [build.output.id]: build }
-    },
-  }
-}
+export const usePublishedProfile = () => ({
+  /** clear drops every secret as soon as they stop describing a build. */
+  clear(): void {
+    published.value = {}
+  },
+  forOutput(outputID: string): FreshBuild | null {
+    return published.value[outputID] ?? null
+  },
+  publish(build: FreshBuild): void {
+    published.value = { ...published.value, [build.output.id]: build }
+  },
+})

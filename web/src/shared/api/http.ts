@@ -66,11 +66,9 @@ export const jsonObject = v.custom<Record<string, unknown>>(
     typeof value === 'object' && value !== null && !Array.isArray(value),
 )
 
-export function fields<const TEntries extends v.ObjectEntries>(
+export const fields = <const TEntries extends v.ObjectEntries>(
   entries: TEntries,
-) {
-  return v.pipe(jsonObject, v.object(entries))
-}
+) => v.pipe(jsonObject, v.object(entries))
 
 // Some endpoints answer with nothing but the fact that they answered.
 export const acknowledged = v.pipe(
@@ -83,14 +81,14 @@ export const acknowledged = v.pipe(
 // never shown to an operator and never leaves this module.
 export type Decoder<T> = (value: unknown) => T | null
 
-export function decode<TSchema extends v.GenericSchema>(
-  schema: TSchema,
-): Decoder<v.InferOutput<TSchema>> {
-  return (value) => {
+export const decode =
+  <TSchema extends v.GenericSchema>(
+    schema: TSchema,
+  ): Decoder<v.InferOutput<TSchema>> =>
+  (value) => {
     const result = v.safeParse(schema, value)
     return result.success ? result.output : null
   }
-}
 
 const readRecord = decode(jsonObject)
 const readCount = decode(count)
@@ -102,33 +100,30 @@ const readMessage = decode(
   ),
 )
 
-export async function getJSON<T>(
+export const getJSON = async <T>(
   path: string,
   decoder: Decoder<T>,
-): Promise<T> {
-  return requestJSON(path, { method: 'GET' }, decoder)
-}
+): Promise<T> => requestJSON(path, { method: 'GET' }, decoder)
 
-export async function postJSON<T>(
+export const postJSON = async <T>(
   path: string,
   body: unknown,
   decoder: Decoder<T>,
-): Promise<T> {
-  return requestJSON(
+): Promise<T> =>
+  requestJSON(
     path,
     { method: 'POST', headers: mutationHeaders, body: JSON.stringify(body) },
     decoder,
   )
-}
 
 // A mutation whose success is the status line and nothing else: a 204 carries
 // no body at all, and reading one as JSON would turn a completed removal into a
 // contract failure. The refusal path is the shared one, so a refused removal
 // still states the server's own words and hands its body to the caller.
-export async function postNoContent(
+export const postNoContent = async (
   path: string,
   body: unknown,
-): Promise<void> {
+): Promise<void> => {
   const response = await fetch(path, {
     method: 'POST',
     headers: mutationHeaders,
@@ -138,11 +133,11 @@ export async function postNoContent(
   throw refusal(await refusalPayload(response), response.status)
 }
 
-export async function requestJSON<T>(
+export const requestJSON = async <T>(
   path: string,
   init: RequestInit,
   decoder: Decoder<T>,
-): Promise<T> {
+): Promise<T> => {
   const response = await fetch(path, init)
   const payload = await readPayload(response)
   if (!response.ok) throw refusal(payload, response.status)
@@ -154,12 +149,12 @@ export async function requestJSON<T>(
 // that record is the most useful thing an operator can be shown, so the body is
 // read before the status and only a body that is not the answer becomes an
 // error.
-export async function requestDescribed<T>(
+export const requestDescribed = async <T>(
   path: string,
   init: RequestInit,
   decoder: Decoder<T>,
   refused: string,
-): Promise<T> {
+): Promise<T> => {
   const response = await fetch(path, init)
   const payload = await readPayload(response)
   const decoded = decoder(payload)
@@ -172,11 +167,11 @@ export async function requestDescribed<T>(
 // Not every reply is JSON: an export answers with bytes and a file name, so the
 // caller reads the response itself. The refusal path stays here, which is why a
 // failed download reports the server's own words like every other endpoint.
-export async function requestFile<T>(
+export const requestFile = async <T>(
   path: string,
   init: RequestInit,
   read: (response: Response) => Promise<T>,
-): Promise<T> {
+): Promise<T> => {
   const response = await fetch(path, init)
   if (!response.ok) {
     throw new RoutevaneAPIError(
@@ -187,14 +182,12 @@ export async function requestFile<T>(
   return read(response)
 }
 
-export function readError(value: unknown): string | null {
-  return readMessage(value)
-}
+export const readError = (value: unknown): string | null => readMessage(value)
 
 // A refused reply is read as far as it can be read. Not every refusal answers
 // in JSON — a proxy or a crash may answer in anything — and a bounded generic
 // message beats leaking a raw response, so an unreadable body becomes no body.
-async function refusalPayload(response: Response): Promise<unknown> {
+const refusalPayload = async (response: Response): Promise<unknown> => {
   try {
     return await response.json()
   } catch {
@@ -202,7 +195,7 @@ async function refusalPayload(response: Response): Promise<unknown> {
   }
 }
 
-async function readPayload(response: Response): Promise<unknown> {
+const readPayload = async (response: Response): Promise<unknown> => {
   try {
     return await response.json()
   } catch {
@@ -213,7 +206,7 @@ async function readPayload(response: Response): Promise<unknown> {
   }
 }
 
-function contracted<T>(decoded: T | null, status: number): T {
+const contracted = <T>(decoded: T | null, status: number): T => {
   if (decoded === null) {
     throw new RoutevaneAPIError('Сервер вернул ответ вне контракта.', status)
   }
@@ -223,7 +216,7 @@ function contracted<T>(decoded: T | null, status: number): T {
 // A refusal describes itself as far as it can: its own code, and the two counts
 // a rule-limit refusal carries. Each is read on its own, so a body that states
 // one of them badly still delivers the rest.
-function refusal(payload: unknown, status: number): RoutevaneAPIError {
+const refusal = (payload: unknown, status: number): RoutevaneAPIError => {
   const record = readRecord(payload)
   const details: Record<string, number> = {}
   for (const key of ['projected_rules', 'maximum_rules']) {

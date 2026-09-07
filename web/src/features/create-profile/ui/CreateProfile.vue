@@ -28,7 +28,7 @@ const stageMessage = computed(() => {
 
 // What the draft would weigh in this format. A format that states no bound
 // says only the size; one that states a bound says the size against it.
-function forecastLabel(targetID: string): string {
+const forecastLabel = (targetID: string): string => {
   const forecast = setup.forecastFor(targetID)
   if (forecast === null) return ''
   if (forecast.incompleteLists?.length) return t('forecast.partial.target')
@@ -40,7 +40,7 @@ function forecastLabel(targetID: string): string {
       })
 }
 
-function overflowing(targetID: string): boolean {
+const overflowing = (targetID: string): boolean => {
   const forecast = setup.forecastFor(targetID)
   return !forecast?.incompleteLists?.length && forecast?.fits === false
 }
@@ -48,7 +48,7 @@ function overflowing(targetID: string): boolean {
 // One line under a format's name: how it is delivered, and what this draft
 // would weigh in it. A format states both before it is chosen, so the choice is
 // made on the numbers rather than after them.
-function targetNote(targetID: string): string {
+const targetNote = (targetID: string): string => {
   const method = setup.deployable(targetID)
     ? t('create.target.automatic')
     : t('create.target.manual')
@@ -100,7 +100,7 @@ onMounted(() => {
   void setup.initialize()
 })
 
-async function submit(): Promise<void> {
+const submit = async (): Promise<void> => {
   const created = await setup.create()
   if (created !== null) emit('created', created.profileID, created.targetID)
 }

@@ -289,39 +289,34 @@ onMounted(async () => {
   heading.value?.focus()
 })
 
-function formatTime(value: string): string {
+const formatTime = (value: string): string => {
   const parsed = new Date(value)
   return Number.isNaN(parsed.valueOf()) ? '—' : dateTime.value.format(parsed)
 }
 
-function reasonLabel(code: string): string {
-  return tor(
+const reasonLabel = (code: string): string =>
+  tor(
     `profile.diagnostics.reason.${code}`,
     t('profile.diagnostics.reason.unknown'),
   )
-}
 
-async function onSave(
+const onSave = async (
   name: string,
   composition: ProfileComposition,
-): Promise<void> {
+): Promise<void> => {
   if (await view.save(name, composition)) emit('changed')
 }
 
-async function onBind(targetID: string): Promise<void> {
+const onBind = async (targetID: string): Promise<void> => {
   if (await view.bind(targetID)) emit('changed')
 }
 
-async function onArchive(next: boolean): Promise<void> {
+const onArchive = async (next: boolean): Promise<void> => {
   if (await view.setArchived(next)) emit('changed')
 }
 
-function exportLabel(format: ExportFormat): string {
-  return tor(
-    `export.format.${format.rendererID}`,
-    format.fileExtension.toUpperCase(),
-  )
-}
+const exportLabel = (format: ExportFormat): string =>
+  tor(`export.format.${format.rendererID}`, format.fileExtension.toUpperCase())
 
 const profileMenuItems = computed<MenuItem[]>(() => {
   const items: MenuItem[] = []
@@ -371,7 +366,7 @@ const profileMenuItems = computed<MenuItem[]>(() => {
   return items
 })
 
-async function onProfileMenu(key: string): Promise<void> {
+const onProfileMenu = async (key: string): Promise<void> => {
   if (key.startsWith('export:')) {
     await view.download(key.slice('export:'.length))
     return

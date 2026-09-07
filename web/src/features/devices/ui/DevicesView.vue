@@ -16,13 +16,12 @@ const devices = useDevices()
 
 // A registered device carries the title it was registered under; the catalog
 // is what can say that title in the reader's language today.
-function targetTitle(targetID: string, fallback: string): string {
-  return localizedTargetTitle(
+const targetTitle = (targetID: string, fallback: string): string =>
+  localizedTargetTitle(
     devices.targets.value.find((target) => target.id === targetID),
     locale.value,
     fallback,
   )
-}
 
 const targetID = ref('')
 const targetChoices = computed<ChoiceOption[]>(() =>
@@ -83,22 +82,14 @@ const interfaceHint = computed(() => {
   return value === key ? '' : value
 })
 
-function needsCredential(device: { targetID: string }): boolean {
-  return (
-    devices.deployableTargets.value.find(
-      (target) => target.targetID === device.targetID,
-    )?.requirements.needsCredential === true
-  )
-}
+const needsCredential = (device: { targetID: string }): boolean =>
+  devices.deployableTargets.value.find(
+    (target) => target.targetID === device.targetID,
+  )?.requirements.needsCredential === true
 
-function hasKnownRequirements(targetID: string): boolean {
-  return (
-    devices.requirementsState.value === 'ready' &&
-    devices.deployableTargets.value.some(
-      (target) => target.targetID === targetID,
-    )
-  )
-}
+const hasKnownRequirements = (targetID: string): boolean =>
+  devices.requirementsState.value === 'ready' &&
+  devices.deployableTargets.value.some((target) => target.targetID === targetID)
 
 watch(targetID, () => {
   address.value = ''
@@ -138,7 +129,7 @@ onMounted(() => {
   void devices.initialize()
 })
 
-async function submit(): Promise<void> {
+const submit = async (): Promise<void> => {
   if (!canRegister.value) {
     nameTouched.value = true
     addressTouched.value = true
@@ -169,7 +160,7 @@ async function submit(): Promise<void> {
   }
 }
 
-async function onEnable(id: string): Promise<void> {
+const onEnable = async (id: string): Promise<void> => {
   const device = devices.devices.value.find((candidate) => candidate.id === id)
   if (device === undefined) return
   const credential = credentials.value[id] ?? ''

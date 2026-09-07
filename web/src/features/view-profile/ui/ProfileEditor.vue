@@ -40,15 +40,14 @@ const emit = defineEmits<{
 const { formatNumber, t } = useLocale()
 const forecast = useCompositionForecast()
 
-function storedComposition(): ProfileComposition {
-  return cloneComposition({
+const storedComposition = (): ProfileComposition =>
+  cloneComposition({
     lists: props.selected,
     categories: props.selectedCategories,
     exclusions: props.exclusions,
     listDomains: props.listDomains,
     priority: props.priority ?? [],
   })
-}
 
 const draftName = ref(props.name)
 const draftComposition = ref<ProfileComposition>(storedComposition())
@@ -129,7 +128,7 @@ const canSave = computed(
     !props.busy && draftName.value.trim() !== '' && resolved.value.length > 0,
 )
 
-function setPriority(ids: string[]): void {
+const setPriority = (ids: string[]): void => {
   if (props.busy) return
   draftComposition.value = normalizeComposition(
     { ...cloneComposition(draftComposition.value), priority: ids },
@@ -137,19 +136,19 @@ function setPriority(ids: string[]): void {
   )
 }
 
-function retryForecast(): void {
+const retryForecast = (): void => {
   if (forecastTargets.value.length === 0) return
   forecast.retry(draftComposition.value, resolved.value, forecastTargets.value)
 }
 
-function submit(): void {
+const submit = (): void => {
   if (!canSave.value) return
   emit('save', draftName.value.trim(), draftComposition.value)
 }
 
 // Cancel restores the stored profile: the draft returns to what the server
 // holds, and nothing leaves the page.
-function reset(): void {
+const reset = (): void => {
   draftName.value = props.name
   draftComposition.value = storedComposition()
 }
