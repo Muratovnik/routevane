@@ -271,4 +271,139 @@ const submit = async (): Promise<void> => {
   </section>
 </template>
 
-<style scoped src="./CreateProfile.css"></style>
+<style scoped>
+.create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--rv-space-5) var(--rv-space-6);
+  align-items: start;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+}
+
+.create__title {
+  font-size: var(--rv-text-page);
+  line-height: var(--rv-leading-tight);
+  letter-spacing: var(--rv-tracking-title);
+}
+
+.create__header,
+.create__lists {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  grid-column: 1;
+}
+
+.create__header {
+  display: grid;
+  gap: var(--rv-space-3);
+}
+
+.create__lists {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.create__legend {
+  position: absolute;
+  width: var(--rv-border-hair);
+  height: var(--rv-border-hair);
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.create__lists-body {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.create__target {
+  display: grid;
+  gap: var(--rv-space-2);
+  min-width: 0;
+  max-width: var(--rv-measure-field);
+}
+
+.create__target-label {
+  font-weight: 600;
+  font-size: var(--rv-text-dense);
+}
+
+/* The projected size sits under the field in the same register as the rest of
+   the small print: it is a fact about the chosen format, not an alert. The
+   refusal beside the create button is what carries the warning colour. */
+.create__forecast {
+  color: var(--rv-color-ink-tertiary);
+  font-size: var(--rv-text-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.create__name {
+  display: grid;
+  gap: var(--rv-space-2);
+  min-width: 0;
+  max-width: var(--rv-measure-field);
+}
+
+.create__name-label {
+  font-weight: 600;
+  font-size: var(--rv-text-dense);
+}
+
+.create__name-input {
+  min-height: var(--rv-control-touch);
+  padding: 0 var(--rv-space-4);
+  color: var(--rv-color-ink);
+  font: inherit;
+  background: var(--rv-color-field);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-md);
+}
+
+.create__name-input:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: var(--rv-focus-offset);
+}
+
+.create__submit {
+  display: grid;
+  gap: var(--rv-space-3);
+  justify-items: stretch;
+}
+
+/* The refusal explains the disabled control beneath it, so it takes the
+   reading width rather than the button's. */
+.create__blocked {
+  justify-self: stretch;
+  max-width: var(--rv-measure-prose);
+}
+
+@container (width <= 54rem) {
+  .create {
+    --rv-picker-fill-height: auto;
+    --rv-picker-fill-min: var(--rv-picker-mobile-height);
+    --rv-picker-fill-max: var(--rv-picker-mobile-height);
+
+    height: auto;
+    grid-template-rows: auto;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .create__lists,
+  .create__lists-body {
+    height: auto;
+  }
+}
+
+@media (width <= 64rem), (height <= 36rem) {
+  .create {
+    height: auto;
+  }
+}
+</style>

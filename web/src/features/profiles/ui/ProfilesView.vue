@@ -323,4 +323,265 @@ const onMenu = (card: ProfileCard, key: string): void => {
   </section>
 </template>
 
-<style scoped src="./ProfilesView.css"></style>
+<style scoped>
+.profiles {
+  container: routes / inline-size;
+  display: grid;
+  gap: var(--rv-space-4);
+  width: 100%;
+}
+
+.profiles__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-4);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.profiles__title {
+  margin-inline-end: auto;
+  font-size: var(--rv-text-page);
+  line-height: var(--rv-leading-tight);
+  letter-spacing: var(--rv-tracking-title);
+}
+
+/* The copy result is announced and shown without moving the table below it. */
+.profiles__copy-message {
+  min-height: 1.25rem;
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}
+
+.profiles__empty {
+  display: grid;
+  gap: var(--rv-space-2);
+  justify-items: start;
+  padding: var(--rv-space-6) 0;
+}
+
+.profiles__empty-title {
+  font-weight: 600;
+  font-size: var(--rv-text-module);
+}
+
+.profiles__empty-body {
+  color: var(--rv-color-ink-muted);
+}
+
+.profiles__empty .rv-button {
+  margin-top: var(--rv-space-2);
+}
+
+/* The table scrolls inside its own box on narrow screens; the page never
+   scrolls sideways. The box is also the containing block, so the hidden
+   column header cannot escape it and widen the document. */
+.profiles__scroll {
+  position: relative;
+  overflow-x: auto;
+}
+
+.profiles__table {
+  width: 100%;
+  min-width: 38rem;
+  border-collapse: collapse;
+}
+
+.profiles__table th {
+  padding: var(--rv-space-3) var(--rv-space-4);
+  color: var(--rv-color-ink-muted);
+  font-weight: 600;
+  font-size: var(--rv-text-dense);
+  text-align: start;
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule-strong);
+}
+
+.profiles__table td {
+  min-height: var(--rv-row-default);
+  padding: var(--rv-space-4);
+  font-size: var(--rv-text-interface);
+  vertical-align: middle;
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.profiles__cell-name {
+  min-width: 13rem;
+  font-weight: 600;
+}
+
+.profiles__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  color: var(--rv-color-ink);
+  text-decoration: none;
+}
+
+.profiles__link:hover {
+  color: var(--rv-color-accent-ink);
+  text-decoration: underline;
+}
+
+.profiles__lists {
+  display: block;
+  margin-top: var(--rv-space-1);
+  color: var(--rv-color-ink-muted);
+  font-weight: 400;
+  font-size: var(--rv-text-meta);
+}
+
+.profiles__cell-outputs {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}
+
+.profiles__cell-outputs--none {
+  color: var(--rv-color-ink-tertiary);
+}
+
+.profiles__cell-updated {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+  white-space: nowrap;
+}
+
+.profiles__cell-updated--none {
+  color: var(--rv-color-ink-tertiary);
+}
+
+.profiles__cell-actions {
+  white-space: nowrap;
+}
+
+/* The cell stays a table cell; the flex row lives inside it, or the actions
+   column would fall out of the table's row grid. */
+.profiles__actions {
+  display: flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.profiles__visually-hidden {
+  position: absolute;
+  width: 0.0625rem;
+  height: 0.0625rem;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+/* The archive is one disclosure below the shelf. It is a list rather than a
+   second table: the questions asked of an archived row are when it left and
+   how to get it back, not how it compares with the rows above. */
+.profiles__archive {
+  margin-top: var(--rv-space-4);
+}
+
+.profiles__archive-body {
+  margin: 0 0 var(--rv-space-3);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}
+
+.profiles__archive-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rv-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profiles__archive-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-2);
+  align-items: baseline;
+}
+
+.profiles__archive-since {
+  flex: 1 1 auto;
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}
+
+@container routes (width <= 40rem) {
+  .profiles__scroll {
+    overflow-x: visible;
+  }
+
+  .profiles__table {
+    display: block;
+    min-width: 0;
+  }
+
+  .profiles__table thead {
+    position: absolute;
+    width: 0.0625rem;
+    height: 0.0625rem;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .profiles__table tbody {
+    display: grid;
+    gap: var(--rv-space-3);
+  }
+
+  .profiles__table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--rv-space-2) var(--rv-space-4);
+    padding: var(--rv-space-4);
+    background: var(--rv-color-surface);
+    border: var(--rv-border-hair) solid var(--rv-color-rule);
+    border-radius: var(--rv-radius-md);
+  }
+
+  .profiles__table td {
+    min-height: 0;
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .profiles__cell-name {
+    grid-column: 1 / -1;
+    min-width: 0;
+  }
+
+  .profiles__cell-outputs,
+  .profiles__cell-updated {
+    display: grid;
+    grid-template-columns: minmax(6rem, 0.4fr) minmax(0, 1fr);
+    gap: var(--rv-space-3);
+    white-space: normal;
+  }
+
+  .profiles__cell-outputs::before,
+  .profiles__cell-updated::before {
+    color: var(--rv-color-ink-tertiary);
+    font-size: var(--rv-text-meta);
+    content: attr(data-label);
+  }
+
+  .profiles__cell-actions {
+    grid-row: 2 / span 2;
+    grid-column: 2;
+    align-self: center;
+  }
+
+  .profiles__cell-actions::before {
+    content: none;
+  }
+}
+
+.profiles__row {
+  cursor: pointer;
+}
+
+.profiles__row:hover,
+.profiles__row:focus-within {
+  background: var(--rv-color-surface-hover);
+}
+</style>

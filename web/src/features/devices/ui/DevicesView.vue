@@ -496,4 +496,104 @@ const onEnable = async (id: string): Promise<void> => {
   </section>
 </template>
 
-<style scoped src="./DevicesView.css"></style>
+<style scoped>
+.devices {
+  display: grid;
+  gap: var(--rv-space-8);
+  width: 100%;
+  min-width: 0;
+}
+
+.devices__title {
+  font-size: var(--rv-text-page);
+  line-height: var(--rv-leading-tight);
+  letter-spacing: var(--rv-tracking-title);
+}
+
+.devices__section-title {
+  font-size: var(--rv-text-section);
+}
+
+.devices__list {
+  display: grid;
+  gap: var(--rv-space-4);
+  min-width: 0;
+  list-style: none;
+}
+
+.devices__card {
+  display: grid;
+  gap: var(--rv-space-3);
+  justify-items: start;
+  min-width: 0;
+  padding: var(--rv-space-5);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-md);
+}
+
+.devices__name {
+  font-size: var(--rv-text-section);
+}
+
+.devices__meta {
+  min-width: 0;
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-meta);
+  overflow-wrap: anywhere;
+}
+
+.devices__mono {
+  font-family: var(--rv-font-mono);
+}
+
+/* The row wraps rather than scrolling: a control pushed off a narrow screen is
+   a control nobody finds. */
+.devices__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-2);
+  align-items: center;
+  min-width: 0;
+}
+
+.devices__form {
+  display: grid;
+  gap: var(--rv-space-3);
+  justify-items: start;
+  min-width: 0;
+  padding-top: var(--rv-space-6);
+  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.devices__field-label {
+  color: var(--rv-color-ink);
+  font-weight: 600;
+  font-size: var(--rv-text-dense);
+}
+
+/* An input is as wide as its content wants unless it is told otherwise, and in
+   a grid that intrinsic width becomes the container's minimum. */
+.devices__field {
+  width: 100%;
+  max-width: 28rem;
+  min-width: 0;
+}
+
+.devices__input {
+  width: 100%;
+  max-width: 28rem;
+  min-width: 0;
+  min-height: var(--rv-control-touch);
+  padding: 0 var(--rv-space-4);
+  color: var(--rv-color-ink);
+  font: inherit;
+  background: var(--rv-color-surface);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-sm);
+}
+
+.devices__input:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: var(--rv-focus-offset);
+}
+</style>

@@ -350,4 +350,109 @@ onMounted(() => {
   </section>
 </template>
 
-<style scoped src="./SendPanel.css"></style>
+<style scoped>
+.send {
+  display: grid;
+  gap: var(--rv-space-8);
+  width: 100%;
+}
+
+.send__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-3) var(--rv-space-5);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.send__identity {
+  display: grid;
+  gap: var(--rv-space-1);
+}
+
+.send__title {
+  font-size: var(--rv-text-page);
+  line-height: var(--rv-leading-tight);
+  letter-spacing: var(--rv-tracking-title);
+}
+
+.send__for {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+  overflow-wrap: anywhere;
+}
+
+.send__section-title {
+  font-size: var(--rv-text-section);
+}
+
+.send__form {
+  display: grid;
+  gap: var(--rv-space-5);
+  max-width: 32rem;
+}
+
+.send__submit {
+  display: flex;
+  gap: var(--rv-space-3);
+  align-items: center;
+}
+
+.send__plan {
+  display: grid;
+  gap: var(--rv-space-4);
+  justify-items: start;
+  max-width: 32rem;
+  padding: var(--rv-space-5);
+  background: var(--rv-color-surface);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-md);
+}
+
+.send__note {
+  max-width: var(--rv-measure-prose);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}
+
+.send__audit {
+  display: grid;
+  gap: var(--rv-space-3);
+  max-width: 32rem;
+}
+
+.send__steps {
+  display: grid;
+  gap: var(--rv-space-1);
+}
+
+.send__step {
+  display: flex;
+  gap: var(--rv-space-3);
+  justify-content: space-between;
+  padding: var(--rv-space-2) 0;
+  font-size: var(--rv-text-dense);
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.send__step-outcome--failed {
+  color: var(--rv-color-status-failed);
+}
+
+.send__manual {
+  display: grid;
+  gap: var(--rv-space-3);
+  padding-top: var(--rv-space-4);
+  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.send__manual-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-3);
+}
+
+.send__footer {
+  display: flex;
+}
+</style>

@@ -18,6 +18,10 @@ import vuejsAccessibility from 'eslint-plugin-vuejs-accessibility'
 // A config whose `name` starts with this prefix is exempt from that promotion.
 const ADVISORY_NAME_PREFIX = 'routevane/advisory-'
 
+// The browser suites under `tests/`. Unit specs live in `tests/unit`, so the
+// Playwright rules name their own folders instead of everything under `tests/`.
+const BROWSER_SUITES = 'e2e,desktop,dev,update'
+
 const playwrightRecommended = playwright.configs['flat/recommended']
 
 // eslint-plugin-boundaries resolves an import before it classifies it, and the
@@ -254,7 +258,7 @@ export default withNuxt(
   },
   {
     name: 'routevane/vitest-unit-tests',
-    files: ['src/**/*.spec.ts', 'dev-proxy.spec.ts'],
+    files: ['tests/unit/**/*.spec.ts'],
     plugins: { vitest },
     rules: {
       ...vitest.configs.recommended.rules,
@@ -264,7 +268,7 @@ export default withNuxt(
   },
   {
     name: 'routevane/playwright-tests',
-    files: ['tests/**/*.ts'],
+    files: [`tests/{${BROWSER_SUITES}}/**/*.ts`],
     plugins: playwrightRecommended.plugins,
     languageOptions: playwrightRecommended.languageOptions,
     rules: {
@@ -349,7 +353,7 @@ export default withNuxt(
     // A raw id or class locator couples a test to markup. Advisory until the
     // existing suites are rewritten onto roles and accessible names.
     name: 'routevane/advisory-playwright-locators',
-    files: ['tests/**/*.ts'],
+    files: [`tests/{${BROWSER_SUITES}}/**/*.ts`],
     rules: {
       'playwright/no-raw-locators': 'warn',
     },

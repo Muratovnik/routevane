@@ -757,4 +757,291 @@ const onProfileMenu = async (key: string): Promise<void> => {
   </section>
 </template>
 
-<style scoped src="./ProfileView.css"></style>
+<style scoped>
+.profile {
+  container: route / inline-size;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: var(--rv-space-3);
+  width: 100%;
+  min-width: 0;
+}
+
+.profile > * {
+  flex-shrink: 0;
+}
+
+.profile__panel--composition {
+  flex: 1;
+  min-height: var(--rv-picker-mobile-height);
+}
+
+/* The first read keeps the page's final silhouette in place. No transient
+   status sentence is painted above the title and then removed a frame later. */
+.profile__loading {
+  display: grid;
+  gap: var(--rv-space-3);
+  width: 100%;
+}
+
+.profile__loading-line,
+.profile__loading-tabs > span,
+.profile__loading-panel {
+  background: var(--rv-color-surface);
+  border-radius: var(--rv-radius-sm);
+  animation: rv-list-loading var(--rv-motion-working) var(--rv-motion-ease-out)
+    infinite alternate;
+}
+
+.profile__loading-line--breadcrumb {
+  width: min(var(--rv-measure-field), 45%);
+  height: var(--rv-space-3);
+}
+
+.profile__loading-line--title {
+  width: min(var(--rv-measure-field), 65%);
+  height: var(--rv-space-8);
+}
+
+.profile__loading-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--rv-space-3);
+  padding-bottom: var(--rv-space-3);
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.profile__loading-tabs > span {
+  height: var(--rv-control-compact);
+}
+
+.profile__loading-panel {
+  min-height: var(--rv-editor-min-height);
+}
+
+.profile__visually-hidden {
+  position: absolute;
+  width: var(--rv-border-hair);
+  height: var(--rv-border-hair);
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+@keyframes rv-list-loading {
+  from {
+    background: var(--rv-color-surface);
+  }
+
+  to {
+    background: var(--rv-color-surface-muted);
+  }
+}
+
+.profile__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--rv-space-1) var(--rv-space-4);
+  align-items: center;
+}
+
+.profile__header-tools {
+  margin-inline-start: auto;
+  display: flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+}
+
+.profile__breadcrumb {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.profile__breadcrumb-link {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-meta);
+  text-decoration: none;
+}
+
+.profile__breadcrumb-link:hover {
+  color: var(--rv-color-ink);
+  text-decoration: underline;
+}
+
+.profile__breadcrumb-link:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: var(--rv-focus-offset);
+}
+
+.profile__title {
+  font-size: var(--rv-text-page);
+  line-height: var(--rv-leading-tight);
+  letter-spacing: var(--rv-tracking-title);
+  overflow-wrap: anywhere;
+}
+
+.profile__section-title {
+  display: flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+  font-size: var(--rv-text-section);
+}
+
+.profile__section {
+  display: grid;
+  gap: var(--rv-space-4);
+  padding-top: var(--rv-space-4);
+  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.profile__section--drawer {
+  padding-top: var(--rv-space-4);
+}
+
+.profile__secret {
+  display: grid;
+  gap: var(--rv-space-4);
+  padding: var(--rv-space-5);
+  background: var(--rv-color-surface);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-md);
+}
+
+/* The link is long and monospaced. It wraps inside its own box rather than
+   widening the page, and its box does not change height when revealed. */
+.profile__secret-value {
+  padding: var(--rv-space-2) var(--rv-space-3);
+  font-size: var(--rv-text-dense);
+  font-family: var(--rv-font-mono);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  background: var(--rv-color-canvas);
+  border-radius: var(--rv-radius-sm);
+}
+
+.profile__secret-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-2);
+  align-items: center;
+}
+
+.profile__secret-gone {
+  color: var(--rv-color-ink-tertiary);
+  font-size: var(--rv-text-dense);
+}
+
+.profile__panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--rv-space-6);
+}
+
+.profile__technical {
+  display: grid;
+  gap: var(--rv-space-3);
+}
+
+.profile__prose {
+  max-width: var(--rv-measure-prose);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-interface);
+}
+
+.profile__counts {
+  display: grid;
+  gap: var(--rv-space-1);
+}
+
+.profile__count {
+  display: flex;
+  gap: var(--rv-space-3);
+  justify-content: space-between;
+  padding: var(--rv-space-2) 0;
+  font-size: var(--rv-text-dense);
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+/* A profile can carry hundreds of rules. The ledger scrolls inside its own box so
+   opening diagnostics does not turn the page into a mile of rows. */
+.profile__rules {
+  display: grid;
+  gap: var(--rv-space-2);
+  max-height: 24rem;
+  padding-right: var(--rv-space-1);
+  overflow-y: auto;
+}
+
+.profile__rule {
+  display: grid;
+  grid-template-columns: minmax(6rem, auto) minmax(6rem, auto) minmax(0, 1fr);
+  gap: var(--rv-space-1) var(--rv-space-3);
+  padding: var(--rv-space-2) var(--rv-space-3);
+  font-size: var(--rv-text-dense);
+  background: var(--rv-color-surface);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-sm);
+}
+
+.profile__rule-state {
+  font-weight: 600;
+}
+
+.profile__rule-list {
+  color: var(--rv-color-ink-muted);
+}
+
+.profile__rule-value {
+  font-family: var(--rv-font-mono);
+  overflow-wrap: anywhere;
+}
+
+.profile__rule-reason {
+  grid-column: 1 / -1;
+  color: var(--rv-color-ink-tertiary);
+  font-family: var(--rv-font-mono);
+  overflow-wrap: anywhere;
+}
+
+@container route (width <= 44rem) {
+  .profile__rule {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A panel that describes one output says which one, but only when the profile
+   feeds more than one. */
+.profile__panel-scope {
+  margin-bottom: var(--rv-space-3);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}
+
+/* The schedule is four labelled choices, named by the section heading above
+   them. The control is as wide as its longest option unless it is told
+   otherwise,
+   and in a grid that intrinsic width becomes the container's minimum. */
+.profile__schedule-field {
+  width: 100%;
+  max-width: var(--rv-measure-field);
+  min-width: 0;
+}
+
+.profile__schedule-note {
+  margin-top: var(--rv-space-2);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}
+
+@container (width <= 40rem) {
+  .profile__header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile__header-tools {
+    margin-inline-start: 0;
+  }
+}
+</style>

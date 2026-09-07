@@ -1074,4 +1074,310 @@ const submitPriority = async (): Promise<void> => {
   </section>
 </template>
 
-<style scoped src="./ListsView.css"></style>
+<style scoped>
+.lists {
+  container-type: inline-size;
+  view-transition-name: library-content;
+  display: flex;
+  flex-direction: column;
+  gap: var(--rv-space-4);
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.lists__title {
+  font-size: var(--rv-text-page);
+  line-height: var(--rv-leading-tight);
+  letter-spacing: var(--rv-tracking-title);
+}
+
+.lists__header,
+.lists__actions,
+.lists__order-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--rv-space-3);
+}
+
+.lists__header {
+  justify-content: space-between;
+}
+
+.lists__details-title {
+  font-size: var(--rv-text-dense);
+}
+
+.lists__order-bar {
+  font-size: var(--rv-text-meta);
+  color: var(--rv-color-ink-muted);
+}
+
+.lists__priority-help {
+  flex: 1 1 var(--rv-panel-width);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.lists__workspace {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--rv-color-canvas);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-md);
+}
+
+.lists__table {
+  width: 100%;
+  min-width: var(--rv-measure-field);
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: var(--rv-text-dense);
+}
+
+.lists__table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--rv-color-surface);
+}
+
+.lists__table th,
+.lists__table td {
+  height: var(--rv-control-default);
+  padding: 0 var(--rv-space-3);
+  text-align: start;
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+  font-weight: 400;
+}
+
+.lists__table thead th {
+  color: var(--rv-color-ink-muted);
+  font-weight: 600;
+}
+
+.lists__table .lists__priority-column {
+  width: var(--rv-table-action-width);
+}
+
+.lists__table .lists__action-column {
+  width: auto;
+  min-width: calc(var(--rv-table-action-width) * 2);
+  padding-inline: var(--rv-space-1);
+  text-align: end;
+  white-space: nowrap;
+}
+
+.lists__table th:nth-child(2) {
+  width: var(--rv-catalog-name-column);
+}
+
+.lists__category-column {
+  width: var(--rv-catalog-category-column);
+}
+
+.lists__list-row {
+  cursor: pointer;
+}
+
+.lists__list-row:hover {
+  background: var(--rv-color-surface-hover);
+}
+
+.lists__open-indicator {
+  flex: none;
+  transform: rotate(-90deg);
+  color: var(--rv-color-ink-muted);
+}
+
+.lists__handle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--rv-space-2);
+  width: 100%;
+  min-height: var(--rv-control-compact);
+  padding: 0;
+  color: var(--rv-color-ink-muted);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: 0;
+  cursor: grab;
+  touch-action: none;
+}
+
+.lists__handle:disabled {
+  cursor: not-allowed;
+  opacity: var(--rv-disabled-opacity);
+}
+
+.lists__list-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--rv-space-2);
+  width: 100%;
+  min-height: var(--rv-control-default);
+  padding: var(--rv-space-2) 0;
+  font: inherit;
+  color: var(--rv-color-ink);
+  text-align: start;
+  overflow-wrap: anywhere;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.lists__list-name > span {
+  min-width: 0;
+}
+
+.lists__list-row.sortable-ghost {
+  opacity: var(--rv-disabled-opacity);
+}
+
+.lists__collections {
+  display: grid;
+  min-height: 0;
+}
+
+.lists__pane-header {
+  padding: var(--rv-space-3) var(--rv-space-5);
+}
+
+.lists__pane-header h2 {
+  font-size: var(--rv-text-interface);
+}
+
+.lists__groups {
+  max-height: var(--rv-overlay-height);
+  overflow-y: auto;
+}
+
+.lists__group {
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.lists__group--active {
+  background: var(--rv-color-surface-muted);
+}
+
+.lists__category-row {
+  display: flex;
+  align-items: center;
+  padding-inline-end: var(--rv-space-2);
+}
+
+.lists__category {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--rv-space-3);
+  justify-content: space-between;
+  min-width: 0;
+  min-height: var(--rv-row-dense);
+  padding: var(--rv-space-2) var(--rv-space-5);
+  font: inherit;
+  color: var(--rv-color-ink);
+  text-align: start;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.lists__category-copy {
+  display: grid;
+  gap: var(--rv-space-1);
+}
+
+.lists__category-copy small {
+  color: var(--rv-color-ink-muted);
+}
+
+.lists__category-mark {
+  transform: rotate(-90deg);
+}
+
+.lists__collections-footer {
+  padding: var(--rv-space-3);
+}
+
+.lists__form {
+  display: grid;
+  gap: var(--rv-space-4);
+  padding: var(--rv-space-5) var(--rv-space-6);
+}
+
+.lists__empty {
+  padding: var(--rv-space-5);
+  color: var(--rv-color-ink-muted);
+}
+
+.lists__form-note {
+  color: var(--rv-color-ink-muted);
+}
+
+.lists__visually-hidden {
+  position: absolute;
+  width: var(--rv-border-hair);
+  height: var(--rv-border-hair);
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+@media (width <= 64rem), (height <= 36rem) {
+  .lists {
+    view-transition-name: library-content;
+    height: auto;
+  }
+
+  .lists__workspace {
+    flex: none;
+    height: var(--rv-picker-mobile-height);
+  }
+}
+
+@container (width <= 40rem) {
+  .lists__table .lists__priority-column {
+    width: var(--rv-picker-priority-width);
+    padding-inline: var(--rv-space-1);
+  }
+
+  .lists__table .lists__priority-column[scope='col'] {
+    font-size: var(--rv-text-meta);
+    overflow-wrap: anywhere;
+  }
+}
+
+/* The fallback is portalled outside its table; retain table column geometry. */
+.lists__list-row.sortable-fallback {
+  display: table;
+  table-layout: fixed;
+  border-collapse: collapse;
+  background: var(--rv-color-surface-muted);
+}
+
+.lists__open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--rv-control-compact);
+  height: var(--rv-control-compact);
+  padding: 0;
+  color: var(--rv-color-ink-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--rv-radius-sm);
+  cursor: pointer;
+}
+
+.lists__open:hover {
+  background: var(--rv-color-surface-hover);
+}
+</style>

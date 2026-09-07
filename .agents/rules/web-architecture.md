@@ -18,7 +18,14 @@ UPPER_CASE.
 Styling is semantic tokens plus named classes. Raw palette, typography,
 spacing, radius, shadow, and motion values are declared in
 `src/assets/styles/tokens.css`; component code consumes semantic variables.
-There is no utility CSS framework.
+There is no utility CSS framework. A component's styles live in its own
+`<style scoped>` block, the only stylesheets outside a component are the global
+ones in `src/assets/styles`, and `<style src>` is not used.
+
+Unit specs live in `web/tests/unit/` mirroring `src/`, the browser suites live
+in `web/tests/{e2e,desktop,dev,update}`, and `src/` holds no test file.
+`web/tests/unit/structure.spec.ts` enforces that placement and the stylesheet
+placement above.
 
 A component is a black box. A host styles its own root class, passes props,
 places slot content, or supplies a documented custom property. It does not

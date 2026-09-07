@@ -261,4 +261,91 @@ const reset = (): void => {
   </div>
 </template>
 
-<style scoped src="./ProfileEditor.css"></style>
+<style scoped>
+.editor {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  gap: var(--rv-space-6);
+  width: 100%;
+}
+
+.editor__field {
+  display: grid;
+  gap: var(--rv-space-2);
+  min-width: 0;
+  max-width: var(--rv-measure-field);
+}
+
+.editor__label {
+  padding: 0;
+  font-weight: 600;
+  font-size: var(--rv-text-dense);
+}
+
+.editor__input {
+  min-height: var(--rv-control-touch);
+  padding: 0 var(--rv-space-4);
+  color: var(--rv-color-ink);
+  font: inherit;
+  background: var(--rv-color-field);
+  border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
+  border-radius: var(--rv-radius-md);
+}
+
+.editor__input:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: var(--rv-border-hair);
+}
+
+.editor__composition {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.editor__composition-body {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--rv-space-5);
+  align-items: start;
+  min-width: 0;
+}
+
+.editor__note {
+  max-width: var(--rv-measure-prose);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+}
+
+.editor__forecast {
+  display: grid;
+  gap: var(--rv-space-1);
+  max-width: var(--rv-measure-prose);
+  color: var(--rv-color-status-warning);
+  font-size: var(--rv-text-dense);
+}
+
+.editor__actions {
+  display: grid;
+  gap: var(--rv-space-3);
+}
+
+.editor__legend {
+  position: absolute;
+  width: var(--rv-border-hair);
+  height: var(--rv-border-hair);
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.editor__connection-value {
+  display: flex;
+  align-items: center;
+  min-height: var(--rv-control-touch);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+</style>
