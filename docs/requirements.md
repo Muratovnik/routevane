@@ -27,9 +27,10 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
   Preserve access in smaller windows and with enlarged content; this does not
   require a separate mobile interface. The [UI contract](UI.md#desktop-layout-and-window-adaptation)
   owns layout and accessibility verification.
-- A **list** contains destinations; a **category** groups lists; a **profile**
-  composes them and publishes through one or more **connections**. In the API,
-  `services` still means UI lists and `lists` means UI profiles.
+- A **rule** is one destination; a **list** holds rules; a **category** groups
+  lists; a **profile** composes them and publishes through one or more
+  **connections**. The interface, the HTTP API, the catalog, the transfer format
+  and the stored schema all use these words (ADR 0039).
 - Prefer safe domain-capable rules when the target supports them. DNS evidence
   never justifies WHOIS/RDAP/ASN expansion. Observation validity and policy
   acceptance are separate; decisions are deterministic and reason-coded.
@@ -52,7 +53,7 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 - Device changes require explicit authority, a compatible target, verified
   backup, bounded application, read-back, and recovery after failure. Keenetic
   static-route deletion additionally requires persisted exact ownership; shared,
-  pre-existing, and unrelated same-interface profiles are preserved. Descriptions
+  pre-existing, and unrelated same-interface routes are preserved. Descriptions
   are verified exactly only for profiles that ownership says Routevane created.
   Scheduled delivery additionally needs an exact output/device binding and consent.
 - Operator-installed plugins use the same validated publication/observation
@@ -96,13 +97,16 @@ results. Device doubles and parser tests do not prove physical-device acceptance
   composition includes or excludes whole lists (ADR 0029).
 - One product vocabulary is adopted and lands as ordered slices in a breaking
   `0.2.0` (ADR 0039). The executable, the HTTP API, the browser addresses, the
-  interface dictionary and the catalog keys now say `list` for a set of rules
-  and `profile` for the composition that publishes it, and the configuration
-  transfer format states it at `config-transfer-v1.4`. Go identifiers and
-  SQLite table names still say `service` and `list`; documentation keeps
-  explaining that mapping until they land. The retired catalog keys and
-  transfer field names are read for one minor version, and a file naming one
-  thing under both a current and a retired name is refused.
+  interface dictionary, the catalog keys and the stored schema now say `list`
+  for a set of rules and `profile` for the composition that publishes it; the
+  configuration transfer format states it at `config-transfer-v1.4` and the
+  schema at version 13. Go and web identifiers are the last slice. The retired
+  catalog keys, transfer field names and the retired stored removal kind are
+  read for one minor version, and a file naming one thing under both a current
+  and a retired name is refused. The routing plan JSON, the semantic plan hash
+  and the plugin protocol keep their retired field names: they are separately
+  versioned contracts, and renaming them changes every published plan hash,
+  which is a behavioural decision this program does not take.
 - Scaling changes are conditional on measured workload.
   PostgreSQL, separate workers, and telemetry infrastructure are not planned
   merely to complete a checklist.

@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 12
+const CurrentSchemaVersion = 13
 
 type migration struct {
 	version int
@@ -527,6 +527,122 @@ CREATE TABLE library_service_priorities (
     PRIMARY KEY (service_id),
     UNIQUE (position)
 ) WITHOUT ROWID, STRICT;
+`}, {version: 13, sql: `
+-- ADR 0039 brings the schema to the vocabulary the rest of the product already
+-- uses: one entry is a rule, a set of rules is a list, a group of lists is a
+-- category, and the composition published to a device is a profile. Migrations
+-- one to twelve keep the words they were written with, because an applied
+-- migration is history; this is the one place where the two vocabularies meet.
+--
+--   effective_profiles, profile_key  ->  effective_formats, format_key
+--   lists and its list_* children    ->  profiles and its profile_* children
+--   custom_services, service_*       ->  custom_lists, list_*
+--
+-- The order is not free. The word lists is both a name being retired and a
+-- name being claimed, so every rename of a list runs before every rename of a service. In
+-- the other order the first step walks into names the second step still needs
+-- and the two meanings merge with nothing left to tell them apart.
+--
+-- SQLite rewrites a foreign key, a trigger body and an index definition to
+-- follow a renamed table or column, but it never renames a trigger or an index
+-- itself. Both are therefore dropped first and created again at the end, which
+-- is also the only way their own names can follow the rename.
+DROP TRIGGER lists_identity_immutable;
+DROP TRIGGER lists_no_delete;
+DROP TRIGGER list_services_not_excluded;
+DROP TRIGGER list_exclusions_not_named;
+DROP TRIGGER custom_services_identity_immutable;
+DROP TRIGGER custom_sources_identity_immutable;
+DROP TRIGGER outputs_identity_immutable;
+DROP INDEX outputs_list_target_idx;
+DROP INDEX sightings_service_source_idx;
+DROP INDEX relations_service_source_idx;
+DROP INDEX source_runs_service_source_idx;
+DROP INDEX custom_sources_service_idx;
+
+-- The rendering profile of a target is a format, which is what frees the word
+-- for the composition below. Version one already had to say in a comment that
+-- the two were not the same thing.
+ALTER TABLE effective_profiles RENAME TO effective_formats;
+ALTER TABLE effective_formats RENAME COLUMN profile_key TO format_key;
+ALTER TABLE outputs RENAME COLUMN profile_key TO format_key;
+
+ALTER TABLE lists RENAME TO profiles;
+ALTER TABLE list_services RENAME TO profile_lists;
+ALTER TABLE list_categories RENAME TO profile_categories;
+ALTER TABLE list_exclusions RENAME TO profile_exclusions;
+ALTER TABLE list_service_domains RENAME TO profile_list_domains;
+ALTER TABLE list_service_priorities RENAME TO profile_list_priorities;
+ALTER TABLE profile_lists RENAME COLUMN list_id TO profile_id;
+ALTER TABLE profile_categories RENAME COLUMN list_id TO profile_id;
+ALTER TABLE profile_exclusions RENAME COLUMN list_id TO profile_id;
+ALTER TABLE profile_list_domains RENAME COLUMN list_id TO profile_id;
+ALTER TABLE profile_list_priorities RENAME COLUMN list_id TO profile_id;
+ALTER TABLE outputs RENAME COLUMN list_id TO profile_id;
+
+ALTER TABLE custom_services RENAME TO custom_lists;
+ALTER TABLE service_disabled_sources RENAME TO list_disabled_sources;
+ALTER TABLE service_domain_verdicts RENAME TO list_domain_verdicts;
+ALTER TABLE library_service_priorities RENAME TO library_list_priorities;
+ALTER TABLE sightings RENAME COLUMN service_id TO list_id;
+ALTER TABLE relations RENAME COLUMN service_id TO list_id;
+ALTER TABLE source_runs RENAME COLUMN service_id TO list_id;
+ALTER TABLE effective_formats RENAME COLUMN service_id TO list_id;
+ALTER TABLE category_memberships RENAME COLUMN service_id TO list_id;
+ALTER TABLE custom_sources RENAME COLUMN service_id TO list_id;
+ALTER TABLE profile_lists RENAME COLUMN service_id TO list_id;
+ALTER TABLE profile_exclusions RENAME COLUMN service_id TO list_id;
+ALTER TABLE profile_list_domains RENAME COLUMN service_id TO list_id;
+ALTER TABLE profile_list_priorities RENAME COLUMN service_id TO list_id;
+ALTER TABLE list_disabled_sources RENAME COLUMN service_id TO list_id;
+ALTER TABLE list_domain_verdicts RENAME COLUMN service_id TO list_id;
+ALTER TABLE library_list_priorities RENAME COLUMN service_id TO list_id;
+
+-- The only place the retired word is a stored value rather than a name. A
+-- CHECK constraint cannot be altered, so the table is rebuilt around the new
+-- one and every recorded deletion is carried across under the current word.
+CREATE TABLE catalog_removals_v13 (
+    kind TEXT NOT NULL CHECK (kind IN ('category','list')),
+    id TEXT NOT NULL CHECK (length(id) BETWEEN 1 AND 63 AND id NOT GLOB 'custom-*'),
+    removed_at TEXT NOT NULL CHECK (length(removed_at) BETWEEN 1 AND 64),
+    PRIMARY KEY (kind, id)
+) WITHOUT ROWID, STRICT;
+INSERT INTO catalog_removals_v13(kind,id,removed_at)
+SELECT CASE kind WHEN 'service' THEN 'list' ELSE kind END, id, removed_at FROM catalog_removals;
+DROP TABLE catalog_removals;
+ALTER TABLE catalog_removals_v13 RENAME TO catalog_removals;
+
+CREATE UNIQUE INDEX outputs_profile_target_idx ON outputs(profile_id, target_id);
+CREATE INDEX sightings_list_source_idx ON sightings(list_id, source_id, source_revision);
+CREATE INDEX relations_list_source_idx ON relations(list_id, source_id, source_revision);
+CREATE INDEX source_runs_list_source_idx ON source_runs(list_id, source_id, completed_at_ns);
+CREATE INDEX custom_sources_list_idx ON custom_sources(list_id);
+
+CREATE TRIGGER profiles_identity_immutable BEFORE UPDATE OF id, created_at_ns ON profiles BEGIN
+    SELECT RAISE(ABORT, 'immutable profile identity');
+END;
+CREATE TRIGGER profiles_no_delete BEFORE DELETE ON profiles BEGIN
+    SELECT RAISE(ABORT, 'immutable profile');
+END;
+CREATE TRIGGER profile_lists_not_excluded BEFORE INSERT ON profile_lists BEGIN
+    SELECT CASE WHEN EXISTS (
+        SELECT 1 FROM profile_exclusions WHERE profile_id=NEW.profile_id AND list_id=NEW.list_id
+    ) THEN RAISE(ABORT, 'list is both named and excluded') END;
+END;
+CREATE TRIGGER profile_exclusions_not_named BEFORE INSERT ON profile_exclusions BEGIN
+    SELECT CASE WHEN EXISTS (
+        SELECT 1 FROM profile_lists WHERE profile_id=NEW.profile_id AND list_id=NEW.list_id
+    ) THEN RAISE(ABORT, 'list is both named and excluded') END;
+END;
+CREATE TRIGGER custom_lists_identity_immutable BEFORE UPDATE OF id, created_at_ns ON custom_lists BEGIN
+    SELECT RAISE(ABORT, 'immutable custom list identity');
+END;
+CREATE TRIGGER custom_sources_identity_immutable BEFORE UPDATE OF id, list_id, created_at_ns ON custom_sources BEGIN
+    SELECT RAISE(ABORT, 'immutable custom source identity');
+END;
+CREATE TRIGGER outputs_identity_immutable BEFORE UPDATE OF id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns ON outputs BEGIN
+    SELECT RAISE(ABORT, 'immutable output identity');
+END;
 `}}
 
 var requiredTables = []string{
@@ -534,24 +650,24 @@ var requiredTables = []string{
 	"devices",
 	"catalog_removals",
 	"custom_categories",
-	"custom_services",
+	"custom_lists",
 	"custom_sources",
-	"service_disabled_sources",
-	"service_domain_verdicts",
+	"list_disabled_sources",
+	"list_domain_verdicts",
 	"category_memberships",
-	"lists",
+	"library_list_priorities",
+	"profiles",
+	"profile_lists",
+	"profile_categories",
+	"profile_exclusions",
+	"profile_list_domains",
+	"profile_list_priorities",
 	"managed_route_claims",
 	"managed_route_scopes",
 	"managed_routes",
-	"list_services",
-	"list_categories",
-	"list_exclusions",
-	"list_service_domains",
-	"list_service_priorities",
-	"library_service_priorities",
 	"outputs",
 	"output_attempts",
-	"effective_profiles",
+	"effective_formats",
 	"plan_snapshots",
 	"artifact_builds",
 	"subscriptions",
@@ -563,36 +679,36 @@ var requiredTables = []string{
 }
 
 var requiredColumns = map[string][]string{
-	"schema_migrations":          {"version", "applied_at_ns"},
-	"resources":                  {"id", "kind", "normalized_value", "ip_version", "created_at_ns"},
-	"sightings":                  {"id", "service_id", "component_id", "resource_id", "source_id", "source_class", "source_revision", "first_seen_ns", "last_seen_ns", "valid_until_ns", "ttl_seconds", "observation_count", "metadata_json", "invalid"},
-	"relations":                  {"id", "source_resource_id", "relation_type", "target_resource_id", "service_id", "component_id", "first_seen_ns", "last_seen_ns", "valid_until_ns", "source_id", "source_revision", "invalid"},
-	"source_runs":                {"id", "service_id", "source_id", "source_revision", "started_at_ns", "completed_at_ns", "status", "sighting_count", "relation_count", "error_code"},
-	"effective_profiles":         {"profile_key", "service_id", "target_id", "renderer_id", "catalog_revision", "config_json", "updated_at_ns"},
-	"settings":                   {"key", "value", "updated_at_ns"},
-	"lists":                      {"id", "name", "refresh_interval", "last_refreshed_at_ns", "last_refresh_failed", "archived_at_ns", "created_at_ns", "updated_at_ns"},
-	"devices":                    {"id", "target_id", "name", "address", "account", "auto_deliver", "created_at_ns", "updated_at_ns", "interface"},
-	"catalog_removals":           {"kind", "id", "removed_at"},
-	"custom_categories":          {"id", "title", "created_at_ns", "updated_at_ns"},
-	"category_memberships":       {"category_id", "service_id", "state", "updated_at_ns"},
-	"custom_services":            {"id", "title", "domains_json", "created_at_ns", "updated_at_ns"},
-	"custom_sources":             {"id", "service_id", "url", "format", "created_at_ns", "updated_at_ns"},
-	"service_disabled_sources":   {"service_id", "source_id"},
-	"service_domain_verdicts":    {"service_id", "domain", "verdict"},
-	"list_services":              {"list_id", "service_id"},
-	"list_categories":            {"list_id", "category_id"},
-	"list_exclusions":            {"list_id", "service_id"},
-	"list_service_domains":       {"list_id", "service_id", "domains_json"},
-	"list_service_priorities":    {"list_id", "service_id", "position"},
-	"library_service_priorities": {"service_id", "position"},
-	"managed_route_scopes":       {"id", "endpoint", "target_id", "interface", "retired_at_ns", "created_at_ns", "updated_at_ns"},
-	"managed_routes":             {"scope_id", "prefix", "created_by_routevane", "description"},
-	"managed_route_claims":       {"scope_id", "output_id", "prefix", "description", "labels_json"},
-	"outputs":                    {"id", "list_id", "target_id", "profile_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id"},
-	"output_attempts":            {"id", "output_id", "status", "code", "projected_rules", "maximum_rules", "artifact_id", "completed_at_ns"},
-	"plan_snapshots":             {"id", "output_id", "routing_plan_hash", "routing_plan_json", "policy_version", "catalog_revision", "observation_cutoff_ns", "created_at_ns", "status"},
-	"artifact_builds":            {"id", "output_id", "plan_snapshot_id", "renderer_id", "renderer_version", "artifact_hash", "artifact_path", "size_bytes", "content_type", "content_created_at_ns", "validation_status", "status"},
-	"subscriptions":              {"output_id", "token_id", "token_hash", "created_at_ns"},
+	"schema_migrations":       {"version", "applied_at_ns"},
+	"resources":               {"id", "kind", "normalized_value", "ip_version", "created_at_ns"},
+	"sightings":               {"id", "list_id", "component_id", "resource_id", "source_id", "source_class", "source_revision", "first_seen_ns", "last_seen_ns", "valid_until_ns", "ttl_seconds", "observation_count", "metadata_json", "invalid"},
+	"relations":               {"id", "source_resource_id", "relation_type", "target_resource_id", "list_id", "component_id", "first_seen_ns", "last_seen_ns", "valid_until_ns", "source_id", "source_revision", "invalid"},
+	"source_runs":             {"id", "list_id", "source_id", "source_revision", "started_at_ns", "completed_at_ns", "status", "sighting_count", "relation_count", "error_code"},
+	"effective_formats":       {"format_key", "list_id", "target_id", "renderer_id", "catalog_revision", "config_json", "updated_at_ns"},
+	"settings":                {"key", "value", "updated_at_ns"},
+	"profiles":                {"id", "name", "refresh_interval", "last_refreshed_at_ns", "last_refresh_failed", "archived_at_ns", "created_at_ns", "updated_at_ns"},
+	"devices":                 {"id", "target_id", "name", "address", "account", "auto_deliver", "created_at_ns", "updated_at_ns", "interface"},
+	"catalog_removals":        {"kind", "id", "removed_at"},
+	"custom_categories":       {"id", "title", "created_at_ns", "updated_at_ns"},
+	"category_memberships":    {"category_id", "list_id", "state", "updated_at_ns"},
+	"custom_lists":            {"id", "title", "domains_json", "created_at_ns", "updated_at_ns"},
+	"custom_sources":          {"id", "list_id", "url", "format", "created_at_ns", "updated_at_ns"},
+	"list_disabled_sources":   {"list_id", "source_id"},
+	"list_domain_verdicts":    {"list_id", "domain", "verdict"},
+	"profile_lists":           {"profile_id", "list_id"},
+	"profile_categories":      {"profile_id", "category_id"},
+	"profile_exclusions":      {"profile_id", "list_id"},
+	"profile_list_domains":    {"profile_id", "list_id", "domains_json"},
+	"profile_list_priorities": {"profile_id", "list_id", "position"},
+	"library_list_priorities": {"list_id", "position"},
+	"managed_route_scopes":    {"id", "endpoint", "target_id", "interface", "retired_at_ns", "created_at_ns", "updated_at_ns"},
+	"managed_routes":          {"scope_id", "prefix", "created_by_routevane", "description"},
+	"managed_route_claims":    {"scope_id", "output_id", "prefix", "description", "labels_json"},
+	"outputs":                 {"id", "profile_id", "target_id", "format_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id"},
+	"output_attempts":         {"id", "output_id", "status", "code", "projected_rules", "maximum_rules", "artifact_id", "completed_at_ns"},
+	"plan_snapshots":          {"id", "output_id", "routing_plan_hash", "routing_plan_json", "policy_version", "catalog_revision", "observation_cutoff_ns", "created_at_ns", "status"},
+	"artifact_builds":         {"id", "output_id", "plan_snapshot_id", "renderer_id", "renderer_version", "artifact_hash", "artifact_path", "size_bytes", "content_type", "content_created_at_ns", "validation_status", "status"},
+	"subscriptions":           {"output_id", "token_id", "token_hash", "created_at_ns"},
 }
 
 // requiredForeignKeys names every parent relation the publication and delivery
@@ -602,12 +718,12 @@ var requiredForeignKeys = map[string][]string{
 	"plan_snapshots":          {"outputs"},
 	"artifact_builds":         {"outputs"},
 	"subscriptions":           {"outputs"},
-	"list_services":           {"lists"},
-	"list_categories":         {"lists"},
-	"list_exclusions":         {"lists"},
-	"list_service_domains":    {"lists"},
-	"list_service_priorities": {"lists"},
-	"outputs":                 {"lists", "devices"},
+	"profile_lists":           {"profiles"},
+	"profile_categories":      {"profiles"},
+	"profile_exclusions":      {"profiles"},
+	"profile_list_domains":    {"profiles"},
+	"profile_list_priorities": {"profiles"},
+	"outputs":                 {"profiles", "devices"},
 	"output_attempts":         {"outputs"},
 	"managed_routes":          {"managed_route_scopes"},
 	"managed_route_claims":    {"managed_routes", "outputs"},
@@ -618,12 +734,8 @@ var requiredTriggers = []string{
 	"artifact_builds_no_update",
 	"artifact_output_integrity",
 	"custom_categories_identity_immutable",
-	"custom_services_identity_immutable",
+	"custom_lists_identity_immutable",
 	"custom_sources_identity_immutable",
-	"list_exclusions_not_named",
-	"list_services_not_excluded",
-	"lists_identity_immutable",
-	"lists_no_delete",
 	"outputs_identity_immutable",
 	"outputs_no_delete",
 	"outputs_pointer_integrity_insert",
@@ -632,6 +744,10 @@ var requiredTriggers = []string{
 	"output_attempts_no_update",
 	"plan_snapshots_no_delete",
 	"plan_snapshots_no_update",
+	"profiles_identity_immutable",
+	"profiles_no_delete",
+	"profile_exclusions_not_named",
+	"profile_lists_not_excluded",
 	"subscriptions_no_delete",
 	"subscriptions_no_update",
 }

@@ -215,6 +215,9 @@ func (v *TransferRemoval) UnmarshalJSON(b []byte) error {
 	if err := strictUnmarshal(b, &x); err != nil {
 		return err
 	}
+	if x.Kind == retiredRemovalList {
+		x.Kind = RemovalList
+	}
 	*v = TransferRemoval(x)
 	return nil
 }
@@ -998,7 +1001,7 @@ func (s *PublicationService) completeTransferDefaultPriority(d *ConfigTransferDo
 	}
 	removed := make(map[string]struct{}, len(d.Removals))
 	for _, removal := range d.Removals {
-		if removal.Kind == RemovalService {
+		if removal.Kind == RemovalList {
 			removed[removal.ID] = struct{}{}
 		}
 	}
@@ -1190,7 +1193,7 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		if _, local := s.config.LocalServiceIDs[v.ID]; local || localCategories[v.ID] {
 			return transferError("local_catalog_dependency", fmt.Sprintf("removals/%d/id", i))
 		}
-		if v.Kind != RemovalCategory && v.Kind != RemovalService {
+		if v.Kind != RemovalCategory && v.Kind != RemovalList {
 			return transferError("invalid_shape", fmt.Sprintf("removals/%d/kind", i))
 		}
 		known := services[v.ID]
@@ -1400,7 +1403,7 @@ func (s *PublicationService) transferCompositionCatalog(d ConfigTransferDocument
 		effectiveCategories[id] = true
 	}
 	for _, removal := range d.Removals {
-		if removal.Kind == RemovalService {
+		if removal.Kind == RemovalList {
 			delete(effectiveServices, removal.ID)
 		} else if removal.Kind == RemovalCategory {
 			delete(effectiveCategories, removal.ID)

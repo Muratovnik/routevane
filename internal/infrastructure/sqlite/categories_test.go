@@ -192,7 +192,7 @@ func TestCategoryWritesRefuseWhatTheGrammarForbids(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := store.db.Exec(
-		`INSERT INTO category_memberships(category_id,service_id,state,updated_at_ns) VALUES(?,?,?,?)`,
+		`INSERT INTO category_memberships(category_id,list_id,state,updated_at_ns) VALUES(?,?,?,?)`,
 		base.ID, "youtube", "removed", now.UnixNano()); err == nil {
 		t.Fatal("the schema accepted a removed verdict on an operator category")
 	}

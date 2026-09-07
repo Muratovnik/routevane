@@ -38,7 +38,7 @@ func TestLibraryPriorityRoundTripsAndRejectsMalformedReplacement(t *testing.T) {
 func TestLibraryPrioritySchemaExistsAfterFreshMigration(t *testing.T) {
 	store := categoryTestStore(t)
 	var count int
-	if err := store.db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='library_service_priorities'`).Scan(&count); err != nil {
+	if err := store.db.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='library_list_priorities'`).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {

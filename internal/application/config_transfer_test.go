@@ -105,7 +105,7 @@ func TestConfigTransferExportDropsCatalogServicesRemovedFromTheLibrary(t *testin
 	}
 	transferFakeStates.Store(store, &transferFakeState{document: ConfigTransferDocument{
 		Settings: TransferSettings{RefreshInterval: RefreshOff},
-		Removals: []TransferRemoval{{Kind: RemovalService, ID: "example"}},
+		Removals: []TransferRemoval{{Kind: RemovalList, ID: "example"}},
 	}})
 	t.Cleanup(func() { transferFakeStates.Delete(store) })
 	if _, err := service.ExportConfigTransfer(context.Background()); err != nil {
@@ -548,7 +548,7 @@ func TestConfigTransferRejectsDocumentsThatWouldCollideInStorage(t *testing.T) {
 		{
 			name: "duplicate catalog removal", code: "config_transfer_duplicate_key", path: "removals/1",
 			mutate: func(d *ConfigTransferDocument) {
-				d.Removals = []TransferRemoval{{Kind: RemovalService, ID: "example"}, {Kind: RemovalService, ID: "example"}}
+				d.Removals = []TransferRemoval{{Kind: RemovalList, ID: "example"}, {Kind: RemovalList, ID: "example"}}
 			},
 		},
 	} {
@@ -569,7 +569,7 @@ func TestConfigTransferRejectsDocumentsThatWouldCollideInStorage(t *testing.T) {
 
 	for _, document := range []ConfigTransferDocument{
 		{Version: ConfigTransferVersion, Settings: transferSettings("example"), Tunings: []TransferTuning{{ServiceRef: "example", Includes: []string{"included.example"}}}},
-		{Version: ConfigTransferVersion, Settings: transferSettings(), Removals: []TransferRemoval{{Kind: RemovalService, ID: "example"}}},
+		{Version: ConfigTransferVersion, Settings: transferSettings(), Removals: []TransferRemoval{{Kind: RemovalList, ID: "example"}}},
 	} {
 		payload, err := json.Marshal(document)
 		if err != nil {

@@ -15,7 +15,7 @@ import (
 func (s *Store) DefaultPriority(ctx context.Context) ([]string, error) {
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, `SELECT service_id FROM library_service_priorities ORDER BY position ASC`)
+	rows, err := s.db.QueryContext(ctx, `SELECT list_id FROM library_list_priorities ORDER BY position ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("read library priority: %w", err)
 	}
@@ -62,11 +62,11 @@ func (s *Store) SetDefaultPriority(ctx context.Context, priority []string) error
 		_ = tx.Rollback()
 		return cause
 	}
-	if _, err := tx.ExecContext(ctx, `DELETE FROM library_service_priorities`); err != nil {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM library_list_priorities`); err != nil {
 		return fail(fmt.Errorf("clear library priority: %w", err))
 	}
 	for position, serviceID := range priority {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO library_service_priorities(service_id,position) VALUES(?,?)`, serviceID, position); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO library_list_priorities(list_id,position) VALUES(?,?)`, serviceID, position); err != nil {
 			return fail(fmt.Errorf("write library priority: %w", err))
 		}
 	}

@@ -82,6 +82,22 @@ worth doing on its own, and only target authors ever see the catalog key.
 still calls it a destination, and it is brought to the same word. Every target
 ecosystem this product renders for calls the same thing a rule.
 
+**Three wire names deliberately keep the retired word.** The routing plan JSON
+(`internal/planjson`), the canonical payload the semantic plan hash is computed
+over (`internal/planner/canonical.go`), and the plugin protocol
+(`sdk/routevaneplugin`) all carry `service_id`, `profile_key` and `services`.
+These are not internal identifiers. The plan JSON is the published `raw-json`
+artifact and the bytes of every immutable plan snapshot; the hash payload
+decides whether a rebuild produced the same plan; the protocol is what a
+third-party renderer reads. Renaming their fields changes every plan hash, so
+every stored output would republish on upgrade for no change in content, and it
+breaks third-party plugins. That is a behavioural decision with its own release
+note, and this ADR's own rule is that a slice needing one stops and takes it
+separately. Their Go identifiers follow the current vocabulary while their tags
+do not, which is the same split the retired catalog and transfer keys already
+use. Renaming them, together with raising `RoutingPlanInterfaceVersion` from its
+milestone-zero value, is separate work.
+
 Storage names are renamed with the rest. Leaving them behind would preserve the
 exact confusion this decision exists to end, inside the files that are hardest
 to read without the translation table. The rename travels as one owned schema
@@ -131,6 +147,12 @@ The retired catalog key and the retired transfer versions are accepted for one
 minor version so an operator's edited catalog and exported configuration survive
 the upgrade. The retired database and lock filenames get no such grace: they are
 internal, and the migration owns them.
+
+One retired word is a stored value rather than a name: a recorded catalog
+deletion says whether a category or a list was removed. The migration rewrites
+every stored row, and the transfer reader accepts the retired value, because a
+configuration exported by a retired version still carries it and the new schema
+would refuse it.
 
 Until every slice lands, the repository holds both vocabularies at once. The
 interface dictionary stays the single place where the mapping is recorded, as

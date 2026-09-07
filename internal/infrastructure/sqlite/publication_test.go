@@ -25,7 +25,7 @@ func TestBaselineSchemaServesEffectiveProfile(t *testing.T) {
 	}
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	encoded, _ := json.Marshal(domain.RawJSONTargetProfile())
-	if _, err := store.db.Exec(`INSERT INTO effective_profiles(profile_key,service_id,target_id,renderer_id,catalog_revision,config_json,updated_at_ns) VALUES(?,?,?,?,?,?,?)`, "raw-v1", "example", "raw-json", "raw-json", strings.Repeat("c", 64), string(encoded), now.UnixNano()); err != nil {
+	if _, err := store.db.Exec(`INSERT INTO effective_formats(format_key,list_id,target_id,renderer_id,catalog_revision,config_json,updated_at_ns) VALUES(?,?,?,?,?,?,?)`, "raw-v1", "example", "raw-json", "raw-json", strings.Repeat("c", 64), string(encoded), now.UnixNano()); err != nil {
 		t.Fatal(err)
 	}
 	snapshot, err := store.ReadPlanningSnapshot(context.Background(), "example", map[string]string{}, "raw-v1", now)
@@ -274,7 +274,7 @@ func TestPublicationHardeningFailureHappensBeforeTransaction(t *testing.T) {
 		t.Fatalf("create preflight err=%v", err)
 	}
 	var lists int
-	if err := store.db.QueryRow(`SELECT count(*) FROM lists`).Scan(&lists); err != nil || lists != 0 {
+	if err := store.db.QueryRow(`SELECT count(*) FROM profiles`).Scan(&lists); err != nil || lists != 0 {
 		t.Fatalf("failed create committed lists=%d err=%v", lists, err)
 	}
 	store.publicationPreflight = nil

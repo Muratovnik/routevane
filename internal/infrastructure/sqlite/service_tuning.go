@@ -65,14 +65,14 @@ func (s *Store) SetSourceDisabled(ctx context.Context, serviceID, sourceID strin
 	defer cancel()
 	if disabled {
 		if _, err := s.db.ExecContext(ctx,
-			`INSERT INTO service_disabled_sources(service_id,source_id) VALUES(?,?)
-ON CONFLICT(service_id,source_id) DO NOTHING`, serviceID, sourceID); err != nil {
+			`INSERT INTO list_disabled_sources(list_id,source_id) VALUES(?,?)
+ON CONFLICT(list_id,source_id) DO NOTHING`, serviceID, sourceID); err != nil {
 			return fmt.Errorf("disable source: %w", err)
 		}
 		return nil
 	}
 	if _, err := s.db.ExecContext(ctx,
-		`DELETE FROM service_disabled_sources WHERE service_id=? AND source_id=?`, serviceID, sourceID); err != nil {
+		`DELETE FROM list_disabled_sources WHERE list_id=? AND source_id=?`, serviceID, sourceID); err != nil {
 		return fmt.Errorf("enable source: %w", err)
 	}
 	return nil
@@ -95,7 +95,7 @@ func (s *Store) CreateCustomSource(ctx context.Context, source application.Custo
 		return application.ErrIdentityCollision
 	}
 	if _, err := s.db.ExecContext(ctx,
-		`INSERT INTO custom_sources(id,service_id,url,format,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?,?)`,
+		`INSERT INTO custom_sources(id,list_id,url,format,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?,?)`,
 		source.ID, source.ServiceID, source.URL, string(source.Format),
 		source.CreatedAt.UTC().UnixNano(), source.UpdatedAt.UTC().UnixNano()); err != nil {
 		return fmt.Errorf("insert custom source: %w", err)
@@ -120,14 +120,14 @@ func (s *Store) RemoveCustomSource(ctx context.Context, id string) error {
 		return application.ErrNotFound
 	}
 	// A verdict about the source's availability must not survive the source.
-	if _, err := s.db.ExecContext(ctx, `DELETE FROM service_disabled_sources WHERE source_id=?`, id); err != nil {
+	if _, err := s.db.ExecContext(ctx, `DELETE FROM list_disabled_sources WHERE source_id=?`, id); err != nil {
 		return fmt.Errorf("remove custom source override: %w", err)
 	}
 	return nil
 }
 
 // SetDomainVerdicts writes one operator action about a batch of destinations.
-// The service_domain_verdicts.domain column keeps its name for history and now
+// The list_domain_verdicts.domain column keeps its name for history and now
 // carries any canonical destination: a domain, an IP address, or a network
 // prefix. Every value of the batch is validated before anything is written and
 // the whole batch travels in one transaction, so an imported file states all of
@@ -160,14 +160,14 @@ func (s *Store) SetDomainVerdicts(ctx context.Context, serviceID string, values 
 		for _, value := range values {
 			if verdict == application.DomainVerdictAuto {
 				if _, err := tx.ExecContext(ctx,
-					`DELETE FROM service_domain_verdicts WHERE service_id=? AND domain=?`, serviceID, value); err != nil {
+					`DELETE FROM list_domain_verdicts WHERE list_id=? AND domain=?`, serviceID, value); err != nil {
 					return fmt.Errorf("reset destination verdict: %w", err)
 				}
 				continue
 			}
 			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO service_domain_verdicts(service_id,domain,verdict) VALUES(?,?,?)
-ON CONFLICT(service_id,domain) DO UPDATE SET verdict=excluded.verdict`,
+				`INSERT INTO list_domain_verdicts(list_id,domain,verdict) VALUES(?,?,?)
+ON CONFLICT(list_id,domain) DO UPDATE SET verdict=excluded.verdict`,
 				serviceID, value, string(verdict)); err != nil {
 				return fmt.Errorf("write destination verdict: %w", err)
 			}
@@ -195,7 +195,7 @@ func (s *Store) ServiceTunings(ctx context.Context) (map[string]application.Serv
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT service_id,source_id FROM service_disabled_sources ORDER BY service_id,source_id LIMIT ?`, tuningLimit)
+		`SELECT list_id,source_id FROM list_disabled_sources ORDER BY list_id,source_id LIMIT ?`, tuningLimit)
 	if err != nil {
 		return nil, fmt.Errorf("read disabled sources: %w", err)
 	}
@@ -213,7 +213,7 @@ func (s *Store) ServiceTunings(ctx context.Context) (map[string]application.Serv
 	}
 
 	rows, err = s.db.QueryContext(ctx,
-		`SELECT id,service_id,url,format,created_at_ns,updated_at_ns FROM custom_sources ORDER BY id LIMIT ?`, tuningLimit)
+		`SELECT id,list_id,url,format,created_at_ns,updated_at_ns FROM custom_sources ORDER BY id LIMIT ?`, tuningLimit)
 	if err != nil {
 		return nil, fmt.Errorf("read custom sources: %w", err)
 	}
@@ -241,7 +241,7 @@ func (s *Store) ServiceTunings(ctx context.Context) (map[string]application.Serv
 	// network — so the value is read as one string and classified above this
 	// layer, where the rule kinds live.
 	rows, err = s.db.QueryContext(ctx,
-		`SELECT service_id,domain,verdict FROM service_domain_verdicts ORDER BY service_id,domain LIMIT ?`, verdictLimit)
+		`SELECT list_id,domain,verdict FROM list_domain_verdicts ORDER BY list_id,domain LIMIT ?`, verdictLimit)
 	if err != nil {
 		return nil, fmt.Errorf("read destination verdicts: %w", err)
 	}

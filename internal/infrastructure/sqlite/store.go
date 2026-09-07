@@ -203,6 +203,11 @@ func configureConnection(ctx context.Context, db *sql.DB, setWAL bool) error {
 		"PRAGMA busy_timeout = 5000",
 		"PRAGMA synchronous = FULL",
 		"PRAGMA trusted_schema = OFF",
+		// A rename migration depends on SQLite following a renamed table or
+		// column into every foreign key, trigger and index that names it,
+		// which it stops doing in legacy mode. Refusing the connection here
+		// keeps a half-renamed schema from ever being committed.
+		"PRAGMA legacy_alter_table = OFF",
 	} {
 		if _, err := db.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("configure SQLite connection: %w", err)
@@ -220,6 +225,7 @@ func verifyPragmas(ctx context.Context, q queryer) error {
 		{"PRAGMA busy_timeout", 5000},
 		{"PRAGMA synchronous", 2},
 		{"PRAGMA trusted_schema", 0},
+		{"PRAGMA legacy_alter_table", 0},
 	}
 	for _, check := range checks {
 		var got int

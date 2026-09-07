@@ -51,7 +51,7 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 		t.Fatalf("import restored %d publication pointer(s)", got)
 	}
 	var priorityService string
-	if err := store.db.QueryRow("SELECT service_id FROM library_service_priorities WHERE position=0").Scan(&priorityService); err != nil {
+	if err := store.db.QueryRow("SELECT list_id FROM library_list_priorities WHERE position=0").Scan(&priorityService); err != nil {
 		t.Fatalf("read transferred default priority: %v", err)
 	}
 	if priorityService != "custom-"+strings.Repeat("a", 16) {
@@ -70,7 +70,7 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 	if err := fresh.ApplyConfigTransfer(context.Background(), apply); err == nil {
 		t.Fatal("preflight failure committed transfer")
 	}
-	if got := countRows(t, fresh, "SELECT count(*) FROM lists"); got != 0 {
+	if got := countRows(t, fresh, "SELECT count(*) FROM profiles"); got != 0 {
 		t.Fatalf("failed transaction left %d list(s)", got)
 	}
 }
@@ -80,11 +80,11 @@ func TestConfigTransferExportOmitsCustomSourceSecretsAndKeepsCatalogDisable(t *t
 	now := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC).UnixNano()
 	const customID = "feed-1234567890abcdef"
 	const secretURL = "https://secret.example.test/token/SENTINEL/feed?format=json"
-	if _, err := store.db.Exec("INSERT INTO custom_sources(id,service_id,url,format,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?,?)", customID, "example", secretURL, "text", now, now); err != nil {
+	if _, err := store.db.Exec("INSERT INTO custom_sources(id,list_id,url,format,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?,?)", customID, "example", secretURL, "text", now, now); err != nil {
 		t.Fatal(err)
 	}
 	for _, sourceID := range []string{"catalog-source", customID} {
-		if _, err := store.db.Exec("INSERT INTO service_disabled_sources(service_id,source_id) VALUES(?,?)", "example", sourceID); err != nil {
+		if _, err := store.db.Exec("INSERT INTO list_disabled_sources(list_id,source_id) VALUES(?,?)", "example", sourceID); err != nil {
 			t.Fatal(err)
 		}
 	}

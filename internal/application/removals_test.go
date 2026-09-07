@@ -50,7 +50,7 @@ func TestRemovingAListSubtractsItFromEveryReaderOfTheCatalog(t *testing.T) {
 	if catalog := service.config.Categories["games"].Services; !reflect.DeepEqual(catalog, []string{"discord", "roblox"}) {
 		t.Fatalf("the loaded catalog was rewritten: %#v", catalog)
 	}
-	want := []CatalogRemoval{{Kind: RemovalService, ID: "roblox", RemovedAt: service.config.Clock.Now().UTC()}}
+	want := []CatalogRemoval{{Kind: RemovalList, ID: "roblox", RemovedAt: service.config.Clock.Now().UTC()}}
 	if !reflect.DeepEqual(store.removals, want) {
 		t.Fatalf("stored removals = %#v", store.removals)
 	}
@@ -128,9 +128,9 @@ func TestLoadCategoriesRestoresAndValidatesRemovals(t *testing.T) {
 	now := time.Unix(1, 0).UTC()
 	refused := []CatalogRemoval{
 		{Kind: "quarantined", ID: "roblox", RemovedAt: now},
-		{Kind: RemovalService, ID: "Not A Slug", RemovedAt: now},
+		{Kind: RemovalList, ID: "Not A Slug", RemovedAt: now},
 		{Kind: RemovalCategory, ID: "custom-1234567890abcdef", RemovedAt: now},
-		{Kind: RemovalService, ID: "roblox"},
+		{Kind: RemovalList, ID: "roblox"},
 	}
 	for _, removal := range refused {
 		fresh, freshStore := overlayTestService(t)

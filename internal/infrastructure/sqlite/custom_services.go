@@ -53,14 +53,14 @@ func (s *Store) CreateCustomService(ctx context.Context, service application.Cus
 	// A taken identifier is the one failure the caller retries; everything
 	// else is a real error and must not be spent on eight more attempts.
 	var taken int
-	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM custom_services WHERE id=?`, service.ID).Scan(&taken); err != nil {
+	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM custom_lists WHERE id=?`, service.ID).Scan(&taken); err != nil {
 		return fmt.Errorf("check custom service identity: %w", err)
 	}
 	if taken != 0 {
 		return application.ErrIdentityCollision
 	}
 	if _, err := s.db.ExecContext(ctx,
-		`INSERT INTO custom_services(id,title,domains_json,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?)`,
+		`INSERT INTO custom_lists(id,title,domains_json,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?)`,
 		service.ID, service.Title, string(payload), service.CreatedAt.UTC().UnixNano(), service.UpdatedAt.UTC().UnixNano()); err != nil {
 		return fmt.Errorf("insert custom service: %w", err)
 	}
@@ -81,7 +81,7 @@ func (s *Store) UpdateCustomService(ctx context.Context, service application.Cus
 	ctx, cancel := bounded(ctx)
 	defer cancel()
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE custom_services SET title=?,domains_json=?,updated_at_ns=? WHERE id=?`,
+		`UPDATE custom_lists SET title=?,domains_json=?,updated_at_ns=? WHERE id=?`,
 		service.Title, string(payload), service.UpdatedAt.UTC().UnixNano(), service.ID)
 	if err != nil {
 		return fmt.Errorf("update custom service: %w", err)
@@ -96,7 +96,7 @@ func (s *Store) CustomServices(ctx context.Context) ([]application.CustomService
 	ctx, cancel := bounded(ctx)
 	defer cancel()
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id,title,domains_json,created_at_ns,updated_at_ns FROM custom_services ORDER BY id ASC LIMIT ?`, customServiceLimit)
+		`SELECT id,title,domains_json,created_at_ns,updated_at_ns FROM custom_lists ORDER BY id ASC LIMIT ?`, customServiceLimit)
 	if err != nil {
 		return nil, fmt.Errorf("list custom services: %w", err)
 	}

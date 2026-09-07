@@ -30,7 +30,7 @@ func (s *Store) ExportConfigTransfer(ctx context.Context) (application.ConfigTra
 	} else if err != sql.ErrNoRows {
 		return d, fmt.Errorf("read transfer settings: %w", err)
 	}
-	rows, err := tx.QueryContext(ctx, "SELECT service_id FROM library_service_priorities ORDER BY position ASC")
+	rows, err := tx.QueryContext(ctx, "SELECT list_id FROM library_list_priorities ORDER BY position ASC")
 	if err != nil {
 		return d, fmt.Errorf("read transfer default priority: %w", err)
 	}
@@ -70,7 +70,7 @@ func (s *Store) ExportConfigTransfer(ctx context.Context) (application.ConfigTra
 }
 
 func exportCustomServices(ctx context.Context, q *sql.Tx, d *application.ConfigTransferDocument) error {
-	rows, err := q.QueryContext(ctx, "SELECT id,title,domains_json FROM custom_services ORDER BY id")
+	rows, err := q.QueryContext(ctx, "SELECT id,title,domains_json FROM custom_lists ORDER BY id")
 	if err != nil {
 		return fmt.Errorf("read custom services: %w", err)
 	}
@@ -105,7 +105,7 @@ func exportCategories(ctx context.Context, q *sql.Tx, d *application.ConfigTrans
 	if err := rows.Close(); err != nil {
 		return err
 	}
-	rows, err = q.QueryContext(ctx, "SELECT category_id,service_id,state FROM category_memberships ORDER BY category_id,service_id")
+	rows, err = q.QueryContext(ctx, "SELECT category_id,list_id,state FROM category_memberships ORDER BY category_id,list_id")
 	if err != nil {
 		return err
 	}
@@ -166,7 +166,7 @@ func exportTunings(ctx context.Context, q *sql.Tx, d *application.ConfigTransfer
 	}
 	d.OmittedCustomSources = uint(len(customSources))
 
-	rows, err = q.QueryContext(ctx, "SELECT service_id,source_id FROM service_disabled_sources ORDER BY service_id,source_id")
+	rows, err = q.QueryContext(ctx, "SELECT list_id,source_id FROM list_disabled_sources ORDER BY list_id,source_id")
 	if err != nil {
 		return err
 	}
@@ -185,7 +185,7 @@ func exportTunings(ctx context.Context, q *sql.Tx, d *application.ConfigTransfer
 	if err := rows.Close(); err != nil {
 		return err
 	}
-	rows, err = q.QueryContext(ctx, "SELECT service_id,domain,verdict FROM service_domain_verdicts ORDER BY service_id,domain")
+	rows, err = q.QueryContext(ctx, "SELECT list_id,domain,verdict FROM list_domain_verdicts ORDER BY list_id,domain")
 	if err != nil {
 		return err
 	}
@@ -212,7 +212,7 @@ func exportTunings(ctx context.Context, q *sql.Tx, d *application.ConfigTransfer
 }
 
 func exportRoutes(ctx context.Context, q *sql.Tx, d *application.ConfigTransferDocument) error {
-	rows, err := q.QueryContext(ctx, "SELECT id,name,refresh_interval,archived_at_ns FROM lists ORDER BY id")
+	rows, err := q.QueryContext(ctx, "SELECT id,name,refresh_interval,archived_at_ns FROM profiles ORDER BY id")
 	if err != nil {
 		return err
 	}
@@ -240,7 +240,7 @@ func exportRoutes(ctx context.Context, q *sql.Tx, d *application.ConfigTransferD
 	for _, spec := range []struct {
 		query string
 		add   func(*application.TransferRoute, string)
-	}{{"SELECT list_id,service_id FROM list_services ORDER BY list_id,service_id", func(r *application.TransferRoute, v string) { r.Services = append(r.Services, v) }}, {"SELECT list_id,category_id FROM list_categories ORDER BY list_id,category_id", func(r *application.TransferRoute, v string) { r.Categories = append(r.Categories, v) }}, {"SELECT list_id,service_id FROM list_exclusions ORDER BY list_id,service_id", func(r *application.TransferRoute, v string) { r.Exclusions = append(r.Exclusions, v) }}} {
+	}{{"SELECT profile_id,list_id FROM profile_lists ORDER BY profile_id,list_id", func(r *application.TransferRoute, v string) { r.Services = append(r.Services, v) }}, {"SELECT profile_id,category_id FROM profile_categories ORDER BY profile_id,category_id", func(r *application.TransferRoute, v string) { r.Categories = append(r.Categories, v) }}, {"SELECT profile_id,list_id FROM profile_exclusions ORDER BY profile_id,list_id", func(r *application.TransferRoute, v string) { r.Exclusions = append(r.Exclusions, v) }}} {
 		rows, err = q.QueryContext(ctx, spec.query)
 		if err != nil {
 			return err
@@ -257,7 +257,7 @@ func exportRoutes(ctx context.Context, q *sql.Tx, d *application.ConfigTransferD
 			return err
 		}
 	}
-	rows, err = q.QueryContext(ctx, "SELECT list_id,service_id FROM list_service_priorities ORDER BY list_id,position")
+	rows, err = q.QueryContext(ctx, "SELECT profile_id,list_id FROM profile_list_priorities ORDER BY profile_id,position")
 	if err != nil {
 		return err
 	}
@@ -272,7 +272,7 @@ func exportRoutes(ctx context.Context, q *sql.Tx, d *application.ConfigTransferD
 	if err := rows.Close(); err != nil {
 		return err
 	}
-	rows, err = q.QueryContext(ctx, "SELECT list_id,service_id,domains_json FROM list_service_domains ORDER BY list_id,service_id")
+	rows, err = q.QueryContext(ctx, "SELECT profile_id,list_id,domains_json FROM profile_list_domains ORDER BY profile_id,list_id")
 	if err != nil {
 		return err
 	}
@@ -308,7 +308,7 @@ func exportDevices(ctx context.Context, q *sql.Tx, d *application.ConfigTransfer
 	return rows.Err()
 }
 func exportOutputs(ctx context.Context, q *sql.Tx, d *application.ConfigTransferDocument) error {
-	rows, err := q.QueryContext(ctx, "SELECT id,list_id,target_id,COALESCE(device_id,'') FROM outputs ORDER BY id")
+	rows, err := q.QueryContext(ctx, "SELECT id,profile_id,target_id,COALESCE(device_id,'') FROM outputs ORDER BY id")
 	if err != nil {
 		return err
 	}
@@ -364,14 +364,14 @@ func (s *Store) ApplyConfigTransfer(ctx context.Context, a application.ConfigTra
 	}
 	if d.Version == application.ConfigTransferVersion {
 		for position, ref := range d.Settings.DefaultPriority {
-			if _, err := tx.ExecContext(ctx, "INSERT INTO library_service_priorities(service_id,position) VALUES(?,?)", serviceID(ref), position); err != nil {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO library_list_priorities(list_id,position) VALUES(?,?)", serviceID(ref), position); err != nil {
 				return err
 			}
 		}
 	}
 	for _, v := range d.CustomServices {
 		raw, _ := json.Marshal(v.Domains)
-		if _, err := tx.ExecContext(ctx, "INSERT INTO custom_services(id,title,domains_json,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?)", a.CustomServiceIDs[v.Ref], v.Title, string(raw), now, now); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO custom_lists(id,title,domains_json,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?)", a.CustomServiceIDs[v.Ref], v.Title, string(raw), now, now); err != nil {
 			return err
 		}
 	}
@@ -381,7 +381,7 @@ func (s *Store) ApplyConfigTransfer(ctx context.Context, a application.ConfigTra
 		}
 	}
 	for _, v := range d.Memberships {
-		if _, err := tx.ExecContext(ctx, "INSERT INTO category_memberships(category_id,service_id,state,updated_at_ns) VALUES(?,?,?,?)", categoryID(v.CategoryRef), serviceID(v.ServiceRef), v.State, now); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO category_memberships(category_id,list_id,state,updated_at_ns) VALUES(?,?,?,?)", categoryID(v.CategoryRef), serviceID(v.ServiceRef), v.State, now); err != nil {
 			return err
 		}
 	}
@@ -393,22 +393,22 @@ func (s *Store) ApplyConfigTransfer(ctx context.Context, a application.ConfigTra
 	for _, t := range d.Tunings {
 		sid := serviceID(t.ServiceRef)
 		for _, id := range t.DisabledSources {
-			if _, err := tx.ExecContext(ctx, "INSERT INTO service_disabled_sources(service_id,source_id) VALUES(?,?)", sid, id); err != nil {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO list_disabled_sources(list_id,source_id) VALUES(?,?)", sid, id); err != nil {
 				return err
 			}
 		}
 		for _, v := range t.CustomSources {
-			if _, err := tx.ExecContext(ctx, "INSERT INTO custom_sources(id,service_id,url,format,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?,?)", a.CustomSourceIDs[v.Ref], sid, v.URL, v.Format, now, now); err != nil {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO custom_sources(id,list_id,url,format,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?,?)", a.CustomSourceIDs[v.Ref], sid, v.URL, v.Format, now, now); err != nil {
 				return err
 			}
 		}
 		for _, v := range t.Includes {
-			if _, err := tx.ExecContext(ctx, "INSERT INTO service_domain_verdicts(service_id,domain,verdict) VALUES(?,?,?)", sid, v, application.DomainVerdictInclude); err != nil {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO list_domain_verdicts(list_id,domain,verdict) VALUES(?,?,?)", sid, v, application.DomainVerdictInclude); err != nil {
 				return err
 			}
 		}
 		for _, v := range t.Excludes {
-			if _, err := tx.ExecContext(ctx, "INSERT INTO service_domain_verdicts(service_id,domain,verdict) VALUES(?,?,?)", sid, v, application.DomainVerdictExclude); err != nil {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO list_domain_verdicts(list_id,domain,verdict) VALUES(?,?,?)", sid, v, application.DomainVerdictExclude); err != nil {
 				return err
 			}
 		}
@@ -419,32 +419,32 @@ func (s *Store) ApplyConfigTransfer(ctx context.Context, a application.ConfigTra
 		if v.Archived {
 			archived = now
 		}
-		if _, err := tx.ExecContext(ctx, "INSERT INTO lists(id,name,refresh_interval,last_refreshed_at_ns,last_refresh_failed,archived_at_ns,created_at_ns,updated_at_ns) VALUES(?,?,?,0,0,?,?,?)", id, v.Name, v.RefreshInterval, archived, now, now); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO profiles(id,name,refresh_interval,last_refreshed_at_ns,last_refresh_failed,archived_at_ns,created_at_ns,updated_at_ns) VALUES(?,?,?,0,0,?,?,?)", id, v.Name, v.RefreshInterval, archived, now, now); err != nil {
 			return err
 		}
 		for _, x := range v.Services {
-			if _, err := tx.ExecContext(ctx, "INSERT INTO list_services(list_id,service_id) VALUES(?,?)", id, serviceID(x)); err != nil {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO profile_lists(profile_id,list_id) VALUES(?,?)", id, serviceID(x)); err != nil {
 				return err
 			}
 		}
 		for _, x := range v.Categories {
-			if _, err := tx.ExecContext(ctx, "INSERT INTO list_categories(list_id,category_id) VALUES(?,?)", id, categoryID(x)); err != nil {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO profile_categories(profile_id,category_id) VALUES(?,?)", id, categoryID(x)); err != nil {
 				return err
 			}
 		}
 		for _, x := range v.Exclusions {
-			if _, err := tx.ExecContext(ctx, "INSERT INTO list_exclusions(list_id,service_id) VALUES(?,?)", id, serviceID(x)); err != nil {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO profile_exclusions(profile_id,list_id) VALUES(?,?)", id, serviceID(x)); err != nil {
 				return err
 			}
 		}
 		for position, x := range v.Priority {
-			if _, err := tx.ExecContext(ctx, "INSERT INTO list_service_priorities(list_id,service_id,position) VALUES(?,?,?)", id, serviceID(x), position); err != nil {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO profile_list_priorities(profile_id,list_id,position) VALUES(?,?,?)", id, serviceID(x), position); err != nil {
 				return err
 			}
 		}
 		for sid, values := range v.ServiceDomains {
 			raw, _ := json.Marshal(values)
-			if _, err := tx.ExecContext(ctx, "INSERT INTO list_service_domains(list_id,service_id,domains_json) VALUES(?,?,?)", id, serviceID(sid), string(raw)); err != nil {
+			if _, err := tx.ExecContext(ctx, "INSERT INTO profile_list_domains(profile_id,list_id,domains_json) VALUES(?,?,?)", id, serviceID(sid), string(raw)); err != nil {
 				return err
 			}
 		}
@@ -460,7 +460,7 @@ func (s *Store) ApplyConfigTransfer(ctx context.Context, a application.ConfigTra
 		if o.DeviceID != "" {
 			device = o.DeviceID
 		}
-		if _, err := tx.ExecContext(ctx, "INSERT INTO outputs(id,list_id,target_id,profile_key,renderer_id,renderer_version,target_revision,created_at_ns,device_id) VALUES(?,?,?,?,?,?,?,?,?)", o.ID, o.ListID, o.TargetID, o.ProfileKey, o.RendererID, o.RendererVersion, o.TargetRevision, now, device); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,device_id) VALUES(?,?,?,?,?,?,?,?,?)", o.ID, o.ListID, o.TargetID, o.ProfileKey, o.RendererID, o.RendererVersion, o.TargetRevision, now, device); err != nil {
 			return err
 		}
 	}

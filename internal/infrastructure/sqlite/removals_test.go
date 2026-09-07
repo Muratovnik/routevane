@@ -16,13 +16,13 @@ import (
 func populateLibrary(t *testing.T, store *Store, now time.Time) {
 	t.Helper()
 	statements := []string{
-		`INSERT INTO custom_services(id,title,domains_json,created_at_ns,updated_at_ns) VALUES('custom-1234567890abcdef','Мои сайты','["a.example"]',1,1)`,
-		`INSERT INTO custom_sources(id,service_id,url,format,created_at_ns,updated_at_ns) VALUES('feed-1234567890abcdef','youtube','https://example.test/feed.txt','text',1,1)`,
-		`INSERT INTO custom_sources(id,service_id,url,format,created_at_ns,updated_at_ns) VALUES('feed-fedcba0987654321','discord','https://example.test/other.txt','text',1,1)`,
-		`INSERT INTO service_disabled_sources(service_id,source_id) VALUES('youtube','dns')`,
-		`INSERT INTO service_disabled_sources(service_id,source_id) VALUES('discord','dns')`,
-		`INSERT INTO service_domain_verdicts(service_id,domain,verdict) VALUES('youtube','a.example','include')`,
-		`INSERT INTO service_domain_verdicts(service_id,domain,verdict) VALUES('discord','b.example','exclude')`,
+		`INSERT INTO custom_lists(id,title,domains_json,created_at_ns,updated_at_ns) VALUES('custom-1234567890abcdef','Мои сайты','["a.example"]',1,1)`,
+		`INSERT INTO custom_sources(id,list_id,url,format,created_at_ns,updated_at_ns) VALUES('feed-1234567890abcdef','youtube','https://example.test/feed.txt','text',1,1)`,
+		`INSERT INTO custom_sources(id,list_id,url,format,created_at_ns,updated_at_ns) VALUES('feed-fedcba0987654321','discord','https://example.test/other.txt','text',1,1)`,
+		`INSERT INTO list_disabled_sources(list_id,source_id) VALUES('youtube','dns')`,
+		`INSERT INTO list_disabled_sources(list_id,source_id) VALUES('discord','dns')`,
+		`INSERT INTO list_domain_verdicts(list_id,domain,verdict) VALUES('youtube','a.example','include')`,
+		`INSERT INTO list_domain_verdicts(list_id,domain,verdict) VALUES('discord','b.example','exclude')`,
 	}
 	for _, statement := range statements {
 		if _, err := store.db.Exec(statement); err != nil {
@@ -64,14 +64,14 @@ func TestRemovingACatalogListRecordsItAndTakesOnlyWhatThatListOwned(t *testing.T
 	now := time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
 	populateLibrary(t, store, now)
 
-	if err := store.RemoveFromLibrary(ctx, application.LibraryRemoval{Kind: application.RemovalService, ID: "youtube", RemovedAt: now}); err != nil {
+	if err := store.RemoveFromLibrary(ctx, application.LibraryRemoval{Kind: application.RemovalList, ID: "youtube", RemovedAt: now}); err != nil {
 		t.Fatal(err)
 	}
 	overlay, err := store.CategoryOverlay(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []application.CatalogRemoval{{Kind: application.RemovalService, ID: "youtube", RemovedAt: now}}
+	want := []application.CatalogRemoval{{Kind: application.RemovalList, ID: "youtube", RemovedAt: now}}
 	if !reflect.DeepEqual(overlay.Removals, want) {
 		t.Fatalf("removals = %#v", overlay.Removals)
 	}
@@ -79,10 +79,10 @@ func TestRemovingACatalogListRecordsItAndTakesOnlyWhatThatListOwned(t *testing.T
 		what  string
 		query string
 	}{
-		{"verdicts", `SELECT count(*) FROM service_domain_verdicts WHERE service_id='youtube'`},
-		{"source overrides", `SELECT count(*) FROM service_disabled_sources WHERE service_id='youtube'`},
-		{"feeds", `SELECT count(*) FROM custom_sources WHERE service_id='youtube'`},
-		{"membership", `SELECT count(*) FROM category_memberships WHERE service_id='youtube'`},
+		{"verdicts", `SELECT count(*) FROM list_domain_verdicts WHERE list_id='youtube'`},
+		{"source overrides", `SELECT count(*) FROM list_disabled_sources WHERE list_id='youtube'`},
+		{"feeds", `SELECT count(*) FROM custom_sources WHERE list_id='youtube'`},
+		{"membership", `SELECT count(*) FROM category_memberships WHERE list_id='youtube'`},
 	} {
 		if count := countRows(t, store, gone.query); count != 0 {
 			t.Errorf("the deleted list kept its %s: %d", gone.what, count)
@@ -92,10 +92,10 @@ func TestRemovingACatalogListRecordsItAndTakesOnlyWhatThatListOwned(t *testing.T
 		what  string
 		query string
 	}{
-		{"verdicts", `SELECT count(*) FROM service_domain_verdicts WHERE service_id='discord'`},
-		{"source overrides", `SELECT count(*) FROM service_disabled_sources WHERE service_id='discord'`},
-		{"feeds", `SELECT count(*) FROM custom_sources WHERE service_id='discord'`},
-		{"membership", `SELECT count(*) FROM category_memberships WHERE service_id='discord'`},
+		{"verdicts", `SELECT count(*) FROM list_domain_verdicts WHERE list_id='discord'`},
+		{"source overrides", `SELECT count(*) FROM list_disabled_sources WHERE list_id='discord'`},
+		{"feeds", `SELECT count(*) FROM custom_sources WHERE list_id='discord'`},
+		{"membership", `SELECT count(*) FROM category_memberships WHERE list_id='discord'`},
 	} {
 		if count := countRows(t, store, kept.query); count != 1 {
 			t.Errorf("another list lost its %s: %d", kept.what, count)
@@ -112,7 +112,7 @@ func TestRemovingACatalogListRecordsItAndTakesOnlyWhatThatListOwned(t *testing.T
 	// Recording is idempotent and keeps the first moment: a second deletion is
 	// a caller that read a stale library, not a new fact.
 	later := now.Add(time.Hour)
-	if err := store.RemoveFromLibrary(ctx, application.LibraryRemoval{Kind: application.RemovalService, ID: "youtube", RemovedAt: later}); err != nil {
+	if err := store.RemoveFromLibrary(ctx, application.LibraryRemoval{Kind: application.RemovalList, ID: "youtube", RemovedAt: later}); err != nil {
 		t.Fatal(err)
 	}
 	overlay, _ = store.CategoryOverlay(ctx)
@@ -150,7 +150,7 @@ func TestACategoryDeletionWithItsListsIsOneTransaction(t *testing.T) {
 	if len(overlay.Memberships) != 3 {
 		t.Fatalf("a failed removal changed membership: %#v", overlay.Memberships)
 	}
-	if count := countRows(t, store, `SELECT count(*) FROM service_domain_verdicts WHERE service_id='youtube'`); count != 1 {
+	if count := countRows(t, store, `SELECT count(*) FROM list_domain_verdicts WHERE list_id='youtube'`); count != 1 {
 		t.Fatalf("a failed removal deleted a list's verdicts: %d", count)
 	}
 
@@ -166,7 +166,7 @@ func TestACategoryDeletionWithItsListsIsOneTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The operator's category left no record; the catalog list it took did.
-	want := []application.CatalogRemoval{{Kind: application.RemovalService, ID: "youtube", RemovedAt: now}}
+	want := []application.CatalogRemoval{{Kind: application.RemovalList, ID: "youtube", RemovedAt: now}}
 	if len(overlay.Categories) != 0 || !reflect.DeepEqual(overlay.Removals, want) {
 		t.Fatalf("overlay = %#v", overlay)
 	}
@@ -214,7 +214,7 @@ func TestLibraryRemovalsRefuseWhatTheGrammarForbids(t *testing.T) {
 			return r
 		}},
 		{"lists on a list deletion", func(r application.LibraryRemoval) application.LibraryRemoval {
-			r.Kind, r.ID, r.Services = application.RemovalService, "youtube", []string{"discord"}
+			r.Kind, r.ID, r.Services = application.RemovalList, "youtube", []string{"discord"}
 			return r
 		}},
 		{"invalid held list", func(r application.LibraryRemoval) application.LibraryRemoval {

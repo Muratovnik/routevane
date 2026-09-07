@@ -30,7 +30,12 @@ type RemovalKind string
 
 const (
 	RemovalCategory RemovalKind = "category"
-	RemovalService  RemovalKind = "service"
+	RemovalList     RemovalKind = "list"
+	// retiredRemovalList is the word this value carried before ADR 0039. The
+	// schema migration rewrote every stored row, so it survives only as a
+	// value that a configuration exported by a retired version still carries
+	// into an import.
+	retiredRemovalList RemovalKind = "service"
 )
 
 // CatalogRemoval is one shipped object the operator deleted. It carries the
@@ -150,7 +155,7 @@ func (s *PublicationService) RemoveService(ctx context.Context, id string) error
 	if now.IsZero() {
 		return fmt.Errorf("clock returned zero time")
 	}
-	if err := s.config.Store.RemoveFromLibrary(ctx, LibraryRemoval{Kind: RemovalService, ID: id, RemovedAt: now}); err != nil {
+	if err := s.config.Store.RemoveFromLibrary(ctx, LibraryRemoval{Kind: RemovalList, ID: id, RemovedAt: now}); err != nil {
 		return err
 	}
 	s.forgetService(id)
@@ -229,7 +234,7 @@ func (s *PublicationService) forgetService(id string) {
 
 	s.overlay.mu.Lock()
 	if !operatorOwned {
-		s.overlay.removed[RemovalService][id] = struct{}{}
+		s.overlay.removed[RemovalList][id] = struct{}{}
 	}
 	for categoryID, verdicts := range s.overlay.membership {
 		delete(verdicts, id)
@@ -255,7 +260,7 @@ func (s *PublicationService) removedFromLibrary(kind RemovalKind, id string) boo
 func emptyRemovalIndex() map[RemovalKind]map[string]struct{} {
 	return map[RemovalKind]map[string]struct{}{
 		RemovalCategory: {},
-		RemovalService:  {},
+		RemovalList:     {},
 	}
 }
 
@@ -267,7 +272,7 @@ func emptyRemovalIndex() map[RemovalKind]map[string]struct{} {
 // later took the identity.
 func validStoredRemoval(removal CatalogRemoval) error {
 	switch removal.Kind {
-	case RemovalCategory, RemovalService:
+	case RemovalCategory, RemovalList:
 	default:
 		return fmt.Errorf("invalid stored removal kind %q", removal.Kind)
 	}

@@ -188,7 +188,7 @@ func (s *Store) CategoryOverlay(ctx context.Context) (application.CategoryOverla
 		return application.CategoryOverlay{}, fmt.Errorf("stored custom categories exceed their bound")
 	}
 	memberships, err := s.db.QueryContext(ctx,
-		`SELECT category_id,service_id,state,updated_at_ns FROM category_memberships ORDER BY category_id ASC, service_id ASC LIMIT ?`, categoryMembershipLimit+1)
+		`SELECT category_id,list_id,state,updated_at_ns FROM category_memberships ORDER BY category_id ASC, list_id ASC LIMIT ?`, categoryMembershipLimit+1)
 	if err != nil {
 		return application.CategoryOverlay{}, fmt.Errorf("list category membership: %w", err)
 	}
@@ -244,7 +244,7 @@ func validMemberships(categoryID string, memberships []application.CategoryMembe
 func writeMemberships(ctx context.Context, tx *sql.Tx, categoryID string, memberships []application.CategoryMembership) error {
 	for _, membership := range memberships {
 		if _, err := tx.ExecContext(ctx,
-			`INSERT INTO category_memberships(category_id,service_id,state,updated_at_ns) VALUES(?,?,?,?)`,
+			`INSERT INTO category_memberships(category_id,list_id,state,updated_at_ns) VALUES(?,?,?,?)`,
 			categoryID, membership.ServiceID, string(membership.State), membership.UpdatedAt.UTC().UnixNano()); err != nil {
 			return fmt.Errorf("write category membership: %w", err)
 		}

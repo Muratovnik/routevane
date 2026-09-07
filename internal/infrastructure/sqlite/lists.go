@@ -83,9 +83,9 @@ func writeComposition(ctx context.Context, tx *sql.Tx, listID string, services, 
 		statement string
 		values    []string
 	}{
-		{`INSERT INTO list_services(list_id,service_id) VALUES(?,?)`, services},
-		{`INSERT INTO list_categories(list_id,category_id) VALUES(?,?)`, categories},
-		{`INSERT INTO list_exclusions(list_id,service_id) VALUES(?,?)`, exclusions},
+		{`INSERT INTO profile_lists(profile_id,list_id) VALUES(?,?)`, services},
+		{`INSERT INTO profile_categories(profile_id,category_id) VALUES(?,?)`, categories},
+		{`INSERT INTO profile_exclusions(profile_id,list_id) VALUES(?,?)`, exclusions},
 	}
 	for _, write := range writes {
 		for _, value := range write.values {
@@ -95,7 +95,7 @@ func writeComposition(ctx context.Context, tx *sql.Tx, listID string, services, 
 		}
 	}
 	for position, serviceID := range priority {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO list_service_priorities(list_id,service_id,position) VALUES(?,?,?)`, listID, serviceID, position); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO profile_list_priorities(profile_id,list_id,position) VALUES(?,?,?)`, listID, serviceID, position); err != nil {
 			return fmt.Errorf("write list priority: %w", err)
 		}
 	}
@@ -135,7 +135,7 @@ func writeServiceDomains(ctx context.Context, tx *sql.Tx, listID string, overrid
 		if err != nil {
 			return fmt.Errorf("encode list service domains: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO list_service_domains(list_id,service_id,domains_json) VALUES(?,?,?)`, listID, serviceID, string(payload)); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO profile_list_domains(profile_id,list_id,domains_json) VALUES(?,?,?)`, listID, serviceID, string(payload)); err != nil {
 			return fmt.Errorf("write list service domains: %w", err)
 		}
 	}
@@ -144,11 +144,11 @@ func writeServiceDomains(ctx context.Context, tx *sql.Tx, listID string, overrid
 
 func clearComposition(ctx context.Context, tx *sql.Tx, listID string) error {
 	for _, statement := range []string{
-		`DELETE FROM list_services WHERE list_id=?`,
-		`DELETE FROM list_categories WHERE list_id=?`,
-		`DELETE FROM list_exclusions WHERE list_id=?`,
-		`DELETE FROM list_service_domains WHERE list_id=?`,
-		`DELETE FROM list_service_priorities WHERE list_id=?`,
+		`DELETE FROM profile_lists WHERE profile_id=?`,
+		`DELETE FROM profile_categories WHERE profile_id=?`,
+		`DELETE FROM profile_exclusions WHERE profile_id=?`,
+		`DELETE FROM profile_list_domains WHERE profile_id=?`,
+		`DELETE FROM profile_list_priorities WHERE profile_id=?`,
 	} {
 		if _, err := tx.ExecContext(ctx, statement, listID); err != nil {
 			return fmt.Errorf("replace list composition: %w", err)
@@ -175,13 +175,13 @@ func (s *Store) CreateList(ctx context.Context, list application.List) error {
 	// A taken identifier is the one failure the caller retries. Everything else
 	// is a real error and must not be spent on eight more attempts.
 	var taken int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM lists WHERE id=?`, list.ID).Scan(&taken); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM profiles WHERE id=?`, list.ID).Scan(&taken); err != nil {
 		return fail(fmt.Errorf("check list identity: %w", err))
 	}
 	if taken != 0 {
 		return fail(application.ErrIdentityCollision)
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO lists(id,name,created_at_ns,updated_at_ns) VALUES(?,?,?,?)`, list.ID, list.Name, list.CreatedAt.UTC().UnixNano(), list.UpdatedAt.UTC().UnixNano()); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO profiles(id,name,created_at_ns,updated_at_ns) VALUES(?,?,?,?)`, list.ID, list.Name, list.CreatedAt.UTC().UnixNano(), list.UpdatedAt.UTC().UnixNano()); err != nil {
 		return fail(fmt.Errorf("insert list: %w", err))
 	}
 	if err := writeComposition(ctx, tx, list.ID, services, categories, exclusions, priority); err != nil {
@@ -202,7 +202,7 @@ func (s *Store) List(ctx context.Context, id string) (application.List, error) {
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	list, err := scanList(s.db.QueryRowContext(ctx, listColumns+` FROM lists WHERE id=?`, id))
+	list, err := scanList(s.db.QueryRowContext(ctx, listColumns+` FROM profiles WHERE id=?`, id))
 	if err != nil {
 		return application.List{}, err
 	}
@@ -216,7 +216,7 @@ func (s *Store) List(ctx context.Context, id string) (application.List, error) {
 }
 
 func (s *Store) readServiceDomains(ctx context.Context, list *application.List) error {
-	rows, err := s.db.QueryContext(ctx, `SELECT service_id,domains_json FROM list_service_domains WHERE list_id=? ORDER BY service_id ASC LIMIT 128`, list.ID)
+	rows, err := s.db.QueryContext(ctx, `SELECT list_id,domains_json FROM profile_list_domains WHERE profile_id=? ORDER BY list_id ASC LIMIT 128`, list.ID)
 	if err != nil {
 		return fmt.Errorf("read list service domains: %w", err)
 	}
@@ -256,9 +256,9 @@ func (s *Store) readComposition(ctx context.Context, list *application.List) err
 		query string
 		into  *[]string
 	}{
-		{`SELECT service_id FROM list_services WHERE list_id=? ORDER BY service_id ASC LIMIT 128`, &list.Services},
-		{`SELECT category_id FROM list_categories WHERE list_id=? ORDER BY category_id ASC LIMIT 128`, &list.Categories},
-		{`SELECT service_id FROM list_exclusions WHERE list_id=? ORDER BY service_id ASC LIMIT 128`, &list.Exclusions},
+		{`SELECT list_id FROM profile_lists WHERE profile_id=? ORDER BY list_id ASC LIMIT 128`, &list.Services},
+		{`SELECT category_id FROM profile_categories WHERE profile_id=? ORDER BY category_id ASC LIMIT 128`, &list.Categories},
+		{`SELECT list_id FROM profile_exclusions WHERE profile_id=? ORDER BY list_id ASC LIMIT 128`, &list.Exclusions},
 	}
 	for _, read := range reads {
 		values, err := s.compositionPart(ctx, read.query, list.ID)
@@ -267,7 +267,7 @@ func (s *Store) readComposition(ctx context.Context, list *application.List) err
 		}
 		*read.into = values
 	}
-	priority, err := s.compositionPart(ctx, `SELECT service_id FROM list_service_priorities WHERE list_id=? ORDER BY position ASC LIMIT 128`, list.ID)
+	priority, err := s.compositionPart(ctx, `SELECT list_id FROM profile_list_priorities WHERE profile_id=? ORDER BY position ASC LIMIT 128`, list.ID)
 	if err != nil {
 		return err
 	}
@@ -298,7 +298,7 @@ func (s *Store) compositionPart(ctx context.Context, query, listID string) ([]st
 func (s *Store) Lists(ctx context.Context) ([]application.List, error) {
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, listColumns+` FROM lists ORDER BY created_at_ns DESC, id ASC LIMIT ?`, listLimit)
+	rows, err := s.db.QueryContext(ctx, listColumns+` FROM profiles ORDER BY created_at_ns DESC, id ASC LIMIT ?`, listLimit)
 	if err != nil {
 		return nil, fmt.Errorf("list lists: %w", err)
 	}
@@ -346,7 +346,7 @@ func (s *Store) UpdateList(ctx context.Context, list application.List) error {
 		return fmt.Errorf("begin list update: %w", err)
 	}
 	fail := func(cause error) error { _ = tx.Rollback(); return cause }
-	result, err := tx.ExecContext(ctx, `UPDATE lists SET name=?,updated_at_ns=? WHERE id=?`, list.Name, list.UpdatedAt.UTC().UnixNano(), list.ID)
+	result, err := tx.ExecContext(ctx, `UPDATE profiles SET name=?,updated_at_ns=? WHERE id=?`, list.Name, list.UpdatedAt.UTC().UnixNano(), list.ID)
 	if err != nil {
 		return fail(fmt.Errorf("update list: %w", err))
 	}
@@ -386,7 +386,7 @@ func (s *Store) SetListArchived(ctx context.Context, listID string, archivedAt t
 		archived = archivedAt.UTC().UnixNano()
 	}
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE lists SET archived_at_ns=?, updated_at_ns=? WHERE id=?`,
+		`UPDATE profiles SET archived_at_ns=?, updated_at_ns=? WHERE id=?`,
 		archived, updatedAt.UTC().UnixNano(), listID)
 	if err != nil {
 		return fmt.Errorf("update list archival: %w", err)

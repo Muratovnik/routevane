@@ -75,7 +75,7 @@ func (s *Store) UpdateListSchedule(ctx context.Context, listID string, interval 
 		marked = 1
 	}
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE lists SET refresh_interval=?, last_refreshed_at_ns=?, last_refresh_failed=?, updated_at_ns=? WHERE id=?`,
+		`UPDATE profiles SET refresh_interval=?, last_refreshed_at_ns=?, last_refresh_failed=?, updated_at_ns=? WHERE id=?`,
 		string(interval), refreshed, marked, updatedAt.UTC().UnixNano(), listID)
 	if err != nil {
 		return fmt.Errorf("update list schedule: %w", err)

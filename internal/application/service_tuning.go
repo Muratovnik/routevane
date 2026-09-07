@@ -439,7 +439,7 @@ func (s *PublicationService) storeTuningLocked(serviceID string, tuning ServiceT
 func (s *PublicationService) baseDefinition(id string) (domain.ServiceDefinition, bool) {
 	s.registryMu.RLock()
 	defer s.registryMu.RUnlock()
-	if s.removedFromLibrary(RemovalService, id) {
+	if s.removedFromLibrary(RemovalList, id) {
 		return domain.ServiceDefinition{}, false
 	}
 	if definition, ok := s.config.Definitions[id]; ok {

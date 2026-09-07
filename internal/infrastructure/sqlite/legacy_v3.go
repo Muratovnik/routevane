@@ -137,11 +137,16 @@ func legacyV3Fingerprint(ctx context.Context, db *sql.DB) (bool, error) {
 			return false, nil
 		}
 	}
-	var lists int
-	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='lists'").Scan(&lists); err != nil {
-		return false, fmt.Errorf("inspect legacy lists: %w", err)
+	// A version-three database from the released lineage carries the baseline
+	// table version one created, which was named lists then and is named
+	// profiles now (ADR 0039). Its presence is what separates that database
+	// from the pre-release schema this importer accepts, so the check names
+	// the historical table and not the current one.
+	var baseline int
+	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='lists'").Scan(&baseline); err != nil {
+		return false, fmt.Errorf("inspect legacy baseline: %w", err)
 	}
-	return lists == 0, nil
+	return baseline == 0, nil
 }
 
 func createImportedDatabase(ctx context.Context, tempPath, backupPath string) error {
@@ -177,7 +182,7 @@ func createImportedDatabase(ctx context.Context, tempPath, backupPath string) er
 		`INSERT INTO sightings SELECT * FROM legacy.sightings`,
 		`INSERT INTO relations SELECT * FROM legacy.relations`,
 		`INSERT INTO source_runs SELECT * FROM legacy.source_runs`,
-		`INSERT INTO effective_profiles SELECT * FROM legacy.effective_profiles`,
+		`INSERT INTO effective_formats SELECT * FROM legacy.effective_profiles`,
 	} {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
 			return rollback(fmt.Errorf("import legacy observation state: %w", err))
@@ -185,15 +190,15 @@ func createImportedDatabase(ctx context.Context, tempPath, backupPath string) er
 	}
 	for index, profile := range profiles {
 		name := legacyListName(index, profile)
-		if _, err := tx.ExecContext(ctx, `INSERT INTO lists(id,name,created_at_ns,updated_at_ns) VALUES(?,?,?,?)`, profile.id, name, profile.createdAt, profile.createdAt); err != nil {
-			return rollback(fmt.Errorf("import legacy list: %w", err))
+		if _, err := tx.ExecContext(ctx, `INSERT INTO profiles(id,name,created_at_ns,updated_at_ns) VALUES(?,?,?,?)`, profile.id, name, profile.createdAt, profile.createdAt); err != nil {
+			return rollback(fmt.Errorf("import legacy profile: %w", err))
 		}
 		for _, serviceID := range profile.services {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO list_services(list_id,service_id) VALUES(?,?)`, profile.id, serviceID); err != nil {
-				return rollback(fmt.Errorf("import legacy list service: %w", err))
+			if _, err := tx.ExecContext(ctx, `INSERT INTO profile_lists(profile_id,list_id) VALUES(?,?)`, profile.id, serviceID); err != nil {
+				return rollback(fmt.Errorf("import legacy profile list: %w", err))
 			}
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO outputs(id,list_id,target_id,profile_key,renderer_id,renderer_version,target_revision,created_at_ns) VALUES(?,?,?,?,?,?,?,?)`, profile.id, profile.id, profile.targetID, profile.profileKey, profile.rendererID, profile.rendererVersion, profile.targetRevision, profile.createdAt); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns) VALUES(?,?,?,?,?,?,?,?)`, profile.id, profile.id, profile.targetID, profile.profileKey, profile.rendererID, profile.rendererVersion, profile.targetRevision, profile.createdAt); err != nil {
 			return rollback(fmt.Errorf("import legacy output: %w", err))
 		}
 	}

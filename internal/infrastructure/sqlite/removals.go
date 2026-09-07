@@ -84,7 +84,7 @@ func (s *Store) RemoveFromLibrary(ctx context.Context, removal application.Libra
 
 func validLibraryRemoval(removal application.LibraryRemoval) error {
 	switch removal.Kind {
-	case application.RemovalCategory, application.RemovalService:
+	case application.RemovalCategory, application.RemovalList:
 	default:
 		return fmt.Errorf("invalid library removal kind")
 	}
@@ -131,21 +131,21 @@ func removeCategoryRows(ctx context.Context, tx *sql.Tx, id, stamp string) error
 
 func removeServiceRows(ctx context.Context, tx *sql.Tx, id, stamp string) error {
 	if strings.HasPrefix(id, operatorPrefix) {
-		result, err := tx.ExecContext(ctx, `DELETE FROM custom_services WHERE id=?`, id)
+		result, err := tx.ExecContext(ctx, `DELETE FROM custom_lists WHERE id=?`, id)
 		if err != nil {
 			return fmt.Errorf("delete custom list: %w", err)
 		}
 		if affected, err := result.RowsAffected(); err != nil || affected != 1 {
 			return application.ErrNotFound
 		}
-	} else if err := recordRemoval(ctx, tx, application.RemovalService, id, stamp); err != nil {
+	} else if err := recordRemoval(ctx, tx, application.RemovalList, id, stamp); err != nil {
 		return err
 	}
 	for _, owned := range []struct{ statement, operation string }{
-		{`DELETE FROM service_domain_verdicts WHERE service_id=?`, "delete list verdicts"},
-		{`DELETE FROM service_disabled_sources WHERE service_id=?`, "delete list source overrides"},
-		{`DELETE FROM custom_sources WHERE service_id=?`, "delete list feeds"},
-		{`DELETE FROM category_memberships WHERE service_id=?`, "delete list membership"},
+		{`DELETE FROM list_domain_verdicts WHERE list_id=?`, "delete list verdicts"},
+		{`DELETE FROM list_disabled_sources WHERE list_id=?`, "delete list source overrides"},
+		{`DELETE FROM custom_sources WHERE list_id=?`, "delete list feeds"},
+		{`DELETE FROM category_memberships WHERE list_id=?`, "delete list membership"},
 	} {
 		if _, err := tx.ExecContext(ctx, owned.statement, id); err != nil {
 			return fmt.Errorf("%s: %w", owned.operation, err)
@@ -208,7 +208,7 @@ func (s *Store) catalogRemovals(ctx context.Context) ([]application.CatalogRemov
 // prefix, and a moment that happened.
 func validCatalogRemoval(removal application.CatalogRemoval) bool {
 	switch removal.Kind {
-	case application.RemovalCategory, application.RemovalService:
+	case application.RemovalCategory, application.RemovalList:
 	default:
 		return false
 	}

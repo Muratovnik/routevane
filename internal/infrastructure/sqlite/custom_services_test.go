@@ -45,14 +45,14 @@ func TestCustomServicesSurviveWriteReadAndUpdate(t *testing.T) {
 	if err := store.UpdateCustomService(context.Background(), missing); !errors.Is(err, application.ErrNotFound) {
 		t.Fatalf("missing update err = %v", err)
 	}
-	if _, err := store.db.Exec(`UPDATE custom_services SET id=? WHERE id=?`, "custom-aaaaaaaaaaaaaaaa", service.ID); err == nil {
+	if _, err := store.db.Exec(`UPDATE custom_lists SET id=? WHERE id=?`, "custom-aaaaaaaaaaaaaaaa", service.ID); err == nil {
 		t.Fatal("identity rewrite was accepted")
 	}
 	// A list the operator created is theirs to delete (ADR 0029). It leaves no
 	// removal record: the row was the whole object, so its absence is the
 	// deletion, and a record would outlive whatever later took the identity.
 	if err := store.RemoveFromLibrary(context.Background(), application.LibraryRemoval{
-		Kind: application.RemovalService, ID: service.ID, RemovedAt: now,
+		Kind: application.RemovalList, ID: service.ID, RemovedAt: now,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +65,7 @@ func TestCustomServicesSurviveWriteReadAndUpdate(t *testing.T) {
 		t.Fatalf("an operator-created list recorded a removal: %#v err = %v", overlay.Removals, err)
 	}
 	if err := store.RemoveFromLibrary(context.Background(), application.LibraryRemoval{
-		Kind: application.RemovalService, ID: service.ID, RemovedAt: now,
+		Kind: application.RemovalList, ID: service.ID, RemovedAt: now,
 	}); !errors.Is(err, application.ErrNotFound) {
 		t.Fatalf("second deletion err = %v", err)
 	}

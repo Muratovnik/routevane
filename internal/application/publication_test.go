@@ -135,7 +135,7 @@ func (s *publicationFakeStore) RemoveFromLibrary(_ context.Context, removal Libr
 			}
 			delete(s.custom, serviceID)
 		} else {
-			s.recordRemoval(RemovalService, serviceID, removal.RemovedAt)
+			s.recordRemoval(RemovalList, serviceID, removal.RemovedAt)
 		}
 		delete(s.tunings, serviceID)
 		for categoryID, rows := range s.memberships {

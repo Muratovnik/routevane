@@ -45,9 +45,9 @@ func (s *Store) ApplySuccess(ctx context.Context, cycle SuccessCycle) error {
 			ttl = sighting.TTLSeconds
 		}
 		_, err = tx.ExecContext(ctx, `
-INSERT INTO sightings(service_id, component_id, resource_id, source_id, source_class, source_revision, first_seen_ns, last_seen_ns, valid_until_ns, ttl_seconds, observation_count, metadata_json, invalid)
+INSERT INTO sightings(list_id, component_id, resource_id, source_id, source_class, source_revision, first_seen_ns, last_seen_ns, valid_until_ns, ttl_seconds, observation_count, metadata_json, invalid)
 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,0)
-ON CONFLICT(service_id, component_id, resource_id, source_id, source_revision) DO UPDATE SET
+ON CONFLICT(list_id, component_id, resource_id, source_id, source_revision) DO UPDATE SET
  first_seen_ns=min(sightings.first_seen_ns, excluded.first_seen_ns),
  last_seen_ns=max(sightings.last_seen_ns, excluded.last_seen_ns),
  valid_until_ns=max(sightings.valid_until_ns, excluded.valid_until_ns),
@@ -69,9 +69,9 @@ ON CONFLICT(service_id, component_id, resource_id, source_id, source_revision) D
 			return fail(err)
 		}
 		_, err = tx.ExecContext(ctx, `
-INSERT INTO relations(source_resource_id, relation_type, target_resource_id, service_id, component_id, first_seen_ns, last_seen_ns, valid_until_ns, source_id, source_revision, invalid)
+INSERT INTO relations(source_resource_id, relation_type, target_resource_id, list_id, component_id, first_seen_ns, last_seen_ns, valid_until_ns, source_id, source_revision, invalid)
 VALUES(?,?,?,?,?,?,?,?,?,?,0)
-ON CONFLICT(source_resource_id, relation_type, target_resource_id, service_id, component_id, source_id, source_revision) DO UPDATE SET
+ON CONFLICT(source_resource_id, relation_type, target_resource_id, list_id, component_id, source_id, source_revision) DO UPDATE SET
  first_seen_ns=min(relations.first_seen_ns, excluded.first_seen_ns),
  last_seen_ns=max(relations.last_seen_ns, excluded.last_seen_ns),
  valid_until_ns=max(relations.valid_until_ns, excluded.valid_until_ns),
@@ -85,7 +85,7 @@ ON CONFLICT(source_resource_id, relation_type, target_resource_id, service_id, c
 			return fail(err)
 		}
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO source_runs(service_id, source_id, source_revision, started_at_ns, completed_at_ns, status, sighting_count, relation_count, error_code)
+	_, err = tx.ExecContext(ctx, `INSERT INTO source_runs(list_id, source_id, source_revision, started_at_ns, completed_at_ns, status, sighting_count, relation_count, error_code)
 VALUES(?,?,?,?,?,'success',?,?,NULL)`, cycle.ServiceID, cycle.SourceID, cycle.SourceRevision, cycle.StartedAt.UnixNano(), cycle.CompletedAt.UnixNano(), len(sightings), len(relations))
 	if err != nil {
 		return fail(fmt.Errorf("record successful source run: %w", err))
@@ -102,7 +102,7 @@ func (s *Store) RecordFailure(ctx context.Context, cycle FailureCycle) error {
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	_, err := s.db.ExecContext(ctx, `INSERT INTO source_runs(service_id, source_id, source_revision, started_at_ns, completed_at_ns, status, sighting_count, relation_count, error_code)
+	_, err := s.db.ExecContext(ctx, `INSERT INTO source_runs(list_id, source_id, source_revision, started_at_ns, completed_at_ns, status, sighting_count, relation_count, error_code)
 VALUES(?,?,?,?,?,'failed',0,0,?)`, cycle.ServiceID, cycle.SourceID, cycle.SourceRevision, cycle.StartedAt.UTC().UnixNano(), cycle.CompletedAt.UTC().UnixNano(), cycle.ErrorCode)
 	if err != nil {
 		return fmt.Errorf("record failed source run: %w", err)
@@ -145,9 +145,9 @@ func upsertProfile(ctx context.Context, tx *sql.Tx, profile ProfileRecord) error
 	if profile.ProfileKey == "" || domain.ValidateSlug(profile.ServiceID) != nil || profile.TargetID == "" || profile.RendererID == "" || len(profile.CatalogRevision) != 64 || profile.UpdatedAt.IsZero() || len(profile.ConfigJSON) == 0 || !json.Valid(profile.ConfigJSON) {
 		return fmt.Errorf("invalid effective profile")
 	}
-	_, err := tx.ExecContext(ctx, `INSERT INTO effective_profiles(profile_key, service_id, target_id, renderer_id, catalog_revision, config_json, updated_at_ns)
-VALUES(?,?,?,?,?,?,?) ON CONFLICT(profile_key, service_id) DO UPDATE SET target_id=excluded.target_id, renderer_id=excluded.renderer_id,
-catalog_revision=excluded.catalog_revision, config_json=excluded.config_json, updated_at_ns=max(effective_profiles.updated_at_ns, excluded.updated_at_ns)`, profile.ProfileKey, profile.ServiceID, profile.TargetID, profile.RendererID, profile.CatalogRevision, string(profile.ConfigJSON), profile.UpdatedAt.UTC().UnixNano())
+	_, err := tx.ExecContext(ctx, `INSERT INTO effective_formats(format_key, list_id, target_id, renderer_id, catalog_revision, config_json, updated_at_ns)
+VALUES(?,?,?,?,?,?,?) ON CONFLICT(format_key, list_id) DO UPDATE SET target_id=excluded.target_id, renderer_id=excluded.renderer_id,
+catalog_revision=excluded.catalog_revision, config_json=excluded.config_json, updated_at_ns=max(effective_formats.updated_at_ns, excluded.updated_at_ns)`, profile.ProfileKey, profile.ServiceID, profile.TargetID, profile.RendererID, profile.CatalogRevision, string(profile.ConfigJSON), profile.UpdatedAt.UTC().UnixNano())
 	if err != nil {
 		return fmt.Errorf("upsert profile: %w", err)
 	}

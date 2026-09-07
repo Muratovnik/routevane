@@ -26,8 +26,8 @@ func (s *Store) ReadPlanningSnapshot(ctx context.Context, serviceID string, acti
 	defer tx.Rollback()
 	result := PlanningSnapshot{}
 	var updatedNS int64
-	if err := tx.QueryRowContext(ctx, `SELECT profile_key, service_id, target_id, renderer_id, catalog_revision, config_json, updated_at_ns
-FROM effective_profiles WHERE profile_key=? AND service_id=?`, profileKey, serviceID).Scan(&result.Profile.ProfileKey, &result.Profile.ServiceID, &result.Profile.TargetID, &result.Profile.RendererID, &result.Profile.CatalogRevision, &result.Profile.ConfigJSON, &updatedNS); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT format_key, list_id, target_id, renderer_id, catalog_revision, config_json, updated_at_ns
+FROM effective_formats WHERE format_key=? AND list_id=?`, profileKey, serviceID).Scan(&result.Profile.ProfileKey, &result.Profile.ServiceID, &result.Profile.TargetID, &result.Profile.RendererID, &result.Profile.CatalogRevision, &result.Profile.ConfigJSON, &updatedNS); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return PlanningSnapshot{}, ErrProfileNotFound
 		}
@@ -36,7 +36,7 @@ FROM effective_profiles WHERE profile_key=? AND service_id=?`, profileKey, servi
 	result.Profile.UpdatedAt = unixNanos(updatedNS)
 	rows, err := tx.QueryContext(ctx, `SELECT s.id, s.component_id, r.kind, r.normalized_value, s.source_id, s.source_class, s.source_revision,
 s.first_seen_ns, s.last_seen_ns, s.valid_until_ns, s.ttl_seconds, s.observation_count, s.metadata_json, s.invalid
-FROM sightings s JOIN resources r ON r.id=s.resource_id WHERE s.service_id=?`, serviceID)
+FROM sightings s JOIN resources r ON r.id=s.resource_id WHERE s.list_id=?`, serviceID)
 	if err != nil {
 		return PlanningSnapshot{}, fmt.Errorf("read sightings: %w", err)
 	}
@@ -71,7 +71,7 @@ FROM sightings s JOIN resources r ON r.id=s.resource_id WHERE s.service_id=?`, s
 	rows, err = tx.QueryContext(ctx, `SELECT rs.kind, rs.normalized_value, r.relation_type, rt.kind, rt.normalized_value,
 r.component_id, r.first_seen_ns, r.last_seen_ns, r.valid_until_ns, r.source_id, r.source_revision, r.invalid
 FROM relations r JOIN resources rs ON rs.id=r.source_resource_id JOIN resources rt ON rt.id=r.target_resource_id
-WHERE r.service_id=?`, serviceID)
+WHERE r.list_id=?`, serviceID)
 	if err != nil {
 		return PlanningSnapshot{}, fmt.Errorf("read relations: %w", err)
 	}
@@ -105,7 +105,7 @@ WHERE r.service_id=?`, serviceID)
 	rows, err = tx.QueryContext(ctx, `SELECT source_id, source_revision,
 COALESCE(MAX(CASE WHEN status='success' THEN completed_at_ns END), 0) AS last_success_ns,
 COALESCE(MAX(CASE WHEN status='failed' THEN completed_at_ns END), 0) AS last_failure_ns
-FROM source_runs WHERE service_id=? GROUP BY source_id, source_revision
+FROM source_runs WHERE list_id=? GROUP BY source_id, source_revision
 ORDER BY source_id, source_revision`, serviceID)
 	if err != nil {
 		return PlanningSnapshot{}, fmt.Errorf("read source health: %w", err)
