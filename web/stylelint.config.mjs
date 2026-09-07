@@ -1,3 +1,4 @@
+/** @type {import('stylelint').Config} */
 export default {
   extends: ['stylelint-config-standard', 'stylelint-config-standard-vue'],
   ignoreFiles: ['.nuxt/**', '.output/**', 'dist/**', 'node_modules/**'],

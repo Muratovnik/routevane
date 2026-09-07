@@ -29,37 +29,37 @@
     "check": "npm run typecheck && npm run lint && npm run lint:styles && npm run lint:format && npm run test:unit && npm run build"
   },
   "dependencies": {
-    "@nuxt/ui": "4.11.0",
+    "@nuxt/ui": "4.11.1",
     "@vueuse/core": "14.4.0",
     "@vueuse/integrations": "14.4.0",
     "nuxt": "4.5.2",
-    "reka-ui": "2.10.3",
+    "reka-ui": "2.10.4",
     "sortablejs": "1.15.7",
     "valibot": "1.4.2",
-    "vue": "3.5.41",
-    "vue-router": "5.2.0"
+    "vue": "3.5.42",
+    "vue-router": "5.3.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@nuxt/eslint": "1.17.0",
-    "@playwright/test": "1.62.1",
-    "@types/node": "26.1.1",
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.5.0",
     "@types/sortablejs": "1.15.9",
     "@vitejs/plugin-vue": "6.0.8",
-    "@vue/test-utils": "2.4.11",
-    "eslint": "10.8.1",
+    "@vue/test-utils": "2.5.0",
+    "eslint": "10.10.0",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-security": "4.0.1",
     "eslint-plugin-sonarjs": "4.2.0",
     "eslint-plugin-vuejs-accessibility": "2.6.0",
-    "happy-dom": "20.11.6",
+    "happy-dom": "20.14.0",
     "postcss-html": "2.0.0",
     "prettier": "3.9.6",
-    "stylelint": "17.14.1",
+    "stylelint": "17.15.0",
     "stylelint-config-standard": "40.0.0",
     "stylelint-config-standard-vue": "2.0.0",
     "typescript": "5.9.3",
-    "vitest": "4.1.11",
-    "vue-tsc": "3.3.10"
+    "vitest": "5.0.0",
+    "vue-tsc": "3.3.11"
   }
 }

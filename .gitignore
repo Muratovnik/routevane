@@ -9,6 +9,7 @@
 /web/node_modules/
 /web/.nuxt/
 /web/.output/
+/web/.vitest/
 /web/dist/
 /web/coverage/
 /desktop/node_modules/
