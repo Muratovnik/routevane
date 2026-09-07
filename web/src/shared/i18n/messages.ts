@@ -190,7 +190,7 @@ const ru: Dictionary = {
     other: '{count} профиля восстановлено из предыдущей версии',
   },
   'profiles.imported.body':
-    'Каждый прежний профиль сохранён отдельным профилем. Откройте профиль, чтобы дать ему понятное название и проверить состав.',
+    'Ничего не объединялось: каждый сохранён отдельно и ровно в том составе, в котором его хранила прежняя версия. Откройте профиль, чтобы дать ему понятное название и проверить состав.',
   'profiles.imported.name': 'Восстановленный профиль {number}',
   'profiles.archive': 'В архив',
   'profiles.archived': 'Архив',
@@ -650,7 +650,7 @@ const ru: Dictionary = {
     'Он не обновляется и не редактируется. Опубликованный файл и ссылка подписки продолжают работать.',
   'profile.notice.imported': 'Восстановлено из предыдущей версии',
   'profile.notice.imported.body':
-    'Это прежний профиль Routevane. Его состав и подготовленный способ подключения сохранены; при желании профиль можно переименовать или подключить иначе.',
+    'Этот профиль перенесён из прежней версии Routevane. Его состав и подготовленный способ подключения сохранены; при желании профиль можно переименовать или подключить иначе.',
   'profile.facts.archived': 'В архиве с',
   'profile.status.archived': 'В архиве',
   'profile.schedule': 'Обновление',
@@ -1089,7 +1089,7 @@ const en: Dictionary = {
     other: '{count} profiles restored from the previous version',
   },
   'profiles.imported.body':
-    'Each former profile was preserved as a separate profile. Open a profile to give it a clear name and review its contents.',
+    'Nothing was merged: each one was preserved on its own, with exactly the contents the earlier version stored. Open a profile to give it a clear name and review its contents.',
   'profiles.imported.name': 'Restored profile {number}',
   'profiles.archive': 'Archive',
   'profiles.archived': 'Archive',
@@ -1527,7 +1527,7 @@ const en: Dictionary = {
     'It no longer updates and cannot be edited. Its published file and subscription link keep working.',
   'profile.notice.imported': 'Restored from the previous version',
   'profile.notice.imported.body':
-    'This was a Routevane profile. Its contents and prepared connection method were preserved; you can rename it or connect it another way.',
+    'This came from an earlier version of Routevane. Its contents and prepared connection method were preserved; you can rename it or connect it another way.',
   'profile.facts.archived': 'Archived since',
   'profile.status.archived': 'Archived',
   'profile.schedule': 'Refresh',
