@@ -10,7 +10,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/github/license/Muratovnik/routevane" alt="MIT license"></a>
 </p>
 
-Routevane builds routing lists for a router or VPN client. Choose services and
+Routevane builds routing lists for a router or VPN client. Choose lists and
 categories from a supplied library, combine them into a profile, and export it in
 the format your device understands. Lists refresh manually or on a schedule.
 
@@ -19,7 +19,7 @@ the format your device understands. Lists refresh manually or on a schedule.
 > needs no account or cloud service: everything runs on your computer.
 
 - **Ready-made lists.** Popular services grouped into categories. Add your own
-  lists, or discover a service from its URL with a browser.
+  lists, or discover one from its URL with a browser.
 - **Profiles instead of spreadsheets.** Combine lists and categories into a profile.
   List priority resolves overlapping destinations, and a forecast shows how many
   rules each format would build before you build it.

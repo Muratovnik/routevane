@@ -121,7 +121,7 @@ catalog and your data, regardless of where you start it from. It does not
 install a system service or arrange startup at login. Windows runs the `.cmd`
 launcher with its built-in command processor; Linux and macOS use `sh`. Use
 your existing browser for the interface. Optional
-[browser-assisted discovery](usage.md#adding-a-service-by-url) needs an
+[browser-assisted discovery](usage.md#adding-a-list-by-url) needs an
 explicitly configured Chromium-family browser; it is not a prerequisite for
 starting the application or using the supplied lists.
 

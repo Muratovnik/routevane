@@ -33,7 +33,7 @@ type ArtifactSource interface {
 	Targets() []TargetOption
 }
 
-// DeploymentConfig composes the service. Every field is required: a deployment
+// DeploymentConfig composes the list. Every field is required: a deployment
 // that cannot store a backup or cannot resolve an artifact must fail at
 // composition rather than half-way through a device change.
 type DeploymentConfig struct {
@@ -113,7 +113,7 @@ func (s *DeploymentService) ValidateStoredConnection(targetID string, connection
 }
 
 // DeployCommand is one deployment attempt. Confirm is the caller's explicit
-// intent to change the device; without it the service reports what would happen
+// intent to change the device; without it the list reports what would happen
 // and stops.
 type DeployCommand struct {
 	ArtifactID string

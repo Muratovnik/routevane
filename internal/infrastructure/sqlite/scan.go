@@ -21,7 +21,7 @@ func scanProfile(row rowScanner) (application.Profile, error) {
 		if errors.Is(err, sql.ErrNoRows) {
 			return profile, application.ErrNotFound
 		}
-		return profile, fmt.Errorf("read list: %w", err)
+		return profile, fmt.Errorf("read profile: %w", err)
 	}
 	profile.RefreshInterval = application.RefreshInterval(interval)
 	if refreshed > 0 {

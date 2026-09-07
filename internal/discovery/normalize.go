@@ -1,4 +1,4 @@
-// Package discovery turns one user-supplied URL into a safe local service
+// Package discovery turns one user-supplied URL into a safe local list
 // draft. Every decision here is deterministic and structural: a domain is
 // accepted because of its relationship to the entered site, never because of a
 // vendor list, an ASN, an RDAP record, or a certificate.
@@ -147,7 +147,7 @@ func RegistrableDomainOf(host string) (string, error) {
 	return registrable, nil
 }
 
-// ListIDFor derives the default local service identity from a registrable
+// ListIDFor derives the default local list identity from a registrable
 // domain. The result is validated against the catalog slug grammar, so it can
 // never become a path.
 func ListIDFor(registrableDomain string) (string, error) {

@@ -79,7 +79,7 @@ type DraftRequest struct {
 	Relations   []domain.Relation
 }
 
-// BuildDraft turns one page load into a safe local service definition.
+// BuildDraft turns one page load into a safe local list definition.
 //
 // It converts the page load into the same evidence shape a guided session
 // produces and runs the same activation policy, so a single-page draft and a
@@ -166,7 +166,7 @@ func BuildLearnedDraft(request LearnedDraftRequest) (Draft, error) {
 		return Draft{}, ErrInvalidTarget
 	}
 	if domain.ValidateSlug(request.ListID) != nil {
-		return Draft{}, fmt.Errorf("%w: service id %q", ErrInvalidTarget, request.ListID)
+		return Draft{}, fmt.Errorf("%w: list id %q", ErrInvalidTarget, request.ListID)
 	}
 	registrable := request.Target.RegistrableDomain
 	evidence := request.Evidence
@@ -227,7 +227,7 @@ func BuildLearnedDraft(request LearnedDraftRequest) (Draft, error) {
 		// reported rather than applied.
 		return Draft{}, fmt.Errorf("%w: %d accepted hosts exceed the draft bound %d", ErrNoUsableEvidence, len(accepted), MaxDraftNames)
 	}
-	// A seed covers every component of the same service: the site's own domain is
+	// A seed covers every component of the same list: the site's own domain is
 	// as true for its media area as for its core. Without this a domain-capable
 	// target would report an uncovered required component even though the domain
 	// suffix already routes it.

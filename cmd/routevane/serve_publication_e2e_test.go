@@ -77,7 +77,7 @@ func TestServeCreateRefreshBuildSubscriptionAndReopen(t *testing.T) {
 	}
 	profileRead := httpGet(t, origin+"/v1/profiles/"+profileResponse.Profile.ID, nil)
 	if profileRead.status != 200 || bytes.Contains(profileRead.body, []byte("subscription_url")) {
-		t.Fatalf("list repeats secret: %s", profileRead.body)
+		t.Fatalf("profile repeats secret: %s", profileRead.body)
 	}
 	postJSON(t, origin+"/v1/profiles/"+profileResponse.Profile.ID+"/refresh", `{}`)
 	built := postJSON(t, origin+"/v1/outputs/"+response.Output.ID+"/build", `{}`)
@@ -210,7 +210,7 @@ func TestFailedInitialBuildPersistsReasonWithoutIssuingSubscription(t *testing.T
 	}
 }
 
-// createProfileOutput does over HTTP what the surface does: make a list, bind a
+// createProfileOutput does over HTTP what the surface does: make a profile, bind a
 // format, refresh and complete its first publication. The subscription is
 // therefore returned by the successful build, never by the unproven binding.
 func createProfileOutput(t *testing.T, origin, name, targetID string, lists ...string) (profileID, outputID, subscriptionURL string) {

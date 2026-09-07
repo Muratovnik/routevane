@@ -84,7 +84,7 @@ type DeviceConfig struct {
 	Store   DeviceRepository
 	Secrets SecretStore
 	// Targets and Deployable resolve what a device is an instance of. They are
-	// functions rather than a service so the registry does not gain a
+	// functions rather than a list so the registry does not gain a
 	// dependency on publication or deployment.
 	Targets    func() []TargetOption
 	Deployable func(targetID string) bool

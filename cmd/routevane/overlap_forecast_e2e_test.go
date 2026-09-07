@@ -61,11 +61,11 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 		t.Fatal("combined forecast rewrote individual lists")
 	}
 	if after := httpGet(t, origin+"/v1/profiles", nil); after.status != http.StatusOK || !slices.Equal(beforeProfiles.body, after.body) {
-		t.Fatal("forecast created a route or output")
+		t.Fatal("forecast created a profile or output")
 	}
 	for i, id := range ids {
 		if !slices.Equal(beforeContents[i], httpGet(t, origin+"/v1/lists/"+id+"/contents", nil).body) {
-			t.Fatal("forecast changed list contents")
+			t.Fatal("forecast changed profile contents")
 		}
 	}
 	for i, forecast := range ab {
@@ -89,8 +89,8 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 			}
 		}
 		// Publishing afterward proves the forecast against real bytes. Both
-		// renderers receive the same priority-resolved plan: the first service owns
-		// the shared domain and its broader network covers the second service's IP.
+		// renderers receive the same priority-resolved plan: the first list owns
+		// the shared domain and its broader network covers the second list's IP.
 		profileID, outputID, _ := createProfileOutput(t, origin, "Overlap route", forecast.TargetID, ids...)
 		built := guardedRefreshAndBuild(t, origin, profileID, outputID)
 		payload := downloadArtifact(t, origin, built.Artifact.ID).body

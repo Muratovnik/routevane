@@ -56,7 +56,7 @@ func TestShippedCatalogIsTypedAndDeclared(t *testing.T) {
 		}
 	}
 
-	// A service in no category is reachable only by searching for it by name,
+	// A list in no category is reachable only by searching for it by name,
 	// which is not how anyone finds something they have not heard of.
 	grouped := make(map[string]struct{}, len(catalog.Lists))
 	for _, category := range catalog.Categories {
@@ -71,7 +71,7 @@ func TestShippedCatalogIsTypedAndDeclared(t *testing.T) {
 	}
 }
 
-// A service carried by two categories is the case categories exist for, and
+// A list carried by two categories is the case categories exist for, and
 // losing it would quietly turn the shipped catalog back into one label each.
 func TestShippedCatalogKeepsAListInMoreThanOneCategory(t *testing.T) {
 	catalog, err := Load(context.Background(), filepath.Join(repositoryRoot(t), "catalog"))

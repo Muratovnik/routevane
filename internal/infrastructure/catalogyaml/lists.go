@@ -74,7 +74,7 @@ func loadLists(ctx context.Context, root string) (map[string]domain.ListDefiniti
 			return nil, nil, err
 		}
 		if _, collision := lists[list.ID]; collision {
-			return nil, nil, fmt.Errorf("%w: duplicate service id %q", ErrInvalidCatalog, list.ID)
+			return nil, nil, fmt.Errorf("%w: duplicate list id %q", ErrInvalidCatalog, list.ID)
 		}
 		lists[list.ID] = list
 		if filepath.Base(filepath.Dir(path)) == LocalGroup {
@@ -82,7 +82,7 @@ func loadLists(ctx context.Context, root string) (map[string]domain.ListDefiniti
 		}
 	}
 	if len(lists) == 0 {
-		return nil, nil, fmt.Errorf("%w: catalog contains no services", ErrInvalidCatalog)
+		return nil, nil, fmt.Errorf("%w: catalog contains no lists", ErrInvalidCatalog)
 	}
 	return lists, local, nil
 }
@@ -134,7 +134,7 @@ func decodeList(payload []byte) (domain.ListDefinition, error) {
 
 func normalizeList(raw rawList) (domain.ListDefinition, error) {
 	if domain.ValidateSlug(raw.ID) != nil || strings.TrimSpace(raw.Title) == "" || len(raw.Title) > 128 {
-		return domain.ListDefinition{}, fmt.Errorf("%w: invalid service identity", ErrInvalidCatalog)
+		return domain.ListDefinition{}, fmt.Errorf("%w: invalid list identity", ErrInvalidCatalog)
 	}
 	if len(raw.Components) == 0 || len(raw.Components) > MaxListItems || len(raw.Seeds) > MaxListItems || len(raw.Sources) > MaxListItems {
 		return domain.ListDefinition{}, fmt.Errorf("%w: list bound exceeded", ErrInvalidCatalog)

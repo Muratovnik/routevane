@@ -40,7 +40,7 @@ func TestLoadAcceptsAnHTTPFeedSourceAndKeepsItsConfigurationSeparate(t *testing.
 	}
 	list, found := catalog.List("example")
 	if !found || len(list.Sources) != 2 {
-		t.Fatalf("service = %#v", list)
+		t.Fatalf("list = %#v", list)
 	}
 	dnsSource, feedSource := list.Sources[0], list.Sources[1]
 	if dnsSource.ID != "dns-main" || dnsSource.Type != domain.SourceDNS {

@@ -10,7 +10,7 @@ import (
 )
 
 // TestServeCustomListOwnsItsDomainsEndToEnd is the visible outcome of the
-// operator-defined catalog entry: a service created over HTTP joins the
+// operator-defined catalog entry: a list created over HTTP joins the
 // catalog, enters a list, and its domains reach the published file — and an
 // edit reaches subscribers on the next refresh-and-rebuild without changing
 // the subscription URL.
@@ -69,16 +69,16 @@ func TestServeCustomListOwnsItsDomainsEndToEnd(t *testing.T) {
 		if detail.ID == listID {
 			found = detail.Custom
 		} else if detail.Custom {
-			t.Fatalf("shipped service %q reported as custom", detail.ID)
+			t.Fatalf("shipped list %q reported as custom", detail.ID)
 		}
 	}
 	if !found {
-		t.Fatalf("catalog listing lacks the custom service: %s", listing.body)
+		t.Fatalf("catalog listing lacks the custom list: %s", listing.body)
 	}
 
 	// A mixed list is the regression oracle: the planner accepts exactly one
-	// catalog revision per plan, so a custom service must compose with shipped
-	// services rather than only with itself.
+	// catalog revision per plan, so a custom list must compose with shipped
+	// lists rather than only with itself.
 	profileID, outputID, subscriptionURL := createProfileOutput(t, origin, "Свои сайты", "keenetic-dns", listID, "alpha")
 	first := httpGet(t, subscriptionURL, nil)
 	if first.status != 200 || !strings.Contains(string(first.body), "my.example") || !strings.Contains(string(first.body), "corp.example") || !strings.Contains(string(first.body), "alpha.example") {

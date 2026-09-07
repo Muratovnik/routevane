@@ -18,7 +18,7 @@ var ErrNotADeviceDestination = errors.New("destination is not a local network de
 // It is deliberately not the inverse of PublicUnicast. It permits private and
 // link-local unicast only, and continues to refuse loopback, the unspecified
 // address, multicast, carrier-grade NAT, the cloud metadata address, and every
-// other special-use range, so widening this allowance cannot reach a service
+// other special-use range, so widening this allowance cannot reach a list
 // running on the machine itself or a metadata endpoint.
 func DeviceDestination(address netip.Addr) bool {
 	address = address.Unmap()

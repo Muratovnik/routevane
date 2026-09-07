@@ -168,7 +168,7 @@ type PlanningSnapshot struct {
 	Sightings []domain.Sighting
 	Relations []domain.Relation
 	Format    FormatRecord
-	// SourceHealth describes the same service's source cycles at the same read.
+	// SourceHealth describes the same list's source cycles at the same read.
 	// It is part of the snapshot so grace decisions and observations cannot
 	// disagree about what the database contained.
 	SourceHealth []SourceRunState
@@ -251,7 +251,7 @@ type PreparedPlan struct {
 	compositionOverlaps CompositionOverlaps
 }
 
-// PrepareLists reads all selected services at one cutoff and completes
+// PrepareLists reads all selected lists at one cutoff and completes
 // planner and renderer preflight without invoking Render.
 func PrepareLists(ctx context.Context, definitions []domain.ListDefinition, activeRevisions map[string]map[string]string, target domain.TargetDefinition, store ObservationStore, renderer Renderer, cutoff time.Time) (PreparedPlan, error) {
 	if ctx == nil || store == nil || renderer == nil || len(definitions) == 0 || target.ID == "" || target.FormatKey == "" || target.RendererID == "" || len(target.RendererOptions) != 0 || cutoff.IsZero() {
@@ -261,7 +261,7 @@ func PrepareLists(ctx context.Context, definitions []domain.ListDefinition, acti
 	slices.SortFunc(ordered, func(a, b domain.ListDefinition) int { return cmp.Compare(a.ID, b.ID) })
 	for i, definition := range ordered {
 		if domain.ValidateSlug(definition.ID) != nil || definition.CatalogRevision == "" || (i > 0 && ordered[i-1].ID == definition.ID) {
-			return PreparedPlan{}, fmt.Errorf("invalid service definition")
+			return PreparedPlan{}, fmt.Errorf("invalid list definition")
 		}
 	}
 	cutoff = cutoff.UTC()
@@ -296,7 +296,7 @@ func PrepareLists(ctx context.Context, definitions []domain.ListDefinition, acti
 		wantLists[i] = ordered[i].ID
 	}
 	if !equalStrings(plan.Lists, wantLists) {
-		return PreparedPlan{}, fmt.Errorf("%w: service set mismatch", ErrPreflight)
+		return PreparedPlan{}, fmt.Errorf("%w: list set mismatch", ErrPreflight)
 	}
 	if err := PreflightPlan(plan, target, renderer, cutoff); err != nil {
 		return PreparedPlan{}, err
@@ -472,23 +472,23 @@ func BuildList(ctx context.Context, definition domain.ListDefinition, activeRevi
 	return BuildResult{Path: path, Reused: reused, SemanticHash: plan.SemanticHash, RuleCount: len(plan.Rules)}, nil
 }
 
-// BuildLists reads every selected service at one cutoff and only invokes
+// BuildLists reads every selected list at one cutoff and only invokes
 // the renderer after the complete set has passed planning and preflight. The
 // stored Raw JSON profile is used solely as proof that refresh state belongs to
-// the current service catalog; the requested target comes directly from the
+// the current list catalog; the requested target comes directly from the
 // catalog argument.
 func BuildLists(ctx context.Context, definitions []domain.ListDefinition, activeRevisions map[string]map[string]string, target domain.TargetDefinition, store ObservationStore, renderer Renderer, output BuildOutput, clock Clock) (BuildResult, error) {
 	if ctx == nil || store == nil || renderer == nil || output == nil || clock == nil || len(definitions) == 0 || target.ID == "" || target.FormatKey == "" || target.RendererID == "" || len(target.RendererOptions) != 0 {
-		return BuildResult{}, fmt.Errorf("invalid multi-service build composition")
+		return BuildResult{}, fmt.Errorf("invalid multi-list build composition")
 	}
 	ordered := append([]domain.ListDefinition(nil), definitions...)
 	slices.SortFunc(ordered, func(a, b domain.ListDefinition) int { return cmp.Compare(a.ID, b.ID) })
 	for i, definition := range ordered {
 		if domain.ValidateSlug(definition.ID) != nil || definition.CatalogRevision == "" {
-			return BuildResult{}, fmt.Errorf("invalid service definition")
+			return BuildResult{}, fmt.Errorf("invalid list definition")
 		}
 		if i > 0 && ordered[i-1].ID == definition.ID {
-			return BuildResult{}, fmt.Errorf("duplicate service definition")
+			return BuildResult{}, fmt.Errorf("duplicate list definition")
 		}
 	}
 	cutoff := clock.Now().UTC()
@@ -526,7 +526,7 @@ func BuildLists(ctx context.Context, definitions []domain.ListDefinition, active
 		wantLists[i] = ordered[i].ID
 	}
 	if !equalStrings(plan.Lists, wantLists) {
-		return BuildResult{}, fmt.Errorf("%w: service set mismatch", ErrPreflight)
+		return BuildResult{}, fmt.Errorf("%w: list set mismatch", ErrPreflight)
 	}
 	if err := PreflightPlan(plan, target, renderer, cutoff); err != nil {
 		return BuildResult{}, err

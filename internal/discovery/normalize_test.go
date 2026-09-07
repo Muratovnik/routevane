@@ -123,7 +123,7 @@ func TestListIDForDerivesASlugFromTheRegistrableDomain(t *testing.T) {
 	}
 	for _, invalid := range []string{"", "1example.com", "-example.com", "UPPER.com"} {
 		if _, err := ListIDFor(invalid); err == nil {
-			t.Fatalf("accepted %q as a service identity", invalid)
+			t.Fatalf("accepted %q as a list identity", invalid)
 		}
 	}
 }

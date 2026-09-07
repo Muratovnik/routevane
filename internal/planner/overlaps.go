@@ -9,7 +9,7 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-// OverlapValue groups equal typed rules by distinct service, not component or
+// OverlapValue groups equal typed rules by distinct list, not component or
 // category. It describes planned destinations, never raw or expired evidence.
 type OverlapValue struct {
 	RuleKind domain.RuleKind
@@ -26,17 +26,17 @@ type RuleOverlap struct {
 type RuleOverlaps struct {
 	Items     []RuleOverlap
 	Truncated bool
-	// Summary is the complete undirected service adjacency graph for the
+	// Summary is the complete undirected list adjacency graph for the
 	// supplied rules. It is intentionally independent from Items' diagnostic
-	// limit: callers may cap detail rows without losing which selected services
-	// overlap. Every service represented by a valid rule gets a row, including a
-	// zero-degree service; the application layer adds rows for selected services
+	// limit: callers may cap detail rows without losing which selected lists
+	// overlap. Every list represented by a valid rule gets a row, including a
+	// zero-degree list; the application layer adds rows for selected lists
 	// that contributed no rules at all.
 	Summary []OverlapSummary
 }
 
 // OverlapSummary is one row of the complete overlap adjacency graph. The
-// service id never appears in its own Overlaps slice.
+// list id never appears in its own Overlaps slice.
 type OverlapSummary struct {
 	ListID   string
 	Overlaps []string
@@ -58,7 +58,7 @@ func overlapKey(kind domain.RuleKind, value string) string {
 //
 // The index searches only domain-label ancestors and network widths present in
 // the plan. It avoids an all-pairs scan on large disjoint source lists. Ownership
-// remains separate from set union: a service is never its own covering owner.
+// remains separate from set union: a list is never its own covering owner.
 func AnalyzeRuleOverlaps(rules []domain.RouteRule, limit int) RuleOverlaps {
 	result := RuleOverlaps{Items: []RuleOverlap{}, Summary: []OverlapSummary{}}
 	limit = max(0, limit)

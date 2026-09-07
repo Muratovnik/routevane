@@ -194,7 +194,7 @@ func renderRule(input Rule) ([]byte, error) {
 
 // canonicalRule sorts and deduplicates every match list and re-validates each
 // entry. A document with no entry at all is refused: an empty match set would
-// silently match nothing rather than the requested services.
+// silently match nothing rather than the requested lists.
 // Artifact validation owns empty/size refusal; counting must be able to
 // report both zero and an overflow without pretending either is unavailable.
 func canonicalRule(input Rule) (Rule, error) {

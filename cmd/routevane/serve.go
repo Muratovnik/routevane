@@ -70,7 +70,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
 		return 1
 	}
-	// Operator-defined services and standing service corrections are part of
+	// Operator-defined lists and standing list corrections are part of
 	// the catalog this process serves. Serving lists without them would
 	// silently publish something else than stored, so a registry that cannot
 	// be read is a startup failure, not a degraded mode.

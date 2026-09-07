@@ -23,7 +23,7 @@ type legacyProfile struct {
 	latestArtifactID, previousArtifactID                                 string
 }
 
-// migrateLegacyV3 recognizes the pre-list, pre-release schema by structure,
+// migrateLegacyV3 recognizes the pre-profile, pre-release schema by structure,
 // snapshots it with SQLite itself, imports it into a fresh current database,
 // and only then swaps files. An unknown version-three database remains
 // untouched and is refused by the normal compatibility check.

@@ -24,7 +24,7 @@ func plan(rules ...domain.RouteRule) domain.RoutingPlan {
 	return domain.RoutingPlan{TargetID: "keenetic-dns", FormatKey: Version, Rules: rules}
 }
 
-// One group per service, so a group on the router says what it is and what
+// One group per list, so a group on the router says what it is and what
 // removing it costs.
 func TestRenderMakesOneGroupPerList(t *testing.T) {
 	payload, err := Render(plan(
@@ -46,7 +46,7 @@ func TestRenderMakesOneGroupPerList(t *testing.T) {
 	}
 }
 
-// A service over the entry bound is split under the hood: the operator asked
+// A list over the entry bound is split under the hood: the operator asked
 // for one list, and the numbered sub-groups are the adapter's business.
 func TestAListOverTheBoundIsSplitIntoSubGroups(t *testing.T) {
 	rules := make([]domain.RouteRule, 0, MaxEntriesPerGroup+5)
@@ -162,7 +162,7 @@ func TestProjectedRuleCountMatchesTheEntries(t *testing.T) {
 }
 
 // TestRenderProducesTheGoldenGroupFile pins the canonical byte form across a
-// mixed service set: two suffixes sharing one group, an address and a prefix
+// mixed list set: two suffixes sharing one group, an address and a prefix
 // carried alongside a suffix in another group. The golden file is
 // regenerated with ROUTEVANE_UPDATE_GOLDEN=1, the same mechanism the other
 // renderer packages use.

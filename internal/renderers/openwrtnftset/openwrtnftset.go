@@ -4,7 +4,7 @@
 //
 // This format is the product's first dynamic set: the artifact carries no
 // address at all. dnsmasq resolves each listed domain on the device and adds the
-// answers to a firewall set, so the routing decision follows the service as its
+// answers to a firewall set, so the routing decision follows the list as its
 // addresses change instead of freezing the addresses observed here.
 //
 // The consequence is that an exact domain cannot be expressed. The nftset option

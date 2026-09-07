@@ -73,7 +73,7 @@ func TestStructuredLogHasOnlyStableFields(t *testing.T) {
 	if err := json.Unmarshal(output.Bytes(), &record); err != nil {
 		t.Fatal(err)
 	}
-	want := map[string]bool{"operation": true, "service": true, "source": true, "status": true, "count": true, "duration": true, "error_code": true}
+	want := map[string]bool{"operation": true, "list": true, "source": true, "status": true, "count": true, "duration": true, "error_code": true}
 	if len(record) != len(want) {
 		t.Fatalf("log fields=%v", record)
 	}
@@ -103,11 +103,11 @@ func TestRunPreviewWithFakeDependenciesIsByteStable(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	deps := runtimeDeps{Resolver: &commandFakeResolver{}, Now: func() time.Time { return now }}
 	var firstOut, firstErr bytes.Buffer
-	if code := runWithDeps(&firstOut, &firstErr, []string{"preview", "--service", "example", "--target", "raw-json"}, deps); code != 0 {
+	if code := runWithDeps(&firstOut, &firstErr, []string{"preview", "--list", "example", "--target", "raw-json"}, deps); code != 0 {
 		t.Fatalf("first run code = %d, stderr = %q", code, firstErr.String())
 	}
 	var secondOut, secondErr bytes.Buffer
-	if code := runWithDeps(&secondOut, &secondErr, []string{"preview", "--service", "example", "--target", "raw-json"}, deps); code != 0 {
+	if code := runWithDeps(&secondOut, &secondErr, []string{"preview", "--list", "example", "--target", "raw-json"}, deps); code != 0 {
 		t.Fatalf("second run code = %d, stderr = %q", code, secondErr.String())
 	}
 	if firstErr.Len() != 0 || secondErr.Len() != 0 {

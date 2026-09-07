@@ -71,7 +71,7 @@ func categoryTitles(details []CategoryDetail) string {
 }
 
 // A category the operator created joins every reader at once: the listing, the
-// membership a service reports, and composition validation.
+// membership a list reports, and composition validation.
 func TestCreateCategoryStoresItsMembershipAndJoinsEveryReader(t *testing.T) {
 	publication, store := overlayTestService(t)
 	created, err := publication.CreateCategory(context.Background(), "  Мои списки  ", []string{"roblox", "youtube", "roblox"})
@@ -110,10 +110,10 @@ func TestCreateCategoryStoresItsMembershipAndJoinsEveryReader(t *testing.T) {
 			continue
 		}
 		if !reflect.DeepEqual(detail.Categories, []string{created.ID, "games"}) {
-			t.Fatalf("service categories = %#v", detail.Categories)
+			t.Fatalf("list categories = %#v", detail.Categories)
 		}
 	}
-	// A route may name it exactly as it names a shipped one.
+	// A profile may name it exactly as it names a shipped one.
 	profile, err := publication.CreateProfile(context.Background(), "Маршрут", ProfileComposition{Categories: []string{created.ID}})
 	if err != nil {
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func TestCreateCategoryStoresItsMembershipAndJoinsEveryReader(t *testing.T) {
 	}
 }
 
-// Adding a service to a shipped category reaches every reader without touching
+// Adding a list to a shipped category reaches every reader without touching
 // the catalog the process loaded: the overlay is a difference, not a rewrite.
 func TestAddingAListToACatalogCategoryReachesEveryReaderAsAnOverlay(t *testing.T) {
 	publication, store := overlayTestService(t)
@@ -181,8 +181,8 @@ func TestRemovedHidesACatalogMembershipWithoutRewritingTheCatalog(t *testing.T) 
 }
 
 // An operator category carries whatever the operator puts in it, shipped and
-// operator-defined services alike. The merged accessor does not care which
-// half of the catalog a service came from.
+// operator-defined lists alike. The merged accessor does not care which
+// half of the catalog a list came from.
 func TestACustomCategoryCarriesShippedAndOperatorDefinedLists(t *testing.T) {
 	publication, _ := overlayTestService(t)
 	custom, err := publication.CreateCustomList(context.Background(), "Мой сервис", []string{"a.example"})
@@ -199,7 +199,7 @@ func TestACustomCategoryCarriesShippedAndOperatorDefinedLists(t *testing.T) {
 	if got := joined(publication.ResolvedLists(profileWith(nil, []string{created.ID}, nil))); got != custom.ID+",youtube" {
 		t.Fatalf("resolved = %s", got)
 	}
-	// A shipped category may take an operator-defined service too.
+	// A shipped category may take an operator-defined list too.
 	if _, err := publication.UpdateCategory(context.Background(), "video", CategoryUpdate{Lists: &[]string{"youtube", custom.ID}}); err != nil {
 		t.Fatal(err)
 	}
@@ -253,9 +253,9 @@ func TestACatalogCategoryIsRenamedByNoOneAndDeletedByTheOperator(t *testing.T) {
 	}
 }
 
-// Deleting a category a route still names is refused with the routes named. A
-// route that silently lost a category would build something its author did not
-// choose, and an archived route counts: restoring it would do exactly that.
+// Deleting a category a profile still names is refused with the profiles named. A
+// profile that silently lost a category would build something its author did not
+// choose, and an archived profile counts: restoring it would do exactly that.
 func TestRemovingACategoryARouteNamesIsRefusedWithTheRoutes(t *testing.T) {
 	publication, store := overlayTestService(t)
 	created, err := publication.CreateCategory(context.Background(), "Мои списки", []string{"youtube"})
@@ -282,16 +282,16 @@ func TestRemovingACategoryARouteNamesIsRefusedWithTheRoutes(t *testing.T) {
 	if _, ok := publication.mergedCategory(created.ID); !ok {
 		t.Fatal("a refused deletion removed the category anyway")
 	}
-	// Once no route names it, the deletion goes through.
+	// Once no profile names it, the deletion goes through.
 	store.profiles = []Profile{{ID: strings.Repeat("c", 32), Name: "Другой", Categories: []string{"video"}}}
 	if err := publication.RemoveCategory(context.Background(), created.ID, CategoryListsDetach); err != nil {
 		t.Fatal(err)
 	}
 }
 
-// The point of a category: a membership change reaches the routes that name it
+// The point of a category: a membership change reaches the profiles that name it
 // on their next build, and reaches nothing else. The forecast gains the added
-// service's rules and the plan's semantic hash changes, which is what makes the
+// list's rules and the plan's semantic hash changes, which is what makes the
 // next build produce a different artifact rather than reuse the last one.
 func TestAMembershipChangeReachesTheNextForecastAndPlan(t *testing.T) {
 	store := &publicationFakeStore{}
@@ -336,12 +336,12 @@ func TestAMembershipChangeReachesTheNextForecastAndPlan(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(planAfter.Plan.Lists, []string{"discord", "youtube"}) {
-		t.Fatalf("planned services = %#v", planAfter.Plan.Lists)
+		t.Fatalf("planned lists = %#v", planAfter.Plan.Lists)
 	}
 	if planAfter.Plan.SemanticHash == planBefore.Plan.SemanticHash {
 		t.Fatal("the semantic hash did not change, so the next build would reuse the previous artifact")
 	}
-	// It reaches only the routes that name the category. One naming the service
+	// It reaches only the profiles that name the category. One naming the list
 	// set directly describes the same plan it did before.
 	direct := profileWith([]string{"youtube"}, nil, nil)
 	planDirect, _, err := publication.prepareProfile(ctx, direct, target, renderer)
@@ -373,9 +373,9 @@ func TestCategoryEditsRejectInvalidInput(t *testing.T) {
 		{"empty title", "   ", nil},
 		{"control character", "a\x00b", nil},
 		{"title beyond the bound", longTitle, nil},
-		{"unknown service", "Списки", []string{"absent"}},
-		{"invalid service id", "Списки", []string{"Not A Slug"}},
-		{"too many services", "Списки", manyLists(maxCategoryMembers + 1)},
+		{"unknown list", "Списки", []string{"absent"}},
+		{"invalid list id", "Списки", []string{"Not A Slug"}},
+		{"too many lists", "Списки", manyLists(maxCategoryMembers + 1)},
 	}
 	for _, tc := range creations {
 		if _, err := publication.CreateCategory(ctx, tc.title, tc.lists); err == nil {
@@ -400,9 +400,9 @@ func TestCategoryEditsRejectInvalidInput(t *testing.T) {
 		t.Error("a title beyond the bound was accepted")
 	}
 	if _, err := publication.UpdateCategory(ctx, created.ID, CategoryUpdate{Lists: &[]string{"absent"}}); err == nil {
-		t.Error("an unknown service was accepted")
+		t.Error("an unknown list was accepted")
 	}
-	// A route may not name a category that does not exist, before or after the
+	// A profile may not name a category that does not exist, before or after the
 	// overlay is consulted.
 	if _, err := publication.CreateProfile(ctx, "Маршрут", ProfileComposition{Categories: []string{"absent"}}); err == nil {
 		t.Error("a composition named an unknown category")
@@ -412,7 +412,7 @@ func TestCategoryEditsRejectInvalidInput(t *testing.T) {
 func manyLists(count int) []string {
 	lists := make([]string, 0, count)
 	for i := 0; i < count; i++ {
-		lists = append(lists, "service-"+strings.Repeat("a", i%8+1)+"-"+string(rune('a'+i%26)))
+		lists = append(lists, "list-"+strings.Repeat("a", i%8+1)+"-"+string(rune('a'+i%26)))
 	}
 	return lists
 }
@@ -567,11 +567,11 @@ func FuzzCategoryTitleGrammar(f *testing.F) {
 	})
 }
 
-// A stored membership naming a service the catalog no longer ships is dropped
+// A stored membership naming a list the catalog no longer ships is dropped
 // at read time rather than refused at startup. Refusing would make a catalog
-// edit unbootable; promising the service would name something no plan can
+// edit unbootable; promising the list would name something no plan can
 // carry. It is the same answer composition resolution gives, for the same
-// reason, and the verdict stays stored so a returning service returns with it.
+// reason, and the verdict stays stored so a returning list returns with it.
 func TestAMembershipNamingAVanishedListIsDroppedRatherThanPromised(t *testing.T) {
 	publication, store := overlayTestService(t)
 	ctx := context.Background()
@@ -587,7 +587,7 @@ func TestAMembershipNamingAVanishedListIsDroppedRatherThanPromised(t *testing.T)
 		"video": {{CategoryID: "video", ListID: "retired", State: MembershipAdded, UpdatedAt: now}},
 	}
 	if err := publication.LoadCategories(ctx); err != nil {
-		t.Fatalf("a catalog that dropped a service made the process unbootable: %v", err)
+		t.Fatalf("a catalog that dropped a list made the process unbootable: %v", err)
 	}
 	created, ok := publication.mergedCategory("custom-1234567890abcdef")
 	if !ok || !reflect.DeepEqual(created.Lists, []string{"youtube"}) {
@@ -600,7 +600,7 @@ func TestAMembershipNamingAVanishedListIsDroppedRatherThanPromised(t *testing.T)
 	if got := joined(publication.ResolvedLists(profileWith(nil, []string{"video"}, nil))); got != "youtube" {
 		t.Fatalf("resolved = %s", got)
 	}
-	// The verdict is still stored: a service that returns to the catalog
+	// The verdict is still stored: a list that returns to the catalog
 	// returns to the category the operator put it in.
 	if rows := store.memberships["video"]; len(rows) != 1 || rows[0].ListID != "retired" {
 		t.Fatalf("the read discarded a stored verdict: %#v", rows)

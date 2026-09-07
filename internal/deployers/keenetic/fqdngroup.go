@@ -96,7 +96,7 @@ func (d *FQDNDeployer) Rollback(ctx context.Context, device application.DeviceIn
 // hashes: the deployer reads what it previously wrote, removes every group and
 // entry the artifact no longer contains, adds what is missing, and points each
 // group at the named interface. Applying the same artifact twice therefore
-// leaves the same device state, and a list that dropped a service stops costing
+// leaves the same device state, and a list that dropped a list stops costing
 // the group budget instead of accumulating across refreshes.
 //
 // A batch that fails part way leaves the device partly written. That is caught

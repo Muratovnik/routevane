@@ -11,9 +11,9 @@ import (
 )
 
 // TestAnArchivedProfileStopsChangingAndKeepsServing is the end-to-end oracle of
-// archival: the list leaves the shelf and stops accepting change, while the
+// archival: the profile leaves the shelf and stops accepting change, while the
 // file it already published and the subscription that carries it go on working
-// exactly as before. Nothing is deleted (ADR 0004), so restoring puts the list
+// exactly as before. Nothing is deleted (ADR 0004), so restoring puts the profile
 // back with its outputs, its history and the same subscription URL.
 func TestAnArchivedProfileStopsChangingAndKeepsServing(t *testing.T) {
 	catalog := filepath.Join("..", "..", "testdata", "expiry", "catalog")
@@ -63,12 +63,12 @@ func TestAnArchivedProfileStopsChangingAndKeepsServing(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			refused := postGuardedBody(t, origin+request.path, request.body)
 			if refused.status != http.StatusConflict {
-				t.Fatalf("%s on an archived list status=%d body=%s", name, refused.status, refused.body)
+				t.Fatalf("%s on an archived profile status=%d body=%s", name, refused.status, refused.body)
 			}
 		})
 	}
 
-	// The upstream moved while the list was archived. Because nothing can
+	// The upstream moved while the profile was archived. Because nothing can
 	// rebuild it, the file its subscribers receive is byte for byte the one it
 	// was archived with, down to the validator etag.
 	resolver.set(map[string][]string{"youtube.expiry.test": {"198.51.100.77"}})
@@ -77,13 +77,13 @@ func TestAnArchivedProfileStopsChangingAndKeepsServing(t *testing.T) {
 		t.Fatalf("an archived subscription stopped serving: %d", stillServed.status)
 	}
 	if !bytes.Equal(stillServed.body, served.body) || stillServed.etag != served.etag {
-		t.Fatalf("an archived list changed what it serves: etag %q/%q body %s", stillServed.etag, served.etag, stillServed.body)
+		t.Fatalf("an archived profile changed what it serves: etag %q/%q body %s", stillServed.etag, served.etag, stillServed.body)
 	}
 	if direct := httpGet(t, origin+"/v1/artifacts/"+published.Artifact.ID, nil); direct.status != http.StatusOK {
 		t.Fatalf("the published artifact stopped downloading: %d", direct.status)
 	}
 
-	// The library still carries the list, marked. A row that vanished would
+	// The library still carries the profile, marked. A row that vanished would
 	// leave the operator with a working subscription they could not find.
 	shelved := httpGet(t, origin+"/v1/profiles", nil)
 	var listing struct {
@@ -105,10 +105,10 @@ func TestAnArchivedProfileStopsChangingAndKeepsServing(t *testing.T) {
 		t.Fatalf("library=%s", shelved.body)
 	}
 	if len(listing.Profiles[0].Outputs) != 1 || listing.Profiles[0].Outputs[0].Latest == nil {
-		t.Fatalf("an archived list lost its published output: %s", shelved.body)
+		t.Fatalf("an archived profile lost its published output: %s", shelved.body)
 	}
 
-	// Restoring returns the list to every write it refused, and the
+	// Restoring returns the profile to every write it refused, and the
 	// subscription issued before it was archived is still the one that resolves
 	// to the new file. Tokens are never rotated (ADR 0004).
 	restored := postJSON(t, origin+"/v1/profiles/"+profileID+"/restore", `{}`)
@@ -117,7 +117,7 @@ func TestAnArchivedProfileStopsChangingAndKeepsServing(t *testing.T) {
 	}
 	rebuilt := refreshAndBuild(t, origin, profileID, outputID)
 	if rebuilt.Artifact.ID == published.Artifact.ID {
-		t.Fatal("a restored list republished the artifact it was archived with")
+		t.Fatal("a restored profile republished the artifact it was archived with")
 	}
 	after := httpGet(t, subscriptionURL, nil)
 	if after.status != http.StatusOK || !strings.Contains(string(after.body), "198.51.100.77") {

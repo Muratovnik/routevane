@@ -20,9 +20,9 @@ import (
 	"github.com/Muratovnik/routevane/internal/renderers/singbox"
 )
 
-// forecastTestService wires the shape the defect appears in: two services whose
+// forecastTestService wires the shape the defect appears in: two lists whose
 // planned rules overflow one device and fit another, and one address both
-// services contribute, so the renderer's collapse is visible in the answer.
+// lists contribute, so the renderer's collapse is visible in the answer.
 //
 // The bounded target's limit is deliberately small rather than a real device's
 // 1024: the arithmetic that matters is projected against maximum, and a test
@@ -74,7 +74,7 @@ func forecastTestService(t *testing.T, store interface {
 
 // The forecast answers an overflowing pair with the real numbers instead of the
 // refusal a build would raise. That is the whole point: the product knows both
-// counts before the list exists, and a screen that only learned "it failed"
+// counts before the profile exists, and a screen that only learned "it failed"
 // would still be sending the operator to the first build to find out.
 func TestForecastAnswersAnOverflowingTargetWithItsNumbers(t *testing.T) {
 	publication := forecastTestService(t, &publicationFakeStore{}, &publicationFakeFiles{})
@@ -90,22 +90,22 @@ func TestForecastAnswersAnOverflowingTargetWithItsNumbers(t *testing.T) {
 		t.Fatalf("forecast = %#v", got)
 	}
 	// Four canonical BAT lines: three distinct seeded addresses plus the one
-	// observed address. Both services observe it, so it is one line.
+	// observed address. Both lists observe it, so it is one line.
 	if got.ProjectedRules != 4 {
 		t.Fatalf("projected = %d, want the renderer's own count of 4", got.ProjectedRules)
 	}
 	wantPerList := []ListRuleForecast{{ListID: "discord", Rules: 1}, {ListID: "youtube", Rules: 3}}
 	if !reflect.DeepEqual(got.PerList, wantPerList) {
-		t.Fatalf("per service = %#v, want %#v", got.PerList, wantPerList)
+		t.Fatalf("per list = %#v, want %#v", got.PerList, wantPerList)
 	}
 	// Category-first priority assigns the shared address to YouTube before projection; the
-	// per-service shares now describe the same finished plan the device receives.
+	// per-list shares now describe the same finished plan the device receives.
 	sum := 0
 	for _, share := range got.PerList {
 		sum += share.Rules
 	}
 	if sum != 4 || sum != got.ProjectedRules {
-		t.Fatalf("per service sum = %d, projected = %d", sum, got.ProjectedRules)
+		t.Fatalf("per list sum = %d, projected = %d", sum, got.ProjectedRules)
 	}
 }
 
@@ -146,13 +146,13 @@ func TestForecastResolvesCategoriesAndExclusionsBeforePlanning(t *testing.T) {
 		t.Fatalf("forecast = %#v", forecasts[0])
 	}
 	// Excluding the category's only member leaves nothing to forecast. An empty
-	// answer would read as "nothing to worry about" for a list that cannot be
+	// answer would read as "nothing to worry about" for a profile that cannot be
 	// created at all, so it is refused with the same words creation uses.
 	if _, err := publication.ForecastComposition(context.Background(), ProfileComposition{Categories: []string{"video"}, Exclusions: []string{"youtube"}}, nil); err == nil {
-		t.Fatal("a composition resolving to no services was forecast rather than refused")
+		t.Fatal("a composition resolving to no lists was forecast rather than refused")
 	}
 	if _, err := publication.ForecastComposition(context.Background(), ProfileComposition{Lists: []string{"absent"}}, nil); err == nil {
-		t.Fatal("an unknown service was forecast rather than refused")
+		t.Fatal("an unknown list was forecast rather than refused")
 	}
 	if _, err := publication.ForecastComposition(context.Background(), ProfileComposition{Lists: []string{"youtube"}}, []string{"absent-device"}); err == nil {
 		t.Fatal("an unknown target was forecast rather than refused")
@@ -206,8 +206,8 @@ func (s *forecastGuardStore) PutSetting(context.Context, string, string, time.Ti
 }
 
 // The forecast is a read. It answers before the operator has committed to
-// anything, so it must leave no list, output, attempt, artifact, or profile
-// behind — including on the overflowing pair, where the equivalent build would
+// anything, so it must leave no profile, output, attempt, artifact, or
+// effective format behind — including on the overflowing pair, where the equivalent build would
 // record a failed attempt.
 func TestForecastWritesNothing(t *testing.T) {
 	store := &forecastGuardStore{publicationFakeStore: &publicationFakeStore{}}

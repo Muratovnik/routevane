@@ -98,7 +98,7 @@ func (build PublishedBuild) SafeProjection() SafePublishedBuild {
 	}
 }
 
-// Build publishes one output from its list's current composition. A list edit
+// Build publishes one output from its profile's current composition. A profile edit
 // is therefore visible in the next build without touching the output row.
 func (s *PublicationService) Build(ctx context.Context, id string) (result PublishedBuild, resultErr error) {
 	output, err := s.Output(ctx, id)
@@ -124,8 +124,8 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 	if err != nil {
 		return PublishedBuild{}, err
 	}
-	// The guard is here and not only on the list routes: a build addresses an
-	// output, and an archived list reached through one of its outputs would
+	// The guard is here and not only on the profile routes: a build addresses an
+	// output, and an archived profile reached through one of its outputs would
 	// republish just as effectively as one reached through itself.
 	if err := profile.writable(); err != nil {
 		return PublishedBuild{}, err
@@ -202,7 +202,7 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 	}, nil
 }
 
-// prepareProfile is the shared list-to-plan boundary used by both durable
+// prepareProfile is the shared profile-to-plan boundary used by both durable
 // publication and an on-demand file export. A manual export must not create an
 // output, subscription or artifact record just to select another renderer,
 // but it must make exactly the same composition and preflight decisions.
@@ -212,17 +212,17 @@ func (s *PublicationService) prepareProfile(ctx context.Context, profile Profile
 
 func (s *PublicationService) prepareProfileAt(ctx context.Context, profile Profile, target domain.TargetDefinition, renderer Renderer, cutoff time.Time) (PreparedPlan, time.Time, error) {
 	// References are expanded, exclusions applied and duplicates dropped once
-	// here, so every renderer sees the same current service set.
+	// here, so every renderer sees the same current list set.
 	lists := s.ResolvedLists(profile)
 	if len(lists) == 0 {
-		return PreparedPlan{}, time.Time{}, fmt.Errorf("list resolves to no services")
+		return PreparedPlan{}, time.Time{}, fmt.Errorf("profile resolves to no lists")
 	}
 	definitions := make([]domain.ListDefinition, 0, len(lists))
 	revisions := make(map[string]map[string]string, len(lists))
 	for _, listID := range lists {
 		definition, ok := s.definition(listID)
 		if !ok {
-			return PreparedPlan{}, time.Time{}, fmt.Errorf("list service unavailable")
+			return PreparedPlan{}, time.Time{}, fmt.Errorf("profile list unavailable")
 		}
 		if domains, overridden := profile.ListDomains[listID]; overridden {
 			definition = withProfileListDomains(definition, profile.ID, domains)
@@ -240,7 +240,7 @@ func (s *PublicationService) prepareProfileAt(ctx context.Context, profile Profi
 	if err != nil {
 		return PreparedPlan{}, time.Time{}, err
 	}
-	// Keep the source-list relationship visible to forecasts even though the
+	// Keep the source-profile relationship visible to forecasts even though the
 	// finished plan below has already assigned every overlap to its winner.
 	prepared.compositionOverlaps = forecastOverlaps(prepared.Plan)
 	planner.ApplyListPriority(&prepared.Plan, lists)
@@ -255,7 +255,7 @@ func (s *PublicationService) prepareProfileAt(ctx context.Context, profile Profi
 
 // withProfileListDomains replaces only catalog domain seeds. IP seeds and every
 // observed/source rule keep their original lifecycle; the operator's override
-// is a bounded list-local correction, not a fork of the service catalog.
+// is a bounded profile-local correction, not a fork of the list catalog.
 func withProfileListDomains(definition domain.ListDefinition, profileID string, domains []string) domain.ListDefinition {
 	seeds := make([]domain.Seed, 0, len(definition.Seeds)+len(domains))
 	componentID := ""

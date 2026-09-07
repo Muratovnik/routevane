@@ -39,9 +39,10 @@ Measured footprint at the time of this decision:
 | Storage | 12 tables and indexes carrying `service` or `list` |
 | Transfer format | `config-transfer-v1.3` with a `services` key |
 
-Three of the four surfaces a version protects are involved: the local HTTP API,
-the catalog format, and the release archive layout. Only the CLI flags are
-untouched.
+All four surfaces a version protects are involved: the local HTTP API, the
+catalog format, the release archive layout, and — measured later, during the
+identifier slice — the CLI flags, which name a list `--service` and
+`--service-id` and log it under a `service` field.
 
 ## Decision
 
@@ -121,6 +122,11 @@ together:
 4. **Go identifiers and SQLite storage**, as one migration.
 5. **Configuration transfer format**, raising the version and keeping the
    documented ability to import the retired ones.
+6. **CLI flags and the structured log field.** `--service` becomes `--list`,
+   `--service-id` becomes `--list-id`, and the log field `service` becomes
+   `list`. This was found while renaming the identifiers: the flags are the
+   last thing an operator reads that still says service, and leaving them
+   would keep the retired word in every documented example.
 
 Renaming is not an occasion to change behavior. A slice that needs a behavioral
 decision stops and takes it separately.
@@ -133,9 +139,10 @@ older version is used with the backup taken before the update, never with a
 migrated database.
 
 An operator script that calls `./routing-agent` breaks and must call
-`./routevane`. This is stated in the release notes rather than absorbed by an
-alias, because a compatibility shim would keep the retired name in the archive
-and in support conversations, which is the outcome being removed.
+`./routevane`, and one that passes `--service` must pass `--list`. Both are
+stated in the release notes rather than absorbed by an alias, because a
+compatibility shim would keep the retired name in the archive, in `--help`, and
+in support conversations, which is the outcome being removed.
 
 A bookmark of a retired browser address stops resolving. `/lists/{id}` cannot
 redirect, because that address now belongs to the lists page rather than to the

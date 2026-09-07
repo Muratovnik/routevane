@@ -19,9 +19,9 @@ import (
 // the operator created it is the deletion of that object's own rows, because
 // there is nothing to subtract a record from.
 //
-// Deletion never rewrites a stored route. Removing a category or a list a
-// route names directly is refused with those routes named. Removing a list
-// from a category is not a deletion and is allowed to change what a route
+// Deletion never rewrites a stored profile. Removing a category or a list a
+// profile names directly is refused with those profiles named. Removing a list
+// from a category is not a deletion and is allowed to change what a profile
 // carries: that is what naming a category means (ADR 0028).
 
 // RemovalKind separates the two things the library holds. It is stored, so
@@ -53,7 +53,7 @@ type CatalogRemoval struct {
 type LibraryRemoval struct {
 	Kind RemovalKind
 	ID   string
-	// Services are the lists deleted along with a category. It is empty for
+	// Lists are the lists deleted along with a category. It is empty for
 	// every other removal, including a category whose lists are detached.
 	Lists     []string
 	RemovedAt time.Time
@@ -72,8 +72,8 @@ const (
 	CategoryListsDelete CategoryListDisposition = "delete"
 )
 
-// ListInUseError refuses to delete a list a route names directly. It
-// carries the routes for the same reason CategoryInUseError does: a refusal
+// ListInUseError refuses to delete a list a profile names directly. It
+// carries the profiles for the same reason CategoryInUseError does: a refusal
 // the operator can act on beats one they have to investigate.
 type ListInUseError struct {
 	ListID   string
@@ -81,7 +81,7 @@ type ListInUseError struct {
 }
 
 func (e ListInUseError) Error() string {
-	return fmt.Sprintf("list %q is named by %d route(s)", e.ListID, len(e.Profiles))
+	return fmt.Sprintf("list %q is named by %d profile(s)", e.ListID, len(e.Profiles))
 }
 
 // RemoveCategory deletes one category from the library, catalog-shipped or
@@ -90,9 +90,9 @@ func (e ListInUseError) Error() string {
 // to no category the moment the category stops existing, and a deleted one
 // leaves with it.
 //
-// The refusal is one shape for both references it checks. A route naming the
+// The refusal is one shape for both references it checks. A profile naming the
 // category directly is refused because it would build something its author did
-// not choose; under delete, a route naming one of the held lists directly is
+// not choose; under delete, a profile naming one of the held lists directly is
 // refused for exactly the same reason.
 func (s *PublicationService) RemoveCategory(ctx context.Context, id string, profiles CategoryListDisposition) error {
 	// The disposition is part of the request's shape rather than of what the
@@ -130,15 +130,15 @@ func (s *PublicationService) RemoveCategory(ctx context.Context, id string, prof
 	return nil
 }
 
-// RemoveList deletes one list from the library. A route naming it directly
-// is refused, because that route would publish less than it says. A route that
+// RemoveList deletes one list from the library. A profile naming it directly
+// is refused, because that profile would publish less than it says. A profile that
 // reaches the list only through a category it names is not: removing the list
 // changes what that category expands to, which is what naming a category means
 // (ADR 0028, ADR 0029).
 //
-// The route the refusal spared keeps its stored `service_domains` override for
-// a list that is now gone. Nothing rewrites it: a stored route is never edited
-// by a deletion, and the override is read only for services the composition
+// The profile the refusal spared keeps its stored `service_domains` override for
+// a list that is now gone. Nothing rewrites it: a stored profile is never edited
+// by a deletion, and the override is read only for lists the composition
 // still resolves to, so it is dead weight rather than a wrong answer.
 func (s *PublicationService) RemoveList(ctx context.Context, id string) error {
 	if !s.knownList(id) {
@@ -162,8 +162,8 @@ func (s *PublicationService) RemoveList(ctx context.Context, id string) error {
 	return nil
 }
 
-// profilesNaming finds every stored route that names one of these categories or
-// one of these lists directly, archived ones included: an archived route can be
+// profilesNaming finds every stored profile that names one of these categories or
+// one of these lists directly, archived ones included: an archived profile can be
 // restored, and restoring one whose category or list vanished meanwhile is
 // exactly the silent change the refusal exists to prevent.
 func (s *PublicationService) profilesNaming(ctx context.Context, categoryIDs, listIDs []string) ([]ProfileReference, error) {

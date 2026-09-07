@@ -107,7 +107,7 @@ func TestPublishesThroughAnExternalRendererAndWorksWithoutOne(t *testing.T) {
 	deps := runtimeDeps{Resolver: resolver, Now: func() time.Time { return now }, Context: context.Background()}
 
 	stdout, stderr := &syncBuffer{}, &syncBuffer{}
-	if code := runWithDeps(stdout, stderr, []string{"refresh", "--service", "youtube", "--catalog-dir", catalogDir, "--data-dir", dataDir}, deps); code != 0 {
+	if code := runWithDeps(stdout, stderr, []string{"refresh", "--list", "youtube", "--catalog-dir", catalogDir, "--data-dir", dataDir}, deps); code != 0 {
 		t.Fatalf("refresh failed: %s %s", stdout.String(), stderr.String())
 	}
 
@@ -118,7 +118,7 @@ func TestPublishesThroughAnExternalRendererAndWorksWithoutOne(t *testing.T) {
 		t.Fatalf("built-in artifact = %s", builtIn)
 	}
 	stdout, stderr = &syncBuffer{}, &syncBuffer{}
-	if code := runWithDeps(stdout, stderr, []string{"build", "--target", "examplecsv", "--service", "youtube", "--catalog-dir", catalogDir, "--data-dir", dataDir, "--output", outputDir}, deps); code == 0 {
+	if code := runWithDeps(stdout, stderr, []string{"build", "--target", "examplecsv", "--list", "youtube", "--catalog-dir", catalogDir, "--data-dir", dataDir, "--output", outputDir}, deps); code == 0 {
 		t.Fatalf("a plugin-only target was selectable with no plugin installed: %s", stdout.String())
 	}
 
@@ -155,7 +155,7 @@ func TestPublishesThroughAnExternalRendererAndWorksWithoutOne(t *testing.T) {
 		t.Fatal(err)
 	}
 	stdout, stderr = &syncBuffer{}, &syncBuffer{}
-	if code := runWithDeps(stdout, stderr, []string{"build", "--target", "examplecsv", "--service", "youtube", "--catalog-dir", catalogDir, "--data-dir", dataDir, "--output", outputDir}, deps); code == 0 {
+	if code := runWithDeps(stdout, stderr, []string{"build", "--target", "examplecsv", "--list", "youtube", "--catalog-dir", catalogDir, "--data-dir", dataDir, "--output", outputDir}, deps); code == 0 {
 		t.Fatalf("a replaced plugin executable was accepted: %s", stdout.String())
 	}
 	if !strings.Contains(stderr.String(), "checksum") {
@@ -210,7 +210,7 @@ func TestAnInstalledExternalSourceParticipatesInRefresh(t *testing.T) {
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	deps := runtimeDeps{PluginsDir: pluginsDir, Now: func() time.Time { return now }, Context: context.Background()}
 	stdout, stderr := &syncBuffer{}, &syncBuffer{}
-	args := []string{"refresh", "--service", "plugin-service", "--catalog-dir", catalogDir, "--data-dir", dataDir}
+	args := []string{"refresh", "--list", "plugin-service", "--catalog-dir", catalogDir, "--data-dir", dataDir}
 	if code := runWithDeps(stdout, stderr, args, deps); code != 0 {
 		t.Fatalf("external source refresh failed: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}
@@ -227,7 +227,7 @@ func TestAnInstalledExternalSourceParticipatesInRefresh(t *testing.T) {
 	missingDataDir := filepath.Join(t.TempDir(), "missing-data")
 	stdout, stderr = &syncBuffer{}, &syncBuffer{}
 	missingDeps := runtimeDeps{Now: func() time.Time { return now }, Context: context.Background()}
-	missingArgs := []string{"refresh", "--service", "plugin-service", "--catalog-dir", catalogDir, "--data-dir", missingDataDir}
+	missingArgs := []string{"refresh", "--list", "plugin-service", "--catalog-dir", catalogDir, "--data-dir", missingDataDir}
 	if code := runWithDeps(stdout, stderr, missingArgs, missingDeps); code == 0 || !strings.Contains(stderr.String(), "not installed") {
 		t.Fatalf("missing plugin was not refused: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}
@@ -240,7 +240,7 @@ func TestAnInstalledExternalSourceParticipatesInRefresh(t *testing.T) {
 	}
 	mismatchDataDir := filepath.Join(t.TempDir(), "mismatch-data")
 	stdout, stderr = &syncBuffer{}, &syncBuffer{}
-	mismatchArgs := []string{"refresh", "--service", "plugin-service", "--catalog-dir", catalogDir, "--data-dir", mismatchDataDir}
+	mismatchArgs := []string{"refresh", "--list", "plugin-service", "--catalog-dir", catalogDir, "--data-dir", mismatchDataDir}
 	if code := runWithDeps(stdout, stderr, mismatchArgs, deps); code == 0 || !strings.Contains(stderr.String(), "does not match") {
 		t.Fatalf("mismatched plugin revision was not refused: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}
@@ -249,7 +249,7 @@ func TestAnInstalledExternalSourceParticipatesInRefresh(t *testing.T) {
 func buildYoutubeArtifact(t *testing.T, deps runtimeDeps, catalogDir, dataDir, outputDir, target string) string {
 	t.Helper()
 	stdout, stderr := &syncBuffer{}, &syncBuffer{}
-	args := []string{"build", "--target", target, "--service", "youtube", "--catalog-dir", catalogDir, "--data-dir", dataDir, "--output", outputDir}
+	args := []string{"build", "--target", target, "--list", "youtube", "--catalog-dir", catalogDir, "--data-dir", dataDir, "--output", outputDir}
 	if code := runWithDeps(stdout, stderr, args, deps); code != 0 {
 		t.Fatalf("build %s failed: code=%d stdout=%s stderr=%s", target, code, stdout.String(), stderr.String())
 	}

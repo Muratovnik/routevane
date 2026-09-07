@@ -26,10 +26,10 @@ func finishRows(rows *sql.Rows, operation string) error {
 // tuningLimit bounds each registry read the same way the library read is
 // bounded: the transport carries no pagination, so the bound lives here.
 //
-// verdictLimit is the verdict read's own bound. One service may stand behind
+// verdictLimit is the verdict read's own bound. One list may stand behind
 // 2048 destination verdicts, so a bound shared with the other two reads would
-// be reached by a single tuned service and would silently drop the second
-// service's stored decisions on load — the one failure a registry read must
+// be reached by a single tuned list and would silently drop the second
+// list's stored decisions on load — the one failure a registry read must
 // not have.
 const (
 	tuningLimit  = 2048
@@ -184,7 +184,7 @@ ON CONFLICT(list_id,domain) DO UPDATE SET verdict=excluded.verdict`,
 	return nil
 }
 
-// ListTunings reads every stored correction in one pass, keyed by service.
+// ListTunings reads every stored correction in one pass, keyed by list.
 // The registry the planner consults is hydrated from this at startup.
 func (s *Store) ListTunings(ctx context.Context) (map[string]application.ListTuning, error) {
 	ctx, cancel := bounded(ctx)

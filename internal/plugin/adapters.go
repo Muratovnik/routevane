@@ -144,7 +144,7 @@ func (r *Renderer) Validate(payload []byte) error {
 //
 // Every value a plugin reports is parsed by the host before it becomes an
 // observation, so a plugin cannot introduce an unchecked address, a malformed
-// prefix, or a value for a service it was not asked about.
+// prefix, or a value for a list it was not asked about.
 type Source struct {
 	client   *Client
 	manifest wire.SourceManifest

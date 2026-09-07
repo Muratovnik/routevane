@@ -399,12 +399,12 @@ func TestConfigTransferValidatesEffectiveCompositionsBeforeApply(t *testing.T) {
 		name    string
 		profile TransferProfile
 	}{
-		{"direct service contradiction", TransferProfile{Ref: "route-1", Name: "Route", Lists: []string{"example"}, Exclusions: []string{"example"}, RefreshInterval: RefreshOff}},
+		{"direct list contradiction", TransferProfile{Ref: "route-1", Name: "Route", Lists: []string{"example"}, Exclusions: []string{"example"}, RefreshInterval: RefreshOff}},
 		{"category excluded to empty", TransferProfile{Ref: "route-1", Name: "Route", Categories: []string{"collection"}, Exclusions: []string{"example"}, RefreshInterval: RefreshOff}},
 		{"empty category", TransferProfile{Ref: "route-1", Name: "Route", Categories: []string{"empty"}, RefreshInterval: RefreshOff}},
 		{"domain key outside effective composition", TransferProfile{Ref: "route-1", Name: "Route", Lists: []string{"example"}, ListDomains: map[string][]string{"absent": {"example.test"}}, RefreshInterval: RefreshOff}},
 		{"unnormalizable domain", TransferProfile{Ref: "route-1", Name: "Route", Lists: []string{"example"}, ListDomains: map[string][]string{"example": {"bad domain"}}, RefreshInterval: RefreshOff}},
-		{"too many route domains", TransferProfile{Ref: "route-1", Name: "Route", Lists: []string{"example"}, ListDomains: map[string][]string{"example": domains}, RefreshInterval: RefreshOff}},
+		{"too many profile domains", TransferProfile{Ref: "route-1", Name: "Route", Lists: []string{"example"}, ListDomains: map[string][]string{"example": domains}, RefreshInterval: RefreshOff}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			document := base

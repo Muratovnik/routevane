@@ -16,16 +16,16 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-// Service tuning is the operator's standing correction to one service's
+// List tuning is the operator's standing correction to one list's
 // automatic material: a catalog source switched off, an added HTTP feed, and
 // per-domain verdicts over what the catalog and the sources keep offering. It
-// is global — a service tells one truth to every list that names it — and it
+// is global — a list tells one truth to every list that names it — and it
 // composes into the effective definition every refresh, preview, and build
 // reads through the one definition accessor.
 
 const customSourceIDPrefix = "feed-"
 
-// Bounds. A tuned service stays bounded, but the verdict bound is sized for a
+// Bounds. A tuned list stays bounded, but the verdict bound is sized for a
 // file import — an operator pasting a routes file states hundreds of
 // destinations in one action, not sixty-four.
 const (
@@ -75,7 +75,7 @@ const (
 	DomainVerdictAuto DomainVerdict = "auto"
 )
 
-// ListTuning is one service's stored corrections, as the repository hands
+// ListTuning is one list's stored corrections, as the repository hands
 // them over in one pass.
 type ListTuning struct {
 	DisabledSources []string
@@ -95,13 +95,13 @@ type listTuningRegistry struct {
 func (s *PublicationService) LoadListTuning(ctx context.Context) error {
 	stored, err := s.config.Store.ListTunings(ctx)
 	if err != nil {
-		return fmt.Errorf("load service tuning: %w", err)
+		return fmt.Errorf("load list tuning: %w", err)
 	}
 	normalized := make(map[string]ListTuning, len(stored))
 	for listID, tuning := range stored {
 		clean, err := normalizedListTuning(listID, tuning)
 		if err != nil {
-			return fmt.Errorf("load service tuning: %w", err)
+			return fmt.Errorf("load list tuning: %w", err)
 		}
 		normalized[listID] = clean
 	}
@@ -224,7 +224,7 @@ func sourceRevisions(definition domain.ListDefinition) map[string]string {
 	return revisions
 }
 
-// SetListSourceEnabled switches one automatic source of one service on or
+// SetListSourceEnabled switches one automatic source of one list on or
 // off. Disabling is a standing row; enabling removes it, so the catalog's own
 // default is the absence of a correction.
 func (s *PublicationService) SetListSourceEnabled(ctx context.Context, listID, sourceID string, enabled bool) error {
@@ -256,7 +256,7 @@ func (s *PublicationService) SetListSourceEnabled(ctx context.Context, listID, s
 	return nil
 }
 
-// AddListSource stores one operator HTTP feed for a service. The URL is
+// AddListSource stores one operator HTTP feed for a list. The URL is
 // validated by the same boundary the catalog loader applies, injected by the
 // composition so this package stays below the network layer.
 func (s *PublicationService) AddListSource(ctx context.Context, listID, url string, format domain.FeedFormat) (CustomSource, error) {
@@ -354,7 +354,7 @@ func (s *PublicationService) RemoveListSource(ctx context.Context, listID, sourc
 }
 
 // SetListValues records the operator's verdict on destinations of one
-// service — domains, IP addresses, or networks: include adds them, exclude
+// list — domains, IP addresses, or networks: include adds them, exclude
 // switches them off wherever they come from, auto removes the standing
 // verdicts. One call is one action, so a pasted or imported file lands as a
 // single bounded batch instead of hundreds of requests.
@@ -418,8 +418,8 @@ func (s *PublicationService) SetListValues(ctx context.Context, listID string, v
 	return nil
 }
 
-// storeTuningLocked writes one service's tuning back, dropping the entry when
-// nothing remains so an untouched service stays absent from the registry.
+// storeTuningLocked writes one list's tuning back, dropping the entry when
+// nothing remains so an untouched list stays absent from the registry.
 func (s *PublicationService) storeTuningLocked(listID string, tuning ListTuning) {
 	if len(tuning.DisabledSources) == 0 && len(tuning.CustomSources) == 0 &&
 		len(tuning.Includes) == 0 && len(tuning.Excludes) == 0 {
@@ -430,7 +430,7 @@ func (s *PublicationService) storeTuningLocked(listID string, tuning ListTuning)
 }
 
 // baseDefinition answers with the untuned definition: the shipped catalog or
-// the operator's custom service, before corrections apply.
+// the operator's custom list, before corrections apply.
 //
 // It is also the one accessor a list's existence is decided by, so a list the
 // operator removed from the library is subtracted here rather than at each of
@@ -470,7 +470,7 @@ func (s *PublicationService) sourceKnown(base domain.ListDefinition, sourceID st
 
 func normalizedListTuning(listID string, tuning ListTuning) (ListTuning, error) {
 	if domain.ValidateSlug(listID) != nil {
-		return ListTuning{}, fmt.Errorf("invalid tuned service %q", listID)
+		return ListTuning{}, fmt.Errorf("invalid tuned list %q", listID)
 	}
 	tuning.DisabledSources = domain.StableStrings(tuning.DisabledSources)
 	for _, value := range append(append([]string{}, tuning.Includes...), tuning.Excludes...) {

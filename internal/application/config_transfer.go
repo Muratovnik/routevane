@@ -23,14 +23,14 @@ const transferCodePrefix = "config_transfer_"
 const (
 	ConfigTransferVersion = "config-transfer-v1.4"
 	// configTransferServiceVersion is the last version that named a list a
-	// service and a profile a route (ADR 0039). It is still imported.
+	// list and a profile a route (ADR 0039). It is still imported.
 	configTransferServiceVersion        = "config-transfer-v1.3"
 	configTransferPriorityVersion       = "config-transfer-v1.3"
 	configTransferOmissionVersion       = "config-transfer-v1.2"
 	configTransferLegacyOmissionVersion = "config-transfer-v1.1"
 	configTransferLegacyVersion         = "config-transfer-v1.0"
 	// ConfigTransferMaxBytes covers the current bounded product maximum with
-	// headroom: 200 routes can each carry at most 512 253-byte local domains,
+	// headroom: 200 profiles can each carry at most 512 253-byte local domains,
 	// while the other largest collections are 16,384 membership/verdict rows,
 	// 128 custom lists with 64 domains each, 200 devices, and 800 outputs.
 	// Preview, apply, export, and the browser all use this one limit.
@@ -96,7 +96,7 @@ type TransferSettings struct {
 	RefreshInterval RefreshInterval `json:"refresh_interval"`
 	// DefaultPriority is the portable library-wide order. It is required by
 	// v1.3; older documents omit it and fall back to canonical catalog order.
-	// Custom-service ids are rewritten to document-local refs during export.
+	// Custom-list ids are rewritten to document-local refs during export.
 	DefaultPriority []string `json:"default_priority"`
 }
 
@@ -985,7 +985,7 @@ func canonicalizeTransferReferences(d *ConfigTransferDocument) {
 	canonicalizeTransfer(d)
 }
 
-// completeTransferDefaultPriority fills custom-service refs that a repository
+// completeTransferDefaultPriority fills custom-list refs that a repository
 // export may not know how to order (for example, an older repository adapter
 // that predates the global table). The live application accessor normally
 // already supplies them; appending here keeps the v1.3 writer a full
@@ -1423,7 +1423,7 @@ func (s *PublicationService) transferCompositionCatalog(d ConfigTransferDocument
 
 // validTransferComposition applies the same rules as validComposition to the
 // catalog that the transfer will install. In particular, a category is not a
-// substitute for a service unless its effective memberships resolve to one.
+// substitute for a list unless its effective memberships resolve to one.
 func validTransferComposition(c ProfileComposition, lists, categories map[string]bool, members map[string]map[string]MembershipState) (ProfileComposition, error) {
 	listIDs := domain.StableStrings(c.Lists)
 	categoryIDs := domain.StableStrings(c.Categories)
@@ -1433,7 +1433,7 @@ func validTransferComposition(c ProfileComposition, lists, categories map[string
 	}
 	for _, id := range listIDs {
 		if domain.ValidateSlug(id) != nil || !lists[id] {
-			return ProfileComposition{}, errors.New("service")
+			return ProfileComposition{}, errors.New("list")
 		}
 	}
 	for _, id := range categoryIDs {

@@ -11,7 +11,7 @@ import (
 )
 
 // These are the read-model projections a screen asks for: the catalog as it
-// currently stands, and what each stored list and output currently resolves
+// currently stands, and what each stored profile and output currently resolves
 // to. Every one of them only reads Store, Categories, or Targets and returns
 // a presentation shape; none is called from Build, AddOutput, or CreateProfile,
 // and none of them calls into those either.
@@ -21,7 +21,7 @@ import (
 type ListDetail struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
-	// Categories are every catalog grouping that names this service. A service
+	// Categories are every catalog grouping that names this list. A list
 	// belongs to as many as fit it, so this is a set rather than one label.
 	Categories []string `json:"categories"`
 	// Domains are only the bounded rules shipped in the local catalog. Fetched
@@ -30,10 +30,10 @@ type ListDetail struct {
 	Domains []ListDomain `json:"domains"`
 	// Sources names the configured automatic inputs without exposing their URL
 	// or other network configuration. They explain where additional rules come
-	// from while the editable domain set remains a bounded list-local override.
+	// from while the editable domain set remains a bounded profile-local override.
 	Sources     []ListSource `json:"sources"`
 	SourceCount int          `json:"source_count"`
-	// Custom marks an operator-defined service. The screen offers editing its
+	// Custom marks an operator-defined list. The screen offers editing its
 	// own definition only where this is true: a shipped catalog entry is data
 	// the process reads, not a stored row it may rewrite.
 	Custom bool `json:"custom,omitempty"`
@@ -53,12 +53,12 @@ type ListSource struct {
 }
 
 // CategoryDetail is one category as a screen needs it: what to call it and
-// which services it carries after the operator's overlay is merged with the
+// which lists it carries after the operator's overlay is merged with the
 // shipped catalog (ADR 0028).
 type CategoryDetail struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
-	// Services is the merged membership, not the catalog's own. A screen that
+	// Lists is the merged membership, not the catalog's own. A screen that
 	// resolved the overlay itself would answer differently from the build
 	// whenever its copy was a moment stale.
 	Lists []string `json:"lists"`
@@ -71,7 +71,7 @@ type CategoryDetail struct {
 
 // TargetOption is one selectable device as a screen needs to describe it: what
 // the operator calls it, and what kind of file it will receive. The file
-// identity comes from the renderer descriptor rather than from a list a screen
+// identity comes from the renderer descriptor rather than from a profile a screen
 // keeps, so a target added by a plugin describes itself correctly.
 type TargetOption struct {
 	ID            string `json:"id"`
@@ -118,7 +118,7 @@ type OutputCard struct {
 	LastAttempt   *OutputAttempt  `json:"last_attempt,omitempty"`
 }
 
-// ProfileCard is one row of the library screen: the list itself plus the outputs
+// ProfileCard is one row of the library screen: the profile itself plus the outputs
 // it currently feeds.
 type ProfileCard struct {
 	ID          string              `json:"id"`
@@ -128,12 +128,12 @@ type ProfileCard struct {
 	Exclusions  []string            `json:"exclusions"`
 	ListDomains map[string][]string `json:"list_domains,omitempty"`
 	Priority    []string            `json:"priority"`
-	// Resolved is what the list publishes right now: named services plus every
+	// Resolved is what the profile publishes right now: named lists plus every
 	// category's members, minus exclusions, deduplicated. A screen shows this
 	// and can still explain it, because the stored parts are here too.
 	Resolved []string `json:"resolved"`
 	// MissingCategories names references the catalog no longer supplies. The
-	// list keeps working on what remains rather than shrinking silently.
+	// profile keeps working on what remains rather than shrinking silently.
 	MissingCategories []string     `json:"missing_categories"`
 	ArchivedAt        time.Time    `json:"archived_at,omitzero"`
 	CreatedAt         time.Time    `json:"created_at"`
@@ -141,7 +141,7 @@ type ProfileCard struct {
 	Outputs           []OutputCard `json:"outputs"`
 }
 
-// Services names every list the library currently holds. A list the operator
+// Lists names every list the library currently holds. A list the operator
 // removed is absent, decided by the same accessor a build resolves an id with,
 // so the picker and the plan can never disagree about what exists (ADR 0029).
 func (s *PublicationService) Lists() []string {
@@ -210,7 +210,7 @@ func (s *PublicationService) ListDetails() []ListDetail {
 
 // Categories lists every category in a stable order, shipped and
 // operator-created alike, with the operator's membership overlay applied. It
-// reads through the same accessor the planner expands a route with, so the
+// reads through the same accessor the planner expands a profile with, so the
 // picker and the build can never describe a category differently.
 func (s *PublicationService) Categories() []CategoryDetail {
 	return s.mergedCategories()
@@ -245,7 +245,7 @@ func (s *PublicationService) Targets() []TargetOption {
 
 // ProfileCards lists every stored list with the outputs it feeds. A latest
 // artifact that cannot be read is omitted from its output rather than failing
-// the listing: the list still exists and says so.
+// the listing: the profile still exists and says so.
 func (s *PublicationService) ProfileCards(ctx context.Context) ([]ProfileCard, error) {
 	profiles, err := s.config.Store.Profiles(ctx)
 	if err != nil {
@@ -256,7 +256,7 @@ func (s *PublicationService) ProfileCards(ctx context.Context) ([]ProfileCard, e
 		return nil, err
 	}
 	// The store returns outputs newest first so a bound drops the oldest; a
-	// list states its own outputs oldest first, the order it acquired them.
+	// profile states its own outputs oldest first, the order it acquired them.
 	byProfile := make(map[string][]Output, len(profiles))
 	for i := len(outputs) - 1; i >= 0; i-- {
 		byProfile[outputs[i].ProfileID] = append(byProfile[outputs[i].ProfileID], outputs[i])
@@ -279,7 +279,7 @@ func (s *PublicationService) ProfileCards(ctx context.Context) ([]ProfileCard, e
 	return cards, nil
 }
 
-// OutputCards describes one list's outputs for the list screen.
+// OutputCards describes one profile's outputs for the profile screen.
 func (s *PublicationService) OutputCards(ctx context.Context, profileID string) ([]OutputCard, error) {
 	outputs, err := s.Outputs(ctx, profileID)
 	if err != nil {

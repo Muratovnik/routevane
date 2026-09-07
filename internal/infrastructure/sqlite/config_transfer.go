@@ -72,7 +72,7 @@ func (s *Store) ExportConfigTransfer(ctx context.Context) (application.ConfigTra
 func exportCustomLists(ctx context.Context, q *sql.Tx, d *application.ConfigTransferDocument) error {
 	rows, err := q.QueryContext(ctx, "SELECT id,title,domains_json FROM custom_lists ORDER BY id")
 	if err != nil {
-		return fmt.Errorf("read custom services: %w", err)
+		return fmt.Errorf("read custom lists: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -82,7 +82,7 @@ func exportCustomLists(ctx context.Context, q *sql.Tx, d *application.ConfigTran
 			return err
 		}
 		if err := json.Unmarshal([]byte(raw), &v.Domains); err != nil {
-			return fmt.Errorf("decode custom service: %w", err)
+			return fmt.Errorf("decode custom list: %w", err)
 		}
 		d.CustomLists = append(d.CustomLists, v)
 	}

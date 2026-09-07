@@ -35,7 +35,7 @@ func newFQDNFixture(t *testing.T, firmware string) *fqdnFixture {
 	}
 }
 
-// fqdnArtifact builds a valid artifact from "service=entry,entry" pairs.
+// fqdnArtifact builds a valid artifact from "list=entry,entry" pairs.
 func fqdnArtifact(t *testing.T, groups ...string) application.DeployArtifact {
 	t.Helper()
 	var builder strings.Builder
@@ -88,7 +88,7 @@ func (f *fqdnFixture) apply(t *testing.T, artifact application.DeployArtifact) {
 	}
 }
 
-// A list that lost a service must stop costing the device its group budget.
+// A list that lost a list must stop costing the device its group budget.
 // This is the whole reason reconciliation exists: without it every refresh
 // leaves the previous groups behind until the 128-group budget is exhausted.
 func TestDeployRemovesTheGroupsAnEarlierProfileLeftBehind(t *testing.T) {

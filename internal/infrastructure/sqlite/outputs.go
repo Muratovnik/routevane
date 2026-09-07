@@ -144,7 +144,7 @@ func (s *Store) OutputsByProfile(ctx context.Context, profileID string) ([]appli
 	return s.scanOutputs(ctx, outputSelect+` WHERE profile_id=? ORDER BY created_at_ns ASC, id ASC LIMIT 64`, profileID)
 }
 
-// Outputs bounds the library read the same way Lists does, and newest-first for
+// Outputs bounds the library read the same way Profiles does, and newest-first for
 // the same reason: what falls off the end must be the oldest, never the output
 // the operator just made.
 func (s *Store) Outputs(ctx context.Context) ([]application.Output, error) {

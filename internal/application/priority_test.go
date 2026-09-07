@@ -58,10 +58,10 @@ func TestCreateProfileAndForecastUseGlobalPriorityOnlyWhenOmitted(t *testing.T) 
 		t.Fatalf("forecasts=%#v", forecasts)
 	}
 	if want := []ListRuleForecast{{ListID: "example", Rules: 0}, {ListID: "other", Rules: 2}}; !reflect.DeepEqual(forecasts[0].PerList, want) {
-		t.Fatalf("forecast per-service=%#v, want %#v", forecasts[0].PerList, want)
+		t.Fatalf("forecast per-list=%#v, want %#v", forecasts[0].PerList, want)
 	}
-	// A non-empty request remains a route-local override even when the global
-	// order changes later. The list's stored priority is never rewritten.
+	// A non-empty request remains a profile-local override even when the global
+	// order changes later. The profile's stored priority is never rewritten.
 	store.globalPriority = []string{"example", "other"}
 	if got, err := publication.Profile(context.Background(), created.ID); err != nil || !reflect.DeepEqual(got.Priority, []string{"other", "example"}) {
 		t.Fatalf("stored route priority=%#v err=%v", got.Priority, err)

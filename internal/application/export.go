@@ -26,7 +26,7 @@ type ExportPayload struct {
 	Payload    []byte
 }
 
-// ExportFormats lists every catalog-backed renderer profile and the generic
+// ExportFormats lists every catalog-backed renderer format and the generic
 // diagnostic JSON renderer when this build carries it. The catalog target is
 // only the constraint profile used internally; the UI presents the file
 // dialect, not a requirement to create that consumer.
@@ -112,7 +112,7 @@ func exportLimit(value int) int {
 	return value
 }
 
-// Export renders one current list without persisting an output or artifact.
+// Export renders one current profile without persisting an output or artifact.
 // Durable consumers continue to use AddOutput and Build; this is only the
 // user's explicit "download this file format now" action.
 func (s *PublicationService) Export(ctx context.Context, profileID, formatID string) (ExportPayload, error) {

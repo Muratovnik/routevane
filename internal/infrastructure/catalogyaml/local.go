@@ -16,15 +16,15 @@ import (
 	"github.com/Muratovnik/routevane/internal/infrastructure/filesystem"
 )
 
-// ErrDraftExists reports that a service identity is already defined. A draft
+// ErrDraftExists reports that a list identity is already defined. A draft
 // never overwrites an existing definition, built-in or local, because that would
-// silently replace a reviewed service with an automatically derived one.
-var ErrDraftExists = errors.New("service definition already exists")
+// silently replace a reviewed list with an automatically derived one.
+var ErrDraftExists = errors.New("list definition already exists")
 
 // LocalGroup is the catalog directory automatically derived definitions live in.
 const LocalGroup = "local"
 
-// WriteLocalDraft serializes one derived service definition into
+// WriteLocalDraft serializes one derived list definition into
 // `<catalog>/local/<id>.yaml` and returns its path.
 //
 // The written document is deliberately the same schema Load already accepts, so
@@ -35,7 +35,7 @@ func WriteLocalDraft(ctx context.Context, catalogRoot string, definition domain.
 		return "", fmt.Errorf("%w: context", ErrInvalidCatalog)
 	}
 	if domain.ValidateSlug(definition.ID) != nil {
-		return "", fmt.Errorf("%w: draft service id", ErrInvalidCatalog)
+		return "", fmt.Errorf("%w: draft list id", ErrInvalidCatalog)
 	}
 	payload, err := encodeDraft(definition)
 	if err != nil {

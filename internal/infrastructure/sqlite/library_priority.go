@@ -36,7 +36,7 @@ func (s *Store) DefaultPriority(ctx context.Context) ([]string, error) {
 
 // SetDefaultPriority replaces the sparse preference as one transaction. The
 // application has already checked that the values form a full permutation of
-// current services; the store still validates its own row grammar so direct
+// current lists; the store still validates its own row grammar so direct
 // callers cannot create duplicate positions or malformed ids.
 func (s *Store) SetDefaultPriority(ctx context.Context, priority []string) error {
 	seen := make(map[string]struct{}, len(priority))

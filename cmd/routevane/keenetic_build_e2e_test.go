@@ -52,9 +52,9 @@ func TestCommandRefreshesTwoListsReopensStateAndBuildsValidatedKeeneticFile(t *t
 	deps := runtimeDeps{Resolver: &alphaBetaResolver{}, Now: func() time.Time { return now }}
 
 	for _, listID := range []string{"beta", "alpha"} {
-		runCommand(t, deps, []string{"refresh", "--service", listID, "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
+		runCommand(t, deps, []string{"refresh", "--list", listID, "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
 	}
-	result := runCommand(t, deps, []string{"build", "--target", "keenetic", "--service", "beta", "--service", "alpha", "--service", "beta", "--output", outputDir, "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
+	result := runCommand(t, deps, []string{"build", "--target", "keenetic", "--list", "beta", "--list", "alpha", "--list", "beta", "--output", outputDir, "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
 	if strings.Count(result.stdout, "\n") != 1 {
 		t.Fatalf("build stdout must contain exactly one path: %q", result.stdout)
 	}
@@ -80,9 +80,9 @@ func TestCommandRefreshesTwoListsReopensStateAndBuildsValidatedKeeneticFile(t *t
 		t.Fatalf("partial coverage warning is not clear and structured: %q", result.stderr)
 	}
 
-	again := runCommand(t, deps, []string{"build", "--target", "keenetic", "--service", "alpha", "--service", "beta", "--output", outputDir, "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
+	again := runCommand(t, deps, []string{"build", "--target", "keenetic", "--list", "alpha", "--list", "beta", "--output", outputDir, "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
 	if strings.TrimSpace(again.stdout) != path {
-		t.Fatalf("identical service set did not reuse deterministic output: %q != %q", again.stdout, path)
+		t.Fatalf("identical list set did not reuse deterministic output: %q != %q", again.stdout, path)
 	}
 }
 
@@ -91,8 +91,8 @@ func TestCommandMissingSecondListStateCreatesNoFile(t *testing.T) {
 	dataRoot := filepath.Join(t.TempDir(), "data")
 	outputDir := filepath.Join(dataRoot, "exports")
 	deps := runtimeDeps{Resolver: &alphaBetaResolver{}, Now: func() time.Time { return time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC) }}
-	runCommand(t, deps, []string{"refresh", "--service", "alpha", "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
-	result := runCommand(t, deps, []string{"build", "--target", "keenetic", "--service", "alpha", "--service", "beta", "--output", outputDir, "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 1)
+	runCommand(t, deps, []string{"refresh", "--list", "alpha", "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
+	result := runCommand(t, deps, []string{"build", "--target", "keenetic", "--list", "alpha", "--list", "beta", "--output", outputDir, "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 1)
 	if result.stdout != "" {
 		t.Fatalf("failed all-or-nothing build printed output: %q", result.stdout)
 	}
@@ -104,15 +104,15 @@ func TestCommandMissingSecondListStateCreatesNoFile(t *testing.T) {
 }
 
 func TestParseBuildCanonicalizesRepeatedListsAndPreservesRawCompatibility(t *testing.T) {
-	options, ok := parseBuild([]string{"--target", "keenetic", "--service", "beta", "--service", "alpha", "--service", "beta"})
+	options, ok := parseBuild([]string{"--target", "keenetic", "--list", "beta", "--list", "alpha", "--list", "beta"})
 	if !ok || strings.Join(options.ListIDs, ",") != "alpha,beta" {
 		t.Fatalf("repeatable service parse=%#v ok=%v", options, ok)
 	}
-	if _, ok := parseBuild([]string{"--target", "raw-json", "--service", "alpha", "--service", "beta"}); ok {
-		t.Fatal("multi-service raw JSON compatibility boundary was widened")
+	if _, ok := parseBuild([]string{"--target", "raw-json", "--list", "alpha", "--list", "beta"}); ok {
+		t.Fatal("multi-list raw JSON compatibility boundary was widened")
 	}
-	if _, ok := parseBuild([]string{"--target", "raw-json", "--service", "alpha"}); !ok {
-		t.Fatal("single-service raw JSON build stopped parsing")
+	if _, ok := parseBuild([]string{"--target", "raw-json", "--list", "alpha"}); !ok {
+		t.Fatal("single-list raw JSON build stopped parsing")
 	}
 }
 

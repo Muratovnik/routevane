@@ -37,8 +37,8 @@ func writeCategoryFile(t *testing.T, root, name string, payload []byte) {
 	}
 }
 
-// A service belongs to as many categories as fit it. The grouping is the reason
-// categories exist as their own object rather than as a field on the service.
+// A list belongs to as many categories as fit it. The grouping is the reason
+// categories exist as their own object rather than as a field on the list.
 func TestCategoryMembershipIsManyToMany(t *testing.T) {
 	root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
 	if err := os.WriteFile(filepath.Join(root, "builtin", "other.yaml"), []byte(secondListYAML), 0o600); err != nil {
@@ -61,7 +61,7 @@ func TestCategoryMembershipIsManyToMany(t *testing.T) {
 	}
 }
 
-// A category naming a service the catalog does not carry would resolve to a
+// A category naming a list the catalog does not carry would resolve to a
 // silently smaller list, so the whole catalog is refused instead.
 func TestCategoryNamingAnUnknownListIsRefused(t *testing.T) {
 	root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
@@ -95,7 +95,7 @@ func TestInvalidCategoryDocumentsAreRefused(t *testing.T) {
 }
 
 // A list resolves its composition through categories, so a category that gains
-// a service changes what the next plan is built from. A revision that ignored
+// a list changes what the next plan is built from. A revision that ignored
 // that would claim the plan came from a catalog it did not.
 func TestCatalogRevisionCoversCategories(t *testing.T) {
 	first := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
@@ -123,7 +123,7 @@ func TestCatalogRevisionCoversCategories(t *testing.T) {
 	}
 }
 
-// A catalog with no categories is legitimate: a list may name services itself.
+// A catalog with no categories is legitimate: a list may name lists itself.
 func TestCatalogWithoutCategoriesLoads(t *testing.T) {
 	root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
 	catalog, err := Load(context.Background(), root)
@@ -165,7 +165,7 @@ func TestFeedDeclaresItsSourceClass(t *testing.T) {
 	}
 	list, found := catalog.List("example")
 	if !found || len(list.Sources) != 1 {
-		t.Fatalf("service = %#v", list)
+		t.Fatalf("list = %#v", list)
 	}
 	if list.Sources[0].Class != "community" || list.Sources[0].Format != "domain-list" {
 		t.Fatalf("source = %#v", list.Sources[0])

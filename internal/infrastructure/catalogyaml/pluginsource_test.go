@@ -35,7 +35,7 @@ func TestLoadAcceptsAnExternalSourceAndBindsItsRevision(t *testing.T) {
 	}
 	list, found := catalog.List("example")
 	if !found || len(list.Sources) != 1 {
-		t.Fatalf("service = %#v", list)
+		t.Fatalf("list = %#v", list)
 	}
 	source := list.Sources[0]
 	if source.Type != domain.SourceType("example-static") || source.ImplementationRevision != "example-static-v1" || source.Revision == "" {

@@ -11,7 +11,7 @@ import (
 )
 
 // ListPreview is a transient, read-only look at the automatic catalog
-// sources for one service. It deliberately contains domain names but only
+// sources for one list. It deliberately contains domain names but only
 // counts address material: exact IP evidence belongs to build diagnostics,
 // while this projection answers the composition question a list editor asks.
 type ListPreview struct {
@@ -41,11 +41,11 @@ type ListSourcePreview struct {
 
 // PreviewList observes the configured automatic sources without recording
 // a source cycle, changing a list, or publishing an artifact. The explicit UI
-// action that calls it is therefore safe to use before a service is selected.
+// action that calls it is therefore safe to use before a list is selected.
 func (s *PublicationService) PreviewList(ctx context.Context, listID string) (ListPreview, error) {
 	preview := ListPreview{ListID: listID, Sources: []ListSourcePreview{}, Domains: []string{}}
 	if ctx == nil || s == nil || s.config.Clock == nil {
-		return preview, fmt.Errorf("invalid service preview composition")
+		return preview, fmt.Errorf("invalid list preview composition")
 	}
 	definition, ok := s.definition(listID)
 	if !ok {

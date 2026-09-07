@@ -27,8 +27,8 @@ func (h *handler) createCategory(w http.ResponseWriter, r *http.Request) {
 }
 
 // updateCategory carries a partial edit. Both fields are pointers because an
-// absent field and an empty one are different requests: omitting services
-// leaves membership alone, while sending an empty array clears it. Services is
+// absent field and an empty one are different requests: omitting lists
+// leaves membership alone, while sending an empty array clears it. Lists is
 // the complete desired membership; the server computes the overlay difference
 // against the catalog, so a stale client copy cannot store a verdict the
 // operator never gave.

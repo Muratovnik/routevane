@@ -56,7 +56,7 @@ func commonFlags(name string) (*flag.FlagSet, *commonOptions) {
 	set := flag.NewFlagSet(name, flag.ContinueOnError)
 	set.SetOutput(io.Discard)
 	options := &commonOptions{}
-	set.StringVar(&options.ListID, "service", "", "service id")
+	set.StringVar(&options.ListID, "list", "", "list id")
 	set.StringVar(&options.CatalogDir, "catalog-dir", "./catalog", "catalog directory")
 	set.StringVar(&options.DataDir, "data-dir", "./data", "data directory")
 	return set, options
@@ -74,7 +74,7 @@ func parseBuild(args []string) (buildOptions, bool) {
 	set := flag.NewFlagSet("build", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
 	var lists repeatedLists
-	set.Var(&lists, "service", "service id (repeatable)")
+	set.Var(&lists, "list", "list id (repeatable)")
 	target := set.String("target", "", "target id")
 	catalogDir := set.String("catalog-dir", "./catalog", "catalog directory")
 	dataDir := set.String("data-dir", "./data", "data directory")
@@ -166,7 +166,7 @@ func loadConfiguredLists(ctx context.Context, catalogDir string, listIDs []strin
 	for _, listID := range ids {
 		definition, ok := catalog.List(listID)
 		if !ok {
-			return catalogyaml.Catalog{}, nil, fmt.Errorf("service configuration missing")
+			return catalogyaml.Catalog{}, nil, fmt.Errorf("list configuration missing")
 		}
 		definitions = append(definitions, definition)
 	}
@@ -215,7 +215,7 @@ func refreshLoaded(ctx context.Context, stdout io.Writer, logger *slog.Logger, o
 	if errors.Is(refreshErr, application.ErrSourceDegraded) {
 		// The stored observations are still usable inside the grace window, so
 		// this cycle is a warning rather than a failed refresh.
-		logger.Warn("refresh warning", "operation", "refresh", "service", options.ListID, "code", "source_degraded", "sources", strings.Join(summary.DegradedSources, ","))
+		logger.Warn("refresh warning", "operation", "refresh", "list", options.ListID, "code", "source_degraded", "sources", strings.Join(summary.DegradedSources, ","))
 		logResult(logger, "refresh", options.ListID, "", "success", summary.Sightings, started, "source_degraded")
 		return 0
 	}

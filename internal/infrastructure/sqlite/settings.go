@@ -50,7 +50,7 @@ func (s *Store) PutSetting(ctx context.Context, key, value string, updatedAt tim
 }
 
 // UpdateProfileSchedule writes only the scheduling columns, so a timer never
-// rewrites a composition and a composition edit never resets when the list last
+// rewrites a composition and a composition edit never resets when the profile last
 // refreshed.
 func (s *Store) UpdateProfileSchedule(ctx context.Context, profileID string, interval application.RefreshInterval, lastRefreshedAt time.Time, failed bool, updatedAt time.Time) error {
 	if !validID(profileID) || updatedAt.IsZero() {

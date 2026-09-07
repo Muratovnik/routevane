@@ -10,7 +10,7 @@ import (
 )
 
 // TestProfileEditsReachEveryOutputThroughTheSameSubscription is the end-to-end
-// oracle of ADR 0013: one list feeds several formats, editing its composition
+// oracle of ADR 0013: one profile feeds several formats, editing its composition
 // changes what those formats publish, and the subscription URL issued once at
 // output creation keeps resolving to the newest file.
 func TestProfileEditsReachEveryOutputThroughTheSameSubscription(t *testing.T) {
@@ -39,10 +39,10 @@ func TestProfileEditsReachEveryOutputThroughTheSameSubscription(t *testing.T) {
 		t.Fatalf("first publication=%d %s", firstFile.status, firstFile.body)
 	}
 	if strings.Contains(string(firstFile.body), "198.51.100.20") {
-		t.Fatalf("a service outside the list reached the file: %s", firstFile.body)
+		t.Fatalf("a list outside the profile reached the file: %s", firstFile.body)
 	}
 
-	// Editing the list is what a rebuild then publishes: the output row, its
+	// Editing the profile is what a rebuild then publishes: the output row, its
 	// subscription and its identity are untouched by the edit.
 	updated := postJSON(t, origin+"/v1/profiles/"+profileID+"/update", `{"name":"Видео и общение","lists":["youtube","discord"]}`)
 	var updateResponse struct {
@@ -61,7 +61,7 @@ func TestProfileEditsReachEveryOutputThroughTheSameSubscription(t *testing.T) {
 
 	second := refreshAndBuild(t, origin, profileID, routerOutput)
 	if second.Artifact.ID == first.Artifact.ID {
-		t.Fatal("an edited list republished the same artifact")
+		t.Fatal("an edited profile republished the same artifact")
 	}
 	secondFile := httpGet(t, subscriptionURL, nil)
 	if secondFile.status != http.StatusOK {
@@ -73,7 +73,7 @@ func TestProfileEditsReachEveryOutputThroughTheSameSubscription(t *testing.T) {
 		}
 	}
 
-	// The second output serves the same list in its own format. It is
+	// The second output serves the same profile in its own format. It is
 	// domain-capable, so it carries the names rather than the addresses the
 	// router dialect had to fall back to.
 	singboxBuild := refreshAndBuild(t, origin, profileID, singboxOutput)
@@ -97,7 +97,7 @@ func TestProfileEditsReachEveryOutputThroughTheSameSubscription(t *testing.T) {
 		t.Fatalf("duplicate output status=%d body=%s", duplicate.status, duplicate.body)
 	}
 
-	// The library states the list, its composition and both of its outputs.
+	// The library states the profile, its composition and both of its outputs.
 	library := httpGet(t, origin+"/v1/profiles", nil)
 	var listing struct {
 		Profiles []struct {

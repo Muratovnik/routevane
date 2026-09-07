@@ -127,8 +127,8 @@ var routes = map[string]routeSpec{
 	"lists.domains": {path: "/v1/lists/{id}/domains", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.setListValues(w, r, r.PathValue("id"))
 	}},
-	// Categories have no listing of their own: GET /v1/services already answers
-	// with the merged categories beside the services they carry, and a second
+	// Categories have no listing of their own: GET /v1/lists already answers
+	// with the merged categories beside the lists they carry, and a second
 	// address for the same document would be a second thing to keep in step.
 	"categories.create": {path: "/v1/categories", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.createCategory(w, r)

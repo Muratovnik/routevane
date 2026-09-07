@@ -1,5 +1,5 @@
 // Package planner implements the deterministic Auto v1 policy.  It does not
-// perform I/O: callers provide a service definition, observations, target
+// perform I/O: callers provide a list definition, observations, target
 // constraints and an explicit cutoff.
 package planner
 
@@ -220,7 +220,7 @@ func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time
 		if !sighting.IsFresh(cutoff) {
 			// A source that cannot refresh must not silently drop routes inside
 			// its grace window. Expiry alone is not evidence that an address
-			// stopped belonging to the service.
+			// stopped belonging to the list.
 			if !admissibleUnderGrace(sighting, grace) {
 				excluded = append(excluded, domain.Excluded{Candidate: candidate, Outcome: "rejected", ReasonCodes: []string{ReasonStaleObservation}, ProvenanceRefs: provenance(sighting.SourceID)})
 				continue
@@ -247,7 +247,7 @@ func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time
 		}
 		if candidate.Kind.IsPrefix() && !declaredNetwork(sighting) {
 			// A prefix observed from metadata is a policy candidate, never
-			// proof that the whole network belongs to this service.  Keep it
+			// proof that the whole network belongs to this list.  Keep it
 			// visible as quarantined diagnostics without routing expansion.
 			reasons := []string{ReasonWideNetworkExpansion}
 			if sighting.SharedNetworkEvidence == domain.SharedNetworkEvidenceTrusted {
@@ -297,9 +297,9 @@ func BuildPlanWithRelations(def domain.ListDefinition, sightings []domain.Sighti
 	return BuildPlan(def, sightings, target, cutoff, relations)
 }
 
-// ListInput is one service's coherent observation snapshot at the cutoff
-// shared by BuildPlanSet. It keeps multi-service composition in policy code,
-// rather than teaching a renderer about services or persistence.
+// ListInput is one list's coherent observation snapshot at the cutoff
+// shared by BuildPlanSet. It keeps multi-list composition in policy code,
+// rather than teaching a renderer about lists or persistence.
 type ListInput struct {
 	Definition domain.ListDefinition
 	Sightings  []domain.Sighting
@@ -333,7 +333,7 @@ func admissibleUnderGrace(sighting domain.Sighting, grace map[string]time.Time) 
 // or an RDAP record is an inference and stays quarantined. Who declared it is
 // the source class, which travels into the diagnostics with the rule, and
 // explicit shared-network evidence still quarantines the prefix because a
-// shared CDN range is not service specific.
+// shared CDN range is not list specific.
 //
 // Community was admitted on 2026-08-22 (ADR 0015): every third-party list this
 // product adopts declares that class, and refusing it would have made honest
@@ -347,7 +347,7 @@ func declaredNetwork(sighting domain.Sighting) bool {
 	}
 }
 
-// BuildPlanSet composes one canonical plan for a set of services. Per-service
+// BuildPlanSet composes one canonical plan for a set of lists. Per-list
 // reduction runs without MaxRules; the target rule limit is checked exactly
 // once after composition. A limit or required-coverage error returns the full
 // diagnostic plan and never truncates it.
@@ -537,15 +537,15 @@ func provenance(value string) []string {
 	return []string{value}
 }
 
-// collapseObserved reduces the address and network rules of one service to the
+// collapseObserved reduces the address and network rules of one list to the
 // smallest set of disjoint prefixes covering exactly the same addresses. It
 // runs over every source class, not only DNS observations: a feed publishes
 // networks, and leaving those uncollapsed spent the target's rule budget on
 // values that merge exactly.
 //
-// Grouping stays per service, component and class. Merging across services
+// Grouping stays per list, component and class. Merging across lists
 // would produce a route nobody could attribute, and the diagnostics state which
-// service and which kind of source each rule came from.
+// list and which kind of source each rule came from.
 func collapseObserved(rules []domain.RouteRule) []domain.RouteRule {
 	groups := make(map[string][]domain.RouteRule)
 	others := make([]domain.RouteRule, 0, len(rules))

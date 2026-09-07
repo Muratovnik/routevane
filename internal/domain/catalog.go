@@ -70,9 +70,9 @@ type ListDefinition struct {
 	CatalogRevision string
 }
 
-// CategoryDefinition is a catalog-supplied grouping of services. It owns no
-// data of its own, and a service belongs to as many categories as fit it: the
-// grouping lives here rather than as a field on the service precisely so that
+// CategoryDefinition is a catalog-supplied grouping of lists. It owns no
+// data of its own, and a list belongs to as many categories as fit it: the
+// grouping lives here rather than as a field on the list precisely so that
 // membership can be many-to-many (ADR 0016).
 type CategoryDefinition struct {
 	ID    string
@@ -170,7 +170,7 @@ func KnownComponent(value string) bool {
 	return false
 }
 
-// RequiredComponent reports whether a component must be covered for a service to
+// RequiredComponent reports whether a component must be covered for a list to
 // be considered complete. Telemetry, advertising, and shared third parties are
 // dependencies, never requirements.
 func RequiredComponent(value string) bool {

@@ -208,11 +208,11 @@ func runWithDeps(stdout, stderr io.Writer, args []string, deps runtimeDeps) int 
 	}
 }
 
-// runPreview renders the built-in example service to stdout without a
+// runPreview renders the built-in example list to stdout without a
 // database. It exists so a fresh checkout can show a routing plan before any
 // state is created.
 func runPreview(stdout, stderr io.Writer, logger *slog.Logger, args []string, deps runtimeDeps) int {
-	if len(args) != 4 || args[0] != "--service" || args[1] != "example" || args[2] != "--target" || args[3] != "raw-json" {
+	if len(args) != 4 || args[0] != "--list" || args[1] != "example" || args[2] != "--target" || args[3] != "raw-json" {
 		writeUsage(stderr)
 		return 2
 	}
@@ -267,11 +267,11 @@ func logResult(logger *slog.Logger, operation, list, source, status string, coun
 			duration = 0
 		}
 	}
-	logger.Info("operation", "operation", operation, "service", list, "source", source, "status", status, "count", count, "duration", duration, "error_code", errorCode)
+	logger.Info("operation", "operation", operation, "list", list, "source", source, "status", status, "count", count, "duration", duration, "error_code", errorCode)
 }
 
 func writeUsage(stderr io.Writer) {
-	fmt.Fprintln(stderr, "usage: routevane version | preview --service example --target raw-json | refresh --service ID [--catalog-dir DIR --data-dir DIR] | build --target raw-json --service ID [--catalog-dir DIR --data-dir DIR] | build --target keenetic --service ID [--service ID ... --output DIR --catalog-dir DIR --data-dir DIR] | doctor [--catalog-dir DIR --data-dir DIR] | run --target raw-json --service ID [--interval 30m --catalog-dir DIR --data-dir DIR] | serve [--port 8765 --catalog-dir DIR --data-dir DIR --open-browser] | discover --url URL [--confirm --service-id ID --title TEXT --seed DOMAIN --browser PATH --catalog-dir DIR --data-dir DIR] | learn --scenario FILE | --har FILE --url URL [--confirm --service-id ID --title TEXT --seed DOMAIN --browser PATH --catalog-dir DIR --data-dir DIR] | deploy --artifact ID --target ID --device URL|file://PATH [--user NAME --interface NAME --confirm --device-tls-untrusted --catalog-dir DIR --data-dir DIR]")
+	fmt.Fprintln(stderr, "usage: routevane version | preview --list example --target raw-json | refresh --list ID [--catalog-dir DIR --data-dir DIR] | build --target raw-json --list ID [--catalog-dir DIR --data-dir DIR] | build --target keenetic --list ID [--list ID ... --output DIR --catalog-dir DIR --data-dir DIR] | doctor [--catalog-dir DIR --data-dir DIR] | run --target raw-json --list ID [--interval 30m --catalog-dir DIR --data-dir DIR] | serve [--port 8765 --catalog-dir DIR --data-dir DIR --open-browser] | discover --url URL [--confirm --list-id ID --title TEXT --seed DOMAIN --browser PATH --catalog-dir DIR --data-dir DIR] | learn --scenario FILE | --har FILE --url URL [--confirm --list-id ID --title TEXT --seed DOMAIN --browser PATH --catalog-dir DIR --data-dir DIR] | deploy --artifact ID --target ID --device URL|file://PATH [--user NAME --interface NAME --confirm --device-tls-untrusted --catalog-dir DIR --data-dir DIR]")
 }
 
 func main() {

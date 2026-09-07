@@ -32,7 +32,7 @@ manual_installation_hint: Save the file as a local source rule-set.
 `
 
 // One scheduled output exceeding its format must not prevent a sibling format
-// from publishing the same refreshed route. This walks the real HTTP, catalog,
+// from publishing the same refreshed profile. This walks the real HTTP, catalog,
 // SQLite, scheduler, planner, renderer, artifact and subscription boundaries.
 func TestScheduledOutputsContinueAfterOneFormatFails(t *testing.T) {
 	catalog, bulkLists := writeScheduledOutputCatalog(t)
@@ -151,11 +151,11 @@ func scheduledProfileDetail(t *testing.T, origin, profileID string) scheduledDet
 	t.Helper()
 	response := httpGet(t, origin+"/v1/profiles/"+profileID, nil)
 	if response.status != 200 {
-		t.Fatalf("list detail status=%d body=%s", response.status, response.body)
+		t.Fatalf("profile detail status=%d body=%s", response.status, response.body)
 	}
 	var detail scheduledDetail
 	if err := json.Unmarshal(response.body, &detail); err != nil {
-		t.Fatalf("list detail=%s: %v", response.body, err)
+		t.Fatalf("profile detail=%s: %v", response.body, err)
 	}
 	return detail
 }

@@ -21,7 +21,7 @@ const profileLimit = 200
 const profileColumns = `SELECT id,name,refresh_interval,last_refreshed_at_ns,last_refresh_failed,archived_at_ns,created_at_ns,updated_at_ns`
 
 // validSlugSet checks one stored part of a composition. A part may be empty --
-// a list built only from categories names no service of its own -- but the
+// a profile built only from categories names no list of its own -- but the
 // whole composition may not be, which the caller checks.
 func validSlugSet(values []string) bool {
 	if len(values) > 128 {
@@ -74,9 +74,9 @@ func normalizedComposition(profile application.Profile) (lists, categories, excl
 	return lists, categories, exclusions, priority, true
 }
 
-// writeComposition replaces every membership table of one list inside the
+// writeComposition replaces every membership table of one profile inside the
 // caller's transaction. Exclusions go in last because the trigger that refuses
-// a service which is both named and excluded fires on either insert, and the
+// a list which is both named and excluded fires on either insert, and the
 // named set is the one the caller asked for.
 func writeComposition(ctx context.Context, tx *sql.Tx, profileID string, lists, categories, exclusions, priority []string) error {
 	writes := []struct {
@@ -90,13 +90,13 @@ func writeComposition(ctx context.Context, tx *sql.Tx, profileID string, lists, 
 	for _, write := range writes {
 		for _, value := range write.values {
 			if _, err := tx.ExecContext(ctx, write.statement, profileID, value); err != nil {
-				return fmt.Errorf("write list composition: %w", err)
+				return fmt.Errorf("write profile composition: %w", err)
 			}
 		}
 	}
 	for position, listID := range priority {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO profile_list_priorities(profile_id,list_id,position) VALUES(?,?,?)`, profileID, listID, position); err != nil {
-			return fmt.Errorf("write list priority: %w", err)
+			return fmt.Errorf("write profile priority: %w", err)
 		}
 	}
 	return nil
@@ -127,16 +127,16 @@ func validListDomains(overrides map[string][]string) bool {
 
 func writeListDomains(ctx context.Context, tx *sql.Tx, profileID string, overrides map[string][]string) error {
 	if !validListDomains(overrides) {
-		return fmt.Errorf("invalid list service domains")
+		return fmt.Errorf("invalid profile list domains")
 	}
 	ids := slices.Sorted(maps.Keys(overrides))
 	for _, listID := range ids {
 		payload, err := json.Marshal(overrides[listID])
 		if err != nil {
-			return fmt.Errorf("encode list service domains: %w", err)
+			return fmt.Errorf("encode profile list domains: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO profile_list_domains(profile_id,list_id,domains_json) VALUES(?,?,?)`, profileID, listID, string(payload)); err != nil {
-			return fmt.Errorf("write list service domains: %w", err)
+			return fmt.Errorf("write profile list domains: %w", err)
 		}
 	}
 	return nil
@@ -151,7 +151,7 @@ func clearComposition(ctx context.Context, tx *sql.Tx, profileID string) error {
 		`DELETE FROM profile_list_priorities WHERE profile_id=?`,
 	} {
 		if _, err := tx.ExecContext(ctx, statement, profileID); err != nil {
-			return fmt.Errorf("replace list composition: %w", err)
+			return fmt.Errorf("replace profile composition: %w", err)
 		}
 	}
 	return nil
@@ -160,7 +160,7 @@ func clearComposition(ctx context.Context, tx *sql.Tx, profileID string) error {
 func (s *Store) CreateProfile(ctx context.Context, profile application.Profile) error {
 	lists, categories, exclusions, priority, ok := normalizedComposition(profile)
 	if !validID(profile.ID) || profile.Name == "" || len([]rune(profile.Name)) > 120 || profile.CreatedAt.IsZero() || profile.UpdatedAt.IsZero() || !ok {
-		return fmt.Errorf("invalid list")
+		return fmt.Errorf("invalid profile")
 	}
 	if err := s.preparePublication(); err != nil {
 		return err
@@ -218,14 +218,14 @@ func (s *Store) Profile(ctx context.Context, id string) (application.Profile, er
 func (s *Store) readListDomains(ctx context.Context, profile *application.Profile) error {
 	rows, err := s.db.QueryContext(ctx, `SELECT list_id,domains_json FROM profile_list_domains WHERE profile_id=? ORDER BY list_id ASC LIMIT 128`, profile.ID)
 	if err != nil {
-		return fmt.Errorf("read list service domains: %w", err)
+		return fmt.Errorf("read profile list domains: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	overrides := make(map[string][]string)
 	for rows.Next() {
 		var listID, payload string
 		if err := rows.Scan(&listID, &payload); err != nil {
-			return fmt.Errorf("read list service domains: %w", err)
+			return fmt.Errorf("read profile list domains: %w", err)
 		}
 		var domains []string
 		if err := json.Unmarshal([]byte(payload), &domains); err != nil {
@@ -237,7 +237,7 @@ func (s *Store) readListDomains(ctx context.Context, profile *application.Profil
 		overrides[listID] = domains
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("read list service domains: %w", err)
+		return fmt.Errorf("read profile list domains: %w", err)
 	}
 	if !validListDomains(overrides) {
 		return fmt.Errorf("invalid stored list service domains")
@@ -248,9 +248,9 @@ func (s *Store) readListDomains(ctx context.Context, profile *application.Profil
 	return nil
 }
 
-// readComposition fills the three stored parts of one list. Each is a separate
-// query rather than a join because a list may legitimately have none of one
-// kind, and a join would have to distinguish that from a missing list.
+// readComposition fills the three stored parts of one profile. Each is a separate
+// query rather than a join because a profile may legitimately have none of one
+// kind, and a join would have to distinguish that from a missing profile.
 func (s *Store) readComposition(ctx context.Context, profile *application.Profile) error {
 	reads := []struct {
 		query string
@@ -278,19 +278,19 @@ func (s *Store) readComposition(ctx context.Context, profile *application.Profil
 func (s *Store) compositionPart(ctx context.Context, query, profileID string) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx, query, profileID)
 	if err != nil {
-		return nil, fmt.Errorf("read list composition: %w", err)
+		return nil, fmt.Errorf("read profile composition: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	values := make([]string, 0)
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("read list composition: %w", err)
+			return nil, fmt.Errorf("read profile composition: %w", err)
 		}
 		values = append(values, id)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("read list composition: %w", err)
+		return nil, fmt.Errorf("read profile composition: %w", err)
 	}
 	return values, nil
 }
@@ -300,7 +300,7 @@ func (s *Store) Profiles(ctx context.Context) ([]application.Profile, error) {
 	defer cancel()
 	rows, err := s.db.QueryContext(ctx, profileColumns+` FROM profiles ORDER BY created_at_ns DESC, id ASC LIMIT ?`, profileLimit)
 	if err != nil {
-		return nil, fmt.Errorf("list lists: %w", err)
+		return nil, fmt.Errorf("list profiles: %w", err)
 	}
 	profiles := make([]application.Profile, 0)
 	for rows.Next() {
@@ -313,10 +313,10 @@ func (s *Store) Profiles(ctx context.Context) ([]application.Profile, error) {
 	}
 	if err := rows.Err(); err != nil {
 		_ = rows.Close()
-		return nil, fmt.Errorf("list lists: %w", err)
+		return nil, fmt.Errorf("list profiles: %w", err)
 	}
 	if err := rows.Close(); err != nil {
-		return nil, fmt.Errorf("list lists: %w", err)
+		return nil, fmt.Errorf("list profiles: %w", err)
 	}
 	// The composition read runs after the cursor is closed: this store holds a
 	// single connection, so a nested query would deadlock against it.
@@ -334,7 +334,7 @@ func (s *Store) Profiles(ctx context.Context) ([]application.Profile, error) {
 func (s *Store) UpdateProfile(ctx context.Context, profile application.Profile) error {
 	lists, categories, exclusions, priority, ok := normalizedComposition(profile)
 	if !validID(profile.ID) || profile.Name == "" || len([]rune(profile.Name)) > 120 || profile.UpdatedAt.IsZero() || !ok {
-		return fmt.Errorf("invalid list")
+		return fmt.Errorf("invalid profile")
 	}
 	if err := s.preparePublication(); err != nil {
 		return err
@@ -370,7 +370,7 @@ func (s *Store) UpdateProfile(ctx context.Context, profile application.Profile) 
 
 // SetProfileArchived writes only the archival column and the moment of the edit.
 // A zero moment is the restored state: the column carries the fact and its date
-// together, so nothing can report an archived list with no date or a date with
+// together, so nothing can report an archived profile with no date or a date with
 // no archival.
 func (s *Store) SetProfileArchived(ctx context.Context, profileID string, archivedAt time.Time, updatedAt time.Time) error {
 	if !validID(profileID) || updatedAt.IsZero() {

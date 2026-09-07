@@ -23,14 +23,14 @@ type CompositionForecast struct {
 	MaximumRules   int  `json:"maximum_rules"`
 	ProjectedRules int  `json:"projected_rules"`
 	Fits           bool `json:"fits"`
-	// PerList attributes the planned rules to the services that produced
+	// PerList attributes the planned rules to the lists that produced
 	// them, so an overflowing composition is reduced by name rather than by
 	// guesswork. Its sum may be larger than ProjectedRules: a renderer collapses
 	// and deduplicates format-identical rules, and that saving belongs to the
-	// file rather than to any one service.
+	// file rather than to any one list.
 	PerList  []ListRuleForecast  `json:"per_list"`
 	Overlaps CompositionOverlaps `json:"overlaps"`
-	// Missing services are excluded from this partial calculation, never counted
+	// Missing lists are excluded from this partial calculation, never counted
 	// as zero. Fits is false until the entire composition can be measured.
 	IncompleteLists []string `json:"incomplete_lists,omitempty"`
 }
@@ -52,9 +52,9 @@ type CompositionOverlap struct {
 type CompositionOverlaps struct {
 	Items     []CompositionOverlap `json:"items"`
 	Truncated bool                 `json:"truncated"`
-	// Summary is the complete undirected service adjacency graph. Unlike Items,
+	// Summary is the complete undirected list adjacency graph. Unlike Items,
 	// it is not capped: a forecast with many diagnostic relations still names
-	// every service pair that overlaps.
+	// every list pair that overlaps.
 	Summary []CompositionOverlapSummary `json:"summary,omitempty"`
 }
 
@@ -80,10 +80,10 @@ func forecastOverlaps(plan domain.RoutingPlan) CompositionOverlaps {
 		}
 		result.Items = append(result.Items, mapped)
 	}
-	// The planner summary contains only services that participated in a
-	// relation. Forecasts must state one row for every selected service,
-	// including a service that contributed zero rules, so construct rows in the
-	// plan's canonical service order and fill absent adjacency with an empty set.
+	// The planner summary contains only lists that participated in a
+	// relation. Forecasts must state one row for every selected list,
+	// including a list that contributed zero rules, so construct rows in the
+	// plan's canonical list order and fill absent adjacency with an empty set.
 	byList := make(map[string][]string, len(analysis.Summary))
 	for _, row := range analysis.Summary {
 		byList[row.ListID] = append([]string(nil), row.Overlaps...)
@@ -98,22 +98,22 @@ func forecastOverlaps(plan domain.RoutingPlan) CompositionOverlaps {
 	return result
 }
 
-// ListRuleForecast is one service's share of a forecast plan.
+// ListRuleForecast is one list's share of a forecast plan.
 type ListRuleForecast struct {
 	ListID string `json:"list_id"`
 	Rules  int    `json:"rules"`
 }
 
 // ForecastComposition answers what a composition would cost on each requested
-// target, before a list, an output, an attempt, or an artifact exists. It is a
-// read: the composition travels as an argument, the list it builds is a value
+// target, before a profile, an output, an attempt, or an artifact exists. It is a
+// read: the composition travels as an argument, the profile it builds is a value
 // that never reaches the store, and nothing on this path writes.
 //
 // An empty target set means every selectable target, which is what a screen
 // offering the choice needs; a named set is answered in sorted order, so the
 // same request always produces the same document.
 func (s *PublicationService) ForecastComposition(ctx context.Context, requested ProfileComposition, targetIDs []string) ([]CompositionForecast, error) {
-	// The composition passes exactly the checks list creation applies, so a
+	// The composition passes exactly the checks profile creation applies, so a
 	// forecast can never describe a composition the product would then refuse to
 	// store, and a composition resolving to nothing is refused here by name.
 	composition, err := s.validCompositionWithDefaultPriority(ctx, requested)
@@ -124,7 +124,7 @@ func (s *PublicationService) ForecastComposition(ctx context.Context, requested 
 	if err != nil {
 		return nil, err
 	}
-	// An ephemeral list carries no identity because there is no list: it is the
+	// An ephemeral profile carries no identity because there is no profile: it is the
 	// argument shape prepareProfile already accepts, not a row waiting to be
 	// written.
 	profile := Profile{
@@ -188,7 +188,7 @@ func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile
 	var incomplete []string
 	if unavailableForecastCoverage(err) {
 		// Publication is still all-or-nothing. Inspection can retain the complete
-		// services, using the same strict preparation and the same observation cut.
+		// lists, using the same strict preparation and the same observation cut.
 		var available []string
 		for _, id := range s.ResolvedLists(profile) {
 			one := Profile{Lists: []string{id}, ListDomains: profile.ListDomains}
@@ -233,8 +233,8 @@ func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile
 	}, nil
 }
 
-// rulesPerList groups a plan's rules by the service each rule is attributed
-// to. Every planned service appears, including one that contributed nothing: a
+// rulesPerList groups a plan's rules by the list each rule is attributed
+// to. Every planned list appears, including one that contributed nothing: a
 // zero is a fact an operator deciding what to drop needs, and an absent row
 // would read as an unanswered question rather than as an empty share.
 func rulesPerList(plan domain.RoutingPlan) []ListRuleForecast {
@@ -242,7 +242,7 @@ func rulesPerList(plan domain.RoutingPlan) []ListRuleForecast {
 	for _, rule := range plan.Rules {
 		counts[rule.ListID]++
 	}
-	// plan.Services is canonical — sorted, unique, and a superset of every
+	// plan.Lists is canonical — sorted, unique, and a superset of every
 	// rule's attribution, both checked by preflight — so it supplies the order
 	// and the completeness rule without a second sort.
 	perList := make([]ListRuleForecast, 0, len(plan.Lists))

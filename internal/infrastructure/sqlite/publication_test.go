@@ -43,8 +43,8 @@ func TestBaselineSchemaServesEffectiveFormat(t *testing.T) {
 	}
 }
 
-// A list stores what the operator said, not what it resolves to: the named
-// services, the referenced categories, exclusions and ownership priority all
+// A profile stores what the operator said, not what it resolves to: the named
+// lists, the referenced categories, exclusions and ownership priority all
 // survive a write and a read unchanged.
 func TestProfileCompositionRoundTripsEveryPart(t *testing.T) {
 	store, err := Open(context.Background(), newDataRoot(t))
@@ -97,7 +97,7 @@ func TestProfileCompositionRoundTripsEveryPart(t *testing.T) {
 	}
 }
 
-// Naming a service and excluding it is a contradiction the resolver would have
+// Naming a list and excluding it is a contradiction the resolver would have
 // to break arbitrarily. The store refuses it rather than picking a winner.
 func TestProfileRefusesAListThatIsBothNamedAndExcluded(t *testing.T) {
 	store, err := Open(context.Background(), newDataRoot(t))
@@ -116,7 +116,7 @@ func TestProfileRefusesAListThatIsBothNamedAndExcluded(t *testing.T) {
 	}
 }
 
-// A list that names nothing at all would publish an empty file under a name
+// A profile that names nothing at all would publish an empty file under a name
 // that promises content.
 func TestProfileRefusesAnEmptyComposition(t *testing.T) {
 	store, err := Open(context.Background(), newDataRoot(t))
@@ -354,7 +354,7 @@ func TestProfilesListNewestFirstAndOutputsSurviveTheRoundTrip(t *testing.T) {
 }
 
 func publicationProfileAndOutput(profileID, outputID string, now time.Time) (application.Profile, application.Output) {
-	profile := application.Profile{ID: profileID, Name: "example list", Lists: []string{"example"}, CreatedAt: now, UpdatedAt: now}
+	profile := application.Profile{ID: profileID, Name: "example profile", Lists: []string{"example"}, CreatedAt: now, UpdatedAt: now}
 	output := application.Output{ID: outputID, ProfileID: profileID, TargetID: "keenetic", FormatKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat", RendererVersion: "keenetic-bat-ipv4-v1", TargetRevision: string(make([]byte, 64)), CreatedAt: now}
 	return profile, output
 }
@@ -366,7 +366,7 @@ func publicationCandidate(outputID, snapshot, artifact string, jsonBytes []byte,
 }
 
 // The schedule is stored apart from the composition, so a timer writing when a
-// list last refreshed never rewrites what the list contains, and an edit never
+// profile last refreshed never rewrites what the profile contains, and an edit never
 // resets the timer.
 func TestScheduleAndCompositionAreWrittenIndependently(t *testing.T) {
 	store, err := Open(context.Background(), newDataRoot(t))
@@ -421,8 +421,8 @@ func TestScheduleAndCompositionAreWrittenIndependently(t *testing.T) {
 }
 
 // Archival is stored apart from both the composition and the schedule: the
-// column carries the moment the list left the shelf, and nothing else moves
-// with it. A restored list keeps the rule and the refresh history it had.
+// column carries the moment the profile left the shelf, and nothing else moves
+// with it. A restored profile keeps the rule and the refresh history it had.
 func TestArchivalIsStoredApartFromTheRestOfTheProfile(t *testing.T) {
 	store, err := Open(context.Background(), newDataRoot(t))
 	if err != nil {

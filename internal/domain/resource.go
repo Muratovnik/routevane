@@ -18,7 +18,7 @@ var (
 )
 
 // ValidateSlug accepts the deliberately narrow identifier grammar used by
-// catalog, service, component, and source identities. Keeping the grammar
+// catalog, list, component, and source identities. Keeping the grammar
 // smaller than a filesystem name prevents identifiers from becoming paths.
 func ValidateSlug(value string) error {
 	if value == "" || len(value) > 63 || value[0] < 'a' || value[0] > 'z' || value[len(value)-1] == '-' {

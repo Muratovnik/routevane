@@ -7,7 +7,7 @@
 // itself, so a suffix is the natural shape and an exact name cannot be
 // expressed. A group is a named object on the device with a device-wide budget,
 // so this renderer namespaces every group it writes and never touches a name it
-// did not create. And a group holds a bounded number of entries, so a service
+// did not create. And a group holds a bounded number of entries, so a list
 // that exceeds the bound is split into numbered sub-groups: the operator asked
 // for one list, and the split is the adapter's business.
 //
@@ -102,9 +102,9 @@ func Render(plan domain.RoutingPlan) ([]byte, error) {
 	return renderGroups(groups)
 }
 
-// projectPlan turns already-decided rules into one group per service, split into
-// numbered sub-groups when a service carries more entries than a group holds.
-// Grouping by service is what makes a group on the router attributable: an
+// projectPlan turns already-decided rules into one group per list, split into
+// numbered sub-groups when a list carries more entries than a group holds.
+// Grouping by list is what makes a group on the router attributable: an
 // operator reading the name knows what it is and what removing it costs.
 func projectPlan(plan domain.RoutingPlan) ([]Group, error) {
 	byList := make(map[string][]string)

@@ -120,7 +120,7 @@ func TestTurnsOneURLIntoASafeLocalListUsableByTheExistingRenderers(t *testing.T)
 		t.Fatal("an unconfirmed run must not write anything")
 	}
 
-	confirmed := discoverViaCLI(t, deps, []string{"discover", "--url", "shop.example.co.uk", "--confirm", "--service-id", "shop", "--title", "Shop", "--catalog-dir", catalogDir, "--data-dir", dataDir})
+	confirmed := discoverViaCLI(t, deps, []string{"discover", "--url", "shop.example.co.uk", "--confirm", "--list-id", "shop", "--title", "Shop", "--catalog-dir", catalogDir, "--data-dir", dataDir})
 	if !confirmed.Confirmed || confirmed.DraftPath == "" {
 		t.Fatalf("confirmed = %#v", confirmed)
 	}
@@ -165,7 +165,7 @@ func TestTurnsOneURLIntoASafeLocalListUsableByTheExistingRenderers(t *testing.T)
 		}
 	}
 
-	// The new service is immediately usable by an existing renderer.
+	// The new list is immediately usable by an existing renderer.
 	catalog, err := catalogyaml.Load(context.Background(), catalogDir)
 	if err != nil {
 		t.Fatal(err)
@@ -205,7 +205,7 @@ func TestTurnsOneURLIntoASafeLocalListUsableByTheExistingRenderers(t *testing.T)
 
 	// A second run never replaces the reviewed definition.
 	repeat := &syncBuffer{}
-	if code := runWithDeps(repeat, &syncBuffer{}, []string{"discover", "--url", "shop.example.co.uk", "--confirm", "--service-id", "shop", "--catalog-dir", catalogDir, "--data-dir", dataDir}, deps); code == 0 {
+	if code := runWithDeps(repeat, &syncBuffer{}, []string{"discover", "--url", "shop.example.co.uk", "--confirm", "--list-id", "shop", "--catalog-dir", catalogDir, "--data-dir", dataDir}, deps); code == 0 {
 		t.Fatalf("a repeated discovery must not overwrite an existing definition: %s", repeat.String())
 	}
 }

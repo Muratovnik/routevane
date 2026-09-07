@@ -73,7 +73,7 @@ func TestLearnsComponentsFromAnImportedSessionAndRecordsDependencies(t *testing.
 		t.Fatalf("preview = %#v", preview)
 	}
 
-	report := learnViaCLI(t, deps, []string{"learn", "--har", harPath, "--url", "app.example.co.uk", "--confirm", "--service-id", "shop", "--title", "Shop", "--catalog-dir", catalogDir, "--data-dir", dataDir})
+	report := learnViaCLI(t, deps, []string{"learn", "--har", harPath, "--url", "app.example.co.uk", "--confirm", "--list-id", "shop", "--title", "Shop", "--catalog-dir", catalogDir, "--data-dir", dataDir})
 	if !report.Confirmed || report.DraftPath == "" || report.EvidencePath == "" {
 		t.Fatalf("report = %#v", report)
 	}
@@ -143,7 +143,7 @@ func TestLearnsComponentsFromAnImportedSessionAndRecordsDependencies(t *testing.
 		t.Fatalf("session provenance must not enter planning: %#v", snapshot.Relations)
 	}
 
-	// The learned service is immediately usable by a domain-capable renderer,
+	// The learned list is immediately usable by a domain-capable renderer,
 	// and its per-component sources are what the planner consumes.
 	catalog, err := catalogyaml.Load(context.Background(), catalogDir)
 	if err != nil {
@@ -256,13 +256,13 @@ func learnViaCLI(t *testing.T, deps runtimeDeps, args []string) learnReport {
 }
 
 // TestDiscoveredListAddressesFollowTheObservationLifecycle closes the last
-// Discovery Release requirement: a learned service is not a special case, so its
-// stale addresses leave the artifact exactly as a built-in service's do.
+// Discovery Release requirement: a learned list is not a special case, so its
+// stale addresses leave the artifact exactly as a built-in list's do.
 func TestDiscoveredListAddressesFollowTheObservationLifecycle(t *testing.T) {
 	catalogDir := filepath.Join(t.TempDir(), "catalog")
 	dataDir := filepath.Join(t.TempDir(), "data")
 	// The build output must live inside the data root, exactly as it does for a
-	// built-in service.
+	// built-in list.
 	outputDir := filepath.Join(dataDir, "out")
 	harPath := filepath.Join(t.TempDir(), "session.har")
 	if err := os.WriteFile(harPath, []byte(sessionHARFixture), 0o600); err != nil {
@@ -291,9 +291,9 @@ func TestDiscoveredListAddressesFollowTheObservationLifecycle(t *testing.T) {
 		Now:      func() time.Time { return now },
 		Context:  context.Background(),
 	}
-	report := learnViaCLI(t, deps, []string{"learn", "--har", harPath, "--url", "app.example.co.uk", "--confirm", "--service-id", "shop", "--catalog-dir", catalogDir, "--data-dir", dataDir})
+	report := learnViaCLI(t, deps, []string{"learn", "--har", harPath, "--url", "app.example.co.uk", "--confirm", "--list-id", "shop", "--catalog-dir", catalogDir, "--data-dir", dataDir})
 	if report.Sightings == 0 {
-		t.Fatalf("the learned service recorded no observation: %#v", report)
+		t.Fatalf("the learned list recorded no observation: %#v", report)
 	}
 	first := buildShopArtifact(t, deps, catalogDir, dataDir, outputDir)
 	if !strings.Contains(first, "192.0.2.10") {
@@ -309,7 +309,7 @@ func TestDiscoveredListAddressesFollowTheObservationLifecycle(t *testing.T) {
 		"media.example.co.uk":  {"198.51.100.13"},
 	}}
 	stdout, stderr := &syncBuffer{}, &syncBuffer{}
-	if code := runWithDeps(stdout, stderr, []string{"refresh", "--service", "shop", "--catalog-dir", catalogDir, "--data-dir", dataDir}, deps); code != 0 {
+	if code := runWithDeps(stdout, stderr, []string{"refresh", "--list", "shop", "--catalog-dir", catalogDir, "--data-dir", dataDir}, deps); code != 0 {
 		t.Fatalf("refresh failed: %s %s", stdout.String(), stderr.String())
 	}
 	second := buildShopArtifact(t, deps, catalogDir, dataDir, outputDir)
@@ -318,7 +318,7 @@ func TestDiscoveredListAddressesFollowTheObservationLifecycle(t *testing.T) {
 	}
 	for _, expired := range []string{"192.0.2.10", "192.0.2.11", "192.0.2.12", "192.0.2.13"} {
 		if strings.Contains(second, expired) {
-			t.Fatalf("a stale address of a learned service survived: %s", second)
+			t.Fatalf("a stale address of a learned list survived: %s", second)
 		}
 	}
 }
@@ -326,7 +326,7 @@ func TestDiscoveredListAddressesFollowTheObservationLifecycle(t *testing.T) {
 func buildShopArtifact(t *testing.T, deps runtimeDeps, catalogDir, dataDir, outputDir string) string {
 	t.Helper()
 	stdout, stderr := &syncBuffer{}, &syncBuffer{}
-	args := []string{"build", "--target", "keenetic", "--service", "shop", "--catalog-dir", catalogDir, "--data-dir", dataDir, "--output", outputDir}
+	args := []string{"build", "--target", "keenetic", "--list", "shop", "--catalog-dir", catalogDir, "--data-dir", dataDir, "--output", outputDir}
 	if code := runWithDeps(stdout, stderr, args, deps); code != 0 {
 		t.Fatalf("build failed: code=%d stdout=%s stderr=%s", code, stdout.String(), stderr.String())
 	}

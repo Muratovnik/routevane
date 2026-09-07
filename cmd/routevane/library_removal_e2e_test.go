@@ -11,9 +11,9 @@ import (
 
 // TestServeLibraryDeletionsReachThePublishedFileEndToEnd is the visible
 // outcome of ADR 0029: the operator owns the library, including what the
-// catalog shipped. Deleting a list reaches the file a route publishes when the
-// route named the category that held it, and is refused with the route named
-// when the route named the list itself. The shipped catalog file is never
+// catalog shipped. Deleting a list reaches the file a profile publishes when the
+// profile named the category that held it, and is refused with the profile named
+// when the profile named the list itself. The shipped catalog file is never
 // edited, and the deletion survives a restart.
 func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 	catalog := writeAlphaBetaCatalog(t)
@@ -39,7 +39,7 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 	origin, stopFirst := start()
 
 	// A category of the operator's own, holding both shipped lists, and a
-	// route that names the category rather than what is inside it.
+	// profile that names the category rather than what is inside it.
 	var categoryResponse struct {
 		Category struct {
 			ID    string   `json:"id"`
@@ -85,8 +85,8 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 		t.Fatalf("published file=%d %q", published.status, published.body)
 	}
 
-	// A second route names one list directly. That reference refuses the
-	// deletion and says which route holds it.
+	// A second profile names one list directly. That reference refuses the
+	// deletion and says which profile holds it.
 	body = postJSON(t, origin+"/v1/profiles", `{"name":"Офис","lists":["alpha"]}`)
 	if err := json.Unmarshal(body, &profileResponse); err != nil {
 		t.Fatalf("create direct route=%s: %v", body, err)
@@ -98,7 +98,7 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 	}
 
 	// beta is reached only through the category, so deleting it is allowed and
-	// changes what the route that named the category publishes next.
+	// changes what the profile that named the category publishes next.
 	if removed := postGuardedBody(t, origin+"/v1/lists/beta/remove", `{}`); removed.status != 204 || len(removed.body) != 0 {
 		t.Fatalf("deletion=%d %q", removed.status, removed.body)
 	}
@@ -110,7 +110,7 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 		t.Fatalf("republished file=%d %q", republished.status, republished.body)
 	}
 
-	// Deleting the category is refused while a route names it, whichever
+	// Deleting the category is refused while a profile names it, whichever
 	// disposition the request states, and an unstated disposition is refused
 	// before the library is read at all.
 	for _, disposition := range []string{`{"lists":"detach"}`, `{"lists":"delete"}`} {
@@ -154,10 +154,10 @@ func assertLibraryHoldsOnlyAlpha(t *testing.T, origin, categoryID string) {
 		t.Fatalf("catalog listing=%s: %v", listing.body, err)
 	}
 	if len(decoded.Lists) != 1 || decoded.Lists[0] != "alpha" {
-		t.Fatalf("services = %#v", decoded.Lists)
+		t.Fatalf("lists = %#v", decoded.Lists)
 	}
 	if len(decoded.Details) != 1 || decoded.Details[0].ID != "alpha" {
-		t.Fatalf("service details = %#v", decoded.Details)
+		t.Fatalf("list details = %#v", decoded.Details)
 	}
 	found := false
 	for _, category := range decoded.Categories {

@@ -65,7 +65,7 @@ func TestSchedulerRunsImmediateSerialCyclesAndCancelsDuringDelay(t *testing.T) {
 		},
 	}
 	var stdout, stderr bytes.Buffer
-	code := runWithDeps(&stdout, &stderr, []string{"run", "--target", "raw-json", "--service", "example", "--interval", "1s", "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, deps)
+	code := runWithDeps(&stdout, &stderr, []string{"run", "--target", "raw-json", "--list", "example", "--interval", "1s", "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, deps)
 	if code != 0 {
 		t.Fatalf("run code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -91,7 +91,7 @@ func TestSchedulerRefusesLockContentionBeforeDNS(t *testing.T) {
 	resolver := &serialResolver{}
 	deps := runtimeDeps{Resolver: resolver, Now: func() time.Time { return time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC) }}
 	var stdout, stderr bytes.Buffer
-	code := runWithDeps(&stdout, &stderr, []string{"run", "--target", "raw-json", "--service", "example", "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, deps)
+	code := runWithDeps(&stdout, &stderr, []string{"run", "--target", "raw-json", "--list", "example", "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, deps)
 	if code != 1 {
 		t.Fatalf("run code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}

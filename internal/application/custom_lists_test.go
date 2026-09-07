@@ -33,14 +33,14 @@ func TestCreateCustomListStoresNormalizedDefinitionAndJoinsTheCatalog(t *testing
 
 	ids := publication.Lists()
 	if !reflect.DeepEqual(ids, []string{created.ID, "example"}) {
-		t.Fatalf("services = %#v", ids)
+		t.Fatalf("lists = %#v", ids)
 	}
 	details := publication.ListDetails()
 	if len(details) != 2 || details[0].ID != created.ID || !details[0].Custom || details[0].SourceCount != 0 {
 		t.Fatalf("details = %#v", details)
 	}
 	if details[1].Custom {
-		t.Fatalf("shipped service reported as custom: %#v", details[1])
+		t.Fatalf("shipped list reported as custom: %#v", details[1])
 	}
 	wantDomains := []ListDomain{{Value: "b.example", IncludeSubdomains: true}, {Value: "example.com", IncludeSubdomains: true}}
 	if !reflect.DeepEqual(details[0].Domains, wantDomains) {
@@ -103,7 +103,7 @@ func TestUpdateCustomListReplacesTheMutablePartOnly(t *testing.T) {
 		t.Fatalf("definition = %#v", definition)
 	}
 	// The planner accepts exactly one catalog revision per plan, so a custom
-	// service must carry the shipped catalog's revision or a mixed list could
+	// list must carry the shipped catalog's revision or a mixed list could
 	// never build.
 	if definition.CatalogRevision != publication.config.Definitions["example"].CatalogRevision {
 		t.Fatalf("revision = %q differs from the catalog", definition.CatalogRevision)

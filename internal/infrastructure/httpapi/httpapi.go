@@ -32,10 +32,10 @@ const (
 	// the request at the screen's budget is what leaves a device half-written,
 	// so this route is given a budget that fits its lifecycle instead.
 	deployRequestTimeout = 3 * time.Minute
-	// refreshRequestTimeout is the budget for re-observing one service's
+	// refreshRequestTimeout is the budget for re-observing one list's
 	// automatic sources on demand. Each source carries its own bounded fetch,
-	// but a service may hold several slow feeds in sequence, and cutting the
-	// cycle at the screen's budget would persist a half-observed service.
+	// but a list may hold several slow feeds in sequence, and cutting the
+	// cycle at the screen's budget would persist a half-observed list.
 	refreshRequestTimeout = time.Minute
 )
 
@@ -48,18 +48,18 @@ type Backend interface {
 	SetDefaultPriority(context.Context, []string) error
 	ListDetails() []application.ListDetail
 	PreviewList(context.Context, string) (application.ListPreview, error)
-	// Custom services are the operator-defined part of the catalog: created
-	// and edited here, planned exactly like a shipped service everywhere else.
+	// Custom lists are the operator-defined part of the catalog: created
+	// and edited here, planned exactly like a shipped list everywhere else.
 	CreateCustomList(ctx context.Context, title string, domains []string) (application.CustomList, error)
 	UpdateCustomList(ctx context.Context, id, title string, domains []string) (application.CustomList, error)
 	// RemoveList deletes one list from the library, whoever created it
-	// (ADR 0029). A route naming it directly refuses the deletion; a route
+	// (ADR 0029). A profile naming it directly refuses the deletion; a profile
 	// reaching it through a category simply carries less on its next build.
 	RemoveList(ctx context.Context, id string) error
-	// Service tuning is the operator's standing correction to one service's
+	// List tuning is the operator's standing correction to one list's
 	// automatic material: sources switched on and off, added feeds, and
 	// verdicts on destinations — domains, addresses, networks. Contents is the
-	// one table the service card renders.
+	// one table the list card renders.
 	ListContents(ctx context.Context, listID string) (application.ListContents, error)
 	RefreshListByID(ctx context.Context, listID string) (application.RefreshSummary, error)
 	SetListSourceEnabled(ctx context.Context, listID, sourceID string, enabled bool) error
@@ -83,14 +83,14 @@ type Backend interface {
 	Export(context.Context, string, string) (application.ExportPayload, error)
 	CreateProfile(context.Context, string, application.ProfileComposition) (application.Profile, error)
 	// ForecastComposition answers what a composition would cost on each named
-	// target before the list exists. It reads and computes; it stores nothing,
+	// target before the profile exists. It reads and computes; it stores nothing,
 	// which is what lets a screen ask before the operator has committed to
 	// anything.
 	ForecastComposition(context.Context, application.ProfileComposition, []string) ([]application.CompositionForecast, error)
 	Profile(context.Context, string) (application.Profile, error)
 	UpdateProfile(context.Context, string, string, application.ProfileComposition) (application.Profile, error)
 	// Archival is its own pair of verbs rather than a field of an update: it is
-	// the one edit an archived list still accepts, so it cannot travel inside
+	// the one edit an archived profile still accepts, so it cannot travel inside
 	// the edit it would have to refuse.
 	ArchiveProfile(context.Context, string) (application.Profile, error)
 	RestoreProfile(context.Context, string) (application.Profile, error)
@@ -494,7 +494,7 @@ func writeBackendError(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrTargetChanged):
 		writeError(w, http.StatusConflict, "output target changed")
 	case errors.Is(err, application.ErrProfileArchived):
-		writeError(w, http.StatusConflict, "list is archived")
+		writeError(w, http.StatusConflict, "profile is archived")
 	case errors.Is(err, application.ErrRuleLimit), errors.Is(err, application.ErrPartialCoverage), errors.Is(err, application.ErrFormatMismatch), errors.Is(err, application.ErrPreflight), errors.Is(err, application.ErrSourceFailed), errors.Is(err, application.ErrSourceDegraded):
 		details := application.ClassifyBuildFailure(err)
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{

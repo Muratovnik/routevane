@@ -232,9 +232,9 @@ func TestPublishesOneProfileInTwoPracticallyDifferentFormatsAndSurvivesAFeedOuta
 	}
 }
 
-// addOutput binds an existing list to one more format. Two devices sharing
-// one set of services is the case the list model exists for, so this test uses
-// one list with two outputs rather than two copies of the same composition.
+// addOutput binds an existing profile to one more format. Two devices sharing
+// one set of lists is the case the profile model exists for, so this test uses
+// one profile with two outputs rather than two copies of the same composition.
 func addOutput(t *testing.T, origin, profileID, targetID string) string {
 	t.Helper()
 	created := postJSON(t, origin+"/v1/profiles/"+profileID+"/outputs", `{"target_id":"`+targetID+`"}`)

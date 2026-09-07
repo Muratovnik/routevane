@@ -54,7 +54,7 @@ type fakeBackend struct {
 	categoryRemoved []string
 	// listsRemoved records the lists deleted from the library.
 	listsRemoved []string
-	// categoryInUse and listInUse name the routes a deletion is refused
+	// categoryInUse and listInUse name the profiles a deletion is refused
 	// with. They are separate because the two refusals carry different words.
 	categoryInUse   []application.ProfileReference
 	listInUse       []application.ProfileReference
@@ -1105,8 +1105,8 @@ func TestCreateProfilePassesListLocalDomainOverrides(t *testing.T) {
 // The forecast route answers the numbers a screen refuses a device on, for a
 // composition that does not exist yet. The exact document matters: the browser
 // reads maximum_rules against projected_rules and shows the shortfall by
-// service, so a Keenetic that cannot hold the collection is named before the
-// list is created rather than by its first failed build.
+// list, so a Keenetic that cannot hold the collection is named before the
+// profile is created rather than by its first failed build.
 func TestCompositionForecastAnswersEveryRequestedTargetWithItsOwnNumbers(t *testing.T) {
 	backend := testBackend()
 	server, err := New("http://127.0.0.1:8765", backend, nil)
@@ -1124,7 +1124,7 @@ func TestCompositionForecastAnswersEveryRequestedTargetWithItsOwnNumbers(t *test
 		t.Fatalf("code=%d body=%s want=%s", response.Code, response.Body.String(), want)
 	}
 	// The composition reaches the forecast whole. A screen that forecast only
-	// the named services would promise a number for a different list than the
+	// the named lists would promise a number for a different profile than the
 	// one it is about to create.
 	wantComposition := application.ProfileComposition{
 		Lists: []string{"youtube", "twitch"}, Categories: []string{"video"}, Exclusions: []string{"vimeo"},
@@ -1398,9 +1398,9 @@ func TestProfileListingServesTheLibraryRows(t *testing.T) {
 }
 
 // Archival is two verbs at two paths, not one toggle: a request that arrives
-// twice must not put the list back where it started. The refusal an archived
-// list answers an edit with is a conflict, because the request is well formed
-// and the state is what rejects it.
+// twice must not put the profile back where it started. The refusal an
+// archived profile answers an edit with is a conflict, because the request is
+// well formed and the state is what rejects it.
 func TestArchiveAndRestoreAreSeparateVerbsAndAnArchivedEditConflicts(t *testing.T) {
 	backend := testBackend()
 	server, err := New("http://127.0.0.1:8765", backend, nil)
@@ -1679,7 +1679,7 @@ func TestTheDeployRouteCarriesItsOwnBudget(t *testing.T) {
 	if spec.timeout <= requestTimeout {
 		t.Fatalf("deploy budget = %s, default = %s: the deployment lifecycle does not fit", spec.timeout, requestTimeout)
 	}
-	// The service refresh re-observes several bounded feeds in sequence, so it
+	// The list refresh re-observes several bounded feeds in sequence, so it
 	// carries its own budget too: larger than a screen answer, smaller than a
 	// device deployment.
 	refresh, owned := routes["lists.refresh"]
@@ -1715,7 +1715,7 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 	if created.Code != http.StatusCreated || created.Body.String() != wantCreated {
 		t.Fatalf("create code=%d body=%s want=%s", created.Code, created.Body.String(), wantCreated)
 	}
-	// services is optional: a category may be created empty and filled later.
+	// lists is optional: a category may be created empty and filled later.
 	if empty := send("/v1/categories", `{"title":"Пустая"}`); empty.Code != http.StatusCreated {
 		t.Fatalf("create without services code=%d body=%s", empty.Code, empty.Body.String())
 	}
@@ -1743,7 +1743,7 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 	}
 
 	// An absent field and an empty one are different requests. The transport
-	// must carry that difference: omitting services leaves membership alone,
+	// must carry that difference: omitting lists leaves membership alone,
 	// while sending an empty array clears it.
 	membersOnly, titleOnly, cleared := backend.categoryEdits[1], backend.categoryEdits[2], backend.categoryEdits[3]
 	if membersOnly.Title != nil || membersOnly.Lists == nil {
@@ -1812,9 +1812,8 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 }
 
 // Deleting a list is its own route with its own refusal. The control surface
-// codes against the exact document, and the word for a route in this API is
-// still "list" in this API, which is why the refusal below says "list in use"
-// while keying the routes that block it under "routes".
+// codes against the exact document, so the refusal says "list in use" and
+// keys the profiles that hold it under "profiles".
 func TestRemoveListRouteAnswersItsFrozenContract(t *testing.T) {
 	backend := testBackend()
 	server, err := New("http://127.0.0.1:8765", backend, nil)

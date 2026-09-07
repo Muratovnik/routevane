@@ -23,14 +23,14 @@ var (
 	ErrPublicationStorage  = errors.New("publication storage failed")
 	ErrOutputExists        = errors.New("output already exists for this target")
 	ErrSubscriptionExists  = errors.New("output subscription already exists")
-	ErrProfileArchived     = errors.New("list is archived")
+	ErrProfileArchived     = errors.New("profile is archived")
 )
 
-// List is the unit of storage and of output. Composition is stored as what the
-// operator said, not as what it currently resolves to: the services the list
+// Profile is the unit of storage and of output. Composition is stored as what the
+// operator said, not as what it currently resolves to: the lists the profile
 // names itself, the catalog categories it references, and what it excluded from
-// them. Resolution happens on read, so a category that gains a service reaches
-// every list referencing it without an edit (ADR 0016).
+// them. Resolution happens on read, so a category that gains a list reaches
+// every profile referencing it without an edit (ADR 0016).
 type Profile struct {
 	ID          string              `json:"id"`
 	Name        string              `json:"name"`
@@ -38,18 +38,18 @@ type Profile struct {
 	Categories  []string            `json:"categories"`
 	Exclusions  []string            `json:"exclusions"`
 	ListDomains map[string][]string `json:"list_domains,omitempty"`
-	// Priority names the currently resolved services from highest to lowest.
-	// Category references remain live; services they gain later are appended by
-	// resolution rather than making an old route invalid.
+	// Priority names the currently resolved lists from highest to lowest.
+	// Category references remain live; lists they gain later are appended by
+	// resolution rather than making an old profile invalid.
 	Priority []string `json:"priority"`
-	// RefreshInterval is this list's own scheduling rule, empty when it follows
-	// the service-wide default. The two are kept apart on purpose: a list that
+	// RefreshInterval is this profile's own scheduling rule, empty when it follows
+	// the service-wide default. The two are kept apart on purpose: a profile that
 	// never disagreed follows the default as it changes.
 	RefreshInterval   RefreshInterval `json:"refresh_interval"`
 	LastRefreshedAt   time.Time       `json:"last_refreshed_at,omitzero"`
 	LastRefreshFailed bool            `json:"last_refresh_failed"`
-	// ArchivedAt is when the list left the shelf, zero while it is on it. It is
-	// the only stored fact about archival; whether a list is archived is read
+	// ArchivedAt is when the profile left the shelf, zero while it is on it. It is
+	// the only stored fact about archival; whether a profile is archived is read
 	// from it rather than kept beside it (see archive.go).
 	//
 	// Every moment that may not have happened is tagged omitzero rather than
@@ -72,16 +72,16 @@ type ProfileComposition struct {
 	Priority    []string            `json:"priority"`
 }
 
-// Output binds one list to one renderer format. It owns the subscription and
-// the chain of published artifacts; the services it publishes come from its
-// list, so an edited list is served by the same output rather than a new one.
+// Output binds one profile to one renderer format. It owns the subscription and
+// the chain of published artifacts; the lists it publishes come from its
+// profile, so an edited profile is served by the same output rather than a new one.
 type Output struct {
 	ID        string `json:"id"`
 	ProfileID string `json:"list_id"`
 	TargetID  string `json:"target_id"`
 	// DeviceID is the one registered destination this output may deliver to.
 	// Empty means file/subscription only. The explicit binding prevents a timer
-	// from guessing among multiple routes for the same kind of device.
+	// from guessing among multiple profiles for the same kind of device.
 	DeviceID           string    `json:"device_id,omitempty"`
 	FormatKey          string    `json:"profile_key"`
 	RendererID         string    `json:"renderer_id"`
@@ -150,23 +150,23 @@ type PublicationRepository interface {
 	PutSetting(context.Context, string, string, time.Time) error
 	// UpdateProfileSchedule writes only the scheduling columns. It is separate
 	// from UpdateProfile because a timer must not rewrite a composition, and a
-	// composition edit must not reset when the list last refreshed.
+	// composition edit must not reset when the profile last refreshed.
 	UpdateProfileSchedule(ctx context.Context, profileID string, interval RefreshInterval, lastRefreshedAt time.Time, failed bool, updatedAt time.Time) error
 	CreateProfile(context.Context, Profile) error
 	Profile(context.Context, string) (Profile, error)
-	// Lists returns stored lists newest first. The repository owns the bound
+	// Profiles returns stored profiles newest first. The repository owns the bound
 	// because this transport has no pagination parameters.
 	Profiles(context.Context) ([]Profile, error)
-	// UpdateProfile replaces the mutable part of a list: its name and its
+	// UpdateProfile replaces the mutable part of a profile: its name and its
 	// composition. Identity and creation time are rejected by the store.
 	UpdateProfile(context.Context, Profile) error
-	// SetProfileArchived writes only when the list left or rejoined the shelf. A
+	// SetProfileArchived writes only when the profile left or rejoined the shelf. A
 	// zero moment is the restored state, so the column carries both the fact
 	// and its date without a second flag to disagree with.
 	SetProfileArchived(ctx context.Context, profileID string, archivedAt time.Time, updatedAt time.Time) error
 	CreateOutput(context.Context, NewOutput) error
 	UpdateOutputDevice(context.Context, string, string) error
-	// The custom-service rows are part of the same repository: a composition
+	// The custom-list rows are part of the same repository: a composition
 	// is validated against the catalog and this registry in one place, so the
 	// two must not be able to come from different stores.
 	CreateCustomList(context.Context, CustomList) error
@@ -176,7 +176,7 @@ type PublicationRepository interface {
 	// categories the operator created and the membership overlay over the
 	// shipped ones. They belong to this repository because every reader merges
 	// the two with the catalog, and two stores could disagree about what a
-	// route expands to.
+	// profile expands to.
 	CreateCustomCategory(ctx context.Context, category CustomCategory, memberships []CategoryMembership) error
 	UpdateCategory(context.Context, CategoryWrite) error
 	// RemoveFromLibrary deletes one category or one list, and the lists a
@@ -186,8 +186,8 @@ type PublicationRepository interface {
 	// (ADR 0029).
 	RemoveFromLibrary(context.Context, LibraryRemoval) error
 	CategoryOverlay(context.Context) (CategoryOverlay, error)
-	// Service tuning rows are the operator's standing corrections to a
-	// service's automatic material; the same repository holds them so the
+	// List tuning rows are the operator's standing corrections to a
+	// list's automatic material; the same repository holds them so the
 	// effective definition composes from one store.
 	SetSourceDisabled(ctx context.Context, listID, sourceID string, disabled bool) error
 	CreateCustomSource(context.Context, CustomSource) error
@@ -201,8 +201,8 @@ type PublicationRepository interface {
 	RecordOutputAttempt(context.Context, OutputAttempt) error
 	LatestOutputAttempt(context.Context, string) (OutputAttempt, error)
 	Output(context.Context, string) (Output, error)
-	// OutputsByProfile returns one list's outputs in a stable order; Outputs
-	// returns every stored output, bounded the same way Lists is.
+	// OutputsByProfile returns one profile's outputs in a stable order; Outputs
+	// returns every stored output, bounded the same way Profiles is.
 	OutputsByProfile(context.Context, string) ([]Output, error)
 	Outputs(context.Context) ([]Output, error)
 	OutputBySubscription(context.Context, string, [32]byte) (Output, error)
@@ -279,7 +279,7 @@ type PublicationConfig struct {
 	}
 	Files PublishedArtifacts
 	// Categories is the catalog of groupings, keyed by category id. It may be
-	// empty: a catalog with no categories still serves lists that name services
+	// empty: a catalog with no categories still serves profiles that name lists
 	// directly.
 	Categories map[string]domain.CategoryDefinition
 	// Targets is the catalog of selectable devices, keyed by target id.
@@ -295,8 +295,8 @@ type PublicationConfig struct {
 type PublicationService struct {
 	config PublicationConfig
 	// catalogRevision is the one revision every shipped definition carries.
-	// Custom services are stamped with it too: the planner accepts exactly one
-	// revision per plan, and an operator-defined service must compose with the
+	// Custom lists are stamped with it too: the planner accepts exactly one
+	// revision per plan, and an operator-defined list must compose with the
 	// catalog it extends.
 	catalogRevision string
 	custom          customListRegistry
@@ -326,15 +326,15 @@ func NewPublicationService(config PublicationConfig) (*PublicationService, error
 			return nil, fmt.Errorf("invalid publication composition: %w", err)
 		}
 	}
-	// A category naming a service this composition does not carry would resolve
-	// to a silently smaller list at build time. It is refused here instead.
+	// A category naming a list this composition does not carry would resolve
+	// to a silently smaller profile at build time. It is refused here instead.
 	for id, category := range config.Categories {
 		if id != category.ID || domain.ValidateSlug(id) != nil || len(category.Lists) == 0 {
 			return nil, fmt.Errorf("invalid publication composition: category %q", id)
 		}
 		for _, listID := range category.Lists {
 			if _, known := config.Definitions[listID]; !known {
-				return nil, fmt.Errorf("invalid publication composition: category %q names unknown service %q", id, listID)
+				return nil, fmt.Errorf("invalid publication composition: category %q names unknown list %q", id, listID)
 			}
 		}
 	}
@@ -347,13 +347,13 @@ func NewPublicationService(config PublicationConfig) (*PublicationService, error
 	catalogRevision := ""
 	for id, definition := range config.Definitions {
 		if definition.CatalogRevision == "" || (catalogRevision != "" && definition.CatalogRevision != catalogRevision) {
-			return nil, fmt.Errorf("invalid publication composition: service %q catalog revision", id)
+			return nil, fmt.Errorf("invalid publication composition: list %q catalog revision", id)
 		}
 		catalogRevision = definition.CatalogRevision
 	}
 	for id := range config.LocalListIDs {
 		if _, ok := config.Definitions[id]; !ok {
-			return nil, fmt.Errorf("invalid publication composition: local service %q", id)
+			return nil, fmt.Errorf("invalid publication composition: local list %q", id)
 		}
 	}
 	return &PublicationService{
@@ -378,7 +378,7 @@ func (s *PublicationService) target(id string) (domain.TargetDefinition, Rendere
 	return target, renderer, nil
 }
 
-// maxObjectNameRunes bounds a stored list name. The store enforces the same
+// maxObjectNameRunes bounds a stored profile name. The store enforces the same
 // bound; this one exists so a request is refused before it reaches SQLite.
 const maxObjectNameRunes = 120
 
@@ -387,7 +387,7 @@ const maxObjectNameRunes = 120
 const maxCompositionItems = 128
 
 // A domain override is deliberately smaller than the request body limit. It
-// is an operator-authored correction to one catalog service, not another feed
+// is an operator-authored correction to one catalog list, not another feed
 // import surface.
 const (
 	maxDomainsPerList     = 64
@@ -400,31 +400,31 @@ const (
 type CreatedOutput struct{ Output Output }
 
 // validComposition normalizes and checks a requested composition against the
-// catalog. A composition that names an unknown service or category is refused
-// rather than silently reduced, because a reduced list would publish less than
-// it says. It must resolve to at least one service: an empty list has nothing
+// catalog. A composition that names an unknown list or category is refused
+// rather than silently reduced, because a reduced profile would publish less than
+// it says. It must resolve to at least one list: an empty profile has nothing
 // to render and would publish an empty file under a name that promises content.
 func (s *PublicationService) validComposition(requested ProfileComposition) (ProfileComposition, error) {
 	lists := domain.StableStrings(requested.Lists)
 	categories := domain.StableStrings(requested.Categories)
 	exclusions := domain.StableStrings(requested.Exclusions)
 	if len(lists) > maxCompositionItems || len(categories) > maxCompositionItems || len(exclusions) > maxCompositionItems {
-		return ProfileComposition{}, fmt.Errorf("invalid list composition")
+		return ProfileComposition{}, fmt.Errorf("invalid profile composition")
 	}
 	for _, id := range lists {
 		if domain.ValidateSlug(id) != nil {
-			return ProfileComposition{}, fmt.Errorf("invalid list composition")
+			return ProfileComposition{}, fmt.Errorf("invalid profile composition")
 		}
 		if !s.hasDefinition(id) {
-			return ProfileComposition{}, fmt.Errorf("invalid list composition")
+			return ProfileComposition{}, fmt.Errorf("invalid profile composition")
 		}
 	}
 	for _, id := range categories {
 		if domain.ValidateSlug(id) != nil {
-			return ProfileComposition{}, fmt.Errorf("invalid list composition")
+			return ProfileComposition{}, fmt.Errorf("invalid profile composition")
 		}
 		if _, ok := s.mergedCategory(id); !ok {
-			return ProfileComposition{}, fmt.Errorf("invalid list composition")
+			return ProfileComposition{}, fmt.Errorf("invalid profile composition")
 		}
 	}
 	named := make(map[string]struct{}, len(lists))
@@ -433,21 +433,21 @@ func (s *PublicationService) validComposition(requested ProfileComposition) (Pro
 	}
 	for _, id := range exclusions {
 		if domain.ValidateSlug(id) != nil {
-			return ProfileComposition{}, fmt.Errorf("invalid list composition")
+			return ProfileComposition{}, fmt.Errorf("invalid profile composition")
 		}
 		if !s.hasDefinition(id) {
-			return ProfileComposition{}, fmt.Errorf("invalid list composition")
+			return ProfileComposition{}, fmt.Errorf("invalid profile composition")
 		}
-		// Naming a service and excluding it is a contradiction, not a
+		// Naming a list and excluding it is a contradiction, not a
 		// preference. The store refuses it too; refusing here names the reason.
 		if _, both := named[id]; both {
-			return ProfileComposition{}, fmt.Errorf("service %q is both named and excluded", id)
+			return ProfileComposition{}, fmt.Errorf("list %q is both named and excluded", id)
 		}
 	}
 	composition := ProfileComposition{Lists: lists, Categories: categories, Exclusions: exclusions}
 	resolved := s.resolveComposition(composition)
 	if len(resolved) == 0 {
-		return ProfileComposition{}, fmt.Errorf("invalid list composition")
+		return ProfileComposition{}, fmt.Errorf("invalid profile composition")
 	}
 	listDomains, err := normalizeListDomains(requested.ListDomains, resolved)
 	if err != nil {
@@ -464,8 +464,8 @@ func (s *PublicationService) validComposition(requested ProfileComposition) (Pro
 
 // validCompositionWithDefaultPriority gives newly-created or forecast-only
 // compositions the current library ordering when the request leaves priority
-// empty. Explicit non-empty priority remains route-local and is validated by
-// validComposition unchanged. Existing stored routes never pass through this
+// empty. Explicit non-empty priority remains profile-local and is validated by
+// validComposition unchanged. Existing stored profiles never pass through this
 // helper, so a later library reorder cannot rewrite them.
 func (s *PublicationService) validCompositionWithDefaultPriority(ctx context.Context, requested ProfileComposition) (ProfileComposition, error) {
 	composition, err := s.validComposition(requested)
@@ -494,9 +494,9 @@ func (s *PublicationService) validCompositionWithDefaultPriority(ctx context.Con
 // An older or in-memory repository without the optional seam uses that grouped
 // order for the entire catalog.
 func (s *PublicationService) DefaultPriority(ctx context.Context) ([]string, error) {
-	// The first category in the catalog owns a multi-category service's slot.
-	// Uncategorized services follow the category groups. This is presentation
-	// priority only: Services and plan service identities remain canonical.
+	// The first category in the catalog owns a multi-category list's slot.
+	// Uncategorized lists follow the category groups. This is presentation
+	// priority only: Lists and plan list identities remain canonical.
 	grouped := []string{}
 	for _, category := range s.Categories() {
 		grouped = append(grouped, category.Lists...)
@@ -514,7 +514,7 @@ func (s *PublicationService) DefaultPriority(ctx context.Context) ([]string, err
 }
 
 // SetDefaultPriority replaces the library order transactionally after
-// requiring exactly one full permutation of the currently available service
+// requiring exactly one full permutation of the currently available list
 // ids. A stale or missing id is a request error rather than an implicit
 // cleanup; removed rows may remain in storage for future catalog recovery.
 func (s *PublicationService) SetDefaultPriority(ctx context.Context, priority []string) error {
@@ -592,13 +592,13 @@ func normalizePriority(requested, resolved []string) ([]string, error) {
 	seen := make(map[string]struct{}, len(resolved))
 	for _, id := range requested {
 		if domain.ValidateSlug(id) != nil {
-			return nil, fmt.Errorf("invalid list priority")
+			return nil, fmt.Errorf("invalid profile priority")
 		}
 		if _, ok := available[id]; !ok {
-			return nil, fmt.Errorf("invalid list priority")
+			return nil, fmt.Errorf("invalid profile priority")
 		}
 		if _, duplicate := seen[id]; duplicate {
-			return nil, fmt.Errorf("invalid list priority")
+			return nil, fmt.Errorf("invalid profile priority")
 		}
 		seen[id] = struct{}{}
 		ordered = append(ordered, id)
@@ -611,16 +611,16 @@ func normalizePriority(requested, resolved []string) ([]string, error) {
 	return ordered, nil
 }
 
-// normalizeListDomains validates the editable, list-local domain set. A key
+// normalizeListDomains validates the editable, profile-local domain set. A key
 // with an empty slice is meaningful: it removes the catalog's static domains
-// for this list while leaving dynamic observations in place. An absent key
-// means the list follows the catalog.
+// for this profile while leaving dynamic observations in place. An absent key
+// means the profile follows the catalog.
 func normalizeListDomains(requested map[string][]string, resolved []string) (map[string][]string, error) {
 	if len(requested) == 0 {
 		return nil, nil
 	}
 	if len(requested) > maxCompositionItems {
-		return nil, fmt.Errorf("invalid list service domains")
+		return nil, fmt.Errorf("invalid profile list domains")
 	}
 	available := make(map[string]struct{}, len(resolved))
 	for _, listID := range resolved {
@@ -630,32 +630,32 @@ func normalizeListDomains(requested map[string][]string, resolved []string) (map
 	total := 0
 	for listID, values := range requested {
 		if domain.ValidateSlug(listID) != nil {
-			return nil, fmt.Errorf("invalid list service domains")
+			return nil, fmt.Errorf("invalid profile list domains")
 		}
 		if _, ok := available[listID]; !ok || len(values) > maxDomainsPerList {
-			return nil, fmt.Errorf("invalid list service domains")
+			return nil, fmt.Errorf("invalid profile list domains")
 		}
 		domains := make([]string, 0, len(values))
 		for _, value := range values {
 			normalizedDomain, err := domain.NormalizeDomain(value)
 			if err != nil {
-				return nil, fmt.Errorf("invalid list service domains")
+				return nil, fmt.Errorf("invalid profile list domains")
 			}
 			domains = append(domains, normalizedDomain)
 		}
 		domains = domain.StableStrings(domains)
 		total += len(domains)
 		if total > maxProfileListDomains {
-			return nil, fmt.Errorf("invalid list service domains")
+			return nil, fmt.Errorf("invalid profile list domains")
 		}
 		normalized[listID] = domains
 	}
 	return normalized, nil
 }
 
-// resolveComposition flattens a stored composition into the service set a build
-// actually plans: what the list names, plus everything its categories carry,
-// minus what it excluded. Deduplication happens here, so a service reachable
+// resolveComposition flattens a stored composition into the list set a build
+// actually plans: what the profile names, plus everything its categories carry,
+// minus what it excluded. Deduplication happens here, so a list reachable
 // through two categories is planned and charged to the target's budget once
 // (ADR 0016).
 func (s *PublicationService) resolveComposition(composition ProfileComposition) []string {
@@ -665,7 +665,7 @@ func (s *PublicationService) resolveComposition(composition ProfileComposition) 
 		category, ok := s.mergedCategory(categoryID)
 		if !ok {
 			// A category that left the catalog contributes nothing rather than
-			// failing the read. The list reports the reference as gone.
+			// failing the read. The profile reports the reference as gone.
 			continue
 		}
 		resolved = append(resolved, category.Lists...)
@@ -679,7 +679,7 @@ func (s *PublicationService) resolveComposition(composition ProfileComposition) 
 		if _, drop := excluded[id]; drop {
 			continue
 		}
-		// A service that left the catalog cannot be planned, and pretending
+		// A list that left the catalog cannot be planned, and pretending
 		// otherwise would fail deeper with a worse message.
 		if !s.hasDefinition(id) {
 			continue
@@ -697,8 +697,8 @@ func (s *PublicationService) resolveComposition(composition ProfileComposition) 
 	return priority
 }
 
-// Stored priority may name a service that a live category no longer carries.
-// That stale position disappears on read; newly carried services are appended
+// Stored priority may name a list that a live category no longer carries.
+// That stale position disappears on read; newly carried lists are appended
 // by normalizePriority after every still-relevant position.
 func filterKnownPriority(priority, resolved []string) []string {
 	available := make(map[string]struct{}, len(resolved))
@@ -714,13 +714,13 @@ func filterKnownPriority(priority, resolved []string) []string {
 	return kept
 }
 
-// ResolvedLists is what a list publishes right now.
+// ResolvedLists is what a profile publishes right now.
 func (s *PublicationService) ResolvedLists(profile Profile) []string {
 	return s.resolveComposition(ProfileComposition{Lists: profile.Lists, Categories: profile.Categories, Exclusions: profile.Exclusions, Priority: profile.Priority})
 }
 
-// MissingCategories names the references a list holds that the catalog no
-// longer supplies. The list keeps working on what remains and says so, rather
+// MissingCategories names the references a profile holds that the catalog no
+// longer supplies. The profile keeps working on what remains and says so, rather
 // than shrinking silently.
 func (s *PublicationService) MissingCategories(profile Profile) []string {
 	missing := make([]string, 0)
@@ -738,7 +738,7 @@ func validObjectName(name string) (string, bool) {
 
 // validName is the grammar every operator-supplied name passes: trimmed,
 // non-empty, and bounded by whatever its own kind allows. The bound is the
-// argument because a list name and a category title are different lengths of
+// argument because a profile name and a category title are different lengths of
 // the same thing, not different rules.
 func validName(name string, maxRunes int) (string, bool) {
 	name = strings.TrimSpace(name)
@@ -757,7 +757,7 @@ func validName(name string, maxRunes int) (string, bool) {
 func (s *PublicationService) CreateProfile(ctx context.Context, name string, requested ProfileComposition) (Profile, error) {
 	cleanName, ok := validObjectName(name)
 	if !ok {
-		return Profile{}, fmt.Errorf("invalid list name")
+		return Profile{}, fmt.Errorf("invalid profile name")
 	}
 	composition, err := s.validCompositionWithDefaultPriority(ctx, requested)
 	if err != nil {
@@ -770,7 +770,7 @@ func (s *PublicationService) CreateProfile(ctx context.Context, name string, req
 	for attempt := 0; attempt < 8; attempt++ {
 		id, err := randomHex(s.config.Entropy, 16)
 		if err != nil {
-			return Profile{}, fmt.Errorf("generate list identity: %w", err)
+			return Profile{}, fmt.Errorf("generate profile identity: %w", err)
 		}
 		profile := Profile{ID: id, Name: cleanName, Lists: composition.Lists, Categories: composition.Categories, Exclusions: composition.Exclusions, ListDomains: composition.ListDomains, Priority: composition.Priority, CreatedAt: now, UpdatedAt: now}
 		if err := s.config.Store.CreateProfile(ctx, profile); err != nil {
@@ -791,7 +791,7 @@ func (s *PublicationService) Profile(ctx context.Context, id string) (Profile, e
 	return s.config.Store.Profile(ctx, id)
 }
 
-// UpdateProfile replaces a list's name and composition. It does not rebuild: the
+// UpdateProfile replaces a profile's name and composition. It does not rebuild: the
 // caller decides whether the edit is followed by a build, because a rebuild
 // reaches the network and a rename does not.
 func (s *PublicationService) UpdateProfile(ctx context.Context, id, name string, requested ProfileComposition) (Profile, error) {
@@ -804,7 +804,7 @@ func (s *PublicationService) UpdateProfile(ctx context.Context, id, name string,
 	}
 	cleanName, ok := validObjectName(name)
 	if !ok {
-		return Profile{}, fmt.Errorf("invalid list name")
+		return Profile{}, fmt.Errorf("invalid profile name")
 	}
 	composition, err := s.validComposition(requested)
 	if err != nil {
@@ -815,7 +815,7 @@ func (s *PublicationService) UpdateProfile(ctx context.Context, id, name string,
 		return Profile{}, fmt.Errorf("clock returned zero time")
 	}
 	// The schedule is not part of a composition edit: it is carried through so
-	// renaming a list never resets when it last refreshed.
+	// renaming a profile never resets when it last refreshed.
 	updated := Profile{
 		ID: current.ID, Name: cleanName,
 		Lists: composition.Lists, Categories: composition.Categories, Exclusions: composition.Exclusions, ListDomains: composition.ListDomains, Priority: composition.Priority,
@@ -828,7 +828,7 @@ func (s *PublicationService) UpdateProfile(ctx context.Context, id, name string,
 	return updated, nil
 }
 
-// AddOutput binds a list to one format. A list may hold one output per target;
+// AddOutput binds a profile to one format. A profile may hold one output per target;
 // asking twice returns the existing one. No subscription is issued here: the
 // output has not yet proven it can publish a valid artifact.
 func (s *PublicationService) AddOutput(ctx context.Context, profileID, targetID string) (CreatedOutput, error) {
@@ -902,7 +902,7 @@ func (s *PublicationService) IssueSubscription(ctx context.Context, outputID str
 	return "", ErrIdentityCollision
 }
 
-// existingOutput answers with the output this list already has for a target, or
+// existingOutput answers with the output this profile already has for a target, or
 // a zero value. A read failure reads as absent: the caller is deciding whether
 // to report a conflict, and inventing one would be worse than a plain error.
 func (s *PublicationService) existingOutput(ctx context.Context, profileID, targetID string) Output {
@@ -932,8 +932,8 @@ func (s *PublicationService) Outputs(ctx context.Context, profileID string) ([]O
 	return s.config.Store.OutputsByProfile(ctx, profileID)
 }
 
-// Refresh re-observes every service of one list. It is a property of the list,
-// not of an output: two formats of the same services observe the same names.
+// Refresh re-observes every list of one profile. It is a property of the profile,
+// not of an output: two formats of the same lists observe the same names.
 func (s *PublicationService) Refresh(ctx context.Context, profileID string) ([]RefreshSummary, error) {
 	profile, err := s.Profile(ctx, profileID)
 	if err != nil {
@@ -947,7 +947,7 @@ func (s *PublicationService) Refresh(ctx context.Context, profileID string) ([]R
 	for _, listID := range lists {
 		definition, ok := s.definition(listID)
 		if !ok {
-			return nil, fmt.Errorf("list service unavailable")
+			return nil, fmt.Errorf("profile list unavailable")
 		}
 		summary, refreshErr := RefreshList(ctx, definition, domain.RawJSONTargetDefinition(), s.config.Sources, s.config.Store, s.config.Clock)
 		summaries = append(summaries, summary)

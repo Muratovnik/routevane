@@ -100,7 +100,8 @@ results. Device doubles and parser tests do not prove physical-device acceptance
   interface dictionary, the catalog keys and the stored schema now say `list`
   for a set of rules and `profile` for the composition that publishes it; the
   configuration transfer format states it at `config-transfer-v1.4` and the
-  schema at version 13. Go and web identifiers are the last slice. The retired
+  schema at version 13. The CLI names a list `--list` and `--list-id` and logs
+  it under a `list` field. Web identifiers are the last slice. The retired
   catalog keys, transfer field names and the retired stored removal kind are
   read for one minor version, and a file naming one thing under both a current
   and a retired name is refused. The routing plan JSON, the semantic plan hash

@@ -41,7 +41,7 @@ type publicationFakeStore struct {
 	// removalErr makes the store refuse a deletion, so a test can prove the
 	// registry is written after the store rather than beside it.
 	removalErr error
-	// lists is the library the reference check reads. list stays the one a
+	// profiles is the library the reference check reads. profile stays the one a
 	// composition test writes; a category test needs several.
 	profiles []Profile
 	// verdictWrites counts destination-verdict batches that reached storage.
@@ -532,7 +532,7 @@ func (r mutatingRenderer) Validate([]byte) error {
 
 func TestOutputTokenIsIssuedOnlyAfterSuccessfulBuild(t *testing.T) {
 	store := &publicationFakeStore{collisions: 1}
-	// List id, two output ids (the first collides), build snapshot/artifact ids,
+	// Profile id, two output ids (the first collides), build snapshot/artifact ids,
 	// then subscription token id and secret.
 	entropyBytes := bytes.Repeat([]byte{0x10}, 16)
 	entropyBytes = append(entropyBytes, bytes.Repeat([]byte{0x11}, 16)...)
@@ -756,15 +756,15 @@ func TestProfileListDomainOverridesAreNormalizedAndAppliedOnlyToStaticDomains(t 
 		Lists:       []string{"example"},
 		ListDomains: map[string][]string{"missing": {"missing.example"}},
 	}); err == nil {
-		t.Fatal("accepted a domain override for a service outside the list")
+		t.Fatal("accepted a domain override for a list outside the profile")
 	}
 }
 
-// testProfileAndOutput returns one list and the output bound to it, matching the
+// testProfileAndOutput returns one profile and the output bound to it, matching the
 // composition and target that newPublicationTestService wires up.
 func testProfileAndOutput() (Profile, Output) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	profile := Profile{ID: strings.Repeat("1", 32), Name: "example list", Lists: []string{"example"}, CreatedAt: now, UpdatedAt: now}
+	profile := Profile{ID: strings.Repeat("1", 32), Name: "example profile", Lists: []string{"example"}, CreatedAt: now, UpdatedAt: now}
 	output := Output{ID: strings.Repeat("2", 32), ProfileID: profile.ID, TargetID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID, RendererVersion: keenetic.Version, TargetRevision: strings.Repeat("t", 64), CreatedAt: now}
 	return profile, output
 }

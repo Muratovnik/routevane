@@ -6,7 +6,7 @@ import (
 
 // setDefaultPriority replaces the complete library ordering. The application
 // validates that the request is one full permutation of the currently
-// available service ids; this handler only owns the JSON shape and response.
+// available list ids; this handler only owns the JSON shape and response.
 func (h *handler) setDefaultPriority(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		DefaultPriority []string `json:"default_priority"`

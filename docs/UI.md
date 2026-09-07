@@ -34,8 +34,9 @@ is edited by the operator on top of it. What a profile publishes into is an
 subscription link and its chain of published files. One profile therefore feeds
 a router and a phone at once, and editing it changes what both receive. The
 interface is a shelf of those objects plus the catalog facts around them —
-not a wizard. The word «сервис» / "service" appears on no surface; the code
-and the API still say `lists` and `services` until the follow-up rename.
+not a wizard. The word «сервис» / "service" appears on no surface, and since
+`0.2.0` it appears in no identifier either: the interface, the API, the catalog,
+the schema and the code all say list and profile (ADR 0039).
 Sections, addressable by URL:
 
 1. `/` — **Profiles / Профили.** Every stored profile, newest first: its name
@@ -351,7 +352,7 @@ can collapse to icons with labels on hover or keyboard focus. The profile compos
 and library allocate remaining height to their data regions; headings and filters
 keep natural height. Short windows and enlarged content may scroll to preserve
 access to actions. Invisible accessibility labels must stay within the table's
-scrolling context, and service-column widths include controls and their padding.
+scrolling context, and list-column widths include controls and their padding.
 
 Category filters are shared by composition and library. «Ещё» opens an anchored
 panel with search above a scrollable list of all categories, including custom

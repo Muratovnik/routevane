@@ -64,7 +64,7 @@ type Result struct {
 	Path      string
 	Observed  Observation
 	// ObservationError reports that the draft was written but its first DNS
-	// cycle did not complete. The service exists; refresh owns retrying.
+	// cycle did not complete. The list exists; refresh owns retrying.
 	ObservationError string
 }
 
@@ -89,7 +89,7 @@ func Run(ctx context.Context, request Request, deps Deps) (Result, error) {
 		}
 	}
 	if domain.ValidateSlug(listID) != nil {
-		return Result{}, fmt.Errorf("%w: service id %q", ErrInvalidTarget, listID)
+		return Result{}, fmt.Errorf("%w: list id %q", ErrInvalidTarget, listID)
 	}
 	if !request.Confirm {
 		return Result{Target: target, ListID: listID}, ErrConfirmationRequired
@@ -127,7 +127,7 @@ func Run(ctx context.Context, request Request, deps Deps) (Result, error) {
 	observed, observeErr := deps.Observe(ctx, draft.Definition)
 	result.Observed = observed
 	if observeErr != nil {
-		// The service now exists and is reviewable. A failed first observation
+		// The list now exists and is reviewable. A failed first observation
 		// is reported, not fatal: refresh is the operation that owns retrying.
 		result.ObservationError = observeErr.Error()
 		return result, nil

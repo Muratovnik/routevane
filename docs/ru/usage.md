@@ -39,7 +39,7 @@ Raw JSON — диагностический формат. Ниже описан�
 Предпросмотр правил без публикации файла:
 
 ```powershell
-./routevane preview --service example --target raw-json
+./routevane preview --list example --target raw-json
 ```
 
 Команда делает живой DNS-запрос с ограничением времени. Вывод стабилен для тех
@@ -49,8 +49,8 @@ Raw JSON — диагностический формат. Ниже описан�
 Обновить, собрать и проверить состояние из CLI:
 
 ```powershell
-./routevane refresh --service example
-./routevane build --target raw-json --service example
+./routevane refresh --list example
+./routevane build --target raw-json --list example
 ./routevane doctor
 ```
 
@@ -79,7 +79,7 @@ sources:
 `refresh` загружает все прямые файлы `catalog/builtin/*.yaml` и
 `catalog/local/*.yaml` одним ограниченным снимком до открытия базы или DNS.
 `build` печатает абсолютный путь к неопубликованному артефакту в
-`data/artifacts/raw-json/<service>/` только после рендеринга в памяти, проверки,
+`data/artifacts/raw-json/<list>/` только после рендеринга в памяти, проверки,
 синхронизации файла и атомарной фиксации без замены. `doctor` работает только
 на чтение: он не создаёт, не мигрирует, не исправляет и не чекпоинтит базу.
 
@@ -87,7 +87,7 @@ sources:
 блокировкой ОС и запускает одну пару refresh/build одновременно:
 
 ```powershell
-./routevane run --target raw-json --service example --interval 30m
+./routevane run --target raw-json --list example --interval 30m
 ```
 
 Параметры `--catalog-dir` и `--data-dir` у `refresh`, `build`, `doctor` и `run`
@@ -114,13 +114,13 @@ GitHub Copilot отличается от GitHub. Его источник сод�
 ## Ручная сборка и импорт файла Keenetic
 
 Обновите каждый сервис, чьи текущие наблюдения должны попасть в файл, затем
-соберите выбранный набор. `--service` можно повторять; значения сортируются и
+соберите выбранный набор. `--list` можно повторять; значения сортируются и
 устраняются дубликаты до одной полностью успешной или неуспешной сборки:
 
 ```powershell
-./routevane refresh --service youtube
-./routevane refresh --service discord
-./routevane build --target keenetic --service youtube --service discord --output ./data/artifacts
+./routevane refresh --list youtube
+./routevane refresh --list discord
+./routevane build --target keenetic --list youtube --list discord --output ./data/artifacts
 ```
 
 После проверки команда печатает ровно один абсолютный путь `.bat`. Явная папка
@@ -154,8 +154,8 @@ GitHub Copilot отличается от GitHub. Его источник сод�
 поэтому маршрутизация следует за изменением адресов списка:
 
 ```powershell
-./routevane refresh --service youtube
-./routevane build --target openwrt --service youtube --output ./data/artifacts
+./routevane refresh --list youtube
+./routevane build --target openwrt --list youtube --output ./data/artifacts
 ```
 
 Фрагмент содержит только суффиксные совпадения. Точный домен отклоняется, а не
@@ -180,7 +180,7 @@ nft add set inet fw4 routevane6 '{ type ipv6_addr; flags interval; }'
 файрвола:
 
 ```powershell
-./routevane build --target mikrotik --service youtube --output ./data/artifacts
+./routevane build --target mikrotik --list youtube --output ./data/artifacts
 ```
 
 В отличие от импорта Keenetic, скрипт заменяет содержимое: каждый раздел удаляет
@@ -205,7 +205,7 @@ nft add set inet fw4 routevane6 '{ type ipv6_addr; flags interval; }'
 Цель `amnezia` создаёт список сайтов для импорта в клиент AmneziaVPN:
 
 ```powershell
-./routevane build --target amnezia --service youtube --output ./data/artifacts
+./routevane build --target amnezia --list youtube --output ./data/artifacts
 ```
 
 В клиенте откройте раздельное туннелирование, импортируйте файл из меню и
@@ -322,7 +322,7 @@ JSON-файл. В новой установке Routevane выберите эт�
 именами, отвергается. Это перенос настроек, а не резервная копия базы данных. Подробный
 контракт описан в [`ADR 0033`](../adr/0033-portable-configuration-transfers.md).
 
-## Добавление сервиса по URL
+## Добавление списка по URL
 
 ```powershell
 ./routevane discover --url shop.example.co.uk
@@ -333,7 +333,7 @@ URL, регистрируемый домен по Public Suffix List и лока
 который он создал бы. Повторите с `--confirm`, чтобы запустить именно этот URL:
 
 ```powershell
-./routevane discover --url shop.example.co.uk --confirm --service-id shop --title Shop --browser "C:/Program Files/Google/Chrome/Application/chrome.exe"
+./routevane discover --url shop.example.co.uk --confirm --list-id shop --title Shop --browser "C:/Program Files/Google/Chrome/Application/chrome.exe"
 ```
 
 Одна управляемая загрузка страницы выполняется в изолированном временном профиле,
@@ -350,7 +350,7 @@ URL, регистрируемый домен по Public Suffix List и лока
 `--browser PATH` или `ROUTEVANE_BROWSER`; поиск по PATH не используется. Node.js
 и Playwright во время работы не нужны.
 
-## Обучение сервиса по сценарию исследования
+## Обучение списка по сценарию исследования
 
 Одна загрузка страницы не видит всё, что находится за входом или кнопкой
 воспроизведения. Сессия обучения воспроизводит описанный сценарий и привязывает

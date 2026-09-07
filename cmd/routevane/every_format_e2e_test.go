@@ -52,7 +52,7 @@ func TestPublishesEveryBuiltInFormatFromOneProfile(t *testing.T) {
 	deps := runtimeDeps{Resolver: resolver, Now: func() time.Time { return now }, Context: context.Background()}
 
 	stdout, stderr := &syncBuffer{}, &syncBuffer{}
-	if code := runWithDeps(stdout, stderr, []string{"refresh", "--service", "youtube", "--catalog-dir", catalogDir, "--data-dir", dataDir}, deps); code != 0 {
+	if code := runWithDeps(stdout, stderr, []string{"refresh", "--list", "youtube", "--catalog-dir", catalogDir, "--data-dir", dataDir}, deps); code != 0 {
 		t.Fatalf("refresh failed: %s %s", stdout.String(), stderr.String())
 	}
 
@@ -118,7 +118,7 @@ func TestPublishesEveryBuiltInFormatFromOneProfile(t *testing.T) {
 		t.Fatalf("script = %s", script.payload)
 	}
 
-	// The client resolves each site itself, so its list carries the observed
+	// The client resolves each site itself, so its profile carries the observed
 	// address as a host prefix and no populated address list.
 	sites, err := amnezia.Parse(splitTunnel.payload)
 	if err != nil {
@@ -162,7 +162,7 @@ type builtArtifact struct {
 func buildArtifactFile(t *testing.T, deps runtimeDeps, catalogDir, dataDir, outputDir, target string) builtArtifact {
 	t.Helper()
 	stdout, stderr := &syncBuffer{}, &syncBuffer{}
-	args := []string{"build", "--target", target, "--service", "youtube", "--catalog-dir", catalogDir, "--data-dir", dataDir, "--output", outputDir}
+	args := []string{"build", "--target", target, "--list", "youtube", "--catalog-dir", catalogDir, "--data-dir", dataDir, "--output", outputDir}
 	if code := runWithDeps(stdout, stderr, args, deps); code != 0 {
 		t.Fatalf("build %s failed: code=%d stdout=%s stderr=%s", target, code, stdout.String(), stderr.String())
 	}

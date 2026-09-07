@@ -24,7 +24,7 @@ func archivedTestService(t *testing.T) (*PublicationService, *publicationFakeSto
 }
 
 // The whole point of archiving is that one set of operations stops and another
-// keeps working. Every write is refused through the same guard, so a route
+// keeps working. Every write is refused through the same guard, so a profile
 // added later cannot forget it.
 func TestAnArchivedProfileRefusesEveryWrite(t *testing.T) {
 	publication, store := archivedTestService(t)
@@ -56,16 +56,16 @@ func TestAnArchivedProfileRefusesEveryWrite(t *testing.T) {
 	for name, write := range writes {
 		t.Run(name, func(t *testing.T) {
 			if err := write(); !errors.Is(err, ErrProfileArchived) {
-				t.Fatalf("%s on an archived list = %v, want ErrListArchived", name, err)
+				t.Fatalf("%s on an archived profile = %v, want ErrProfileArchived", name, err)
 			}
 		})
 	}
 	if len(store.published) != 0 {
-		t.Fatalf("an archived list published %d times", len(store.published))
+		t.Fatalf("an archived profile published %d times", len(store.published))
 	}
 }
 
-// Reading is not writing. An archived list is still fully readable, and the
+// Reading is not writing. An archived profile is still fully readable, and the
 // file it already published is still served: nothing was deleted (ADR 0004).
 func TestAnArchivedProfileStaysReadable(t *testing.T) {
 	publication, store := archivedTestService(t)
@@ -83,12 +83,12 @@ func TestAnArchivedProfileStaysReadable(t *testing.T) {
 		t.Fatalf("an archived card must still state its outputs and its date: %#v", cards[0])
 	}
 	if len(cards[0].Resolved) == 0 {
-		t.Fatal("an archived list still resolves to what it publishes")
+		t.Fatal("an archived profile still resolves to what it publishes")
 	}
 }
 
-// Restoring returns the list to the shelf and to every write it refused. It
-// does not rebuild: what the list publishes is what it published when it left.
+// Restoring returns the profile to the shelf and to every write it refused. It
+// does not rebuild: what the profile publishes is what it published when it left.
 func TestRestoringReturnsTheProfileToTheShelf(t *testing.T) {
 	publication, store := archivedTestService(t)
 	ctx := context.Background()
@@ -104,13 +104,13 @@ func TestRestoringReturnsTheProfileToTheShelf(t *testing.T) {
 		t.Fatal("restoring must not publish anything by itself")
 	}
 	if _, err := publication.UpdateProfile(ctx, store.profile.ID, "renamed", ProfileComposition{Lists: []string{"example"}}); err != nil {
-		t.Fatalf("a restored list must accept an edit: %v", err)
+		t.Fatalf("a restored profile must accept an edit: %v", err)
 	}
 }
 
-// Asking for the state a list is already in is not an error: the operator asked
+// Asking for the state a profile is already in is not an error: the operator asked
 // for a state, not for a transition. The stored moment must not move, or the
-// list would appear to have been archived again.
+// profile would appear to have been archived again.
 func TestArchivingTwiceKeepsTheFirstMoment(t *testing.T) {
 	publication, store := archivedTestService(t)
 	first := store.profile.ArchivedAt
@@ -128,11 +128,11 @@ func TestArchivingTwiceKeepsTheFirstMoment(t *testing.T) {
 		t.Fatalf("restored = %#v, err = %v", restored, err)
 	}
 	if _, err := publication.RestoreProfile(context.Background(), store.profile.ID); err != nil {
-		t.Fatalf("restoring a shelved list = %v", err)
+		t.Fatalf("restoring a shelved profile = %v", err)
 	}
 }
 
-// The timer skips an archived list before it judges it due, so the list is
+// The timer skips an archived profile before it judges it due, so the profile is
 // never marked as a failed refresh it was never going to attempt.
 func TestTheTimerSkipsAnArchivedProfileWithoutMarkingIt(t *testing.T) {
 	publication, store := archivedTestService(t)
@@ -146,19 +146,19 @@ func TestTheTimerSkipsAnArchivedProfileWithoutMarkingIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(runs) != 0 {
-		t.Fatalf("the timer touched an archived list: %#v", runs)
+		t.Fatalf("the timer touched an archived profile: %#v", runs)
 	}
 	if store.profile.LastRefreshFailed || !store.profile.LastRefreshedAt.IsZero() {
-		t.Fatalf("the timer wrote to an archived list: %#v", store.profile)
+		t.Fatalf("the timer wrote to an archived profile: %#v", store.profile)
 	}
 }
 
-// A missing list is not an archived one, and neither is a malformed identity.
+// A missing profile is not an archived one, and neither is a malformed identity.
 func TestArchivingAnUnknownProfileIsNotFound(t *testing.T) {
 	profile, output := testProfileAndOutput()
 	store := &publicationFakeStore{profile: profile, output: output}
 	publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x52}, 256)))
-	if _, err := publication.ArchiveProfile(context.Background(), "not-a-list"); !errors.Is(err, ErrNotFound) {
+	if _, err := publication.ArchiveProfile(context.Background(), "not-a-profile"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("archiving a malformed identity = %v", err)
 	}
 	if _, err := publication.RestoreProfile(context.Background(), strings.Repeat("9", 31)); !errors.Is(err, ErrNotFound) {

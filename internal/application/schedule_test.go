@@ -11,8 +11,8 @@ func profileAt(interval RefreshInterval, last time.Time, failed bool) Profile {
 	return Profile{ID: "list", Name: "list", RefreshInterval: interval, LastRefreshedAt: last, LastRefreshFailed: failed}
 }
 
-// A list that never said anything follows the service-wide rule, and keeps
-// following it as that rule changes. Copying the default into the list at the
+// A profile that never said anything follows the service-wide rule, and keeps
+// following it as that rule changes. Copying the default into the profile at the
 // moment it was created would freeze it instead.
 func TestAProfileWithoutARuleFollowsTheDefault(t *testing.T) {
 	schedule := ScheduleOf(profileAt(RefreshDefault, time.Time{}, false), RefreshWeekly)
@@ -25,7 +25,7 @@ func TestAProfileWithoutARuleFollowsTheDefault(t *testing.T) {
 	}
 }
 
-// Off is a rule, not the absence of one: a list may refuse the timer while the
+// Off is a rule, not the absence of one: a profile may refuse the timer while the
 // service-wide default says daily.
 func TestAProfileMayTurnTheTimerOffAgainstTheDefault(t *testing.T) {
 	schedule := ScheduleOf(profileAt(RefreshOff, time.Time{}, false), RefreshDaily)
@@ -51,7 +51,7 @@ func TestWhatIsDue(t *testing.T) {
 		// period rather than every tick against a source already failing.
 		{"a failed run waits its period", profileAt(RefreshDaily, scheduleNow.Add(-time.Minute), true), RefreshOff, false},
 		{"a failed run is due again later", profileAt(RefreshDaily, scheduleNow.Add(-25*time.Hour), true), RefreshOff, true},
-		{"the default carries the list", profileAt(RefreshDefault, time.Time{}, false), RefreshDaily, true},
+		{"the default carries the profile", profileAt(RefreshDefault, time.Time{}, false), RefreshDaily, true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -75,7 +75,7 @@ func TestAnUnknownStoredRuleReadsAsOff(t *testing.T) {
 	}
 }
 
-// A list that has never refreshed has no next time to state. Naming one would
+// A profile that has never refreshed has no next time to state. Naming one would
 // be inventing a moment nothing recorded.
 func TestANeverRefreshedProfileStatesNoNextTime(t *testing.T) {
 	schedule := ScheduleOf(profileAt(RefreshDaily, time.Time{}, false), RefreshOff)
@@ -87,7 +87,7 @@ func TestANeverRefreshedProfileStatesNoNextTime(t *testing.T) {
 func TestOnlyTheThreeRulesAreAccepted(t *testing.T) {
 	for _, valid := range []RefreshInterval{RefreshDefault, RefreshOff, RefreshDaily, RefreshWeekly} {
 		if !valid.valid() {
-			t.Fatalf("%q must be a valid list rule", valid)
+			t.Fatalf("%q must be a valid profile rule", valid)
 		}
 	}
 	if RefreshDefault.validDefault() {

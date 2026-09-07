@@ -36,7 +36,7 @@ manual imports, and delivery behavior.
 Preview routing rules without publishing an artifact:
 
 ```powershell
-./routevane preview --service example --target raw-json
+./routevane preview --list example --target raw-json
 ```
 
 The command performs a live, deadline-bounded DNS lookup. Its output is stable
@@ -46,12 +46,12 @@ the wall-clock cutoff can naturally change between invocations.
 Refresh, build, and inspect from the CLI:
 
 ```powershell
-./routevane refresh --service example
-./routevane build --target raw-json --service example
+./routevane refresh --list example
+./routevane build --target raw-json --list example
 ./routevane doctor
 ```
 
-A service may also declare an official network feed:
+A list may also declare an official network feed:
 
 ```yaml
 sources:
@@ -78,7 +78,7 @@ dropping them. The policy is recorded in
 `refresh` loads all direct `catalog/builtin/*.yaml` and
 `catalog/local/*.yaml` files as one bounded snapshot before opening the database
 or resolving DNS. `build` prints the absolute path of an unpublished artifact
-under `data/artifacts/raw-json/<service>/` only after in-memory rendering,
+under `data/artifacts/raw-json/<list>/` only after in-memory rendering,
 validation, file sync, and an atomic no-replace commit. `doctor` is read-only:
 it never creates, migrates, repairs, or checkpoints the database.
 
@@ -86,7 +86,7 @@ The in-process fixed-delay scheduler owns an OS advisory lock and runs one
 refresh/build pair at a time:
 
 ```powershell
-./routevane run --target raw-json --service example --interval 30m
+./routevane run --target raw-json --list example --interval 30m
 ```
 
 Use `--catalog-dir` and `--data-dir` on `refresh`, `build`, `doctor`, and `run`
@@ -113,14 +113,14 @@ list does not claim to cover every dynamically named CDN host. See
 
 ## Manual Keenetic file build and import
 
-Refresh every service whose current observations should enter the file, then
-build the selected set. `--service` is repeatable and is sorted and deduplicated
+Refresh every list whose current observations should enter the file, then
+build the selected set. `--list` is repeatable and is sorted and deduplicated
 before one all-or-nothing build:
 
 ```powershell
-./routevane refresh --service youtube
-./routevane refresh --service discord
-./routevane build --target keenetic --service youtube --service discord --output ./data/artifacts
+./routevane refresh --list youtube
+./routevane refresh --list discord
+./routevane build --target keenetic --list youtube --list discord --output ./data/artifacts
 ```
 
 The build prints exactly one absolute `.bat` path after validation. An explicit
@@ -152,12 +152,12 @@ recorded in
 
 The `openwrt` target builds a dnsmasq configuration fragment instead of a list
 of addresses. The device resolves each listed domain itself and adds the answers
-to an nftables set, so the routing decision follows the service as its addresses
+to an nftables set, so the routing decision follows the list as its addresses
 change:
 
 ```powershell
-./routevane refresh --service youtube
-./routevane build --target openwrt --service youtube --output ./data/artifacts
+./routevane refresh --list youtube
+./routevane build --target openwrt --list youtube --output ./data/artifacts
 ```
 
 The fragment carries suffix matches only. An exact domain is refused rather than
@@ -184,7 +184,7 @@ The `mikrotik` target builds a RouterOS script that populates two firewall
 address lists:
 
 ```powershell
-./routevane build --target mikrotik --service youtube --output ./data/artifacts
+./routevane build --target mikrotik --list youtube --output ./data/artifacts
 ```
 
 Unlike the Keenetic import, the script is replacing: each section removes the
@@ -209,7 +209,7 @@ documentation.
 The `amnezia` target builds the site list the AmneziaVPN client imports:
 
 ```powershell
-./routevane build --target amnezia --service youtube --output ./data/artifacts
+./routevane build --target amnezia --list youtube --output ./data/artifacts
 ```
 
 In the client, open split tunnelling, use the menu to import the file, and choose
@@ -266,7 +266,7 @@ and the first-success subscription lifecycle in
 [`docs/adr/0023-subscriptions-begin-with-a-successful-publication.md`](adr/0023-subscriptions-begin-with-a-successful-publication.md).
 
 The device selector lists every catalog target this build can serve. The same
-service selection can be published for each of them: Keenetic receives the IPv4
+list selection can be published for each of them: Keenetic receives the IPv4
 route dialect, and `singbox` receives a sing-box source rule-set document that
 carries the domain suffixes the router format has to drop. Each artifact is
 validated by its own independent parser before publication, and the download
@@ -274,7 +274,7 @@ name and content type come from the renderer descriptor rather than a constant.
 Adding a format is documented in
 [`docs/adding-a-renderer.md`](adding-a-renderer.md).
 
-The default UI result shows operational status, selected services, artifact time,
+The default UI result shows operational status, selected lists, artifact time,
 target type, validation, and partial-coverage warnings. The artifact format is
 not part of that view: renderer identity, renderer version, content type,
 routing evidence, and excluded reasons appear only after opening
@@ -331,18 +331,18 @@ naming one field under both names is refused rather than reconciled.
 This is a portable settings transfer, not a database backup. See
 [`ADR 0033`](adr/0033-portable-configuration-transfers.md).
 
-## Adding a service by URL
+## Adding a list by URL
 
 ```powershell
 ./routevane discover --url shop.example.co.uk
 ```
 
 The first call performs no browser load. It prints the canonical HTTPS URL, the
-registrable domain the Public Suffix List derived, and the local service identity
+registrable domain the Public Suffix List derived, and the local list identity
 it would create. Repeat the call with `--confirm` to run exactly that URL:
 
 ```powershell
-./routevane discover --url shop.example.co.uk --confirm --service-id shop --title Shop --browser "C:/Program Files/Google/Chrome/Application/chrome.exe"
+./routevane discover --url shop.example.co.uk --confirm --list-id shop --title Shop --browser "C:/Program Files/Google/Chrome/Application/chrome.exe"
 ```
 
 One managed page load runs in an isolated temporary profile that is removed on
@@ -360,7 +360,7 @@ Windows path with its actual executable on your OS. `--browser PATH` or
 `ROUTEVANE_BROWSER` names it, and nothing is taken from the search path. Node.js
 and Playwright are not runtime requirements.
 
-## Learning a service from an exploration
+## Learning a list from an exploration
 
 One page load misses everything behind a sign-in or a play button. A learning
 session replays a described exploration and attributes what it sees to the action

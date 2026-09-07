@@ -19,14 +19,14 @@ import (
 // changed lives in the store as an overlay — membership added to or removed
 // from a catalog category, and whole categories they created. Every reader of
 // category membership goes through the merged accessor below, so adding a
-// service to a category reaches every route that names it on the next build,
+// list to a category reaches every profile that names it on the next build,
 // which is the point of a category rather than a copy.
 //
 // A catalog category keeps its title; its existence, however, belongs to the
 // operator, who owns the library and may delete what the catalog shipped. That
 // deletion is a removal record in the overlay rather than an edit of the
-// shipped file (ADR 0029, removals.go). Deleting a category a route names is
-// refused with the routes named, because a route that silently lost a category
+// shipped file (ADR 0029, removals.go). Deleting a category a profile names is
+// refused with the profiles named, because a profile that silently lost a category
 // would build something its author did not choose.
 
 // CustomCategoryIDPrefix is reserved for a category the operator created. The
@@ -58,7 +58,7 @@ const (
 // the shipped file (ADR 0029).
 var ErrCatalogCategory = errors.New("category is defined by the catalog")
 
-// MembershipState is the operator's verdict on one service in one category:
+// MembershipState is the operator's verdict on one list in one category:
 // added on top of what the catalog carries, or removed from it. Absence of a
 // verdict is the catalog's own answer, so the overlay stores only disagreement.
 type MembershipState string
@@ -90,7 +90,7 @@ type CategoryMembership struct {
 // over the shipped catalog, read in one pass so the registry cannot be
 // hydrated from two disagreeing moments. Removals travel with membership for
 // exactly that reason: a merge that subtracted removals read a moment later
-// than it read membership could promise a category a service it no longer has.
+// than it read membership could promise a category a list it no longer has.
 type CategoryOverlay struct {
 	Categories  []CustomCategory
 	Memberships []CategoryMembership
@@ -112,8 +112,8 @@ type CategoryWrite struct {
 
 // CategoryUpdate is a partial edit as a request states it. A nil field is one
 // the request did not mention, which is not the same as an empty one: omitting
-// services leaves membership alone, while sending an empty set clears it.
-// Services, when present, is the complete desired membership — the difference
+// lists leaves membership alone, while sending an empty set clears it.
+// Lists, when present, is the complete desired membership — the difference
 // against the catalog is computed here rather than sent by the caller, so two
 // clients cannot disagree about what an overlay row means.
 type CategoryUpdate struct {
@@ -121,16 +121,16 @@ type CategoryUpdate struct {
 	Lists *[]string
 }
 
-// ProfileReference names one route that still holds a reference. It carries the
-// route's own words rather than its identity alone, so a refusal can be read
+// ProfileReference names one profile that still holds a reference. It carries the
+// profile's own words rather than its identity alone, so a refusal can be read
 // without a second request.
 type ProfileReference struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 }
 
-// CategoryInUseError refuses to delete a category a route still names. It
-// carries the routes so the operator can act on the refusal instead of
+// CategoryInUseError refuses to delete a category a profile still names. It
+// carries the profiles so the operator can act on the refusal instead of
 // searching for its cause.
 type CategoryInUseError struct {
 	CategoryID string
@@ -138,7 +138,7 @@ type CategoryInUseError struct {
 }
 
 func (e CategoryInUseError) Error() string {
-	return fmt.Sprintf("category %q is named by %d route(s)", e.CategoryID, len(e.Profiles))
+	return fmt.Sprintf("category %q is named by %d profile(s)", e.CategoryID, len(e.Profiles))
 }
 
 // categoryRegistry is the in-process copy of the stored overlay. The process
@@ -148,7 +148,7 @@ func (e CategoryInUseError) Error() string {
 type categoryRegistry struct {
 	mu     sync.RWMutex
 	custom map[string]CustomCategory
-	// membership is keyed by category id and then by service id, which is the
+	// membership is keyed by category id and then by list id, which is the
 	// shape every read wants and the primary key the store holds.
 	membership map[string]map[string]MembershipState
 	// removed is what the operator deleted from the shipped catalog, keyed by
@@ -209,11 +209,11 @@ func (s *PublicationService) LoadCategories(ctx context.Context) error {
 // mergedCategory is the one accessor category membership is read through: the
 // shipped catalog grouping with the operator's overlay applied, or a category
 // the operator created outright. The picker, the forecast, composition
-// validation and the planner's expansion of a route's categories all resolve
+// validation and the planner's expansion of a profile's categories all resolve
 // here, so a membership change reaches every one of them at once.
 //
-// A member whose service left the catalog is dropped rather than reported,
-// exactly as composition resolution drops it: a service that cannot be planned
+// A member whose list left the catalog is dropped rather than reported,
+// exactly as composition resolution drops it: a list that cannot be planned
 // cannot be published, and naming it here would promise otherwise. A category
 // the operator removed is subtracted here, before the merge, which is what
 // keeps the picker, the forecast, the planner and the library agreeing without
@@ -388,7 +388,7 @@ func (s *PublicationService) UpdateCategory(ctx context.Context, id string, upda
 }
 
 // membershipRows is the difference between what the operator wants the category
-// to contain and what the catalog puts in it: a service the catalog does not
+// to contain and what the catalog puts in it: a list the catalog does not
 // carry becomes 'added', a catalog member the request omits becomes 'removed',
 // and everything the two agree on is stored as nothing at all. A category the
 // operator created has no catalog members, so it can only ever produce 'added'.
@@ -427,17 +427,17 @@ func membershipIndex(rows []CategoryMembership) map[string]MembershipState {
 }
 
 // validCategoryMembers normalizes the requested membership: deduplicated,
-// stably ordered, bounded, and naming only services that exist — shipped or
-// operator-defined. A category naming a service nothing can plan would promise
-// a route content it cannot publish.
+// stably ordered, bounded, and naming only lists that exist — shipped or
+// operator-defined. A category naming a list nothing can plan would promise
+// a profile content it cannot publish.
 func (s *PublicationService) validCategoryMembers(lists []string) ([]string, error) {
 	members := domain.StableStrings(lists)
 	if len(members) > maxCategoryMembers {
-		return nil, fmt.Errorf("invalid category services")
+		return nil, fmt.Errorf("invalid category lists")
 	}
 	for _, listID := range members {
 		if domain.ValidateSlug(listID) != nil || !s.knownList(listID) {
-			return nil, fmt.Errorf("invalid category services")
+			return nil, fmt.Errorf("invalid category lists")
 		}
 	}
 	return members, nil

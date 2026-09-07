@@ -62,8 +62,8 @@ func TestCommandPipelinePersistsLifecycleAndBuildsVisibleArtifact(t *testing.T) 
 	resolver := &cannedAddressResolver{addresses: []string{"192.0.2.2", "::ffff:192.0.2.1", "192.0.2.2"}}
 	deps := runtimeDeps{Resolver: resolver, Now: func() time.Time { return now }}
 
-	refreshArgs := []string{"refresh", "--service", "example", "--catalog-dir", catalogRoot, "--data-dir", dataRoot}
-	buildArgs := []string{"build", "--target", "raw-json", "--service", "example", "--catalog-dir", catalogRoot, "--data-dir", dataRoot}
+	refreshArgs := []string{"refresh", "--list", "example", "--catalog-dir", catalogRoot, "--data-dir", dataRoot}
+	buildArgs := []string{"build", "--target", "raw-json", "--list", "example", "--catalog-dir", catalogRoot, "--data-dir", dataRoot}
 	doctorArgs := []string{"doctor", "--catalog-dir", catalogRoot, "--data-dir", dataRoot}
 
 	firstSummary := runCommand(t, deps, refreshArgs, 0)

@@ -39,14 +39,14 @@ func validCustomList(list application.CustomList) bool {
 
 func (s *Store) CreateCustomList(ctx context.Context, list application.CustomList) error {
 	if !validCustomList(list) || list.CreatedAt.IsZero() || list.UpdatedAt.IsZero() {
-		return fmt.Errorf("invalid custom service")
+		return fmt.Errorf("invalid custom list")
 	}
 	if err := s.preparePublication(); err != nil {
 		return err
 	}
 	payload, err := json.Marshal(list.Domains)
 	if err != nil {
-		return fmt.Errorf("encode custom service domains: %w", err)
+		return fmt.Errorf("encode custom list domains: %w", err)
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
@@ -54,7 +54,7 @@ func (s *Store) CreateCustomList(ctx context.Context, list application.CustomLis
 	// else is a real error and must not be spent on eight more attempts.
 	var taken int
 	if err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM custom_lists WHERE id=?`, list.ID).Scan(&taken); err != nil {
-		return fmt.Errorf("check custom service identity: %w", err)
+		return fmt.Errorf("check custom list identity: %w", err)
 	}
 	if taken != 0 {
 		return application.ErrIdentityCollision
@@ -62,21 +62,21 @@ func (s *Store) CreateCustomList(ctx context.Context, list application.CustomLis
 	if _, err := s.db.ExecContext(ctx,
 		`INSERT INTO custom_lists(id,title,domains_json,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?)`,
 		list.ID, list.Title, string(payload), list.CreatedAt.UTC().UnixNano(), list.UpdatedAt.UTC().UnixNano()); err != nil {
-		return fmt.Errorf("insert custom service: %w", err)
+		return fmt.Errorf("insert custom list: %w", err)
 	}
 	return nil
 }
 
 func (s *Store) UpdateCustomList(ctx context.Context, list application.CustomList) error {
 	if !validCustomList(list) || list.UpdatedAt.IsZero() {
-		return fmt.Errorf("invalid custom service")
+		return fmt.Errorf("invalid custom list")
 	}
 	if err := s.preparePublication(); err != nil {
 		return err
 	}
 	payload, err := json.Marshal(list.Domains)
 	if err != nil {
-		return fmt.Errorf("encode custom service domains: %w", err)
+		return fmt.Errorf("encode custom list domains: %w", err)
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
@@ -84,7 +84,7 @@ func (s *Store) UpdateCustomList(ctx context.Context, list application.CustomLis
 		`UPDATE custom_lists SET title=?,domains_json=?,updated_at_ns=? WHERE id=?`,
 		list.Title, string(payload), list.UpdatedAt.UTC().UnixNano(), list.ID)
 	if err != nil {
-		return fmt.Errorf("update custom service: %w", err)
+		return fmt.Errorf("update custom list: %w", err)
 	}
 	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
 		return application.ErrNotFound
@@ -98,7 +98,7 @@ func (s *Store) CustomLists(ctx context.Context) ([]application.CustomList, erro
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id,title,domains_json,created_at_ns,updated_at_ns FROM custom_lists ORDER BY id ASC LIMIT ?`, customListLimit)
 	if err != nil {
-		return nil, fmt.Errorf("list custom services: %w", err)
+		return nil, fmt.Errorf("list custom lists: %w", err)
 	}
 	defer func() { _ = rows.Close() }()
 	lists := make([]application.CustomList, 0)
@@ -110,7 +110,7 @@ func (s *Store) CustomLists(ctx context.Context) ([]application.CustomList, erro
 		lists = append(lists, list)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("list custom services: %w", err)
+		return nil, fmt.Errorf("list custom lists: %w", err)
 	}
 	return lists, nil
 }

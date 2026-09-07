@@ -6,21 +6,21 @@ import (
 	"time"
 )
 
-// Archiving takes a list off the shelf without taking anything away from the
+// Archiving takes a profile off the shelf without taking anything away from the
 // devices already fed by it. The published file keeps serving, the subscription
 // keeps resolving, and nothing is deleted (ADR 0004): what stops is change.
 //
 // That is the whole invariant, and it is enforced in one place rather than
-// screen by screen. An archived list that could still be edited, rescheduled,
+// screen by screen. An archived profile that could still be edited, rescheduled,
 // bound to a new format or rebuilt would let its stored composition drift away
 // from the bytes its subscribers keep receiving, and the surface would have no
 // honest way to say which of the two it was showing.
 
-// Archived reports whether this list has left the shelf.
+// Archived reports whether this profile has left the shelf.
 func (l Profile) Archived() bool { return !l.ArchivedAt.IsZero() }
 
-// writable refuses every mutation an archived list must not accept. Reads are
-// not routed through it: an archived list is fully readable, and its outputs
+// writable refuses every mutation an archived profile must not accept. Reads are
+// not routed through it: an archived profile is fully readable, and its outputs
 // are fully downloadable.
 func (l Profile) writable() error {
 	if l.Archived() {
@@ -29,16 +29,16 @@ func (l Profile) writable() error {
 	return nil
 }
 
-// ArchiveProfile takes a list off the shelf. Archiving one that is already
-// archived changes nothing and reports the list as it stands: the operator
+// ArchiveProfile takes a profile off the shelf. Archiving one that is already
+// archived changes nothing and reports the profile as it stands: the operator
 // asked for a state, not for a transition, and refusing would only be a way of
 // saying the state is already the one they wanted.
 func (s *PublicationService) ArchiveProfile(ctx context.Context, id string) (Profile, error) {
 	return s.setArchived(ctx, id, true)
 }
 
-// RestoreProfile puts a list back on the shelf. It does not refresh or rebuild:
-// what the list publishes is what it published when it was archived, and
+// RestoreProfile puts a profile back on the shelf. It does not refresh or rebuild:
+// what the profile publishes is what it published when it was archived, and
 // changing that is the operator's next decision rather than this one's side
 // effect.
 func (s *PublicationService) RestoreProfile(ctx context.Context, id string) (Profile, error) {

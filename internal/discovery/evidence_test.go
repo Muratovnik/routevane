@@ -158,7 +158,7 @@ func TestRelationsRecordProvenanceWithoutAssertingOwnership(t *testing.T) {
 		t.Fatalf("observed_in_session = %v", byType[domain.RelationObservedInSession])
 	}
 	if _, err := Relations(evidence, "Bad Id", "learning-session", "revision", now, time.Hour); !errors.Is(err, ErrInvalidEvidence) {
-		t.Fatal("an invalid service identity must be refused")
+		t.Fatal("an invalid list identity must be refused")
 	}
 	if _, err := Relations(evidence, "example", "learning-session", "", now, time.Hour); !errors.Is(err, ErrInvalidEvidence) {
 		t.Fatal("a missing revision must be refused")

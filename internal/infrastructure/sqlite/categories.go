@@ -55,7 +55,7 @@ func validMembership(membership application.CategoryMembership) bool {
 
 // CreateCustomCategory writes one operator-created category and its initial
 // membership in one transaction: a category that existed for a moment without
-// the services it was created with would be a category no one asked for.
+// the lists it was created with would be a category no one asked for.
 func (s *Store) CreateCustomCategory(ctx context.Context, category application.CustomCategory, memberships []application.CategoryMembership) error {
 	if !validCustomCategory(category) || category.CreatedAt.IsZero() || category.UpdatedAt.IsZero() {
 		return fmt.Errorf("invalid custom category")

@@ -186,7 +186,7 @@ func TestTheSchemaRefusesARemovalRecordTheOverlayCannotMean(t *testing.T) {
 		kind string
 		id   string
 	}{
-		{"operator-created list", "service", "custom-1234567890abcdef"},
+		{"operator-created list", "list", "custom-1234567890abcdef"},
 		{"operator-created category", "category", "custom-fedcba0987654321"},
 		{"unknown kind", "route", "youtube"},
 	}

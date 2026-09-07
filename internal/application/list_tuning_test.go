@@ -72,7 +72,7 @@ func TestAddListSourceValidatesAndJoinsTheDefinition(t *testing.T) {
 		t.Fatal("an unknown format was accepted")
 	}
 	if _, err := publication.AddListSource(context.Background(), "absent", "https://my.example/feed", domain.FeedFormatText); !errors.Is(err, ErrNotFound) {
-		t.Fatal("an unknown service was accepted")
+		t.Fatal("an unknown list was accepted")
 	}
 	feed, err := publication.AddListSource(context.Background(), "example", "https://my.example/feed", domain.FeedFormatDomainList)
 	if err != nil {
@@ -101,7 +101,7 @@ func TestAddListSourceValidatesAndJoinsTheDefinition(t *testing.T) {
 			t.Fatalf("feed %d refused: %v", i, err)
 		}
 		if i == maxCustomSourcesPerList-1 && err == nil {
-			t.Fatal("the per-service feed limit was not applied")
+			t.Fatal("the per-list feed limit was not applied")
 		}
 	}
 

@@ -9,8 +9,8 @@ import (
 	"github.com/Muratovnik/routevane/internal/renderers/keenetic"
 )
 
-// categoryTestService wires three services and two overlapping categories, the
-// shape ADR 0016 exists for: one service reachable through more than one
+// categoryTestService wires three lists and two overlapping categories, the
+// shape ADR 0016 exists for: one list reachable through more than one
 // grouping.
 func categoryTestService(t *testing.T) *PublicationService {
 	t.Helper()
@@ -49,7 +49,7 @@ func profileWith(lists, categories, exclusions []string) Profile {
 func joined(values []string) string { return strings.Join(values, ",") }
 
 // Discord is in both categories. It must be planned once, or the target's rule
-// budget is charged twice for one service.
+// budget is charged twice for one list.
 func TestResolutionDeduplicatesAcrossCategories(t *testing.T) {
 	publication := categoryTestService(t)
 	got := publication.ResolvedLists(profileWith(nil, []string{"communication", "games"}, nil))
@@ -58,7 +58,7 @@ func TestResolutionDeduplicatesAcrossCategories(t *testing.T) {
 	}
 }
 
-// A service named directly and also carried by a category appears once.
+// A list named directly and also carried by a category appears once.
 func TestResolutionDeduplicatesNamedAgainstReferenced(t *testing.T) {
 	publication := categoryTestService(t)
 	got := publication.ResolvedLists(profileWith([]string{"discord"}, []string{"games"}, nil))
@@ -77,7 +77,7 @@ func TestExclusionRemovesOneMemberAndKeepsTheReference(t *testing.T) {
 	}
 }
 
-// A category that gains a service reaches every list referencing it without an
+// A category that gains a list reaches every profile referencing it without an
 // edit. That is what makes a reference different from a copy.
 func TestAGrowingCategoryReachesTheProfileWithoutAnEdit(t *testing.T) {
 	publication := categoryTestService(t)
@@ -113,7 +113,7 @@ func TestPrioritySurvivesLiveCategoryChanges(t *testing.T) {
 }
 
 // A category that left the catalog must not fail the read or silently shrink
-// the list without saying so.
+// the profile without saying so.
 func TestAVanishedCategoryIsReportedRatherThanHidden(t *testing.T) {
 	publication := categoryTestService(t)
 	profile := profileWith([]string{"youtube"}, []string{"games", "absent"}, nil)
@@ -132,9 +132,9 @@ func TestCompositionValidation(t *testing.T) {
 		requested ProfileComposition
 		valid     bool
 	}{
-		{"services only", ProfileComposition{Lists: []string{"youtube"}}, true},
+		{"lists only", ProfileComposition{Lists: []string{"youtube"}}, true},
 		{"categories only", ProfileComposition{Categories: []string{"games"}}, true},
-		{"unknown service", ProfileComposition{Lists: []string{"absent"}}, false},
+		{"unknown list", ProfileComposition{Lists: []string{"absent"}}, false},
 		{"unknown category", ProfileComposition{Categories: []string{"absent"}}, false},
 		{"nothing at all", ProfileComposition{}, false},
 		{"named and excluded", ProfileComposition{Lists: []string{"youtube"}, Exclusions: []string{"youtube"}}, false},
@@ -153,8 +153,8 @@ func TestCompositionValidation(t *testing.T) {
 	}
 }
 
-// A category naming a service the composition does not carry would resolve to a
-// silently smaller list at build time.
+// A category naming a list the composition does not carry would resolve to a
+// silently smaller profile at build time.
 func TestCompositionRootRefusesACategoryWithAnUnknownList(t *testing.T) {
 	target := domain.TargetDefinition{ID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID, Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: keenetic.MaxLines, MaxArtifactSize: keenetic.MaxArtifactSize}}
 	_, err := NewPublicationService(PublicationConfig{

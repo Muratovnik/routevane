@@ -132,7 +132,7 @@ func (a adapters) validateSourceDefinitions(definitions ...domain.ListDefinition
 			}
 			revision, installed := a.externalSourceRevisions[source.Type]
 			if !installed {
-				return fmt.Errorf("external source type %q required by service %q is not installed", source.Type, definition.ID)
+				return fmt.Errorf("external source type %q required by list %q is not installed", source.Type, definition.ID)
 			}
 			if revision != source.ImplementationRevision {
 				return fmt.Errorf("external source type %q revision %q does not match catalog revision %q", source.Type, revision, source.ImplementationRevision)

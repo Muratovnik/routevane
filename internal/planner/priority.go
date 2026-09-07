@@ -8,10 +8,10 @@ import (
 )
 
 // ReasonLowerPriorityOverlap records a safe omission: the destination remains
-// routed by a rule owned by a service that the operator placed higher.
+// routed by a rule owned by a list that the operator placed higher.
 const ReasonLowerPriorityOverlap = "lower_priority_overlap"
 
-// ApplyListPriority assigns equal destinations to the first service and
+// ApplyListPriority assigns equal destinations to the first list and
 // removes a lower-priority rule when a higher-priority rule wholly covers it.
 // A broader lower-priority rule remains because deleting it would lose the
 // addresses that only it contributes. The operation therefore changes

@@ -31,11 +31,11 @@ func PreflightPlan(plan domain.RoutingPlan, target domain.TargetDefinition, rend
 		return fmt.Errorf("%w: identity", ErrPreflight)
 	}
 	if len(plan.Lists) == 0 {
-		return fmt.Errorf("%w: service set", ErrPreflight)
+		return fmt.Errorf("%w: list set", ErrPreflight)
 	}
 	for i, listID := range plan.Lists {
 		if domain.ValidateSlug(listID) != nil || (i > 0 && plan.Lists[i-1] >= listID) {
-			return fmt.Errorf("%w: service set", ErrPreflight)
+			return fmt.Errorf("%w: list set", ErrPreflight)
 		}
 	}
 	supported := make(map[domain.RuleKind]struct{})

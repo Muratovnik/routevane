@@ -10,8 +10,8 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-// ListContents is the one table the service card renders: every
-// destination the service currently stands for — domains, IP addresses and
+// ListContents is the one table the list card renders: every
+// destination the list currently stands for — domains, IP addresses and
 // networks — each with where it came from and whether the operator keeps it
 // on. It merges the static definition with the stored observations — the same
 // material the next build reads — so the card and the artifact cannot tell
@@ -20,13 +20,13 @@ type ListContents struct {
 	ListID  string               `json:"list_id"`
 	Rows    []ListContentsRow    `json:"rows"`
 	Sources []ListContentsSource `json:"sources"`
-	// Observed reports whether stored observations exist for this service. A
-	// service that was never refreshed shows only its static rows, and says so
+	// Observed reports whether stored observations exist for this list. A
+	// list that was never refreshed shows only its static rows, and says so
 	// instead of pretending the automatic material is empty.
 	Observed bool `json:"observed"`
 }
 
-// ListContentsRow is one destination of the service. Kind is "domain",
+// ListContentsRow is one destination of the list. Kind is "domain",
 // "ip" or "prefix". Origin names where the value comes from: "catalog" for a
 // shipped seed, "manual" for an operator entry, otherwise the id of the
 // automatic source that observed it. Missing marks a standing verdict whose
@@ -80,8 +80,8 @@ func (s *PublicationService) ListContents(ctx context.Context, listID string) (L
 	}
 	slices.SortFunc(contents.Sources, func(a, b ListContentsSource) int { return cmp.Compare(a.ID, b.ID) })
 
-	// The static truth: shipped seeds are catalog rows for a shipped service
-	// and the operator's own rows for a custom service; verdict includes are
+	// The static truth: shipped seeds are catalog rows for a shipped list
+	// and the operator's own rows for a custom list; verdict includes are
 	// always the operator's.
 	staticOrigin := "catalog"
 	if _, shipped := s.config.Definitions[listID]; !shipped {
@@ -123,7 +123,7 @@ func (s *PublicationService) ListContents(ctx context.Context, listID string) (L
 	case errors.Is(err, ErrNotFound):
 		// Never refreshed: the static rows are the whole story so far.
 	case err != nil:
-		return ListContents{}, fmt.Errorf("read service observations: %w", err)
+		return ListContents{}, fmt.Errorf("read list observations: %w", err)
 	default:
 		contents.Observed = true
 		for _, sighting := range snapshot.Sightings {
@@ -193,9 +193,9 @@ func originRank(origin string) int {
 	}
 }
 
-// RefreshListByID re-observes one service's automatic sources and persists
+// RefreshListByID re-observes one list's automatic sources and persists
 // the result, so the contents table and the next build read the same fresh
-// material. It is the service card's refresh: no list is touched and nothing
+// material. It is the list card's refresh: no list is touched and nothing
 // is published.
 func (s *PublicationService) RefreshListByID(ctx context.Context, listID string) (RefreshSummary, error) {
 	definition, ok := s.definition(listID)

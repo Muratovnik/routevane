@@ -1,4 +1,4 @@
-// Package catalogyaml loads one strict, bounded snapshot of the service
+// Package catalogyaml loads one strict, bounded snapshot of the list
 // catalog. It is a concrete boundary: there is no catalog registry or SDK.
 package catalogyaml
 
@@ -95,7 +95,7 @@ func Load(ctx context.Context, rootPath string) (Catalog, error) {
 		return Catalog{}, err
 	}
 	// Categories take part in the revision because a list resolves its
-	// composition through them: a category that gains a service changes what
+	// composition through them: a category that gains a list changes what
 	// the next plan is built from, and a snapshot that recorded the old
 	// revision would claim otherwise.
 	revision, err := catalogRevision(lists, categories)
@@ -114,7 +114,7 @@ func Load(ctx context.Context, rootPath string) (Catalog, error) {
 }
 
 // optionalYAMLFiles lists one bounded catalog subdirectory. A missing directory
-// is an empty catalog, not a failure: a checkout may legitimately ship services
+// is an empty catalog, not a failure: a checkout may legitimately ship lists
 // with no categories and no targets of its own.
 func optionalYAMLFiles(ctx context.Context, root, dirName, label string, maxFiles int) ([]string, error) {
 	dir := filepath.Join(root, dirName)

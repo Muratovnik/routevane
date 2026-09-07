@@ -1,6 +1,6 @@
-// The transport for a list and its outputs: the product's own unit and the
+// The transport for a profile and its outputs: the product's own unit and the
 // formats bound to it. Composition is resolved on the server, so these
-// handlers pass a request through and never decide what a list contains.
+// handlers pass a request through and never decide what a profile contains.
 package httpapi
 
 import (
@@ -81,7 +81,7 @@ func (h *handler) getProfile(w http.ResponseWriter, r *http.Request, id string) 
 	})
 }
 
-// updateProfile replaces a list's name and composition. It is a POST rather than
+// updateProfile replaces a profile's name and composition. It is a POST rather than
 // a PUT because the mutation guard this transport enforces is written for one
 // verb, and adding a second would widen it for no gain.
 func (h *handler) updateProfile(w http.ResponseWriter, r *http.Request, id string) {
@@ -100,8 +100,8 @@ func (h *handler) updateProfile(w http.ResponseWriter, r *http.Request, id strin
 	writeJSON(w, http.StatusOK, map[string]any{"profile": profile})
 }
 
-// setProfileArchived takes a list off the shelf or puts it back. The reply is the
-// list, so the caller reads the resulting state rather than assuming the verb
+// setProfileArchived takes a profile off the shelf or puts it back. The reply is the
+// profile, so the caller reads the resulting state rather than assuming the verb
 // it sent was the state it got.
 func (h *handler) setProfileArchived(w http.ResponseWriter, r *http.Request, id string, archived bool) {
 	if !decodeEmpty(w, r) {
@@ -119,8 +119,8 @@ func (h *handler) setProfileArchived(w http.ResponseWriter, r *http.Request, id 
 	writeJSON(w, http.StatusOK, map[string]any{"profile": profile})
 }
 
-// updateProfileSchedule records a list's own rule. An empty interval is not a
-// missing value: it is the list going back to following the service-wide
+// updateProfileSchedule records a profile's own rule. An empty interval is not a
+// missing value: it is the profile going back to following the service-wide
 // default, which is a different statement from naming the default's value.
 func (h *handler) updateProfileSchedule(w http.ResponseWriter, r *http.Request, id string) {
 	var request struct {
@@ -142,8 +142,8 @@ func (h *handler) updateProfileSchedule(w http.ResponseWriter, r *http.Request, 
 	writeJSON(w, http.StatusOK, map[string]any{"profile": profile, "schedule": schedule})
 }
 
-// addOutput binds a list to one format. It has no credential yet: the build
-// route issues the subscription only after a valid artifact is published.
+// addOutput binds a profile to one format. It has no credential yet: the build
+// profile issues the subscription only after a valid artifact is published.
 func (h *handler) addOutput(w http.ResponseWriter, r *http.Request, profileID string) {
 	var request struct {
 		TargetID string `json:"target_id"`

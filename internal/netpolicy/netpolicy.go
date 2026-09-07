@@ -82,7 +82,7 @@ func PublicUnicast(address netip.Addr) bool {
 // it unusable as a synthetic destination — the same reason PublicUnicast keeps
 // documentation ranges allowed.
 //
-// Everything that makes an address local, unreachable, or a metadata service is
+// Everything that makes an address local, unreachable, or a metadata list is
 // refused by both, and by the same classification: the two questions share this
 // package precisely so their common answer cannot drift apart.
 func RoutableDestination(address netip.Addr) bool {

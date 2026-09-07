@@ -22,7 +22,7 @@ func TestRemovingAListSubtractsItFromEveryReaderOfTheCatalog(t *testing.T) {
 	}
 
 	if got := joined(publication.Lists()); got != "discord,youtube" {
-		t.Fatalf("services = %s", got)
+		t.Fatalf("lists = %s", got)
 	}
 	for _, detail := range publication.ListDetails() {
 		if detail.ID == "roblox" {
@@ -80,7 +80,7 @@ func TestDeletingAnOperatorCreatedListLeavesNoRemovalRecord(t *testing.T) {
 		t.Fatal("a deleted list still resolves")
 	}
 	if got := joined(publication.Lists()); got != "discord,roblox,youtube" {
-		t.Fatalf("services = %s", got)
+		t.Fatalf("lists = %s", got)
 	}
 	if got := categoryTitles(publication.Categories()); got != "games=discord+roblox video=youtube" {
 		t.Fatalf("categories = %s", got)
@@ -154,14 +154,14 @@ func TestDeletingACategoryDetachesOrDeletesTheListsItHeld(t *testing.T) {
 		t.Fatalf("categories = %s", got)
 	}
 	if got := joined(detached.Lists()); got != "discord,roblox,youtube" {
-		t.Fatalf("detached services = %s", got)
+		t.Fatalf("detached lists = %s", got)
 	}
 	for _, detail := range detached.ListDetails() {
 		if detail.ID == "discord" && len(detail.Categories) != 0 {
 			t.Fatalf("a detached list still names a category: %#v", detail.Categories)
 		}
 	}
-	// A detached list is still nameable by a route: it is in the library, it
+	// A detached list is still nameable by a profile: it is in the library, it
 	// simply belongs to no category.
 	if _, err := detached.CreateProfile(ctx, "Маршрут", ProfileComposition{Lists: []string{"discord"}}); err != nil {
 		t.Fatalf("a detached list could not be named: %v", err)
@@ -175,7 +175,7 @@ func TestDeletingACategoryDetachesOrDeletesTheListsItHeld(t *testing.T) {
 		t.Fatalf("categories = %s", got)
 	}
 	if got := joined(deleted.Lists()); got != "youtube" {
-		t.Fatalf("deleted services = %s", got)
+		t.Fatalf("deleted lists = %s", got)
 	}
 	// One category deletion, three removal records: the category and the two
 	// lists it took with it, all from the same moment.
@@ -189,9 +189,9 @@ func TestDeletingACategoryDetachesOrDeletesTheListsItHeld(t *testing.T) {
 	}
 }
 
-// A route that names the deleted object directly refuses the deletion, naming
+// A profile that names the deleted object directly refuses the deletion, naming
 // itself. Under delete the same refusal covers the lists the category holds:
-// they are as much a direct reference as the category is. An archived route
+// they are as much a direct reference as the category is. An archived profile
 // counts, because restoring one whose content vanished meanwhile is exactly
 // the silent change the refusal exists to prevent.
 func TestDeletingIsRefusedByARouteNamingTheObjectDirectly(t *testing.T) {
@@ -219,7 +219,7 @@ func TestDeletingIsRefusedByARouteNamingTheObjectDirectly(t *testing.T) {
 	}
 
 	// Deleting the category with its lists inherits that refusal and adds its
-	// own: one shape names every route the deletion would break, whether it
+	// own: one shape names every profile the deletion would break, whether it
 	// referenced the category or one of the lists.
 	var categoryInUse CategoryInUseError
 	if err := publication.RemoveCategory(ctx, "games", CategoryListsDelete); !errors.As(err, &categoryInUse) {
@@ -234,7 +234,7 @@ func TestDeletingIsRefusedByARouteNamingTheObjectDirectly(t *testing.T) {
 	}
 
 	// Detaching touches no list, so it inherits none of their references: only
-	// the route naming the category itself refuses it. The two dispositions
+	// the profile naming the category itself refuses it. The two dispositions
 	// answer to different references, which is why the request states one.
 	throughCategory := []ProfileReference{{ID: strings.Repeat("c", 32), Title: "Через категорию"}}
 	if err := publication.RemoveCategory(ctx, "games", CategoryListsDetach); !errors.As(err, &categoryInUse) {
@@ -244,9 +244,9 @@ func TestDeletingIsRefusedByARouteNamingTheObjectDirectly(t *testing.T) {
 		t.Fatalf("detach in use = %#v", categoryInUse)
 	}
 
-	// With that route gone, detaching goes through while deleting still
+	// With that profile gone, detaching goes through while deleting still
 	// refuses, and the lists stay in the library with their direct references
-	// intact: a deletion never rewrote a stored route.
+	// intact: a deletion never rewrote a stored profile.
 	store.profiles = store.profiles[:2]
 	if err := publication.RemoveCategory(ctx, "games", CategoryListsDelete); !errors.As(err, &categoryInUse) {
 		t.Fatalf("delete err = %v", err)
@@ -265,7 +265,7 @@ func TestDeletingIsRefusedByARouteNamingTheObjectDirectly(t *testing.T) {
 	}
 }
 
-// The point of the subtraction: a route that named a category carries less on
+// The point of the subtraction: a profile that named a category carries less on
 // its next build, and the plan says so. The forecast and the planner read the
 // same expansion, so they change together or the artifact would not match what
 // the screen promised.
@@ -316,7 +316,7 @@ func TestRemovingAListChangesWhatAProfileNamingItsCategoryWouldBuild(t *testing.
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(planAfter.Plan.Lists, []string{"discord"}) {
-		t.Fatalf("planned services = %#v", planAfter.Plan.Lists)
+		t.Fatalf("planned lists = %#v", planAfter.Plan.Lists)
 	}
 	if planAfter.Plan.SemanticHash == planBefore.Plan.SemanticHash {
 		t.Fatal("the semantic hash did not change, so the next build would reuse the previous artifact")
@@ -342,6 +342,6 @@ func TestAStoreThatRefusesADeletionLeavesTheLibraryUntouched(t *testing.T) {
 		t.Fatalf("categories = %s, want %s", after, before)
 	}
 	if got := joined(publication.Lists()); got != "discord,roblox,youtube" {
-		t.Fatalf("services = %s", got)
+		t.Fatalf("lists = %s", got)
 	}
 }

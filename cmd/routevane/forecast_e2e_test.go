@@ -38,7 +38,7 @@ manual_installation_hint_en: One rule and not a single one more.
 `
 
 // A composition is forecast over real HTTP, against a real store and a real
-// catalog, before the list that would carry it exists. The user-visible result
+// catalog, before the profile that would carry it exists. The user-visible result
 // is the pair of numbers a screen refuses a device on: what the device holds
 // and what the composition would need. The device that cannot hold it says so
 // here instead of at the first build.
@@ -97,7 +97,7 @@ func TestServeForecastsACompositionBeforeItIsCreated(t *testing.T) {
 		t.Fatalf("targets listing = %s", targets.body)
 	}
 
-	// One list exists and has been observed, so the forecast has real
+	// One profile exists and has been observed, so the forecast has real
 	// observations to plan from. The composition it is asked about is a
 	// different one, and it is never created.
 	created := postJSON(t, origin+"/v1/profiles", `{"name":"Наблюдение","lists":["alpha","beta"]}`)
@@ -121,7 +121,7 @@ func TestServeForecastsACompositionBeforeItIsCreated(t *testing.T) {
 	}
 
 	// Nothing was created by asking. The store still holds the one observed
-	// list, with no output and no attempt behind it.
+	// profile, with no output and no attempt behind it.
 	profiles := httpGet(t, origin+"/v1/profiles", nil)
 	var library struct {
 		Profiles []struct {
@@ -145,7 +145,7 @@ func TestServeForecastsACompositionBeforeItIsCreated(t *testing.T) {
 		t.Fatalf("unknown target status=%d body=%s", status, body)
 	}
 	// A composition that resolves to nothing is refused for the same reason:
-	// there is no such list to forecast.
+	// there is no such profile to forecast.
 	status, body = postForecast(t, origin, `{}`)
 	if status != http.StatusUnprocessableEntity {
 		t.Fatalf("empty composition status=%d body=%s", status, body)

@@ -152,7 +152,7 @@ func TestBuildDraftRecordsManualSeedsAndRefusedHosts(t *testing.T) {
 func TestBuildDraftRefusesAnInvalidIdentityOrTooManyHosts(t *testing.T) {
 	target := testTarget(t, "https://example.com")
 	if _, err := BuildDraft(DraftRequest{Target: target, ListID: "Bad Id", Page: PageLoad{Hosts: []string{"example.com"}}}); !errors.Is(err, ErrInvalidTarget) {
-		t.Fatal("an invalid service identity must be refused")
+		t.Fatal("an invalid list identity must be refused")
 	}
 	if _, err := BuildDraft(DraftRequest{Target: Target{}, ListID: "example"}); !errors.Is(err, ErrInvalidTarget) {
 		t.Fatal("an empty target must be refused")
