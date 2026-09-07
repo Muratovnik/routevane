@@ -36,7 +36,7 @@ func (f fakeResolver) LookupCNAME(_ context.Context, host string) (string, error
 func TestObserverNormalizesDeduplicatesAndRecordsTerminalCNAME(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	resolver := fakeResolver{hosts: map[string][]string{"www.example.com": {"2001:db8::2", "192.0.2.2", "::ffff:192.0.2.1", "192.0.2.2"}}, cnames: map[string]string{"www.example.com": "EDGE.Example.COM."}}
-	result, err := NewObserver(resolver).Observe(context.Background(), Query{ServiceID: "example", ComponentID: "web", SourceID: "dns", Names: []string{"WWW.Example.COM.", "www.example.com"}}, now)
+	result, err := NewObserver(resolver).Observe(context.Background(), Query{ListID: "example", ComponentID: "web", SourceID: "dns", Names: []string{"WWW.Example.COM.", "www.example.com"}}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestObserverNormalizesDeduplicatesAndRecordsTerminalCNAME(t *testing.T) {
 }
 
 func TestObserverErrorsAtomically(t *testing.T) {
-	result, err := NewObserver(fakeResolver{err: errors.New("resolver down")}).Observe(context.Background(), Query{ServiceID: "example", Names: []string{"example.com"}}, time.Now().UTC())
+	result, err := NewObserver(fakeResolver{err: errors.New("resolver down")}).Observe(context.Background(), Query{ListID: "example", Names: []string{"example.com"}}, time.Now().UTC())
 	if err == nil {
 		t.Fatal("expected resolver error")
 	}
@@ -78,7 +78,7 @@ func TestObserverKeepsValidAddressesWhenCNAMEEnrichmentFails(t *testing.T) {
 		hosts:    map[string][]string{"localhost": {"127.0.0.1"}},
 		cnameErr: errors.New("CNAME lookup unsupported"),
 	}
-	result, err := NewObserver(resolver).Observe(context.Background(), Query{ServiceID: "example", Names: []string{"localhost"}}, now)
+	result, err := NewObserver(resolver).Observe(context.Background(), Query{ListID: "example", Names: []string{"localhost"}}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestObserverBoundsUniqueAddresses(t *testing.T) {
 	for i := 0; i < MaxUniqueAddresses+1; i++ {
 		addresses = append(addresses, fmt.Sprintf("2001:db8::%x", i))
 	}
-	result, err := NewObserver(fakeResolver{hosts: map[string][]string{"example.com": addresses}}).Observe(context.Background(), Query{ServiceID: "example", Names: []string{"example.com"}}, time.Now().UTC())
+	result, err := NewObserver(fakeResolver{hosts: map[string][]string{"example.com": addresses}}).Observe(context.Background(), Query{ListID: "example", Names: []string{"example.com"}}, time.Now().UTC())
 	if err == nil || len(result.Sightings) != 0 {
 		t.Fatalf("expected bounded atomic failure, result=%#v err=%v", result, err)
 	}
@@ -103,7 +103,7 @@ func TestObserverDuplicatePermutationIsOneObservation(t *testing.T) {
 	first := fakeResolver{hosts: map[string][]string{"a.example.com": {"192.0.2.2", "192.0.2.1", "192.0.2.2"}, "b.example.com": {"192.0.2.1"}}}
 	second := fakeResolver{hosts: map[string][]string{"a.example.com": {"192.0.2.1", "192.0.2.2"}, "b.example.com": {"192.0.2.1", "192.0.2.1"}}}
 	query := func(names []string, resolver Resolver) Result {
-		result, err := NewObserver(resolver).Observe(context.Background(), Query{ServiceID: "example", ComponentID: "web", SourceID: "dns", Names: names}, now)
+		result, err := NewObserver(resolver).Observe(context.Background(), Query{ListID: "example", ComponentID: "web", SourceID: "dns", Names: names}, now)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -139,14 +139,14 @@ func TestObserverCancellationIsAtomic(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	preCanceled, cancel := context.WithCancel(context.Background())
 	cancel()
-	result, err := NewObserver(&cancellationResolver{cancel: func() {}}).Observe(preCanceled, Query{ServiceID: "example", Names: []string{"a.example.com"}}, now)
+	result, err := NewObserver(&cancellationResolver{cancel: func() {}}).Observe(preCanceled, Query{ListID: "example", Names: []string{"a.example.com"}}, now)
 	if err == nil || len(result.Sightings) != 0 || len(result.Relations) != 0 {
 		t.Fatalf("pre-cancel result=%#v err=%v", result, err)
 	}
 
 	ctx, cancelAfterFirst := context.WithCancel(context.Background())
 	resolver := &cancellationResolver{cancel: cancelAfterFirst}
-	result, err = NewObserver(resolver).Observe(ctx, Query{ServiceID: "example", Names: []string{"a.example.com", "b.example.com"}}, now)
+	result, err = NewObserver(resolver).Observe(ctx, Query{ListID: "example", Names: []string{"a.example.com", "b.example.com"}}, now)
 	if err == nil || len(result.Sightings) != 0 || len(result.Relations) != 0 {
 		t.Fatalf("partial-cancel result=%#v err=%v", result, err)
 	}
@@ -167,7 +167,7 @@ func TestObserverCNAMECancellationRemainsAtomic(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	result, err := NewObserver(&cnameCancellationResolver{cancel: cancel}).Observe(
 		ctx,
-		Query{ServiceID: "example", Names: []string{"a.example.com"}},
+		Query{ListID: "example", Names: []string{"a.example.com"}},
 		time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC),
 	)
 	if err == nil || len(result.Sightings) != 0 || len(result.Relations) != 0 {

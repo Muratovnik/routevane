@@ -11,10 +11,11 @@ import (
 type rawTarget struct {
 	ID        string `yaml:"id"`
 	FormatKey string `yaml:"format_key"`
-	// ProfileKey is the key this format used before ADR 0039 renamed it, so the
-	// word profile could name the operator's own object instead. It is read for
-	// one minor version; a file naming both is refused rather than merged.
-	ProfileKey             string         `yaml:"profile_key"`
+	// RetiredFormatKey is the key this format used before ADR 0039 renamed it,
+	// so the word profile could name the operator's own object instead. It is
+	// read for one minor version; a file naming both is refused rather than
+	// merged.
+	RetiredFormatKey       string         `yaml:"profile_key"`
 	Title                  string         `yaml:"title"`
 	Kind                   string         `yaml:"kind"`
 	Renderer               string         `yaml:"renderer"`
@@ -43,12 +44,12 @@ type rawConstraints struct {
 	MaxLists              int  `yaml:"max_lists"`
 }
 
-func loadTargets(ctx context.Context, root string) (map[string]domain.TargetProfile, string, error) {
+func loadTargets(ctx context.Context, root string) (map[string]domain.TargetDefinition, string, error) {
 	paths, err := targetFiles(ctx, root)
 	if err != nil {
 		return nil, "", err
 	}
-	targets := make(map[string]domain.TargetProfile, len(paths))
+	targets := make(map[string]domain.TargetDefinition, len(paths))
 	total := int64(0)
 	for _, path := range paths {
 		if err := ctx.Err(); err != nil {
@@ -81,27 +82,27 @@ func targetFiles(ctx context.Context, root string) ([]string, error) {
 	return optionalYAMLFiles(ctx, root, "targets", "target", MaxTargetFiles)
 }
 
-func decodeTarget(payload []byte) (domain.TargetProfile, error) {
+func decodeTarget(payload []byte) (domain.TargetDefinition, error) {
 	raw, err := decodeStrictYAML[rawTarget](payload, "empty target YAML", "decode target YAML", "target YAML must contain exactly one document", "unknown or malformed target YAML field")
 	if err != nil {
-		return domain.TargetProfile{}, err
+		return domain.TargetDefinition{}, err
 	}
 	return normalizeTarget(raw)
 }
 
-func normalizeTarget(raw rawTarget) (domain.TargetProfile, error) {
+func normalizeTarget(raw rawTarget) (domain.TargetDefinition, error) {
 	formatKey := raw.FormatKey
-	if raw.ProfileKey != "" {
+	if raw.RetiredFormatKey != "" {
 		if raw.FormatKey != "" {
-			return domain.TargetProfile{}, fmt.Errorf("%w: target %q names both format_key and the retired profile_key", ErrInvalidCatalog, raw.ID)
+			return domain.TargetDefinition{}, fmt.Errorf("%w: target %q names both format_key and the retired profile_key", ErrInvalidCatalog, raw.ID)
 		}
-		formatKey = raw.ProfileKey
+		formatKey = raw.RetiredFormatKey
 	}
 	if domain.ValidateSlug(raw.ID) != nil || domain.ValidateSlug(formatKey) != nil || domain.ValidateSlug(raw.Renderer) != nil {
-		return domain.TargetProfile{}, fmt.Errorf("%w: invalid target identity", ErrInvalidCatalog)
+		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid target identity", ErrInvalidCatalog)
 	}
 	if len(raw.RendererOptions) != 0 {
-		return domain.TargetProfile{}, fmt.Errorf("%w: renderer options are not supported", ErrInvalidCatalog)
+		return domain.TargetDefinition{}, fmt.Errorf("%w: renderer options are not supported", ErrInvalidCatalog)
 	}
 	// A title is optional so a target file written before this field, or by a
 	// plugin author who did not supply one, stays loadable. The identity is the
@@ -111,28 +112,28 @@ func normalizeTarget(raw rawTarget) (domain.TargetProfile, error) {
 		title = raw.ID
 	}
 	if len(title) > 64 || containsControl(title) {
-		return domain.TargetProfile{}, fmt.Errorf("%w: invalid target title", ErrInvalidCatalog)
+		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid target title", ErrInvalidCatalog)
 	}
 	hint := strings.TrimSpace(raw.ManualInstallationHint)
 	if hint == "" || len(hint) > 1024 || containsControl(hint) {
-		return domain.TargetProfile{}, fmt.Errorf("%w: invalid manual installation hint", ErrInvalidCatalog)
+		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid manual installation hint", ErrInvalidCatalog)
 	}
 	// The English name and instruction hold to the same bounds as the catalog's
 	// own language: a translation is the same sentence, not a second field with
 	// its own budget.
 	titleEN, ok := optionalTargetText(raw.TitleEN, 64)
 	if !ok {
-		return domain.TargetProfile{}, fmt.Errorf("%w: invalid English target title", ErrInvalidCatalog)
+		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid English target title", ErrInvalidCatalog)
 	}
 	hintEN, ok := optionalTargetText(raw.ManualInstallationHintEN, 1024)
 	if !ok {
-		return domain.TargetProfile{}, fmt.Errorf("%w: invalid English manual installation hint", ErrInvalidCatalog)
+		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid English manual installation hint", ErrInvalidCatalog)
 	}
 	// The kind is required and closed: a screen groups routers apart from
 	// applications, and there is no honest fallback to guess from.
 	kind := strings.TrimSpace(raw.Kind)
 	if kind != domain.TargetKindRouter && kind != domain.TargetKindApp {
-		return domain.TargetProfile{}, fmt.Errorf("%w: invalid target kind", ErrInvalidCatalog)
+		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid target kind", ErrInvalidCatalog)
 	}
 	constraints := domain.TargetConstraints{
 		SupportsDomainExact:   raw.Constraints.SupportsDomainExact,
@@ -150,15 +151,15 @@ func normalizeTarget(raw rawTarget) (domain.TargetProfile, error) {
 	// it does not, and declaring half of it would leave the split unbounded on
 	// one side.
 	if (constraints.MaxEntriesPerList == 0) != (constraints.MaxLists == 0) {
-		return domain.TargetProfile{}, fmt.Errorf("%w: a target declares both list bounds or neither", ErrInvalidCatalog)
+		return domain.TargetDefinition{}, fmt.Errorf("%w: a target declares both list bounds or neither", ErrInvalidCatalog)
 	}
 	if constraints.MaxEntriesPerList < 0 || constraints.MaxLists < 0 || constraints.MaxEntriesPerList > 100000 || constraints.MaxLists > 100000 {
-		return domain.TargetProfile{}, fmt.Errorf("%w: invalid target list bounds", ErrInvalidCatalog)
+		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid target list bounds", ErrInvalidCatalog)
 	}
 	if (!constraints.SupportsDomainExact && !constraints.SupportsDomainSuffix && !constraints.SupportsIPv4 && !constraints.SupportsIPv6) || constraints.MaxRules <= 0 || constraints.MaxRules > 100000 || constraints.MaxArtifactSize <= 0 || constraints.MaxArtifactSize > 16<<20 {
-		return domain.TargetProfile{}, fmt.Errorf("%w: invalid target constraints", ErrInvalidCatalog)
+		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid target constraints", ErrInvalidCatalog)
 	}
-	return domain.TargetProfile{ID: raw.ID, ProfileKey: formatKey, Title: title, TitleEN: titleEN, Kind: kind, RendererID: raw.Renderer, Constraints: constraints, RendererOptions: []string{}, ManualInstallationHint: hint, ManualInstallationHintEN: hintEN}, nil
+	return domain.TargetDefinition{ID: raw.ID, FormatKey: formatKey, Title: title, TitleEN: titleEN, Kind: kind, RendererID: raw.Renderer, Constraints: constraints, RendererOptions: []string{}, ManualInstallationHint: hint, ManualInstallationHintEN: hintEN}, nil
 }
 
 // optionalTargetText normalizes one catalog field a file may omit entirely.

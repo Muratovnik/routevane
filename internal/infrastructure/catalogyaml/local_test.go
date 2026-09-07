@@ -15,8 +15,8 @@ import (
 	"github.com/Muratovnik/routevane/internal/renderers/singbox"
 )
 
-func draftDefinition() domain.ServiceDefinition {
-	return domain.ServiceDefinition{
+func draftDefinition() domain.ListDefinition {
+	return domain.ListDefinition{
 		ID:         "example",
 		Title:      "example.co.uk",
 		Components: []domain.ComponentDefinition{{ID: "core", Required: true}},
@@ -60,14 +60,14 @@ func TestWriteLocalDraftProducesADefinitionTheProductCanLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, found := catalog.Service("example")
-	if !found || len(service.Sources) != 1 {
-		t.Fatalf("loaded service = %#v", service)
+	list, found := catalog.List("example")
+	if !found || len(list.Sources) != 1 {
+		t.Fatalf("loaded service = %#v", list)
 	}
-	if strings.Join(service.Sources[0].Names, ",") != "example.co.uk,www.example.co.uk" {
-		t.Fatalf("source names are not canonical: %#v", service.Sources[0].Names)
+	if strings.Join(list.Sources[0].Names, ",") != "example.co.uk,www.example.co.uk" {
+		t.Fatalf("source names are not canonical: %#v", list.Sources[0].Names)
 	}
-	if service.Sources[0].Revision == "" {
+	if list.Sources[0].Revision == "" {
 		t.Fatal("a loaded draft source needs an active revision")
 	}
 }
@@ -81,7 +81,7 @@ func TestADiscoveredDraftIsImmediatelyUsableByTheExistingRenderers(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, found := catalog.Service("example")
+	definition, found := catalog.List("example")
 	if !found {
 		t.Fatal("draft did not load")
 	}
@@ -91,16 +91,16 @@ func TestADiscoveredDraftIsImmediatelyUsableByTheExistingRenderers(t *testing.T)
 		t.Fatal(err)
 	}
 	sighting := domain.Sighting{
-		ServiceID: "example", ComponentID: "core", Resource: resource,
+		ListID: "example", ComponentID: "core", Resource: resource,
 		SourceID: "dns-core", SourceClass: domain.SourceObserved, SourceRevision: definition.Sources[0].Revision,
 		ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid,
 	}
 
-	routerTarget := domain.TargetProfile{
-		ID: "keenetic", ProfileKey: keenetic.Version, RendererID: keenetic.ID,
+	routerTarget := domain.TargetDefinition{
+		ID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID,
 		Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: keenetic.MaxLines, MaxArtifactSize: keenetic.MaxArtifactSize},
 	}
-	routerPlan, err := planner.BuildPlanSet([]planner.ServiceInput{{Definition: definition, Sightings: []domain.Sighting{sighting}}}, routerTarget, now)
+	routerPlan, err := planner.BuildPlanSet([]planner.ListInput{{Definition: definition, Sightings: []domain.Sighting{sighting}}}, routerTarget, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,14 +115,14 @@ func TestADiscoveredDraftIsImmediatelyUsableByTheExistingRenderers(t *testing.T)
 		t.Fatalf("router artifact = %s", routerArtifact)
 	}
 
-	clientTarget := domain.TargetProfile{
-		ID: "singbox", ProfileKey: singbox.Version, RendererID: singbox.ID,
+	clientTarget := domain.TargetDefinition{
+		ID: "singbox", FormatKey: singbox.Version, RendererID: singbox.ID,
 		Constraints: domain.TargetConstraints{
 			SupportsDomainExact: true, SupportsDomainSuffix: true, SupportsIPv4: true, SupportsIPv6: true,
 			SupportsPrefixes: true, MaxRules: singbox.MaxEntries, MaxArtifactSize: singbox.MaxArtifactSize,
 		},
 	}
-	clientPlan, err := planner.BuildPlanSet([]planner.ServiceInput{{Definition: definition, Sightings: []domain.Sighting{sighting}}}, clientTarget, now)
+	clientPlan, err := planner.BuildPlanSet([]planner.ListInput{{Definition: definition, Sightings: []domain.Sighting{sighting}}}, clientTarget, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,44 +183,44 @@ func TestWriteLocalDraftNeverReplacesAnExistingDefinition(t *testing.T) {
 func TestWriteLocalDraftRefusesAnUnsafeOrUnloadableDefinition(t *testing.T) {
 	cases := []struct {
 		name       string
-		definition func() domain.ServiceDefinition
+		definition func() domain.ListDefinition
 	}{
-		{"invalid identity", func() domain.ServiceDefinition {
+		{"invalid identity", func() domain.ListDefinition {
 			definition := draftDefinition()
 			definition.ID = "../escape"
 			return definition
 		}},
-		{"address seed", func() domain.ServiceDefinition {
+		{"address seed", func() domain.ListDefinition {
 			definition := draftDefinition()
 			definition.Seeds = []domain.Seed{{Kind: domain.RuleIPv4, Value: "192.0.2.10", ComponentID: "core", SourceClass: domain.SourceManual}}
 			return definition
 		}},
-		{"prefix seed", func() domain.ServiceDefinition {
+		{"prefix seed", func() domain.ListDefinition {
 			definition := draftDefinition()
 			definition.Seeds = []domain.Seed{{Kind: domain.RulePrefix4, Value: "192.0.2.0/24", ComponentID: "core", SourceClass: domain.SourceManual}}
 			return definition
 		}},
-		{"no seed", func() domain.ServiceDefinition {
+		{"no seed", func() domain.ListDefinition {
 			definition := draftDefinition()
 			definition.Seeds = nil
 			return definition
 		}},
-		{"no component", func() domain.ServiceDefinition {
+		{"no component", func() domain.ListDefinition {
 			definition := draftDefinition()
 			definition.Components = nil
 			return definition
 		}},
-		{"feed source", func() domain.ServiceDefinition {
+		{"feed source", func() domain.ListDefinition {
 			definition := draftDefinition()
 			definition.Sources = []domain.SourceDefinition{{ID: "feed", Type: domain.SourceHTTP, ComponentID: "core", URL: "https://feeds.example.com/x", Format: domain.FeedFormatText}}
 			return definition
 		}},
-		{"source without names", func() domain.ServiceDefinition {
+		{"source without names", func() domain.ListDefinition {
 			definition := draftDefinition()
 			definition.Sources = []domain.SourceDefinition{{ID: "dns-core", Type: domain.SourceDNS, ComponentID: "core"}}
 			return definition
 		}},
-		{"unknown component in source", func() domain.ServiceDefinition {
+		{"unknown component in source", func() domain.ListDefinition {
 			definition := draftDefinition()
 			definition.Sources[0].ComponentID = "other"
 			return definition

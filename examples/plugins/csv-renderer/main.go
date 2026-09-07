@@ -31,9 +31,11 @@ const (
 // unrelated diagnostics are added to the document.
 type plan struct {
 	Rules []struct {
-		Kind      string `json:"kind"`
-		Value     string `json:"value"`
-		Service   string `json:"service_id"`
+		Kind  string `json:"kind"`
+		Value string `json:"value"`
+		// The plan's key for a list is still service_id: the plan format is
+		// versioned separately from the product vocabulary (ADR 0039).
+		List      string `json:"service_id"`
 		Component string `json:"component_id"`
 	} `json:"rules"`
 }
@@ -124,10 +126,10 @@ func rowsOf(document []byte) ([]string, error) {
 	rows := make([]string, 0, len(decoded.Rules))
 	seen := map[string]struct{}{}
 	for _, rule := range decoded.Rules {
-		if rule.Kind == "" || rule.Value == "" || rule.Service == "" || rule.Component == "" {
+		if rule.Kind == "" || rule.Value == "" || rule.List == "" || rule.Component == "" {
 			return nil, fmt.Errorf("plan rule is incomplete")
 		}
-		row := strings.Join([]string{rule.Kind, rule.Value, rule.Service, rule.Component}, ",")
+		row := strings.Join([]string{rule.Kind, rule.Value, rule.List, rule.Component}, ",")
 		if _, duplicate := seen[row]; duplicate {
 			continue
 		}

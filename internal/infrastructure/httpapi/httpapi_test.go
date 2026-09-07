@@ -39,25 +39,25 @@ type fakeBackend struct {
 	defaultPriorityErr error
 	storedCredential   string
 	archived           bool
-	createdComposition application.ListComposition
+	createdComposition application.ProfileComposition
 	// forecastComposition and forecastTargets record what the preview route
 	// passed through, so a test can prove the forecast asked about the same
 	// composition the request carried rather than a summary of it.
-	forecastComposition application.ListComposition
+	forecastComposition application.ProfileComposition
 	forecastTargets     []string
-	customServices      []application.CustomService
+	customLists         []application.CustomList
 	// categories is the merged answer the backend would give. categoryEdits
 	// records what each route passed through, so a test can prove the request
 	// reached the application unchanged rather than summarized.
 	categories      []application.CategoryDetail
 	categoryEdits   []application.CategoryUpdate
 	categoryRemoved []string
-	// servicesRemoved records the lists deleted from the library.
-	servicesRemoved []string
-	// categoryInUse and serviceInUse name the routes a deletion is refused
+	// listsRemoved records the lists deleted from the library.
+	listsRemoved []string
+	// categoryInUse and listInUse name the routes a deletion is refused
 	// with. They are separate because the two refusals carry different words.
-	categoryInUse   []application.ListReference
-	serviceInUse    []application.ListReference
+	categoryInUse   []application.ProfileReference
+	listInUse       []application.ProfileReference
 	sourceToggles   []string
 	domainVerdicts  []string
 	transferPayload []byte
@@ -83,7 +83,7 @@ func (f *fakeBackend) ApplyConfigTransfer(_ context.Context, digest string, payl
 	return application.ConfigTransferCounts{}, nil
 }
 
-func (f *fakeBackend) Services() []string { return []string{"example"} }
+func (f *fakeBackend) Lists() []string { return []string{"example"} }
 func (f *fakeBackend) DefaultPriority(context.Context) ([]string, error) {
 	if f.defaultPriority == nil {
 		return []string{"example"}, nil
@@ -97,87 +97,87 @@ func (f *fakeBackend) SetDefaultPriority(_ context.Context, priority []string) e
 	f.defaultPriority = append([]string(nil), priority...)
 	return nil
 }
-func (f *fakeBackend) ServiceDetails() []application.ServiceDetail {
-	return []application.ServiceDetail{{
+func (f *fakeBackend) ListDetails() []application.ListDetail {
+	return []application.ListDetail{{
 		ID: "example", Title: "Example", Categories: []string{"diagnostic"},
-		Domains: []application.ServiceDomain{{Value: "example.com", IncludeSubdomains: true}},
-		Sources: []application.ServiceSource{{ID: "dns", Type: "dns"}, {ID: "vendor", Type: "http"}}, SourceCount: 2,
+		Domains: []application.ListDomain{{Value: "example.com", IncludeSubdomains: true}},
+		Sources: []application.ListSource{{ID: "dns", Type: "dns"}, {ID: "vendor", Type: "http"}}, SourceCount: 2,
 	}}
 }
-func (f *fakeBackend) PreviewService(context.Context, string) (application.ServicePreview, error) {
-	return application.ServicePreview{
-		ServiceID: "example",
-		Sources: []application.ServiceSourcePreview{
+func (f *fakeBackend) PreviewList(context.Context, string) (application.ListPreview, error) {
+	return application.ListPreview{
+		ListID: "example",
+		Sources: []application.ListSourcePreview{
 			{ID: "dns", Type: "dns", Status: "ready", Domains: []string{}, AddressCount: 2},
 			{ID: "vendor", Type: "http", Status: "ready", Domains: []string{"api.example.com"}, DomainCount: 1},
 		},
 		Domains: []string{"api.example.com"}, DomainCount: 1, AddressCount: 2,
 	}, nil
 }
-func (f *fakeBackend) CreateCustomService(_ context.Context, title string, domains []string) (application.CustomService, error) {
-	service := application.CustomService{ID: "custom-1234567890abcdef", Title: title, Domains: domains}
-	f.customServices = append(f.customServices, service)
-	return service, nil
+func (f *fakeBackend) CreateCustomList(_ context.Context, title string, domains []string) (application.CustomList, error) {
+	list := application.CustomList{ID: "custom-1234567890abcdef", Title: title, Domains: domains}
+	f.customLists = append(f.customLists, list)
+	return list, nil
 }
-func (f *fakeBackend) UpdateCustomService(_ context.Context, id, title string, domains []string) (application.CustomService, error) {
-	for index, service := range f.customServices {
-		if service.ID == id {
-			f.customServices[index] = application.CustomService{ID: id, Title: title, Domains: domains}
-			return f.customServices[index], nil
+func (f *fakeBackend) UpdateCustomList(_ context.Context, id, title string, domains []string) (application.CustomList, error) {
+	for index, list := range f.customLists {
+		if list.ID == id {
+			f.customLists[index] = application.CustomList{ID: id, Title: title, Domains: domains}
+			return f.customLists[index], nil
 		}
 	}
-	return application.CustomService{}, application.ErrNotFound
+	return application.CustomList{}, application.ErrNotFound
 }
-func (f *fakeBackend) ServiceContents(_ context.Context, serviceID string) (application.ServiceContents, error) {
-	return application.ServiceContents{
-		ServiceID: serviceID,
-		Rows: []application.ServiceContentsRow{
+func (f *fakeBackend) ListContents(_ context.Context, listID string) (application.ListContents, error) {
+	return application.ListContents{
+		ListID: listID,
+		Rows: []application.ListContentsRow{
 			{Value: "example.com", Kind: "domain", Origin: "catalog", Enabled: true},
 			{Value: "198.51.100.7", Kind: "ip", Origin: "manual", Enabled: true},
 		},
-		Sources: []application.ServiceContentsSource{
+		Sources: []application.ListContentsSource{
 			{ID: "dns", Type: "dns", Enabled: true},
 		},
 		Observed: true,
 	}, nil
 }
-func (f *fakeBackend) RefreshServiceByID(_ context.Context, serviceID string) (application.RefreshSummary, error) {
-	return application.RefreshSummary{ServiceID: serviceID, SourceRuns: 1, SuccessfulRuns: 1}, nil
+func (f *fakeBackend) RefreshListByID(_ context.Context, listID string) (application.RefreshSummary, error) {
+	return application.RefreshSummary{ListID: listID, SourceRuns: 1, SuccessfulRuns: 1}, nil
 }
-func (f *fakeBackend) SetServiceSourceEnabled(_ context.Context, serviceID, sourceID string, enabled bool) error {
-	f.sourceToggles = append(f.sourceToggles, serviceID+"/"+sourceID+"="+strconv.FormatBool(enabled))
+func (f *fakeBackend) SetListSourceEnabled(_ context.Context, listID, sourceID string, enabled bool) error {
+	f.sourceToggles = append(f.sourceToggles, listID+"/"+sourceID+"="+strconv.FormatBool(enabled))
 	return nil
 }
-func (f *fakeBackend) AddServiceSource(_ context.Context, serviceID, url string, format domain.FeedFormat) (application.CustomSource, error) {
-	return application.CustomSource{ID: "feed-1234567890abcdef", ServiceID: serviceID, URL: url, Format: format}, nil
+func (f *fakeBackend) AddListSource(_ context.Context, listID, url string, format domain.FeedFormat) (application.CustomSource, error) {
+	return application.CustomSource{ID: "feed-1234567890abcdef", ListID: listID, URL: url, Format: format}, nil
 }
-func (f *fakeBackend) RemoveServiceSource(_ context.Context, serviceID, sourceID string) error {
-	f.sourceToggles = append(f.sourceToggles, serviceID+"/"+sourceID+"=removed")
+func (f *fakeBackend) RemoveListSource(_ context.Context, listID, sourceID string) error {
+	f.sourceToggles = append(f.sourceToggles, listID+"/"+sourceID+"=removed")
 	return nil
 }
-func (f *fakeBackend) SetServiceValues(_ context.Context, serviceID string, values []string, verdict application.DomainVerdict) error {
+func (f *fakeBackend) SetListValues(_ context.Context, listID string, values []string, verdict application.DomainVerdict) error {
 	for _, value := range values {
 		if value == "not a destination" {
 			return application.InvalidDestinationError{Value: value}
 		}
 	}
-	f.domainVerdicts = append(f.domainVerdicts, serviceID+"/"+strings.Join(values, ",")+"="+string(verdict))
+	f.domainVerdicts = append(f.domainVerdicts, listID+"/"+strings.Join(values, ",")+"="+string(verdict))
 	return nil
 }
 func (f *fakeBackend) Categories() []application.CategoryDetail {
 	if len(f.categories) > 0 {
 		return f.categories
 	}
-	return []application.CategoryDetail{{ID: "diagnostic", Title: "Diagnostic", Services: []string{"example"}}}
+	return []application.CategoryDetail{{ID: "diagnostic", Title: "Diagnostic", Lists: []string{"example"}}}
 }
 
-func (f *fakeBackend) CreateCategory(_ context.Context, title string, services []string) (application.CategoryDetail, error) {
+func (f *fakeBackend) CreateCategory(_ context.Context, title string, lists []string) (application.CategoryDetail, error) {
 	if strings.TrimSpace(title) == "" {
 		return application.CategoryDetail{}, errors.New("invalid category title")
 	}
-	category := application.CategoryDetail{ID: "custom-1234567890abcdef", Title: title, Services: services, Custom: true}
-	if category.Services == nil {
-		category.Services = []string{}
+	category := application.CategoryDetail{ID: "custom-1234567890abcdef", Title: title, Lists: lists, Custom: true}
+	if category.Lists == nil {
+		category.Lists = []string{}
 	}
 	f.categories = append(f.categories, category)
 	return category, nil
@@ -190,18 +190,18 @@ func (f *fakeBackend) UpdateCategory(_ context.Context, id string, update applic
 		if update.Title != nil {
 			return application.CategoryDetail{}, application.ErrCatalogCategory
 		}
-		services := []string{"example"}
-		if update.Services != nil {
-			services = *update.Services
+		lists := []string{"example"}
+		if update.Lists != nil {
+			lists = *update.Lists
 		}
-		return application.CategoryDetail{ID: id, Title: "Diagnostic", Services: services}, nil
+		return application.CategoryDetail{ID: id, Title: "Diagnostic", Lists: lists}, nil
 	case "custom-1234567890abcdef":
-		category := application.CategoryDetail{ID: id, Title: "Мои списки", Services: []string{}, Custom: true}
+		category := application.CategoryDetail{ID: id, Title: "Мои списки", Lists: []string{}, Custom: true}
 		if update.Title != nil {
 			category.Title = *update.Title
 		}
-		if update.Services != nil {
-			category.Services = *update.Services
+		if update.Lists != nil {
+			category.Lists = *update.Lists
 		}
 		return category, nil
 	default:
@@ -209,30 +209,30 @@ func (f *fakeBackend) UpdateCategory(_ context.Context, id string, update applic
 	}
 }
 
-func (f *fakeBackend) RemoveCategory(_ context.Context, id string, lists application.CategoryListDisposition) error {
+func (f *fakeBackend) RemoveCategory(_ context.Context, id string, profiles application.CategoryListDisposition) error {
 	switch {
-	case lists != application.CategoryListsDetach && lists != application.CategoryListsDelete:
+	case profiles != application.CategoryListsDetach && profiles != application.CategoryListsDelete:
 		return errors.New("invalid category list disposition")
 	case id != "diagnostic" && id != "custom-1234567890abcdef":
 		return application.ErrNotFound
 	case len(f.categoryInUse) > 0:
-		return application.CategoryInUseError{CategoryID: id, Lists: f.categoryInUse}
+		return application.CategoryInUseError{CategoryID: id, Profiles: f.categoryInUse}
 	}
-	f.categoryRemoved = append(f.categoryRemoved, id+":"+string(lists))
+	f.categoryRemoved = append(f.categoryRemoved, id+":"+string(profiles))
 	return nil
 }
 
-func (f *fakeBackend) RemoveService(_ context.Context, id string) error {
+func (f *fakeBackend) RemoveList(_ context.Context, id string) error {
 	switch {
 	case id != "example" && id != "custom-1234567890abcdef":
 		return application.ErrNotFound
-	case len(f.serviceInUse) > 0:
-		return application.ServiceInUseError{ServiceID: id, Lists: f.serviceInUse}
+	case len(f.listInUse) > 0:
+		return application.ListInUseError{ListID: id, Profiles: f.listInUse}
 	}
-	f.servicesRemoved = append(f.servicesRemoved, id)
+	f.listsRemoved = append(f.listsRemoved, id)
 	return nil
 }
-func (f *fakeBackend) ResolvedServices(application.List) []string { return []string{"example"} }
+func (f *fakeBackend) ResolvedLists(application.Profile) []string { return []string{"example"} }
 func (f *fakeBackend) DefaultRefreshInterval(context.Context) (application.RefreshInterval, error) {
 	return application.RefreshOff, nil
 }
@@ -240,22 +240,22 @@ func (f *fakeBackend) SetDefaultRefreshInterval(_ context.Context, interval appl
 	f.defaultInterval = interval
 	return nil
 }
-func (f *fakeBackend) SetListRefreshInterval(_ context.Context, _ string, interval application.RefreshInterval) (application.List, error) {
-	return application.List{ID: strings.Repeat("a", 32), RefreshInterval: interval}, nil
+func (f *fakeBackend) SetProfileRefreshInterval(_ context.Context, _ string, interval application.RefreshInterval) (application.Profile, error) {
+	return application.Profile{ID: strings.Repeat("a", 32), RefreshInterval: interval}, nil
 }
-func (f *fakeBackend) ListSchedule(_ context.Context, list application.List) (application.Schedule, error) {
-	return application.ScheduleOf(list, application.RefreshOff), nil
+func (f *fakeBackend) ProfileSchedule(_ context.Context, profile application.Profile) (application.Schedule, error) {
+	return application.ScheduleOf(profile, application.RefreshOff), nil
 }
 
-func (f *fakeBackend) MissingCategories(application.List) []string { return []string{} }
+func (f *fakeBackend) MissingCategories(application.Profile) []string { return []string{} }
 func (f *fakeBackend) Targets() []application.TargetOption {
 	return []application.TargetOption{
 		{
-			ID: "keenetic", Title: "Keenetic", ProfileKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat",
+			ID: "keenetic", Title: "Keenetic", FormatKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat",
 			FileExtension: "bat", ManualInstallationHint: "Import the file.",
 		},
 		{
-			ID: "singbox", Title: "sing-box", ProfileKey: "singbox-source-json-v1", RendererID: "singbox-ruleset-json",
+			ID: "singbox", Title: "sing-box", FormatKey: "singbox-source-json-v1", RendererID: "singbox-ruleset-json",
 			FileExtension: "json", ManualInstallationHint: "Reference the file.",
 		},
 	}
@@ -283,24 +283,24 @@ func (f *fakeBackend) Export(_ context.Context, _ string, formatID string) (appl
 		Payload:    []byte("route ADD 198.51.100.8 MASK 255.255.255.255 0.0.0.0\r\n"),
 	}, nil
 }
-func (f *fakeBackend) CreateList(_ context.Context, _ string, composition application.ListComposition) (application.List, error) {
+func (f *fakeBackend) CreateProfile(_ context.Context, _ string, composition application.ProfileComposition) (application.Profile, error) {
 	f.createdComposition = composition
-	return application.List{ID: strings.Repeat("a", 32)}, nil
+	return application.Profile{ID: strings.Repeat("a", 32)}, nil
 }
 
 // ForecastComposition answers the way the application does: an unknown target
 // is refused with a plain error rather than answered with silence, and a known
 // one comes back with the numbers a screen refuses on.
-func (f *fakeBackend) ForecastComposition(_ context.Context, composition application.ListComposition, targets []string) ([]application.CompositionForecast, error) {
+func (f *fakeBackend) ForecastComposition(_ context.Context, composition application.ProfileComposition, targets []string) ([]application.CompositionForecast, error) {
 	f.forecastComposition, f.forecastTargets = composition, targets
 	known := map[string]application.CompositionForecast{
 		"keenetic": {
 			TargetID: "keenetic", MaximumRules: 1024, ProjectedRules: 1742, Fits: false,
-			PerService: []application.ServiceRuleForecast{{ServiceID: "twitch", Rules: 1230}, {ServiceID: "youtube", Rules: 512}},
+			PerList: []application.ListRuleForecast{{ListID: "twitch", Rules: 1230}, {ListID: "youtube", Rules: 512}},
 		},
 		"singbox": {
 			TargetID: "singbox", MaximumRules: 8192, ProjectedRules: 1742, Fits: true,
-			PerService: []application.ServiceRuleForecast{{ServiceID: "twitch", Rules: 1230}, {ServiceID: "youtube", Rules: 512}},
+			PerList: []application.ListRuleForecast{{ListID: "twitch", Rules: 1230}, {ListID: "youtube", Rules: 512}},
 		},
 	}
 	forecasts := make([]application.CompositionForecast, 0, len(targets))
@@ -314,29 +314,29 @@ func (f *fakeBackend) ForecastComposition(_ context.Context, composition applica
 	}
 	return forecasts, nil
 }
-func (f *fakeBackend) List(context.Context, string) (application.List, error) {
-	return application.List{ID: strings.Repeat("a", 32)}, nil
+func (f *fakeBackend) Profile(context.Context, string) (application.Profile, error) {
+	return application.Profile{ID: strings.Repeat("a", 32)}, nil
 }
-func (f *fakeBackend) UpdateList(context.Context, string, string, application.ListComposition) (application.List, error) {
+func (f *fakeBackend) UpdateProfile(context.Context, string, string, application.ProfileComposition) (application.Profile, error) {
 	if f.archived {
-		return application.List{}, application.ErrListArchived
+		return application.Profile{}, application.ErrProfileArchived
 	}
-	return application.List{ID: strings.Repeat("a", 32)}, nil
+	return application.Profile{ID: strings.Repeat("a", 32)}, nil
 }
 
 // archived records the state the last archive/restore call asked for, so a
 // test can prove the route reached the right verb rather than a shared one.
-func (f *fakeBackend) ArchiveList(context.Context, string) (application.List, error) {
+func (f *fakeBackend) ArchiveProfile(context.Context, string) (application.Profile, error) {
 	f.archived = true
-	return application.List{ID: strings.Repeat("a", 32), ArchivedAt: time.Unix(0, 1).UTC()}, nil
+	return application.Profile{ID: strings.Repeat("a", 32), ArchivedAt: time.Unix(0, 1).UTC()}, nil
 }
-func (f *fakeBackend) RestoreList(context.Context, string) (application.List, error) {
+func (f *fakeBackend) RestoreProfile(context.Context, string) (application.Profile, error) {
 	f.archived = false
-	return application.List{ID: strings.Repeat("a", 32)}, nil
+	return application.Profile{ID: strings.Repeat("a", 32)}, nil
 }
-func (f *fakeBackend) ListCards(context.Context) ([]application.ListCard, error) {
-	return []application.ListCard{{
-		ID: strings.Repeat("a", 32), Name: "Example list", Services: []string{"example"},
+func (f *fakeBackend) ProfileCards(context.Context) ([]application.ProfileCard, error) {
+	return []application.ProfileCard{{
+		ID: strings.Repeat("a", 32), Name: "Example list", Lists: []string{"example"},
 		Outputs: []application.OutputCard{{
 			ID: strings.Repeat("a", 32), TargetID: "keenetic", TargetTitle: "Keenetic",
 			TargetKind: "router", FileExtension: "bat",
@@ -636,18 +636,18 @@ func TestSubscriptionConditionalResponsesAndSecretFreeLogs(t *testing.T) {
 	}
 }
 
-func TestServicesAndBuildUseBoundedSafeDTOs(t *testing.T) {
+func TestListsAndBuildUseBoundedSafeDTOs(t *testing.T) {
 	server, err := New("http://127.0.0.1:8765", testBackend(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	services := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/lists", nil)
-	services.Host = "127.0.0.1:8765"
-	services.RemoteAddr = "127.0.0.1:1"
-	servicesResponse := httptest.NewRecorder()
-	server.Handler().ServeHTTP(servicesResponse, services)
-	if servicesResponse.Code != http.StatusOK || !strings.Contains(servicesResponse.Body.String(), `"lists":["example"]`) || !strings.Contains(servicesResponse.Body.String(), `"list_details":[{"id":"example","title":"Example","categories":["diagnostic"],"domains":[{"value":"example.com","include_subdomains":true}],"sources":[{"id":"dns","type":"dns"},{"id":"vendor","type":"http"}],"source_count":2}]`) {
-		t.Fatalf("services response=%d %s", servicesResponse.Code, servicesResponse.Body.String())
+	lists := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/lists", nil)
+	lists.Host = "127.0.0.1:8765"
+	lists.RemoteAddr = "127.0.0.1:1"
+	listsResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(listsResponse, lists)
+	if listsResponse.Code != http.StatusOK || !strings.Contains(listsResponse.Body.String(), `"lists":["example"]`) || !strings.Contains(listsResponse.Body.String(), `"list_details":[{"id":"example","title":"Example","categories":["diagnostic"],"domains":[{"value":"example.com","include_subdomains":true}],"sources":[{"id":"dns","type":"dns"},{"id":"vendor","type":"http"}],"source_count":2}]`) {
+		t.Fatalf("services response=%d %s", listsResponse.Code, listsResponse.Body.String())
 	}
 	preview := mutationRequest(t, "/v1/lists/example/preview", `{}`)
 	previewResponse := httptest.NewRecorder()
@@ -728,8 +728,8 @@ func TestOneOffExportListsFormatsAndDoesNotUseAnOutputArtifact(t *testing.T) {
 		t.Fatalf("formats response=%d %s", formatsResponse.Code, formatsResponse.Body.String())
 	}
 
-	listID := strings.Repeat("a", 32)
-	export := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8765/v1/profiles/"+listID+"/export", strings.NewReader(`{"format_id":"keenetic"}`))
+	profileID := strings.Repeat("a", 32)
+	export := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8765/v1/profiles/"+profileID+"/export", strings.NewReader(`{"format_id":"keenetic"}`))
 	export.Host = "127.0.0.1:8765"
 	export.RemoteAddr = "127.0.0.1:1"
 	export.Header.Set("Content-Type", "application/json")
@@ -739,7 +739,7 @@ func TestOneOffExportListsFormatsAndDoesNotUseAnOutputArtifact(t *testing.T) {
 	if exportResponse.Code != http.StatusOK || !strings.Contains(exportResponse.Body.String(), "route ADD") {
 		t.Fatalf("export response=%d %q", exportResponse.Code, exportResponse.Body.String())
 	}
-	if got := exportResponse.Header().Get("Content-Disposition"); got != `attachment; filename="routevane-`+listID+`-keenetic.bat"` {
+	if got := exportResponse.Header().Get("Content-Disposition"); got != `attachment; filename="routevane-`+profileID+`-keenetic.bat"` {
 		t.Fatalf("content disposition=%q", got)
 	}
 	if exportResponse.Header().Get("Cache-Control") != "no-store" {
@@ -880,7 +880,7 @@ func TestStaticRevalidationKeepsTheCachingContract(t *testing.T) {
 func testPublishedBuild() application.PublishedBuild {
 	createdAt := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	return application.PublishedBuild{
-		Output:   application.Output{ID: strings.Repeat("a", 32), ListID: strings.Repeat("a", 32), TargetID: "keenetic"},
+		Output:   application.Output{ID: strings.Repeat("a", 32), ProfileID: strings.Repeat("a", 32), TargetID: "keenetic"},
 		Snapshot: application.PlanSnapshotRecord{ID: strings.Repeat("b", 32), OutputID: strings.Repeat("a", 32), RoutingPlanHash: strings.Repeat("c", 64), RoutingPlanJSON: []byte(`{"canary":"RAW-PLAN-CANARY"}`), PolicyVersion: "m1", CatalogRevision: strings.Repeat("d", 64), ObservationCutoff: createdAt, CreatedAt: createdAt, Status: "valid"},
 		Artifact: application.ArtifactBuildRecord{ID: strings.Repeat("e", 32), OutputID: strings.Repeat("a", 32), PlanSnapshotID: strings.Repeat("b", 32), RendererID: "keenetic-route-bat", RendererVersion: "keenetic-bat-ipv4-v1", ArtifactHash: strings.Repeat("f", 64), SizeBytes: 42, ContentType: "application/x-bat", ContentCreatedAt: createdAt, ValidationStatus: "valid", Status: "published"},
 		Summary:  application.PublishedBuildSummary{RuleCount: 2, PartialCoverage: true, PartialCoverageCount: 1, ContentCreatedAt: createdAt, ValidationStatus: "valid", Status: "published"},
@@ -1081,7 +1081,7 @@ func TestConfigTransferErrorsUseVersionedCodes(t *testing.T) {
 	}
 }
 
-func TestCreateListPassesListLocalDomainOverrides(t *testing.T) {
+func TestCreateProfilePassesListLocalDomainOverrides(t *testing.T) {
 	backend := testBackend()
 	server, err := New("http://127.0.0.1:8765", backend, nil)
 	if err != nil {
@@ -1094,7 +1094,7 @@ func TestCreateListPassesListLocalDomainOverrides(t *testing.T) {
 		t.Fatalf("code=%d body=%s", response.Code, response.Body.String())
 	}
 	want := map[string][]string{"example": {"custom.example"}}
-	if !reflect.DeepEqual(backend.createdComposition.ServiceDomains, want) {
+	if !reflect.DeepEqual(backend.createdComposition.ListDomains, want) {
 		t.Fatalf("composition=%#v", backend.createdComposition)
 	}
 	if !reflect.DeepEqual(backend.createdComposition.Priority, []string{"example"}) {
@@ -1126,9 +1126,9 @@ func TestCompositionForecastAnswersEveryRequestedTargetWithItsOwnNumbers(t *test
 	// The composition reaches the forecast whole. A screen that forecast only
 	// the named services would promise a number for a different list than the
 	// one it is about to create.
-	wantComposition := application.ListComposition{
-		Services: []string{"youtube", "twitch"}, Categories: []string{"video"}, Exclusions: []string{"vimeo"},
-		ServiceDomains: map[string][]string{"youtube": {"custom.example"}}, Priority: []string{"twitch", "youtube"},
+	wantComposition := application.ProfileComposition{
+		Lists: []string{"youtube", "twitch"}, Categories: []string{"video"}, Exclusions: []string{"vimeo"},
+		ListDomains: map[string][]string{"youtube": {"custom.example"}}, Priority: []string{"twitch", "youtube"},
 	}
 	if !reflect.DeepEqual(backend.forecastComposition, wantComposition) {
 		t.Fatalf("composition=%#v", backend.forecastComposition)
@@ -1228,7 +1228,7 @@ func TestDestinationVerdictsTravelAsOneBatchAndAnswerWithTheContents(t *testing.
 func TestDeployTakesTheCredentialAndNeverReturnsOrLogsIt(t *testing.T) {
 	backend := testBackend()
 	backend.deployResult = application.DeployResult{
-		Device:     application.DeviceInfo{DeployerID: "keenetic-route-bat", Vendor: "Keenetic", FirmwareVersion: "5.1.2", ProfileKey: "keenetic-bat-ipv4-v1", Interface: "Wireguard0"},
+		Device:     application.DeviceInfo{DeployerID: "keenetic-route-bat", Vendor: "Keenetic", FirmwareVersion: "5.1.2", FormatKey: "keenetic-bat-ipv4-v1", Interface: "Wireguard0"},
 		Backup:     application.BackupRef{ID: strings.Repeat("f", 64), Path: "backups/x", Hash: strings.Repeat("f", 64), SizeBytes: 12, CreatedAt: time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)},
 		ArtifactID: strings.Repeat("c", 32),
 		Applied:    true,
@@ -1366,7 +1366,7 @@ func TestDeployReportsAFailureWithItsAuditTrail(t *testing.T) {
 	}
 }
 
-func TestListListingServesTheLibraryRows(t *testing.T) {
+func TestProfileListingServesTheLibraryRows(t *testing.T) {
 	server, err := New("http://127.0.0.1:8765", testBackend(), nil)
 	if err != nil {
 		t.Fatal(err)
@@ -1379,7 +1379,7 @@ func TestListListingServesTheLibraryRows(t *testing.T) {
 		t.Fatalf("code=%d body=%s", response.Code, response.Body.String())
 	}
 	var decoded struct {
-		Profiles []application.ListCard `json:"profiles"`
+		Profiles []application.ProfileCard `json:"profiles"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &decoded); err != nil {
 		t.Fatal(err)
@@ -1407,7 +1407,7 @@ func TestArchiveAndRestoreAreSeparateVerbsAndAnArchivedEditConflicts(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	listID := strings.Repeat("a", 32)
+	profileID := strings.Repeat("a", 32)
 	post := func(path, body string) *httptest.ResponseRecorder {
 		t.Helper()
 		request := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8765"+path, strings.NewReader(body))
@@ -1419,40 +1419,40 @@ func TestArchiveAndRestoreAreSeparateVerbsAndAnArchivedEditConflicts(t *testing.
 		return response
 	}
 
-	archived := post("/v1/profiles/"+listID+"/archive", `{}`)
+	archived := post("/v1/profiles/"+profileID+"/archive", `{}`)
 	if archived.Code != http.StatusOK || !backend.archived {
 		t.Fatalf("archive code=%d archived=%v body=%s", archived.Code, backend.archived, archived.Body.String())
 	}
 	var decoded struct {
-		Profile application.List `json:"profile"`
+		Format application.Profile `json:"profile"`
 	}
 	if err := json.Unmarshal(archived.Body.Bytes(), &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if !decoded.Profile.Archived() {
+	if !decoded.Format.Archived() {
 		t.Fatalf("the reply must state the resulting state: %s", archived.Body.String())
 	}
 
 	// Repeating the same verb is still the same state, and an edit is refused
 	// with a conflict rather than an unprocessable body.
-	if again := post("/v1/profiles/"+listID+"/archive", `{}`); again.Code != http.StatusOK || !backend.archived {
+	if again := post("/v1/profiles/"+profileID+"/archive", `{}`); again.Code != http.StatusOK || !backend.archived {
 		t.Fatalf("repeat archive code=%d archived=%v", again.Code, backend.archived)
 	}
-	edit := post("/v1/profiles/"+listID+"/update", `{"name":"renamed","lists":["example"]}`)
+	edit := post("/v1/profiles/"+profileID+"/update", `{"name":"renamed","lists":["example"]}`)
 	if edit.Code != http.StatusConflict {
 		t.Fatalf("editing an archived list code=%d body=%s", edit.Code, edit.Body.String())
 	}
 
-	restored := post("/v1/profiles/"+listID+"/restore", `{}`)
+	restored := post("/v1/profiles/"+profileID+"/restore", `{}`)
 	if restored.Code != http.StatusOK || backend.archived {
 		t.Fatalf("restore code=%d archived=%v", restored.Code, backend.archived)
 	}
-	if edit := post("/v1/profiles/"+listID+"/update", `{"name":"renamed","lists":["example"]}`); edit.Code != http.StatusOK {
+	if edit := post("/v1/profiles/"+profileID+"/update", `{"name":"renamed","lists":["example"]}`); edit.Code != http.StatusOK {
 		t.Fatalf("editing a restored list code=%d body=%s", edit.Code, edit.Body.String())
 	}
 
 	// Archiving is a mutation, so the guarded verb is the only one served.
-	read := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/profiles/"+listID+"/archive", nil)
+	read := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765/v1/profiles/"+profileID+"/archive", nil)
 	read.RemoteAddr = "127.0.0.1:54321"
 	refused := httptest.NewRecorder()
 	server.Handler().ServeHTTP(refused, read)
@@ -1509,8 +1509,8 @@ var everyAPIPath = []struct {
 	{"/v1/lists/example/contents", "lists.contents"},
 	{"/v1/lists/example/refresh", "lists.refresh"},
 	{"/v1/lists/example/sources", "lists.sources"},
-	{"/v1/lists/example/sources/feed-1234567890abcdef/update", "services.sources.update"},
-	{"/v1/lists/example/sources/feed-1234567890abcdef/remove", "services.sources.remove"},
+	{"/v1/lists/example/sources/feed-1234567890abcdef/update", "lists.sources.update"},
+	{"/v1/lists/example/sources/feed-1234567890abcdef/remove", "lists.sources.remove"},
 	{"/v1/lists/example/domains", "lists.domains"},
 	{"/v1/categories", "categories.create"},
 	{"/v1/categories/custom-1234567890abcdef/update", "categories.update"},
@@ -1746,13 +1746,13 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 	// must carry that difference: omitting services leaves membership alone,
 	// while sending an empty array clears it.
 	membersOnly, titleOnly, cleared := backend.categoryEdits[1], backend.categoryEdits[2], backend.categoryEdits[3]
-	if membersOnly.Title != nil || membersOnly.Services == nil {
+	if membersOnly.Title != nil || membersOnly.Lists == nil {
 		t.Fatalf("a membership-only edit reached the backend as %#v", membersOnly)
 	}
-	if titleOnly.Title == nil || titleOnly.Services != nil {
+	if titleOnly.Title == nil || titleOnly.Lists != nil {
 		t.Fatalf("a title-only edit reached the backend as %#v", titleOnly)
 	}
-	if cleared.Title != nil || cleared.Services == nil || len(*cleared.Services) != 0 {
+	if cleared.Title != nil || cleared.Lists == nil || len(*cleared.Lists) != 0 {
 		t.Fatalf("an empty membership reached the backend as %#v", cleared)
 	}
 
@@ -1772,7 +1772,7 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 	if unknown := send("/v1/categories/absent/remove", `{"lists":"detach"}`); unknown.Code != http.StatusNotFound {
 		t.Fatalf("unknown deletion code=%d body=%s", unknown.Code, unknown.Body.String())
 	}
-	backend.categoryInUse = []application.ListReference{
+	backend.categoryInUse = []application.ProfileReference{
 		{ID: strings.Repeat("a", 32), Title: "Дом"},
 		{ID: strings.Repeat("b", 32), Title: "Офис"},
 	}
@@ -1815,7 +1815,7 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 // codes against the exact document, and the word for a route in this API is
 // still "list" in this API, which is why the refusal below says "list in use"
 // while keying the routes that block it under "routes".
-func TestRemoveServiceRouteAnswersItsFrozenContract(t *testing.T) {
+func TestRemoveListRouteAnswersItsFrozenContract(t *testing.T) {
 	backend := testBackend()
 	server, err := New("http://127.0.0.1:8765", backend, nil)
 	if err != nil {
@@ -1836,7 +1836,7 @@ func TestRemoveServiceRouteAnswersItsFrozenContract(t *testing.T) {
 	if extra := send("/v1/lists/example/remove", `{"lists":"delete"}`); extra.Code != http.StatusBadRequest {
 		t.Fatalf("non-empty body code=%d body=%s", extra.Code, extra.Body.String())
 	}
-	backend.serviceInUse = []application.ListReference{
+	backend.listInUse = []application.ProfileReference{
 		{ID: strings.Repeat("a", 32), Title: "Дом"},
 		{ID: strings.Repeat("b", 32), Title: "Офис"},
 	}
@@ -1848,13 +1848,13 @@ func TestRemoveServiceRouteAnswersItsFrozenContract(t *testing.T) {
 		t.Fatalf("in-use deletion code=%d body=%s want=%s", inUse.Code, inUse.Body.String(), wantInUse)
 	}
 
-	backend.serviceInUse = nil
+	backend.listInUse = nil
 	removed := send("/v1/lists/example/remove", `{}`)
 	if removed.Code != http.StatusNoContent || removed.Body.Len() != 0 {
 		t.Fatalf("deletion code=%d body=%q", removed.Code, removed.Body.String())
 	}
-	if !reflect.DeepEqual(backend.servicesRemoved, []string{"example"}) {
-		t.Fatalf("removed = %#v", backend.servicesRemoved)
+	if !reflect.DeepEqual(backend.listsRemoved, []string{"example"}) {
+		t.Fatalf("removed = %#v", backend.listsRemoved)
 	}
 
 	// GET is not one of these routes: they are mutations and answer POST only.
@@ -1895,8 +1895,8 @@ func TestLibraryDeletionsRefuseUnguardedRequests(t *testing.T) {
 				if response.Code != http.StatusForbidden || !strings.Contains(response.Body.String(), "request rejected") {
 					t.Fatalf("code=%d body=%s", response.Code, response.Body.String())
 				}
-				if len(backend.servicesRemoved) != 0 || len(backend.categoryRemoved) != 0 {
-					t.Fatalf("a refused request deleted from the library: %#v %#v", backend.servicesRemoved, backend.categoryRemoved)
+				if len(backend.listsRemoved) != 0 || len(backend.categoryRemoved) != 0 {
+					t.Fatalf("a refused request deleted from the library: %#v %#v", backend.listsRemoved, backend.categoryRemoved)
 				}
 			})
 		}
@@ -1906,11 +1906,11 @@ func TestLibraryDeletionsRefuseUnguardedRequests(t *testing.T) {
 // The catalog listing carries the merged categories, and custom is present on
 // every one of them: an absent field would leave the surface guessing which
 // categories it may rename.
-func TestServiceListingCarriesMergedCategoriesWithTheirOwnership(t *testing.T) {
+func TestListListingCarriesMergedCategoriesWithTheirOwnership(t *testing.T) {
 	backend := testBackend()
 	backend.categories = []application.CategoryDetail{
-		{ID: "custom-1234567890abcdef", Title: "Мои списки", Services: []string{"example"}, Custom: true},
-		{ID: "diagnostic", Title: "Diagnostic", Services: []string{"example"}},
+		{ID: "custom-1234567890abcdef", Title: "Мои списки", Lists: []string{"example"}, Custom: true},
+		{ID: "diagnostic", Title: "Diagnostic", Lists: []string{"example"}},
 	}
 	server, err := New("http://127.0.0.1:8765", backend, nil)
 	if err != nil {

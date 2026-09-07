@@ -67,8 +67,8 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 | --- | --- |
 | Deterministic policy and expiration | `internal/planner/*_test.go`; `cmd/routevane/observation_expiry_e2e_test.go` |
 | Multi-format publication and previous-valid continuity | `cmd/routevane/every_format_e2e_test.go`; `cmd/routevane/two_formats_outage_e2e_test.go` |
-| Library ownership and profile preservation | `cmd/routevane/library_removal_e2e_test.go`; `cmd/routevane/list_archive_e2e_test.go` |
-| Discovery and learning boundaries | `cmd/routevane/service_from_url_e2e_test.go`; `cmd/routevane/learning_session_e2e_test.go` |
+| Library ownership and profile preservation | `cmd/routevane/library_removal_e2e_test.go`; `cmd/routevane/profile_archive_e2e_test.go` |
+| Discovery and learning boundaries | `cmd/routevane/list_from_url_e2e_test.go`; `cmd/routevane/learning_session_e2e_test.go` |
 | Explicit device delivery | `cmd/routevane/device_deploy_e2e_test.go`; `cmd/routevane/scheduled_delivery_e2e_test.go` |
 | Real plugin examples | `cmd/routevane/external_plugin_e2e_test.go` consumes their shipped manifests |
 | Keyboard, localization, and browser flows | `web/tests/e2e/` against the built binary |

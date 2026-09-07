@@ -124,7 +124,7 @@ func resolveAdapters(ctx context.Context, deps runtimeDeps, logger *slog.Logger)
 // validateSourceDefinitions proves that every external source a catalog names
 // is installed and implements the exact revision the operator reviewed. Built-
 // in source revisions are already bound by the strict catalog loader.
-func (a adapters) validateSourceDefinitions(definitions ...domain.ServiceDefinition) error {
+func (a adapters) validateSourceDefinitions(definitions ...domain.ListDefinition) error {
 	for _, definition := range definitions {
 		for _, source := range definition.Sources {
 			if source.Type == domain.SourceDNS || source.Type == domain.SourceHTTP {

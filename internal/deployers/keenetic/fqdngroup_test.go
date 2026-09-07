@@ -91,7 +91,7 @@ func (f *fqdnFixture) apply(t *testing.T, artifact application.DeployArtifact) {
 // A list that lost a service must stop costing the device its group budget.
 // This is the whole reason reconciliation exists: without it every refresh
 // leaves the previous groups behind until the 128-group budget is exhausted.
-func TestDeployRemovesTheGroupsAnEarlierListLeftBehind(t *testing.T) {
+func TestDeployRemovesTheGroupsAnEarlierProfileLeftBehind(t *testing.T) {
 	fixture := newFQDNFixture(t, "5.1.2")
 	fixture.apply(t, fqdnArtifact(t, "youtube=youtube.com,ytimg.com", "netflix=netflix.com"))
 
@@ -273,13 +273,13 @@ func TestReconcileSaysNothingWhenTheDeviceAlreadyAgrees(t *testing.T) {
 func TestProbeRefusesFirmwareWithoutDNSBasedRoutes(t *testing.T) {
 	supported := newFQDNFixture(t, "5.1.2")
 	info := supported.probe(t)
-	if info.ProfileKey != keeneticdns.Version || info.DeployerID != FQDNDeployerID {
+	if info.FormatKey != keeneticdns.Version || info.DeployerID != FQDNDeployerID {
 		t.Fatalf("info = %#v", info)
 	}
 
 	old := newFQDNFixture(t, "4.3.6")
 	stale := old.probe(t)
-	if stale.ProfileKey != "" || stale.FirmwareVersion != "4.3.6" {
+	if stale.FormatKey != "" || stale.FirmwareVersion != "4.3.6" {
 		t.Fatalf("an unsupported firmware must be reported, not accepted: %#v", stale)
 	}
 
@@ -309,7 +309,7 @@ func TestProbeChecksTheInterfaceOnFirmwareTheRouteDeployerRefuses(t *testing.T) 
 
 	fixture.connection.Interface = deviceInterface
 	info := fixture.probe(t)
-	if info.ProfileKey != keeneticdns.Version {
+	if info.FormatKey != keeneticdns.Version {
 		t.Fatalf("a 5.0.2 device supports DNS-based routes: %#v", info)
 	}
 }

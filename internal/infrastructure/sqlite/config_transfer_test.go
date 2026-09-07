@@ -15,30 +15,30 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 	document := application.ConfigTransferDocument{
 		Version:  application.ConfigTransferVersion,
 		Settings: application.TransferSettings{RefreshInterval: application.RefreshOff, DefaultPriority: []string{"custom-service-1"}},
-		CustomServices: []application.TransferCustomService{{
+		CustomLists: []application.TransferCustomList{{
 			Ref: "custom-service-1", Title: "Private", Domains: []string{"private.example"},
 		}},
-		Routes: []application.TransferRoute{{
-			Ref: "route-1", Name: "Private", Services: []string{"custom-service-1"},
-			Priority:       []string{"custom-service-1"},
-			ServiceDomains: map[string][]string{}, RefreshInterval: application.RefreshDaily,
+		Profiles: []application.TransferProfile{{
+			Ref: "route-1", Name: "Private", Lists: []string{"custom-service-1"},
+			Priority:    []string{"custom-service-1"},
+			ListDomains: map[string][]string{}, RefreshInterval: application.RefreshDaily,
 		}},
 		Devices: []application.TransferDevice{{
 			Ref: "device-1", TargetID: "keenetic", Name: "Router", Address: "http://192.168.1.1", Account: "admin", Interface: "WG0",
 		}},
-		Outputs: []application.TransferOutput{{Ref: "output-1", RouteRef: "route-1", TargetID: "keenetic", DeviceRef: "device-1"}},
+		Outputs: []application.TransferOutput{{Ref: "output-1", ProfileRef: "route-1", TargetID: "keenetic", DeviceRef: "device-1"}},
 	}
 	apply := application.ConfigTransferApply{
 		Document:          document,
 		AppliedAt:         time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC),
-		CustomServiceIDs:  map[string]string{"custom-service-1": "custom-" + strings.Repeat("a", 16)},
-		RouteIDs:          map[string]string{"route-1": strings.Repeat("b", 32)},
+		CustomListIDs:     map[string]string{"custom-service-1": "custom-" + strings.Repeat("a", 16)},
+		ProfileIDs:        map[string]string{"route-1": strings.Repeat("b", 32)},
 		DeviceIDs:         map[string]string{"device-1": strings.Repeat("c", 32)},
 		OutputIDs:         map[string]string{"output-1": strings.Repeat("d", 32)},
 		CustomCategoryIDs: map[string]string{}, CustomSourceIDs: map[string]string{},
 		Outputs: map[string]application.Output{"output-1": {
-			ID: strings.Repeat("d", 32), ListID: strings.Repeat("b", 32), TargetID: "keenetic", DeviceID: strings.Repeat("c", 32),
-			ProfileKey: "profile", RendererID: "renderer", RendererVersion: "v1", TargetRevision: "revision",
+			ID: strings.Repeat("d", 32), ProfileID: strings.Repeat("b", 32), TargetID: "keenetic", DeviceID: strings.Repeat("c", 32),
+			FormatKey: "profile", RendererID: "renderer", RendererVersion: "v1", TargetRevision: "revision",
 		}},
 	}
 	if err := store.ApplyConfigTransfer(context.Background(), apply); err != nil {
@@ -50,14 +50,14 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 	if got := countRows(t, store, "SELECT count(*) FROM outputs WHERE latest_artifact_id IS NOT NULL OR previous_artifact_id IS NOT NULL"); got != 0 {
 		t.Fatalf("import restored %d publication pointer(s)", got)
 	}
-	var priorityService string
-	if err := store.db.QueryRow("SELECT list_id FROM library_list_priorities WHERE position=0").Scan(&priorityService); err != nil {
+	var priorityList string
+	if err := store.db.QueryRow("SELECT list_id FROM library_list_priorities WHERE position=0").Scan(&priorityList); err != nil {
 		t.Fatalf("read transferred default priority: %v", err)
 	}
-	if priorityService != "custom-"+strings.Repeat("a", 16) {
-		t.Fatalf("transferred default priority=%q", priorityService)
+	if priorityList != "custom-"+strings.Repeat("a", 16) {
+		t.Fatalf("transferred default priority=%q", priorityList)
 	}
-	stored, err := store.List(context.Background(), strings.Repeat("b", 32))
+	stored, err := store.Profile(context.Background(), strings.Repeat("b", 32))
 	if err != nil || len(stored.Priority) != 1 || stored.Priority[0] != "custom-"+strings.Repeat("a", 16) {
 		t.Fatalf("transferred priority=%#v err=%v", stored.Priority, err)
 	}

@@ -17,10 +17,10 @@ import (
 )
 
 type legacyProfile struct {
-	id, targetID, profileKey, rendererID, rendererVersion, targetRevision string
-	services                                                              []string
-	createdAt                                                             int64
-	latestArtifactID, previousArtifactID                                  string
+	id, targetID, formatKey, rendererID, rendererVersion, targetRevision string
+	lists                                                                []string
+	createdAt                                                            int64
+	latestArtifactID, previousArtifactID                                 string
 }
 
 // migrateLegacyV3 recognizes the pre-list, pre-release schema by structure,
@@ -189,16 +189,16 @@ func createImportedDatabase(ctx context.Context, tempPath, backupPath string) er
 		}
 	}
 	for index, profile := range profiles {
-		name := legacyListName(index, profile)
+		name := legacyProfileName(index, profile)
 		if _, err := tx.ExecContext(ctx, `INSERT INTO profiles(id,name,created_at_ns,updated_at_ns) VALUES(?,?,?,?)`, profile.id, name, profile.createdAt, profile.createdAt); err != nil {
 			return rollback(fmt.Errorf("import legacy profile: %w", err))
 		}
-		for _, serviceID := range profile.services {
-			if _, err := tx.ExecContext(ctx, `INSERT INTO profile_lists(profile_id,list_id) VALUES(?,?)`, profile.id, serviceID); err != nil {
+		for _, listID := range profile.lists {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO profile_lists(profile_id,list_id) VALUES(?,?)`, profile.id, listID); err != nil {
 				return rollback(fmt.Errorf("import legacy profile list: %w", err))
 			}
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns) VALUES(?,?,?,?,?,?,?,?)`, profile.id, profile.id, profile.targetID, profile.profileKey, profile.rendererID, profile.rendererVersion, profile.targetRevision, profile.createdAt); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns) VALUES(?,?,?,?,?,?,?,?)`, profile.id, profile.id, profile.targetID, profile.formatKey, profile.rendererID, profile.rendererVersion, profile.targetRevision, profile.createdAt); err != nil {
 			return rollback(fmt.Errorf("import legacy output: %w", err))
 		}
 	}
@@ -271,16 +271,16 @@ func readLegacyProfiles(ctx context.Context, db *sql.DB) ([]legacyProfile, error
 	profiles := make([]legacyProfile, 0)
 	for rows.Next() {
 		var profile legacyProfile
-		var servicesJSON string
-		if err := rows.Scan(&profile.id, &profile.targetID, &profile.profileKey, &profile.rendererID, &profile.rendererVersion, &profile.targetRevision, &servicesJSON, &profile.createdAt, &profile.latestArtifactID, &profile.previousArtifactID); err != nil {
+		var listsJSON string
+		if err := rows.Scan(&profile.id, &profile.targetID, &profile.formatKey, &profile.rendererID, &profile.rendererVersion, &profile.targetRevision, &listsJSON, &profile.createdAt, &profile.latestArtifactID, &profile.previousArtifactID); err != nil {
 			return nil, fmt.Errorf("scan legacy profile: %w", err)
 		}
-		if !validID(profile.id) || profile.createdAt <= 0 || json.Unmarshal([]byte(servicesJSON), &profile.services) != nil || len(profile.services) == 0 || len(profile.services) > 128 {
+		if !validID(profile.id) || profile.createdAt <= 0 || json.Unmarshal([]byte(listsJSON), &profile.lists) != nil || len(profile.lists) == 0 || len(profile.lists) > 128 {
 			return nil, fmt.Errorf("invalid legacy profile")
 		}
-		profile.services = domain.StableStrings(profile.services)
-		for _, serviceID := range profile.services {
-			if domain.ValidateSlug(serviceID) != nil {
+		profile.lists = domain.StableStrings(profile.lists)
+		for _, listID := range profile.lists {
+			if domain.ValidateSlug(listID) != nil {
 				return nil, fmt.Errorf("invalid legacy profile service")
 			}
 		}
@@ -292,10 +292,10 @@ func readLegacyProfiles(ctx context.Context, db *sql.DB) ([]legacyProfile, error
 	return profiles, nil
 }
 
-func legacyListName(index int, profile legacyProfile) string {
-	services := append([]string(nil), profile.services...)
-	slices.Sort(services)
-	name := fmt.Sprintf("Imported %d · %s · %s", index+1, strings.Join(services, ", "), profile.targetID)
+func legacyProfileName(index int, profile legacyProfile) string {
+	lists := append([]string(nil), profile.lists...)
+	slices.Sort(lists)
+	name := fmt.Sprintf("Imported %d · %s · %s", index+1, strings.Join(lists, ", "), profile.targetID)
 	if len(name) <= 120 {
 		return name
 	}

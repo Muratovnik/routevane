@@ -11,62 +11,62 @@ import (
 
 func TestDefaultPriorityFiltersStaleAndAppendsNewCatalogMembers(t *testing.T) {
 	store := &publicationFakeStore{globalPriority: []string{"stale", "other"}}
-	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x51}, 256)))
-	definition := service.config.Definitions["example"]
+	publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x51}, 256)))
+	definition := publication.config.Definitions["example"]
 	definition.ID = "other"
-	service.config.Definitions["other"] = definition
+	publication.config.Definitions["other"] = definition
 
-	got, err := service.DefaultPriority(context.Background())
+	got, err := publication.DefaultPriority(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"other", "example"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("default priority=%#v, want %#v", got, want)
 	}
-	if err := service.SetDefaultPriority(context.Background(), []string{"example", "other"}); err != nil {
+	if err := publication.SetDefaultPriority(context.Background(), []string{"example", "other"}); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(store.globalPriority, []string{"example", "other"}) {
 		t.Fatalf("stored priority=%#v", store.globalPriority)
 	}
 	for _, invalid := range [][]string{{"example"}, {"example", "example"}, {"example", "missing"}, {"bad id", "other"}} {
-		if err := service.SetDefaultPriority(context.Background(), invalid); err == nil {
+		if err := publication.SetDefaultPriority(context.Background(), invalid); err == nil {
 			t.Fatalf("invalid priority %#v accepted", invalid)
 		}
 	}
 }
 
-func TestCreateListAndForecastUseGlobalPriorityOnlyWhenOmitted(t *testing.T) {
+func TestCreateProfileAndForecastUseGlobalPriorityOnlyWhenOmitted(t *testing.T) {
 	store := &publicationFakeStore{globalPriority: []string{"other", "example"}}
-	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x52}, 256)))
-	definition := service.config.Definitions["example"]
+	publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x52}, 256)))
+	definition := publication.config.Definitions["example"]
 	definition.ID = "other"
-	service.config.Definitions["other"] = definition
+	publication.config.Definitions["other"] = definition
 
-	created, err := service.CreateList(context.Background(), "global", ListComposition{Services: []string{"example", "other"}})
+	created, err := publication.CreateProfile(context.Background(), "global", ProfileComposition{Lists: []string{"example", "other"}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := []string{"other", "example"}; !reflect.DeepEqual(created.Priority, want) {
 		t.Fatalf("created priority=%#v, want %#v", created.Priority, want)
 	}
-	forecasts, err := service.ForecastComposition(context.Background(), ListComposition{Services: []string{"example", "other"}}, []string{"keenetic"})
+	forecasts, err := publication.ForecastComposition(context.Background(), ProfileComposition{Lists: []string{"example", "other"}}, []string{"keenetic"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(forecasts) != 1 {
 		t.Fatalf("forecasts=%#v", forecasts)
 	}
-	if want := []ServiceRuleForecast{{ServiceID: "example", Rules: 0}, {ServiceID: "other", Rules: 2}}; !reflect.DeepEqual(forecasts[0].PerService, want) {
-		t.Fatalf("forecast per-service=%#v, want %#v", forecasts[0].PerService, want)
+	if want := []ListRuleForecast{{ListID: "example", Rules: 0}, {ListID: "other", Rules: 2}}; !reflect.DeepEqual(forecasts[0].PerList, want) {
+		t.Fatalf("forecast per-service=%#v, want %#v", forecasts[0].PerList, want)
 	}
 	// A non-empty request remains a route-local override even when the global
 	// order changes later. The list's stored priority is never rewritten.
 	store.globalPriority = []string{"example", "other"}
-	if got, err := service.List(context.Background(), created.ID); err != nil || !reflect.DeepEqual(got.Priority, []string{"other", "example"}) {
+	if got, err := publication.Profile(context.Background(), created.ID); err != nil || !reflect.DeepEqual(got.Priority, []string{"other", "example"}) {
 		t.Fatalf("stored route priority=%#v err=%v", got.Priority, err)
 	}
-	override, err := service.CreateList(context.Background(), "override", ListComposition{Services: []string{"example", "other"}, Priority: []string{"example", "other"}})
+	override, err := publication.CreateProfile(context.Background(), "override", ProfileComposition{Lists: []string{"example", "other"}, Priority: []string{"example", "other"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,11 +76,11 @@ func TestCreateListAndForecastUseGlobalPriorityOnlyWhenOmitted(t *testing.T) {
 }
 
 func TestDefaultPriorityUsesCanonicalOrderWithoutOptionalRepository(t *testing.T) {
-	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x53}, 256)))
-	definition := service.config.Definitions["example"]
+	publication := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x53}, 256)))
+	definition := publication.config.Definitions["example"]
 	definition.ID = "other"
-	service.config.Definitions["other"] = definition
-	got, err := service.DefaultPriority(context.Background())
+	publication.config.Definitions["other"] = definition
+	got, err := publication.DefaultPriority(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,17 +91,17 @@ func TestDefaultPriorityUsesCanonicalOrderWithoutOptionalRepository(t *testing.T
 
 func TestDefaultPriorityGroupsCategoriesWithoutChangingSavedOrder(t *testing.T) {
 	store := &publicationFakeStore{}
-	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x54}, 256)))
-	definition := service.config.Definitions["example"]
+	publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x54}, 256)))
+	definition := publication.config.Definitions["example"]
 	for _, id := range []string{"alpha", "zulu", "shared"} {
 		definition.ID = id
-		service.config.Definitions[id] = definition
+		publication.config.Definitions[id] = definition
 	}
-	service.config.Categories = map[string]domain.CategoryDefinition{
-		"first":  {ID: "first", Title: "First", Services: []string{"zulu", "shared"}},
-		"second": {ID: "second", Title: "Second", Services: []string{"alpha", "shared"}},
+	publication.config.Categories = map[string]domain.CategoryDefinition{
+		"first":  {ID: "first", Title: "First", Lists: []string{"zulu", "shared"}},
+		"second": {ID: "second", Title: "Second", Lists: []string{"alpha", "shared"}},
 	}
-	got, err := service.DefaultPriority(context.Background())
+	got, err := publication.DefaultPriority(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestDefaultPriorityGroupsCategoriesWithoutChangingSavedOrder(t *testing.T) 
 		t.Fatalf("grouped priority=%v, want %v", got, want)
 	}
 	store.globalPriority = []string{"example", "alpha"}
-	got, err = service.DefaultPriority(context.Background())
+	got, err = publication.DefaultPriority(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}

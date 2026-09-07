@@ -149,7 +149,7 @@ func TestLearnsComponentsFromAnImportedSessionAndRecordsDependencies(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, found := catalog.Service("shop")
+	definition, found := catalog.List("shop")
 	if !found {
 		t.Fatal("learned draft did not load")
 	}
@@ -165,14 +165,14 @@ func TestLearnsComponentsFromAnImportedSessionAndRecordsDependencies(t *testing.
 			t.Fatalf("component %q must be required: %#v", component, definition.Components)
 		}
 	}
-	target := domain.TargetProfile{
-		ID: "singbox", ProfileKey: singbox.Version, RendererID: singbox.ID,
+	target := domain.TargetDefinition{
+		ID: "singbox", FormatKey: singbox.Version, RendererID: singbox.ID,
 		Constraints: domain.TargetConstraints{
 			SupportsDomainExact: true, SupportsDomainSuffix: true, SupportsIPv4: true, SupportsIPv6: true,
 			SupportsPrefixes: true, MaxRules: singbox.MaxEntries, MaxArtifactSize: singbox.MaxArtifactSize,
 		},
 	}
-	plan, err := planner.BuildPlanSet([]planner.ServiceInput{{Definition: definition}}, target, now)
+	plan, err := planner.BuildPlanSet([]planner.ListInput{{Definition: definition}}, target, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,10 +255,10 @@ func learnViaCLI(t *testing.T, deps runtimeDeps, args []string) learnReport {
 	return report
 }
 
-// TestDiscoveredServiceAddressesFollowTheObservationLifecycle closes the last
+// TestDiscoveredListAddressesFollowTheObservationLifecycle closes the last
 // Discovery Release requirement: a learned service is not a special case, so its
 // stale addresses leave the artifact exactly as a built-in service's do.
-func TestDiscoveredServiceAddressesFollowTheObservationLifecycle(t *testing.T) {
+func TestDiscoveredListAddressesFollowTheObservationLifecycle(t *testing.T) {
 	catalogDir := filepath.Join(t.TempDir(), "catalog")
 	dataDir := filepath.Join(t.TempDir(), "data")
 	// The build output must live inside the data root, exactly as it does for a

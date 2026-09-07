@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-const secondServiceYAML = `id: other
+const secondListYAML = `id: other
 title: Other
 components:
   web:
@@ -41,7 +41,7 @@ func writeCategoryFile(t *testing.T, root, name string, payload []byte) {
 // categories exist as their own object rather than as a field on the service.
 func TestCategoryMembershipIsManyToMany(t *testing.T) {
 	root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
-	if err := os.WriteFile(filepath.Join(root, "builtin", "other.yaml"), []byte(secondServiceYAML), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "builtin", "other.yaml"), []byte(secondListYAML), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	writeCategoryFile(t, root, "video.yaml", []byte("id: video\ntitle: Видео\nservices:\n  - example\n  - other\n"))
@@ -52,18 +52,18 @@ func TestCategoryMembershipIsManyToMany(t *testing.T) {
 		t.Fatal(err)
 	}
 	video, found := catalog.Category("video")
-	if !found || video.Title != "Видео" || strings.Join(video.Services, ",") != "example,other" {
+	if !found || video.Title != "Видео" || strings.Join(video.Lists, ",") != "example,other" {
 		t.Fatalf("video = %#v", video)
 	}
 	games, found := catalog.Category("games")
-	if !found || strings.Join(games.Services, ",") != "example" {
+	if !found || strings.Join(games.Lists, ",") != "example" {
 		t.Fatalf("games = %#v", games)
 	}
 }
 
 // A category naming a service the catalog does not carry would resolve to a
 // silently smaller list, so the whole catalog is refused instead.
-func TestCategoryNamingAnUnknownServiceIsRefused(t *testing.T) {
+func TestCategoryNamingAnUnknownListIsRefused(t *testing.T) {
 	root := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
 	writeCategoryFile(t, root, "video.yaml", []byte("id: video\ntitle: Видео\nservices:\n  - absent\n"))
 	if _, err := Load(context.Background(), root); err == nil {
@@ -99,7 +99,7 @@ func TestInvalidCategoryDocumentsAreRefused(t *testing.T) {
 // that would claim the plan came from a catalog it did not.
 func TestCatalogRevisionCoversCategories(t *testing.T) {
 	first := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
-	if err := os.WriteFile(filepath.Join(first, "builtin", "other.yaml"), []byte(secondServiceYAML), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(first, "builtin", "other.yaml"), []byte(secondListYAML), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	writeCategoryFile(t, first, "video.yaml", []byte("id: video\ntitle: Видео\nservices:\n  - example\n"))
@@ -109,7 +109,7 @@ func TestCatalogRevisionCoversCategories(t *testing.T) {
 	}
 
 	second := writeCatalogFile(t, "builtin", "service.yaml", []byte(validCatalogYAML))
-	if err := os.WriteFile(filepath.Join(second, "builtin", "other.yaml"), []byte(secondServiceYAML), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(second, "builtin", "other.yaml"), []byte(secondListYAML), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	writeCategoryFile(t, second, "video.yaml", []byte("id: video\ntitle: Видео\nservices:\n  - example\n  - other\n"))
@@ -163,12 +163,12 @@ func TestFeedDeclaresItsSourceClass(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, found := catalog.Service("example")
-	if !found || len(service.Sources) != 1 {
-		t.Fatalf("service = %#v", service)
+	list, found := catalog.List("example")
+	if !found || len(list.Sources) != 1 {
+		t.Fatalf("service = %#v", list)
 	}
-	if service.Sources[0].Class != "community" || service.Sources[0].Format != "domain-list" {
-		t.Fatalf("source = %#v", service.Sources[0])
+	if list.Sources[0].Class != "community" || list.Sources[0].Format != "domain-list" {
+		t.Fatalf("source = %#v", list.Sources[0])
 	}
 }
 
@@ -186,8 +186,8 @@ func TestSourceRevisionCoversTheClass(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a, _ := left.Service("example")
-	b, _ := right.Service("example")
+	a, _ := left.List("example")
+	b, _ := right.List("example")
 	if a.Sources[0].Revision == b.Sources[0].Revision {
 		t.Fatalf("revision ignored the class: %s", a.Sources[0].Revision)
 	}
@@ -230,7 +230,7 @@ func TestCategoryReadsTheRetiredMembershipKeyButRefusesBoth(t *testing.T) {
 				t.Fatal(err)
 			}
 			video, found := catalog.Category("video")
-			if !found || strings.Join(video.Services, ",") != "example" {
+			if !found || strings.Join(video.Lists, ",") != "example" {
 				t.Fatalf("video = %#v", video)
 			}
 		})

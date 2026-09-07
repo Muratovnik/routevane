@@ -107,27 +107,27 @@ func Render(plan domain.RoutingPlan) ([]byte, error) {
 // Grouping by service is what makes a group on the router attributable: an
 // operator reading the name knows what it is and what removing it costs.
 func projectPlan(plan domain.RoutingPlan) ([]Group, error) {
-	byService := make(map[string][]string)
+	byList := make(map[string][]string)
 	for _, rule := range plan.Rules {
 		if !rule.IsValid() || rule.Action != domain.ActionRoute {
 			return nil, fmt.Errorf("routing plan contains an invalid route rule")
 		}
-		if domain.ValidateSlug(rule.ServiceID) != nil {
+		if domain.ValidateSlug(rule.ListID) != nil {
 			return nil, fmt.Errorf("routing plan contains an invalid service identity")
 		}
 		value, err := entryValue(rule)
 		if err != nil {
 			return nil, err
 		}
-		byService[rule.ServiceID] = append(byService[rule.ServiceID], value)
+		byList[rule.ListID] = append(byList[rule.ListID], value)
 	}
-	services := slices.Sorted(maps.Keys(byService))
-	groups := make([]Group, 0, len(services))
-	for _, service := range services {
-		entries := domain.StableStrings(byService[service])
+	lists := slices.Sorted(maps.Keys(byList))
+	groups := make([]Group, 0, len(lists))
+	for _, list := range lists {
+		entries := domain.StableStrings(byList[list])
 		for index := 0; index < len(entries); index += MaxEntriesPerGroup {
 			end := min(index+MaxEntriesPerGroup, len(entries))
-			name := GroupPrefix + service
+			name := GroupPrefix + list
 			if index > 0 {
 				name = fmt.Sprintf("%s-%d", name, index/MaxEntriesPerGroup+1)
 			}

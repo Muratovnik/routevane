@@ -16,19 +16,19 @@ func (f previewSourceFunc) Observe(ctx context.Context, request SourceRequest) (
 	return f(ctx, request)
 }
 
-func TestPreviewServiceShowsPartialSourceResultsWithoutPersisting(t *testing.T) {
+func TestPreviewListShowsPartialSourceResultsWithoutPersisting(t *testing.T) {
 	store := &publicationFakeStore{}
-	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x61}, 256)))
-	definition := service.config.Definitions["example"]
+	publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x61}, 256)))
+	definition := publication.config.Definitions["example"]
 	definition.Sources = []domain.SourceDefinition{
 		{ID: "vendor", Type: domain.SourceHTTP, ComponentID: "web", URL: "https://example.invalid/feed", Format: domain.FeedFormatText, Revision: "feed-v1"},
 		{ID: "dns", Type: domain.SourceDNS, ComponentID: "web", Names: []string{"example.com"}, Revision: "dns-v1"},
 	}
-	service.config.Definitions["example"] = definition
+	publication.config.Definitions["example"] = definition
 	domainResource, _ := domain.NewDomainResource("api.example.com")
 	addressResource, _ := domain.NewAddrResourceFromString("192.0.2.10")
 	prefixResource, _ := domain.NewPrefixResourceFromString("198.51.100.0/24")
-	service.config.Sources = SourceRegistry{
+	publication.config.Sources = SourceRegistry{
 		domain.SourceDNS: previewSourceFunc(func(_ context.Context, request SourceRequest) (SourceResult, error) {
 			if request.SourceID != "dns" || request.ObservedAt.IsZero() {
 				t.Fatalf("request = %#v", request)
@@ -45,7 +45,7 @@ func TestPreviewServiceShowsPartialSourceResultsWithoutPersisting(t *testing.T) 
 		}),
 	}
 
-	preview, err := service.PreviewService(context.Background(), "example")
+	preview, err := publication.PreviewList(context.Background(), "example")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,14 +58,14 @@ func TestPreviewServiceShowsPartialSourceResultsWithoutPersisting(t *testing.T) 
 	if len(preview.Sources) != 2 || preview.Sources[0].ID != "dns" || preview.Sources[0].Status != "ready" || preview.Sources[1].ID != "vendor" || preview.Sources[1].Status != "failed" || preview.Sources[1].ErrorCode != "http_feed_failed" {
 		t.Fatalf("sources = %#v", preview.Sources)
 	}
-	if store.list.ID != "" || len(store.creates) != 0 || len(store.published) != 0 {
+	if store.profile.ID != "" || len(store.creates) != 0 || len(store.published) != 0 {
 		t.Fatalf("preview mutated publication state: %#v", store)
 	}
 }
 
-func TestPreviewServiceRejectsUnknownService(t *testing.T) {
-	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x62}, 256)))
-	if _, err := service.PreviewService(context.Background(), "missing"); !errors.Is(err, ErrNotFound) {
+func TestPreviewListRejectsUnknownList(t *testing.T) {
+	publication := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x62}, 256)))
+	if _, err := publication.PreviewList(context.Background(), "missing"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("err = %v", err)
 	}
 }

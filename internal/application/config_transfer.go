@@ -35,7 +35,7 @@ const (
 	// 128 custom lists with 64 domains each, 200 devices, and 800 outputs.
 	// Preview, apply, export, and the browser all use this one limit.
 	ConfigTransferMaxBytes = 64 << 20
-	maxTransferRoutes      = 200
+	maxTransferProfiles    = 200
 	maxTransferDevices     = 200
 	maxTransferOutputs     = 800
 	maxTransferRows        = 16_384 // memberships plus include/exclude verdict rows
@@ -76,7 +76,7 @@ type ConfigTransferCounts struct {
 	CustomLists      uint `json:"custom_lists"`
 	CustomCategories uint `json:"custom_categories"`
 	CustomSources    uint `json:"custom_sources"`
-	Routes           uint `json:"profiles"`
+	Profiles         uint `json:"profiles"`
 	Devices          uint `json:"devices"`
 	Outputs          uint `json:"outputs"`
 }
@@ -112,12 +112,12 @@ func (s TransferSettings) MarshalJSON() ([]byte, error) {
 	})
 }
 
-type TransferCustomService struct {
+type TransferCustomList struct {
 	Ref, Title string
 	Domains    []string
 }
 
-func (v TransferCustomService) MarshalJSON() ([]byte, error) {
+func (v TransferCustomList) MarshalJSON() ([]byte, error) {
 	type wire struct {
 		Ref     string   `json:"ref"`
 		Title   string   `json:"title"`
@@ -125,7 +125,7 @@ func (v TransferCustomService) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal(wire(v))
 }
-func (v *TransferCustomService) UnmarshalJSON(b []byte) error {
+func (v *TransferCustomList) UnmarshalJSON(b []byte) error {
 	type wire struct {
 		Ref     string   `json:"ref"`
 		Title   string   `json:"title"`
@@ -135,7 +135,7 @@ func (v *TransferCustomService) UnmarshalJSON(b []byte) error {
 	if err := strictUnmarshal(b, &w); err != nil {
 		return err
 	}
-	*v = TransferCustomService(w)
+	*v = TransferCustomList(w)
 	return nil
 }
 
@@ -162,8 +162,8 @@ func (v *TransferCustomCategory) UnmarshalJSON(b []byte) error {
 }
 
 type TransferMembership struct {
-	CategoryRef, ServiceRef string
-	State                   MembershipState
+	CategoryRef, ListRef string
+	State                MembershipState
 }
 
 func (v TransferMembership) MarshalJSON() ([]byte, error) {
@@ -172,25 +172,25 @@ func (v TransferMembership) MarshalJSON() ([]byte, error) {
 		ListRef     string          `json:"list_ref"`
 		State       MembershipState `json:"state"`
 	}
-	return json.Marshal(w{CategoryRef: v.CategoryRef, ListRef: v.ServiceRef, State: v.State})
+	return json.Marshal(w(v))
 }
 func (v *TransferMembership) UnmarshalJSON(b []byte) error {
 	type w struct {
 		CategoryRef string  `json:"category_ref"`
 		ListRef     *string `json:"list_ref"`
 		// The name this format used before ADR 0039 renamed it.
-		ServiceRef *string         `json:"service_ref"`
-		State      MembershipState `json:"state"`
+		RetiredListRef *string         `json:"service_ref"`
+		State          MembershipState `json:"state"`
 	}
 	var x w
 	if err := strictUnmarshal(b, &x); err != nil {
 		return err
 	}
-	ref, ok := retiredField(x.ListRef, x.ServiceRef)
+	ref, ok := retiredField(x.ListRef, x.RetiredListRef)
 	if !ok {
 		return transferError("invalid_shape", "list_ref")
 	}
-	*v = TransferMembership{CategoryRef: x.CategoryRef, ServiceRef: ref, State: x.State}
+	*v = TransferMembership{CategoryRef: x.CategoryRef, ListRef: ref, State: x.State}
 	return nil
 }
 
@@ -250,7 +250,7 @@ func (v *TransferCustomSource) UnmarshalJSON(b []byte) error {
 }
 
 type TransferTuning struct {
-	ServiceRef         string
+	ListRef            string
 	DisabledSources    []string
 	CustomSources      []TransferCustomSource
 	Includes, Excludes []string
@@ -264,13 +264,13 @@ func (v TransferTuning) MarshalJSON() ([]byte, error) {
 		Includes        []string               `json:"includes"`
 		Excludes        []string               `json:"excludes"`
 	}
-	return json.Marshal(w{ListRef: v.ServiceRef, DisabledSources: v.DisabledSources, CustomSources: v.CustomSources, Includes: v.Includes, Excludes: v.Excludes})
+	return json.Marshal(w(v))
 }
 func (v *TransferTuning) UnmarshalJSON(b []byte) error {
 	type w struct {
 		ListRef *string `json:"list_ref"`
 		// The name this format used before ADR 0039 renamed it.
-		ServiceRef      *string                `json:"service_ref"`
+		RetiredListRef  *string                `json:"service_ref"`
 		DisabledSources []string               `json:"disabled_sources"`
 		CustomSources   []TransferCustomSource `json:"custom_sources"`
 		Includes        []string               `json:"includes"`
@@ -280,24 +280,24 @@ func (v *TransferTuning) UnmarshalJSON(b []byte) error {
 	if err := strictUnmarshal(b, &x); err != nil {
 		return err
 	}
-	ref, ok := retiredField(x.ListRef, x.ServiceRef)
+	ref, ok := retiredField(x.ListRef, x.RetiredListRef)
 	if !ok {
 		return transferError("invalid_shape", "list_ref")
 	}
-	*v = TransferTuning{ServiceRef: ref, DisabledSources: x.DisabledSources, CustomSources: x.CustomSources, Includes: x.Includes, Excludes: x.Excludes}
+	*v = TransferTuning{ListRef: ref, DisabledSources: x.DisabledSources, CustomSources: x.CustomSources, Includes: x.Includes, Excludes: x.Excludes}
 	return nil
 }
 
-type TransferRoute struct {
-	Ref, Name                        string
-	Services, Categories, Exclusions []string
-	Priority                         []string
-	ServiceDomains                   map[string][]string
-	RefreshInterval                  RefreshInterval
-	Archived                         bool
+type TransferProfile struct {
+	Ref, Name                     string
+	Lists, Categories, Exclusions []string
+	Priority                      []string
+	ListDomains                   map[string][]string
+	RefreshInterval               RefreshInterval
+	Archived                      bool
 }
 
-func (v TransferRoute) MarshalJSON() ([]byte, error) {
+func (v TransferProfile) MarshalJSON() ([]byte, error) {
 	type w struct {
 		Ref             string              `json:"ref"`
 		Name            string              `json:"name"`
@@ -309,42 +309,40 @@ func (v TransferRoute) MarshalJSON() ([]byte, error) {
 		RefreshInterval RefreshInterval     `json:"refresh_interval"`
 		Archived        bool                `json:"archived"`
 	}
-	if v.ServiceDomains == nil {
-		v.ServiceDomains = map[string][]string{}
+	if v.ListDomains == nil {
+		v.ListDomains = map[string][]string{}
 	}
-	return json.Marshal(w{Ref: v.Ref, Name: v.Name, Lists: v.Services, Categories: v.Categories,
-		Exclusions: v.Exclusions, Priority: v.Priority, ListDomains: v.ServiceDomains,
-		RefreshInterval: v.RefreshInterval, Archived: v.Archived})
+	return json.Marshal(w(v))
 }
-func (v *TransferRoute) UnmarshalJSON(b []byte) error {
+func (v *TransferProfile) UnmarshalJSON(b []byte) error {
 	type w struct {
 		Ref         string               `json:"ref"`
 		Name        string               `json:"name"`
 		Lists       *[]string            `json:"lists"`
 		ListDomains *map[string][]string `json:"list_domains"`
 		// The names this format used before ADR 0039 renamed them.
-		Services        *[]string            `json:"services"`
-		ServiceDomains  *map[string][]string `json:"service_domains"`
-		Categories      []string             `json:"categories"`
-		Exclusions      []string             `json:"exclusions"`
-		Priority        []string             `json:"priority"`
-		RefreshInterval RefreshInterval      `json:"refresh_interval"`
-		Archived        bool                 `json:"archived"`
+		RetiredLists       *[]string            `json:"services"`
+		RetiredListDomains *map[string][]string `json:"service_domains"`
+		Categories         []string             `json:"categories"`
+		Exclusions         []string             `json:"exclusions"`
+		Priority           []string             `json:"priority"`
+		RefreshInterval    RefreshInterval      `json:"refresh_interval"`
+		Archived           bool                 `json:"archived"`
 	}
 	var x w
 	if err := strictUnmarshal(b, &x); err != nil {
 		return err
 	}
-	lists, listsOK := retiredField(x.Lists, x.Services)
-	domains, domainsOK := retiredField(x.ListDomains, x.ServiceDomains)
+	lists, listsOK := retiredField(x.Lists, x.RetiredLists)
+	domains, domainsOK := retiredField(x.ListDomains, x.RetiredListDomains)
 	if !listsOK {
 		return transferError("invalid_shape", "lists")
 	}
 	if !domainsOK {
 		return transferError("invalid_shape", "list_domains")
 	}
-	*v = TransferRoute{Ref: x.Ref, Name: x.Name, Services: lists, Categories: x.Categories,
-		Exclusions: x.Exclusions, Priority: x.Priority, ServiceDomains: domains,
+	*v = TransferProfile{Ref: x.Ref, Name: x.Name, Lists: lists, Categories: x.Categories,
+		Exclusions: x.Exclusions, Priority: x.Priority, ListDomains: domains,
 		RefreshInterval: x.RefreshInterval, Archived: x.Archived}
 	return nil
 }
@@ -379,7 +377,7 @@ func (v *TransferDevice) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type TransferOutput struct{ Ref, RouteRef, TargetID, DeviceRef string }
+type TransferOutput struct{ Ref, ProfileRef, TargetID, DeviceRef string }
 
 func (v TransferOutput) MarshalJSON() ([]byte, error) {
 	type w struct {
@@ -388,38 +386,38 @@ func (v TransferOutput) MarshalJSON() ([]byte, error) {
 		TargetID   string `json:"target_id"`
 		DeviceRef  string `json:"device_ref,omitempty"`
 	}
-	return json.Marshal(w{Ref: v.Ref, ProfileRef: v.RouteRef, TargetID: v.TargetID, DeviceRef: v.DeviceRef})
+	return json.Marshal(w(v))
 }
 func (v *TransferOutput) UnmarshalJSON(b []byte) error {
 	type w struct {
 		Ref        string  `json:"ref"`
 		ProfileRef *string `json:"profile_ref"`
 		// The name this format used before ADR 0039 renamed it.
-		RouteRef  *string `json:"route_ref"`
-		TargetID  string  `json:"target_id"`
-		DeviceRef string  `json:"device_ref,omitempty"`
+		RetiredProfileRef *string `json:"route_ref"`
+		TargetID          string  `json:"target_id"`
+		DeviceRef         string  `json:"device_ref,omitempty"`
 	}
 	var x w
 	if err := strictUnmarshal(b, &x); err != nil {
 		return err
 	}
-	ref, ok := retiredField(x.ProfileRef, x.RouteRef)
+	ref, ok := retiredField(x.ProfileRef, x.RetiredProfileRef)
 	if !ok {
 		return transferError("invalid_shape", "profile_ref")
 	}
-	*v = TransferOutput{Ref: x.Ref, RouteRef: ref, TargetID: x.TargetID, DeviceRef: x.DeviceRef}
+	*v = TransferOutput{Ref: x.Ref, ProfileRef: ref, TargetID: x.TargetID, DeviceRef: x.DeviceRef}
 	return nil
 }
 
 type ConfigTransferDocument struct {
 	Version              string
 	Settings             TransferSettings
-	CustomServices       []TransferCustomService
+	CustomLists          []TransferCustomList
 	CustomCategories     []TransferCustomCategory
 	Memberships          []TransferMembership
 	Removals             []TransferRemoval
 	Tunings              []TransferTuning
-	Routes               []TransferRoute
+	Profiles             []TransferProfile
 	Devices              []TransferDevice
 	Outputs              []TransferOutput
 	OmittedCustomSources uint
@@ -429,31 +427,28 @@ func (v ConfigTransferDocument) MarshalJSON() ([]byte, error) {
 	type w struct {
 		Version              string                   `json:"version"`
 		Settings             TransferSettings         `json:"settings"`
-		CustomLists          []TransferCustomService  `json:"custom_lists"`
+		CustomLists          []TransferCustomList     `json:"custom_lists"`
 		CustomCategories     []TransferCustomCategory `json:"custom_categories"`
 		Memberships          []TransferMembership     `json:"memberships"`
 		Removals             []TransferRemoval        `json:"removals"`
 		Tunings              []TransferTuning         `json:"tunings"`
-		Profiles             []TransferRoute          `json:"profiles"`
+		Profiles             []TransferProfile        `json:"profiles"`
 		Devices              []TransferDevice         `json:"devices"`
 		Outputs              []TransferOutput         `json:"outputs"`
 		OmittedCustomSources uint                     `json:"omitted_custom_sources"`
 	}
-	return json.Marshal(w{Version: v.Version, Settings: v.Settings, CustomLists: v.CustomServices,
-		CustomCategories: v.CustomCategories, Memberships: v.Memberships, Removals: v.Removals,
-		Tunings: v.Tunings, Profiles: v.Routes, Devices: v.Devices, Outputs: v.Outputs,
-		OmittedCustomSources: v.OmittedCustomSources})
+	return json.Marshal(w(v))
 }
 
 func (v *ConfigTransferDocument) UnmarshalJSON(b []byte) error {
 	type w struct {
-		Version     string                   `json:"version"`
-		Settings    TransferSettings         `json:"settings"`
-		CustomLists *[]TransferCustomService `json:"custom_lists"`
-		Profiles    *[]TransferRoute         `json:"profiles"`
+		Version     string                `json:"version"`
+		Settings    TransferSettings      `json:"settings"`
+		CustomLists *[]TransferCustomList `json:"custom_lists"`
+		Profiles    *[]TransferProfile    `json:"profiles"`
 		// The names this format used before ADR 0039 renamed them.
-		CustomServices       *[]TransferCustomService `json:"custom_services"`
-		Routes               *[]TransferRoute         `json:"routes"`
+		RetiredCustomLists   *[]TransferCustomList    `json:"custom_services"`
+		RetiredProfiles      *[]TransferProfile       `json:"routes"`
 		CustomCategories     []TransferCustomCategory `json:"custom_categories"`
 		Memberships          []TransferMembership     `json:"memberships"`
 		Removals             []TransferRemoval        `json:"removals"`
@@ -466,17 +461,17 @@ func (v *ConfigTransferDocument) UnmarshalJSON(b []byte) error {
 	if err := strictUnmarshal(b, &x); err != nil {
 		return err
 	}
-	lists, listsOK := retiredField(x.CustomLists, x.CustomServices)
-	profiles, profilesOK := retiredField(x.Profiles, x.Routes)
+	lists, listsOK := retiredField(x.CustomLists, x.RetiredCustomLists)
+	profiles, profilesOK := retiredField(x.Profiles, x.RetiredProfiles)
 	if !listsOK {
 		return transferError("invalid_shape", "custom_lists")
 	}
 	if !profilesOK {
 		return transferError("invalid_shape", "profiles")
 	}
-	*v = ConfigTransferDocument{Version: x.Version, Settings: x.Settings, CustomServices: lists,
+	*v = ConfigTransferDocument{Version: x.Version, Settings: x.Settings, CustomLists: lists,
 		CustomCategories: x.CustomCategories, Memberships: x.Memberships, Removals: x.Removals,
-		Tunings: x.Tunings, Routes: profiles, Devices: x.Devices, Outputs: x.Outputs,
+		Tunings: x.Tunings, Profiles: profiles, Devices: x.Devices, Outputs: x.Outputs,
 		OmittedCustomSources: x.OmittedCustomSources}
 	return nil
 }
@@ -487,10 +482,10 @@ type ConfigTransferRepository interface {
 }
 
 type ConfigTransferApply struct {
-	Document                                                                             ConfigTransferDocument
-	AppliedAt                                                                            time.Time
-	CustomServiceIDs, CustomCategoryIDs, CustomSourceIDs, RouteIDs, DeviceIDs, OutputIDs map[string]string
-	Outputs                                                                              map[string]Output
+	Document                                                                            ConfigTransferDocument
+	AppliedAt                                                                           time.Time
+	CustomListIDs, CustomCategoryIDs, CustomSourceIDs, ProfileIDs, DeviceIDs, OutputIDs map[string]string
+	Outputs                                                                             map[string]Output
 }
 
 func (s *PublicationService) ExportConfigTransfer(ctx context.Context) ([]byte, error) {
@@ -578,8 +573,8 @@ func (s *PublicationService) ApplyConfigTransfer(ctx context.Context, previewDig
 }
 
 type transferRegistries struct {
-	custom     map[string]CustomService
-	tuning     map[string]ServiceTuning
+	custom     map[string]CustomList
+	tuning     map[string]ListTuning
 	categories map[string]CustomCategory
 	membership map[string]map[string]MembershipState
 	removed    map[RemovalKind]map[string]struct{}
@@ -588,11 +583,11 @@ type transferRegistries struct {
 func (s *PublicationService) prepareTransferRegistries(a ConfigTransferApply) (transferRegistries, error) {
 	now := a.AppliedAt.UTC()
 	state := transferRegistries{
-		custom: map[string]CustomService{}, tuning: map[string]ServiceTuning{}, categories: map[string]CustomCategory{},
+		custom: map[string]CustomList{}, tuning: map[string]ListTuning{}, categories: map[string]CustomCategory{},
 		membership: map[string]map[string]MembershipState{}, removed: emptyRemovalIndex(),
 	}
-	serviceID := func(ref string) string {
-		if id := a.CustomServiceIDs[ref]; id != "" {
+	listID := func(ref string) string {
+		if id := a.CustomListIDs[ref]; id != "" {
 			return id
 		}
 		return ref
@@ -603,8 +598,8 @@ func (s *PublicationService) prepareTransferRegistries(a ConfigTransferApply) (t
 		}
 		return ref
 	}
-	for _, item := range a.Document.CustomServices {
-		value, err := normalizedCustomService(CustomService{ID: a.CustomServiceIDs[item.Ref], Title: item.Title, Domains: item.Domains, CreatedAt: now, UpdatedAt: now})
+	for _, item := range a.Document.CustomLists {
+		value, err := normalizedCustomList(CustomList{ID: a.CustomListIDs[item.Ref], Title: item.Title, Domains: item.Domains, CreatedAt: now, UpdatedAt: now})
 		if err != nil {
 			return state, transferError("invalid_shape", "custom_lists")
 		}
@@ -618,26 +613,26 @@ func (s *PublicationService) prepareTransferRegistries(a ConfigTransferApply) (t
 		state.categories[value.ID] = value
 	}
 	for _, item := range a.Document.Memberships {
-		category, service := categoryID(item.CategoryRef), serviceID(item.ServiceRef)
+		category, list := categoryID(item.CategoryRef), listID(item.ListRef)
 		if state.membership[category] == nil {
 			state.membership[category] = map[string]MembershipState{}
 		}
-		state.membership[category][service] = item.State
+		state.membership[category][list] = item.State
 	}
 	for _, item := range a.Document.Removals {
 		state.removed[item.Kind][item.ID] = struct{}{}
 	}
 	for _, item := range a.Document.Tunings {
-		service := serviceID(item.ServiceRef)
-		tuning := ServiceTuning{DisabledSources: append([]string(nil), item.DisabledSources...), Includes: append([]string(nil), item.Includes...), Excludes: append([]string(nil), item.Excludes...)}
+		list := listID(item.ListRef)
+		tuning := ListTuning{DisabledSources: append([]string(nil), item.DisabledSources...), Includes: append([]string(nil), item.Includes...), Excludes: append([]string(nil), item.Excludes...)}
 		for _, source := range item.CustomSources {
-			tuning.CustomSources = append(tuning.CustomSources, CustomSource{ID: a.CustomSourceIDs[source.Ref], ServiceID: service, URL: source.URL, Format: source.Format, CreatedAt: now, UpdatedAt: now})
+			tuning.CustomSources = append(tuning.CustomSources, CustomSource{ID: a.CustomSourceIDs[source.Ref], ListID: list, URL: source.URL, Format: source.Format, CreatedAt: now, UpdatedAt: now})
 		}
-		value, err := normalizedServiceTuning(service, tuning)
+		value, err := normalizedListTuning(list, tuning)
 		if err != nil {
 			return state, transferError("invalid_shape", "tunings")
 		}
-		state.tuning[service] = value
+		state.tuning[list] = value
 	}
 	return state, nil
 }
@@ -648,7 +643,7 @@ func (s *PublicationService) installTransferRegistries(state transferRegistries)
 	s.custom.mu.Lock()
 	s.tuning.mu.Lock()
 	s.overlay.mu.Lock()
-	s.custom.services = state.custom
+	s.custom.lists = state.custom
 	s.tuning.byID = state.tuning
 	s.overlay.custom, s.overlay.membership, s.overlay.removed = state.categories, state.membership, state.removed
 	s.overlay.mu.Unlock()
@@ -855,13 +850,13 @@ func RejectDuplicateJSONKeys(payload []byte) error {
 
 func canonicalizeTransfer(d *ConfigTransferDocument) {
 	nilSlices(d)
-	slices.SortFunc(d.CustomServices, func(a, b TransferCustomService) int { return cmp.Compare(a.Ref, b.Ref) })
-	for i := range d.CustomServices {
-		d.CustomServices[i].Domains = domain.StableStrings(d.CustomServices[i].Domains)
+	slices.SortFunc(d.CustomLists, func(a, b TransferCustomList) int { return cmp.Compare(a.Ref, b.Ref) })
+	for i := range d.CustomLists {
+		d.CustomLists[i].Domains = domain.StableStrings(d.CustomLists[i].Domains)
 	}
 	slices.SortFunc(d.CustomCategories, func(a, b TransferCustomCategory) int { return cmp.Compare(a.Ref, b.Ref) })
 	slices.SortFunc(d.Memberships, func(a, b TransferMembership) int {
-		return cmp.Compare(a.CategoryRef+"\x00"+a.ServiceRef, b.CategoryRef+"\x00"+b.ServiceRef)
+		return cmp.Compare(a.CategoryRef+"\x00"+a.ListRef, b.CategoryRef+"\x00"+b.ListRef)
 	})
 	slices.SortFunc(d.Removals, func(a, b TransferRemoval) int {
 		return cmp.Compare(string(a.Kind)+"\x00"+a.ID, string(b.Kind)+"\x00"+b.ID)
@@ -873,23 +868,23 @@ func canonicalizeTransfer(d *ConfigTransferDocument) {
 		t.Excludes = domain.StableStrings(t.Excludes)
 		slices.SortFunc(t.CustomSources, func(a, b TransferCustomSource) int { return cmp.Compare(a.Ref, b.Ref) })
 	}
-	slices.SortFunc(d.Tunings, func(a, b TransferTuning) int { return cmp.Compare(a.ServiceRef, b.ServiceRef) })
-	for i := range d.Routes {
-		r := &d.Routes[i]
-		r.Services = domain.StableStrings(r.Services)
+	slices.SortFunc(d.Tunings, func(a, b TransferTuning) int { return cmp.Compare(a.ListRef, b.ListRef) })
+	for i := range d.Profiles {
+		r := &d.Profiles[i]
+		r.Lists = domain.StableStrings(r.Lists)
 		r.Categories = domain.StableStrings(r.Categories)
 		r.Exclusions = domain.StableStrings(r.Exclusions)
 		if r.Priority == nil {
 			r.Priority = []string{}
 		}
-		if r.ServiceDomains == nil {
-			r.ServiceDomains = map[string][]string{}
+		if r.ListDomains == nil {
+			r.ListDomains = map[string][]string{}
 		}
-		for k, v := range r.ServiceDomains {
-			r.ServiceDomains[k] = domain.StableStrings(v)
+		for k, v := range r.ListDomains {
+			r.ListDomains[k] = domain.StableStrings(v)
 		}
 	}
-	slices.SortFunc(d.Routes, func(a, b TransferRoute) int { return cmp.Compare(a.Ref, b.Ref) })
+	slices.SortFunc(d.Profiles, func(a, b TransferProfile) int { return cmp.Compare(a.Ref, b.Ref) })
 	slices.SortFunc(d.Devices, func(a, b TransferDevice) int { return cmp.Compare(a.Ref, b.Ref) })
 	slices.SortFunc(d.Outputs, func(a, b TransferOutput) int { return cmp.Compare(a.Ref, b.Ref) })
 }
@@ -900,12 +895,12 @@ func canonicalizeTransfer(d *ConfigTransferDocument) {
 // SQLite identities. Catalog references intentionally stay unchanged.
 func canonicalizeTransferReferences(d *ConfigTransferDocument) {
 	canonicalizeTransfer(d)
-	serviceRefs := make(map[string]string, len(d.CustomServices))
-	for i := range d.CustomServices {
-		old := d.CustomServices[i].Ref
+	listRefs := make(map[string]string, len(d.CustomLists))
+	for i := range d.CustomLists {
+		old := d.CustomLists[i].Ref
 		ref := fmt.Sprintf("custom-service-%d", i+1)
-		serviceRefs[old] = ref
-		d.CustomServices[i].Ref = ref
+		listRefs[old] = ref
+		d.CustomLists[i].Ref = ref
 	}
 	categoryRefs := make(map[string]string, len(d.CustomCategories))
 	for i := range d.CustomCategories {
@@ -921,12 +916,12 @@ func canonicalizeTransferReferences(d *ConfigTransferDocument) {
 			d.Tunings[i].CustomSources[j].Ref = fmt.Sprintf("custom-source-%d", n)
 		}
 	}
-	routeRefs := make(map[string]string, len(d.Routes))
-	for i := range d.Routes {
-		old := d.Routes[i].Ref
+	profileRefs := make(map[string]string, len(d.Profiles))
+	for i := range d.Profiles {
+		old := d.Profiles[i].Ref
 		ref := fmt.Sprintf("route-%d", i+1)
-		routeRefs[old] = ref
-		d.Routes[i].Ref = ref
+		profileRefs[old] = ref
+		d.Profiles[i].Ref = ref
 	}
 	deviceRefs := make(map[string]string, len(d.Devices))
 	for i := range d.Devices {
@@ -938,8 +933,8 @@ func canonicalizeTransferReferences(d *ConfigTransferDocument) {
 	for i := range d.Outputs {
 		d.Outputs[i].Ref = fmt.Sprintf("output-%d", i+1)
 	}
-	service := func(id string) string {
-		if ref := serviceRefs[id]; ref != "" {
+	list := func(id string) string {
+		if ref := listRefs[id]; ref != "" {
 			return ref
 		}
 		return id
@@ -952,37 +947,37 @@ func canonicalizeTransferReferences(d *ConfigTransferDocument) {
 	}
 	for i := range d.Memberships {
 		d.Memberships[i].CategoryRef = category(d.Memberships[i].CategoryRef)
-		d.Memberships[i].ServiceRef = service(d.Memberships[i].ServiceRef)
+		d.Memberships[i].ListRef = list(d.Memberships[i].ListRef)
 	}
 	for i := range d.Tunings {
-		d.Tunings[i].ServiceRef = service(d.Tunings[i].ServiceRef)
+		d.Tunings[i].ListRef = list(d.Tunings[i].ListRef)
 	}
-	for i := range d.Routes {
-		route := &d.Routes[i]
-		for j := range route.Services {
-			route.Services[j] = service(route.Services[j])
+	for i := range d.Profiles {
+		profile := &d.Profiles[i]
+		for j := range profile.Lists {
+			profile.Lists[j] = list(profile.Lists[j])
 		}
-		for j := range route.Categories {
-			route.Categories[j] = category(route.Categories[j])
+		for j := range profile.Categories {
+			profile.Categories[j] = category(profile.Categories[j])
 		}
-		for j := range route.Exclusions {
-			route.Exclusions[j] = service(route.Exclusions[j])
+		for j := range profile.Exclusions {
+			profile.Exclusions[j] = list(profile.Exclusions[j])
 		}
-		for j := range route.Priority {
-			route.Priority[j] = service(route.Priority[j])
+		for j := range profile.Priority {
+			profile.Priority[j] = list(profile.Priority[j])
 		}
-		domains := make(map[string][]string, len(route.ServiceDomains))
-		for id, values := range route.ServiceDomains {
-			domains[service(id)] = values
+		domains := make(map[string][]string, len(profile.ListDomains))
+		for id, values := range profile.ListDomains {
+			domains[list(id)] = values
 		}
-		route.ServiceDomains = domains
+		profile.ListDomains = domains
 	}
 	for i := range d.Settings.DefaultPriority {
-		d.Settings.DefaultPriority[i] = service(d.Settings.DefaultPriority[i])
+		d.Settings.DefaultPriority[i] = list(d.Settings.DefaultPriority[i])
 	}
 	for i := range d.Outputs {
 		output := &d.Outputs[i]
-		output.RouteRef = routeRefs[output.RouteRef]
+		output.ProfileRef = profileRefs[output.ProfileRef]
 		if output.DeviceRef != "" {
 			output.DeviceRef = deviceRefs[output.DeviceRef]
 		}
@@ -1005,17 +1000,17 @@ func (s *PublicationService) completeTransferDefaultPriority(d *ConfigTransferDo
 			removed[removal.ID] = struct{}{}
 		}
 	}
-	allowed := make(map[string]struct{}, len(s.config.Definitions)+len(d.CustomServices))
+	allowed := make(map[string]struct{}, len(s.config.Definitions)+len(d.CustomLists))
 	for id := range s.config.Definitions {
-		if _, local := s.config.LocalServiceIDs[id]; !local {
+		if _, local := s.config.LocalListIDs[id]; !local {
 			if _, gone := removed[id]; gone {
 				continue
 			}
 			allowed[id] = struct{}{}
 		}
 	}
-	for _, service := range d.CustomServices {
-		allowed[service.Ref] = struct{}{}
+	for _, list := range d.CustomLists {
+		allowed[list.Ref] = struct{}{}
 	}
 	ordered := make([]string, 0, len(allowed))
 	seen := make(map[string]struct{}, len(allowed))
@@ -1030,7 +1025,7 @@ func (s *PublicationService) completeTransferDefaultPriority(d *ConfigTransferDo
 		seen[id] = struct{}{}
 	}
 	for _, id := range slices.Sorted(maps.Keys(s.config.Definitions)) {
-		if _, local := s.config.LocalServiceIDs[id]; local {
+		if _, local := s.config.LocalListIDs[id]; local {
 			continue
 		}
 		if _, gone := removed[id]; gone {
@@ -1042,19 +1037,19 @@ func (s *PublicationService) completeTransferDefaultPriority(d *ConfigTransferDo
 		ordered = append(ordered, id)
 		seen[id] = struct{}{}
 	}
-	for _, service := range d.CustomServices {
-		if _, ok := seen[service.Ref]; ok {
+	for _, list := range d.CustomLists {
+		if _, ok := seen[list.Ref]; ok {
 			continue
 		}
-		ordered = append(ordered, service.Ref)
-		seen[service.Ref] = struct{}{}
+		ordered = append(ordered, list.Ref)
+		seen[list.Ref] = struct{}{}
 	}
 	d.Settings.DefaultPriority = ordered
 }
 
 func nilSlices(d *ConfigTransferDocument) {
-	if d.CustomServices == nil {
-		d.CustomServices = []TransferCustomService{}
+	if d.CustomLists == nil {
+		d.CustomLists = []TransferCustomList{}
 	}
 	if d.CustomCategories == nil {
 		d.CustomCategories = []TransferCustomCategory{}
@@ -1068,8 +1063,8 @@ func nilSlices(d *ConfigTransferDocument) {
 	if d.Tunings == nil {
 		d.Tunings = []TransferTuning{}
 	}
-	if d.Routes == nil {
-		d.Routes = []TransferRoute{}
+	if d.Profiles == nil {
+		d.Profiles = []TransferProfile{}
 	}
 	if d.Devices == nil {
 		d.Devices = []TransferDevice{}
@@ -1099,7 +1094,7 @@ func transferCounts(d ConfigTransferDocument) ConfigTransferCounts {
 	for _, t := range d.Tunings {
 		n += uint(len(t.CustomSources))
 	}
-	return ConfigTransferCounts{uint(len(d.CustomServices)), uint(len(d.CustomCategories)), n, uint(len(d.Routes)), uint(len(d.Devices)), uint(len(d.Outputs))}
+	return ConfigTransferCounts{uint(len(d.CustomLists)), uint(len(d.CustomCategories)), n, uint(len(d.Profiles)), uint(len(d.Devices)), uint(len(d.Outputs))}
 }
 func transferPreview(d ConfigTransferDocument, digest string) ConfigTransferPreview {
 	warnings := []ConfigTransferWarning{}
@@ -1116,7 +1111,7 @@ func transferPreview(d ConfigTransferDocument, digest string) ConfigTransferPrev
 }
 
 func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, validateDevice func(TransferDevice) error) error {
-	if len(d.CustomServices) > maxCustomServices || len(d.CustomCategories) > maxCustomCategories || len(d.Routes) > maxTransferRoutes || len(d.Devices) > maxTransferDevices || len(d.Outputs) > maxTransferOutputs {
+	if len(d.CustomLists) > maxCustomLists || len(d.CustomCategories) > maxCustomCategories || len(d.Profiles) > maxTransferProfiles || len(d.Devices) > maxTransferDevices || len(d.Outputs) > maxTransferOutputs {
 		return transferError("limit_exceeded", "")
 	}
 	if d.OmittedCustomSources > maxCustomSourcesTotal {
@@ -1125,18 +1120,18 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 	if !d.Settings.RefreshInterval.validDefault() {
 		return transferError("invalid_shape", "settings/refresh_interval")
 	}
-	services := map[string]bool{}
+	lists := map[string]bool{}
 	for id := range s.config.Definitions {
-		if _, local := s.config.LocalServiceIDs[id]; !local {
-			services[id] = true
+		if _, local := s.config.LocalListIDs[id]; !local {
+			lists[id] = true
 		}
 	}
 	categories := map[string]bool{}
 	localCategories := map[string]bool{}
 	for id, category := range s.config.Categories {
 		portable := true
-		for _, serviceID := range category.Services {
-			if _, local := s.config.LocalServiceIDs[serviceID]; local {
+		for _, listID := range category.Lists {
+			if _, local := s.config.LocalListIDs[listID]; local {
 				portable = false
 				break
 			}
@@ -1148,22 +1143,22 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		}
 	}
 	seen := map[string]bool{}
-	for i := range d.CustomServices {
-		v := &d.CustomServices[i]
+	for i := range d.CustomLists {
+		v := &d.CustomLists[i]
 		p := fmt.Sprintf("custom_services/%d", i)
 		if seen[v.Ref] {
 			return transferError("duplicate_key", p+"/ref")
 		}
 		seen[v.Ref] = true
-		if !strings.HasPrefix(v.Ref, customServiceIDPrefix) {
+		if !strings.HasPrefix(v.Ref, customListIDPrefix) {
 			return transferError("invalid_shape", p+"/ref")
 		}
-		title, domains, err := validCustomServiceInput(v.Title, v.Domains)
+		title, domains, err := validCustomListInput(v.Title, v.Domains)
 		if err != nil {
 			return transferError("invalid_shape", p)
 		}
 		v.Title, v.Domains = title, domains
-		services[v.Ref] = true
+		lists[v.Ref] = true
 	}
 	seen = map[string]bool{}
 	if len(d.Memberships) > maxTransferRows {
@@ -1190,13 +1185,13 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 			return transferError("duplicate_key", fmt.Sprintf("removals/%d", i))
 		}
 		seenRemovals[key] = true
-		if _, local := s.config.LocalServiceIDs[v.ID]; local || localCategories[v.ID] {
+		if _, local := s.config.LocalListIDs[v.ID]; local || localCategories[v.ID] {
 			return transferError("local_catalog_dependency", fmt.Sprintf("removals/%d/id", i))
 		}
 		if v.Kind != RemovalCategory && v.Kind != RemovalList {
 			return transferError("invalid_shape", fmt.Sprintf("removals/%d/kind", i))
 		}
-		known := services[v.ID]
+		known := lists[v.ID]
 		if v.Kind == RemovalCategory {
 			known = categories[v.ID]
 		}
@@ -1207,15 +1202,15 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 	seen = map[string]bool{}
 	for i, v := range d.Memberships {
 		p := fmt.Sprintf("memberships/%d", i)
-		k := v.CategoryRef + "\x00" + v.ServiceRef
+		k := v.CategoryRef + "\x00" + v.ListRef
 		if seen[k] {
 			return transferError("duplicate_key", p)
 		}
 		seen[k] = true
-		if _, local := s.config.LocalServiceIDs[v.ServiceRef]; local || localCategories[v.CategoryRef] {
+		if _, local := s.config.LocalListIDs[v.ListRef]; local || localCategories[v.CategoryRef] {
 			return transferError("local_catalog_dependency", p)
 		}
-		if !categories[v.CategoryRef] || !services[v.ServiceRef] {
+		if !categories[v.CategoryRef] || !lists[v.ListRef] {
 			return transferError("invalid_reference", p)
 		}
 		if v.State != MembershipAdded && v.State != MembershipRemoved {
@@ -1229,24 +1224,24 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 	verdictTotal := 0
 	for i, t := range d.Tunings {
 		p := fmt.Sprintf("tunings/%d", i)
-		if seen[t.ServiceRef] {
+		if seen[t.ListRef] {
 			return transferError("duplicate_key", p+"/service_ref")
 		}
-		seen[t.ServiceRef] = true
-		if _, local := s.config.LocalServiceIDs[t.ServiceRef]; local {
+		seen[t.ListRef] = true
+		if _, local := s.config.LocalListIDs[t.ListRef]; local {
 			return transferError("local_catalog_dependency", p+"/service_ref")
 		}
-		if !services[t.ServiceRef] {
+		if !lists[t.ListRef] {
 			return transferError("catalog_reference_missing", p+"/service_ref")
 		}
 		if len(t.CustomSources) > 0 {
 			return transferError("secret_material", p+"/custom_sources")
 		}
 		verdictTotal += len(t.Includes) + len(t.Excludes)
-		if len(t.DisabledSources) > maxCustomSourcesTotal || len(t.Includes)+len(t.Excludes) > maxServiceVerdicts || len(d.Memberships)+verdictTotal > maxTransferRows {
+		if len(t.DisabledSources) > maxCustomSourcesTotal || len(t.Includes)+len(t.Excludes) > maxListVerdicts || len(d.Memberships)+verdictTotal > maxTransferRows {
 			return transferError("limit_exceeded", p)
 		}
-		definition, _ := s.baseDefinition(t.ServiceRef)
+		definition, _ := s.baseDefinition(t.ListRef)
 		available := map[string]bool{}
 		for _, src := range definition.Sources {
 			available[src.ID] = true
@@ -1256,20 +1251,20 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 				return transferError("source_missing", p+"/disabled_sources")
 			}
 		}
-		if _, err := normalizedServiceTuning(t.ServiceRef, ServiceTuning{DisabledSources: t.DisabledSources, Includes: t.Includes, Excludes: t.Excludes}); err != nil {
+		if _, err := normalizedListTuning(t.ListRef, ListTuning{DisabledSources: t.DisabledSources, Includes: t.Includes, Excludes: t.Excludes}); err != nil {
 			return transferError("invalid_shape", p)
 		}
 	}
-	effectiveServices, effectiveCategories, members := s.transferCompositionCatalog(*d, services, categories)
+	effectiveLists, effectiveCategories, members := s.transferCompositionCatalog(*d, lists, categories)
 	if carriesDefaultPriority(d.Version) && d.Settings.DefaultPriority != nil {
-		available := slices.Sorted(maps.Keys(effectiveServices))
+		available := slices.Sorted(maps.Keys(effectiveLists))
 		if !validPriorityPermutation(d.Settings.DefaultPriority, available) {
 			return transferError("invalid_shape", "settings/default_priority")
 		}
 	}
 	seen = map[string]bool{}
-	for i := range d.Routes {
-		r := &d.Routes[i]
+	for i := range d.Profiles {
+		r := &d.Profiles[i]
 		p := fmt.Sprintf("routes/%d", i)
 		if seen[r.Ref] {
 			return transferError("duplicate_key", p+"/ref")
@@ -1278,7 +1273,7 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		if !validTransferReference(r.Ref, "route") {
 			return transferError("invalid_shape", p+"/ref")
 		}
-		name, ok := validListName(r.Name)
+		name, ok := validObjectName(r.Name)
 		if !ok {
 			return transferError("invalid_shape", p+"/name")
 		}
@@ -1286,13 +1281,13 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		if !r.RefreshInterval.valid() {
 			return transferError("invalid_shape", p+"/refresh_interval")
 		}
-		serviceReferences := append(append([]string{}, r.Services...), r.Exclusions...)
-		serviceReferences = append(serviceReferences, r.Priority...)
-		for _, id := range serviceReferences {
-			if _, local := s.config.LocalServiceIDs[id]; local {
+		listReferences := append(append([]string{}, r.Lists...), r.Exclusions...)
+		listReferences = append(listReferences, r.Priority...)
+		for _, id := range listReferences {
+			if _, local := s.config.LocalListIDs[id]; local {
 				return transferError("local_catalog_dependency", p)
 			}
-			if !services[id] {
+			if !lists[id] {
 				return transferError("catalog_reference_missing", p)
 			}
 		}
@@ -1304,16 +1299,16 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 				return transferError("catalog_reference_missing", p)
 			}
 		}
-		composition := ListComposition{
-			Services: r.Services, Categories: r.Categories,
-			Exclusions: r.Exclusions, ServiceDomains: r.ServiceDomains,
+		composition := ProfileComposition{
+			Lists: r.Lists, Categories: r.Categories,
+			Exclusions: r.Exclusions, ListDomains: r.ListDomains,
 			Priority: r.Priority,
 		}
-		validated, err := validTransferComposition(composition, effectiveServices, effectiveCategories, members)
+		validated, err := validTransferComposition(composition, effectiveLists, effectiveCategories, members)
 		if err != nil {
 			return transferError("invalid_reference", p)
 		}
-		r.Services, r.Categories, r.Exclusions, r.ServiceDomains, r.Priority = validated.Services, validated.Categories, validated.Exclusions, validated.ServiceDomains, validated.Priority
+		r.Lists, r.Categories, r.Exclusions, r.ListDomains, r.Priority = validated.Lists, validated.Categories, validated.Exclusions, validated.ListDomains, validated.Priority
 	}
 	seen = map[string]bool{}
 	for i, v := range d.Devices {
@@ -1343,10 +1338,10 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		if !validTransferReference(v.Ref, "output") {
 			return transferError("invalid_shape", p+"/ref")
 		}
-		if !validTransferReference(v.RouteRef, "route") {
+		if !validTransferReference(v.ProfileRef, "route") {
 			return transferError("invalid_shape", p+"/route_ref")
 		}
-		if !containsRoute(d.Routes, v.RouteRef) {
+		if !containsRoute(d.Profiles, v.ProfileRef) {
 			return transferError("invalid_reference", p+"/route_ref")
 		}
 		target, ok := s.config.Targets[v.TargetID]
@@ -1363,7 +1358,7 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 				return transferError("invalid_reference", p+"/device_ref")
 			}
 		}
-		pair := v.RouteRef + "\x00" + v.TargetID
+		pair := v.ProfileRef + "\x00" + v.TargetID
 		if pairs[pair] {
 			return transferError("duplicate_key", p)
 		}
@@ -1393,10 +1388,10 @@ func validTransferReference(value, prefix string) bool {
 // transfer document is still in memory. The SQLite transaction replaces the
 // overlay wholesale, so composition validation must use that prospective
 // overlay rather than the destination's current registries.
-func (s *PublicationService) transferCompositionCatalog(d ConfigTransferDocument, services, categories map[string]bool) (map[string]bool, map[string]bool, map[string]map[string]MembershipState) {
-	effectiveServices := make(map[string]bool, len(services))
-	for id := range services {
-		effectiveServices[id] = true
+func (s *PublicationService) transferCompositionCatalog(d ConfigTransferDocument, lists, categories map[string]bool) (map[string]bool, map[string]bool, map[string]map[string]MembershipState) {
+	effectiveLists := make(map[string]bool, len(lists))
+	for id := range lists {
+		effectiveLists[id] = true
 	}
 	effectiveCategories := make(map[string]bool, len(categories))
 	for id := range categories {
@@ -1404,7 +1399,7 @@ func (s *PublicationService) transferCompositionCatalog(d ConfigTransferDocument
 	}
 	for _, removal := range d.Removals {
 		if removal.Kind == RemovalList {
-			delete(effectiveServices, removal.ID)
+			delete(effectiveLists, removal.ID)
 		} else if removal.Kind == RemovalCategory {
 			delete(effectiveCategories, removal.ID)
 		}
@@ -1413,56 +1408,56 @@ func (s *PublicationService) transferCompositionCatalog(d ConfigTransferDocument
 	for categoryID := range effectiveCategories {
 		members[categoryID] = map[string]MembershipState{}
 		if base, ok := s.config.Categories[categoryID]; ok {
-			for _, serviceID := range base.Services {
-				members[categoryID][serviceID] = MembershipAdded
+			for _, listID := range base.Lists {
+				members[categoryID][listID] = MembershipAdded
 			}
 		}
 	}
 	for _, membership := range d.Memberships {
 		if members[membership.CategoryRef] != nil {
-			members[membership.CategoryRef][membership.ServiceRef] = membership.State
+			members[membership.CategoryRef][membership.ListRef] = membership.State
 		}
 	}
-	return effectiveServices, effectiveCategories, members
+	return effectiveLists, effectiveCategories, members
 }
 
 // validTransferComposition applies the same rules as validComposition to the
 // catalog that the transfer will install. In particular, a category is not a
 // substitute for a service unless its effective memberships resolve to one.
-func validTransferComposition(c ListComposition, services, categories map[string]bool, members map[string]map[string]MembershipState) (ListComposition, error) {
-	serviceIDs := domain.StableStrings(c.Services)
+func validTransferComposition(c ProfileComposition, lists, categories map[string]bool, members map[string]map[string]MembershipState) (ProfileComposition, error) {
+	listIDs := domain.StableStrings(c.Lists)
 	categoryIDs := domain.StableStrings(c.Categories)
 	exclusions := domain.StableStrings(c.Exclusions)
-	if len(serviceIDs) > maxCompositionItems || len(categoryIDs) > maxCompositionItems || len(exclusions) > maxCompositionItems {
-		return ListComposition{}, errors.New("limit")
+	if len(listIDs) > maxCompositionItems || len(categoryIDs) > maxCompositionItems || len(exclusions) > maxCompositionItems {
+		return ProfileComposition{}, errors.New("limit")
 	}
-	for _, id := range serviceIDs {
-		if domain.ValidateSlug(id) != nil || !services[id] {
-			return ListComposition{}, errors.New("service")
+	for _, id := range listIDs {
+		if domain.ValidateSlug(id) != nil || !lists[id] {
+			return ProfileComposition{}, errors.New("service")
 		}
 	}
 	for _, id := range categoryIDs {
 		if domain.ValidateSlug(id) != nil || !categories[id] {
-			return ListComposition{}, errors.New("category")
+			return ProfileComposition{}, errors.New("category")
 		}
 	}
-	named := make(map[string]struct{}, len(serviceIDs))
-	for _, id := range serviceIDs {
+	named := make(map[string]struct{}, len(listIDs))
+	for _, id := range listIDs {
 		named[id] = struct{}{}
 	}
 	for _, id := range exclusions {
-		if domain.ValidateSlug(id) != nil || !services[id] {
-			return ListComposition{}, errors.New("exclusion")
+		if domain.ValidateSlug(id) != nil || !lists[id] {
+			return ProfileComposition{}, errors.New("exclusion")
 		}
 		if _, both := named[id]; both {
-			return ListComposition{}, errors.New("contradiction")
+			return ProfileComposition{}, errors.New("contradiction")
 		}
 	}
-	resolved := append([]string(nil), serviceIDs...)
+	resolved := append([]string(nil), listIDs...)
 	for _, categoryID := range categoryIDs {
-		for serviceID, state := range members[categoryID] {
-			if state == MembershipAdded && services[serviceID] {
-				resolved = append(resolved, serviceID)
+		for listID, state := range members[categoryID] {
+			if state == MembershipAdded && lists[listID] {
+				resolved = append(resolved, listID)
 			}
 		}
 	}
@@ -1478,19 +1473,19 @@ func validTransferComposition(c ListComposition, services, categories map[string
 	}
 	resolved = domain.StableStrings(withoutExcluded)
 	if len(resolved) == 0 {
-		return ListComposition{}, errors.New("empty")
+		return ProfileComposition{}, errors.New("empty")
 	}
-	serviceDomains, err := normalizeServiceDomains(c.ServiceDomains, resolved)
+	listDomains, err := normalizeListDomains(c.ListDomains, resolved)
 	if err != nil {
-		return ListComposition{}, err
+		return ProfileComposition{}, err
 	}
 	priority, err := normalizePriority(c.Priority, resolved)
 	if err != nil {
-		return ListComposition{}, err
+		return ProfileComposition{}, err
 	}
-	return ListComposition{Services: serviceIDs, Categories: categoryIDs, Exclusions: exclusions, ServiceDomains: serviceDomains, Priority: priority}, nil
+	return ProfileComposition{Lists: listIDs, Categories: categoryIDs, Exclusions: exclusions, ListDomains: listDomains, Priority: priority}, nil
 }
-func containsRoute(v []TransferRoute, ref string) bool {
+func containsRoute(v []TransferProfile, ref string) bool {
 	for _, x := range v {
 		if x.Ref == ref {
 			return true
@@ -1512,7 +1507,7 @@ func (s *PublicationService) prepareApply(d ConfigTransferDocument) (ConfigTrans
 	if now.IsZero() {
 		return ConfigTransferApply{}, transferError("storage_failed", "clock")
 	}
-	a := ConfigTransferApply{Document: d, AppliedAt: now, CustomServiceIDs: map[string]string{}, CustomCategoryIDs: map[string]string{}, CustomSourceIDs: map[string]string{}, RouteIDs: map[string]string{}, DeviceIDs: map[string]string{}, OutputIDs: map[string]string{}, Outputs: map[string]Output{}}
+	a := ConfigTransferApply{Document: d, AppliedAt: now, CustomListIDs: map[string]string{}, CustomCategoryIDs: map[string]string{}, CustomSourceIDs: map[string]string{}, ProfileIDs: map[string]string{}, DeviceIDs: map[string]string{}, OutputIDs: map[string]string{}, Outputs: map[string]Output{}}
 	used := map[string]bool{}
 	gen := func(prefix string) (string, error) {
 		for i := 0; i < 8; i++ {
@@ -1532,12 +1527,12 @@ func (s *PublicationService) prepareApply(d ConfigTransferDocument) (ConfigTrans
 		}
 		return "", transferError("identity_exhausted", "")
 	}
-	for _, v := range d.CustomServices {
+	for _, v := range d.CustomLists {
 		id, e := gen("custom-")
 		if e != nil {
 			return a, e
 		}
-		a.CustomServiceIDs[v.Ref] = id
+		a.CustomListIDs[v.Ref] = id
 	}
 	for _, v := range d.CustomCategories {
 		id, e := gen("custom-")
@@ -1555,12 +1550,12 @@ func (s *PublicationService) prepareApply(d ConfigTransferDocument) (ConfigTrans
 			a.CustomSourceIDs[v.Ref] = id
 		}
 	}
-	for _, v := range d.Routes {
+	for _, v := range d.Profiles {
 		id, e := gen("")
 		if e != nil {
 			return a, e
 		}
-		a.RouteIDs[v.Ref] = id
+		a.ProfileIDs[v.Ref] = id
 	}
 	for _, v := range d.Devices {
 		id, e := gen("")
@@ -1580,7 +1575,7 @@ func (s *PublicationService) prepareApply(d ConfigTransferDocument) (ConfigTrans
 		if err != nil {
 			return a, transferError("target_missing", "outputs")
 		}
-		a.Outputs[v.Ref] = Output{ID: id, ListID: a.RouteIDs[v.RouteRef], TargetID: v.TargetID, DeviceID: a.DeviceIDs[v.DeviceRef], ProfileKey: target.ProfileKey, RendererID: target.RendererID, RendererVersion: renderer.Version(), TargetRevision: s.config.TargetRevision, CreatedAt: now}
+		a.Outputs[v.Ref] = Output{ID: id, ProfileID: a.ProfileIDs[v.ProfileRef], TargetID: v.TargetID, DeviceID: a.DeviceIDs[v.DeviceRef], FormatKey: target.FormatKey, RendererID: target.RendererID, RendererVersion: renderer.Version(), TargetRevision: s.config.TargetRevision, CreatedAt: now}
 	}
 	return a, nil
 }

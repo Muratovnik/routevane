@@ -26,15 +26,15 @@ func (e *RuleLimitError) Unwrap() error { return ErrRuleLimit }
 // PreflightPlan is deliberately independent from Render. It refuses malformed,
 // stale, incompatible, non-canonical, or hash-injected plans before any format
 // implementation sees them.
-func PreflightPlan(plan domain.RoutingPlan, target domain.TargetProfile, renderer Renderer, cutoff time.Time) error {
-	if renderer == nil || cutoff.IsZero() || plan.InterfaceVersion != domain.RoutingPlanInterfaceVersion || plan.PolicyVersion != planner.PolicyVersion || plan.TargetID != target.ID || plan.ProfileKey != target.ProfileKey || plan.ObservationCutoff.IsZero() || !plan.ObservationCutoff.Equal(cutoff.UTC()) || domain.ValidateSlug(target.ID) != nil || domain.ValidateSlug(target.ProfileKey) != nil || domain.ValidateSlug(target.RendererID) != nil || renderer.ID() != target.RendererID || renderer.Version() != target.ProfileKey {
+func PreflightPlan(plan domain.RoutingPlan, target domain.TargetDefinition, renderer Renderer, cutoff time.Time) error {
+	if renderer == nil || cutoff.IsZero() || plan.InterfaceVersion != domain.RoutingPlanInterfaceVersion || plan.PolicyVersion != planner.PolicyVersion || plan.TargetID != target.ID || plan.FormatKey != target.FormatKey || plan.ObservationCutoff.IsZero() || !plan.ObservationCutoff.Equal(cutoff.UTC()) || domain.ValidateSlug(target.ID) != nil || domain.ValidateSlug(target.FormatKey) != nil || domain.ValidateSlug(target.RendererID) != nil || renderer.ID() != target.RendererID || renderer.Version() != target.FormatKey {
 		return fmt.Errorf("%w: identity", ErrPreflight)
 	}
-	if len(plan.Services) == 0 {
+	if len(plan.Lists) == 0 {
 		return fmt.Errorf("%w: service set", ErrPreflight)
 	}
-	for i, serviceID := range plan.Services {
-		if domain.ValidateSlug(serviceID) != nil || (i > 0 && plan.Services[i-1] >= serviceID) {
+	for i, listID := range plan.Lists {
+		if domain.ValidateSlug(listID) != nil || (i > 0 && plan.Lists[i-1] >= listID) {
 			return fmt.Errorf("%w: service set", ErrPreflight)
 		}
 	}
@@ -54,7 +54,7 @@ func PreflightPlan(plan domain.RoutingPlan, target domain.TargetProfile, rendere
 	seenRules := make(map[string]struct{}, len(plan.Rules))
 	lastRuleKey := ""
 	for i, rule := range plan.Rules {
-		if !rule.IsValid() || rule.Action != domain.ActionRoute || !slices.Contains(plan.Services, rule.ServiceID) || !targetSupportsRule(target.Constraints, rule.Kind) {
+		if !rule.IsValid() || rule.Action != domain.ActionRoute || !slices.Contains(plan.Lists, rule.ListID) || !targetSupportsRule(target.Constraints, rule.Kind) {
 			return fmt.Errorf("%w: invalid or target-incompatible rule", ErrPreflight)
 		}
 		if _, ok := supported[rule.Kind]; !ok {
@@ -79,8 +79,8 @@ func PreflightPlan(plan domain.RoutingPlan, target domain.TargetProfile, rendere
 	}
 	seenCoverage := make(map[string]struct{}, len(plan.Coverage))
 	for _, coverage := range plan.Coverage {
-		key := coverage.ServiceID + "\x00" + coverage.ComponentID
-		if domain.ValidateSlug(coverage.ServiceID) != nil || domain.ValidateSlug(coverage.ComponentID) != nil || coverage.RuleCount < 0 {
+		key := coverage.ListID + "\x00" + coverage.ComponentID
+		if domain.ValidateSlug(coverage.ListID) != nil || domain.ValidateSlug(coverage.ComponentID) != nil || coverage.RuleCount < 0 {
 			return fmt.Errorf("%w: invalid coverage", ErrPreflight)
 		}
 		if _, duplicate := seenCoverage[key]; duplicate {
@@ -133,7 +133,7 @@ func knownRuleKind(kind domain.RuleKind) bool {
 }
 
 func ruleSortKey(rule domain.RouteRule) string {
-	return strings.Join([]string{string(rule.Kind), rule.CanonicalValue(), rule.ServiceID, rule.ComponentID, string(rule.SourceClass)}, "\x00")
+	return strings.Join([]string{string(rule.Kind), rule.CanonicalValue(), rule.ListID, rule.ComponentID, string(rule.SourceClass)}, "\x00")
 }
 
 func canonicalStrings(values []string) bool {

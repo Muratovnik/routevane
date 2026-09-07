@@ -1,227 +1,154 @@
-// The transport for a list and its outputs: the product's own unit and the
-// formats bound to it. Composition is resolved on the server, so these
-// handlers pass a request through and never decide what a list contains.
 package httpapi
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/Muratovnik/routevane/internal/application"
+	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-func (h *handler) createList(w http.ResponseWriter, r *http.Request) {
-	var request struct {
-		Name string `json:"name"`
-		application.ListComposition
-	}
-	if !decodeJSON(w, r, &request) {
-		return
-	}
-	list, err := h.backend.CreateList(r.Context(), request.Name, request.ListComposition)
-	if err != nil {
-		h.backendError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string]any{"profile": list})
-}
-
-// previewComposition forecasts a composition that has not been created. It
-// decodes the same composition fields creation accepts, so a screen forecasts
-// exactly what it is about to create rather than a summary of it, and the
-// answer costs no stored row. targets is optional: an absent or empty set asks
-// about every target in the catalog.
-func (h *handler) previewComposition(w http.ResponseWriter, r *http.Request) {
-	var request struct {
-		application.ListComposition
-		Targets []string `json:"targets"`
-	}
-	if !decodeJSON(w, r, &request) {
-		return
-	}
-	forecasts, err := h.backend.ForecastComposition(r.Context(), request.ListComposition, request.Targets)
-	if err != nil {
-		h.backendError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"targets": forecasts})
-}
-
-func (h *handler) listLists(w http.ResponseWriter, r *http.Request) {
-	cards, err := h.backend.ListCards(r.Context())
-	if err != nil {
-		h.backendError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"profiles": cards})
-}
-
-func (h *handler) getList(w http.ResponseWriter, r *http.Request, id string) {
-	list, err := h.backend.List(r.Context(), id)
-	if err != nil {
-		h.backendError(w, err)
-		return
-	}
-	outputs, err := h.backend.OutputCards(r.Context(), id)
-	if err != nil {
-		h.backendError(w, err)
-		return
-	}
-	schedule, err := h.backend.ListSchedule(r.Context(), list)
-	if err != nil {
-		h.backendError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"profile":            list,
-		"outputs":            outputs,
-		"resolved":           h.backend.ResolvedServices(list),
-		"missing_categories": h.backend.MissingCategories(list),
-		"schedule":           schedule,
-	})
-}
-
-// updateList replaces a list's name and composition. It is a POST rather than
-// a PUT because the mutation guard this transport enforces is written for one
-// verb, and adding a second would widen it for no gain.
-func (h *handler) updateList(w http.ResponseWriter, r *http.Request, id string) {
-	var request struct {
-		Name string `json:"name"`
-		application.ListComposition
-	}
-	if !decodeJSON(w, r, &request) {
-		return
-	}
-	list, err := h.backend.UpdateList(r.Context(), id, request.Name, request.ListComposition)
-	if err != nil {
-		h.backendError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"profile": list})
-}
-
-// setListArchived takes a list off the shelf or puts it back. The reply is the
-// list, so the caller reads the resulting state rather than assuming the verb
-// it sent was the state it got.
-func (h *handler) setListArchived(w http.ResponseWriter, r *http.Request, id string, archived bool) {
+func (h *handler) previewList(w http.ResponseWriter, r *http.Request, listID string) {
 	if !decodeEmpty(w, r) {
 		return
 	}
-	act := h.backend.RestoreList
-	if archived {
-		act = h.backend.ArchiveList
-	}
-	list, err := act(r.Context(), id)
+	preview, err := h.backend.PreviewList(r.Context(), listID)
 	if err != nil {
 		h.backendError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"profile": list})
+	writeJSON(w, http.StatusOK, preview)
 }
 
-// updateListSchedule records a list's own rule. An empty interval is not a
-// missing value: it is the list going back to following the service-wide
-// default, which is a different statement from naming the default's value.
-func (h *handler) updateListSchedule(w http.ResponseWriter, r *http.Request, id string) {
+func (h *handler) createCustomList(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		RefreshInterval application.RefreshInterval `json:"refresh_interval"`
+		Title   string   `json:"title"`
+		Domains []string `json:"domains"`
 	}
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	list, err := h.backend.SetListRefreshInterval(r.Context(), id, request.RefreshInterval)
+	list, err := h.backend.CreateCustomList(r.Context(), request.Title, request.Domains)
 	if err != nil {
 		h.backendError(w, err)
 		return
 	}
-	schedule, err := h.backend.ListSchedule(r.Context(), list)
-	if err != nil {
-		h.backendError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"profile": list, "schedule": schedule})
+	writeJSON(w, http.StatusCreated, map[string]any{"list": list})
 }
 
-// addOutput binds a list to one format. It has no credential yet: the build
-// route issues the subscription only after a valid artifact is published.
-func (h *handler) addOutput(w http.ResponseWriter, r *http.Request, listID string) {
+func (h *handler) updateCustomList(w http.ResponseWriter, r *http.Request, listID string) {
 	var request struct {
-		TargetID string `json:"target_id"`
+		Title   string   `json:"title"`
+		Domains []string `json:"domains"`
 	}
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	created, err := h.backend.AddOutput(r.Context(), listID, request.TargetID)
-	if err != nil {
-		if errors.Is(err, application.ErrOutputExists) {
-			writeJSON(w, http.StatusConflict, map[string]any{"output": created.Output, "error": "output exists"})
-			return
-		}
-		h.backendError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusCreated, map[string]any{"output": created.Output})
-}
-
-func (h *handler) getOutput(w http.ResponseWriter, r *http.Request, id string) {
-	output, err := h.backend.Output(r.Context(), id)
+	list, err := h.backend.UpdateCustomList(r.Context(), listID, request.Title, request.Domains)
 	if err != nil {
 		h.backendError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, output)
+	writeJSON(w, http.StatusOK, map[string]any{"list": list})
 }
 
-// setOutputDevice changes only where future automatic deliveries go. An empty
-// identity detaches the device while the output, subscription and immutable
-// artifact history stay intact.
-func (h *handler) setOutputDevice(w http.ResponseWriter, r *http.Request, id string) {
-	var request struct {
-		DeviceID string `json:"device_id"`
-	}
-	if !decodeJSON(w, r, &request) {
-		return
-	}
-	output, err := h.backend.SetOutputDevice(r.Context(), id, request.DeviceID)
-	if err != nil {
-		h.backendError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"output": output})
-}
-
-func (h *handler) refresh(w http.ResponseWriter, r *http.Request, id string) {
+// removeList deletes one list from the library (ADR 0029). It asks nothing,
+// because a list holds no other object: everything it owned goes with it, and
+// a route that names it directly refuses the deletion instead of losing it.
+func (h *handler) removeList(w http.ResponseWriter, r *http.Request, listID string) {
 	if !decodeEmpty(w, r) {
 		return
 	}
-	summaries, err := h.backend.Refresh(r.Context(), id)
+	if err := h.backend.RemoveList(r.Context(), listID); err != nil {
+		h.backendError(w, err)
+		return
+	}
+	writeNoContent(w)
+}
+
+func (h *handler) listContents(w http.ResponseWriter, r *http.Request, listID string) {
+	contents, err := h.backend.ListContents(r.Context(), listID)
 	if err != nil {
 		h.backendError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"refresh": summaries})
+	writeJSON(w, http.StatusOK, contents)
 }
 
-func (h *handler) build(w http.ResponseWriter, r *http.Request, id string) {
+func (h *handler) refreshList(w http.ResponseWriter, r *http.Request, listID string) {
 	if !decodeEmpty(w, r) {
 		return
 	}
-	result, err := h.backend.Build(r.Context(), id)
+	summary, err := h.backend.RefreshListByID(r.Context(), listID)
 	if err != nil {
 		h.backendError(w, err)
 		return
 	}
-	token, err := h.backend.IssueSubscription(r.Context(), id)
-	if err != nil && !errors.Is(err, application.ErrSubscriptionExists) {
+	writeJSON(w, http.StatusOK, map[string]any{"refresh": summary})
+}
+
+func (h *handler) addListSource(w http.ResponseWriter, r *http.Request, listID string) {
+	var request struct {
+		URL    string `json:"url"`
+		Format string `json:"format"`
+	}
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	source, err := h.backend.AddListSource(r.Context(), listID, request.URL, domain.FeedFormat(request.Format))
+	if err != nil {
 		h.backendError(w, err)
 		return
 	}
-	response := struct {
-		application.SafePublishedBuild
-		SubscriptionURL string `json:"subscription_url,omitempty"`
-	}{SafePublishedBuild: result.SafeProjection()}
-	if token != "" {
-		response.SubscriptionURL = h.origin + "/v1/subscriptions/" + token
+	writeJSON(w, http.StatusCreated, map[string]any{"source": source})
+}
+
+func (h *handler) updateListSource(w http.ResponseWriter, r *http.Request, listID, sourceID string) {
+	var request struct {
+		Enabled bool `json:"enabled"`
 	}
-	writeJSON(w, http.StatusOK, response)
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	if err := h.backend.SetListSourceEnabled(r.Context(), listID, sourceID, request.Enabled); err != nil {
+		h.backendError(w, err)
+		return
+	}
+	h.listContents(w, r, listID)
+}
+
+func (h *handler) removeListSource(w http.ResponseWriter, r *http.Request, listID, sourceID string) {
+	if !decodeEmpty(w, r) {
+		return
+	}
+	if err := h.backend.RemoveListSource(r.Context(), listID, sourceID); err != nil {
+		h.backendError(w, err)
+		return
+	}
+	h.listContents(w, r, listID)
+}
+
+// setListValues records one verdict over a batch of destinations — domains,
+// addresses, networks. The batch exists because an operator states a routes
+// file in one action; the application bounds it at 1024 values, and the body
+// bound this package applies to every route (maxJSONBytes, 64 KiB) carries a
+// full batch of ordinary destinations with room to spare. A larger body is
+// refused as too large by decodeJSON rather than silently truncated, so the
+// route needs no bound of its own.
+func (h *handler) setListValues(w http.ResponseWriter, r *http.Request, listID string) {
+	var request struct {
+		Values  []string `json:"values"`
+		Verdict string   `json:"verdict"`
+	}
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	if len(request.Values) == 0 {
+		writeError(w, http.StatusBadRequest, "no destinations")
+		return
+	}
+	if err := h.backend.SetListValues(r.Context(), listID, request.Values, application.DomainVerdict(request.Verdict)); err != nil {
+		h.backendError(w, err)
+		return
+	}
+	h.listContents(w, r, listID)
 }

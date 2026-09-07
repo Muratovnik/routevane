@@ -27,10 +27,10 @@ const (
 var (
 	ErrIncompatibleSchema = errors.New("incompatible SQLite schema")
 	ErrInvalidCycle       = errors.New("invalid source cycle")
-	// ErrProfileNotFound wraps the application's not-found sentinel so a caller
+	// ErrFormatNotFound wraps the application's not-found sentinel so a caller
 	// can distinguish "never observed yet" from a storage failure without
 	// depending on this package.
-	ErrProfileNotFound = fmt.Errorf("%w: effective profile", application.ErrNotFound)
+	ErrFormatNotFound = fmt.Errorf("%w: effective profile", application.ErrNotFound)
 )
 
 type Store struct {
@@ -40,7 +40,7 @@ type Store struct {
 	configTransferPreflight func() error
 }
 
-type ProfileRecord = application.ProfileRecord
+type FormatRecord = application.FormatRecord
 type SuccessCycle = application.SuccessCycle
 type FailureCycle = application.FailureCycle
 type PlanningSnapshot = application.PlanningSnapshot

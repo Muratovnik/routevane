@@ -105,8 +105,8 @@ func TestLoadBoundsFilesAndTotalBytes(t *testing.T) {
 			t.Fatal(err)
 		}
 		for i := 0; i < 17; i++ {
-			service := strings.Replace(validCatalogYAML, "id: example", fmt.Sprintf("id: service-%d", i), 1)
-			payload := []byte(service + "#" + strings.Repeat("x", 250000-len(service)-2) + "\n")
+			list := strings.Replace(validCatalogYAML, "id: example", fmt.Sprintf("id: service-%d", i), 1)
+			payload := []byte(list + "#" + strings.Repeat("x", 250000-len(list)-2) + "\n")
 			if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("%02d.yaml", i)), payload, 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -178,7 +178,7 @@ components:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if a.Revision != b.Revision || a.Services["example"].Sources[0].Revision != b.Services["example"].Sources[0].Revision {
+	if a.Revision != b.Revision || a.Lists["example"].Sources[0].Revision != b.Lists["example"].Sources[0].Revision {
 		t.Fatalf("canonical revisions differ: %#v %#v", a, b)
 	}
 }
@@ -202,7 +202,7 @@ func TestTargetCatalogIsOptionalStrictAndSeparatelyRevisioned(t *testing.T) {
 			t.Fatal(err)
 		}
 		target, ok := first.Target("keenetic")
-		if !ok || target.ProfileKey != "keenetic-bat-ipv4-v1" || target.Constraints.MaxRules != 1024 || len(target.RendererOptions) != 0 {
+		if !ok || target.FormatKey != "keenetic-bat-ipv4-v1" || target.Constraints.MaxRules != 1024 || len(target.RendererOptions) != 0 {
 			t.Fatalf("loaded target = %#v", target)
 		}
 		writeTargetFile(t, root, "keenetic.yaml", []byte(strings.Replace(validTargetYAML, "max_artifact_size: 131072", "max_artifact_size: 131073", 1)))
@@ -314,14 +314,14 @@ func TestTargetCatalogRejectsLinks(t *testing.T) {
 	}
 }
 
-func FuzzDecodeService(f *testing.F) {
+func FuzzDecodeList(f *testing.F) {
 	f.Add([]byte(validCatalogYAML))
 	f.Add([]byte("id: x\nid: y\n"))
 	f.Fuzz(func(t *testing.T, payload []byte) {
 		if len(payload) > MaxFileBytes {
 			t.Skip()
 		}
-		definition, err := decodeService(payload)
+		definition, err := decodeList(payload)
 		if err == nil {
 			if definition.ID == "" || definition.CatalogRevision != "" {
 				t.Fatalf("noncanonical decoded definition: %#v", definition)
@@ -389,7 +389,7 @@ func TestTargetReadsTheRetiredFormatKeyButRefusesBoth(t *testing.T) {
 				t.Fatal(err)
 			}
 			target, ok := catalog.Target("keenetic")
-			if !ok || target.ProfileKey != "keenetic-bat-ipv4-v1" {
+			if !ok || target.FormatKey != "keenetic-bat-ipv4-v1" {
 				t.Fatalf("target = %#v", target)
 			}
 		})

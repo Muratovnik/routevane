@@ -92,11 +92,11 @@ func TestPublishesOneProfileInTwoPracticallyDifferentFormatsAndSurvivesAFeedOuta
 		t.Fatalf("targets = %#v", byTarget)
 	}
 
-	listID, routerOutput, _ := createListOutput(t, origin, "YouTube", "keenetic", "youtube")
-	clientOutput := addOutput(t, origin, listID, "singbox")
+	profileID, routerOutput, _ := createProfileOutput(t, origin, "YouTube", "keenetic", "youtube")
+	clientOutput := addOutput(t, origin, profileID, "singbox")
 
-	routerBuild := guardedRefreshAndBuild(t, origin, listID, routerOutput)
-	clientBuild := guardedRefreshAndBuild(t, origin, listID, clientOutput)
+	routerBuild := guardedRefreshAndBuild(t, origin, profileID, routerOutput)
+	clientBuild := guardedRefreshAndBuild(t, origin, profileID, clientOutput)
 	if len(routerBuild.Summary.DegradedSources) != 0 || len(clientBuild.Summary.DegradedSources) != 0 {
 		t.Fatalf("a healthy feed must not report a degraded source: %#v %#v", routerBuild, clientBuild)
 	}
@@ -154,7 +154,7 @@ func TestPublishesOneProfileInTwoPracticallyDifferentFormatsAndSurvivesAFeedOuta
 	// window, and the feed observation itself has expired.
 	feedHealthy.Store(false)
 	now = now.Add(feedValidity + time.Minute)
-	degradedBuild := guardedRefreshAndBuild(t, origin, listID, routerOutput)
+	degradedBuild := guardedRefreshAndBuild(t, origin, profileID, routerOutput)
 	if strings.Join(degradedBuild.Summary.DegradedSources, ",") != "official-ranges" {
 		t.Fatalf("degraded sources = %#v", degradedBuild.Summary.DegradedSources)
 	}
@@ -176,7 +176,7 @@ func TestPublishesOneProfileInTwoPracticallyDifferentFormatsAndSurvivesAFeedOuta
 	// refresh reports it, and an explicit build publishes what the healthy
 	// sources support instead of the expired range.
 	now = now.Add(24 * time.Hour)
-	hardFailure := postGuarded(t, origin+"/v1/profiles/"+listID+"/refresh")
+	hardFailure := postGuarded(t, origin+"/v1/profiles/"+profileID+"/refresh")
 	if hardFailure.status != http.StatusUnprocessableEntity {
 		t.Fatalf("an expired grace window must report a failed refresh: status=%d body=%s", hardFailure.status, hardFailure.body)
 	}
@@ -201,7 +201,7 @@ func TestPublishesOneProfileInTwoPracticallyDifferentFormatsAndSurvivesAFeedOuta
 	// candidate is empty. Refuse it without moving the last-good publication.
 	resolver.set(nil)
 	now = now.Add(48 * time.Hour)
-	if failed := postGuarded(t, origin+"/v1/profiles/"+listID+"/refresh"); failed.status != http.StatusUnprocessableEntity {
+	if failed := postGuarded(t, origin+"/v1/profiles/"+profileID+"/refresh"); failed.status != http.StatusUnprocessableEntity {
 		t.Fatalf("all-source outage refresh=%d %s", failed.status, failed.body)
 	}
 	if failed := postGuarded(t, origin+"/v1/outputs/"+routerOutput+"/build"); failed.status != http.StatusUnprocessableEntity {
@@ -215,7 +215,7 @@ func TestPublishesOneProfileInTwoPracticallyDifferentFormatsAndSurvivesAFeedOuta
 			} `json:"latest"`
 		} `json:"outputs"`
 	}
-	if err := json.Unmarshal(httpGet(t, origin+"/v1/profiles/"+listID, nil).body, &detail); err != nil {
+	if err := json.Unmarshal(httpGet(t, origin+"/v1/profiles/"+profileID, nil).body, &detail); err != nil {
 		t.Fatal(err)
 	}
 	latest := ""
@@ -235,9 +235,9 @@ func TestPublishesOneProfileInTwoPracticallyDifferentFormatsAndSurvivesAFeedOuta
 // addOutput binds an existing list to one more format. Two devices sharing
 // one set of services is the case the list model exists for, so this test uses
 // one list with two outputs rather than two copies of the same composition.
-func addOutput(t *testing.T, origin, listID, targetID string) string {
+func addOutput(t *testing.T, origin, profileID, targetID string) string {
 	t.Helper()
-	created := postJSON(t, origin+"/v1/profiles/"+listID+"/outputs", `{"target_id":"`+targetID+`"}`)
+	created := postJSON(t, origin+"/v1/profiles/"+profileID+"/outputs", `{"target_id":"`+targetID+`"}`)
 	var response struct {
 		Output struct {
 			ID       string `json:"id"`
@@ -266,9 +266,9 @@ type degradedBuildResponse struct {
 	} `json:"summary"`
 }
 
-func guardedRefreshAndBuild(t *testing.T, origin, listID, outputID string) degradedBuildResponse {
+func guardedRefreshAndBuild(t *testing.T, origin, profileID, outputID string) degradedBuildResponse {
 	t.Helper()
-	refreshed := postGuarded(t, origin+"/v1/profiles/"+listID+"/refresh")
+	refreshed := postGuarded(t, origin+"/v1/profiles/"+profileID+"/refresh")
 	if refreshed.status != http.StatusOK {
 		t.Fatalf("refresh status=%d body=%s", refreshed.status, refreshed.body)
 	}

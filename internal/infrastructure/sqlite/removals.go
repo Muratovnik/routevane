@@ -63,16 +63,16 @@ func (s *Store) RemoveFromLibrary(ctx context.Context, removal application.Libra
 	}
 	fail := func(cause error) error { _ = tx.Rollback(); return cause }
 	stamp := removal.RemovedAt.UTC().Format(removedAtLayout)
-	services := removal.Services
+	lists := removal.Lists
 	if removal.Kind == application.RemovalCategory {
 		if err := removeCategoryRows(ctx, tx, removal.ID, stamp); err != nil {
 			return fail(err)
 		}
 	} else {
-		services = []string{removal.ID}
+		lists = []string{removal.ID}
 	}
-	for _, serviceID := range services {
-		if err := removeServiceRows(ctx, tx, serviceID, stamp); err != nil {
+	for _, listID := range lists {
+		if err := removeListRows(ctx, tx, listID, stamp); err != nil {
 			return fail(err)
 		}
 	}
@@ -92,21 +92,21 @@ func validLibraryRemoval(removal application.LibraryRemoval) error {
 		return fmt.Errorf("invalid library removal")
 	}
 	// Only a category holds lists, so only a category deletion may name any.
-	if removal.Kind != application.RemovalCategory && len(removal.Services) != 0 {
+	if removal.Kind != application.RemovalCategory && len(removal.Lists) != 0 {
 		return fmt.Errorf("invalid library removal")
 	}
-	if len(removal.Services) > removedListsLimit {
+	if len(removal.Lists) > removedListsLimit {
 		return fmt.Errorf("invalid library removal")
 	}
-	seen := make(map[string]struct{}, len(removal.Services))
-	for _, serviceID := range removal.Services {
-		if domain.ValidateSlug(serviceID) != nil {
+	seen := make(map[string]struct{}, len(removal.Lists))
+	for _, listID := range removal.Lists {
+		if domain.ValidateSlug(listID) != nil {
 			return fmt.Errorf("invalid library removal")
 		}
-		if _, duplicate := seen[serviceID]; duplicate {
+		if _, duplicate := seen[listID]; duplicate {
 			return fmt.Errorf("invalid library removal")
 		}
-		seen[serviceID] = struct{}{}
+		seen[listID] = struct{}{}
 	}
 	return nil
 }
@@ -129,7 +129,7 @@ func removeCategoryRows(ctx context.Context, tx *sql.Tx, id, stamp string) error
 	return nil
 }
 
-func removeServiceRows(ctx context.Context, tx *sql.Tx, id, stamp string) error {
+func removeListRows(ctx context.Context, tx *sql.Tx, id, stamp string) error {
 	if strings.HasPrefix(id, operatorPrefix) {
 		result, err := tx.ExecContext(ctx, `DELETE FROM custom_lists WHERE id=?`, id)
 		if err != nil {

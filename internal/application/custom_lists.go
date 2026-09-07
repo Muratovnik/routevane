@@ -18,14 +18,14 @@ import (
 // is the whole definition — and it is global: any list may name it, exactly
 // like a shipped catalog service. Its identity carries a reserved prefix so it
 // can never collide with a service the shipped catalog gains later.
-const customServiceIDPrefix = "custom-"
+const customListIDPrefix = "custom-"
 
-// maxCustomServices bounds the operator-defined part of the catalog the same
+// maxCustomLists bounds the operator-defined part of the catalog the same
 // way one composition part is bounded. The shipped catalog is bounded by its
 // directory; this registry has no directory, so the bound lives here.
-const maxCustomServices = maxCompositionItems
+const maxCustomLists = maxCompositionItems
 
-type CustomService struct {
+type CustomList struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
 	Domains   []string  `json:"domains"`
@@ -33,122 +33,122 @@ type CustomService struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// customServiceRegistry is the in-process copy of the stored custom services.
+// customListRegistry is the in-process copy of the stored custom services.
 // The process lock guarantees a single writer over the database, so a
 // write-through registry cannot drift from the store while the process lives;
-// LoadCustomServices re-reads it at startup.
-type customServiceRegistry struct {
-	mu       sync.RWMutex
-	services map[string]CustomService
+// LoadCustomLists re-reads it at startup.
+type customListRegistry struct {
+	mu    sync.RWMutex
+	lists map[string]CustomList
 }
 
-// LoadCustomServices hydrates the registry from the store. It runs once at
+// LoadCustomLists hydrates the registry from the store. It runs once at
 // composition time; every later write goes through the store first and the
 // registry second, so what the planner reads is never ahead of what a restart
 // would read back.
-func (s *PublicationService) LoadCustomServices(ctx context.Context) error {
-	stored, err := s.config.Store.CustomServices(ctx)
+func (s *PublicationService) LoadCustomLists(ctx context.Context) error {
+	stored, err := s.config.Store.CustomLists(ctx)
 	if err != nil {
 		return fmt.Errorf("load custom services: %w", err)
 	}
-	services := make(map[string]CustomService, len(stored))
-	for _, service := range stored {
-		normalized, err := normalizedCustomService(service)
+	lists := make(map[string]CustomList, len(stored))
+	for _, list := range stored {
+		normalized, err := normalizedCustomList(list)
 		if err != nil {
 			return fmt.Errorf("load custom services: %w", err)
 		}
-		services[normalized.ID] = normalized
+		lists[normalized.ID] = normalized
 	}
 	s.custom.mu.Lock()
-	s.custom.services = services
+	s.custom.lists = lists
 	s.custom.mu.Unlock()
 	return nil
 }
 
-// CreateCustomService stores one operator-defined service and makes it
+// CreateCustomList stores one operator-defined service and makes it
 // selectable at once. The identity is generated, never operator-supplied: the
 // title is presentation and may repeat, while the id must stay a stable slug.
-func (s *PublicationService) CreateCustomService(ctx context.Context, title string, domains []string) (CustomService, error) {
-	cleanTitle, cleanDomains, err := validCustomServiceInput(title, domains)
+func (s *PublicationService) CreateCustomList(ctx context.Context, title string, domains []string) (CustomList, error) {
+	cleanTitle, cleanDomains, err := validCustomListInput(title, domains)
 	if err != nil {
-		return CustomService{}, err
+		return CustomList{}, err
 	}
 	now := s.config.Clock.Now().UTC()
 	if now.IsZero() {
-		return CustomService{}, fmt.Errorf("clock returned zero time")
+		return CustomList{}, fmt.Errorf("clock returned zero time")
 	}
 	s.custom.mu.RLock()
-	total := len(s.custom.services)
+	total := len(s.custom.lists)
 	s.custom.mu.RUnlock()
-	if total >= maxCustomServices {
-		return CustomService{}, fmt.Errorf("custom service limit reached")
+	if total >= maxCustomLists {
+		return CustomList{}, fmt.Errorf("custom service limit reached")
 	}
 	for attempt := 0; attempt < 8; attempt++ {
 		suffix, err := randomHex(s.config.Entropy, 8)
 		if err != nil {
-			return CustomService{}, fmt.Errorf("generate custom service identity: %w", err)
+			return CustomList{}, fmt.Errorf("generate custom service identity: %w", err)
 		}
-		service := CustomService{ID: customServiceIDPrefix + suffix, Title: cleanTitle, Domains: cleanDomains, CreatedAt: now, UpdatedAt: now}
+		list := CustomList{ID: customListIDPrefix + suffix, Title: cleanTitle, Domains: cleanDomains, CreatedAt: now, UpdatedAt: now}
 		// The shipped catalog cannot use the reserved prefix, but the check
 		// costs nothing and turns a violated assumption into a retry.
-		if _, taken := s.config.Definitions[service.ID]; taken {
+		if _, taken := s.config.Definitions[list.ID]; taken {
 			continue
 		}
-		if err := s.config.Store.CreateCustomService(ctx, service); err != nil {
+		if err := s.config.Store.CreateCustomList(ctx, list); err != nil {
 			if errors.Is(err, ErrIdentityCollision) {
 				continue
 			}
-			return CustomService{}, err
+			return CustomList{}, err
 		}
 		s.custom.mu.Lock()
-		s.custom.services[service.ID] = service
+		s.custom.lists[list.ID] = list
 		s.custom.mu.Unlock()
-		return service, nil
+		return list, nil
 	}
-	return CustomService{}, ErrIdentityCollision
+	return CustomList{}, ErrIdentityCollision
 }
 
-// UpdateCustomService replaces the mutable part of one custom service: its
+// UpdateCustomList replaces the mutable part of one custom service: its
 // title and its domains. Identity and creation time are immutable, and the
 // change reaches a published file only through the next refresh-and-rebuild,
 // exactly as a shipped catalog edit would.
-func (s *PublicationService) UpdateCustomService(ctx context.Context, id, title string, domains []string) (CustomService, error) {
-	cleanTitle, cleanDomains, err := validCustomServiceInput(title, domains)
+func (s *PublicationService) UpdateCustomList(ctx context.Context, id, title string, domains []string) (CustomList, error) {
+	cleanTitle, cleanDomains, err := validCustomListInput(title, domains)
 	if err != nil {
-		return CustomService{}, err
+		return CustomList{}, err
 	}
 	s.custom.mu.RLock()
-	current, ok := s.custom.services[id]
+	current, ok := s.custom.lists[id]
 	s.custom.mu.RUnlock()
 	if !ok {
-		return CustomService{}, ErrNotFound
+		return CustomList{}, ErrNotFound
 	}
 	now := s.config.Clock.Now().UTC()
 	if now.IsZero() {
-		return CustomService{}, fmt.Errorf("clock returned zero time")
+		return CustomList{}, fmt.Errorf("clock returned zero time")
 	}
-	updated := CustomService{ID: current.ID, Title: cleanTitle, Domains: cleanDomains, CreatedAt: current.CreatedAt, UpdatedAt: now}
-	if err := s.config.Store.UpdateCustomService(ctx, updated); err != nil {
-		return CustomService{}, err
+	updated := CustomList{ID: current.ID, Title: cleanTitle, Domains: cleanDomains, CreatedAt: current.CreatedAt, UpdatedAt: now}
+	if err := s.config.Store.UpdateCustomList(ctx, updated); err != nil {
+		return CustomList{}, err
 	}
 	s.custom.mu.Lock()
-	s.custom.services[updated.ID] = updated
+	s.custom.lists[updated.ID] = updated
 	s.custom.mu.Unlock()
 	return updated, nil
 }
 
-// customServices lists the registry in stable id order.
-func (s *PublicationService) customServices() []CustomService {
+// customLists lists the registry in stable id order.
+func (s *PublicationService) customLists() []CustomList {
 	s.registryMu.RLock()
 	defer s.registryMu.RUnlock()
 	s.custom.mu.RLock()
-	services := make([]CustomService, 0, len(s.custom.services))
-	for _, service := range s.custom.services {
-		services = append(services, service)
+	lists := make([]CustomList, 0, len(s.custom.lists))
+	for _, list := range s.custom.lists {
+		lists = append(lists, list)
 	}
 	s.custom.mu.RUnlock()
-	slices.SortFunc(services, func(a, b CustomService) int { return cmp.Compare(a.ID, b.ID) })
-	return services
+	slices.SortFunc(lists, func(a, b CustomList) int { return cmp.Compare(a.ID, b.ID) })
+	return lists
 }
 
 // definition resolves one service id against the shipped catalog first and the
@@ -156,10 +156,10 @@ func (s *PublicationService) customServices() []CustomService {
 // composition, refresh, preview, and build lookup goes through here, so an
 // operator-defined service and an operator correction behave the same
 // everywhere or nowhere.
-func (s *PublicationService) definition(id string) (domain.ServiceDefinition, bool) {
+func (s *PublicationService) definition(id string) (domain.ListDefinition, bool) {
 	base, ok := s.baseDefinition(id)
 	if !ok {
-		return domain.ServiceDefinition{}, false
+		return domain.ListDefinition{}, false
 	}
 	return s.tunedDefinition(base), true
 }
@@ -169,40 +169,40 @@ func (s *PublicationService) hasDefinition(id string) bool {
 	return ok
 }
 
-// customServiceDefinition projects a stored custom service into the planner's
+// customListDefinition projects a stored custom service into the planner's
 // shape: one required component whose seeds are the operator's domain
 // suffixes. It carries the shipped catalog's revision, because the planner
 // accepts exactly one revision per plan and a custom service composes with the
 // catalog it extends. Freshness does not depend on the revision: the domains
 // enter every plan straight from this definition, and a change reaches the
 // artifact through the plan's semantic hash.
-func customServiceDefinition(service CustomService, catalogRevision string) domain.ServiceDefinition {
-	seeds := make([]domain.Seed, 0, len(service.Domains))
-	for _, value := range service.Domains {
+func customListDefinition(list CustomList, catalogRevision string) domain.ListDefinition {
+	seeds := make([]domain.Seed, 0, len(list.Domains))
+	for _, value := range list.Domains {
 		seeds = append(seeds, domain.Seed{
 			Kind: domain.RuleDomainSuffix, Value: value, ComponentID: "web",
-			SourceID: "manual:custom:" + service.ID, SourceClass: domain.SourceManual,
+			SourceID: "manual:custom:" + list.ID, SourceClass: domain.SourceManual,
 		})
 	}
-	return domain.ServiceDefinition{
-		ID: service.ID, Title: service.Title,
+	return domain.ListDefinition{
+		ID: list.ID, Title: list.Title,
 		Components:      []domain.ComponentDefinition{{ID: "web", Required: true}},
 		Seeds:           seeds,
 		CatalogRevision: catalogRevision,
 	}
 }
 
-// validCustomServiceInput normalizes the operator's title and domains with the
+// validCustomListInput normalizes the operator's title and domains with the
 // same rules the rest of the product applies: the list-name grammar for the
 // title, and the bounded list-local domain grammar for the domain set. At
 // least one domain is required — a service that matches nothing would publish
 // a promise with no rule behind it.
-func validCustomServiceInput(title string, domains []string) (string, []string, error) {
-	cleanTitle, ok := validListName(title)
+func validCustomListInput(title string, domains []string) (string, []string, error) {
+	cleanTitle, ok := validObjectName(title)
 	if !ok {
 		return "", nil, fmt.Errorf("invalid custom service title")
 	}
-	if len(domains) == 0 || len(domains) > maxDomainsPerService {
+	if len(domains) == 0 || len(domains) > maxDomainsPerList {
 		return "", nil, fmt.Errorf("invalid custom service domains")
 	}
 	normalized := make([]string, 0, len(domains))
@@ -216,20 +216,20 @@ func validCustomServiceInput(title string, domains []string) (string, []string, 
 	return cleanTitle, domain.StableStrings(normalized), nil
 }
 
-// normalizedCustomService checks one stored row against the same grammar a
+// normalizedCustomList checks one stored row against the same grammar a
 // request passes, so a store edited by hand cannot smuggle an unplannable
 // definition into the registry.
-func normalizedCustomService(service CustomService) (CustomService, error) {
-	if !strings.HasPrefix(service.ID, customServiceIDPrefix) || domain.ValidateSlug(service.ID) != nil {
-		return CustomService{}, fmt.Errorf("invalid custom service identity %q", service.ID)
+func normalizedCustomList(list CustomList) (CustomList, error) {
+	if !strings.HasPrefix(list.ID, customListIDPrefix) || domain.ValidateSlug(list.ID) != nil {
+		return CustomList{}, fmt.Errorf("invalid custom service identity %q", list.ID)
 	}
-	if service.CreatedAt.IsZero() || service.UpdatedAt.IsZero() {
-		return CustomService{}, fmt.Errorf("invalid custom service moments for %q", service.ID)
+	if list.CreatedAt.IsZero() || list.UpdatedAt.IsZero() {
+		return CustomList{}, fmt.Errorf("invalid custom service moments for %q", list.ID)
 	}
-	title, domains, err := validCustomServiceInput(service.Title, service.Domains)
+	title, domains, err := validCustomListInput(list.Title, list.Domains)
 	if err != nil {
-		return CustomService{}, fmt.Errorf("invalid stored custom service %q", service.ID)
+		return CustomList{}, fmt.Errorf("invalid stored custom service %q", list.ID)
 	}
-	service.Title, service.Domains = title, domains
-	return service, nil
+	list.Title, list.Domains = title, domains
+	return list, nil
 }

@@ -35,7 +35,7 @@ manual_installation_hint: Save the file as a local source rule-set.
 // from publishing the same refreshed route. This walks the real HTTP, catalog,
 // SQLite, scheduler, planner, renderer, artifact and subscription boundaries.
 func TestScheduledOutputsContinueAfterOneFormatFails(t *testing.T) {
-	catalog, bulkServices := writeScheduledOutputCatalog(t)
+	catalog, bulkLists := writeScheduledOutputCatalog(t)
 	data := filepath.Join(t.TempDir(), "data")
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	ticks := make(chan time.Time, 1)
@@ -53,32 +53,32 @@ func TestScheduledOutputsContinueAfterOneFormatFails(t *testing.T) {
 		}
 	}()
 
-	listID := createScheduledList(t, origin, []string{"small"})
-	keeneticID := addScheduledOutput(t, origin, listID, "keenetic")
-	singboxID := addScheduledOutput(t, origin, listID, "singbox")
-	postJSON(t, origin+"/v1/profiles/"+listID+"/refresh", `{}`)
+	profileID := createScheduledProfile(t, origin, []string{"small"})
+	keeneticID := addScheduledOutput(t, origin, profileID, "keenetic")
+	singboxID := addScheduledOutput(t, origin, profileID, "singbox")
+	postJSON(t, origin+"/v1/profiles/"+profileID+"/refresh", `{}`)
 	keeneticSubscription := buildScheduledOutput(t, origin, keeneticID)
 	singboxSubscription := buildScheduledOutput(t, origin, singboxID)
-	initial := scheduledListDetail(t, origin, listID)
+	initial := scheduledProfileDetail(t, origin, profileID)
 	initialKeenetic := initial.output("keenetic")
 	initialSingbox := initial.output("singbox")
 	if initialKeenetic.Latest == nil || initialSingbox.Latest == nil {
 		t.Fatalf("initial outputs were not published: %#v", initial.Outputs)
 	}
 
-	servicesJSON, err := json.Marshal(bulkServices)
+	listsJSON, err := json.Marshal(bulkLists)
 	if err != nil {
 		t.Fatal(err)
 	}
-	postJSON(t, origin+"/v1/profiles/"+listID+"/update",
-		`{"name":"Scheduled formats","lists":`+string(servicesJSON)+`}`)
-	postJSON(t, origin+"/v1/profiles/"+listID+"/schedule", `{"refresh_interval":"daily"}`)
+	postJSON(t, origin+"/v1/profiles/"+profileID+"/update",
+		`{"name":"Scheduled formats","lists":`+string(listsJSON)+`}`)
+	postJSON(t, origin+"/v1/profiles/"+profileID+"/schedule", `{"refresh_interval":"daily"}`)
 	ticks <- now
 
 	var current scheduledDetail
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
-		current = scheduledListDetail(t, origin, listID)
+		current = scheduledProfileDetail(t, origin, profileID)
 		keenetic := current.output("keenetic")
 		singbox := current.output("singbox")
 		if current.Schedule.LastRefreshFailed &&
@@ -111,7 +111,7 @@ func TestScheduledOutputsContinueAfterOneFormatFails(t *testing.T) {
 
 	deadline = time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
-		if schedulerPartialLog(stderr.String(), listID, keeneticID) {
+		if schedulerPartialLog(stderr.String(), profileID, keeneticID) {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -147,9 +147,9 @@ func (d scheduledDetail) output(targetID string) scheduledOutputDetail {
 	return scheduledOutputDetail{}
 }
 
-func scheduledListDetail(t *testing.T, origin, listID string) scheduledDetail {
+func scheduledProfileDetail(t *testing.T, origin, profileID string) scheduledDetail {
 	t.Helper()
-	response := httpGet(t, origin+"/v1/profiles/"+listID, nil)
+	response := httpGet(t, origin+"/v1/profiles/"+profileID, nil)
 	if response.status != 200 {
 		t.Fatalf("list detail status=%d body=%s", response.status, response.body)
 	}
@@ -160,32 +160,32 @@ func scheduledListDetail(t *testing.T, origin, listID string) scheduledDetail {
 	return detail
 }
 
-func createScheduledList(t *testing.T, origin string, services []string) string {
+func createScheduledProfile(t *testing.T, origin string, lists []string) string {
 	t.Helper()
-	encoded, err := json.Marshal(services)
+	encoded, err := json.Marshal(lists)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var response struct {
-		List struct {
+		Profile struct {
 			ID string `json:"id"`
 		} `json:"profile"`
 	}
 	body := postJSON(t, origin+"/v1/profiles", `{"name":"Scheduled formats","lists":`+string(encoded)+`}`)
-	if err := json.Unmarshal(body, &response); err != nil || len(response.List.ID) != 32 {
+	if err := json.Unmarshal(body, &response); err != nil || len(response.Profile.ID) != 32 {
 		t.Fatalf("create list=%s: %v", body, err)
 	}
-	return response.List.ID
+	return response.Profile.ID
 }
 
-func addScheduledOutput(t *testing.T, origin, listID, targetID string) string {
+func addScheduledOutput(t *testing.T, origin, profileID, targetID string) string {
 	t.Helper()
 	var response struct {
 		Output struct {
 			ID string `json:"id"`
 		} `json:"output"`
 	}
-	body := postJSON(t, origin+"/v1/profiles/"+listID+"/outputs", `{"target_id":`+strconv.Quote(targetID)+`}`)
+	body := postJSON(t, origin+"/v1/profiles/"+profileID+"/outputs", `{"target_id":`+strconv.Quote(targetID)+`}`)
 	if err := json.Unmarshal(body, &response); err != nil || len(response.Output.ID) != 32 {
 		t.Fatalf("create output=%s: %v", body, err)
 	}
@@ -222,25 +222,25 @@ func writeScheduledOutputCatalog(t *testing.T) (string, []string) {
 	write(filepath.Join(root, "targets", "singbox.yaml"), scheduledSingboxTargetYAML)
 	write(filepath.Join(root, "builtin", "small.yaml"), "id: small\ntitle: Small\ncomponents:\n  web:\n    required: false\nseeds:\n  - kind: ipv4\n    value: 8.0.0.1\n    component: web\n    source: manual\n")
 
-	services := make([]string, 0, 9)
-	for serviceIndex := 1; serviceIndex <= 9; serviceIndex++ {
-		serviceID := fmt.Sprintf("bulk%d", serviceIndex)
-		services = append(services, serviceID)
+	lists := make([]string, 0, 9)
+	for listIndex := 1; listIndex <= 9; listIndex++ {
+		listID := fmt.Sprintf("bulk%d", listIndex)
+		lists = append(lists, listID)
 		var yaml strings.Builder
-		fmt.Fprintf(&yaml, "id: %s\ntitle: Bulk %d\ncomponents:\n  web:\n    required: false\nseeds:\n", serviceID, serviceIndex)
+		fmt.Fprintf(&yaml, "id: %s\ntitle: Bulk %d\ncomponents:\n  web:\n    required: false\nseeds:\n", listID, listIndex)
 		for addressIndex := 0; addressIndex < 128; addressIndex++ {
-			fmt.Fprintf(&yaml, "  - kind: ipv4\n    value: 8.%d.%d.1\n    component: web\n    source: manual\n", serviceIndex, addressIndex)
+			fmt.Fprintf(&yaml, "  - kind: ipv4\n    value: 8.%d.%d.1\n    component: web\n    source: manual\n", listIndex, addressIndex)
 		}
-		write(filepath.Join(root, "builtin", serviceID+".yaml"), yaml.String())
+		write(filepath.Join(root, "builtin", listID+".yaml"), yaml.String())
 	}
-	return root, services
+	return root, lists
 }
 
-func schedulerPartialLog(logs, listID, failedOutputID string) bool {
+func schedulerPartialLog(logs, profileID, failedOutputID string) bool {
 	failure, aggregate := false, false
 	for _, line := range strings.Split(strings.TrimSpace(logs), "\n") {
 		var record map[string]any
-		if json.Unmarshal([]byte(line), &record) != nil || record["operation"] != "schedule" || record["list"] != listID {
+		if json.Unmarshal([]byte(line), &record) != nil || record["operation"] != "schedule" || record["list"] != profileID {
 			continue
 		}
 		if record["output"] == failedOutputID && record["target"] == "keenetic" && record["status"] == "failed" && record["error_code"] == application.BuildFailureRuleLimit {

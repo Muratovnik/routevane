@@ -25,7 +25,7 @@ var (
 	// window, so the stored observations remain usable and a build can still
 	// publish a reason-coded artifact.
 	ErrSourceDegraded  = errors.New("one or more source cycles failed inside their grace window")
-	ErrProfileMismatch = errors.New("effective profile does not match catalog")
+	ErrFormatMismatch  = errors.New("effective profile does not match catalog")
 	ErrPreflight       = errors.New("routing plan preflight failed")
 	ErrRuleLimit       = errors.New("routing plan exceeds target rule limit")
 	ErrPartialCoverage = errors.New("required routing coverage is incomplete")
@@ -45,7 +45,7 @@ func (f ClockFunc) Now() time.Time {
 }
 
 type SourceRequest struct {
-	ServiceID      string
+	ListID         string
 	ComponentID    string
 	SourceID       string
 	SourceRevision string
@@ -134,9 +134,9 @@ func DegradedSources(health []SourceRunState, activeRevisions map[string]string,
 	return degraded
 }
 
-type ProfileRecord struct {
-	ProfileKey      string
-	ServiceID       string
+type FormatRecord struct {
+	FormatKey       string
+	ListID          string
 	TargetID        string
 	RendererID      string
 	CatalogRevision string
@@ -145,18 +145,18 @@ type ProfileRecord struct {
 }
 
 type SuccessCycle struct {
-	ServiceID      string
+	ListID         string
 	SourceID       string
 	SourceRevision string
 	StartedAt      time.Time
 	CompletedAt    time.Time
 	Sightings      []domain.Sighting
 	Relations      []domain.Relation
-	Profile        *ProfileRecord
+	Format         *FormatRecord
 }
 
 type FailureCycle struct {
-	ServiceID      string
+	ListID         string
 	SourceID       string
 	SourceRevision string
 	StartedAt      time.Time
@@ -167,7 +167,7 @@ type FailureCycle struct {
 type PlanningSnapshot struct {
 	Sightings []domain.Sighting
 	Relations []domain.Relation
-	Profile   ProfileRecord
+	Format    FormatRecord
 	// SourceHealth describes the same service's source cycles at the same read.
 	// It is part of the snapshot so grace decisions and observations cannot
 	// disagree about what the database contained.
@@ -222,13 +222,13 @@ func (r RendererRegistry) Validate() error {
 }
 
 // For resolves the renderer a target profile asks for.
-func (r RendererRegistry) For(target domain.TargetProfile) (Renderer, error) {
+func (r RendererRegistry) For(target domain.TargetDefinition) (Renderer, error) {
 	renderer, ok := r[target.RendererID]
 	if !ok || renderer == nil {
 		return nil, fmt.Errorf("%w: no renderer registered for target %q", ErrPreflight, target.ID)
 	}
-	if renderer.Version() != target.ProfileKey {
-		return nil, fmt.Errorf("%w: renderer %q does not implement profile key %q", ErrPreflight, target.RendererID, target.ProfileKey)
+	if renderer.Version() != target.FormatKey {
+		return nil, fmt.Errorf("%w: renderer %q does not implement profile key %q", ErrPreflight, target.RendererID, target.FormatKey)
 	}
 	return renderer, nil
 }
@@ -247,35 +247,35 @@ type BuildOutput interface {
 // and rendering. Callers may encode Plan before invoking an untrusted renderer.
 type PreparedPlan struct {
 	Plan                domain.RoutingPlan
-	Target              domain.TargetProfile
+	Target              domain.TargetDefinition
 	compositionOverlaps CompositionOverlaps
 }
 
-// PrepareServices reads all selected services at one cutoff and completes
+// PrepareLists reads all selected services at one cutoff and completes
 // planner and renderer preflight without invoking Render.
-func PrepareServices(ctx context.Context, definitions []domain.ServiceDefinition, activeRevisions map[string]map[string]string, target domain.TargetProfile, store ObservationStore, renderer Renderer, cutoff time.Time) (PreparedPlan, error) {
-	if ctx == nil || store == nil || renderer == nil || len(definitions) == 0 || target.ID == "" || target.ProfileKey == "" || target.RendererID == "" || len(target.RendererOptions) != 0 || cutoff.IsZero() {
+func PrepareLists(ctx context.Context, definitions []domain.ListDefinition, activeRevisions map[string]map[string]string, target domain.TargetDefinition, store ObservationStore, renderer Renderer, cutoff time.Time) (PreparedPlan, error) {
+	if ctx == nil || store == nil || renderer == nil || len(definitions) == 0 || target.ID == "" || target.FormatKey == "" || target.RendererID == "" || len(target.RendererOptions) != 0 || cutoff.IsZero() {
 		return PreparedPlan{}, fmt.Errorf("invalid prepare composition")
 	}
-	ordered := append([]domain.ServiceDefinition(nil), definitions...)
-	slices.SortFunc(ordered, func(a, b domain.ServiceDefinition) int { return cmp.Compare(a.ID, b.ID) })
+	ordered := append([]domain.ListDefinition(nil), definitions...)
+	slices.SortFunc(ordered, func(a, b domain.ListDefinition) int { return cmp.Compare(a.ID, b.ID) })
 	for i, definition := range ordered {
 		if domain.ValidateSlug(definition.ID) != nil || definition.CatalogRevision == "" || (i > 0 && ordered[i-1].ID == definition.ID) {
 			return PreparedPlan{}, fmt.Errorf("invalid service definition")
 		}
 	}
 	cutoff = cutoff.UTC()
-	rawProfile := domain.RawJSONTargetProfile()
-	inputs := make([]planner.ServiceInput, 0, len(ordered))
+	rawFormat := domain.RawJSONTargetDefinition()
+	inputs := make([]planner.ListInput, 0, len(ordered))
 	for _, definition := range ordered {
-		snapshot, err := store.ReadPlanningSnapshot(ctx, definition.ID, activeRevisions[definition.ID], rawProfile.ProfileKey, cutoff)
+		snapshot, err := store.ReadPlanningSnapshot(ctx, definition.ID, activeRevisions[definition.ID], rawFormat.FormatKey, cutoff)
 		if err != nil {
 			return PreparedPlan{}, fmt.Errorf("read planning snapshot for %q: %w", definition.ID, err)
 		}
-		if snapshot.Profile.CatalogRevision != definition.CatalogRevision || snapshot.Profile.ServiceID != definition.ID || snapshot.Profile.ProfileKey != rawProfile.ProfileKey || snapshot.Profile.TargetID != rawProfile.ID || snapshot.Profile.RendererID != rawProfile.RendererID {
-			return PreparedPlan{}, ErrProfileMismatch
+		if snapshot.Format.CatalogRevision != definition.CatalogRevision || snapshot.Format.ListID != definition.ID || snapshot.Format.FormatKey != rawFormat.FormatKey || snapshot.Format.TargetID != rawFormat.ID || snapshot.Format.RendererID != rawFormat.RendererID {
+			return PreparedPlan{}, ErrFormatMismatch
 		}
-		inputs = append(inputs, planner.ServiceInput{Definition: definition, Sightings: snapshot.Sightings, Relations: snapshot.Relations, Degraded: DegradedSources(snapshot.SourceHealth, activeRevisions[definition.ID], cutoff)})
+		inputs = append(inputs, planner.ListInput{Definition: definition, Sightings: snapshot.Sightings, Relations: snapshot.Relations, Degraded: DegradedSources(snapshot.SourceHealth, activeRevisions[definition.ID], cutoff)})
 	}
 	planningTarget := target
 	planningTarget.Constraints.MaxRules = 0
@@ -291,11 +291,11 @@ func PrepareServices(ctx context.Context, definitions []domain.ServiceDefinition
 		}
 	}
 	plan.SemanticHash = planner.SemanticHash(plan, target)
-	wantServices := make([]string, len(ordered))
+	wantLists := make([]string, len(ordered))
 	for i := range ordered {
-		wantServices[i] = ordered[i].ID
+		wantLists[i] = ordered[i].ID
 	}
-	if !equalStrings(plan.Services, wantServices) {
+	if !equalStrings(plan.Lists, wantLists) {
 		return PreparedPlan{}, fmt.Errorf("%w: service set mismatch", ErrPreflight)
 	}
 	if err := PreflightPlan(plan, target, renderer, cutoff); err != nil {
@@ -306,7 +306,7 @@ func PrepareServices(ctx context.Context, definitions []domain.ServiceDefinition
 
 // RenderPrepared renders, bounds, and validates one preflighted plan.
 func RenderPrepared(prepared PreparedPlan, renderer Renderer) ([]byte, error) {
-	if renderer == nil || renderer.ID() != prepared.Target.RendererID || renderer.Version() != prepared.Target.ProfileKey {
+	if renderer == nil || renderer.ID() != prepared.Target.RendererID || renderer.Version() != prepared.Target.FormatKey {
 		return nil, fmt.Errorf("%w: renderer identity", ErrPreflight)
 	}
 	payload, err := renderer.Render(cloneRoutingPlan(prepared.Plan))
@@ -323,7 +323,7 @@ func RenderPrepared(prepared PreparedPlan, renderer Renderer) ([]byte, error) {
 }
 
 type RefreshSummary struct {
-	ServiceID      string `json:"list"`
+	ListID         string `json:"list"`
 	SourceRuns     int    `json:"source_runs"`
 	SuccessfulRuns int    `json:"successful_runs"`
 	FailedRuns     int    `json:"failed_runs"`
@@ -336,8 +336,8 @@ type RefreshSummary struct {
 	DegradedSources []string `json:"degraded_sources,omitempty"`
 }
 
-func RefreshService(ctx context.Context, definition domain.ServiceDefinition, target domain.TargetProfile, sources SourceRegistry, store ObservationStore, clock Clock) (RefreshSummary, error) {
-	summary := RefreshSummary{ServiceID: definition.ID}
+func RefreshList(ctx context.Context, definition domain.ListDefinition, target domain.TargetDefinition, sources SourceRegistry, store ObservationStore, clock Clock) (RefreshSummary, error) {
+	summary := RefreshSummary{ListID: definition.ID}
 	if ctx == nil || len(sources) == 0 || store == nil || clock == nil || definition.ID == "" || definition.CatalogRevision == "" {
 		return summary, fmt.Errorf("invalid refresh composition")
 	}
@@ -349,8 +349,8 @@ func RefreshService(ctx context.Context, definition domain.ServiceDefinition, ta
 	if err != nil {
 		return summary, fmt.Errorf("encode effective profile: %w", err)
 	}
-	profile := ProfileRecord{ProfileKey: target.ProfileKey, ServiceID: definition.ID, TargetID: target.ID, RendererID: target.RendererID, CatalogRevision: definition.CatalogRevision, ConfigJSON: profileJSON, UpdatedAt: observedAt}
-	manual := SuccessCycle{ServiceID: definition.ID, SourceID: "manual", SourceRevision: definition.CatalogRevision, StartedAt: observedAt, CompletedAt: observedAt, Profile: &profile}
+	format := FormatRecord{FormatKey: target.FormatKey, ListID: definition.ID, TargetID: target.ID, RendererID: target.RendererID, CatalogRevision: definition.CatalogRevision, ConfigJSON: profileJSON, UpdatedAt: observedAt}
+	manual := SuccessCycle{ListID: definition.ID, SourceID: "manual", SourceRevision: definition.CatalogRevision, StartedAt: observedAt, CompletedAt: observedAt, Format: &format}
 	if err := store.ApplySuccess(ctx, manual); err != nil {
 		return summary, fmt.Errorf("persist manual source cycle: %w", err)
 	}
@@ -367,16 +367,16 @@ func RefreshService(ctx context.Context, definition domain.ServiceDefinition, ta
 		}
 		summary.SourceRuns++
 		sourceCtx, cancel := context.WithTimeout(ctx, SourceTimeout)
-		result, observeErr := source.Observe(sourceCtx, SourceRequest{ServiceID: definition.ID, ComponentID: definitionSource.ComponentID, SourceID: definitionSource.ID, SourceRevision: definitionSource.Revision, Names: append([]string(nil), definitionSource.Names...), URL: definitionSource.URL, Format: definitionSource.Format, SourceClass: definitionSource.Class, ObservedAt: observedAt})
+		result, observeErr := source.Observe(sourceCtx, SourceRequest{ListID: definition.ID, ComponentID: definitionSource.ComponentID, SourceID: definitionSource.ID, SourceRevision: definitionSource.Revision, Names: append([]string(nil), definitionSource.Names...), URL: definitionSource.URL, Format: definitionSource.Format, SourceClass: definitionSource.Class, ObservedAt: observedAt})
 		cancel()
 		if observeErr != nil {
 			summary.FailedRuns++
-			if err := store.RecordFailure(ctx, FailureCycle{ServiceID: definition.ID, SourceID: definitionSource.ID, SourceRevision: definitionSource.Revision, StartedAt: observedAt, CompletedAt: observedAt, ErrorCode: SourceErrorCode(definitionSource.Type)}); err != nil {
+			if err := store.RecordFailure(ctx, FailureCycle{ListID: definition.ID, SourceID: definitionSource.ID, SourceRevision: definitionSource.Revision, StartedAt: observedAt, CompletedAt: observedAt, ErrorCode: SourceErrorCode(definitionSource.Type)}); err != nil {
 				return summary, fmt.Errorf("record failed source cycle: %w", err)
 			}
 			continue
 		}
-		if err := store.ApplySuccess(ctx, SuccessCycle{ServiceID: definition.ID, SourceID: definitionSource.ID, SourceRevision: definitionSource.Revision, StartedAt: observedAt, CompletedAt: observedAt, Sightings: result.Sightings, Relations: result.Relations}); err != nil {
+		if err := store.ApplySuccess(ctx, SuccessCycle{ListID: definition.ID, SourceID: definitionSource.ID, SourceRevision: definitionSource.Revision, StartedAt: observedAt, CompletedAt: observedAt, Sightings: result.Sightings, Relations: result.Relations}); err != nil {
 			return summary, fmt.Errorf("persist %s source cycle: %w", definitionSource.Type, err)
 		}
 		summary.SuccessfulRuns++
@@ -389,7 +389,7 @@ func RefreshService(ctx context.Context, definition domain.ServiceDefinition, ta
 		// persisted source health at this cutoff: every failure inside its
 		// grace window leaves the stored observations usable.
 		revisions := activeSourceRevisions(definition)
-		snapshot, readErr := store.ReadPlanningSnapshot(ctx, definition.ID, revisions, target.ProfileKey, observedAt)
+		snapshot, readErr := store.ReadPlanningSnapshot(ctx, definition.ID, revisions, target.FormatKey, observedAt)
 		if readErr != nil {
 			return summary, ErrSourceFailed
 		}
@@ -404,7 +404,7 @@ func RefreshService(ctx context.Context, definition domain.ServiceDefinition, ta
 	return summary, nil
 }
 
-func activeSourceRevisions(definition domain.ServiceDefinition) map[string]string {
+func activeSourceRevisions(definition domain.ListDefinition) map[string]string {
 	revisions := make(map[string]string, len(definition.Sources))
 	for _, source := range definition.Sources {
 		revisions[source.ID] = source.Revision
@@ -425,7 +425,7 @@ type Diagnostic struct {
 	Count int
 }
 
-func BuildService(ctx context.Context, definition domain.ServiceDefinition, activeRevisions map[string]string, store ObservationStore, renderer Renderer, artifacts ArtifactStore, clock Clock) (BuildResult, error) {
+func BuildList(ctx context.Context, definition domain.ListDefinition, activeRevisions map[string]string, store ObservationStore, renderer Renderer, artifacts ArtifactStore, clock Clock) (BuildResult, error) {
 	if ctx == nil || store == nil || renderer == nil || artifacts == nil || clock == nil || definition.ID == "" || definition.CatalogRevision == "" {
 		return BuildResult{}, fmt.Errorf("invalid build composition")
 	}
@@ -433,20 +433,20 @@ func BuildService(ctx context.Context, definition domain.ServiceDefinition, acti
 	if cutoff.IsZero() {
 		return BuildResult{}, fmt.Errorf("clock returned zero time")
 	}
-	profileKey := domain.RawJSONTargetProfile().ProfileKey
-	snapshot, err := store.ReadPlanningSnapshot(ctx, definition.ID, activeRevisions, profileKey, cutoff)
+	formatKey := domain.RawJSONTargetDefinition().FormatKey
+	snapshot, err := store.ReadPlanningSnapshot(ctx, definition.ID, activeRevisions, formatKey, cutoff)
 	if err != nil {
 		return BuildResult{}, fmt.Errorf("read planning snapshot: %w", err)
 	}
-	if snapshot.Profile.CatalogRevision != definition.CatalogRevision || snapshot.Profile.ServiceID != definition.ID || snapshot.Profile.RendererID != "raw-json" {
-		return BuildResult{}, ErrProfileMismatch
+	if snapshot.Format.CatalogRevision != definition.CatalogRevision || snapshot.Format.ListID != definition.ID || snapshot.Format.RendererID != "raw-json" {
+		return BuildResult{}, ErrFormatMismatch
 	}
-	var target domain.TargetProfile
-	if err := json.Unmarshal(snapshot.Profile.ConfigJSON, &target); err != nil {
+	var target domain.TargetDefinition
+	if err := json.Unmarshal(snapshot.Format.ConfigJSON, &target); err != nil {
 		return BuildResult{}, fmt.Errorf("decode effective profile: %w", err)
 	}
-	if target.ID != snapshot.Profile.TargetID || target.ProfileKey != snapshot.Profile.ProfileKey || target.RendererID != snapshot.Profile.RendererID || target.ID != "raw-json" {
-		return BuildResult{}, ErrProfileMismatch
+	if target.ID != snapshot.Format.TargetID || target.FormatKey != snapshot.Format.FormatKey || target.RendererID != snapshot.Format.RendererID || target.ID != "raw-json" {
+		return BuildResult{}, ErrFormatMismatch
 	}
 	plan, err := planner.BuildPlanWithRelations(definition, snapshot.Sightings, snapshot.Relations, target, cutoff)
 	if err != nil {
@@ -472,17 +472,17 @@ func BuildService(ctx context.Context, definition domain.ServiceDefinition, acti
 	return BuildResult{Path: path, Reused: reused, SemanticHash: plan.SemanticHash, RuleCount: len(plan.Rules)}, nil
 }
 
-// BuildServices reads every selected service at one cutoff and only invokes
+// BuildLists reads every selected service at one cutoff and only invokes
 // the renderer after the complete set has passed planning and preflight. The
 // stored Raw JSON profile is used solely as proof that refresh state belongs to
 // the current service catalog; the requested target comes directly from the
 // catalog argument.
-func BuildServices(ctx context.Context, definitions []domain.ServiceDefinition, activeRevisions map[string]map[string]string, target domain.TargetProfile, store ObservationStore, renderer Renderer, output BuildOutput, clock Clock) (BuildResult, error) {
-	if ctx == nil || store == nil || renderer == nil || output == nil || clock == nil || len(definitions) == 0 || target.ID == "" || target.ProfileKey == "" || target.RendererID == "" || len(target.RendererOptions) != 0 {
+func BuildLists(ctx context.Context, definitions []domain.ListDefinition, activeRevisions map[string]map[string]string, target domain.TargetDefinition, store ObservationStore, renderer Renderer, output BuildOutput, clock Clock) (BuildResult, error) {
+	if ctx == nil || store == nil || renderer == nil || output == nil || clock == nil || len(definitions) == 0 || target.ID == "" || target.FormatKey == "" || target.RendererID == "" || len(target.RendererOptions) != 0 {
 		return BuildResult{}, fmt.Errorf("invalid multi-service build composition")
 	}
-	ordered := append([]domain.ServiceDefinition(nil), definitions...)
-	slices.SortFunc(ordered, func(a, b domain.ServiceDefinition) int { return cmp.Compare(a.ID, b.ID) })
+	ordered := append([]domain.ListDefinition(nil), definitions...)
+	slices.SortFunc(ordered, func(a, b domain.ListDefinition) int { return cmp.Compare(a.ID, b.ID) })
 	for i, definition := range ordered {
 		if domain.ValidateSlug(definition.ID) != nil || definition.CatalogRevision == "" {
 			return BuildResult{}, fmt.Errorf("invalid service definition")
@@ -495,17 +495,17 @@ func BuildServices(ctx context.Context, definitions []domain.ServiceDefinition, 
 	if cutoff.IsZero() {
 		return BuildResult{}, fmt.Errorf("clock returned zero time")
 	}
-	rawProfile := domain.RawJSONTargetProfile()
-	inputs := make([]planner.ServiceInput, 0, len(ordered))
+	rawFormat := domain.RawJSONTargetDefinition()
+	inputs := make([]planner.ListInput, 0, len(ordered))
 	for _, definition := range ordered {
-		snapshot, err := store.ReadPlanningSnapshot(ctx, definition.ID, activeRevisions[definition.ID], rawProfile.ProfileKey, cutoff)
+		snapshot, err := store.ReadPlanningSnapshot(ctx, definition.ID, activeRevisions[definition.ID], rawFormat.FormatKey, cutoff)
 		if err != nil {
 			return BuildResult{}, fmt.Errorf("read planning snapshot for %q: %w", definition.ID, err)
 		}
-		if snapshot.Profile.CatalogRevision != definition.CatalogRevision || snapshot.Profile.ServiceID != definition.ID || snapshot.Profile.ProfileKey != rawProfile.ProfileKey || snapshot.Profile.TargetID != rawProfile.ID || snapshot.Profile.RendererID != rawProfile.RendererID {
-			return BuildResult{}, ErrProfileMismatch
+		if snapshot.Format.CatalogRevision != definition.CatalogRevision || snapshot.Format.ListID != definition.ID || snapshot.Format.FormatKey != rawFormat.FormatKey || snapshot.Format.TargetID != rawFormat.ID || snapshot.Format.RendererID != rawFormat.RendererID {
+			return BuildResult{}, ErrFormatMismatch
 		}
-		inputs = append(inputs, planner.ServiceInput{Definition: definition, Sightings: snapshot.Sightings, Relations: snapshot.Relations, Degraded: DegradedSources(snapshot.SourceHealth, activeRevisions[definition.ID], cutoff)})
+		inputs = append(inputs, planner.ListInput{Definition: definition, Sightings: snapshot.Sightings, Relations: snapshot.Relations, Degraded: DegradedSources(snapshot.SourceHealth, activeRevisions[definition.ID], cutoff)})
 	}
 	planningTarget := target
 	planningTarget.Constraints.MaxRules = 0
@@ -521,11 +521,11 @@ func BuildServices(ctx context.Context, definitions []domain.ServiceDefinition, 
 		}
 	}
 	plan.SemanticHash = planner.SemanticHash(plan, target)
-	wantServices := make([]string, len(ordered))
+	wantLists := make([]string, len(ordered))
 	for i := range ordered {
-		wantServices[i] = ordered[i].ID
+		wantLists[i] = ordered[i].ID
 	}
-	if !equalStrings(plan.Services, wantServices) {
+	if !equalStrings(plan.Lists, wantLists) {
 		return BuildResult{}, fmt.Errorf("%w: service set mismatch", ErrPreflight)
 	}
 	if err := PreflightPlan(plan, target, renderer, cutoff); err != nil {
@@ -578,7 +578,7 @@ func planDiagnostics(plan domain.RoutingPlan) []Diagnostic {
 // renderer interface accepts the top-level value by value.
 func cloneRoutingPlan(plan domain.RoutingPlan) domain.RoutingPlan {
 	cloned := plan
-	cloned.Services = append([]string(nil), plan.Services...)
+	cloned.Lists = append([]string(nil), plan.Lists...)
 	cloned.Rules = make([]domain.RouteRule, len(plan.Rules))
 	for i := range plan.Rules {
 		cloned.Rules[i] = cloneRouteRule(plan.Rules[i])

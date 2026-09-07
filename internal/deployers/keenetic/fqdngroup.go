@@ -48,7 +48,7 @@ func NewFQDNDeployer(options Options) *FQDNDeployer { return &FQDNDeployer{optio
 func (*FQDNDeployer) ID() string { return FQDNDeployerID }
 
 // Probe reports the device and refuses a firmware without DNS-based routes by
-// leaving ProfileKey empty, so the caller states the incompatibility with the
+// leaving FormatKey empty, so the caller states the incompatibility with the
 // version it found.
 func (d *FQDNDeployer) Probe(ctx context.Context, connection application.Connection) (application.DeviceInfo, error) {
 	session, err := d.routes().connect(ctx, connection)
@@ -73,7 +73,7 @@ func (d *FQDNDeployer) Probe(ctx context.Context, connection application.Connect
 	if _, _, err := session.ownedGroups(ctx); err != nil {
 		return info, err
 	}
-	info.ProfileKey = keeneticdns.Version
+	info.FormatKey = keeneticdns.Version
 	return info, nil
 }
 

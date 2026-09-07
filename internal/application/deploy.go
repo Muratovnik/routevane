@@ -46,10 +46,10 @@ type DeviceInfo struct {
 	Vendor          string `json:"vendor"`
 	Model           string `json:"model"`
 	FirmwareVersion string `json:"firmware_version"`
-	// ProfileKey is the target profile this firmware is compatible with. A
+	// FormatKey is the target profile this firmware is compatible with. A
 	// device that reports an unsupported version reports an empty value, which
 	// is what stops a deployment before anything is changed.
-	ProfileKey string `json:"profile_key"`
+	FormatKey string `json:"profile_key"`
 	// Interface is the interface the deployer will attach routes to.
 	Interface string `json:"interface"`
 }
@@ -123,7 +123,7 @@ type Deployer interface {
 	// credential, a destination on this machine must not be given one.
 	ValidateConnection(Connection) error
 	// Probe reports what the device is. It must refuse an unsupported firmware
-	// by returning an empty ProfileKey rather than guessing.
+	// by returning an empty FormatKey rather than guessing.
 	Probe(context.Context, Connection) (DeviceInfo, error)
 	Backup(context.Context, DeviceInfo, Connection) (BackupPayload, error)
 	Deploy(context.Context, DeviceInfo, Connection, DeployArtifact) error
@@ -185,7 +185,7 @@ type DeployResult struct {
 
 // DeployRequest is one deployment attempt.
 type DeployRequest struct {
-	Target     domain.TargetProfile
+	Target     domain.TargetDefinition
 	Connection Connection
 	Artifact   DeployArtifact
 	// OutputID is the stable claim identity for an ownership-aware deployer.
@@ -208,7 +208,7 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 	if ctx == nil || clock == nil || backups == nil || len(deployers) == 0 {
 		return result, ErrDeployComposition
 	}
-	if request.Target.ID == "" || request.Target.RendererID == "" || request.Target.ProfileKey == "" {
+	if request.Target.ID == "" || request.Target.RendererID == "" || request.Target.FormatKey == "" {
 		return result, ErrDeployComposition
 	}
 	if request.Artifact.ArtifactID == "" || len(request.Artifact.Payload) == 0 || request.Artifact.ArtifactHash == "" ||
@@ -243,8 +243,8 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 	device.DeployerID = deployer.ID()
 	result.Device = device
 	// An incompatible firmware is refused before anything on the device changes.
-	if device.ProfileKey == "" || device.ProfileKey != request.Target.ProfileKey {
-		return result, fmt.Errorf("%w: firmware %q reports profile %q, target requires %q", ErrDeviceIncompatible, device.FirmwareVersion, device.ProfileKey, request.Target.ProfileKey)
+	if device.FormatKey == "" || device.FormatKey != request.Target.FormatKey {
+		return result, fmt.Errorf("%w: firmware %q reports profile %q, target requires %q", ErrDeviceIncompatible, device.FirmwareVersion, device.FormatKey, request.Target.FormatKey)
 	}
 
 	managedDeployer, supportsManagedRoutes := deployer.(ManagedRouteDeployer)

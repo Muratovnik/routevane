@@ -41,7 +41,7 @@ func (r *serialResolver) LookupHost(context.Context, string) ([]string, error) {
 func (*serialResolver) LookupCNAME(context.Context, string) (string, error) { return "", nil }
 
 func TestSchedulerRunsImmediateSerialCyclesAndCancelsDuringDelay(t *testing.T) {
-	catalogRoot := writeExampleCatalog(t, exampleServiceYAML)
+	catalogRoot := writeExampleCatalog(t, exampleListYAML)
 	dataRoot := filepath.Join(t.TempDir(), "data")
 	ctx, cancel := context.WithCancel(context.Background())
 	resolver := &serialResolver{}
@@ -78,7 +78,7 @@ func TestSchedulerRunsImmediateSerialCyclesAndCancelsDuringDelay(t *testing.T) {
 }
 
 func TestSchedulerRefusesLockContentionBeforeDNS(t *testing.T) {
-	catalogRoot := writeExampleCatalog(t, exampleServiceYAML)
+	catalogRoot := writeExampleCatalog(t, exampleListYAML)
 	dataRoot, err := filesystem.EnsureDataRoot(filepath.Join(t.TempDir(), "data"))
 	if err != nil {
 		t.Fatal(err)

@@ -10,7 +10,7 @@ import (
 )
 
 func TestDoctorIsUnhealthyWithoutCreatingMissingDataRoot(t *testing.T) {
-	catalogRoot := writeExampleCatalog(t, exampleServiceYAML)
+	catalogRoot := writeExampleCatalog(t, exampleListYAML)
 	missing := filepath.Join(t.TempDir(), "missing")
 	var stdout, stderr bytes.Buffer
 	code := runWithDeps(&stdout, &stderr, []string{"doctor", "--catalog-dir", catalogRoot, "--data-dir", missing}, runtimeDeps{})

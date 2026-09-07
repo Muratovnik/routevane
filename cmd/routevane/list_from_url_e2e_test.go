@@ -56,7 +56,7 @@ func (r staticFeedResolver) LookupNetIP(_ context.Context, _, host string) ([]ne
 	return append([]netip.Addr(nil), addresses...), nil
 }
 
-func TestTurnsOneURLIntoASafeLocalServiceUsableByTheExistingRenderers(t *testing.T) {
+func TestTurnsOneURLIntoASafeLocalListUsableByTheExistingRenderers(t *testing.T) {
 	browser := discovery.DefaultBrowserPath()
 	if browser == "" {
 		t.Skip("set ROUTEVANE_BROWSER to a Chromium-family executable to run the discovery end-to-end test")
@@ -113,7 +113,7 @@ func TestTurnsOneURLIntoASafeLocalServiceUsableByTheExistingRenderers(t *testing
 	if preview.RegistrableDomain != "example.co.uk" || preview.PublicSuffix != "co.uk" || !preview.ICANNSuffix {
 		t.Fatalf("the public suffix list must resolve co.uk: %#v", preview)
 	}
-	if preview.ServiceID != "example" || preview.Hint == "" || preview.DraftPath != "" {
+	if preview.ListID != "example" || preview.Hint == "" || preview.DraftPath != "" {
 		t.Fatalf("preview = %#v", preview)
 	}
 	if _, err := os.Stat(filepath.Join(catalogDir, "local")); err == nil {
@@ -170,9 +170,9 @@ func TestTurnsOneURLIntoASafeLocalServiceUsableByTheExistingRenderers(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	definition, found := catalog.Service("shop")
+	definition, found := catalog.List("shop")
 	if !found {
-		t.Fatalf("draft did not load: %#v", catalog.Services)
+		t.Fatalf("draft did not load: %#v", catalog.Lists)
 	}
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	resource, err := domain.NewAddrResourceFromString("203.0.113.30")
@@ -180,15 +180,15 @@ func TestTurnsOneURLIntoASafeLocalServiceUsableByTheExistingRenderers(t *testing
 		t.Fatal(err)
 	}
 	sighting := domain.Sighting{
-		ServiceID: "shop", ComponentID: discovery.DefaultComponentID, Resource: resource,
+		ListID: "shop", ComponentID: discovery.DefaultComponentID, Resource: resource,
 		SourceID: definition.Sources[0].ID, SourceClass: domain.SourceObserved, SourceRevision: definition.Sources[0].Revision,
 		ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid,
 	}
-	target := domain.TargetProfile{
-		ID: "keenetic", ProfileKey: keenetic.Version, RendererID: keenetic.ID,
+	target := domain.TargetDefinition{
+		ID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID,
 		Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: keenetic.MaxLines, MaxArtifactSize: keenetic.MaxArtifactSize},
 	}
-	plan, err := planner.BuildPlanSet([]planner.ServiceInput{{Definition: definition, Sightings: []domain.Sighting{sighting}}}, target, now)
+	plan, err := planner.BuildPlanSet([]planner.ListInput{{Definition: definition, Sightings: []domain.Sighting{sighting}}}, target, now)
 	if err != nil {
 		t.Fatal(err)
 	}

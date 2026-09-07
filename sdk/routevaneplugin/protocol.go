@@ -187,8 +187,12 @@ type ValidateCall struct {
 
 // ObserveCall carries the names a source plugin should observe. It never carries
 // a credential, a token, or a device address.
+//
+// The wire key of ListID is still service_id. This protocol is versioned
+// separately and renaming its keys would break every plugin built against it,
+// so it keeps the retired word until that version is raised (ADR 0039).
 type ObserveCall struct {
-	ServiceID   string   `json:"service_id"`
+	ListID      string   `json:"service_id"`
 	ComponentID string   `json:"component_id"`
 	SourceID    string   `json:"source_id"`
 	Revision    string   `json:"revision"`

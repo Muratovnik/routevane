@@ -224,16 +224,16 @@ func runPreview(stdout, stderr io.Writer, logger *slog.Logger, args []string, de
 	}
 	ctx, cancel := context.WithTimeout(deps.Context, 5*time.Second)
 	defer cancel()
-	definition := domainExampleService()
+	definition := domainExampleList()
 	observer := dns.NewObserver(deps.Resolver)
-	observations, err := observer.Observe(ctx, dns.Query{ServiceID: definition.ID, ComponentID: "web", SourceID: "dns", Names: definition.DNSNames}, cutoff)
+	observations, err := observer.Observe(ctx, dns.Query{ListID: definition.ID, ComponentID: "web", SourceID: "dns", Names: definition.DNSNames}, cutoff)
 	if err != nil {
 		logResult(logger, "preview", "example", "dns", "failed", 0, operationStarted, "dns_observation_failed")
 		return 1
 	}
 	store := dns.NewMemoryStore()
 	store.Add(observations.Sightings, observations.Relations)
-	plan, err := planner.BuildPlanWithRelations(definition, store.Sightings(cutoff), store.Relations(cutoff), domain.RawJSONTargetProfile(), cutoff)
+	plan, err := planner.BuildPlanWithRelations(definition, store.Sightings(cutoff), store.Relations(cutoff), domain.RawJSONTargetDefinition(), cutoff)
 	if err != nil {
 		logResult(logger, "preview", "example", "", "failed", 0, operationStarted, "plan_failed")
 		return 1
@@ -245,7 +245,7 @@ func runPreview(stdout, stderr io.Writer, logger *slog.Logger, args []string, de
 	return 0
 }
 
-func domainExampleService() domain.ServiceDefinition { return domain.ExampleServiceDefinition() }
+func domainExampleList() domain.ListDefinition { return domain.ExampleListDefinition() }
 
 func newLogger(stderr io.Writer) *slog.Logger {
 	return slog.New(slog.NewJSONHandler(stderr, &slog.HandlerOptions{
@@ -259,7 +259,7 @@ func newLogger(stderr io.Writer) *slog.Logger {
 	}))
 }
 
-func logResult(logger *slog.Logger, operation, service, source, status string, count int, started time.Time, errorCode string) {
+func logResult(logger *slog.Logger, operation, list, source, status string, count int, started time.Time, errorCode string) {
 	duration := int64(0)
 	if !started.IsZero() {
 		duration = time.Since(started).Milliseconds()
@@ -267,7 +267,7 @@ func logResult(logger *slog.Logger, operation, service, source, status string, c
 			duration = 0
 		}
 	}
-	logger.Info("operation", "operation", operation, "service", service, "source", source, "status", status, "count", count, "duration", duration, "error_code", errorCode)
+	logger.Info("operation", "operation", operation, "service", list, "source", source, "status", status, "count", count, "duration", duration, "error_code", errorCode)
 }
 
 func writeUsage(stderr io.Writer) {

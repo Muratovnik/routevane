@@ -42,8 +42,8 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 	// route that names the category rather than what is inside it.
 	var categoryResponse struct {
 		Category struct {
-			ID       string   `json:"id"`
-			Services []string `json:"lists"`
+			ID    string   `json:"id"`
+			Lists []string `json:"lists"`
 		} `json:"category"`
 	}
 	created := postJSON(t, origin+"/v1/categories", `{"title":"Мои списки","lists":["alpha","beta"]}`)
@@ -52,27 +52,27 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 	}
 	categoryID := categoryResponse.Category.ID
 
-	var listResponse struct {
-		List struct {
+	var profileResponse struct {
+		Profile struct {
 			ID string `json:"id"`
 		} `json:"profile"`
 	}
 	body := postJSON(t, origin+"/v1/profiles", `{"name":"Дом","categories":["`+categoryID+`"]}`)
-	if err := json.Unmarshal(body, &listResponse); err != nil {
+	if err := json.Unmarshal(body, &profileResponse); err != nil {
 		t.Fatalf("create route=%s: %v", body, err)
 	}
-	routeID := listResponse.List.ID
+	profileID := profileResponse.Profile.ID
 	var outputResponse struct {
 		Output struct {
 			ID string `json:"id"`
 		} `json:"output"`
 	}
-	body = postJSON(t, origin+"/v1/profiles/"+routeID+"/outputs", `{"target_id":"keenetic"}`)
+	body = postJSON(t, origin+"/v1/profiles/"+profileID+"/outputs", `{"target_id":"keenetic"}`)
 	if err := json.Unmarshal(body, &outputResponse); err != nil {
 		t.Fatalf("bind output=%s: %v", body, err)
 	}
 	outputID := outputResponse.Output.ID
-	postJSON(t, origin+"/v1/profiles/"+routeID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+profileID+"/refresh", `{}`)
 	var buildResponse struct {
 		SubscriptionURL string `json:"subscription_url"`
 	}
@@ -88,10 +88,10 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 	// A second route names one list directly. That reference refuses the
 	// deletion and says which route holds it.
 	body = postJSON(t, origin+"/v1/profiles", `{"name":"Офис","lists":["alpha"]}`)
-	if err := json.Unmarshal(body, &listResponse); err != nil {
+	if err := json.Unmarshal(body, &profileResponse); err != nil {
 		t.Fatalf("create direct route=%s: %v", body, err)
 	}
-	directID := listResponse.List.ID
+	directID := profileResponse.Profile.ID
 	refused := postGuardedBody(t, origin+"/v1/lists/alpha/remove", `{}`)
 	if refused.status != 409 || !strings.Contains(string(refused.body), `"error":"list in use"`) || !strings.Contains(string(refused.body), `"id":"`+directID+`","title":"Офис"`) {
 		t.Fatalf("direct refusal=%d %q", refused.status, refused.body)
@@ -103,7 +103,7 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 		t.Fatalf("deletion=%d %q", removed.status, removed.body)
 	}
 	assertLibraryHoldsOnlyAlpha(t, origin, categoryID)
-	postJSON(t, origin+"/v1/profiles/"+routeID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+profileID+"/refresh", `{}`)
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 	republished := httpGet(t, buildResponse.SubscriptionURL, nil)
 	if republished.status != 200 || strings.Contains(string(republished.body), "198.51.100.20") || !strings.Contains(string(republished.body), "192.0.2.10") {
@@ -115,7 +115,7 @@ func TestServeLibraryDeletionsReachThePublishedFileEndToEnd(t *testing.T) {
 	// before the library is read at all.
 	for _, disposition := range []string{`{"lists":"detach"}`, `{"lists":"delete"}`} {
 		inUse := postGuardedBody(t, origin+"/v1/categories/"+categoryID+"/remove", disposition)
-		if inUse.status != 409 || !strings.Contains(string(inUse.body), `"error":"category in use"`) || !strings.Contains(string(inUse.body), `"id":"`+routeID+`","title":"Дом"`) {
+		if inUse.status != 409 || !strings.Contains(string(inUse.body), `"error":"category in use"`) || !strings.Contains(string(inUse.body), `"id":"`+profileID+`","title":"Дом"`) {
 			t.Fatalf("category refusal %s=%d %q", disposition, inUse.status, inUse.body)
 		}
 	}
@@ -141,20 +141,20 @@ func assertLibraryHoldsOnlyAlpha(t *testing.T, origin, categoryID string) {
 	t.Helper()
 	listing := httpGet(t, origin+"/v1/lists", nil)
 	var decoded struct {
-		Services []string `json:"lists"`
-		Details  []struct {
+		Lists   []string `json:"lists"`
+		Details []struct {
 			ID string `json:"id"`
 		} `json:"list_details"`
 		Categories []struct {
-			ID       string   `json:"id"`
-			Services []string `json:"lists"`
+			ID    string   `json:"id"`
+			Lists []string `json:"lists"`
 		} `json:"categories"`
 	}
 	if err := json.Unmarshal(listing.body, &decoded); err != nil {
 		t.Fatalf("catalog listing=%s: %v", listing.body, err)
 	}
-	if len(decoded.Services) != 1 || decoded.Services[0] != "alpha" {
-		t.Fatalf("services = %#v", decoded.Services)
+	if len(decoded.Lists) != 1 || decoded.Lists[0] != "alpha" {
+		t.Fatalf("services = %#v", decoded.Lists)
 	}
 	if len(decoded.Details) != 1 || decoded.Details[0].ID != "alpha" {
 		t.Fatalf("service details = %#v", decoded.Details)
@@ -165,8 +165,8 @@ func assertLibraryHoldsOnlyAlpha(t *testing.T, origin, categoryID string) {
 			continue
 		}
 		found = true
-		if len(category.Services) != 1 || category.Services[0] != "alpha" {
-			t.Fatalf("category membership = %#v", category.Services)
+		if len(category.Lists) != 1 || category.Lists[0] != "alpha" {
+			t.Fatalf("category membership = %#v", category.Lists)
 		}
 	}
 	if !found {

@@ -43,67 +43,67 @@ type Backend interface {
 	ExportConfigTransfer(context.Context) ([]byte, error)
 	PreviewConfigTransfer([]byte) (application.ConfigTransferPreview, error)
 	ApplyConfigTransfer(context.Context, string, []byte) (application.ConfigTransferCounts, error)
-	Services() []string
+	Lists() []string
 	DefaultPriority(context.Context) ([]string, error)
 	SetDefaultPriority(context.Context, []string) error
-	ServiceDetails() []application.ServiceDetail
-	PreviewService(context.Context, string) (application.ServicePreview, error)
+	ListDetails() []application.ListDetail
+	PreviewList(context.Context, string) (application.ListPreview, error)
 	// Custom services are the operator-defined part of the catalog: created
 	// and edited here, planned exactly like a shipped service everywhere else.
-	CreateCustomService(ctx context.Context, title string, domains []string) (application.CustomService, error)
-	UpdateCustomService(ctx context.Context, id, title string, domains []string) (application.CustomService, error)
-	// RemoveService deletes one list from the library, whoever created it
+	CreateCustomList(ctx context.Context, title string, domains []string) (application.CustomList, error)
+	UpdateCustomList(ctx context.Context, id, title string, domains []string) (application.CustomList, error)
+	// RemoveList deletes one list from the library, whoever created it
 	// (ADR 0029). A route naming it directly refuses the deletion; a route
 	// reaching it through a category simply carries less on its next build.
-	RemoveService(ctx context.Context, id string) error
+	RemoveList(ctx context.Context, id string) error
 	// Service tuning is the operator's standing correction to one service's
 	// automatic material: sources switched on and off, added feeds, and
 	// verdicts on destinations — domains, addresses, networks. Contents is the
 	// one table the service card renders.
-	ServiceContents(ctx context.Context, serviceID string) (application.ServiceContents, error)
-	RefreshServiceByID(ctx context.Context, serviceID string) (application.RefreshSummary, error)
-	SetServiceSourceEnabled(ctx context.Context, serviceID, sourceID string, enabled bool) error
-	AddServiceSource(ctx context.Context, serviceID, url string, format domain.FeedFormat) (application.CustomSource, error)
-	RemoveServiceSource(ctx context.Context, serviceID, sourceID string) error
-	// SetServiceValues carries one operator action about a batch of
+	ListContents(ctx context.Context, listID string) (application.ListContents, error)
+	RefreshListByID(ctx context.Context, listID string) (application.RefreshSummary, error)
+	SetListSourceEnabled(ctx context.Context, listID, sourceID string, enabled bool) error
+	AddListSource(ctx context.Context, listID, url string, format domain.FeedFormat) (application.CustomSource, error)
+	RemoveListSource(ctx context.Context, listID, sourceID string) error
+	// SetListValues carries one operator action about a batch of
 	// destinations: a pasted or imported file is one request, not one per line.
-	SetServiceValues(ctx context.Context, serviceID string, values []string, verdict application.DomainVerdict) error
+	SetListValues(ctx context.Context, listID string, values []string, verdict application.DomainVerdict) error
 	Categories() []application.CategoryDetail
 	// A category is operator-owned over the catalog seed (ADR 0028). Creation,
 	// rename and deletion live here; every reader of membership sees the merge
 	// the server computed, never a client's own.
-	CreateCategory(ctx context.Context, title string, services []string) (application.CategoryDetail, error)
+	CreateCategory(ctx context.Context, title string, lists []string) (application.CategoryDetail, error)
 	UpdateCategory(ctx context.Context, id string, update application.CategoryUpdate) (application.CategoryDetail, error)
 	// RemoveCategory carries the disposition of the lists the category held,
 	// because deleting a category is two outcomes rather than one and the
 	// operator chooses which (ADR 0029).
-	RemoveCategory(ctx context.Context, id string, lists application.CategoryListDisposition) error
+	RemoveCategory(ctx context.Context, id string, profiles application.CategoryListDisposition) error
 	Targets() []application.TargetOption
 	ExportFormats() []application.ExportFormat
 	Export(context.Context, string, string) (application.ExportPayload, error)
-	CreateList(context.Context, string, application.ListComposition) (application.List, error)
+	CreateProfile(context.Context, string, application.ProfileComposition) (application.Profile, error)
 	// ForecastComposition answers what a composition would cost on each named
 	// target before the list exists. It reads and computes; it stores nothing,
 	// which is what lets a screen ask before the operator has committed to
 	// anything.
-	ForecastComposition(context.Context, application.ListComposition, []string) ([]application.CompositionForecast, error)
-	List(context.Context, string) (application.List, error)
-	UpdateList(context.Context, string, string, application.ListComposition) (application.List, error)
+	ForecastComposition(context.Context, application.ProfileComposition, []string) ([]application.CompositionForecast, error)
+	Profile(context.Context, string) (application.Profile, error)
+	UpdateProfile(context.Context, string, string, application.ProfileComposition) (application.Profile, error)
 	// Archival is its own pair of verbs rather than a field of an update: it is
 	// the one edit an archived list still accepts, so it cannot travel inside
 	// the edit it would have to refuse.
-	ArchiveList(context.Context, string) (application.List, error)
-	RestoreList(context.Context, string) (application.List, error)
-	// ResolvedServices and MissingCategories keep resolution on the server. A
+	ArchiveProfile(context.Context, string) (application.Profile, error)
+	RestoreProfile(context.Context, string) (application.Profile, error)
+	// ResolvedLists and MissingCategories keep resolution on the server. A
 	// screen that resolved references itself would answer differently from the
 	// build whenever its catalog copy was a moment stale.
-	ResolvedServices(application.List) []string
-	MissingCategories(application.List) []string
+	ResolvedLists(application.Profile) []string
+	MissingCategories(application.Profile) []string
 	DefaultRefreshInterval(context.Context) (application.RefreshInterval, error)
 	SetDefaultRefreshInterval(context.Context, application.RefreshInterval) error
-	SetListRefreshInterval(context.Context, string, application.RefreshInterval) (application.List, error)
-	ListSchedule(context.Context, application.List) (application.Schedule, error)
-	ListCards(context.Context) ([]application.ListCard, error)
+	SetProfileRefreshInterval(context.Context, string, application.RefreshInterval) (application.Profile, error)
+	ProfileSchedule(context.Context, application.Profile) (application.Schedule, error)
+	ProfileCards(context.Context) ([]application.ProfileCard, error)
 	AddOutput(context.Context, string, string) (application.CreatedOutput, error)
 	SetOutputDevice(context.Context, string, string) (application.Output, error)
 	IssueSubscription(context.Context, string) (string, error)
@@ -469,18 +469,18 @@ func writeBackendError(w http.ResponseWriter, err error) {
 	// finding them again would otherwise cost a second request against every
 	// stored profile.
 	var categoryInUse application.CategoryInUseError
-	var serviceInUse application.ServiceInUseError
+	var listInUse application.ListInUseError
 	var invalidDestination application.InvalidDestinationError
 	switch {
 	case errors.As(err, &categoryInUse):
 		writeJSON(w, http.StatusConflict, map[string]any{
 			"error":    "category in use",
-			"profiles": categoryInUse.Lists,
+			"profiles": categoryInUse.Profiles,
 		})
-	case errors.As(err, &serviceInUse):
+	case errors.As(err, &listInUse):
 		writeJSON(w, http.StatusConflict, map[string]any{
 			"error":    "list in use",
-			"profiles": serviceInUse.Lists,
+			"profiles": listInUse.Profiles,
 		})
 	case errors.As(err, &invalidDestination):
 		writeJSON(w, http.StatusBadRequest, map[string]any{
@@ -493,9 +493,9 @@ func writeBackendError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusServiceUnavailable, "artifact unavailable")
 	case errors.Is(err, application.ErrTargetChanged):
 		writeError(w, http.StatusConflict, "output target changed")
-	case errors.Is(err, application.ErrListArchived):
+	case errors.Is(err, application.ErrProfileArchived):
 		writeError(w, http.StatusConflict, "list is archived")
-	case errors.Is(err, application.ErrRuleLimit), errors.Is(err, application.ErrPartialCoverage), errors.Is(err, application.ErrProfileMismatch), errors.Is(err, application.ErrPreflight), errors.Is(err, application.ErrSourceFailed), errors.Is(err, application.ErrSourceDegraded):
+	case errors.Is(err, application.ErrRuleLimit), errors.Is(err, application.ErrPartialCoverage), errors.Is(err, application.ErrFormatMismatch), errors.Is(err, application.ErrPreflight), errors.Is(err, application.ErrSourceFailed), errors.Is(err, application.ErrSourceDegraded):
 		details := application.ClassifyBuildFailure(err)
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
 			"error":           "operation failed",

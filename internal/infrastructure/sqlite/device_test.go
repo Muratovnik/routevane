@@ -15,8 +15,8 @@ func TestDeviceConnectionMetadataAndOutputBindingRoundTrip(t *testing.T) {
 	}
 	defer store.Close()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	list := application.List{ID: "11111111111111111111111111111111", Name: "Route", Services: []string{"youtube"}, CreatedAt: now, UpdatedAt: now}
-	if err := store.CreateList(context.Background(), list); err != nil {
+	profile := application.Profile{ID: "11111111111111111111111111111111", Name: "Route", Lists: []string{"youtube"}, CreatedAt: now, UpdatedAt: now}
+	if err := store.CreateProfile(context.Background(), profile); err != nil {
 		t.Fatal(err)
 	}
 	device := application.Device{
@@ -28,8 +28,8 @@ func TestDeviceConnectionMetadataAndOutputBindingRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	output := application.Output{
-		ID: "33333333333333333333333333333333", ListID: list.ID, TargetID: "keenetic",
-		ProfileKey: "keenetic-rci-v1", RendererID: "keenetic-routes-bat", RendererVersion: "1",
+		ID: "33333333333333333333333333333333", ProfileID: profile.ID, TargetID: "keenetic",
+		FormatKey: "keenetic-rci-v1", RendererID: "keenetic-routes-bat", RendererVersion: "1",
 		TargetRevision: "revision", CreatedAt: now,
 	}
 	if err := store.CreateOutput(context.Background(), application.NewOutput{Output: output}); err != nil {

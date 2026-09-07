@@ -20,7 +20,7 @@ import (
 
 type discoverOptions struct {
 	URL         string
-	ServiceID   string
+	ListID      string
 	Title       string
 	ManualSeeds []string
 	Confirm     bool
@@ -35,7 +35,7 @@ func parseDiscover(args []string) (discoverOptions, bool) {
 	set := flag.NewFlagSet("discover", flag.ContinueOnError)
 	set.SetOutput(io.Discard)
 	set.StringVar(&options.URL, "url", "", "site to inspect")
-	set.StringVar(&options.ServiceID, "service-id", "", "local service identity")
+	set.StringVar(&options.ListID, "service-id", "", "local service identity")
 	set.StringVar(&options.Title, "title", "", "human readable service title")
 	set.Var(&seeds, "seed", "additional domain to include")
 	set.BoolVar(&options.Confirm, "confirm", false, "start the browser for the printed URL")
@@ -69,7 +69,7 @@ type discoverReport struct {
 	RegistrableDomain string                `json:"registrable_domain"`
 	PublicSuffix      string                `json:"public_suffix"`
 	ICANNSuffix       bool                  `json:"icann_suffix"`
-	ServiceID         string                `json:"list_id"`
+	ListID            string                `json:"list_id"`
 	Confirmed         bool                  `json:"confirmed"`
 	AcceptedHosts     []string              `json:"accepted_hosts,omitempty"`
 	SeedDomains       []string              `json:"seed_domains,omitempty"`
@@ -91,7 +91,7 @@ func runDiscover(ctx context.Context, stdout io.Writer, logger *slog.Logger, opt
 	if browserPath == "" {
 		browserPath = discovery.DefaultBrowserPath()
 	}
-	request := discovery.Request{URL: options.URL, ServiceID: options.ServiceID, Title: options.Title, ManualSeeds: options.ManualSeeds, Confirm: options.Confirm}
+	request := discovery.Request{URL: options.URL, ListID: options.ListID, Title: options.Title, ManualSeeds: options.ManualSeeds, Confirm: options.Confirm}
 
 	dependencies := discovery.Deps{
 		Browser: discovery.BrowserOptions{
@@ -115,7 +115,7 @@ func runDiscover(ctx context.Context, stdout io.Writer, logger *slog.Logger, opt
 			return 1
 		}
 		defer store.Close()
-		dependencies.Observe = func(observeCtx context.Context, definition domain.ServiceDefinition) (discovery.Observation, error) {
+		dependencies.Observe = func(observeCtx context.Context, definition domain.ListDefinition) (discovery.Observation, error) {
 			// The written draft is reloaded so the observation uses the catalog's
 			// own revisions and the same bounded DNS cycle the product already
 			// runs. There is no discovery-only storage path.
@@ -123,17 +123,17 @@ func runDiscover(ctx context.Context, stdout io.Writer, logger *slog.Logger, opt
 			if loadErr != nil {
 				return discovery.Observation{}, loadErr
 			}
-			loaded, found := catalog.Service(definition.ID)
+			loaded, found := catalog.List(definition.ID)
 			if !found {
 				return discovery.Observation{}, fmt.Errorf("written draft %q did not load", definition.ID)
 			}
-			summary, err := application.RefreshService(observeCtx, loaded, domain.RawJSONTargetProfile(), builtinSources(deps), store, application.ClockFunc(deps.Now))
+			summary, err := application.RefreshList(observeCtx, loaded, domain.RawJSONTargetDefinition(), builtinSources(deps), store, application.ClockFunc(deps.Now))
 			if err != nil && !errors.Is(err, application.ErrSourceDegraded) {
 				return discovery.Observation{Sightings: summary.Sightings}, err
 			}
 			return discovery.Observation{Sightings: summary.Sightings}, nil
 		}
-		dependencies.Write = func(writeCtx context.Context, definition domain.ServiceDefinition) (string, error) {
+		dependencies.Write = func(writeCtx context.Context, definition domain.ListDefinition) (string, error) {
 			return catalogyaml.WriteLocalDraft(writeCtx, options.CatalogDir, definition)
 		}
 	}
@@ -145,7 +145,7 @@ func runDiscover(ctx context.Context, stdout io.Writer, logger *slog.Logger, opt
 		RegistrableDomain: result.Target.RegistrableDomain,
 		PublicSuffix:      result.Target.PublicSuffix,
 		ICANNSuffix:       result.Target.ICANNSuffix,
-		ServiceID:         result.ServiceID,
+		ListID:            result.ListID,
 		Confirmed:         result.Confirmed,
 		AcceptedHosts:     result.Draft.AcceptedHosts,
 		SeedDomains:       result.Draft.SeedDomains,
@@ -159,29 +159,29 @@ func runDiscover(ctx context.Context, stdout io.Writer, logger *slog.Logger, opt
 	if errors.Is(err, discovery.ErrConfirmationRequired) {
 		report.Hint = "review the URL above, then repeat the command with --confirm"
 		if encodeErr := json.NewEncoder(stdout).Encode(report); encodeErr != nil {
-			logResult(logger, "discover", report.ServiceID, "", "failed", 0, started, "output_failed")
+			logResult(logger, "discover", report.ListID, "", "failed", 0, started, "output_failed")
 			return 1
 		}
-		logResult(logger, "discover", report.ServiceID, "", "success", 0, started, "confirmation_required")
+		logResult(logger, "discover", report.ListID, "", "success", 0, started, "confirmation_required")
 		return 0
 	}
 	if err != nil {
 		// A local command that reports only a code is not operable; the reason
 		// stays on the operator's own machine.
 		logger.Warn("discover failed", "operation", "discover", "error", err.Error())
-		logResult(logger, "discover", report.ServiceID, "", "failed", 0, started, discoverErrorCode(err))
+		logResult(logger, "discover", report.ListID, "", "failed", 0, started, discoverErrorCode(err))
 		return 1
 	}
 	if encodeErr := json.NewEncoder(stdout).Encode(report); encodeErr != nil {
-		logResult(logger, "discover", report.ServiceID, "", "failed", report.Sightings, started, "output_failed")
+		logResult(logger, "discover", report.ListID, "", "failed", report.Sightings, started, "output_failed")
 		return 1
 	}
 	if report.ObservationError != "" {
 		logger.Warn("discover warning", "operation", "discover", "code", "first_observation_failed", "error", report.ObservationError)
-		logResult(logger, "discover", report.ServiceID, "", "success", report.Sightings, started, "first_observation_failed")
+		logResult(logger, "discover", report.ListID, "", "success", report.Sightings, started, "first_observation_failed")
 		return 0
 	}
-	logResult(logger, "discover", report.ServiceID, "", "success", report.Sightings, started, "")
+	logResult(logger, "discover", report.ListID, "", "success", report.Sightings, started, "")
 	return 0
 }
 

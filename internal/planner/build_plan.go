@@ -103,8 +103,8 @@ func routableValue(rule domain.RouteRule) (string, bool) {
 // BuildPlan builds a plan from explicit inputs.  The optional relations
 // argument keeps the primary four-argument API small while allowing the DNS
 // source to pass terminal CNAME observations without a second planner type.
-func BuildPlan(def domain.ServiceDefinition, sightings []domain.Sighting, target domain.TargetProfile, cutoff time.Time, relations ...[]domain.Relation) (domain.RoutingPlan, error) {
-	return buildPlan(ServiceInput{Definition: def, Sightings: sightings, Relations: firstRelations(relations)}, target, cutoff, len(relations) > 0)
+func BuildPlan(def domain.ListDefinition, sightings []domain.Sighting, target domain.TargetDefinition, cutoff time.Time, relations ...[]domain.Relation) (domain.RoutingPlan, error) {
+	return buildPlan(ListInput{Definition: def, Sightings: sightings, Relations: firstRelations(relations)}, target, cutoff, len(relations) > 0)
 }
 
 func firstRelations(relations [][]domain.Relation) []domain.Relation {
@@ -117,7 +117,7 @@ func firstRelations(relations [][]domain.Relation) []domain.Relation {
 // buildPlan is the single policy implementation.  withRelations preserves the
 // distinction between "no relations argument" and "an empty relation set", which
 // callers rely on for plan shape.
-func buildPlan(input ServiceInput, target domain.TargetProfile, cutoff time.Time, withRelations bool) (domain.RoutingPlan, error) {
+func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time, withRelations bool) (domain.RoutingPlan, error) {
 	def, sightings := input.Definition, input.Sightings
 	if def.ID == "" {
 		return domain.RoutingPlan{}, fmt.Errorf("service definition has no id")
@@ -132,15 +132,15 @@ func buildPlan(input ServiceInput, target domain.TargetProfile, cutoff time.Time
 
 	plan := domain.RoutingPlan{
 		InterfaceVersion: domain.RoutingPlanInterfaceVersion,
-		TargetID:         target.ID, ProfileKey: target.ProfileKey,
+		TargetID:         target.ID, FormatKey: target.FormatKey,
 		PolicyVersion:     PolicyVersion,
 		CatalogRevision:   def.CatalogRevision,
 		ObservationCutoff: cutoff,
 	}
-	if plan.ProfileKey == "" {
-		plan.ProfileKey = target.ID
+	if plan.FormatKey == "" {
+		plan.FormatKey = target.ID
 	}
-	plan.Services = []string{def.ID}
+	plan.Lists = []string{def.ID}
 	plan.Sightings = canonicalSightings(sightings)
 	if withRelations {
 		plan.Relations = canonicalRelations(input.Relations)
@@ -209,7 +209,7 @@ func buildPlan(input ServiceInput, target domain.TargetProfile, cutoff time.Time
 	// is an admission order, and it must not reach the semantic hash.
 	ordered := admissionOrder(plan.Sightings)
 	for _, sighting := range ordered {
-		if sighting.ServiceID != "" && sighting.ServiceID != def.ID {
+		if sighting.ListID != "" && sighting.ListID != def.ID {
 			continue
 		}
 		candidate, err := sightingRule(sighting, def.ID, components)
@@ -293,15 +293,15 @@ func buildPlan(input ServiceInput, target domain.TargetProfile, cutoff time.Time
 	return plan, nil
 }
 
-func BuildPlanWithRelations(def domain.ServiceDefinition, sightings []domain.Sighting, relations []domain.Relation, target domain.TargetProfile, cutoff time.Time) (domain.RoutingPlan, error) {
+func BuildPlanWithRelations(def domain.ListDefinition, sightings []domain.Sighting, relations []domain.Relation, target domain.TargetDefinition, cutoff time.Time) (domain.RoutingPlan, error) {
 	return BuildPlan(def, sightings, target, cutoff, relations)
 }
 
-// ServiceInput is one service's coherent observation snapshot at the cutoff
+// ListInput is one service's coherent observation snapshot at the cutoff
 // shared by BuildPlanSet. It keeps multi-service composition in policy code,
 // rather than teaching a renderer about services or persistence.
-type ServiceInput struct {
-	Definition domain.ServiceDefinition
+type ListInput struct {
+	Definition domain.ListDefinition
 	Sightings  []domain.Sighting
 	Relations  []domain.Relation
 	// Degraded lists the sources whose latest cycle failed while an earlier
@@ -351,12 +351,12 @@ func declaredNetwork(sighting domain.Sighting) bool {
 // reduction runs without MaxRules; the target rule limit is checked exactly
 // once after composition. A limit or required-coverage error returns the full
 // diagnostic plan and never truncates it.
-func BuildPlanSet(inputs []ServiceInput, target domain.TargetProfile, cutoff time.Time) (domain.RoutingPlan, error) {
+func BuildPlanSet(inputs []ListInput, target domain.TargetDefinition, cutoff time.Time) (domain.RoutingPlan, error) {
 	if len(inputs) == 0 {
 		return domain.RoutingPlan{}, fmt.Errorf("service set is empty")
 	}
-	ordered := append([]ServiceInput(nil), inputs...)
-	slices.SortFunc(ordered, func(a, b ServiceInput) int { return cmp.Compare(a.Definition.ID, b.Definition.ID) })
+	ordered := append([]ListInput(nil), inputs...)
+	slices.SortFunc(ordered, func(a, b ListInput) int { return cmp.Compare(a.Definition.ID, b.Definition.ID) })
 	for i := range ordered {
 		if domain.ValidateSlug(ordered[i].Definition.ID) != nil {
 			return domain.RoutingPlan{}, fmt.Errorf("invalid service identity")
@@ -374,24 +374,24 @@ func BuildPlanSet(inputs []ServiceInput, target domain.TargetProfile, cutoff tim
 	combined := domain.RoutingPlan{
 		InterfaceVersion:  domain.RoutingPlanInterfaceVersion,
 		TargetID:          target.ID,
-		ProfileKey:        target.ProfileKey,
+		FormatKey:         target.FormatKey,
 		PolicyVersion:     PolicyVersion,
 		CatalogRevision:   ordered[0].Definition.CatalogRevision,
 		ObservationCutoff: cutoff.UTC(),
 	}
 	for _, input := range ordered {
-		servicePlan, err := buildPlan(input, unboundedTarget, cutoff, true)
+		listPlan, err := buildPlan(input, unboundedTarget, cutoff, true)
 		if err != nil {
 			return domain.RoutingPlan{}, fmt.Errorf("build service %q: %w", input.Definition.ID, err)
 		}
-		combined.Services = append(combined.Services, servicePlan.Services...)
-		combined.Rules = append(combined.Rules, servicePlan.Rules...)
-		combined.Excluded = append(combined.Excluded, servicePlan.Excluded...)
-		combined.Warnings = append(combined.Warnings, servicePlan.Warnings...)
-		combined.Coverage = append(combined.Coverage, servicePlan.Coverage...)
-		combined.Relations = append(combined.Relations, servicePlan.Relations...)
-		combined.Sightings = append(combined.Sightings, servicePlan.Sightings...)
-		if hasPartialCoverage(servicePlan.Excluded) {
+		combined.Lists = append(combined.Lists, listPlan.Lists...)
+		combined.Rules = append(combined.Rules, listPlan.Rules...)
+		combined.Excluded = append(combined.Excluded, listPlan.Excluded...)
+		combined.Warnings = append(combined.Warnings, listPlan.Warnings...)
+		combined.Coverage = append(combined.Coverage, listPlan.Coverage...)
+		combined.Relations = append(combined.Relations, listPlan.Relations...)
+		combined.Sightings = append(combined.Sightings, listPlan.Sightings...)
+		if hasPartialCoverage(listPlan.Excluded) {
 			combined.Warnings = append(combined.Warnings, "partial_coverage:unsupported_or_quarantined:"+input.Definition.ID)
 		}
 	}
@@ -400,7 +400,7 @@ func BuildPlanSet(inputs []ServiceInput, target domain.TargetProfile, cutoff tim
 
 	for _, coverage := range combined.Coverage {
 		if !coverage.Complete {
-			return combined, fmt.Errorf("%w: %s/%s", ErrRequiredCoverage, coverage.ServiceID, coverage.ComponentID)
+			return combined, fmt.Errorf("%w: %s/%s", ErrRequiredCoverage, coverage.ListID, coverage.ComponentID)
 		}
 	}
 	if target.Constraints.MaxRules > 0 && len(combined.Rules) > target.Constraints.MaxRules {
@@ -421,7 +421,7 @@ func hasPartialCoverage(excluded []domain.Excluded) bool {
 	return false
 }
 
-func seedRule(seed domain.Seed, serviceID string) (domain.RouteRule, error) {
+func seedRule(seed domain.Seed, listID string) (domain.RouteRule, error) {
 	reasons := []string{ReasonManualRule}
 	if seed.SourceClass == domain.SourceOfficial {
 		reasons = []string{ReasonOfficialRule}
@@ -432,25 +432,25 @@ func seedRule(seed domain.Seed, serviceID string) (domain.RouteRule, error) {
 	}
 	switch seed.Kind {
 	case domain.RuleDomainExact, domain.RuleDomainSuffix:
-		return domain.NewDomainRule(seed.Kind, seed.Value, serviceID, seed.ComponentID, seed.SourceClass, reasons, provenance(provenanceRef))
+		return domain.NewDomainRule(seed.Kind, seed.Value, listID, seed.ComponentID, seed.SourceClass, reasons, provenance(provenanceRef))
 	case domain.RuleIPv4, domain.RuleIPv6:
 		a, err := domain.ParseAddr(seed.Value)
 		if err != nil {
 			return domain.RouteRule{}, err
 		}
-		return domain.NewAddrRule(a, serviceID, seed.ComponentID, seed.SourceClass, reasons, provenance(provenanceRef))
+		return domain.NewAddrRule(a, listID, seed.ComponentID, seed.SourceClass, reasons, provenance(provenanceRef))
 	case domain.RulePrefix4, domain.RulePrefix6:
 		p, err := domain.ParsePrefix(seed.Value)
 		if err != nil {
 			return domain.RouteRule{}, err
 		}
-		return domain.NewPrefixRule(p, serviceID, seed.ComponentID, seed.SourceClass, reasons, provenance(provenanceRef))
+		return domain.NewPrefixRule(p, listID, seed.ComponentID, seed.SourceClass, reasons, provenance(provenanceRef))
 	default:
 		return domain.RouteRule{}, fmt.Errorf("unsupported seed kind %q", seed.Kind)
 	}
 }
 
-func sightingRule(sighting domain.Sighting, serviceID string, components map[string]domain.ComponentDefinition) (domain.RouteRule, error) {
+func sightingRule(sighting domain.Sighting, listID string, components map[string]domain.ComponentDefinition) (domain.RouteRule, error) {
 	componentID := sighting.ComponentID
 	if componentID == "" {
 		componentID = "web"
@@ -484,14 +484,14 @@ func sightingRule(sighting domain.Sighting, serviceID string, components map[str
 	var err error
 	switch sighting.Resource.Kind {
 	case domain.ResourcePrefix:
-		rule, err = domain.NewPrefixRule(sighting.Resource.Prefix, serviceID, componentID, sighting.SourceClass, []string{reason}, provenance(ref))
+		rule, err = domain.NewPrefixRule(sighting.Resource.Prefix, listID, componentID, sighting.SourceClass, []string{reason}, provenance(ref))
 	case domain.ResourceDomain:
 		// A feed publishes a name, and a target that understands names expands
 		// its subdomains itself. Recording it as exact would drop every
 		// subdomain the publisher meant to include.
-		rule, err = domain.NewDomainRule(domain.RuleDomainSuffix, sighting.Resource.Domain, serviceID, componentID, sighting.SourceClass, []string{reason}, provenance(ref))
+		rule, err = domain.NewDomainRule(domain.RuleDomainSuffix, sighting.Resource.Domain, listID, componentID, sighting.SourceClass, []string{reason}, provenance(ref))
 	default:
-		rule, err = domain.NewAddrRule(sighting.Resource.Addr, serviceID, componentID, sighting.SourceClass, []string{reason}, provenance(ref))
+		rule, err = domain.NewAddrRule(sighting.Resource.Addr, listID, componentID, sighting.SourceClass, []string{reason}, provenance(ref))
 	}
 	if err != nil {
 		return domain.RouteRule{}, err
@@ -503,12 +503,12 @@ func sightingRule(sighting domain.Sighting, serviceID string, components map[str
 	return rule, nil
 }
 
-func invalidCandidate(sighting domain.Sighting, serviceID string) domain.RouteRule {
+func invalidCandidate(sighting domain.Sighting, listID string) domain.RouteRule {
 	kind := domain.RuleIPv6
 	if sighting.Resource.Kind == domain.ResourceIP && sighting.Resource.Addr.Is4() {
 		kind = domain.RuleIPv4
 	}
-	return domain.RouteRule{Kind: kind, Action: domain.ActionRoute, ServiceID: serviceID, ComponentID: sighting.ComponentID, SourceClass: sighting.SourceClass}
+	return domain.RouteRule{Kind: kind, Action: domain.ActionRoute, ListID: listID, ComponentID: sighting.ComponentID, SourceClass: sighting.SourceClass}
 }
 
 func supportsRule(kind domain.RuleKind, c domain.TargetConstraints) bool {
@@ -551,7 +551,7 @@ func collapseObserved(rules []domain.RouteRule) []domain.RouteRule {
 	others := make([]domain.RouteRule, 0, len(rules))
 	for _, rule := range rules {
 		if rule.Kind.IsIP() || rule.Kind.IsPrefix() {
-			key := rule.ServiceID + "\x00" + rule.ComponentID + "\x00" + string(rule.SourceClass)
+			key := rule.ListID + "\x00" + rule.ComponentID + "\x00" + string(rule.SourceClass)
 			groups[key] = append(groups[key], rule)
 		} else {
 			others = append(others, rule)
@@ -568,7 +568,7 @@ func collapseObserved(rules []domain.RouteRule) []domain.RouteRule {
 			inputs = append(inputs, netip.PrefixFrom(addr, addr.BitLen()))
 		}
 		prefixes := CollapseLosslessPrefixes(inputs)
-		serviceID, componentID, sourceClass := splitGroupKey(key)
+		listID, componentID, sourceClass := splitGroupKey(key)
 		for _, prefix := range prefixes {
 			// A collapse is lossless only if the reason codes and expiry of the
 			// merged rules survive it. Rebuilding from a fixed reason would drop
@@ -601,9 +601,9 @@ func collapseObserved(rules []domain.RouteRule) []domain.RouteRule {
 			var rule domain.RouteRule
 			var err error
 			if network {
-				rule, err = domain.NewPrefixRule(prefix, serviceID, componentID, sourceClass, reasons, refs)
+				rule, err = domain.NewPrefixRule(prefix, listID, componentID, sourceClass, reasons, refs)
 			} else {
-				rule, err = domain.NewAddrRule(prefix.Addr(), serviceID, componentID, sourceClass, reasons, refs)
+				rule, err = domain.NewAddrRule(prefix.Addr(), listID, componentID, sourceClass, reasons, refs)
 			}
 			if err == nil {
 				rule.ExpiresAt = expires
@@ -656,10 +656,10 @@ func dedupeRules(input []domain.RouteRule) []domain.RouteRule {
 	return out
 }
 
-func buildWarnings(rules []domain.RouteRule, components map[string]domain.ComponentDefinition, serviceID string, grace map[string]time.Time) []string {
+func buildWarnings(rules []domain.RouteRule, components map[string]domain.ComponentDefinition, listID string, grace map[string]time.Time) []string {
 	covered := make(map[string]bool)
 	for _, rule := range rules {
-		if rule.ServiceID == serviceID {
+		if rule.ListID == listID {
 			covered[rule.ComponentID] = true
 		}
 	}
@@ -670,23 +670,23 @@ func buildWarnings(rules []domain.RouteRule, components map[string]domain.Compon
 		}
 	}
 	for sourceID := range grace {
-		warnings = append(warnings, ReasonSourceDegraded+":"+serviceID+":"+sourceID)
+		warnings = append(warnings, ReasonSourceDegraded+":"+listID+":"+sourceID)
 	}
 	slices.Sort(warnings)
 	return warnings
 }
 
-func buildCoverage(rules []domain.RouteRule, components map[string]domain.ComponentDefinition, serviceID string) []domain.Coverage {
+func buildCoverage(rules []domain.RouteRule, components map[string]domain.ComponentDefinition, listID string) []domain.Coverage {
 	counts := make(map[string]int)
 	for _, rule := range rules {
-		if rule.ServiceID == serviceID {
+		if rule.ListID == listID {
 			counts[rule.ComponentID]++
 		}
 	}
 	ids := slices.Sorted(maps.Keys(components))
 	out := make([]domain.Coverage, 0, len(ids))
 	for _, id := range ids {
-		out = append(out, domain.Coverage{ServiceID: serviceID, ComponentID: id, Complete: counts[id] > 0 || !components[id].Required, RuleCount: counts[id]})
+		out = append(out, domain.Coverage{ListID: listID, ComponentID: id, Complete: counts[id] > 0 || !components[id].Required, RuleCount: counts[id]})
 	}
 	return out
 }

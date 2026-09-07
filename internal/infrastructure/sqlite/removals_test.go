@@ -30,8 +30,8 @@ func populateLibrary(t *testing.T, store *Store, now time.Time) {
 		}
 	}
 	memberships := []application.CategoryMembership{
-		{CategoryID: "custom-1234567890abcdef", ServiceID: "youtube", State: application.MembershipAdded, UpdatedAt: now},
-		{CategoryID: "custom-1234567890abcdef", ServiceID: "discord", State: application.MembershipAdded, UpdatedAt: now},
+		{CategoryID: "custom-1234567890abcdef", ListID: "youtube", State: application.MembershipAdded, UpdatedAt: now},
+		{CategoryID: "custom-1234567890abcdef", ListID: "discord", State: application.MembershipAdded, UpdatedAt: now},
 	}
 	category := application.CustomCategory{ID: "custom-1234567890abcdef", Title: "Мои списки", CreatedAt: now, UpdatedAt: now}
 	if err := store.CreateCustomCategory(context.Background(), category, memberships); err != nil {
@@ -39,7 +39,7 @@ func populateLibrary(t *testing.T, store *Store, now time.Time) {
 	}
 	if err := store.UpdateCategory(context.Background(), application.CategoryWrite{
 		CategoryID: "video", ReplaceMemberships: true, UpdatedAt: now,
-		Memberships: []application.CategoryMembership{{CategoryID: "video", ServiceID: "youtube", State: application.MembershipRemoved, UpdatedAt: now}},
+		Memberships: []application.CategoryMembership{{CategoryID: "video", ListID: "youtube", State: application.MembershipRemoved, UpdatedAt: now}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestRemovingACatalogListRecordsItAndTakesOnlyWhatThatListOwned(t *testing.T
 	if len(overlay.Categories) != 1 {
 		t.Fatalf("categories = %#v", overlay.Categories)
 	}
-	if len(overlay.Memberships) != 1 || overlay.Memberships[0].ServiceID != "discord" {
+	if len(overlay.Memberships) != 1 || overlay.Memberships[0].ListID != "discord" {
 		t.Fatalf("memberships = %#v", overlay.Memberships)
 	}
 	// Recording is idempotent and keeps the first moment: a second deletion is
@@ -134,7 +134,7 @@ func TestACategoryDeletionWithItsListsIsOneTransaction(t *testing.T) {
 	// row and the first list are already gone inside the transaction.
 	failing := application.LibraryRemoval{
 		Kind: application.RemovalCategory, ID: "custom-1234567890abcdef",
-		Services:  []string{"youtube", "custom-fedcba0987654321"},
+		Lists:     []string{"youtube", "custom-fedcba0987654321"},
 		RemovedAt: now,
 	}
 	if err := store.RemoveFromLibrary(ctx, failing); !errors.Is(err, application.ErrNotFound) {
@@ -157,7 +157,7 @@ func TestACategoryDeletionWithItsListsIsOneTransaction(t *testing.T) {
 	// The same removal without the absent list lands whole: the category's own
 	// rows and every row the list it took owned.
 	whole := failing
-	whole.Services = []string{"youtube"}
+	whole.Lists = []string{"youtube"}
 	if err := store.RemoveFromLibrary(ctx, whole); err != nil {
 		t.Fatal(err)
 	}
@@ -214,15 +214,15 @@ func TestLibraryRemovalsRefuseWhatTheGrammarForbids(t *testing.T) {
 			return r
 		}},
 		{"lists on a list deletion", func(r application.LibraryRemoval) application.LibraryRemoval {
-			r.Kind, r.ID, r.Services = application.RemovalList, "youtube", []string{"discord"}
+			r.Kind, r.ID, r.Lists = application.RemovalList, "youtube", []string{"discord"}
 			return r
 		}},
 		{"invalid held list", func(r application.LibraryRemoval) application.LibraryRemoval {
-			r.Services = []string{"Not A Slug"}
+			r.Lists = []string{"Not A Slug"}
 			return r
 		}},
 		{"repeated held list", func(r application.LibraryRemoval) application.LibraryRemoval {
-			r.Services = []string{"discord", "discord"}
+			r.Lists = []string{"discord", "discord"}
 			return r
 		}},
 	}

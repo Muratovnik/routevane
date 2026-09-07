@@ -49,11 +49,11 @@ func (s *Store) PutSetting(ctx context.Context, key, value string, updatedAt tim
 	return nil
 }
 
-// UpdateListSchedule writes only the scheduling columns, so a timer never
+// UpdateProfileSchedule writes only the scheduling columns, so a timer never
 // rewrites a composition and a composition edit never resets when the list last
 // refreshed.
-func (s *Store) UpdateListSchedule(ctx context.Context, listID string, interval application.RefreshInterval, lastRefreshedAt time.Time, failed bool, updatedAt time.Time) error {
-	if !validID(listID) || updatedAt.IsZero() {
+func (s *Store) UpdateProfileSchedule(ctx context.Context, profileID string, interval application.RefreshInterval, lastRefreshedAt time.Time, failed bool, updatedAt time.Time) error {
+	if !validID(profileID) || updatedAt.IsZero() {
 		return fmt.Errorf("invalid list schedule")
 	}
 	switch interval {
@@ -76,7 +76,7 @@ func (s *Store) UpdateListSchedule(ctx context.Context, listID string, interval 
 	}
 	result, err := s.db.ExecContext(ctx,
 		`UPDATE profiles SET refresh_interval=?, last_refreshed_at_ns=?, last_refresh_failed=?, updated_at_ns=? WHERE id=?`,
-		string(interval), refreshed, marked, updatedAt.UTC().UnixNano(), listID)
+		string(interval), refreshed, marked, updatedAt.UTC().UnixNano(), profileID)
 	if err != nil {
 		return fmt.Errorf("update list schedule: %w", err)
 	}

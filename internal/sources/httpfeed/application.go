@@ -17,7 +17,7 @@ func (s Source) Observe(ctx context.Context, request application.SourceRequest) 
 		return application.SourceResult{}, errors.New("HTTP feed observer is nil")
 	}
 	result, err := s.Observer.Observe(ctx, Query{
-		ServiceID:      request.ServiceID,
+		ListID:         request.ListID,
 		ComponentID:    request.ComponentID,
 		SourceID:       request.SourceID,
 		SourceRevision: request.SourceRevision,

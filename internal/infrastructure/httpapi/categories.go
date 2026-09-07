@@ -12,13 +12,13 @@ import (
 
 func (h *handler) createCategory(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Title    string   `json:"title"`
-		Services []string `json:"lists"`
+		Title string   `json:"title"`
+		Lists []string `json:"lists"`
 	}
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	category, err := h.backend.CreateCategory(r.Context(), request.Title, request.Services)
+	category, err := h.backend.CreateCategory(r.Context(), request.Title, request.Lists)
 	if err != nil {
 		h.backendError(w, err)
 		return
@@ -34,13 +34,13 @@ func (h *handler) createCategory(w http.ResponseWriter, r *http.Request) {
 // operator never gave.
 func (h *handler) updateCategory(w http.ResponseWriter, r *http.Request, id string) {
 	var request struct {
-		Title    *string   `json:"title"`
-		Services *[]string `json:"lists"`
+		Title *string   `json:"title"`
+		Lists *[]string `json:"lists"`
 	}
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	category, err := h.backend.UpdateCategory(r.Context(), id, application.CategoryUpdate{Title: request.Title, Services: request.Services})
+	category, err := h.backend.UpdateCategory(r.Context(), id, application.CategoryUpdate{Title: request.Title, Lists: request.Lists})
 	if err != nil {
 		h.backendError(w, err)
 		return

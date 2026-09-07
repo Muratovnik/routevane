@@ -22,11 +22,11 @@ func (s *Store) DefaultPriority(ctx context.Context) ([]string, error) {
 	defer rows.Close()
 	priority := make([]string, 0)
 	for rows.Next() {
-		var serviceID string
-		if err := rows.Scan(&serviceID); err != nil {
+		var listID string
+		if err := rows.Scan(&listID); err != nil {
 			return nil, fmt.Errorf("read library priority: %w", err)
 		}
-		priority = append(priority, serviceID)
+		priority = append(priority, listID)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("read library priority: %w", err)
@@ -40,14 +40,14 @@ func (s *Store) DefaultPriority(ctx context.Context) ([]string, error) {
 // callers cannot create duplicate positions or malformed ids.
 func (s *Store) SetDefaultPriority(ctx context.Context, priority []string) error {
 	seen := make(map[string]struct{}, len(priority))
-	for _, serviceID := range priority {
-		if domain.ValidateSlug(serviceID) != nil {
+	for _, listID := range priority {
+		if domain.ValidateSlug(listID) != nil {
 			return fmt.Errorf("invalid library priority")
 		}
-		if _, duplicate := seen[serviceID]; duplicate {
+		if _, duplicate := seen[listID]; duplicate {
 			return fmt.Errorf("invalid library priority")
 		}
-		seen[serviceID] = struct{}{}
+		seen[listID] = struct{}{}
 	}
 	if err := s.preparePublication(); err != nil {
 		return err
@@ -65,8 +65,8 @@ func (s *Store) SetDefaultPriority(ctx context.Context, priority []string) error
 	if _, err := tx.ExecContext(ctx, `DELETE FROM library_list_priorities`); err != nil {
 		return fail(fmt.Errorf("clear library priority: %w", err))
 	}
-	for position, serviceID := range priority {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO library_list_priorities(list_id,position) VALUES(?,?)`, serviceID, position); err != nil {
+	for position, listID := range priority {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO library_list_priorities(list_id,position) VALUES(?,?)`, listID, position); err != nil {
 			return fail(fmt.Errorf("write library priority: %w", err))
 		}
 	}

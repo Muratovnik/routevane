@@ -26,14 +26,14 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 	for _, fixture := range []struct{ title, domain, value string }{{"Overlap Alpha", "alpha.example", "192.0.2.0/24"}, {"Overlap Beta", "beta.example", "192.0.2.1"}} {
 		body, _ := json.Marshal(map[string]any{"title": fixture.title, "domains": []string{"shared.example", fixture.domain}})
 		var created struct {
-			Service struct {
+			List struct {
 				ID string `json:"id"`
 			} `json:"list"`
 		}
 		if err := json.Unmarshal(postJSON(t, origin+"/v1/lists", string(body)), &created); err != nil {
 			t.Fatal(err)
 		}
-		id := created.Service.ID
+		id := created.List.ID
 		ids = append(ids, id)
 		value, _ := json.Marshal(map[string]any{"values": []string{fixture.value}, "verdict": "include"})
 		postJSON(t, origin+"/v1/lists/"+id+"/domains", string(value))
@@ -50,7 +50,7 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 		}
 		return result.Targets
 	}
-	beforeLists := httpGet(t, origin+"/v1/profiles", nil)
+	beforeProfiles := httpGet(t, origin+"/v1/profiles", nil)
 	beforeContents := [][]byte{}
 	for _, id := range ids {
 		beforeContents = append(beforeContents, httpGet(t, origin+"/v1/lists/"+id+"/contents", nil).body)
@@ -60,7 +60,7 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 	if !reflect.DeepEqual(a, read(ids[:1])) || !reflect.DeepEqual(b, read(ids[1:])) {
 		t.Fatal("combined forecast rewrote individual lists")
 	}
-	if after := httpGet(t, origin+"/v1/profiles", nil); after.status != http.StatusOK || !slices.Equal(beforeLists.body, after.body) {
+	if after := httpGet(t, origin+"/v1/profiles", nil); after.status != http.StatusOK || !slices.Equal(beforeProfiles.body, after.body) {
 		t.Fatal("forecast created a route or output")
 	}
 	for i, id := range ids {
@@ -79,7 +79,7 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 		duplicate := forecast.Overlaps.Items[0]
 		owners := slices.Clone(ids)
 		slices.Sort(owners)
-		if duplicate.Kind != "duplicate" || duplicate.Entry.Value != "shared.example" || !slices.Equal(duplicate.Entry.Services, owners) {
+		if duplicate.Kind != "duplicate" || duplicate.Entry.Value != "shared.example" || !slices.Equal(duplicate.Entry.Lists, owners) {
 			t.Fatalf("duplicate=%#v", duplicate)
 		}
 		if wantRelations == 2 {
@@ -91,8 +91,8 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 		// Publishing afterward proves the forecast against real bytes. Both
 		// renderers receive the same priority-resolved plan: the first service owns
 		// the shared domain and its broader network covers the second service's IP.
-		listID, outputID, _ := createListOutput(t, origin, "Overlap route", forecast.TargetID, ids...)
-		built := guardedRefreshAndBuild(t, origin, listID, outputID)
+		profileID, outputID, _ := createProfileOutput(t, origin, "Overlap route", forecast.TargetID, ids...)
+		built := guardedRefreshAndBuild(t, origin, profileID, outputID)
 		payload := downloadArtifact(t, origin, built.Artifact.ID).body
 		actual := 0
 		if forecast.TargetID == "keenetic-dns" {
@@ -114,7 +114,7 @@ func TestServeOverlapForecastExplainsTwoProjectionsWithoutRewritingLists(t *test
 			actual = len(parsed.Rule.Domain) + len(parsed.Rule.DomainSuffix) + len(parsed.Rule.IPCIDR)
 		}
 		planned := 0
-		for _, share := range forecast.PerService {
+		for _, share := range forecast.PerList {
 			planned += share.Rules
 		}
 		if actual != forecast.ProjectedRules || built.Summary.RuleCount != planned {

@@ -81,7 +81,7 @@ type CustomCategory struct {
 // CategoryMembership is one stored verdict.
 type CategoryMembership struct {
 	CategoryID string
-	ServiceID  string
+	ListID     string
 	State      MembershipState
 	UpdatedAt  time.Time
 }
@@ -117,14 +117,14 @@ type CategoryWrite struct {
 // against the catalog is computed here rather than sent by the caller, so two
 // clients cannot disagree about what an overlay row means.
 type CategoryUpdate struct {
-	Title    *string
-	Services *[]string
+	Title *string
+	Lists *[]string
 }
 
-// ListReference names one route that still holds a reference. It carries the
+// ProfileReference names one route that still holds a reference. It carries the
 // route's own words rather than its identity alone, so a refusal can be read
 // without a second request.
-type ListReference struct {
+type ProfileReference struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 }
@@ -134,11 +134,11 @@ type ListReference struct {
 // searching for its cause.
 type CategoryInUseError struct {
 	CategoryID string
-	Lists      []ListReference
+	Profiles   []ProfileReference
 }
 
 func (e CategoryInUseError) Error() string {
-	return fmt.Sprintf("category %q is named by %d route(s)", e.CategoryID, len(e.Lists))
+	return fmt.Sprintf("category %q is named by %d route(s)", e.CategoryID, len(e.Profiles))
 }
 
 // categoryRegistry is the in-process copy of the stored overlay. The process
@@ -188,7 +188,7 @@ func (s *PublicationService) LoadCategories(ctx context.Context) error {
 		if membership[entry.CategoryID] == nil {
 			membership[entry.CategoryID] = map[string]MembershipState{}
 		}
-		membership[entry.CategoryID][entry.ServiceID] = entry.State
+		membership[entry.CategoryID][entry.ListID] = entry.State
 	}
 	if len(stored.Removals) > maxCatalogRemovals {
 		return fmt.Errorf("load categories: stored removals exceed their bound")
@@ -234,25 +234,25 @@ func (s *PublicationService) mergedCategory(id string) (CategoryDetail, bool) {
 	if operatorOwned {
 		detail.Title = created.Title
 	}
-	members := make([]string, 0, len(base.Services)+len(verdicts))
-	for _, serviceID := range base.Services {
-		if verdicts[serviceID] == MembershipRemoved {
+	members := make([]string, 0, len(base.Lists)+len(verdicts))
+	for _, listID := range base.Lists {
+		if verdicts[listID] == MembershipRemoved {
 			continue
 		}
-		members = append(members, serviceID)
+		members = append(members, listID)
 	}
-	for serviceID, state := range verdicts {
+	for listID, state := range verdicts {
 		if state == MembershipAdded {
-			members = append(members, serviceID)
+			members = append(members, listID)
 		}
 	}
 	known := make([]string, 0, len(members))
-	for _, serviceID := range members {
-		if s.knownService(serviceID) {
-			known = append(known, serviceID)
+	for _, listID := range members {
+		if s.knownList(listID) {
+			known = append(known, listID)
 		}
 	}
-	detail.Services = domain.StableStrings(known)
+	detail.Lists = domain.StableStrings(known)
 	return detail, true
 }
 
@@ -277,10 +277,10 @@ func (s *PublicationService) mergedCategories() []CategoryDetail {
 	return details
 }
 
-// knownService reports whether an id resolves to a definition at all. It is the
+// knownList reports whether an id resolves to a definition at all. It is the
 // existence half of the definition accessor without the tuning work, which a
 // membership read never needs.
-func (s *PublicationService) knownService(id string) bool {
+func (s *PublicationService) knownList(id string) bool {
 	_, ok := s.baseDefinition(id)
 	return ok
 }
@@ -288,12 +288,12 @@ func (s *PublicationService) knownService(id string) bool {
 // CreateCategory stores one operator-created category and makes it selectable
 // at once. The identity is generated, never operator-supplied: the title is
 // presentation and may repeat, while the id must stay a stable slug.
-func (s *PublicationService) CreateCategory(ctx context.Context, title string, services []string) (CategoryDetail, error) {
+func (s *PublicationService) CreateCategory(ctx context.Context, title string, lists []string) (CategoryDetail, error) {
 	cleanTitle, ok := validCategoryTitle(title)
 	if !ok {
 		return CategoryDetail{}, fmt.Errorf("invalid category title")
 	}
-	members, err := s.validCategoryMembers(services)
+	members, err := s.validCategoryMembers(lists)
 	if err != nil {
 		return CategoryDetail{}, err
 	}
@@ -363,12 +363,12 @@ func (s *PublicationService) UpdateCategory(ctx context.Context, id string, upda
 	if current.Custom {
 		write.Title = title
 	}
-	if update.Services != nil {
-		desired, err := s.validCategoryMembers(*update.Services)
+	if update.Lists != nil {
+		desired, err := s.validCategoryMembers(*update.Lists)
 		if err != nil {
 			return CategoryDetail{}, err
 		}
-		write.Memberships = membershipRows(id, desired, s.config.Categories[id].Services, now)
+		write.Memberships = membershipRows(id, desired, s.config.Categories[id].Lists, now)
 		write.ReplaceMemberships = true
 	}
 	if err := s.config.Store.UpdateCategory(ctx, write); err != nil {
@@ -394,34 +394,34 @@ func (s *PublicationService) UpdateCategory(ctx context.Context, id string, upda
 // operator created has no catalog members, so it can only ever produce 'added'.
 func membershipRows(categoryID string, desired, catalog []string, now time.Time) []CategoryMembership {
 	carried := make(map[string]struct{}, len(catalog))
-	for _, serviceID := range catalog {
-		carried[serviceID] = struct{}{}
+	for _, listID := range catalog {
+		carried[listID] = struct{}{}
 	}
 	wanted := make(map[string]struct{}, len(desired))
-	for _, serviceID := range desired {
-		wanted[serviceID] = struct{}{}
+	for _, listID := range desired {
+		wanted[listID] = struct{}{}
 	}
 	rows := make([]CategoryMembership, 0, len(desired))
-	for _, serviceID := range desired {
-		if _, known := carried[serviceID]; known {
+	for _, listID := range desired {
+		if _, known := carried[listID]; known {
 			continue
 		}
-		rows = append(rows, CategoryMembership{CategoryID: categoryID, ServiceID: serviceID, State: MembershipAdded, UpdatedAt: now})
+		rows = append(rows, CategoryMembership{CategoryID: categoryID, ListID: listID, State: MembershipAdded, UpdatedAt: now})
 	}
-	for _, serviceID := range catalog {
-		if _, kept := wanted[serviceID]; kept {
+	for _, listID := range catalog {
+		if _, kept := wanted[listID]; kept {
 			continue
 		}
-		rows = append(rows, CategoryMembership{CategoryID: categoryID, ServiceID: serviceID, State: MembershipRemoved, UpdatedAt: now})
+		rows = append(rows, CategoryMembership{CategoryID: categoryID, ListID: listID, State: MembershipRemoved, UpdatedAt: now})
 	}
-	slices.SortFunc(rows, func(a, b CategoryMembership) int { return cmp.Compare(a.ServiceID, b.ServiceID) })
+	slices.SortFunc(rows, func(a, b CategoryMembership) int { return cmp.Compare(a.ListID, b.ListID) })
 	return rows
 }
 
 func membershipIndex(rows []CategoryMembership) map[string]MembershipState {
 	index := make(map[string]MembershipState, len(rows))
 	for _, row := range rows {
-		index[row.ServiceID] = row.State
+		index[row.ListID] = row.State
 	}
 	return index
 }
@@ -430,13 +430,13 @@ func membershipIndex(rows []CategoryMembership) map[string]MembershipState {
 // stably ordered, bounded, and naming only services that exist — shipped or
 // operator-defined. A category naming a service nothing can plan would promise
 // a route content it cannot publish.
-func (s *PublicationService) validCategoryMembers(services []string) ([]string, error) {
-	members := domain.StableStrings(services)
+func (s *PublicationService) validCategoryMembers(lists []string) ([]string, error) {
+	members := domain.StableStrings(lists)
 	if len(members) > maxCategoryMembers {
 		return nil, fmt.Errorf("invalid category services")
 	}
-	for _, serviceID := range members {
-		if domain.ValidateSlug(serviceID) != nil || !s.knownService(serviceID) {
+	for _, listID := range members {
+		if domain.ValidateSlug(listID) != nil || !s.knownList(listID) {
 			return nil, fmt.Errorf("invalid category services")
 		}
 	}
@@ -471,7 +471,7 @@ func normalizedCustomCategory(category CustomCategory) (CustomCategory, error) {
 // have refused. A 'removed' verdict on an operator-created category is the one
 // combination that means nothing: such a category has no catalog membership.
 func validStoredMembership(entry CategoryMembership) error {
-	if domain.ValidateSlug(entry.CategoryID) != nil || domain.ValidateSlug(entry.ServiceID) != nil {
+	if domain.ValidateSlug(entry.CategoryID) != nil || domain.ValidateSlug(entry.ListID) != nil {
 		return fmt.Errorf("invalid stored category membership")
 	}
 	switch entry.State {

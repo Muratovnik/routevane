@@ -54,16 +54,16 @@ func TestServeCreateRefreshBuildSubscriptionAndReopen(t *testing.T) {
 	if contenderCode != 1 || contenderListened || contenderOut.Len() != 0 || !strings.Contains(contenderErr.String(), `"error_code":"server_lock_unavailable"`) {
 		t.Fatalf("lock contender code=%d stdout=%q stderr=%q", contenderCode, contenderOut.String(), contenderErr.String())
 	}
-	createdList := postJSON(t, origin+"/v1/profiles", `{"name":"Альфа","lists":["alpha"]}`)
-	var listResponse struct {
-		List struct {
+	createdProfile := postJSON(t, origin+"/v1/profiles", `{"name":"Альфа","lists":["alpha"]}`)
+	var profileResponse struct {
+		Profile struct {
 			ID string `json:"id"`
 		} `json:"profile"`
 	}
-	if err := json.Unmarshal(createdList, &listResponse); err != nil {
+	if err := json.Unmarshal(createdProfile, &profileResponse); err != nil {
 		t.Fatal(err)
 	}
-	created := postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/outputs", `{"target_id":"keenetic"}`)
+	created := postJSON(t, origin+"/v1/profiles/"+profileResponse.Profile.ID+"/outputs", `{"target_id":"keenetic"}`)
 	var response struct {
 		Output struct {
 			ID string `json:"id"`
@@ -72,14 +72,14 @@ func TestServeCreateRefreshBuildSubscriptionAndReopen(t *testing.T) {
 	if err := json.Unmarshal(created, &response); err != nil {
 		t.Fatal(err)
 	}
-	if len(listResponse.List.ID) != 32 || len(response.Output.ID) != 32 || bytes.Contains(created, []byte("subscription_url")) {
-		t.Fatalf("create response=%s / %s", createdList, created)
+	if len(profileResponse.Profile.ID) != 32 || len(response.Output.ID) != 32 || bytes.Contains(created, []byte("subscription_url")) {
+		t.Fatalf("create response=%s / %s", createdProfile, created)
 	}
-	listRead := httpGet(t, origin+"/v1/profiles/"+listResponse.List.ID, nil)
-	if listRead.status != 200 || bytes.Contains(listRead.body, []byte("subscription_url")) {
-		t.Fatalf("list repeats secret: %s", listRead.body)
+	profileRead := httpGet(t, origin+"/v1/profiles/"+profileResponse.Profile.ID, nil)
+	if profileRead.status != 200 || bytes.Contains(profileRead.body, []byte("subscription_url")) {
+		t.Fatalf("list repeats secret: %s", profileRead.body)
 	}
-	postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+profileResponse.Profile.ID+"/refresh", `{}`)
 	built := postJSON(t, origin+"/v1/outputs/"+response.Output.ID+"/build", `{}`)
 	var buildResponse struct {
 		SubscriptionURL string `json:"subscription_url"`
@@ -127,16 +127,16 @@ func TestServeCreateRefreshBuildSubscriptionAndReopen(t *testing.T) {
 
 func TestFailedInitialBuildPersistsReasonWithoutIssuingSubscription(t *testing.T) {
 	catalog := writeAlphaBetaCatalog(t)
-	serviceIDs := make([]string, 0, 9)
-	for serviceIndex := 1; serviceIndex <= 9; serviceIndex++ {
-		serviceID := fmt.Sprintf("bulk%d", serviceIndex)
-		serviceIDs = append(serviceIDs, serviceID)
+	listIDs := make([]string, 0, 9)
+	for listIndex := 1; listIndex <= 9; listIndex++ {
+		listID := fmt.Sprintf("bulk%d", listIndex)
+		listIDs = append(listIDs, listID)
 		var yaml strings.Builder
-		fmt.Fprintf(&yaml, "id: %s\ntitle: Bulk %d\ncomponents:\n  web:\n    required: false\nseeds:\n", serviceID, serviceIndex)
+		fmt.Fprintf(&yaml, "id: %s\ntitle: Bulk %d\ncomponents:\n  web:\n    required: false\nseeds:\n", listID, listIndex)
 		for addressIndex := 0; addressIndex < 128; addressIndex++ {
-			fmt.Fprintf(&yaml, "  - kind: ipv4\n    value: 8.%d.%d.1\n    component: web\n    source: manual\n", serviceIndex, addressIndex)
+			fmt.Fprintf(&yaml, "  - kind: ipv4\n    value: 8.%d.%d.1\n    component: web\n    source: manual\n", listIndex, addressIndex)
 		}
-		if err := os.WriteFile(filepath.Join(catalog, "builtin", serviceID+".yaml"), []byte(yaml.String()), 0o600); err != nil {
+		if err := os.WriteFile(filepath.Join(catalog, "builtin", listID+".yaml"), []byte(yaml.String()), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -149,20 +149,20 @@ func TestFailedInitialBuildPersistsReasonWithoutIssuingSubscription(t *testing.T
 			t.Fatalf("server code=%d stderr=%s", code, stderr.String())
 		}
 	}()
-	encodedServices, err := json.Marshal(serviceIDs)
+	encodedLists, err := json.Marshal(listIDs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	createdList := postJSON(t, origin+"/v1/profiles", `{"name":"Too many","lists":`+string(encodedServices)+`}`)
-	var listResponse struct {
-		List struct {
+	createdProfile := postJSON(t, origin+"/v1/profiles", `{"name":"Too many","lists":`+string(encodedLists)+`}`)
+	var profileResponse struct {
+		Profile struct {
 			ID string `json:"id"`
 		} `json:"profile"`
 	}
-	if err := json.Unmarshal(createdList, &listResponse); err != nil {
+	if err := json.Unmarshal(createdProfile, &profileResponse); err != nil {
 		t.Fatal(err)
 	}
-	createdOutput := postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/outputs", `{"target_id":"keenetic"}`)
+	createdOutput := postJSON(t, origin+"/v1/profiles/"+profileResponse.Profile.ID+"/outputs", `{"target_id":"keenetic"}`)
 	var outputResponse struct {
 		Output struct {
 			ID string `json:"id"`
@@ -171,7 +171,7 @@ func TestFailedInitialBuildPersistsReasonWithoutIssuingSubscription(t *testing.T
 	if err := json.Unmarshal(createdOutput, &outputResponse); err != nil {
 		t.Fatal(err)
 	}
-	postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+profileResponse.Profile.ID+"/refresh", `{}`)
 	failed := postGuardedBody(t, origin+"/v1/outputs/"+outputResponse.Output.ID+"/build", `{}`)
 	if failed.status != http.StatusUnprocessableEntity {
 		t.Fatalf("failed build status=%d body=%s", failed.status, failed.body)
@@ -184,8 +184,8 @@ func TestFailedInitialBuildPersistsReasonWithoutIssuingSubscription(t *testing.T
 	if err := json.Unmarshal(failed.body, &problem); err != nil || problem.Code != application.BuildFailureRuleLimit || problem.ProjectedRules != 9*128 || problem.MaximumRules != 1024 || bytes.Contains(failed.body, []byte("subscription_url")) {
 		t.Fatalf("failed build problem=%s decoded=%#v err=%v logs=%s", failed.body, problem, err, stderr.String())
 	}
-	detail := httpGet(t, origin+"/v1/profiles/"+listResponse.List.ID, nil)
-	var listDetail struct {
+	detail := httpGet(t, origin+"/v1/profiles/"+profileResponse.Profile.ID, nil)
+	var profileDetail struct {
 		Outputs []struct {
 			Latest      any `json:"latest"`
 			LastAttempt struct {
@@ -196,8 +196,8 @@ func TestFailedInitialBuildPersistsReasonWithoutIssuingSubscription(t *testing.T
 			} `json:"last_attempt"`
 		} `json:"outputs"`
 	}
-	if err := json.Unmarshal(detail.body, &listDetail); err != nil || len(listDetail.Outputs) != 1 || listDetail.Outputs[0].Latest != nil || listDetail.Outputs[0].LastAttempt.Status != "failed" || listDetail.Outputs[0].LastAttempt.Code != application.BuildFailureRuleLimit || listDetail.Outputs[0].LastAttempt.ProjectedRules != 9*128 || listDetail.Outputs[0].LastAttempt.MaximumRules != 1024 {
-		t.Fatalf("persisted failure=%s decoded=%#v err=%v", detail.body, listDetail, err)
+	if err := json.Unmarshal(detail.body, &profileDetail); err != nil || len(profileDetail.Outputs) != 1 || profileDetail.Outputs[0].Latest != nil || profileDetail.Outputs[0].LastAttempt.Status != "failed" || profileDetail.Outputs[0].LastAttempt.Code != application.BuildFailureRuleLimit || profileDetail.Outputs[0].LastAttempt.ProjectedRules != 9*128 || profileDetail.Outputs[0].LastAttempt.MaximumRules != 1024 {
+		t.Fatalf("persisted failure=%s decoded=%#v err=%v", detail.body, profileDetail, err)
 	}
 	db, err := sql.Open("sqlite", filepath.Join(data, sqlite.DatabaseName))
 	if err != nil {
@@ -210,22 +210,22 @@ func TestFailedInitialBuildPersistsReasonWithoutIssuingSubscription(t *testing.T
 	}
 }
 
-// createListOutput does over HTTP what the surface does: make a list, bind a
+// createProfileOutput does over HTTP what the surface does: make a list, bind a
 // format, refresh and complete its first publication. The subscription is
 // therefore returned by the successful build, never by the unproven binding.
-func createListOutput(t *testing.T, origin, name, targetID string, services ...string) (listID, outputID, subscriptionURL string) {
+func createProfileOutput(t *testing.T, origin, name, targetID string, lists ...string) (profileID, outputID, subscriptionURL string) {
 	t.Helper()
-	encoded, err := json.Marshal(services)
+	encoded, err := json.Marshal(lists)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var listResponse struct {
-		List struct {
+	var profileResponse struct {
+		Profile struct {
 			ID string `json:"id"`
 		} `json:"profile"`
 	}
 	body := postJSON(t, origin+"/v1/profiles", `{"name":`+strconv.Quote(name)+`,"lists":`+string(encoded)+`,"priority":`+string(encoded)+`}`)
-	if err := json.Unmarshal(body, &listResponse); err != nil {
+	if err := json.Unmarshal(body, &profileResponse); err != nil {
 		t.Fatalf("create list=%s: %v", body, err)
 	}
 	var outputResponse struct {
@@ -233,14 +233,14 @@ func createListOutput(t *testing.T, origin, name, targetID string, services ...s
 			ID string `json:"id"`
 		} `json:"output"`
 	}
-	body = postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/outputs", `{"target_id":`+strconv.Quote(targetID)+`}`)
+	body = postJSON(t, origin+"/v1/profiles/"+profileResponse.Profile.ID+"/outputs", `{"target_id":`+strconv.Quote(targetID)+`}`)
 	if err := json.Unmarshal(body, &outputResponse); err != nil {
 		t.Fatalf("create output=%s: %v", body, err)
 	}
-	if len(listResponse.List.ID) != 32 || len(outputResponse.Output.ID) != 32 {
+	if len(profileResponse.Profile.ID) != 32 || len(outputResponse.Output.ID) != 32 {
 		t.Fatalf("create list/output identities: %s", body)
 	}
-	postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+profileResponse.Profile.ID+"/refresh", `{}`)
 	buildBody := postJSON(t, origin+"/v1/outputs/"+outputResponse.Output.ID+"/build", `{}`)
 	var buildResponse struct {
 		SubscriptionURL string `json:"subscription_url"`
@@ -248,7 +248,7 @@ func createListOutput(t *testing.T, origin, name, targetID string, services ...s
 	if err := json.Unmarshal(buildBody, &buildResponse); err != nil || !strings.HasPrefix(buildResponse.SubscriptionURL, origin+"/v1/subscriptions/rv1.") {
 		t.Fatalf("initial build=%s err=%v", buildBody, err)
 	}
-	return listResponse.List.ID, outputResponse.Output.ID, buildResponse.SubscriptionURL
+	return profileResponse.Profile.ID, outputResponse.Output.ID, buildResponse.SubscriptionURL
 }
 
 type changingResolver struct{ address string }
@@ -277,35 +277,35 @@ func TestCorruptLatestFallsBackToIndependentlyVerifiedPrevious(t *testing.T) {
 	resolver := &changingResolver{address: "192.0.2.10"}
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	clock := application.ClockFunc(func() time.Time { return now })
-	service, err := application.NewPublicationService(application.PublicationConfig{Definitions: catalog.Services, Targets: map[string]domain.TargetProfile{target.ID: target}, TargetRevision: catalog.TargetRevision, Store: store, Files: filesystem.PublishedStore{DataRoot: root}, Renderers: application.RendererRegistry{keenetic.ID: keenetic.Renderer{}}, Sources: application.SourceRegistry{domain.SourceDNS: dns.Source{Observer: dns.NewObserver(resolver)}}, Clock: clock})
+	publication, err := application.NewPublicationService(application.PublicationConfig{Definitions: catalog.Lists, Targets: map[string]domain.TargetDefinition{target.ID: target}, TargetRevision: catalog.TargetRevision, Store: store, Files: filesystem.PublishedStore{DataRoot: root}, Renderers: application.RendererRegistry{keenetic.ID: keenetic.Renderer{}}, Sources: application.SourceRegistry{domain.SourceDNS: dns.Source{Observer: dns.NewObserver(resolver)}}, Clock: clock})
 	if err != nil {
 		t.Fatal(err)
 	}
-	list, err := service.CreateList(context.Background(), "Альфа", application.ListComposition{Services: []string{"alpha"}})
+	profile, err := publication.CreateProfile(context.Background(), "Альфа", application.ProfileComposition{Lists: []string{"alpha"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := service.AddOutput(context.Background(), list.ID, "keenetic")
+	created, err := publication.AddOutput(context.Background(), profile.ID, "keenetic")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Refresh(context.Background(), list.ID); err != nil {
+	if _, err := publication.Refresh(context.Background(), profile.ID); err != nil {
 		t.Fatal(err)
 	}
-	a, err := service.Build(context.Background(), created.Output.ID)
+	a, err := publication.Build(context.Background(), created.Output.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	token, err := service.IssueSubscription(context.Background(), created.Output.ID)
+	token, err := publication.IssueSubscription(context.Background(), created.Output.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	now = now.Add(time.Hour)
 	resolver.address = "198.51.100.20"
-	if _, err := service.Refresh(context.Background(), list.ID); err != nil {
+	if _, err := publication.Refresh(context.Background(), profile.ID); err != nil {
 		t.Fatal(err)
 	}
-	b, err := service.Build(context.Background(), created.Output.ID)
+	b, err := publication.Build(context.Background(), created.Output.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -315,7 +315,7 @@ func TestCorruptLatestFallsBackToIndependentlyVerifiedPrevious(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(b.Artifact.ArtifactPath)), []byte("corrupt"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	fallback, err := service.Subscription(context.Background(), token)
+	fallback, err := publication.Subscription(context.Background(), token)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,7 +325,7 @@ func TestCorruptLatestFallsBackToIndependentlyVerifiedPrevious(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, filepath.FromSlash(a.Artifact.ArtifactPath)), []byte("corrupt"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Subscription(context.Background(), token); !errors.Is(err, application.ErrArtifactUnavailable) {
+	if _, err := publication.Subscription(context.Background(), token); !errors.Is(err, application.ErrArtifactUnavailable) {
 		t.Fatalf("both corrupt err=%v", err)
 	}
 }

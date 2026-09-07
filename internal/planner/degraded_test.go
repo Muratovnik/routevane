@@ -7,15 +7,15 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-func degradedTarget() domain.TargetProfile {
-	return domain.TargetProfile{
-		ID: "keenetic", ProfileKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat",
+func degradedTarget() domain.TargetDefinition {
+	return domain.TargetDefinition{
+		ID: "keenetic", FormatKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat",
 		Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: 1024, MaxArtifactSize: 131072},
 	}
 }
 
-func degradedDefinition() domain.ServiceDefinition {
-	return domain.ServiceDefinition{ID: "example", CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}
+func degradedDefinition() domain.ListDefinition {
+	return domain.ListDefinition{ID: "example", CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}
 }
 
 func addrSighting(t *testing.T, value, sourceID string, class domain.SourceClass, validUntil time.Time, validity domain.ObservationValidity) domain.Sighting {
@@ -24,7 +24,7 @@ func addrSighting(t *testing.T, value, sourceID string, class domain.SourceClass
 	if err != nil {
 		t.Fatal(err)
 	}
-	return domain.Sighting{ServiceID: "example", ComponentID: "web", Resource: resource, SourceID: sourceID, SourceClass: class, SourceRevision: "v1", ValidUntil: validUntil, Validity: validity}
+	return domain.Sighting{ListID: "example", ComponentID: "web", Resource: resource, SourceID: sourceID, SourceClass: class, SourceRevision: "v1", ValidUntil: validUntil, Validity: validity}
 }
 
 func prefixSighting(t *testing.T, value, sourceID string, class domain.SourceClass, validUntil time.Time, evidence domain.SharedNetworkEvidence) domain.Sighting {
@@ -33,18 +33,18 @@ func prefixSighting(t *testing.T, value, sourceID string, class domain.SourceCla
 	if err != nil {
 		t.Fatal(err)
 	}
-	return domain.Sighting{ServiceID: "example", ComponentID: "web", Resource: resource, SourceID: sourceID, SourceClass: class, SourceRevision: "v1", ValidUntil: validUntil, Validity: domain.ValidityValid, SharedNetworkEvidence: evidence}
+	return domain.Sighting{ListID: "example", ComponentID: "web", Resource: resource, SourceID: sourceID, SourceClass: class, SourceRevision: "v1", ValidUntil: validUntil, Validity: domain.ValidityValid, SharedNetworkEvidence: evidence}
 }
 
 func TestGraceKeepsExpiredObservationsRoutableAndMarksThePlanDegraded(t *testing.T) {
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	expired := addrSighting(t, "192.0.2.7", "dns", domain.SourceObserved, now.Add(-time.Hour), domain.ValidityStale)
-	input := ServiceInput{
+	input := ListInput{
 		Definition: degradedDefinition(),
 		Sightings:  []domain.Sighting{expired},
 		Degraded:   []DegradedSource{{SourceID: "dns", GraceUntil: now.Add(6 * time.Hour)}},
 	}
-	plan, err := BuildPlanSet([]ServiceInput{input}, degradedTarget(), now)
+	plan, err := BuildPlanSet([]ListInput{input}, degradedTarget(), now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,8 +76,8 @@ func TestGraceDoesNotApplyOutsideItsWindowOrToOtherSources(t *testing.T) {
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			input := ServiceInput{Definition: degradedDefinition(), Sightings: []domain.Sighting{expired, fresh}, Degraded: testCase.degraded}
-			plan, err := BuildPlanSet([]ServiceInput{input}, degradedTarget(), now)
+			input := ListInput{Definition: degradedDefinition(), Sightings: []domain.Sighting{expired, fresh}, Degraded: testCase.degraded}
+			plan, err := BuildPlanSet([]ListInput{input}, degradedTarget(), now)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -99,12 +99,12 @@ func TestGraceNeverRevivesArchivedOrInvalidObservations(t *testing.T) {
 	for _, validity := range []domain.ObservationValidity{domain.ValidityArchived, domain.ValidityInvalid} {
 		t.Run(string(validity), func(t *testing.T) {
 			retained := addrSighting(t, "192.0.2.7", "dns", domain.SourceObserved, now.Add(-100*24*time.Hour), validity)
-			input := ServiceInput{
+			input := ListInput{
 				Definition: degradedDefinition(),
 				Sightings:  []domain.Sighting{retained, fresh},
 				Degraded:   []DegradedSource{{SourceID: "dns", GraceUntil: now.Add(time.Hour)}},
 			}
-			plan, err := BuildPlanSet([]ServiceInput{input}, degradedTarget(), now)
+			plan, err := BuildPlanSet([]ListInput{input}, degradedTarget(), now)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -123,8 +123,8 @@ func TestOfficialFeedPrefixesRouteWhileInferredPrefixesStayQuarantined(t *testin
 	sharedOfficial := prefixSighting(t, "198.51.100.0/24", "feed", domain.SourceOfficial, now.Add(time.Hour), domain.SharedNetworkEvidenceTrusted)
 	inferred := prefixSighting(t, "203.0.113.0/24", "rdap", domain.SourceMetadata, now.Add(time.Hour), domain.SharedNetworkEvidenceNone)
 	observed := prefixSighting(t, "192.0.2.128/25", "dns", domain.SourceObserved, now.Add(time.Hour), domain.SharedNetworkEvidenceNone)
-	input := ServiceInput{Definition: degradedDefinition(), Sightings: []domain.Sighting{official, sharedOfficial, inferred, observed}}
-	plan, err := BuildPlanSet([]ServiceInput{input}, degradedTarget(), now)
+	input := ListInput{Definition: degradedDefinition(), Sightings: []domain.Sighting{official, sharedOfficial, inferred, observed}}
+	plan, err := BuildPlanSet([]ListInput{input}, degradedTarget(), now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,11 +156,11 @@ func TestGracedPlanStaysDeterministicAcrossDegradedOrder(t *testing.T) {
 	window := []DegradedSource{{SourceID: "alpha", GraceUntil: now.Add(time.Hour)}, {SourceID: "beta", GraceUntil: now.Add(time.Hour)}}
 	reversed := []DegradedSource{window[1], window[0]}
 	definition := degradedDefinition()
-	left, err := BuildPlanSet([]ServiceInput{{Definition: definition, Sightings: []domain.Sighting{first, second}, Degraded: window}}, degradedTarget(), now)
+	left, err := BuildPlanSet([]ListInput{{Definition: definition, Sightings: []domain.Sighting{first, second}, Degraded: window}}, degradedTarget(), now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	right, err := BuildPlanSet([]ServiceInput{{Definition: definition, Sightings: []domain.Sighting{second, first}, Degraded: reversed}}, degradedTarget(), now)
+	right, err := BuildPlanSet([]ListInput{{Definition: definition, Sightings: []domain.Sighting{second, first}, Degraded: reversed}}, degradedTarget(), now)
 	if err != nil {
 		t.Fatal(err)
 	}

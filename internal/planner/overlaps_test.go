@@ -71,10 +71,10 @@ func TestRuleOverlapsRespectTypedContainmentAndDistinctOwners(t *testing.T) {
 			}
 			item := got.Items[0]
 			if test.want == "duplicate" {
-				if !slices.Equal(item.Entry.Services, []string{"alpha", "beta"}) || item.Entry.Value != test.left || item.Covering != nil {
+				if !slices.Equal(item.Entry.Lists, []string{"alpha", "beta"}) || item.Entry.Value != test.left || item.Covering != nil {
 					t.Fatalf("duplicate=%#v", item)
 				}
-			} else if item.Covering == nil || item.Entry.Value != test.right || item.Covering.Value != test.left || !slices.Equal(item.Entry.Services, []string{"beta"}) || !slices.Equal(item.Covering.Services, []string{"alpha"}) {
+			} else if item.Covering == nil || item.Entry.Value != test.right || item.Covering.Value != test.left || !slices.Equal(item.Entry.Lists, []string{"beta"}) || !slices.Equal(item.Covering.Lists, []string{"alpha"}) {
 				t.Fatalf("coverage=%#v", item)
 			}
 			slices.Reverse(rules)
@@ -96,7 +96,7 @@ func TestRuleOverlapsDeduplicateComponentsAndBoundDetails(t *testing.T) {
 		}
 	}
 	all := AnalyzeRuleOverlaps(rules, 3)
-	if all.Truncated || len(all.Items) != 3 || len(all.Items[0].Entry.Services) != 3 {
+	if all.Truncated || len(all.Items) != 3 || len(all.Items[0].Entry.Lists) != 3 {
 		t.Fatalf("all=%#v", all)
 	}
 	limited := AnalyzeRuleOverlaps(rules, 2)
@@ -123,7 +123,7 @@ func TestRuleOverlapsNeverListsTheCoveredOwnerAsItsOwnCover(t *testing.T) {
 		t.Fatalf("got=%#v", got)
 	}
 	coverage := got.Items[1]
-	if coverage.Covering == nil || !slices.Equal(coverage.Entry.Services, []string{"alpha"}) || !slices.Equal(coverage.Covering.Services, []string{"beta"}) {
+	if coverage.Covering == nil || !slices.Equal(coverage.Entry.Lists, []string{"alpha"}) || !slices.Equal(coverage.Covering.Lists, []string{"beta"}) {
 		t.Fatalf("self cover=%#v", coverage)
 	}
 }

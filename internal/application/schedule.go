@@ -85,8 +85,8 @@ type Schedule struct {
 }
 
 // ScheduleOf resolves one list against the service-wide default.
-func ScheduleOf(list List, fallback RefreshInterval) Schedule {
-	effective := list.RefreshInterval
+func ScheduleOf(profile Profile, fallback RefreshInterval) Schedule {
+	effective := profile.RefreshInterval
 	follows := false
 	if effective == RefreshDefault {
 		effective = fallback
@@ -96,14 +96,14 @@ func ScheduleOf(list List, fallback RefreshInterval) Schedule {
 		effective = RefreshOff
 	}
 	schedule := Schedule{
-		Interval: list.RefreshInterval, Effective: effective, FollowsDefault: follows,
-		LastRefreshedAt: list.LastRefreshedAt, LastRefreshFailed: list.LastRefreshFailed,
+		Interval: profile.RefreshInterval, Effective: effective, FollowsDefault: follows,
+		LastRefreshedAt: profile.LastRefreshedAt, LastRefreshFailed: profile.LastRefreshFailed,
 	}
 	if period, scheduled := effective.period(); scheduled {
 		// A list that has never refreshed is due now rather than one period
 		// from an epoch it was never part of.
-		schedule.NextRefreshAt = list.LastRefreshedAt.Add(period)
-		if list.LastRefreshedAt.IsZero() {
+		schedule.NextRefreshAt = profile.LastRefreshedAt.Add(period)
+		if profile.LastRefreshedAt.IsZero() {
 			schedule.NextRefreshAt = time.Time{}
 		}
 	}
@@ -147,39 +147,39 @@ func (s *PublicationService) SetDefaultRefreshInterval(ctx context.Context, inte
 	return s.config.Store.PutSetting(ctx, SettingRefreshInterval, string(interval), now)
 }
 
-// SetListRefreshInterval records a list's own rule. Setting it to the default
+// SetProfileRefreshInterval records a list's own rule. Setting it to the default
 // is how a list goes back to following settings, which is not the same as
 // setting it to whatever the default currently is.
-func (s *PublicationService) SetListRefreshInterval(ctx context.Context, listID string, interval RefreshInterval) (List, error) {
+func (s *PublicationService) SetProfileRefreshInterval(ctx context.Context, profileID string, interval RefreshInterval) (Profile, error) {
 	if !interval.valid() {
-		return List{}, fmt.Errorf("invalid refresh interval")
+		return Profile{}, fmt.Errorf("invalid refresh interval")
 	}
-	list, err := s.List(ctx, listID)
+	profile, err := s.Profile(ctx, profileID)
 	if err != nil {
-		return List{}, err
+		return Profile{}, err
 	}
-	if err := list.writable(); err != nil {
-		return List{}, err
+	if err := profile.writable(); err != nil {
+		return Profile{}, err
 	}
 	now := s.config.Clock.Now().UTC()
 	if now.IsZero() {
-		return List{}, fmt.Errorf("clock returned zero time")
+		return Profile{}, fmt.Errorf("clock returned zero time")
 	}
-	list.RefreshInterval = interval
-	list.UpdatedAt = now
-	if err := s.config.Store.UpdateListSchedule(ctx, list.ID, interval, list.LastRefreshedAt, list.LastRefreshFailed, now); err != nil {
-		return List{}, err
+	profile.RefreshInterval = interval
+	profile.UpdatedAt = now
+	if err := s.config.Store.UpdateProfileSchedule(ctx, profile.ID, interval, profile.LastRefreshedAt, profile.LastRefreshFailed, now); err != nil {
+		return Profile{}, err
 	}
-	return list, nil
+	return profile, nil
 }
 
-// ListSchedule states how one list is refreshed right now.
-func (s *PublicationService) ListSchedule(ctx context.Context, list List) (Schedule, error) {
+// ProfileSchedule states how one list is refreshed right now.
+func (s *PublicationService) ProfileSchedule(ctx context.Context, profile Profile) (Schedule, error) {
 	fallback, err := s.DefaultRefreshInterval(ctx)
 	if err != nil {
 		return Schedule{}, err
 	}
-	return ScheduleOf(list, fallback), nil
+	return ScheduleOf(profile, fallback), nil
 }
 
 // RunDueRefreshes refreshes and rebuilds every list whose rule says it is due.
@@ -199,7 +199,7 @@ func (s *PublicationService) RunDueRefreshes(ctx context.Context) ([]ScheduledRu
 		// The default is off, but a list may still have said daily itself.
 		fallback = RefreshOff
 	}
-	lists, err := s.config.Store.Lists(ctx)
+	profiles, err := s.config.Store.Profiles(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -208,20 +208,20 @@ func (s *PublicationService) RunDueRefreshes(ctx context.Context) ([]ScheduledRu
 		return nil, fmt.Errorf("clock returned zero time")
 	}
 	runs := make([]ScheduledRun, 0)
-	for _, list := range lists {
+	for _, profile := range profiles {
 		// An archived list is skipped before it is judged due, so the timer
 		// never marks it failed for a refresh it was never going to attempt.
-		if list.Archived() {
+		if profile.Archived() {
 			continue
 		}
-		if !ScheduleOf(list, fallback).due(now) {
+		if !ScheduleOf(profile, fallback).due(now) {
 			continue
 		}
-		run := ScheduledRun{ListID: list.ID, Name: list.Name, At: now}
-		if _, refreshErr := s.Refresh(ctx, list.ID); refreshErr != nil {
+		run := ScheduledRun{ProfileID: profile.ID, Name: profile.Name, At: now}
+		if _, refreshErr := s.Refresh(ctx, profile.ID); refreshErr != nil {
 			run.Error = refreshErr.Error()
 		} else {
-			outputs, outputErr := s.config.Store.OutputsByList(ctx, list.ID)
+			outputs, outputErr := s.config.Store.OutputsByProfile(ctx, profile.ID)
 			if outputErr != nil {
 				run.Error = outputErr.Error()
 			} else {
@@ -243,7 +243,7 @@ func (s *PublicationService) RunDueRefreshes(ctx context.Context) ([]ScheduledRu
 			}
 		}
 		failed := run.Failed()
-		if err := s.config.Store.UpdateListSchedule(ctx, list.ID, list.RefreshInterval, now, failed, list.UpdatedAt); err != nil {
+		if err := s.config.Store.UpdateProfileSchedule(ctx, profile.ID, profile.RefreshInterval, now, failed, profile.UpdatedAt); err != nil {
 			return runs, err
 		}
 		runs = append(runs, run)
@@ -254,7 +254,7 @@ func (s *PublicationService) RunDueRefreshes(ctx context.Context) ([]ScheduledRu
 // ScheduledRun is one list the scheduler touched, reported so the operator can
 // read what the timer did without reconstructing it from the artifact history.
 type ScheduledRun struct {
-	ListID           string                     `json:"list_id"`
+	ProfileID        string                     `json:"list_id"`
 	Name             string                     `json:"name"`
 	At               time.Time                  `json:"at"`
 	Built            int                        `json:"built"`

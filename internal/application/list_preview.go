@@ -10,24 +10,24 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-// ServicePreview is a transient, read-only look at the automatic catalog
+// ListPreview is a transient, read-only look at the automatic catalog
 // sources for one service. It deliberately contains domain names but only
 // counts address material: exact IP evidence belongs to build diagnostics,
 // while this projection answers the composition question a list editor asks.
-type ServicePreview struct {
-	ServiceID    string                 `json:"list_id"`
-	Sources      []ServiceSourcePreview `json:"sources"`
-	Domains      []string               `json:"domains"`
-	DomainCount  int                    `json:"domain_count"`
-	AddressCount int                    `json:"address_count"`
-	PrefixCount  int                    `json:"prefix_count"`
-	SkippedCount int                    `json:"skipped_count"`
+type ListPreview struct {
+	ListID       string              `json:"list_id"`
+	Sources      []ListSourcePreview `json:"sources"`
+	Domains      []string            `json:"domains"`
+	DomainCount  int                 `json:"domain_count"`
+	AddressCount int                 `json:"address_count"`
+	PrefixCount  int                 `json:"prefix_count"`
+	SkippedCount int                 `json:"skipped_count"`
 }
 
-// ServiceSourcePreview keeps partial success visible. One unavailable source
+// ListSourcePreview keeps partial success visible. One unavailable source
 // does not erase what the other sources returned, and failures use the same
 // bounded codes as persisted refresh cycles rather than exposing raw errors.
-type ServiceSourcePreview struct {
+type ListSourcePreview struct {
 	ID           string   `json:"id"`
 	Type         string   `json:"type"`
 	Status       string   `json:"status"`
@@ -39,15 +39,15 @@ type ServiceSourcePreview struct {
 	SkippedCount int      `json:"skipped_count"`
 }
 
-// PreviewService observes the configured automatic sources without recording
+// PreviewList observes the configured automatic sources without recording
 // a source cycle, changing a list, or publishing an artifact. The explicit UI
 // action that calls it is therefore safe to use before a service is selected.
-func (s *PublicationService) PreviewService(ctx context.Context, serviceID string) (ServicePreview, error) {
-	preview := ServicePreview{ServiceID: serviceID, Sources: []ServiceSourcePreview{}, Domains: []string{}}
+func (s *PublicationService) PreviewList(ctx context.Context, listID string) (ListPreview, error) {
+	preview := ListPreview{ListID: listID, Sources: []ListSourcePreview{}, Domains: []string{}}
 	if ctx == nil || s == nil || s.config.Clock == nil {
 		return preview, fmt.Errorf("invalid service preview composition")
 	}
-	definition, ok := s.definition(serviceID)
+	definition, ok := s.definition(listID)
 	if !ok {
 		return preview, ErrNotFound
 	}
@@ -65,7 +65,7 @@ func (s *PublicationService) PreviewService(ctx context.Context, serviceID strin
 		if err := ctx.Err(); err != nil {
 			return preview, err
 		}
-		item := ServiceSourcePreview{ID: definitionSource.ID, Type: string(definitionSource.Type), Status: "failed", Domains: []string{}}
+		item := ListSourcePreview{ID: definitionSource.ID, Type: string(definitionSource.Type), Status: "failed", Domains: []string{}}
 		source, registered := s.config.Sources[definitionSource.Type]
 		if !registered || source == nil {
 			item.ErrorCode = SourceErrorCode(definitionSource.Type)
@@ -74,7 +74,7 @@ func (s *PublicationService) PreviewService(ctx context.Context, serviceID strin
 		}
 		sourceCtx, cancel := context.WithTimeout(ctx, SourceTimeout)
 		result, err := source.Observe(sourceCtx, SourceRequest{
-			ServiceID:      definition.ID,
+			ListID:         definition.ID,
 			ComponentID:    definitionSource.ComponentID,
 			SourceID:       definitionSource.ID,
 			SourceRevision: definitionSource.Revision,

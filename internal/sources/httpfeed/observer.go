@@ -90,7 +90,7 @@ type Observer struct {
 }
 
 type Query struct {
-	ServiceID      string
+	ListID         string
 	ComponentID    string
 	SourceID       string
 	SourceRevision string
@@ -155,7 +155,7 @@ func (o *Observer) Observe(ctx context.Context, query Query, observedAt time.Tim
 	if ctx == nil || observedAt.IsZero() {
 		return Result{}, ErrInvalidQuery
 	}
-	if domain.ValidateSlug(query.ServiceID) != nil || domain.ValidateSlug(query.ComponentID) != nil || domain.ValidateSlug(query.SourceID) != nil || query.SourceRevision == "" {
+	if domain.ValidateSlug(query.ListID) != nil || domain.ValidateSlug(query.ComponentID) != nil || domain.ValidateSlug(query.SourceID) != nil || query.SourceRevision == "" {
 		return Result{}, ErrInvalidQuery
 	}
 	if err := ValidateURL(query.URL); err != nil {
@@ -192,7 +192,7 @@ func (o *Observer) Observe(ctx context.Context, query Query, observedAt time.Tim
 	sightings := make([]domain.Sighting, 0, len(entries))
 	for _, resource := range entries {
 		sightings = append(sightings, domain.Sighting{
-			ServiceID:        query.ServiceID,
+			ListID:           query.ListID,
 			ComponentID:      query.ComponentID,
 			Resource:         resource,
 			SourceID:         query.SourceID,

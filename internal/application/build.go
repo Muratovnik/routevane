@@ -120,21 +120,21 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 			CompletedAt: completedAt,
 		})
 	}()
-	list, err := s.config.Store.List(ctx, output.ListID)
+	profile, err := s.config.Store.Profile(ctx, output.ProfileID)
 	if err != nil {
 		return PublishedBuild{}, err
 	}
 	// The guard is here and not only on the list routes: a build addresses an
 	// output, and an archived list reached through one of its outputs would
 	// republish just as effectively as one reached through itself.
-	if err := list.writable(); err != nil {
+	if err := profile.writable(); err != nil {
 		return PublishedBuild{}, err
 	}
 	target, renderer, err := s.verifyTarget(output)
 	if err != nil {
 		return PublishedBuild{}, err
 	}
-	prepared, cutoff, err := s.prepareList(ctx, list, target, renderer)
+	prepared, cutoff, err := s.prepareProfile(ctx, profile, target, renderer)
 	if err != nil {
 		return PublishedBuild{}, err
 	}
@@ -202,49 +202,49 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 	}, nil
 }
 
-// prepareList is the shared list-to-plan boundary used by both durable
+// prepareProfile is the shared list-to-plan boundary used by both durable
 // publication and an on-demand file export. A manual export must not create an
 // output, subscription or artifact record just to select another renderer,
 // but it must make exactly the same composition and preflight decisions.
-func (s *PublicationService) prepareList(ctx context.Context, list List, target domain.TargetProfile, renderer Renderer) (PreparedPlan, time.Time, error) {
-	return s.prepareListAt(ctx, list, target, renderer, s.config.Clock.Now().UTC())
+func (s *PublicationService) prepareProfile(ctx context.Context, profile Profile, target domain.TargetDefinition, renderer Renderer) (PreparedPlan, time.Time, error) {
+	return s.prepareProfileAt(ctx, profile, target, renderer, s.config.Clock.Now().UTC())
 }
 
-func (s *PublicationService) prepareListAt(ctx context.Context, list List, target domain.TargetProfile, renderer Renderer, cutoff time.Time) (PreparedPlan, time.Time, error) {
+func (s *PublicationService) prepareProfileAt(ctx context.Context, profile Profile, target domain.TargetDefinition, renderer Renderer, cutoff time.Time) (PreparedPlan, time.Time, error) {
 	// References are expanded, exclusions applied and duplicates dropped once
 	// here, so every renderer sees the same current service set.
-	services := s.ResolvedServices(list)
-	if len(services) == 0 {
+	lists := s.ResolvedLists(profile)
+	if len(lists) == 0 {
 		return PreparedPlan{}, time.Time{}, fmt.Errorf("list resolves to no services")
 	}
-	definitions := make([]domain.ServiceDefinition, 0, len(services))
-	revisions := make(map[string]map[string]string, len(services))
-	for _, serviceID := range services {
-		definition, ok := s.definition(serviceID)
+	definitions := make([]domain.ListDefinition, 0, len(lists))
+	revisions := make(map[string]map[string]string, len(lists))
+	for _, listID := range lists {
+		definition, ok := s.definition(listID)
 		if !ok {
 			return PreparedPlan{}, time.Time{}, fmt.Errorf("list service unavailable")
 		}
-		if domains, overridden := list.ServiceDomains[serviceID]; overridden {
-			definition = withListDomains(definition, list.ID, domains)
+		if domains, overridden := profile.ListDomains[listID]; overridden {
+			definition = withProfileListDomains(definition, profile.ID, domains)
 		}
 		definitions = append(definitions, definition)
 		// The observation filter derives from the effective definition, so a
 		// disabled source's stored sightings stop reaching plans and an added
 		// feed's observations start, without touching what is stored.
-		revisions[serviceID] = sourceRevisions(definition)
+		revisions[listID] = sourceRevisions(definition)
 	}
 	if cutoff.IsZero() {
 		return PreparedPlan{}, time.Time{}, fmt.Errorf("clock returned zero time")
 	}
-	prepared, err := PrepareServices(ctx, definitions, revisions, target, s.config.Store, renderer, cutoff)
+	prepared, err := PrepareLists(ctx, definitions, revisions, target, s.config.Store, renderer, cutoff)
 	if err != nil {
 		return PreparedPlan{}, time.Time{}, err
 	}
 	// Keep the source-list relationship visible to forecasts even though the
 	// finished plan below has already assigned every overlap to its winner.
 	prepared.compositionOverlaps = forecastOverlaps(prepared.Plan)
-	planner.ApplyServicePriority(&prepared.Plan, services)
-	applyRouteLabels(&prepared.Plan, routeLabelsByService(definitions, s.mergedCategories()))
+	planner.ApplyListPriority(&prepared.Plan, lists)
+	applyRouteLabels(&prepared.Plan, routeLabelsByList(definitions, s.mergedCategories()))
 	planner.CanonicalizePlan(&prepared.Plan)
 	prepared.Plan.SemanticHash = planner.SemanticHash(prepared.Plan, target)
 	if err := PreflightPlan(prepared.Plan, target, renderer, cutoff); err != nil {
@@ -253,10 +253,10 @@ func (s *PublicationService) prepareListAt(ctx context.Context, list List, targe
 	return prepared, cutoff, nil
 }
 
-// withListDomains replaces only catalog domain seeds. IP seeds and every
+// withProfileListDomains replaces only catalog domain seeds. IP seeds and every
 // observed/source rule keep their original lifecycle; the operator's override
 // is a bounded list-local correction, not a fork of the service catalog.
-func withListDomains(definition domain.ServiceDefinition, listID string, domains []string) domain.ServiceDefinition {
+func withProfileListDomains(definition domain.ListDefinition, profileID string, domains []string) domain.ListDefinition {
 	seeds := make([]domain.Seed, 0, len(definition.Seeds)+len(domains))
 	componentID := ""
 	for _, seed := range definition.Seeds {
@@ -274,7 +274,7 @@ func withListDomains(definition domain.ServiceDefinition, listID string, domains
 	for _, value := range domains {
 		seeds = append(seeds, domain.Seed{
 			Kind: domain.RuleDomainSuffix, Value: value, ComponentID: componentID,
-			SourceID: "manual:list:" + listID + ":" + value, SourceClass: domain.SourceManual,
+			SourceID: "manual:list:" + profileID + ":" + value, SourceClass: domain.SourceManual,
 		})
 	}
 	definition.Seeds = seeds

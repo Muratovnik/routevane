@@ -42,18 +42,18 @@ type Catalog struct {
 	Root           string
 	Revision       string
 	TargetRevision string
-	Services       map[string]domain.ServiceDefinition
+	Lists          map[string]domain.ListDefinition
 	Categories     map[string]domain.CategoryDefinition
-	Targets        map[string]domain.TargetProfile
-	// LocalServiceIDs names entries loaded from catalog/local.  Those entries
+	Targets        map[string]domain.TargetDefinition
+	// LocalListIDs names entries loaded from catalog/local.  Those entries
 	// are intentionally workstation-local discoveries, so a portable settings
 	// transfer must never make a destination depend on one being present.
-	LocalServiceIDs map[string]struct{}
+	LocalListIDs map[string]struct{}
 }
 
-func (c Catalog) Service(id string) (domain.ServiceDefinition, bool) {
-	service, ok := c.Services[id]
-	return service, ok
+func (c Catalog) List(id string) (domain.ListDefinition, bool) {
+	list, ok := c.Lists[id]
+	return list, ok
 }
 
 func (c Catalog) Category(id string) (domain.CategoryDefinition, bool) {
@@ -61,18 +61,18 @@ func (c Catalog) Category(id string) (domain.CategoryDefinition, bool) {
 	return category, ok
 }
 
-func (c Catalog) Target(id string) (domain.TargetProfile, bool) {
+func (c Catalog) Target(id string) (domain.TargetDefinition, bool) {
 	target, ok := c.Targets[id]
 	return target, ok
 }
 
-func (c Catalog) ActiveSourceRevisions(serviceID string) map[string]string {
-	service, ok := c.Services[serviceID]
+func (c Catalog) ActiveSourceRevisions(listID string) map[string]string {
+	list, ok := c.Lists[listID]
 	if !ok {
 		return map[string]string{}
 	}
-	out := make(map[string]string, len(service.Sources))
-	for _, source := range service.Sources {
+	out := make(map[string]string, len(list.Sources))
+	for _, source := range list.Sources {
 		out[source.ID] = source.Revision
 	}
 	return out
@@ -86,11 +86,11 @@ func Load(ctx context.Context, rootPath string) (Catalog, error) {
 	if err != nil {
 		return Catalog{}, fmt.Errorf("%w: catalog root", ErrInvalidCatalog)
 	}
-	services, localServiceIDs, err := loadServices(ctx, root)
+	lists, localListIDs, err := loadLists(ctx, root)
 	if err != nil {
 		return Catalog{}, err
 	}
-	categories, err := loadCategories(ctx, root, services)
+	categories, err := loadCategories(ctx, root, lists)
 	if err != nil {
 		return Catalog{}, err
 	}
@@ -98,19 +98,19 @@ func Load(ctx context.Context, rootPath string) (Catalog, error) {
 	// composition through them: a category that gains a service changes what
 	// the next plan is built from, and a snapshot that recorded the old
 	// revision would claim otherwise.
-	revision, err := catalogRevision(services, categories)
+	revision, err := catalogRevision(lists, categories)
 	if err != nil {
 		return Catalog{}, fmt.Errorf("%w: canonical revision", ErrInvalidCatalog)
 	}
-	for id, service := range services {
-		service.CatalogRevision = revision
-		services[id] = service
+	for id, list := range lists {
+		list.CatalogRevision = revision
+		lists[id] = list
 	}
 	targets, targetRevision, err := loadTargets(ctx, root)
 	if err != nil {
 		return Catalog{}, err
 	}
-	return Catalog{Root: root, Revision: revision, TargetRevision: targetRevision, Services: services, Categories: categories, Targets: targets, LocalServiceIDs: localServiceIDs}, nil
+	return Catalog{Root: root, Revision: revision, TargetRevision: targetRevision, Lists: lists, Categories: categories, Targets: targets, LocalListIDs: localListIDs}, nil
 }
 
 // optionalYAMLFiles lists one bounded catalog subdirectory. A missing directory
@@ -207,7 +207,7 @@ func boundedCatalogRead(path string, fileLimit int64, running *int64, totalLimit
 // document goes through: decode into a yaml.Node, reject anything validateNode
 // refuses, refuse a second document in the same file, then decode again with
 // KnownFields(true) so an unrecognized field is a refusal rather than a silent
-// drop. decodeService, decodeTarget, and decodeCategory differ only in the
+// drop. decodeList, decodeTarget, and decodeCategory differ only in the
 // target type T and their error wording, which is exactly what this generic
 // helper factors out: a change to the strict-parsing policy now has one
 // implementation to change instead of three copies that could quietly drift.
@@ -284,13 +284,13 @@ func containsControl(value string) bool {
 	return strings.ContainsFunc(value, func(r rune) bool { return r < 0x20 || r == 0x7f })
 }
 
-func catalogRevision(services map[string]domain.ServiceDefinition, categories map[string]domain.CategoryDefinition) (string, error) {
-	ids := slices.Sorted(maps.Keys(services))
-	ordered := make([]domain.ServiceDefinition, 0, len(ids))
+func catalogRevision(lists map[string]domain.ListDefinition, categories map[string]domain.CategoryDefinition) (string, error) {
+	ids := slices.Sorted(maps.Keys(lists))
+	ordered := make([]domain.ListDefinition, 0, len(ids))
 	for _, id := range ids {
-		service := services[id]
-		service.CatalogRevision = ""
-		ordered = append(ordered, service)
+		list := lists[id]
+		list.CatalogRevision = ""
+		ordered = append(ordered, list)
 	}
 	categoryIDs := slices.Sorted(maps.Keys(categories))
 	orderedCategories := make([]domain.CategoryDefinition, 0, len(categoryIDs))
@@ -298,7 +298,7 @@ func catalogRevision(services map[string]domain.ServiceDefinition, categories ma
 		orderedCategories = append(orderedCategories, categories[id])
 	}
 	encoded, err := json.Marshal(struct {
-		Services   []domain.ServiceDefinition
+		Lists      []domain.ListDefinition
 		Categories []domain.CategoryDefinition
 	}{ordered, orderedCategories})
 	if err != nil {
@@ -308,9 +308,9 @@ func catalogRevision(services map[string]domain.ServiceDefinition, categories ma
 	return hex.EncodeToString(hash[:]), nil
 }
 
-func targetCatalogRevision(targets map[string]domain.TargetProfile) (string, error) {
+func targetCatalogRevision(targets map[string]domain.TargetDefinition) (string, error) {
 	ids := slices.Sorted(maps.Keys(targets))
-	ordered := make([]domain.TargetProfile, 0, len(ids))
+	ordered := make([]domain.TargetDefinition, 0, len(ids))
 	for _, id := range ids {
 		ordered = append(ordered, targets[id])
 	}

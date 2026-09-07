@@ -40,7 +40,7 @@ func validCustomSource(source application.CustomSource) bool {
 	if !strings.HasPrefix(source.ID, "feed-") || domain.ValidateSlug(source.ID) != nil {
 		return false
 	}
-	if domain.ValidateSlug(source.ServiceID) != nil {
+	if domain.ValidateSlug(source.ListID) != nil {
 		return false
 	}
 	if len(source.URL) < 12 || len(source.URL) > 2048 {
@@ -54,8 +54,8 @@ func validCustomSource(source application.CustomSource) bool {
 	return true
 }
 
-func (s *Store) SetSourceDisabled(ctx context.Context, serviceID, sourceID string, disabled bool) error {
-	if domain.ValidateSlug(serviceID) != nil || domain.ValidateSlug(sourceID) != nil {
+func (s *Store) SetSourceDisabled(ctx context.Context, listID, sourceID string, disabled bool) error {
+	if domain.ValidateSlug(listID) != nil || domain.ValidateSlug(sourceID) != nil {
 		return fmt.Errorf("invalid source override")
 	}
 	if err := s.preparePublication(); err != nil {
@@ -66,13 +66,13 @@ func (s *Store) SetSourceDisabled(ctx context.Context, serviceID, sourceID strin
 	if disabled {
 		if _, err := s.db.ExecContext(ctx,
 			`INSERT INTO list_disabled_sources(list_id,source_id) VALUES(?,?)
-ON CONFLICT(list_id,source_id) DO NOTHING`, serviceID, sourceID); err != nil {
+ON CONFLICT(list_id,source_id) DO NOTHING`, listID, sourceID); err != nil {
 			return fmt.Errorf("disable source: %w", err)
 		}
 		return nil
 	}
 	if _, err := s.db.ExecContext(ctx,
-		`DELETE FROM list_disabled_sources WHERE list_id=? AND source_id=?`, serviceID, sourceID); err != nil {
+		`DELETE FROM list_disabled_sources WHERE list_id=? AND source_id=?`, listID, sourceID); err != nil {
 		return fmt.Errorf("enable source: %w", err)
 	}
 	return nil
@@ -96,7 +96,7 @@ func (s *Store) CreateCustomSource(ctx context.Context, source application.Custo
 	}
 	if _, err := s.db.ExecContext(ctx,
 		`INSERT INTO custom_sources(id,list_id,url,format,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?,?)`,
-		source.ID, source.ServiceID, source.URL, string(source.Format),
+		source.ID, source.ListID, source.URL, string(source.Format),
 		source.CreatedAt.UTC().UnixNano(), source.UpdatedAt.UTC().UnixNano()); err != nil {
 		return fmt.Errorf("insert custom source: %w", err)
 	}
@@ -132,8 +132,8 @@ func (s *Store) RemoveCustomSource(ctx context.Context, id string) error {
 // prefix. Every value of the batch is validated before anything is written and
 // the whole batch travels in one transaction, so an imported file states all of
 // its destinations or none of them.
-func (s *Store) SetDomainVerdicts(ctx context.Context, serviceID string, values []string, verdict application.DomainVerdict) error {
-	if domain.ValidateSlug(serviceID) != nil || len(values) == 0 {
+func (s *Store) SetDomainVerdicts(ctx context.Context, listID string, values []string, verdict application.DomainVerdict) error {
+	if domain.ValidateSlug(listID) != nil || len(values) == 0 {
 		return fmt.Errorf("invalid destination verdict")
 	}
 	switch verdict {
@@ -160,7 +160,7 @@ func (s *Store) SetDomainVerdicts(ctx context.Context, serviceID string, values 
 		for _, value := range values {
 			if verdict == application.DomainVerdictAuto {
 				if _, err := tx.ExecContext(ctx,
-					`DELETE FROM list_domain_verdicts WHERE list_id=? AND domain=?`, serviceID, value); err != nil {
+					`DELETE FROM list_domain_verdicts WHERE list_id=? AND domain=?`, listID, value); err != nil {
 					return fmt.Errorf("reset destination verdict: %w", err)
 				}
 				continue
@@ -168,7 +168,7 @@ func (s *Store) SetDomainVerdicts(ctx context.Context, serviceID string, values 
 			if _, err := tx.ExecContext(ctx,
 				`INSERT INTO list_domain_verdicts(list_id,domain,verdict) VALUES(?,?,?)
 ON CONFLICT(list_id,domain) DO UPDATE SET verdict=excluded.verdict`,
-				serviceID, value, string(verdict)); err != nil {
+				listID, value, string(verdict)); err != nil {
 				return fmt.Errorf("write destination verdict: %w", err)
 			}
 		}
@@ -184,14 +184,14 @@ ON CONFLICT(list_id,domain) DO UPDATE SET verdict=excluded.verdict`,
 	return nil
 }
 
-// ServiceTunings reads every stored correction in one pass, keyed by service.
+// ListTunings reads every stored correction in one pass, keyed by service.
 // The registry the planner consults is hydrated from this at startup.
-func (s *Store) ServiceTunings(ctx context.Context) (map[string]application.ServiceTuning, error) {
+func (s *Store) ListTunings(ctx context.Context) (map[string]application.ListTuning, error) {
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	tunings := make(map[string]application.ServiceTuning)
-	get := func(serviceID string) application.ServiceTuning {
-		return tunings[serviceID]
+	tunings := make(map[string]application.ListTuning)
+	get := func(listID string) application.ListTuning {
+		return tunings[listID]
 	}
 
 	rows, err := s.db.QueryContext(ctx,
@@ -200,13 +200,13 @@ func (s *Store) ServiceTunings(ctx context.Context) (map[string]application.Serv
 		return nil, fmt.Errorf("read disabled sources: %w", err)
 	}
 	for rows.Next() {
-		var serviceID, sourceID string
-		if err := rows.Scan(&serviceID, &sourceID); err != nil {
+		var listID, sourceID string
+		if err := rows.Scan(&listID, &sourceID); err != nil {
 			return nil, closeRowsWith(rows, fmt.Errorf("read disabled sources: %w", err))
 		}
-		tuning := get(serviceID)
+		tuning := get(listID)
 		tuning.DisabledSources = append(tuning.DisabledSources, sourceID)
-		tunings[serviceID] = tuning
+		tunings[listID] = tuning
 	}
 	if err := finishRows(rows, "read disabled sources"); err != nil {
 		return nil, err
@@ -221,7 +221,7 @@ func (s *Store) ServiceTunings(ctx context.Context) (map[string]application.Serv
 		var source application.CustomSource
 		var format string
 		var created, updated int64
-		if err := rows.Scan(&source.ID, &source.ServiceID, &source.URL, &format, &created, &updated); err != nil {
+		if err := rows.Scan(&source.ID, &source.ListID, &source.URL, &format, &created, &updated); err != nil {
 			return nil, closeRowsWith(rows, fmt.Errorf("read custom sources: %w", err))
 		}
 		source.Format = domain.FeedFormat(format)
@@ -229,9 +229,9 @@ func (s *Store) ServiceTunings(ctx context.Context) (map[string]application.Serv
 		if !validCustomSource(source) {
 			return nil, closeRowsWith(rows, fmt.Errorf("invalid stored custom source"))
 		}
-		tuning := get(source.ServiceID)
+		tuning := get(source.ListID)
 		tuning.CustomSources = append(tuning.CustomSources, source)
-		tunings[source.ServiceID] = tuning
+		tunings[source.ListID] = tuning
 	}
 	if err := finishRows(rows, "read custom sources"); err != nil {
 		return nil, err
@@ -246,11 +246,11 @@ func (s *Store) ServiceTunings(ctx context.Context) (map[string]application.Serv
 		return nil, fmt.Errorf("read destination verdicts: %w", err)
 	}
 	for rows.Next() {
-		var serviceID, value, verdict string
-		if err := rows.Scan(&serviceID, &value, &verdict); err != nil {
+		var listID, value, verdict string
+		if err := rows.Scan(&listID, &value, &verdict); err != nil {
 			return nil, closeRowsWith(rows, fmt.Errorf("read destination verdicts: %w", err))
 		}
-		tuning := get(serviceID)
+		tuning := get(listID)
 		switch application.DomainVerdict(verdict) {
 		case application.DomainVerdictInclude:
 			tuning.Includes = append(tuning.Includes, value)
@@ -259,7 +259,7 @@ func (s *Store) ServiceTunings(ctx context.Context) (map[string]application.Serv
 		default:
 			return nil, closeRowsWith(rows, fmt.Errorf("invalid stored destination verdict"))
 		}
-		tunings[serviceID] = tuning
+		tunings[listID] = tuning
 	}
 	if err := finishRows(rows, "read destination verdicts"); err != nil {
 		return nil, err

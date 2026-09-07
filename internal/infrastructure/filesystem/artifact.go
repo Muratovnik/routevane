@@ -30,18 +30,18 @@ type ArtifactStore struct {
 	Writer   ArtifactWriter
 }
 
-func (s ArtifactStore) Put(ctx context.Context, rendererID, serviceID string, cutoff time.Time, semanticHash string, payload []byte) (string, bool, error) {
-	return s.Writer.Put(ctx, s.DataRoot, rendererID, serviceID, cutoff, semanticHash, payload)
+func (s ArtifactStore) Put(ctx context.Context, rendererID, listID string, cutoff time.Time, semanticHash string, payload []byte) (string, bool, error) {
+	return s.Writer.Put(ctx, s.DataRoot, rendererID, listID, cutoff, semanticHash, payload)
 }
 
-func (w ArtifactWriter) Put(ctx context.Context, dataRoot, rendererID, serviceID string, cutoff time.Time, semanticHash string, payload []byte) (string, bool, error) {
+func (w ArtifactWriter) Put(ctx context.Context, dataRoot, rendererID, listID string, cutoff time.Time, semanticHash string, payload []byte) (string, bool, error) {
 	if ctx == nil {
 		return "", false, fmt.Errorf("artifact context is nil")
 	}
 	if err := ctx.Err(); err != nil {
 		return "", false, err
 	}
-	if rendererID != "raw-json" || domain.ValidateSlug(serviceID) != nil || cutoff.IsZero() || !isSHA256(semanticHash) || len(payload) == 0 {
+	if rendererID != "raw-json" || domain.ValidateSlug(listID) != nil || cutoff.IsZero() || !isSHA256(semanticHash) || len(payload) == 0 {
 		return "", false, fmt.Errorf("invalid artifact identity")
 	}
 	root, err := ResolvePrivateDataRoot(dataRoot)
@@ -50,15 +50,15 @@ func (w ArtifactWriter) Put(ctx context.Context, dataRoot, rendererID, serviceID
 	}
 	artifacts := filepath.Join(root, "artifacts")
 	rendererDir := filepath.Join(artifacts, rendererID)
-	serviceDir := filepath.Join(rendererDir, serviceID)
-	for _, dir := range []string{artifacts, rendererDir, serviceDir} {
+	listDir := filepath.Join(rendererDir, listID)
+	for _, dir := range []string{artifacts, rendererDir, listDir} {
 		if err := EnsurePrivateDir(dir); err != nil {
 			return "", false, fmt.Errorf("prepare artifact directory: %w", err)
 		}
 	}
 	stamp := cutoff.UTC().Format("20060102T150405.000000000Z")
 	payloadHash := sha256.Sum256(payload)
-	finalPath := filepath.Join(serviceDir, stamp+"_"+semanticHash+"_"+hex.EncodeToString(payloadHash[:])+".json")
+	finalPath := filepath.Join(listDir, stamp+"_"+semanticHash+"_"+hex.EncodeToString(payloadHash[:])+".json")
 	if reused, err := verifyExisting(finalPath, payload); err != nil || reused {
 		return finalPath, reused, err
 	}
@@ -67,14 +67,14 @@ func (w ArtifactWriter) Put(ctx context.Context, dataRoot, rendererID, serviceID
 	if _, err := rand.Read(suffix); err != nil {
 		return "", false, fmt.Errorf("create artifact temporary identity: %w", err)
 	}
-	serviceRoot, err := os.OpenRoot(serviceDir)
+	listRoot, err := os.OpenRoot(listDir)
 	if err != nil {
 		return "", false, fmt.Errorf("open artifact root: %w", err)
 	}
-	defer func() { _ = serviceRoot.Close() }()
+	defer func() { _ = listRoot.Close() }()
 	tempName := "." + filepath.Base(finalPath) + "." + hex.EncodeToString(suffix) + ".tmp"
-	tempPath := filepath.Join(serviceDir, tempName)
-	file, err := serviceRoot.OpenFile(tempName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	tempPath := filepath.Join(listDir, tempName)
+	file, err := listRoot.OpenFile(tempName, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return "", false, fmt.Errorf("create artifact temporary file: %w", err)
 	}
@@ -109,9 +109,9 @@ func (w ArtifactWriter) Put(ctx context.Context, dataRoot, rendererID, serviceID
 		return "", false, fmt.Errorf("commit artifact: %w", err)
 	}
 	removeTemp = false
-	if err := syncDirectory(serviceDir); err != nil {
+	if err := syncDirectory(listDir); err != nil {
 		_ = os.Remove(finalPath)
-		_ = syncDirectory(serviceDir)
+		_ = syncDirectory(listDir)
 		return "", false, fmt.Errorf("sync artifact directory: %w", err)
 	}
 	abs, err := filepath.Abs(finalPath)

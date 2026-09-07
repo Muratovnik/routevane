@@ -34,7 +34,7 @@ func TestBuildDraftAcceptsSameSiteHostsAndKeepsThirdPartiesAsCandidates(t *testi
 			"other.co.uk",
 		},
 	}
-	draft, err := BuildDraft(DraftRequest{Target: target, ServiceID: "example", Page: page})
+	draft, err := BuildDraft(DraftRequest{Target: target, ListID: "example", Page: page})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestBuildDraftAcceptsSameSiteHostsAndKeepsThirdPartiesAsCandidates(t *testi
 func TestBuildDraftNeverProducesAnAddressOrNetwork(t *testing.T) {
 	target := testTarget(t, "https://example.com")
 	page := PageLoad{Hosts: []string{"example.com", "cdn.example.com", "203.0.113.10", "2001:db8::1"}}
-	draft, err := BuildDraft(DraftRequest{Target: target, ServiceID: "example", Page: page})
+	draft, err := BuildDraft(DraftRequest{Target: target, ListID: "example", Page: page})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,13 +108,13 @@ func TestBuildDraftNeverProducesAnAddressOrNetwork(t *testing.T) {
 	if !contains(candidateHostsOf(draft), "203.0.113.10") {
 		t.Fatalf("an observed address must stay a recorded candidate: %#v", draft.Candidates)
 	}
-	if _, err := BuildDraft(DraftRequest{Target: target, ServiceID: "example", Page: page, ManualSeeds: []string{"co.uk"}}); !errors.Is(err, ErrUnsafeSeed) {
+	if _, err := BuildDraft(DraftRequest{Target: target, ListID: "example", Page: page, ManualSeeds: []string{"co.uk"}}); !errors.Is(err, ErrUnsafeSeed) {
 		t.Fatalf("a public-suffix seed must be refused: %v", err)
 	}
-	if _, err := BuildDraft(DraftRequest{Target: target, ServiceID: "example", Page: page, ManualSeeds: []string{"203.0.113.0/24"}}); !errors.Is(err, ErrUnsafeSeed) {
+	if _, err := BuildDraft(DraftRequest{Target: target, ListID: "example", Page: page, ManualSeeds: []string{"203.0.113.0/24"}}); !errors.Is(err, ErrUnsafeSeed) {
 		t.Fatalf("a network seed must be refused: %v", err)
 	}
-	if _, err := BuildDraft(DraftRequest{Target: target, ServiceID: "example", Page: page, ManualSeeds: []string{"203.0.113.10"}}); !errors.Is(err, ErrUnsafeSeed) {
+	if _, err := BuildDraft(DraftRequest{Target: target, ListID: "example", Page: page, ManualSeeds: []string{"203.0.113.10"}}); !errors.Is(err, ErrUnsafeSeed) {
 		t.Fatalf("an address seed must be refused: %v", err)
 	}
 }
@@ -125,7 +125,7 @@ func TestBuildDraftRecordsManualSeedsAndRefusedHosts(t *testing.T) {
 		Hosts:   []string{"example.com"},
 		Blocked: map[string]string{"internal.thirdparty.test": RefusedLocalDestination},
 	}
-	draft, err := BuildDraft(DraftRequest{Target: target, ServiceID: "example", Page: page, ManualSeeds: []string{"Example-Cdn.test", "example.com"}})
+	draft, err := BuildDraft(DraftRequest{Target: target, ListID: "example", Page: page, ManualSeeds: []string{"Example-Cdn.test", "example.com"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,17 +151,17 @@ func TestBuildDraftRecordsManualSeedsAndRefusedHosts(t *testing.T) {
 
 func TestBuildDraftRefusesAnInvalidIdentityOrTooManyHosts(t *testing.T) {
 	target := testTarget(t, "https://example.com")
-	if _, err := BuildDraft(DraftRequest{Target: target, ServiceID: "Bad Id", Page: PageLoad{Hosts: []string{"example.com"}}}); !errors.Is(err, ErrInvalidTarget) {
+	if _, err := BuildDraft(DraftRequest{Target: target, ListID: "Bad Id", Page: PageLoad{Hosts: []string{"example.com"}}}); !errors.Is(err, ErrInvalidTarget) {
 		t.Fatal("an invalid service identity must be refused")
 	}
-	if _, err := BuildDraft(DraftRequest{Target: Target{}, ServiceID: "example"}); !errors.Is(err, ErrInvalidTarget) {
+	if _, err := BuildDraft(DraftRequest{Target: Target{}, ListID: "example"}); !errors.Is(err, ErrInvalidTarget) {
 		t.Fatal("an empty target must be refused")
 	}
 	hosts := make([]string, 0, MaxDraftNames+2)
 	for index := 0; index <= MaxDraftNames+1; index++ {
 		hosts = append(hosts, "h"+string(rune('a'+index%26))+string(rune('a'+index/26))+".example.com")
 	}
-	if _, err := BuildDraft(DraftRequest{Target: target, ServiceID: "example", Page: PageLoad{Hosts: hosts}}); !errors.Is(err, ErrNoUsableEvidence) {
+	if _, err := BuildDraft(DraftRequest{Target: target, ListID: "example", Page: PageLoad{Hosts: hosts}}); !errors.Is(err, ErrNoUsableEvidence) {
 		t.Fatal("exceeding the host bound must be reported, not truncated")
 	}
 }

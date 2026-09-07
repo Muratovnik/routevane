@@ -75,7 +75,7 @@ type ManagedRouteMutation struct {
 }
 
 type ManagedRouteDeployer interface {
-	ManagedRouteScope(domain.TargetProfile, Connection) (ManagedRouteScope, error)
+	ManagedRouteScope(domain.TargetDefinition, Connection) (ManagedRouteScope, error)
 	DesiredManagedRoutes(DeployArtifact) ([]ManagedRouteSpec, error)
 	CurrentManagedRoutes(context.Context, DeviceInfo, Connection) ([]ManagedRouteSpec, error)
 	ApplyManagedRoutes(context.Context, DeviceInfo, Connection, ManagedRouteMutation) error

@@ -11,9 +11,9 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-func suffix(t *testing.T, value, service string) domain.RouteRule {
+func suffix(t *testing.T, value, list string) domain.RouteRule {
 	t.Helper()
-	rule, err := domain.NewDomainRule(domain.RuleDomainSuffix, value, service, "web", domain.SourceCommunity, []string{"official_rule"}, []string{"feed"})
+	rule, err := domain.NewDomainRule(domain.RuleDomainSuffix, value, list, "web", domain.SourceCommunity, []string{"official_rule"}, []string{"feed"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,12 +21,12 @@ func suffix(t *testing.T, value, service string) domain.RouteRule {
 }
 
 func plan(rules ...domain.RouteRule) domain.RoutingPlan {
-	return domain.RoutingPlan{TargetID: "keenetic-dns", ProfileKey: Version, Rules: rules}
+	return domain.RoutingPlan{TargetID: "keenetic-dns", FormatKey: Version, Rules: rules}
 }
 
 // One group per service, so a group on the router says what it is and what
 // removing it costs.
-func TestRenderGroupsOneListPerService(t *testing.T) {
+func TestRenderMakesOneGroupPerList(t *testing.T) {
 	payload, err := Render(plan(
 		suffix(t, "youtube.com", "youtube"),
 		suffix(t, "discord.com", "discord"),
@@ -48,7 +48,7 @@ func TestRenderGroupsOneListPerService(t *testing.T) {
 
 // A service over the entry bound is split under the hood: the operator asked
 // for one list, and the numbered sub-groups are the adapter's business.
-func TestAServiceOverTheBoundIsSplitIntoSubGroups(t *testing.T) {
+func TestAListOverTheBoundIsSplitIntoSubGroups(t *testing.T) {
 	rules := make([]domain.RouteRule, 0, MaxEntriesPerGroup+5)
 	for index := 0; index < MaxEntriesPerGroup+5; index++ {
 		rules = append(rules, suffix(t, fmt.Sprintf("n%d.example.com", index), "youtube"))

@@ -157,7 +157,7 @@ func TestLoadPageObservesSameSiteAndThirdPartyHostsAndRefusesTheLocalNetwork(t *
 		t.Fatalf("a successful cleanup must not report an error: %q", page.CleanupError)
 	}
 
-	draft, err := BuildDraft(DraftRequest{Target: target, ServiceID: "page", Page: page})
+	draft, err := BuildDraft(DraftRequest{Target: target, ListID: "page", Page: page})
 	if err != nil {
 		t.Fatal(err)
 	}

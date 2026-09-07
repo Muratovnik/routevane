@@ -236,8 +236,8 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 		}
 	}()
 
-	listID, outputID, _ := createListOutput(t, origin, "Видео и общение", "keenetic", "youtube", "discord")
-	build := refreshAndBuild(t, origin, listID, outputID)
+	profileID, outputID, _ := createProfileOutput(t, origin, "Видео и общение", "keenetic", "youtube", "discord")
+	build := refreshAndBuild(t, origin, profileID, outputID)
 	artifactID := build.Artifact.ID
 	if artifactID == "" {
 		t.Fatalf("build = %#v", build)
@@ -271,7 +271,7 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 	if !applied.Applied || applied.RolledBack {
 		t.Fatalf("result = %#v", applied)
 	}
-	if applied.Device.FirmwareVersion != "5.1.2" || applied.Device.ProfileKey == "" {
+	if applied.Device.FirmwareVersion != "5.1.2" || applied.Device.FormatKey == "" {
 		t.Fatalf("device = %#v", applied.Device)
 	}
 	if applied.Backup.Hash == "" || applied.Backup.SizeBytes == 0 {
@@ -376,10 +376,10 @@ func TestManagedRouteClaimsPreserveForeignRoutesAndShareCreatedPrefixes(t *testi
 			t.Errorf("serve=%d %s", code, stderr.String())
 		}
 	}()
-	listA, outputA, _ := createListOutput(t, origin, "A", "keenetic", "youtube", "discord")
-	listB, outputB, _ := createListOutput(t, origin, "B", "keenetic", "youtube")
-	artifactA := refreshAndBuild(t, origin, listA, outputA).Artifact.ID
-	artifactB := refreshAndBuild(t, origin, listB, outputB).Artifact.ID
+	profileA, outputA, _ := createProfileOutput(t, origin, "A", "keenetic", "youtube", "discord")
+	profileB, outputB, _ := createProfileOutput(t, origin, "B", "keenetic", "youtube")
+	artifactA := refreshAndBuild(t, origin, profileA, outputA).Artifact.ID
+	artifactB := refreshAndBuild(t, origin, profileB, outputB).Artifact.ID
 	deps := runtimeDeps{Resolver: resolver, DeviceDialer: redirectDialer{target: deviceServer.Listener.Addr().String()}, Now: func() time.Time { return now }, Context: context.Background()}
 	args := func(artifact string) []string {
 		return []string{"deploy", "--artifact", artifact, "--target", "keenetic", "--device", "http://192.168.1.1", "--user", deviceUser, "--interface", deviceInterfaceName, "--catalog-dir", catalog, "--data-dir", data, "--confirm"}
@@ -398,15 +398,15 @@ func TestManagedRouteClaimsPreserveForeignRoutesAndShareCreatedPrefixes(t *testi
 		t.Fatalf("route descriptions: shared=%q discord=%q foreign=%q", sharedDescription, discordDescription, foreignDescription)
 	}
 
-	postJSON(t, origin+"/v1/profiles/"+listA+"/update", `{"name":"A","lists":["discord"]}`)
-	artifactA = refreshAndBuild(t, origin, listA, outputA).Artifact.ID
+	postJSON(t, origin+"/v1/profiles/"+profileA+"/update", `{"name":"A","lists":["discord"]}`)
+	artifactA = refreshAndBuild(t, origin, profileA, outputA).Artifact.ID
 	deployViaCLI(t, deps, args(artifactA), devicePassword)
 	if !fakeDeviceHasRoutes(device, foreign, shared, discord) {
 		t.Fatalf("the first claimant removed a shared route: %#v", device.routes)
 	}
 
-	postJSON(t, origin+"/v1/profiles/"+listB+"/update", `{"name":"B","lists":["discord"]}`)
-	artifactB = refreshAndBuild(t, origin, listB, outputB).Artifact.ID
+	postJSON(t, origin+"/v1/profiles/"+profileB+"/update", `{"name":"B","lists":["discord"]}`)
+	artifactB = refreshAndBuild(t, origin, profileB, outputB).Artifact.ID
 	deployViaCLI(t, deps, args(artifactB), devicePassword)
 	device.mu.Lock()
 	_, sharedPresent := device.routes[shared]
@@ -461,8 +461,8 @@ func TestPartialDeviceWriteRestoresTheExactBeforeStateEvenAfterCancellation(t *t
 					t.Errorf("serve=%d %s", code, stderr.String())
 				}
 			}()
-			listID, outputID, _ := createListOutput(t, origin, "Recovery", "keenetic", "youtube", "discord")
-			build := refreshAndBuild(t, origin, listID, outputID)
+			profileID, outputID, _ := createProfileOutput(t, origin, "Recovery", "keenetic", "youtube", "discord")
+			build := refreshAndBuild(t, origin, profileID, outputID)
 			beforeArtifact := downloadArtifact(t, origin, build.Artifact.ID)
 			device := newFakeKeeneticDevice()
 			before := map[string]string{"192.0.2.99/255.255.255.255": deviceInterfaceName, "203.0.113.7/255.255.255.255": "ISP"}

@@ -9,12 +9,12 @@ import (
 	"time"
 )
 
-// TestServeCustomServiceOwnsItsDomainsEndToEnd is the visible outcome of the
+// TestServeCustomListOwnsItsDomainsEndToEnd is the visible outcome of the
 // operator-defined catalog entry: a service created over HTTP joins the
 // catalog, enters a list, and its domains reach the published file — and an
 // edit reaches subscribers on the next refresh-and-rebuild without changing
 // the subscription URL.
-func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
+func TestServeCustomListOwnsItsDomainsEndToEnd(t *testing.T) {
 	catalog := writeAlphaBetaCatalog(t)
 	// The BAT target cannot carry a name; the FQDN-group target is the format
 	// an operator-defined domain list is actually for.
@@ -36,22 +36,22 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 	}()
 
 	created := postJSON(t, origin+"/v1/lists", `{"title":"Мои сайты","domains":["MY.example.","corp.example"]}`)
-	var serviceResponse struct {
-		Service struct {
+	var listResponse struct {
+		List struct {
 			ID      string   `json:"id"`
 			Title   string   `json:"title"`
 			Domains []string `json:"domains"`
 		} `json:"list"`
 	}
-	if err := json.Unmarshal(created, &serviceResponse); err != nil {
+	if err := json.Unmarshal(created, &listResponse); err != nil {
 		t.Fatal(err)
 	}
-	serviceID := serviceResponse.Service.ID
-	if !strings.HasPrefix(serviceID, "custom-") || serviceResponse.Service.Title != "Мои сайты" {
+	listID := listResponse.List.ID
+	if !strings.HasPrefix(listID, "custom-") || listResponse.List.Title != "Мои сайты" {
 		t.Fatalf("created = %s", created)
 	}
-	if want := []string{"corp.example", "my.example"}; len(serviceResponse.Service.Domains) != 2 || serviceResponse.Service.Domains[0] != want[0] || serviceResponse.Service.Domains[1] != want[1] {
-		t.Fatalf("domains = %#v", serviceResponse.Service.Domains)
+	if want := []string{"corp.example", "my.example"}; len(listResponse.List.Domains) != 2 || listResponse.List.Domains[0] != want[0] || listResponse.List.Domains[1] != want[1] {
+		t.Fatalf("domains = %#v", listResponse.List.Domains)
 	}
 
 	listing := httpGet(t, origin+"/v1/lists", nil)
@@ -66,7 +66,7 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 	}
 	found := false
 	for _, detail := range catalogResponse.Details {
-		if detail.ID == serviceID {
+		if detail.ID == listID {
 			found = detail.Custom
 		} else if detail.Custom {
 			t.Fatalf("shipped service %q reported as custom", detail.ID)
@@ -79,14 +79,14 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 	// A mixed list is the regression oracle: the planner accepts exactly one
 	// catalog revision per plan, so a custom service must compose with shipped
 	// services rather than only with itself.
-	listID, outputID, subscriptionURL := createListOutput(t, origin, "Свои сайты", "keenetic-dns", serviceID, "alpha")
+	profileID, outputID, subscriptionURL := createProfileOutput(t, origin, "Свои сайты", "keenetic-dns", listID, "alpha")
 	first := httpGet(t, subscriptionURL, nil)
 	if first.status != 200 || !strings.Contains(string(first.body), "my.example") || !strings.Contains(string(first.body), "corp.example") || !strings.Contains(string(first.body), "alpha.example") {
 		t.Fatalf("published file=%d %q", first.status, first.body)
 	}
 
-	postJSON(t, origin+"/v1/lists/"+serviceID+"/update", `{"title":"Мои сайты","domains":["renamed.example"]}`)
-	postJSON(t, origin+"/v1/profiles/"+listID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/lists/"+listID+"/update", `{"title":"Мои сайты","domains":["renamed.example"]}`)
+	postJSON(t, origin+"/v1/profiles/"+profileID+"/refresh", `{}`)
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 	second := httpGet(t, subscriptionURL, nil)
 	if second.status != 200 || !strings.Contains(string(second.body), "renamed.example") || strings.Contains(string(second.body), "my.example") {
@@ -96,7 +96,7 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 	// The destination verdict switches one specific row off wherever it came
 	// from: the static suffix leaves the file while the observed address stays.
 	postJSON(t, origin+"/v1/lists/alpha/domains", `{"values":["alpha.example"],"verdict":"exclude"}`)
-	postJSON(t, origin+"/v1/profiles/"+listID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+profileID+"/refresh", `{}`)
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 	third := httpGet(t, subscriptionURL, nil)
 	if third.status != 200 || strings.Contains(string(third.body), "alpha.example") || !strings.Contains(string(third.body), "192.0.2.10") || !strings.Contains(string(third.body), "renamed.example") {
@@ -108,7 +108,7 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 	// static suffix stays.
 	postJSON(t, origin+"/v1/lists/alpha/domains", `{"values":["alpha.example"],"verdict":"auto"}`)
 	postJSON(t, origin+"/v1/lists/alpha/sources/dns-main/update", `{"enabled":false}`)
-	postJSON(t, origin+"/v1/profiles/"+listID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+profileID+"/refresh", `{}`)
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 	switchedOff := httpGet(t, subscriptionURL, nil)
 	if switchedOff.status != 200 || strings.Contains(string(switchedOff.body), "192.0.2.10") || !strings.Contains(string(switchedOff.body), "alpha.example") {
@@ -151,7 +151,7 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 
 	postJSON(t, origin+"/v1/lists/alpha/sources/dns-main/update", `{"enabled":true}`)
 	postJSON(t, origin+"/v1/lists/alpha/domains", `{"values":["alpha.example"],"verdict":"auto"}`)
-	postJSON(t, origin+"/v1/profiles/"+listID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+profileID+"/refresh", `{}`)
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 	fourth := httpGet(t, subscriptionURL, nil)
 	// The domain-capable target resolves the restored suffix itself, so the
@@ -177,7 +177,7 @@ func TestServeCustomServiceOwnsItsDomainsEndToEnd(t *testing.T) {
 	if !statedAddress {
 		t.Fatalf("contents rows = %s", addressContents.body)
 	}
-	_, _, addressSubscription := createListOutput(t, origin, "Адреса", "keenetic", "alpha")
+	_, _, addressSubscription := createProfileOutput(t, origin, "Адреса", "keenetic", "alpha")
 	addressFile := httpGet(t, addressSubscription, nil)
 	if addressFile.status != 200 || !strings.Contains(string(addressFile.body), "route ADD 198.51.100.7") {
 		t.Fatalf("address file=%d %q", addressFile.status, addressFile.body)

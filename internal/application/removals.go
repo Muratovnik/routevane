@@ -55,7 +55,7 @@ type LibraryRemoval struct {
 	ID   string
 	// Services are the lists deleted along with a category. It is empty for
 	// every other removal, including a category whose lists are detached.
-	Services  []string
+	Lists     []string
 	RemovedAt time.Time
 }
 
@@ -72,16 +72,16 @@ const (
 	CategoryListsDelete CategoryListDisposition = "delete"
 )
 
-// ServiceInUseError refuses to delete a list a route names directly. It
+// ListInUseError refuses to delete a list a route names directly. It
 // carries the routes for the same reason CategoryInUseError does: a refusal
 // the operator can act on beats one they have to investigate.
-type ServiceInUseError struct {
-	ServiceID string
-	Lists     []ListReference
+type ListInUseError struct {
+	ListID   string
+	Profiles []ProfileReference
 }
 
-func (e ServiceInUseError) Error() string {
-	return fmt.Sprintf("list %q is named by %d route(s)", e.ServiceID, len(e.Lists))
+func (e ListInUseError) Error() string {
+	return fmt.Sprintf("list %q is named by %d route(s)", e.ListID, len(e.Profiles))
 }
 
 // RemoveCategory deletes one category from the library, catalog-shipped or
@@ -94,10 +94,10 @@ func (e ServiceInUseError) Error() string {
 // category directly is refused because it would build something its author did
 // not choose; under delete, a route naming one of the held lists directly is
 // refused for exactly the same reason.
-func (s *PublicationService) RemoveCategory(ctx context.Context, id string, lists CategoryListDisposition) error {
+func (s *PublicationService) RemoveCategory(ctx context.Context, id string, profiles CategoryListDisposition) error {
 	// The disposition is part of the request's shape rather than of what the
 	// store holds, so it is answered before the library is consulted at all.
-	if lists != CategoryListsDetach && lists != CategoryListsDelete {
+	if profiles != CategoryListsDetach && profiles != CategoryListsDelete {
 		return fmt.Errorf("invalid category list disposition")
 	}
 	current, ok := s.mergedCategory(id)
@@ -105,32 +105,32 @@ func (s *PublicationService) RemoveCategory(ctx context.Context, id string, list
 		return ErrNotFound
 	}
 	var held []string
-	if lists == CategoryListsDelete {
-		held = current.Services
+	if profiles == CategoryListsDelete {
+		held = current.Lists
 	}
-	references, err := s.routesNaming(ctx, []string{id}, held)
+	references, err := s.profilesNaming(ctx, []string{id}, held)
 	if err != nil {
 		return err
 	}
 	if len(references) > 0 {
-		return CategoryInUseError{CategoryID: id, Lists: references}
+		return CategoryInUseError{CategoryID: id, Profiles: references}
 	}
 	now := s.config.Clock.Now().UTC()
 	if now.IsZero() {
 		return fmt.Errorf("clock returned zero time")
 	}
-	removal := LibraryRemoval{Kind: RemovalCategory, ID: id, Services: held, RemovedAt: now}
+	removal := LibraryRemoval{Kind: RemovalCategory, ID: id, Lists: held, RemovedAt: now}
 	if err := s.config.Store.RemoveFromLibrary(ctx, removal); err != nil {
 		return err
 	}
 	s.forgetCategory(id)
-	for _, serviceID := range held {
-		s.forgetService(serviceID)
+	for _, listID := range held {
+		s.forgetList(listID)
 	}
 	return nil
 }
 
-// RemoveService deletes one list from the library. A route naming it directly
+// RemoveList deletes one list from the library. A route naming it directly
 // is refused, because that route would publish less than it says. A route that
 // reaches the list only through a category it names is not: removing the list
 // changes what that category expands to, which is what naming a category means
@@ -140,16 +140,16 @@ func (s *PublicationService) RemoveCategory(ctx context.Context, id string, list
 // a list that is now gone. Nothing rewrites it: a stored route is never edited
 // by a deletion, and the override is read only for services the composition
 // still resolves to, so it is dead weight rather than a wrong answer.
-func (s *PublicationService) RemoveService(ctx context.Context, id string) error {
-	if !s.knownService(id) {
+func (s *PublicationService) RemoveList(ctx context.Context, id string) error {
+	if !s.knownList(id) {
 		return ErrNotFound
 	}
-	references, err := s.routesNaming(ctx, nil, []string{id})
+	references, err := s.profilesNaming(ctx, nil, []string{id})
 	if err != nil {
 		return err
 	}
 	if len(references) > 0 {
-		return ServiceInUseError{ServiceID: id, Lists: references}
+		return ListInUseError{ListID: id, Profiles: references}
 	}
 	now := s.config.Clock.Now().UTC()
 	if now.IsZero() {
@@ -158,19 +158,19 @@ func (s *PublicationService) RemoveService(ctx context.Context, id string) error
 	if err := s.config.Store.RemoveFromLibrary(ctx, LibraryRemoval{Kind: RemovalList, ID: id, RemovedAt: now}); err != nil {
 		return err
 	}
-	s.forgetService(id)
+	s.forgetList(id)
 	return nil
 }
 
-// routesNaming finds every stored route that names one of these categories or
+// profilesNaming finds every stored route that names one of these categories or
 // one of these lists directly, archived ones included: an archived route can be
 // restored, and restoring one whose category or list vanished meanwhile is
 // exactly the silent change the refusal exists to prevent.
-func (s *PublicationService) routesNaming(ctx context.Context, categoryIDs, serviceIDs []string) ([]ListReference, error) {
-	if len(categoryIDs) == 0 && len(serviceIDs) == 0 {
+func (s *PublicationService) profilesNaming(ctx context.Context, categoryIDs, listIDs []string) ([]ProfileReference, error) {
+	if len(categoryIDs) == 0 && len(listIDs) == 0 {
 		return nil, nil
 	}
-	stored, err := s.config.Store.Lists(ctx)
+	stored, err := s.config.Store.Profiles(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -178,17 +178,17 @@ func (s *PublicationService) routesNaming(ctx context.Context, categoryIDs, serv
 	for _, categoryID := range categoryIDs {
 		categories[categoryID] = struct{}{}
 	}
-	services := make(map[string]struct{}, len(serviceIDs))
-	for _, serviceID := range serviceIDs {
-		services[serviceID] = struct{}{}
+	lists := make(map[string]struct{}, len(listIDs))
+	for _, listID := range listIDs {
+		lists[listID] = struct{}{}
 	}
-	references := make([]ListReference, 0)
-	for _, route := range stored {
-		if namesAny(route.Categories, categories) || namesAny(route.Services, services) {
-			references = append(references, ListReference{ID: route.ID, Title: route.Name})
+	references := make([]ProfileReference, 0)
+	for _, profile := range stored {
+		if namesAny(profile.Categories, categories) || namesAny(profile.Lists, lists) {
+			references = append(references, ProfileReference{ID: profile.ID, Title: profile.Name})
 		}
 	}
-	slices.SortFunc(references, func(a, b ListReference) int { return cmp.Compare(a.ID, b.ID) })
+	slices.SortFunc(references, func(a, b ProfileReference) int { return cmp.Compare(a.ID, b.ID) })
 	return references, nil
 }
 
@@ -215,17 +215,17 @@ func (s *PublicationService) forgetCategory(id string) {
 	delete(s.overlay.membership, id)
 }
 
-// forgetService does the same for a list, including the state that only made
+// forgetList does the same for a list, including the state that only made
 // sense while the list existed: the verdicts and sources tuning it, and every
 // category membership that named it.
 //
 // Ownership is decided by the reserved prefix, which is the rule the store
 // applies. Deciding it by what the registry happens to hold would let the two
 // disagree about whether a record was written.
-func (s *PublicationService) forgetService(id string) {
+func (s *PublicationService) forgetList(id string) {
 	operatorOwned := strings.HasPrefix(id, CustomCategoryIDPrefix)
 	s.custom.mu.Lock()
-	delete(s.custom.services, id)
+	delete(s.custom.lists, id)
 	s.custom.mu.Unlock()
 
 	s.tuning.mu.Lock()

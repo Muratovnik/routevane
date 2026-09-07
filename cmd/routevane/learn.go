@@ -39,7 +39,7 @@ type learnOptions struct {
 	Scenario    string
 	HAR         string
 	URL         string
-	ServiceID   string
+	ListID      string
 	Title       string
 	ManualSeeds []string
 	Confirm     bool
@@ -56,7 +56,7 @@ func parseLearn(args []string) (learnOptions, bool) {
 	set.StringVar(&options.Scenario, "scenario", "", "exploration scenario file")
 	set.StringVar(&options.HAR, "har", "", "HAR archive to import")
 	set.StringVar(&options.URL, "url", "", "site the archive belongs to")
-	set.StringVar(&options.ServiceID, "service-id", "", "local service identity")
+	set.StringVar(&options.ListID, "service-id", "", "local service identity")
 	set.StringVar(&options.Title, "title", "", "human readable service title")
 	set.Var(&seeds, "seed", "additional domain to include")
 	set.BoolVar(&options.Confirm, "confirm", false, "run the session or write the draft")
@@ -82,7 +82,7 @@ func parseLearn(args []string) (learnOptions, bool) {
 type learnReport struct {
 	URL               string                `json:"url"`
 	RegistrableDomain string                `json:"registrable_domain"`
-	ServiceID         string                `json:"list_id"`
+	ListID            string                `json:"list_id"`
 	Confirmed         bool                  `json:"confirmed"`
 	Steps             []string              `json:"steps,omitempty"`
 	Exercised         []string              `json:"exercised_components,omitempty"`
@@ -104,39 +104,39 @@ func runLearn(ctx context.Context, stdout io.Writer, logger *slog.Logger, option
 	scenario, exercised, err := learnScenario(options)
 	if err != nil {
 		logger.Warn("learn failed", "operation", "learn", "error", err.Error())
-		logResult(logger, "learn", options.ServiceID, "", "failed", 0, started, learnErrorCode(err))
+		logResult(logger, "learn", options.ListID, "", "failed", 0, started, learnErrorCode(err))
 		return 2
 	}
 	target, err := discovery.NormalizeTarget(scenario.Target)
 	if err != nil {
 		logger.Warn("learn failed", "operation", "learn", "error", err.Error())
-		logResult(logger, "learn", options.ServiceID, "", "failed", 0, started, learnErrorCode(err))
+		logResult(logger, "learn", options.ListID, "", "failed", 0, started, learnErrorCode(err))
 		return 2
 	}
-	serviceID := options.ServiceID
-	if serviceID == "" {
-		serviceID, err = discovery.ServiceIDFor(target.RegistrableDomain)
+	listID := options.ListID
+	if listID == "" {
+		listID, err = discovery.ListIDFor(target.RegistrableDomain)
 		if err != nil {
 			logger.Warn("learn failed", "operation", "learn", "error", err.Error())
-			logResult(logger, "learn", options.ServiceID, "", "failed", 0, started, learnErrorCode(err))
+			logResult(logger, "learn", options.ListID, "", "failed", 0, started, learnErrorCode(err))
 			return 2
 		}
 	}
-	report := learnReport{URL: target.URL, RegistrableDomain: target.RegistrableDomain, ServiceID: serviceID, Steps: scenarioStepIDs(scenario), Exercised: exercised}
+	report := learnReport{URL: target.URL, RegistrableDomain: target.RegistrableDomain, ListID: listID, Steps: scenarioStepIDs(scenario), Exercised: exercised}
 	if !options.Confirm {
 		report.Hint = "review the URL and steps above, then repeat the command with --confirm"
 		if encodeErr := json.NewEncoder(stdout).Encode(report); encodeErr != nil {
-			logResult(logger, "learn", serviceID, "", "failed", 0, started, "output_failed")
+			logResult(logger, "learn", listID, "", "failed", 0, started, "output_failed")
 			return 1
 		}
-		logResult(logger, "learn", serviceID, "", "success", 0, started, "confirmation_required")
+		logResult(logger, "learn", listID, "", "success", 0, started, "confirmation_required")
 		return 0
 	}
 
 	evidence, err := learnEvidence(ctx, options, scenario, target, deps)
 	if err != nil {
 		logger.Warn("learn failed", "operation", "learn", "error", err.Error())
-		logResult(logger, "learn", serviceID, "", "failed", 0, started, learnErrorCode(err))
+		logResult(logger, "learn", listID, "", "failed", 0, started, learnErrorCode(err))
 		return 1
 	}
 	if options.HAR != "" {
@@ -148,7 +148,7 @@ func runLearn(ctx context.Context, stdout io.Writer, logger *slog.Logger, option
 	}
 	draft, err := discovery.BuildLearnedDraft(discovery.LearnedDraftRequest{
 		Target:      target,
-		ServiceID:   serviceID,
+		ListID:      listID,
 		Title:       options.Title,
 		Evidence:    evidence,
 		Exercised:   exercised,
@@ -156,7 +156,7 @@ func runLearn(ctx context.Context, stdout io.Writer, logger *slog.Logger, option
 	})
 	if err != nil {
 		logger.Warn("learn failed", "operation", "learn", "error", err.Error())
-		logResult(logger, "learn", serviceID, "", "failed", 0, started, learnErrorCode(err))
+		logResult(logger, "learn", listID, "", "failed", 0, started, learnErrorCode(err))
 		return 1
 	}
 	report.Confirmed = true
@@ -171,35 +171,35 @@ func runLearn(ctx context.Context, stdout io.Writer, logger *slog.Logger, option
 	draftPath, err := catalogyaml.WriteLocalDraft(ctx, options.CatalogDir, draft.Definition)
 	if err != nil {
 		logger.Warn("learn failed", "operation", "learn", "error", err.Error())
-		logResult(logger, "learn", serviceID, "", "failed", 0, started, learnErrorCode(err))
+		logResult(logger, "learn", listID, "", "failed", 0, started, learnErrorCode(err))
 		return 1
 	}
 	report.DraftPath = draftPath
 
 	root, err := filesystem.EnsureDataRoot(options.DataDir)
 	if err != nil {
-		logResult(logger, "learn", serviceID, "", "failed", 0, started, "data_root_invalid")
+		logResult(logger, "learn", listID, "", "failed", 0, started, "data_root_invalid")
 		return 1
 	}
-	evidencePath, err := filesystem.WriteSessionEvidence(ctx, root, serviceID, deps.Now().UTC(), evidence)
+	evidencePath, err := filesystem.WriteSessionEvidence(ctx, root, listID, deps.Now().UTC(), evidence)
 	if err != nil {
 		logger.Warn("learn failed", "operation", "learn", "error", err.Error())
-		logResult(logger, "learn", serviceID, "", "failed", 0, started, "evidence_write_failed")
+		logResult(logger, "learn", listID, "", "failed", 0, started, "evidence_write_failed")
 		return 1
 	}
 	report.EvidencePath = evidencePath
 
 	store, err := sqlite.Open(ctx, root)
 	if err != nil {
-		logResult(logger, "learn", serviceID, "", "failed", 0, started, "database_unavailable")
+		logResult(logger, "learn", listID, "", "failed", 0, started, "database_unavailable")
 		return 1
 	}
 	defer store.Close()
 
-	relations, err := discovery.Relations(evidence, serviceID, SessionSourceID, scenarioRevision(scenario), deps.Now().UTC(), SessionValidity)
+	relations, err := discovery.Relations(evidence, listID, SessionSourceID, scenarioRevision(scenario), deps.Now().UTC(), SessionValidity)
 	if err != nil {
 		logger.Warn("learn failed", "operation", "learn", "error", err.Error())
-		logResult(logger, "learn", serviceID, "", "failed", 0, started, learnErrorCode(err))
+		logResult(logger, "learn", listID, "", "failed", 0, started, learnErrorCode(err))
 		return 1
 	}
 	if len(relations) > 0 {
@@ -208,12 +208,12 @@ func runLearn(ctx context.Context, stdout io.Writer, logger *slog.Logger, option
 		// happened to run.
 		cycleAt := deps.Now().UTC()
 		cycle := application.SuccessCycle{
-			ServiceID: serviceID, SourceID: SessionSourceID, SourceRevision: scenarioRevision(scenario),
+			ListID: listID, SourceID: SessionSourceID, SourceRevision: scenarioRevision(scenario),
 			StartedAt: cycleAt, CompletedAt: cycleAt, Relations: relations,
 		}
 		if err := store.ApplySuccess(ctx, cycle); err != nil {
 			logger.Warn("learn failed", "operation", "learn", "error", err.Error())
-			logResult(logger, "learn", serviceID, "", "failed", 0, started, "relations_write_failed")
+			logResult(logger, "learn", listID, "", "failed", 0, started, "relations_write_failed")
 			return 1
 		}
 	}
@@ -223,8 +223,8 @@ func runLearn(ctx context.Context, stdout io.Writer, logger *slog.Logger, option
 	// it uses the catalog's own revisions.
 	catalog, err := catalogyaml.Load(ctx, options.CatalogDir)
 	if err == nil {
-		if loaded, found := catalog.Service(serviceID); found {
-			summary, refreshErr := application.RefreshService(ctx, loaded, domain.RawJSONTargetProfile(), builtinSources(deps), store, application.ClockFunc(deps.Now))
+		if loaded, found := catalog.List(listID); found {
+			summary, refreshErr := application.RefreshList(ctx, loaded, domain.RawJSONTargetDefinition(), builtinSources(deps), store, application.ClockFunc(deps.Now))
 			report.Sightings = summary.Sightings
 			if refreshErr != nil && !errors.Is(refreshErr, application.ErrSourceDegraded) {
 				report.ObservationError = refreshErr.Error()
@@ -235,15 +235,15 @@ func runLearn(ctx context.Context, stdout io.Writer, logger *slog.Logger, option
 	}
 
 	if encodeErr := json.NewEncoder(stdout).Encode(report); encodeErr != nil {
-		logResult(logger, "learn", serviceID, "", "failed", report.Sightings, started, "output_failed")
+		logResult(logger, "learn", listID, "", "failed", report.Sightings, started, "output_failed")
 		return 1
 	}
 	if report.ObservationError != "" {
 		logger.Warn("learn warning", "operation", "learn", "code", "first_observation_failed", "error", report.ObservationError)
-		logResult(logger, "learn", serviceID, "", "success", report.Sightings, started, "first_observation_failed")
+		logResult(logger, "learn", listID, "", "success", report.Sightings, started, "first_observation_failed")
 		return 0
 	}
-	logResult(logger, "learn", serviceID, "", "success", report.Sightings, started, "")
+	logResult(logger, "learn", listID, "", "success", report.Sightings, started, "")
 	return 0
 }
 

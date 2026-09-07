@@ -327,9 +327,9 @@ func TestVersionTwelveVocabularyMigratesEveryStoredRowInPlace(t *testing.T) {
 	}
 	// The queries the store itself issues have to name the columns the
 	// migration produced, which a schema check on its own cannot show.
-	lists, err := store.Lists(context.Background())
-	if err != nil || len(lists) != 1 || lists[0].ID != profileID || len(lists[0].Services) != 1 || lists[0].Services[0] != "discord" {
-		t.Fatalf("migrated composition=%#v err=%v", lists, err)
+	profiles, err := store.Profiles(context.Background())
+	if err != nil || len(profiles) != 1 || profiles[0].ID != profileID || len(profiles[0].Lists) != 1 || profiles[0].Lists[0] != "discord" {
+		t.Fatalf("migrated composition=%#v err=%v", profiles, err)
 	}
 	output, err := store.OutputBySubscription(context.Background(), tokenID, [32]byte{})
 	if err != nil || output.ID != outputID || output.LatestArtifactID != artifactID {
@@ -344,16 +344,16 @@ func TestSourceCyclesPersistLifecycleRevisionAndRelations(t *testing.T) {
 		t.Fatal(err)
 	}
 	t0 := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	service := "example"
+	list := "example"
 	revision := "dns-revision-1"
 	resource, _ := domain.NewAddrResourceFromString("::ffff:192.0.2.1")
 	sourceDomain, _ := domain.NewDomainResource("www.example.com")
 	targetDomain, _ := domain.NewDomainResource("edge.example.com")
-	sighting := domain.Sighting{ServiceID: service, ComponentID: "web", Resource: resource, SourceID: "dns-main", SourceClass: domain.SourceObserved, SourceRevision: revision, FirstSeen: t0, LastSeen: t0, ValidUntil: t0.Add(2 * time.Hour), ObservationCount: 1, Validity: domain.ValidityValid}
-	relation := domain.Relation{SourceResource: sourceDomain, RelationType: domain.RelationCNAMETo, TargetResource: targetDomain, ServiceID: service, ComponentID: "web", FirstSeen: t0, LastSeen: t0, ValidUntil: t0.Add(2 * time.Hour), SourceID: "dns-main", SourceRevision: revision, Validity: domain.ValidityValid}
-	profileJSON, _ := json.Marshal(domain.RawJSONTargetProfile())
-	profile := ProfileRecord{ProfileKey: "raw-v1", ServiceID: service, TargetID: "raw-json", RendererID: "raw-json", CatalogRevision: strings.Repeat("a", 64), ConfigJSON: profileJSON, UpdatedAt: t0}
-	cycle := SuccessCycle{ServiceID: service, SourceID: "dns-main", SourceRevision: revision, StartedAt: t0, CompletedAt: t0, Sightings: []domain.Sighting{sighting, sighting}, Relations: []domain.Relation{relation, relation}, Profile: &profile}
+	sighting := domain.Sighting{ListID: list, ComponentID: "web", Resource: resource, SourceID: "dns-main", SourceClass: domain.SourceObserved, SourceRevision: revision, FirstSeen: t0, LastSeen: t0, ValidUntil: t0.Add(2 * time.Hour), ObservationCount: 1, Validity: domain.ValidityValid}
+	relation := domain.Relation{SourceResource: sourceDomain, RelationType: domain.RelationCNAMETo, TargetResource: targetDomain, ListID: list, ComponentID: "web", FirstSeen: t0, LastSeen: t0, ValidUntil: t0.Add(2 * time.Hour), SourceID: "dns-main", SourceRevision: revision, Validity: domain.ValidityValid}
+	profileJSON, _ := json.Marshal(domain.RawJSONTargetDefinition())
+	format := FormatRecord{FormatKey: "raw-v1", ListID: list, TargetID: "raw-json", RendererID: "raw-json", CatalogRevision: strings.Repeat("a", 64), ConfigJSON: profileJSON, UpdatedAt: t0}
+	cycle := SuccessCycle{ListID: list, SourceID: "dns-main", SourceRevision: revision, StartedAt: t0, CompletedAt: t0, Sightings: []domain.Sighting{sighting, sighting}, Relations: []domain.Relation{relation, relation}, Format: &format}
 	if err := store.ApplySuccess(context.Background(), cycle); err != nil {
 		t.Fatal(err)
 	}
@@ -364,11 +364,11 @@ func TestSourceCyclesPersistLifecycleRevisionAndRelations(t *testing.T) {
 		t.Fatal(err)
 	}
 	active := map[string]string{"dns-main": revision}
-	snapshot, err := store.ReadPlanningSnapshot(context.Background(), service, active, "raw-v1", t0)
+	snapshot, err := store.ReadPlanningSnapshot(context.Background(), list, active, "raw-v1", t0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(snapshot.Sightings) != 1 || snapshot.Sightings[0].ObservationCount != 1 || snapshot.Sightings[0].TTLKnown || snapshot.Profile.CatalogRevision != profile.CatalogRevision || len(snapshot.Relations) != 1 {
+	if len(snapshot.Sightings) != 1 || snapshot.Sightings[0].ObservationCount != 1 || snapshot.Sightings[0].TTLKnown || snapshot.Format.CatalogRevision != format.CatalogRevision || len(snapshot.Relations) != 1 {
 		t.Fatalf("first snapshot=%#v", snapshot)
 	}
 
@@ -377,11 +377,11 @@ func TestSourceCyclesPersistLifecycleRevisionAndRelations(t *testing.T) {
 	second.FirstSeen = t0
 	second.LastSeen = t1
 	second.ValidUntil = t1.Add(2 * time.Hour)
-	secondCycle := SuccessCycle{ServiceID: service, SourceID: "dns-main", SourceRevision: revision, StartedAt: t1, CompletedAt: t1, Sightings: []domain.Sighting{second, second}, Relations: []domain.Relation{{SourceResource: sourceDomain, RelationType: domain.RelationCNAMETo, TargetResource: targetDomain, ServiceID: service, ComponentID: "web", FirstSeen: t0, LastSeen: t1, ValidUntil: t1.Add(2 * time.Hour), SourceID: "dns-main", SourceRevision: revision}}}
+	secondCycle := SuccessCycle{ListID: list, SourceID: "dns-main", SourceRevision: revision, StartedAt: t1, CompletedAt: t1, Sightings: []domain.Sighting{second, second}, Relations: []domain.Relation{{SourceResource: sourceDomain, RelationType: domain.RelationCNAMETo, TargetResource: targetDomain, ListID: list, ComponentID: "web", FirstSeen: t0, LastSeen: t1, ValidUntil: t1.Add(2 * time.Hour), SourceID: "dns-main", SourceRevision: revision}}}
 	if err := store.ApplySuccess(context.Background(), secondCycle); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, _ = store.ReadPlanningSnapshot(context.Background(), service, active, "raw-v1", t1)
+	snapshot, _ = store.ReadPlanningSnapshot(context.Background(), list, active, "raw-v1", t1)
 	if got := snapshot.Sightings[0]; got.ObservationCount != 2 || !got.FirstSeen.Equal(t0) || !got.LastSeen.Equal(t1) || !got.ValidUntil.Equal(t1.Add(2*time.Hour)) {
 		t.Fatalf("updated sighting=%#v", got)
 	}
@@ -389,28 +389,28 @@ func TestSourceCyclesPersistLifecycleRevisionAndRelations(t *testing.T) {
 	outOfOrder := second
 	outOfOrder.LastSeen = t0.Add(30 * time.Minute)
 	outOfOrder.ValidUntil = t0.Add(time.Hour)
-	if err := store.ApplySuccess(context.Background(), SuccessCycle{ServiceID: service, SourceID: "dns-main", SourceRevision: revision, StartedAt: t1.Add(time.Minute), CompletedAt: t1.Add(time.Minute), Sightings: []domain.Sighting{outOfOrder}}); err != nil {
+	if err := store.ApplySuccess(context.Background(), SuccessCycle{ListID: list, SourceID: "dns-main", SourceRevision: revision, StartedAt: t1.Add(time.Minute), CompletedAt: t1.Add(time.Minute), Sightings: []domain.Sighting{outOfOrder}}); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, _ = store.ReadPlanningSnapshot(context.Background(), service, active, "raw-v1", t1)
+	snapshot, _ = store.ReadPlanningSnapshot(context.Background(), list, active, "raw-v1", t1)
 	if got := snapshot.Sightings[0]; !got.LastSeen.Equal(t1) || !got.ValidUntil.Equal(t1.Add(2*time.Hour)) || got.ObservationCount != 3 {
 		t.Fatalf("out-of-order cycle moved timestamps: %#v", got)
 	}
 
-	if err := store.RecordFailure(context.Background(), FailureCycle{ServiceID: service, SourceID: "dns-main", SourceRevision: revision, StartedAt: t1.Add(2 * time.Minute), CompletedAt: t1.Add(2 * time.Minute), ErrorCode: "dns_observation_failed"}); err != nil {
+	if err := store.RecordFailure(context.Background(), FailureCycle{ListID: list, SourceID: "dns-main", SourceRevision: revision, StartedAt: t1.Add(2 * time.Minute), CompletedAt: t1.Add(2 * time.Minute), ErrorCode: "dns_observation_failed"}); err != nil {
 		t.Fatal(err)
 	}
-	snapshot, _ = store.ReadPlanningSnapshot(context.Background(), service, active, "raw-v1", t1)
+	snapshot, _ = store.ReadPlanningSnapshot(context.Background(), list, active, "raw-v1", t1)
 	if snapshot.Sightings[0].ObservationCount != 3 {
 		t.Fatal("failed source run changed observation")
 	}
 
 	expiry := t1.Add(2 * time.Hour)
-	stale, _ := store.ReadPlanningSnapshot(context.Background(), service, active, "raw-v1", expiry)
+	stale, _ := store.ReadPlanningSnapshot(context.Background(), list, active, "raw-v1", expiry)
 	if stale.Sightings[0].Validity != domain.ValidityStale || stale.Relations[0].Validity != domain.ValidityStale {
 		t.Fatalf("expiry equality lifecycle=%#v %#v", stale.Sightings, stale.Relations)
 	}
-	archived, _ := store.ReadPlanningSnapshot(context.Background(), service, active, "raw-v1", expiry.Add(domain.StaleRetention))
+	archived, _ := store.ReadPlanningSnapshot(context.Background(), list, active, "raw-v1", expiry.Add(domain.StaleRetention))
 	if archived.Sightings[0].Validity != domain.ValidityArchived || archived.Relations[0].Validity != domain.ValidityArchived {
 		t.Fatalf("archive equality lifecycle=%#v %#v", archived.Sightings, archived.Relations)
 	}
@@ -420,21 +420,21 @@ func TestSourceCyclesPersistLifecycleRevisionAndRelations(t *testing.T) {
 	revived.FirstSeen = revivalTime
 	revived.LastSeen = revivalTime
 	revived.ValidUntil = revivalTime.Add(2 * time.Hour)
-	if err := store.ApplySuccess(context.Background(), SuccessCycle{ServiceID: service, SourceID: "dns-main", SourceRevision: revision, StartedAt: revivalTime, CompletedAt: revivalTime, Sightings: []domain.Sighting{revived}}); err != nil {
+	if err := store.ApplySuccess(context.Background(), SuccessCycle{ListID: list, SourceID: "dns-main", SourceRevision: revision, StartedAt: revivalTime, CompletedAt: revivalTime, Sightings: []domain.Sighting{revived}}); err != nil {
 		t.Fatal(err)
 	}
-	revivedSnapshot, _ := store.ReadPlanningSnapshot(context.Background(), service, active, "raw-v1", revivalTime)
+	revivedSnapshot, _ := store.ReadPlanningSnapshot(context.Background(), list, active, "raw-v1", revivalTime)
 	if got := revivedSnapshot.Sightings[0]; got.Validity != domain.ValidityValid || !got.FirstSeen.Equal(t0) || got.ObservationCount != 4 {
 		t.Fatalf("revived=%#v", got)
 	}
 
 	revision2 := "dns-revision-2"
 	other, _ := domain.NewAddrResourceFromString("192.0.2.2")
-	newSighting := domain.Sighting{ServiceID: service, ComponentID: "web", Resource: other, SourceID: "dns-main", SourceClass: domain.SourceObserved, SourceRevision: revision2, FirstSeen: revivalTime, LastSeen: revivalTime, ValidUntil: revivalTime.Add(time.Hour), ObservationCount: 1}
-	if err := store.ApplySuccess(context.Background(), SuccessCycle{ServiceID: service, SourceID: "dns-main", SourceRevision: revision2, StartedAt: revivalTime, CompletedAt: revivalTime, Sightings: []domain.Sighting{newSighting}}); err != nil {
+	newSighting := domain.Sighting{ListID: list, ComponentID: "web", Resource: other, SourceID: "dns-main", SourceClass: domain.SourceObserved, SourceRevision: revision2, FirstSeen: revivalTime, LastSeen: revivalTime, ValidUntil: revivalTime.Add(time.Hour), ObservationCount: 1}
+	if err := store.ApplySuccess(context.Background(), SuccessCycle{ListID: list, SourceID: "dns-main", SourceRevision: revision2, StartedAt: revivalTime, CompletedAt: revivalTime, Sightings: []domain.Sighting{newSighting}}); err != nil {
 		t.Fatal(err)
 	}
-	filtered, _ := store.ReadPlanningSnapshot(context.Background(), service, map[string]string{"dns-main": revision2}, "raw-v1", revivalTime)
+	filtered, _ := store.ReadPlanningSnapshot(context.Background(), list, map[string]string{"dns-main": revision2}, "raw-v1", revivalTime)
 	if len(filtered.Sightings) != 1 || filtered.Sightings[0].Resource.CanonicalValue() != "192.0.2.2" || len(filtered.Relations) != 0 {
 		t.Fatalf("source revision filtering=%#v", filtered)
 	}

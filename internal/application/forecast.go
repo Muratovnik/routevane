@@ -23,22 +23,22 @@ type CompositionForecast struct {
 	MaximumRules   int  `json:"maximum_rules"`
 	ProjectedRules int  `json:"projected_rules"`
 	Fits           bool `json:"fits"`
-	// PerService attributes the planned rules to the services that produced
+	// PerList attributes the planned rules to the services that produced
 	// them, so an overflowing composition is reduced by name rather than by
 	// guesswork. Its sum may be larger than ProjectedRules: a renderer collapses
 	// and deduplicates format-identical rules, and that saving belongs to the
 	// file rather than to any one service.
-	PerService []ServiceRuleForecast `json:"per_list"`
-	Overlaps   CompositionOverlaps   `json:"overlaps"`
+	PerList  []ListRuleForecast  `json:"per_list"`
+	Overlaps CompositionOverlaps `json:"overlaps"`
 	// Missing services are excluded from this partial calculation, never counted
 	// as zero. Fits is false until the entire composition can be measured.
-	IncompleteServices []string `json:"incomplete_lists,omitempty"`
+	IncompleteLists []string `json:"incomplete_lists,omitempty"`
 }
 
 type OverlapValue struct {
 	RuleKind domain.RuleKind `json:"rule_kind"`
 	Value    string          `json:"value"`
-	Services []string        `json:"lists"`
+	Lists    []string        `json:"lists"`
 }
 
 type CompositionOverlap struct {
@@ -59,18 +59,18 @@ type CompositionOverlaps struct {
 }
 
 // CompositionOverlapSummary is one stable row of the overlap adjacency graph.
-// Overlaps never contains ServiceID itself.
+// Overlaps never contains ListID itself.
 type CompositionOverlapSummary struct {
-	ServiceID string   `json:"list_id"`
-	Overlaps  []string `json:"overlaps"`
+	ListID   string   `json:"list_id"`
+	Overlaps []string `json:"overlaps"`
 }
 
 func forecastOverlaps(plan domain.RoutingPlan) CompositionOverlaps {
 	const detailLimit = 100
 	analysis := planner.AnalyzeRuleOverlaps(plan.Rules, detailLimit)
-	result := CompositionOverlaps{Items: make([]CompositionOverlap, 0, len(analysis.Items)), Truncated: analysis.Truncated, Summary: make([]CompositionOverlapSummary, 0, len(plan.Services))}
+	result := CompositionOverlaps{Items: make([]CompositionOverlap, 0, len(analysis.Items)), Truncated: analysis.Truncated, Summary: make([]CompositionOverlapSummary, 0, len(plan.Lists))}
 	value := func(entry planner.OverlapValue) OverlapValue {
-		return OverlapValue{RuleKind: entry.RuleKind, Value: entry.Value, Services: entry.Services}
+		return OverlapValue{RuleKind: entry.RuleKind, Value: entry.Value, Lists: entry.Lists}
 	}
 	for _, item := range analysis.Items {
 		mapped := CompositionOverlap{Kind: item.Kind, Entry: value(item.Entry)}
@@ -84,24 +84,24 @@ func forecastOverlaps(plan domain.RoutingPlan) CompositionOverlaps {
 	// relation. Forecasts must state one row for every selected service,
 	// including a service that contributed zero rules, so construct rows in the
 	// plan's canonical service order and fill absent adjacency with an empty set.
-	byService := make(map[string][]string, len(analysis.Summary))
+	byList := make(map[string][]string, len(analysis.Summary))
 	for _, row := range analysis.Summary {
-		byService[row.ServiceID] = append([]string(nil), row.Overlaps...)
+		byList[row.ListID] = append([]string(nil), row.Overlaps...)
 	}
-	for _, serviceID := range plan.Services {
-		overlaps := byService[serviceID]
+	for _, listID := range plan.Lists {
+		overlaps := byList[listID]
 		if overlaps == nil {
 			overlaps = []string{}
 		}
-		result.Summary = append(result.Summary, CompositionOverlapSummary{ServiceID: serviceID, Overlaps: overlaps})
+		result.Summary = append(result.Summary, CompositionOverlapSummary{ListID: listID, Overlaps: overlaps})
 	}
 	return result
 }
 
-// ServiceRuleForecast is one service's share of a forecast plan.
-type ServiceRuleForecast struct {
-	ServiceID string `json:"list_id"`
-	Rules     int    `json:"rules"`
+// ListRuleForecast is one service's share of a forecast plan.
+type ListRuleForecast struct {
+	ListID string `json:"list_id"`
+	Rules  int    `json:"rules"`
 }
 
 // ForecastComposition answers what a composition would cost on each requested
@@ -112,7 +112,7 @@ type ServiceRuleForecast struct {
 // An empty target set means every selectable target, which is what a screen
 // offering the choice needs; a named set is answered in sorted order, so the
 // same request always produces the same document.
-func (s *PublicationService) ForecastComposition(ctx context.Context, requested ListComposition, targetIDs []string) ([]CompositionForecast, error) {
+func (s *PublicationService) ForecastComposition(ctx context.Context, requested ProfileComposition, targetIDs []string) ([]CompositionForecast, error) {
 	// The composition passes exactly the checks list creation applies, so a
 	// forecast can never describe a composition the product would then refuse to
 	// store, and a composition resolving to nothing is refused here by name.
@@ -125,17 +125,17 @@ func (s *PublicationService) ForecastComposition(ctx context.Context, requested 
 		return nil, err
 	}
 	// An ephemeral list carries no identity because there is no list: it is the
-	// argument shape prepareList already accepts, not a row waiting to be
+	// argument shape prepareProfile already accepts, not a row waiting to be
 	// written.
-	list := List{
-		Services: composition.Services, Categories: composition.Categories,
-		Exclusions: composition.Exclusions, ServiceDomains: composition.ServiceDomains,
+	profile := Profile{
+		Lists: composition.Lists, Categories: composition.Categories,
+		Exclusions: composition.Exclusions, ListDomains: composition.ListDomains,
 		Priority: composition.Priority,
 	}
 	cutoff := s.config.Clock.Now().UTC()
 	forecasts := make([]CompositionForecast, 0, len(targets))
 	for _, targetID := range targets {
-		forecast, err := s.forecastTarget(ctx, list, targetID, cutoff)
+		forecast, err := s.forecastTarget(ctx, profile, targetID, cutoff)
 		if err != nil {
 			return nil, err
 		}
@@ -171,43 +171,43 @@ func (s *PublicationService) forecastTargets(requested []string) ([]string, erro
 // forecastTarget plans the composition for one target with that target's rule
 // bound lifted, then measures the finished plan against the real bound.
 //
-// The bound is not an input to planning. PrepareServices already plans against
+// The bound is not an input to planning. PrepareLists already plans against
 // a copy with MaxRules cleared, and the limit exists only as the last gate in
 // PreflightPlan, which computes the projection and then refuses. So lifting it
 // changes nothing about which rules the plan holds and only decides whether
 // that refusal fires — and predicting that refusal is the whole point, which it
 // cannot do from behind it.
-func (s *PublicationService) forecastTarget(ctx context.Context, list List, targetID string, cutoff time.Time) (CompositionForecast, error) {
+func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile, targetID string, cutoff time.Time) (CompositionForecast, error) {
 	target, renderer, err := s.target(targetID)
 	if err != nil {
 		return CompositionForecast{}, fmt.Errorf("invalid forecast target")
 	}
 	unbounded := target
 	unbounded.Constraints.MaxRules = 0
-	prepared, _, err := s.prepareListAt(ctx, list, unbounded, renderer, cutoff)
+	prepared, _, err := s.prepareProfileAt(ctx, profile, unbounded, renderer, cutoff)
 	var incomplete []string
 	if unavailableForecastCoverage(err) {
 		// Publication is still all-or-nothing. Inspection can retain the complete
 		// services, using the same strict preparation and the same observation cut.
 		var available []string
-		for _, id := range s.ResolvedServices(list) {
-			one := List{Services: []string{id}, ServiceDomains: list.ServiceDomains}
-			_, _, serviceErr := s.prepareListAt(ctx, one, unbounded, renderer, cutoff)
-			if unavailableForecastCoverage(serviceErr) {
+		for _, id := range s.ResolvedLists(profile) {
+			one := Profile{Lists: []string{id}, ListDomains: profile.ListDomains}
+			_, _, listErr := s.prepareProfileAt(ctx, one, unbounded, renderer, cutoff)
+			if unavailableForecastCoverage(listErr) {
 				incomplete = append(incomplete, id)
-			} else if serviceErr != nil {
-				return CompositionForecast{}, serviceErr
+			} else if listErr != nil {
+				return CompositionForecast{}, listErr
 			} else {
 				available = append(available, id)
 			}
 		}
 		if len(available) == 0 {
 			return CompositionForecast{TargetID: target.ID, MaximumRules: target.Constraints.MaxRules,
-				IncompleteServices: incomplete, PerService: []ServiceRuleForecast{},
+				IncompleteLists: incomplete, PerList: []ListRuleForecast{},
 				Overlaps: CompositionOverlaps{Items: []CompositionOverlap{}}}, nil
 		}
-		subset := List{Services: available, Priority: available, ServiceDomains: list.ServiceDomains}
-		prepared, _, err = s.prepareListAt(ctx, subset, unbounded, renderer, cutoff)
+		subset := Profile{Lists: available, Priority: available, ListDomains: profile.ListDomains}
+		prepared, _, err = s.prepareProfileAt(ctx, subset, unbounded, renderer, cutoff)
 	}
 	if err != nil {
 		return CompositionForecast{}, err
@@ -220,36 +220,36 @@ func (s *PublicationService) forecastTarget(ctx context.Context, list List, targ
 	// artifact is refused by every file renderer and must not be offered as a fit.
 	if projected == 0 {
 		return CompositionForecast{TargetID: target.ID, MaximumRules: target.Constraints.MaxRules,
-			IncompleteServices: s.ResolvedServices(list), PerService: []ServiceRuleForecast{},
+			IncompleteLists: s.ResolvedLists(profile), PerList: []ListRuleForecast{},
 			Overlaps: CompositionOverlaps{Items: []CompositionOverlap{}}}, nil
 	}
 	maximum := target.Constraints.MaxRules
 	return CompositionForecast{
 		TargetID: target.ID, MaximumRules: maximum, ProjectedRules: projected,
-		Fits:               len(incomplete) == 0 && (maximum == 0 || projected <= maximum),
-		IncompleteServices: incomplete,
-		PerService:         rulesPerService(prepared.Plan),
-		Overlaps:           prepared.compositionOverlaps,
+		Fits:            len(incomplete) == 0 && (maximum == 0 || projected <= maximum),
+		IncompleteLists: incomplete,
+		PerList:         rulesPerList(prepared.Plan),
+		Overlaps:        prepared.compositionOverlaps,
 	}, nil
 }
 
-// rulesPerService groups a plan's rules by the service each rule is attributed
+// rulesPerList groups a plan's rules by the service each rule is attributed
 // to. Every planned service appears, including one that contributed nothing: a
 // zero is a fact an operator deciding what to drop needs, and an absent row
 // would read as an unanswered question rather than as an empty share.
-func rulesPerService(plan domain.RoutingPlan) []ServiceRuleForecast {
-	counts := make(map[string]int, len(plan.Services))
+func rulesPerList(plan domain.RoutingPlan) []ListRuleForecast {
+	counts := make(map[string]int, len(plan.Lists))
 	for _, rule := range plan.Rules {
-		counts[rule.ServiceID]++
+		counts[rule.ListID]++
 	}
 	// plan.Services is canonical — sorted, unique, and a superset of every
 	// rule's attribution, both checked by preflight — so it supplies the order
 	// and the completeness rule without a second sort.
-	perService := make([]ServiceRuleForecast, 0, len(plan.Services))
-	for _, serviceID := range plan.Services {
-		perService = append(perService, ServiceRuleForecast{ServiceID: serviceID, Rules: counts[serviceID]})
+	perList := make([]ListRuleForecast, 0, len(plan.Lists))
+	for _, listID := range plan.Lists {
+		perList = append(perList, ListRuleForecast{ListID: listID, Rules: counts[listID]})
 	}
-	return perService
+	return perList
 }
 
 func unavailableForecastCoverage(err error) bool {

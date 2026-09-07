@@ -47,8 +47,8 @@ func TestShippedCursorPublishesOnlyItsDomainsAndSurvivesSourceFailure(t *testing
 		}
 	}()
 	assertCursorLibrary(t, origin, true)
-	listID, outputID, subscription := createListOutput(t, origin, "Cursor", "keenetic-dns", "cursor")
-	built := guardedRefreshAndBuild(t, origin, listID, outputID)
+	profileID, outputID, subscription := createProfileOutput(t, origin, "Cursor", "keenetic-dns", "cursor")
+	built := guardedRefreshAndBuild(t, origin, profileID, outputID)
 	if built.Summary.RuleCount != 4 || len(built.Summary.DegradedSources) != 0 || fetched.Load() == 0 {
 		t.Fatalf("healthy Cursor build=%#v fetches=%d", built, fetched.Load())
 	}
@@ -58,8 +58,8 @@ func TestShippedCursorPublishesOnlyItsDomainsAndSurvivesSourceFailure(t *testing
 	if artifact.status != http.StatusOK || err != nil || len(groups) != 1 || groups[0].Name != "routevane-cursor" || !slices.Equal(groups[0].Entries, want) {
 		t.Fatalf("Cursor DNS artifact=%s err=%v", artifact.body, err)
 	}
-	clientOutput := addOutput(t, origin, listID, "singbox")
-	clientBuild := guardedRefreshAndBuild(t, origin, listID, clientOutput)
+	clientOutput := addOutput(t, origin, profileID, "singbox")
+	clientBuild := guardedRefreshAndBuild(t, origin, profileID, clientOutput)
 	clientArtifact := downloadArtifact(t, origin, clientBuild.Artifact.ID)
 	client, err := singbox.Parse(clientArtifact.body)
 	if clientArtifact.status != http.StatusOK || err != nil || !slices.Equal(client.Rule.DomainSuffix, want) || len(client.Rule.Domain) != 0 || len(client.Rule.IPCIDR) != 0 {
@@ -69,7 +69,7 @@ func TestShippedCursorPublishesOnlyItsDomainsAndSurvivesSourceFailure(t *testing
 	// A failed source refresh cannot replace a previously published file.
 	published := httpGet(t, subscription, nil)
 	failed.Store(true)
-	refresh := postGuarded(t, origin+"/v1/profiles/"+listID+"/refresh")
+	refresh := postGuarded(t, origin+"/v1/profiles/"+profileID+"/refresh")
 	if refresh.status != http.StatusUnprocessableEntity || !strings.Contains(string(refresh.body), `"code":"source_unavailable"`) {
 		t.Fatalf("failed source refresh=%d %s", refresh.status, refresh.body)
 	}
@@ -80,7 +80,7 @@ func TestShippedCursorPublishesOnlyItsDomainsAndSurvivesSourceFailure(t *testing
 	if old := downloadArtifact(t, origin, built.Artifact.ID); old.status != http.StatusOK || string(old.body) != string(artifact.body) {
 		t.Fatalf("original Cursor artifact changed: %d %s", old.status, old.body)
 	}
-	if removed := postGuardedBody(t, origin+"/v1/lists/cursor/remove", `{}`); removed.status != http.StatusConflict || !strings.Contains(string(removed.body), listID) {
+	if removed := postGuardedBody(t, origin+"/v1/lists/cursor/remove", `{}`); removed.status != http.StatusConflict || !strings.Contains(string(removed.body), profileID) {
 		t.Fatalf("a directly used Cursor list must name its owner: %d %s", removed.status, removed.body)
 	}
 }
@@ -138,13 +138,13 @@ func assertCursorLibrary(t *testing.T, origin string, present bool) {
 	t.Helper()
 	response := httpGet(t, origin+"/v1/lists", nil)
 	var library struct {
-		Services []string `json:"lists"`
-		Details  []struct {
+		Lists   []string `json:"lists"`
+		Details []struct {
 			ID string `json:"id"`
 		} `json:"list_details"`
 		Categories []struct {
-			ID       string   `json:"id"`
-			Services []string `json:"lists"`
+			ID    string   `json:"id"`
+			Lists []string `json:"lists"`
 		} `json:"categories"`
 	}
 	if err := json.Unmarshal(response.body, &library); response.status != http.StatusOK || err != nil {
@@ -160,18 +160,18 @@ func assertCursorLibrary(t *testing.T, origin string, present bool) {
 	if present {
 		wantCount = 1
 	}
-	if slices.Contains(library.Services, "cursor") != present || details != wantCount {
-		t.Fatalf("Cursor present=%t details=%d; want present=%t", slices.Contains(library.Services, "cursor"), details, present)
+	if slices.Contains(library.Lists, "cursor") != present || details != wantCount {
+		t.Fatalf("Cursor present=%t details=%d; want present=%t", slices.Contains(library.Lists, "cursor"), details, present)
 	}
 	foundDevelopment := false
 	for _, category := range library.Categories {
 		if category.ID == "development" {
 			foundDevelopment = true
-			if slices.Contains(category.Services, "cursor") != present {
-				t.Fatalf("Development membership=%#v; Cursor present=%t", category.Services, present)
+			if slices.Contains(category.Lists, "cursor") != present {
+				t.Fatalf("Development membership=%#v; Cursor present=%t", category.Lists, present)
 			}
 		}
-		if !present && slices.Contains(category.Services, "cursor") {
+		if !present && slices.Contains(category.Lists, "cursor") {
 			t.Fatalf("removed Cursor remains in category %s", category.ID)
 		}
 	}

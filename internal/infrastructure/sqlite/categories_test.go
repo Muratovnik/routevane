@@ -29,8 +29,8 @@ func TestCustomCategoriesAndTheirMembershipSurviveWriteReadRenameAndDeletion(t *
 	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
 	category := application.CustomCategory{ID: "custom-1234567890abcdef", Title: "Мои списки", CreatedAt: now, UpdatedAt: now}
 	memberships := []application.CategoryMembership{
-		{CategoryID: category.ID, ServiceID: "custom-fedcba0987654321", State: application.MembershipAdded, UpdatedAt: now},
-		{CategoryID: category.ID, ServiceID: "youtube", State: application.MembershipAdded, UpdatedAt: now},
+		{CategoryID: category.ID, ListID: "custom-fedcba0987654321", State: application.MembershipAdded, UpdatedAt: now},
+		{CategoryID: category.ID, ListID: "youtube", State: application.MembershipAdded, UpdatedAt: now},
 	}
 	if err := store.CreateCustomCategory(ctx, category, memberships); err != nil {
 		t.Fatal(err)
@@ -68,7 +68,7 @@ func TestCustomCategoriesAndTheirMembershipSurviveWriteReadRenameAndDeletion(t *
 	}
 
 	// A restated membership replaces what is stored, an empty one clears it.
-	replacement := []application.CategoryMembership{{CategoryID: category.ID, ServiceID: "discord", State: application.MembershipAdded, UpdatedAt: later}}
+	replacement := []application.CategoryMembership{{CategoryID: category.ID, ListID: "discord", State: application.MembershipAdded, UpdatedAt: later}}
 	if err := store.UpdateCategory(ctx, application.CategoryWrite{CategoryID: category.ID, Title: "Мои списки 2", Memberships: replacement, ReplaceMemberships: true, UpdatedAt: later}); err != nil {
 		t.Fatal(err)
 	}
@@ -107,8 +107,8 @@ func TestACatalogCategoryStoresMembershipWithoutATitleRow(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
 	memberships := []application.CategoryMembership{
-		{CategoryID: "video", ServiceID: "roblox", State: application.MembershipRemoved, UpdatedAt: now},
-		{CategoryID: "video", ServiceID: "twitch", State: application.MembershipAdded, UpdatedAt: now},
+		{CategoryID: "video", ListID: "roblox", State: application.MembershipRemoved, UpdatedAt: now},
+		{CategoryID: "video", ListID: "twitch", State: application.MembershipAdded, UpdatedAt: now},
 	}
 	if err := store.UpdateCategory(ctx, application.CategoryWrite{CategoryID: "video", Memberships: memberships, ReplaceMemberships: true, UpdatedAt: now}); err != nil {
 		t.Fatal(err)
@@ -174,11 +174,11 @@ func TestCategoryWritesRefuseWhatTheGrammarForbids(t *testing.T) {
 		name string
 		row  application.CategoryMembership
 	}{
-		{"removed on an operator category", application.CategoryMembership{CategoryID: base.ID, ServiceID: "youtube", State: application.MembershipRemoved, UpdatedAt: now}},
-		{"unknown state", application.CategoryMembership{CategoryID: base.ID, ServiceID: "youtube", State: "quarantined", UpdatedAt: now}},
-		{"foreign category", application.CategoryMembership{CategoryID: "video", ServiceID: "youtube", State: application.MembershipAdded, UpdatedAt: now}},
-		{"invalid service", application.CategoryMembership{CategoryID: base.ID, ServiceID: "Not A Slug", State: application.MembershipAdded, UpdatedAt: now}},
-		{"zero moment", application.CategoryMembership{CategoryID: base.ID, ServiceID: "youtube", State: application.MembershipAdded}},
+		{"removed on an operator category", application.CategoryMembership{CategoryID: base.ID, ListID: "youtube", State: application.MembershipRemoved, UpdatedAt: now}},
+		{"unknown state", application.CategoryMembership{CategoryID: base.ID, ListID: "youtube", State: "quarantined", UpdatedAt: now}},
+		{"foreign category", application.CategoryMembership{CategoryID: "video", ListID: "youtube", State: application.MembershipAdded, UpdatedAt: now}},
+		{"invalid service", application.CategoryMembership{CategoryID: base.ID, ListID: "Not A Slug", State: application.MembershipAdded, UpdatedAt: now}},
+		{"zero moment", application.CategoryMembership{CategoryID: base.ID, ListID: "youtube", State: application.MembershipAdded}},
 	}
 	for _, tc := range memberships {
 		if err := store.CreateCustomCategory(ctx, base, []application.CategoryMembership{tc.row}); err == nil {

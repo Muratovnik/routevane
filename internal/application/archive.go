@@ -17,54 +17,54 @@ import (
 // honest way to say which of the two it was showing.
 
 // Archived reports whether this list has left the shelf.
-func (l List) Archived() bool { return !l.ArchivedAt.IsZero() }
+func (l Profile) Archived() bool { return !l.ArchivedAt.IsZero() }
 
 // writable refuses every mutation an archived list must not accept. Reads are
 // not routed through it: an archived list is fully readable, and its outputs
 // are fully downloadable.
-func (l List) writable() error {
+func (l Profile) writable() error {
 	if l.Archived() {
-		return ErrListArchived
+		return ErrProfileArchived
 	}
 	return nil
 }
 
-// ArchiveList takes a list off the shelf. Archiving one that is already
+// ArchiveProfile takes a list off the shelf. Archiving one that is already
 // archived changes nothing and reports the list as it stands: the operator
 // asked for a state, not for a transition, and refusing would only be a way of
 // saying the state is already the one they wanted.
-func (s *PublicationService) ArchiveList(ctx context.Context, id string) (List, error) {
+func (s *PublicationService) ArchiveProfile(ctx context.Context, id string) (Profile, error) {
 	return s.setArchived(ctx, id, true)
 }
 
-// RestoreList puts a list back on the shelf. It does not refresh or rebuild:
+// RestoreProfile puts a list back on the shelf. It does not refresh or rebuild:
 // what the list publishes is what it published when it was archived, and
 // changing that is the operator's next decision rather than this one's side
 // effect.
-func (s *PublicationService) RestoreList(ctx context.Context, id string) (List, error) {
+func (s *PublicationService) RestoreProfile(ctx context.Context, id string) (Profile, error) {
 	return s.setArchived(ctx, id, false)
 }
 
-func (s *PublicationService) setArchived(ctx context.Context, id string, archived bool) (List, error) {
-	list, err := s.List(ctx, id)
+func (s *PublicationService) setArchived(ctx context.Context, id string, archived bool) (Profile, error) {
+	profile, err := s.Profile(ctx, id)
 	if err != nil {
-		return List{}, err
+		return Profile{}, err
 	}
-	if list.Archived() == archived {
-		return list, nil
+	if profile.Archived() == archived {
+		return profile, nil
 	}
 	now := s.config.Clock.Now().UTC()
 	if now.IsZero() {
-		return List{}, fmt.Errorf("clock returned zero time")
+		return Profile{}, fmt.Errorf("clock returned zero time")
 	}
 	archivedAt := time.Time{}
 	if archived {
 		archivedAt = now
 	}
-	if err := s.config.Store.SetListArchived(ctx, list.ID, archivedAt, now); err != nil {
-		return List{}, err
+	if err := s.config.Store.SetProfileArchived(ctx, profile.ID, archivedAt, now); err != nil {
+		return Profile{}, err
 	}
-	list.ArchivedAt = archivedAt
-	list.UpdatedAt = now
-	return list, nil
+	profile.ArchivedAt = archivedAt
+	profile.UpdatedAt = now
+	return profile, nil
 }

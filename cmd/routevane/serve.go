@@ -34,8 +34,8 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		return 2
 	}
 	defer resolved.Close()
-	definitions := make([]domain.ServiceDefinition, 0, len(catalog.Services))
-	for _, definition := range catalog.Services {
+	definitions := make([]domain.ListDefinition, 0, len(catalog.Lists))
+	for _, definition := range catalog.Lists {
 		definitions = append(definitions, definition)
 	}
 	if err := resolved.validateSourceDefinitions(definitions...); err != nil {
@@ -65,7 +65,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		return 1
 	}
 	defer store.Close()
-	service, err := application.NewPublicationService(application.PublicationConfig{Definitions: catalog.Services, LocalServiceIDs: catalog.LocalServiceIDs, Categories: catalog.Categories, Targets: targets, TargetRevision: catalog.TargetRevision, FeedURL: httpfeed.ValidateURL, Store: store, Files: filesystem.PublishedStore{DataRoot: root}, Renderers: resolved.renderers, Sources: resolved.sources, Clock: application.ClockFunc(deps.Now)})
+	publication, err := application.NewPublicationService(application.PublicationConfig{Definitions: catalog.Lists, LocalListIDs: catalog.LocalListIDs, Categories: catalog.Categories, Targets: targets, TargetRevision: catalog.TargetRevision, FeedURL: httpfeed.ValidateURL, Store: store, Files: filesystem.PublishedStore{DataRoot: root}, Renderers: resolved.renderers, Sources: resolved.sources, Clock: application.ClockFunc(deps.Now)})
 	if err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
 		return 1
@@ -74,19 +74,19 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	// the catalog this process serves. Serving lists without them would
 	// silently publish something else than stored, so a registry that cannot
 	// be read is a startup failure, not a degraded mode.
-	if err := service.LoadCustomServices(deps.Context); err != nil {
-		logResult(logger, "serve", "", "", "failed", 0, started, "custom_services_unavailable")
+	if err := publication.LoadCustomLists(deps.Context); err != nil {
+		logResult(logger, "serve", "", "", "failed", 0, started, "custom_lists_unavailable")
 		return 1
 	}
-	if err := service.LoadServiceTuning(deps.Context); err != nil {
-		logResult(logger, "serve", "", "", "failed", 0, started, "service_tuning_unavailable")
+	if err := publication.LoadListTuning(deps.Context); err != nil {
+		logResult(logger, "serve", "", "", "failed", 0, started, "list_tuning_unavailable")
 		return 1
 	}
 	// Category membership is operator-owned over the catalog seed (ADR 0028),
 	// and every route that names a category expands through it. Serving with an
 	// unread overlay would publish the shipped grouping under the operator's
 	// name, so it is a startup failure rather than a degraded mode.
-	if err := service.LoadCategories(deps.Context); err != nil {
+	if err := publication.LoadCategories(deps.Context); err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "categories_unavailable")
 		return 1
 	}
@@ -118,7 +118,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	// because it is a different decision: publication owns formats, deployment
 	// owns transports.
 	deployments, err := application.NewDeploymentService(application.DeploymentConfig{
-		Artifacts:     service,
+		Artifacts:     publication,
 		Deployers:     deployerRegistry(deps, deployOptions{}),
 		Backups:       filesystem.BackupStore{DataRoot: root},
 		ManagedRoutes: store,
@@ -146,7 +146,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	devices, err := application.NewDeviceService(application.DeviceConfig{
 		Store:                    store,
 		Secrets:                  secretstore.New(),
-		Targets:                  service.Targets,
+		Targets:                  publication.Targets,
 		Deployable:               func(id string) bool { _, ok := deployableIDs[id]; return ok },
 		NeedsCredential:          func(id string) bool { _, ok := credentialTargets[id]; return ok },
 		NeedsInterface:           func(id string) bool { _, ok := interfaceTargets[id]; return ok },
@@ -161,14 +161,14 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	}
 	deliveryGate := application.NewDeliveryGate()
 	automaticDelivery, err := application.NewAutomaticDeliveryService(application.AutomaticDeliveryConfig{
-		Devices: devices, Deployments: deployments, Outputs: service, Gate: deliveryGate,
+		Devices: devices, Deployments: deployments, Outputs: publication, Gate: deliveryGate,
 	})
 	if err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
 		return 1
 	}
 	origin := "http://" + listener.Addr().String()
-	server, err := httpapi.New(origin, serveBackend{PublicationService: service, deployments: deployments, devices: devices, deliveryGate: deliveryGate}, logger)
+	server, err := httpapi.New(origin, serveBackend{PublicationService: publication, deployments: deployments, devices: devices, deliveryGate: deliveryGate}, logger)
 	if err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
 		return 1
@@ -199,7 +199,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	// unconditionally and does nothing until a list says it should: the default
 	// rule is off, so nothing reaches the network on a timer until an operator
 	// says so.
-	scheduler := startScheduler(ctx, service, automaticDelivery, logger, deps)
+	scheduler := startScheduler(ctx, publication, automaticDelivery, logger, deps)
 	defer scheduler()
 	served := make(chan error, 1)
 	go func() { served <- server.Serve(listener) }()
@@ -254,7 +254,7 @@ const schedulerTick = time.Minute
 // startScheduler runs the due-refresh loop until the context ends and returns
 // the function that waits for it. Each tick is bounded and its outcome logged,
 // so an operator reading the log can tell a quiet timer from a broken one.
-func startScheduler(ctx context.Context, service *application.PublicationService, deliveries *application.AutomaticDeliveryService, logger *slog.Logger, deps runtimeDeps) func() {
+func startScheduler(ctx context.Context, list *application.PublicationService, deliveries *application.AutomaticDeliveryService, logger *slog.Logger, deps runtimeDeps) func() {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -268,7 +268,7 @@ func startScheduler(ctx context.Context, service *application.PublicationService
 			}
 			ticker.Stop()
 			publicationCtx, cancelPublication := context.WithTimeout(ctx, 10*time.Minute)
-			runs, err := service.RunDueRefreshes(publicationCtx)
+			runs, err := list.RunDueRefreshes(publicationCtx)
 			cancelPublication()
 			if err != nil {
 				logger.Warn("scheduler", "operation", "schedule", "status", "failed", "error_code", "due_refresh_failed")
@@ -285,16 +285,16 @@ func startScheduler(ctx context.Context, service *application.PublicationService
 					status = "partial"
 				}
 				for _, failure := range run.Failures {
-					logger.Warn("scheduler output", "operation", "schedule", "list", run.ListID,
+					logger.Warn("scheduler output", "operation", "schedule", "list", run.ProfileID,
 						"output", failure.OutputID, "target", failure.TargetID, "status", "failed",
 						"error_code", failure.Code)
 				}
 				for _, failure := range run.DeliveryFailures {
-					logger.Warn("scheduler delivery", "operation", "schedule", "list", run.ListID,
+					logger.Warn("scheduler delivery", "operation", "schedule", "list", run.ProfileID,
 						"output", failure.OutputID, "device", failure.DeviceID, "artifact", failure.ArtifactID,
 						"status", "failed", "error_code", failure.Code)
 				}
-				logger.Info("scheduler", "operation", "schedule", "list", run.ListID, "status", status,
+				logger.Info("scheduler", "operation", "schedule", "list", run.ProfileID, "status", status,
 					"count", run.Built, "failures", len(run.Failures), "delivered", run.Delivered,
 					"delivery_failures", len(run.DeliveryFailures))
 			}

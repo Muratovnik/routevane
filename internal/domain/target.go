@@ -20,7 +20,7 @@ type TargetConstraints struct {
 
 // RendererDescriptor is the format metadata of one renderer. It lives in the
 // domain because renderer identity is already a domain concept through
-// TargetProfile.RendererID, and because a renderer must not depend on the
+// TargetDefinition.RendererID, and because a renderer must not depend on the
 // application layer that consumes it.
 type RendererDescriptor struct {
 	ID            string
@@ -52,9 +52,9 @@ const (
 	TargetKindApp    = "app"
 )
 
-type TargetProfile struct {
-	ID         string
-	ProfileKey string
+type TargetDefinition struct {
+	ID        string
+	FormatKey string
 	// Title is what an operator calls this device. The catalog owns it, so a
 	// screen never has to keep a list of names in step with the catalog, and a
 	// target added by a plugin can name itself.
@@ -74,12 +74,12 @@ type TargetProfile struct {
 	ManualInstallationHintEN string
 }
 
-// RawJSONTargetProfile is the diagnostic profile: every rule shape is
+// RawJSONTargetDefinition is the diagnostic profile: every rule shape is
 // supported, so a plan rendered against it shows what the planner decided
 // rather than what a device could carry.
-func RawJSONTargetProfile() TargetProfile {
-	return TargetProfile{
-		ID: "raw-json", ProfileKey: "raw-v1", RendererID: "raw-json",
+func RawJSONTargetDefinition() TargetDefinition {
+	return TargetDefinition{
+		ID: "raw-json", FormatKey: "raw-v1", RendererID: "raw-json",
 		Constraints: TargetConstraints{
 			SupportsDomainExact:  true,
 			SupportsDomainSuffix: true,

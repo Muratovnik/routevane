@@ -28,7 +28,7 @@ const (
 
 type Sighting struct {
 	ID                    string
-	ServiceID             string
+	ListID                string
 	ComponentID           string
 	Resource              Resource
 	SourceID              string
@@ -50,7 +50,7 @@ func (s Sighting) IsFresh(cutoff time.Time) bool {
 }
 
 func (s Sighting) Fingerprint() string {
-	parts := []string{s.ServiceID, s.ComponentID, s.Resource.Kind.String(), s.Resource.CanonicalValue(), string(s.SourceClass), s.SourceID, s.SourceRevision, string(s.SharedNetworkEvidence)}
+	parts := []string{s.ListID, s.ComponentID, s.Resource.Kind.String(), s.Resource.CanonicalValue(), string(s.SourceClass), s.SourceID, s.SourceRevision, string(s.SharedNetworkEvidence)}
 	h := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return hex.EncodeToString(h[:])
 }
@@ -85,7 +85,7 @@ type Relation struct {
 	SourceResource Resource
 	RelationType   RelationType
 	TargetResource Resource
-	ServiceID      string
+	ListID         string
 	ComponentID    string
 	FirstSeen      time.Time
 	LastSeen       time.Time
@@ -100,7 +100,7 @@ func (r Relation) IsFresh(cutoff time.Time) bool {
 }
 
 func (r Relation) Fingerprint() string {
-	parts := []string{r.SourceResource.Kind.String(), r.SourceResource.CanonicalValue(), string(r.RelationType), r.TargetResource.Kind.String(), r.TargetResource.CanonicalValue(), r.ServiceID, r.ComponentID, r.SourceID, r.SourceRevision}
+	parts := []string{r.SourceResource.Kind.String(), r.SourceResource.CanonicalValue(), string(r.RelationType), r.TargetResource.Kind.String(), r.TargetResource.CanonicalValue(), r.ListID, r.ComponentID, r.SourceID, r.SourceRevision}
 	h := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
 	return hex.EncodeToString(h[:])
 }

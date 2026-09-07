@@ -17,7 +17,7 @@ type RouteRule struct {
 	Addr        netip.Addr
 	Prefix      netip.Prefix
 	Action      Action
-	ServiceID   string
+	ListID      string
 	ComponentID string
 	ExpiresAt   *time.Time
 	SourceClass SourceClass
@@ -29,7 +29,7 @@ type RouteRule struct {
 	ProvenanceRefs []string
 }
 
-func NewDomainRule(kind RuleKind, value, serviceID, componentID string, source SourceClass, reasons, provenance []string) (RouteRule, error) {
+func NewDomainRule(kind RuleKind, value, listID, componentID string, source SourceClass, reasons, provenance []string) (RouteRule, error) {
 	if kind != RuleDomainExact && kind != RuleDomainSuffix {
 		return RouteRule{}, fmt.Errorf("invalid domain rule kind %q", kind)
 	}
@@ -37,10 +37,10 @@ func NewDomainRule(kind RuleKind, value, serviceID, componentID string, source S
 	if err != nil {
 		return RouteRule{}, err
 	}
-	return RouteRule{Kind: kind, Domain: d, Action: ActionRoute, ServiceID: serviceID, ComponentID: componentID, SourceClass: source, ReasonCodes: append([]string(nil), reasons...), ProvenanceRefs: append([]string(nil), provenance...)}, nil
+	return RouteRule{Kind: kind, Domain: d, Action: ActionRoute, ListID: listID, ComponentID: componentID, SourceClass: source, ReasonCodes: append([]string(nil), reasons...), ProvenanceRefs: append([]string(nil), provenance...)}, nil
 }
 
-func NewAddrRule(a netip.Addr, serviceID, componentID string, source SourceClass, reasons, provenance []string) (RouteRule, error) {
+func NewAddrRule(a netip.Addr, listID, componentID string, source SourceClass, reasons, provenance []string) (RouteRule, error) {
 	if !a.IsValid() {
 		return RouteRule{}, ErrInvalidAddr
 	}
@@ -49,10 +49,10 @@ func NewAddrRule(a netip.Addr, serviceID, componentID string, source SourceClass
 	if a.Is4() {
 		kind = RuleIPv4
 	}
-	return RouteRule{Kind: kind, Addr: a, Action: ActionRoute, ServiceID: serviceID, ComponentID: componentID, SourceClass: source, ReasonCodes: append([]string(nil), reasons...), ProvenanceRefs: append([]string(nil), provenance...)}, nil
+	return RouteRule{Kind: kind, Addr: a, Action: ActionRoute, ListID: listID, ComponentID: componentID, SourceClass: source, ReasonCodes: append([]string(nil), reasons...), ProvenanceRefs: append([]string(nil), provenance...)}, nil
 }
 
-func NewPrefixRule(p netip.Prefix, serviceID, componentID string, source SourceClass, reasons, provenance []string) (RouteRule, error) {
+func NewPrefixRule(p netip.Prefix, listID, componentID string, source SourceClass, reasons, provenance []string) (RouteRule, error) {
 	if !p.IsValid() {
 		return RouteRule{}, ErrInvalidPrefix
 	}
@@ -68,7 +68,7 @@ func NewPrefixRule(p netip.Prefix, serviceID, componentID string, source SourceC
 	if p.Addr().Is4() {
 		kind = RulePrefix4
 	}
-	return RouteRule{Kind: kind, Prefix: p, Action: ActionRoute, ServiceID: serviceID, ComponentID: componentID, SourceClass: source, ReasonCodes: append([]string(nil), reasons...), ProvenanceRefs: append([]string(nil), provenance...)}, nil
+	return RouteRule{Kind: kind, Prefix: p, Action: ActionRoute, ListID: listID, ComponentID: componentID, SourceClass: source, ReasonCodes: append([]string(nil), reasons...), ProvenanceRefs: append([]string(nil), provenance...)}, nil
 }
 
 func (r RouteRule) CanonicalValue() string {
@@ -85,11 +85,11 @@ func (r RouteRule) CanonicalValue() string {
 }
 
 func (r RouteRule) CandidateKey() string {
-	return string(r.Kind) + "\x00" + r.CanonicalValue() + "\x00" + r.ServiceID + "\x00" + r.ComponentID
+	return string(r.Kind) + "\x00" + r.CanonicalValue() + "\x00" + r.ListID + "\x00" + r.ComponentID
 }
 
 func (r RouteRule) IsValid() bool {
-	if r.Action != ActionRoute || ValidateSlug(r.ServiceID) != nil || ValidateSlug(r.ComponentID) != nil {
+	if r.Action != ActionRoute || ValidateSlug(r.ListID) != nil || ValidateSlug(r.ComponentID) != nil {
 		return false
 	}
 	switch r.Kind {
@@ -117,7 +117,7 @@ type Excluded struct {
 }
 
 type Coverage struct {
-	ServiceID   string
+	ListID      string
 	ComponentID string
 	Complete    bool
 	RuleCount   int
@@ -133,8 +133,8 @@ const RoutingPlanInterfaceVersion = "m0-spike-v1"
 type RoutingPlan struct {
 	InterfaceVersion  string
 	TargetID          string
-	ProfileKey        string
-	Services          []string
+	FormatKey         string
+	Lists             []string
 	Rules             []RouteRule
 	Excluded          []Excluded
 	Warnings          []string

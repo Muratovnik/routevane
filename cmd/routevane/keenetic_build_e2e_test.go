@@ -44,15 +44,15 @@ func (*alphaBetaResolver) LookupHost(_ context.Context, name string) ([]string, 
 
 func (*alphaBetaResolver) LookupCNAME(context.Context, string) (string, error) { return "", nil }
 
-func TestCommandRefreshesTwoServicesReopensStateAndBuildsValidatedKeeneticFile(t *testing.T) {
+func TestCommandRefreshesTwoListsReopensStateAndBuildsValidatedKeeneticFile(t *testing.T) {
 	catalogRoot := writeAlphaBetaCatalog(t)
 	dataRoot := filepath.Join(t.TempDir(), "data")
 	outputDir := filepath.Join(dataRoot, "exports")
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	deps := runtimeDeps{Resolver: &alphaBetaResolver{}, Now: func() time.Time { return now }}
 
-	for _, serviceID := range []string{"beta", "alpha"} {
-		runCommand(t, deps, []string{"refresh", "--service", serviceID, "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
+	for _, listID := range []string{"beta", "alpha"} {
+		runCommand(t, deps, []string{"refresh", "--service", listID, "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
 	}
 	result := runCommand(t, deps, []string{"build", "--target", "keenetic", "--service", "beta", "--service", "alpha", "--service", "beta", "--output", outputDir, "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
 	if strings.Count(result.stdout, "\n") != 1 {
@@ -86,7 +86,7 @@ func TestCommandRefreshesTwoServicesReopensStateAndBuildsValidatedKeeneticFile(t
 	}
 }
 
-func TestCommandMissingSecondServiceStateCreatesNoFile(t *testing.T) {
+func TestCommandMissingSecondListStateCreatesNoFile(t *testing.T) {
 	catalogRoot := writeAlphaBetaCatalog(t)
 	dataRoot := filepath.Join(t.TempDir(), "data")
 	outputDir := filepath.Join(dataRoot, "exports")
@@ -103,9 +103,9 @@ func TestCommandMissingSecondServiceStateCreatesNoFile(t *testing.T) {
 	}
 }
 
-func TestParseBuildCanonicalizesRepeatedServicesAndPreservesRawCompatibility(t *testing.T) {
+func TestParseBuildCanonicalizesRepeatedListsAndPreservesRawCompatibility(t *testing.T) {
 	options, ok := parseBuild([]string{"--target", "keenetic", "--service", "beta", "--service", "alpha", "--service", "beta"})
-	if !ok || strings.Join(options.ServiceIDs, ",") != "alpha,beta" {
+	if !ok || strings.Join(options.ListIDs, ",") != "alpha,beta" {
 		t.Fatalf("repeatable service parse=%#v ok=%v", options, ok)
 	}
 	if _, ok := parseBuild([]string{"--target", "raw-json", "--service", "alpha", "--service", "beta"}); ok {
@@ -124,7 +124,7 @@ func writeAlphaBetaCatalog(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
-	service := func(id string) string {
+	list := func(id string) string {
 		return "id: " + id + "\n" +
 			"title: SENTINEL-TITLE-" + id + "\n" +
 			"components:\n  web:\n    required: true\n" +
@@ -132,7 +132,7 @@ func writeAlphaBetaCatalog(t *testing.T) string {
 			"sources:\n  - id: dns-main\n    type: dns\n    component: web\n    config:\n      names: [" + id + ".example]\n"
 	}
 	for _, id := range []string{"alpha", "beta"} {
-		if err := os.WriteFile(filepath.Join(root, "builtin", id+".yaml"), []byte(service(id)), 0o600); err != nil {
+		if err := os.WriteFile(filepath.Join(root, "builtin", id+".yaml"), []byte(list(id)), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}

@@ -6,9 +6,9 @@ const (
 	BuildFailureRuleLimit           = "rule_limit"
 	BuildFailurePartialCoverage     = "partial_coverage"
 	BuildFailureTargetChanged       = "target_changed"
-	BuildFailureListArchived        = "list_archived"
+	BuildFailureProfileArchived     = "list_archived"
 	BuildFailureSourceUnavailable   = "source_unavailable"
-	BuildFailureProfileMismatch     = "profile_mismatch"
+	BuildFailureFormatMismatch      = "profile_mismatch"
 	BuildFailurePreflight           = "preflight_failed"
 	BuildFailureArtifactUnavailable = "artifact_unavailable"
 	BuildFailureStorage             = "storage_failed"
@@ -34,12 +34,12 @@ func ClassifyBuildFailure(err error) BuildFailureDetails {
 		return BuildFailureDetails{Code: BuildFailurePartialCoverage}
 	case errors.Is(err, ErrTargetChanged):
 		return BuildFailureDetails{Code: BuildFailureTargetChanged}
-	case errors.Is(err, ErrListArchived):
-		return BuildFailureDetails{Code: BuildFailureListArchived}
+	case errors.Is(err, ErrProfileArchived):
+		return BuildFailureDetails{Code: BuildFailureProfileArchived}
 	case errors.Is(err, ErrSourceFailed), errors.Is(err, ErrSourceDegraded):
 		return BuildFailureDetails{Code: BuildFailureSourceUnavailable}
-	case errors.Is(err, ErrProfileMismatch):
-		return BuildFailureDetails{Code: BuildFailureProfileMismatch}
+	case errors.Is(err, ErrFormatMismatch):
+		return BuildFailureDetails{Code: BuildFailureFormatMismatch}
 	case errors.Is(err, ErrPreflight):
 		return BuildFailureDetails{Code: BuildFailurePreflight}
 	case errors.Is(err, ErrArtifactUnavailable):

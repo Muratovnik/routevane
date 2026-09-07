@@ -101,15 +101,15 @@ func TestServeForecastsACompositionBeforeItIsCreated(t *testing.T) {
 	// observations to plan from. The composition it is asked about is a
 	// different one, and it is never created.
 	created := postJSON(t, origin+"/v1/profiles", `{"name":"Наблюдение","lists":["alpha","beta"]}`)
-	var listResponse struct {
-		List struct {
+	var profileResponse struct {
+		Profile struct {
 			ID string `json:"id"`
 		} `json:"profile"`
 	}
-	if err := json.Unmarshal(created, &listResponse); err != nil {
+	if err := json.Unmarshal(created, &profileResponse); err != nil {
 		t.Fatal(err)
 	}
-	postJSON(t, origin+"/v1/profiles/"+listResponse.List.ID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+profileResponse.Profile.ID+"/refresh", `{}`)
 
 	forecast := postJSON(t, origin+"/v1/profiles/preview", `{"lists":["alpha","beta"],"targets":["pocket","keenetic"]}`)
 	const want = `{"targets":[` +
@@ -122,19 +122,19 @@ func TestServeForecastsACompositionBeforeItIsCreated(t *testing.T) {
 
 	// Nothing was created by asking. The store still holds the one observed
 	// list, with no output and no attempt behind it.
-	lists := httpGet(t, origin+"/v1/profiles", nil)
+	profiles := httpGet(t, origin+"/v1/profiles", nil)
 	var library struct {
-		Lists []struct {
+		Profiles []struct {
 			ID      string            `json:"id"`
 			Name    string            `json:"name"`
 			Outputs []json.RawMessage `json:"outputs"`
 		} `json:"profiles"`
 	}
-	if err := json.Unmarshal(lists.body, &library); err != nil {
+	if err := json.Unmarshal(profiles.body, &library); err != nil {
 		t.Fatal(err)
 	}
-	if len(library.Lists) != 1 || library.Lists[0].ID != listResponse.List.ID || len(library.Lists[0].Outputs) != 0 {
-		t.Fatalf("the forecast left state behind: %s", lists.body)
+	if len(library.Profiles) != 1 || library.Profiles[0].ID != profileResponse.Profile.ID || len(library.Profiles[0].Outputs) != 0 {
+		t.Fatalf("the forecast left state behind: %s", profiles.body)
 	}
 
 	// A device the catalog does not carry is refused rather than dropped from

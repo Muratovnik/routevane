@@ -5,9 +5,9 @@ status: adopted
 # Adding a renderer
 
 A renderer owns one output format and nothing else. Target limits come from the
-target profile, policy decisions come from the planner, and storage and
+target definition, policy decisions come from the planner, and storage and
 transport come from the layers that already exist. If a step below asks you to
-teach a renderer about services, persistence, or devices, the change belongs
+teach a renderer about lists, persistence, or devices, the change belongs
 somewhere else.
 
 ## 1. Write the format package
@@ -16,7 +16,7 @@ Create `internal/renderers/<name>/`. Implement, in this order:
 
 1. `ID`, `Version`, `ContentType`, `FileExtension`, and the format's own byte and
    entry bounds as constants. `ID` and `Version` must satisfy
-   `domain.ValidateSlug`; `Version` is the value a target profile declares as its
+   `domain.ValidateSlug`; `Version` is the value a target definition declares as its
    `format_key`. `FileExtension` is a bare lowercase suffix with no dot.
 2. `Render(domain.RoutingPlan) ([]byte, error)` — project already-decided rules.
    A renderer never adds, drops, or reorders a policy decision; it may only
@@ -45,7 +45,7 @@ Add `catalog/targets/<target>.yaml` with `format_key` equal to the renderer's
 `Version`, `renderer` equal to its `ID`, and constraints that describe the real
 device or client. A target may not claim a capability the renderer cannot
 express: `renderableTarget` drops such a target instead of letting it be
-selected. Add a `frozenProfiles` entry pinning the device-specific truth a
+selected. Add a `frozenFormats` entry pinning the device-specific truth a
 catalog file must not widen.
 
 Several targets may share one renderer. The target catalog and the renderer

@@ -12,9 +12,9 @@ import (
 	"github.com/Muratovnik/routevane/internal/planner"
 )
 
-func testTarget() domain.TargetProfile {
-	return domain.TargetProfile{
-		ID: "amnezia", ProfileKey: Version, RendererID: ID,
+func testTarget() domain.TargetDefinition {
+	return domain.TargetDefinition{
+		ID: "amnezia", FormatKey: Version, RendererID: ID,
 		Constraints: domain.TargetConstraints{
 			SupportsDomainExact: true,
 			SupportsIPv4:        true, SupportsPrefixes: true,
@@ -26,12 +26,12 @@ func testTarget() domain.TargetProfile {
 func planWith(t *testing.T, seeds []domain.Seed, sightings []domain.Sighting) domain.RoutingPlan {
 	t.Helper()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	definition := domain.ServiceDefinition{
+	definition := domain.ListDefinition{
 		ID: "example", CatalogRevision: "catalog",
 		Components: []domain.ComponentDefinition{{ID: "web", Required: true}},
 		Seeds:      seeds,
 	}
-	plan, err := planner.BuildPlanSet([]planner.ServiceInput{{Definition: definition, Sightings: sightings}}, testTarget(), now)
+	plan, err := planner.BuildPlanSet([]planner.ListInput{{Definition: definition, Sightings: sightings}}, testTarget(), now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func officialPrefix(t *testing.T, value string) domain.Sighting {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	return domain.Sighting{ServiceID: "example", ComponentID: "web", Resource: resource, SourceID: "feed", SourceClass: domain.SourceOfficial, SourceRevision: "v1", ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid}
+	return domain.Sighting{ListID: "example", ComponentID: "web", Resource: resource, SourceID: "feed", SourceClass: domain.SourceOfficial, SourceRevision: "v1", ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid}
 }
 
 func TestRenderProducesTheGoldenSiteList(t *testing.T) {
@@ -239,7 +239,7 @@ func TestRenderRefusesARuleKindTheFormatCannotExpress(t *testing.T) {
 	for _, kind := range []domain.RuleKind{domain.RuleDomainSuffix, domain.RuleIPv6} {
 		hostile := plan
 		hostile.Rules = append([]domain.RouteRule(nil), plan.Rules...)
-		rule := domain.RouteRule{Kind: kind, Action: domain.ActionRoute, ServiceID: "example", ComponentID: "web"}
+		rule := domain.RouteRule{Kind: kind, Action: domain.ActionRoute, ListID: "example", ComponentID: "web"}
 		if kind == domain.RuleDomainSuffix {
 			rule.Domain = "example.com"
 		}

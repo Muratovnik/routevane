@@ -36,7 +36,7 @@ func TestProbeUsesKeyedInterfaceIDsAndNeverGuessesFromDescriptions(t *testing.T)
 		}
 		connection.Interface = "Wireguard1"
 		info, err := deployer.Probe(context.Background(), connection)
-		if err != nil || info.Interface != "Wireguard1" || info.ProfileKey == "" {
+		if err != nil || info.Interface != "Wireguard1" || info.FormatKey == "" {
 			t.Fatalf("keyed interface: %#v %v", info, err)
 		}
 	}
@@ -88,7 +88,7 @@ func TestFQDNRouteFlagsAreNotSilentlyTreatedAsEquivalent(t *testing.T) {
 			}
 			artifact := fqdnArtifact(t, "example=example.com")
 			if test.refused {
-				request := application.DeployRequest{Connection: connection, Artifact: artifact, Target: domain.TargetProfile{ID: "keenetic-dns", RendererID: FQDNDeployerID, ProfileKey: keeneticdns.Version}}
+				request := application.DeployRequest{Connection: connection, Artifact: artifact, Target: domain.TargetDefinition{ID: "keenetic-dns", RendererID: FQDNDeployerID, FormatKey: keeneticdns.Version}}
 				result, err := application.DeployToDevice(context.Background(), request, application.DeployerRegistry{deployer.ID(): deployer}, unusedBackupStore{}, application.ClockFunc(time.Now))
 				if err == nil || len(result.Events) != 1 || result.Events[0].Step != application.StepProbe || result.RolledBack {
 					t.Fatalf("incompatible snapshot reached the write lifecycle: %#v %v", result, err)

@@ -12,7 +12,7 @@ import (
 func observeAs(t *testing.T, fixture *feedFixture, url string, format domain.FeedFormat, class domain.SourceClass) (Result, error) {
 	t.Helper()
 	return fixture.observer.Observe(context.Background(), Query{
-		ServiceID: "example", ComponentID: "web", SourceID: "feed", SourceRevision: "rev",
+		ListID: "example", ComponentID: "web", SourceID: "feed", SourceRevision: "rev",
 		URL: url, Format: format, SourceClass: class,
 	}, time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC))
 }

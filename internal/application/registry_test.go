@@ -68,18 +68,18 @@ func TestRendererRegistryValidateRefusesDriftAndIncompleteMetadata(t *testing.T)
 func TestRendererRegistryForResolvesOnlyAMatchingTarget(t *testing.T) {
 	renderer := stubRenderer{id: "good-renderer", version: "good-v1"}
 	registry := RendererRegistry{renderer.id: renderer}
-	resolved, err := registry.For(domain.TargetProfile{ID: "device", ProfileKey: "good-v1", RendererID: "good-renderer"})
+	resolved, err := registry.For(domain.TargetDefinition{ID: "device", FormatKey: "good-v1", RendererID: "good-renderer"})
 	if err != nil || resolved.ID() != renderer.id {
 		t.Fatalf("resolved = %v err = %v", resolved, err)
 	}
 	// Several targets may legitimately share one renderer.
-	if _, err := registry.For(domain.TargetProfile{ID: "other-device", ProfileKey: "good-v1", RendererID: "good-renderer"}); err != nil {
+	if _, err := registry.For(domain.TargetDefinition{ID: "other-device", FormatKey: "good-v1", RendererID: "good-renderer"}); err != nil {
 		t.Fatalf("a second target sharing the format was refused: %v", err)
 	}
-	if _, err := registry.For(domain.TargetProfile{ID: "device", ProfileKey: "good-v1", RendererID: "missing"}); !errors.Is(err, ErrPreflight) {
+	if _, err := registry.For(domain.TargetDefinition{ID: "device", FormatKey: "good-v1", RendererID: "missing"}); !errors.Is(err, ErrPreflight) {
 		t.Fatalf("an unregistered renderer must be a preflight error: %v", err)
 	}
-	if _, err := registry.For(domain.TargetProfile{ID: "device", ProfileKey: "other-v1", RendererID: "good-renderer"}); !errors.Is(err, ErrPreflight) {
+	if _, err := registry.For(domain.TargetDefinition{ID: "device", FormatKey: "other-v1", RendererID: "good-renderer"}); !errors.Is(err, ErrPreflight) {
 		t.Fatalf("a profile-key mismatch must be a preflight error: %v", err)
 	}
 }

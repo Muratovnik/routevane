@@ -120,7 +120,7 @@ func TestProbeReportsTheDeclaredLocalRuleSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if device.Vendor != Vendor || device.ProfileKey != singbox.Version {
+	if device.Vendor != Vendor || device.FormatKey != singbox.Version {
 		t.Fatalf("device = %#v", device)
 	}
 	// A relative rule-set path is resolved against the configuration, and the
@@ -160,7 +160,7 @@ func TestProbeRefusesAConfigurationThisDeployerCannotWrite(t *testing.T) {
 			}
 			// The refusal must be visible as an empty profile key, which is what
 			// stops the lifecycle before a file is touched.
-			if device.ProfileKey != "" {
+			if device.FormatKey != "" {
 				t.Fatalf("device = %#v", device)
 			}
 		})

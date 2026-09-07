@@ -173,7 +173,7 @@ func (s *Source) Type() domain.SourceType { return domain.SourceType(s.manifest.
 func (s *Source) Revision() string { return s.manifest.Revision }
 
 func (s *Source) Observe(ctx context.Context, request application.SourceRequest) (application.SourceResult, error) {
-	if domain.ValidateSlug(request.ServiceID) != nil || domain.ValidateSlug(request.ComponentID) != nil || domain.ValidateSlug(request.SourceID) != nil {
+	if domain.ValidateSlug(request.ListID) != nil || domain.ValidateSlug(request.ComponentID) != nil || domain.ValidateSlug(request.SourceID) != nil {
 		return application.SourceResult{}, fmt.Errorf("%w: invalid observation request", ErrPluginOutput)
 	}
 	observedAt := request.ObservedAt.UTC()
@@ -181,7 +181,7 @@ func (s *Source) Observe(ctx context.Context, request application.SourceRequest)
 		return application.SourceResult{}, fmt.Errorf("%w: zero observation time", ErrPluginOutput)
 	}
 	result, err := s.client.Call(ctx, wire.Envelope{Type: wire.MessageObserve, Observe: &wire.ObserveCall{
-		ServiceID: request.ServiceID, ComponentID: request.ComponentID, SourceID: request.SourceID,
+		ListID: request.ListID, ComponentID: request.ComponentID, SourceID: request.SourceID,
 		Revision: request.SourceRevision, Names: append([]string(nil), request.Names...),
 		ObservedAt: observedAt.Format(time.RFC3339Nano),
 	}})
@@ -211,7 +211,7 @@ func (s *Source) Observe(ctx context.Context, request application.SourceRequest)
 			ttlKnown = true
 		}
 		sightings = append(sightings, domain.Sighting{
-			ServiceID: request.ServiceID, ComponentID: request.ComponentID, Resource: resource,
+			ListID: request.ListID, ComponentID: request.ComponentID, Resource: resource,
 			SourceID: request.SourceID, SourceClass: domain.SourceCommunity, SourceRevision: request.SourceRevision,
 			FirstSeen: observedAt, LastSeen: observedAt, ValidUntil: validUntil,
 			TTLSeconds: observation.TTLSeconds, TTLKnown: ttlKnown,

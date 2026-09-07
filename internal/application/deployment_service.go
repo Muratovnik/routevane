@@ -29,7 +29,7 @@ type ArtifactSource interface {
 	// which plan they represent: the artifact hash identifies the rendering,
 	// the plan's semantic hash identifies the routing decision.
 	Snapshot(context.Context, string) (PlanSnapshotRecord, error)
-	TargetProfile(string) (domain.TargetProfile, error)
+	TargetDefinition(string) (domain.TargetDefinition, error)
 	Targets() []TargetOption
 }
 
@@ -98,7 +98,7 @@ func (s *DeploymentService) DeployableTargets() []DeployableTarget {
 // boundary, so it must apply the destination policy before an address can
 // outlive the request that supplied it.
 func (s *DeploymentService) ValidateStoredConnection(targetID string, connection Connection) error {
-	target, err := s.config.Artifacts.TargetProfile(targetID)
+	target, err := s.config.Artifacts.TargetDefinition(targetID)
 	if err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func (s *DeploymentService) RetireManagedRoutes(ctx context.Context, targetID st
 	if s.config.ManagedRoutes == nil {
 		return nil
 	}
-	target, err := s.config.Artifacts.TargetProfile(targetID)
+	target, err := s.config.Artifacts.TargetDefinition(targetID)
 	if err != nil {
 		return err
 	}
@@ -223,30 +223,30 @@ func (s *DeploymentService) RetireManagedRoutes(ctx context.Context, targetID st
 // resolve is the one place an artifact, a target, and a deployer are matched.
 // An artifact built for another target is refused here rather than being sent to
 // a deployer that would install the wrong bytes.
-func (s *DeploymentService) resolve(ctx context.Context, command DeployCommand) (ArtifactPayload, domain.TargetProfile, Deployer, error) {
+func (s *DeploymentService) resolve(ctx context.Context, command DeployCommand) (ArtifactPayload, domain.TargetDefinition, Deployer, error) {
 	payload, err := s.config.Artifacts.Artifact(ctx, command.ArtifactID)
 	if err != nil {
-		return ArtifactPayload{}, domain.TargetProfile{}, nil, err
+		return ArtifactPayload{}, domain.TargetDefinition{}, nil, err
 	}
 	// The target comes from the output the artifact belongs to, so a caller
 	// cannot name a different one and have its bytes installed.
 	output, err := s.config.Artifacts.Output(ctx, payload.Artifact.OutputID)
 	if err != nil {
-		return ArtifactPayload{}, domain.TargetProfile{}, nil, err
+		return ArtifactPayload{}, domain.TargetDefinition{}, nil, err
 	}
-	target, err := s.config.Artifacts.TargetProfile(output.TargetID)
+	target, err := s.config.Artifacts.TargetDefinition(output.TargetID)
 	if err != nil {
-		return ArtifactPayload{}, domain.TargetProfile{}, nil, err
+		return ArtifactPayload{}, domain.TargetDefinition{}, nil, err
 	}
 	if payload.Artifact.RendererID != target.RendererID {
-		return ArtifactPayload{}, domain.TargetProfile{}, nil, fmt.Errorf("%w: artifact was built by %q, target expects %q", ErrDeployComposition, payload.Artifact.RendererID, target.RendererID)
+		return ArtifactPayload{}, domain.TargetDefinition{}, nil, fmt.Errorf("%w: artifact was built by %q, target expects %q", ErrDeployComposition, payload.Artifact.RendererID, target.RendererID)
 	}
 	deployer, registered := s.config.Deployers[target.RendererID]
 	if !registered || deployer == nil {
-		return ArtifactPayload{}, domain.TargetProfile{}, nil, fmt.Errorf("%w: %q", ErrDeployerUnavailable, target.RendererID)
+		return ArtifactPayload{}, domain.TargetDefinition{}, nil, fmt.Errorf("%w: %q", ErrDeployerUnavailable, target.RendererID)
 	}
 	if err := deployer.ValidateConnection(command.Connection); err != nil {
-		return ArtifactPayload{}, domain.TargetProfile{}, nil, fmt.Errorf("%w: %v", ErrConnectionInvalid, err)
+		return ArtifactPayload{}, domain.TargetDefinition{}, nil, fmt.Errorf("%w: %v", ErrConnectionInvalid, err)
 	}
 	return payload, target, deployer, nil
 }

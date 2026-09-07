@@ -17,14 +17,14 @@ import (
 
 // The schema is one baseline, so an effective profile written straight into it
 // must read back through the planning snapshot without any upgrade step.
-func TestBaselineSchemaServesEffectiveProfile(t *testing.T) {
+func TestBaselineSchemaServesEffectiveFormat(t *testing.T) {
 	root := newDataRoot(t)
 	store, err := Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	encoded, _ := json.Marshal(domain.RawJSONTargetProfile())
+	encoded, _ := json.Marshal(domain.RawJSONTargetDefinition())
 	if _, err := store.db.Exec(`INSERT INTO effective_formats(format_key,list_id,target_id,renderer_id,catalog_revision,config_json,updated_at_ns) VALUES(?,?,?,?,?,?,?)`, "raw-v1", "example", "raw-json", "raw-json", strings.Repeat("c", 64), string(encoded), now.UnixNano()); err != nil {
 		t.Fatal(err)
 	}
@@ -32,8 +32,8 @@ func TestBaselineSchemaServesEffectiveProfile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Profile.ServiceID != "example" || !bytes.Equal(snapshot.Profile.ConfigJSON, encoded) {
-		t.Fatalf("profile=%#v", snapshot.Profile)
+	if snapshot.Format.ListID != "example" || !bytes.Equal(snapshot.Format.ConfigJSON, encoded) {
+		t.Fatalf("profile=%#v", snapshot.Format)
 	}
 	if err := store.Close(); err != nil {
 		t.Fatal(err)
@@ -46,51 +46,51 @@ func TestBaselineSchemaServesEffectiveProfile(t *testing.T) {
 // A list stores what the operator said, not what it resolves to: the named
 // services, the referenced categories, exclusions and ownership priority all
 // survive a write and a read unchanged.
-func TestListCompositionRoundTripsEveryPart(t *testing.T) {
+func TestProfileCompositionRoundTripsEveryPart(t *testing.T) {
 	store, err := Open(context.Background(), newDataRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	list := application.List{
+	profile := application.Profile{
 		ID: "44444444444444444444444444444444", Name: "Дом",
-		Services:       []string{"youtube"},
-		Categories:     []string{"video", "communication"},
-		Exclusions:     []string{"discord"},
-		Priority:       []string{"youtube", "telegram"},
-		ServiceDomains: map[string][]string{"youtube": {}},
-		CreatedAt:      now, UpdatedAt: now,
+		Lists:       []string{"youtube"},
+		Categories:  []string{"video", "communication"},
+		Exclusions:  []string{"discord"},
+		Priority:    []string{"youtube", "telegram"},
+		ListDomains: map[string][]string{"youtube": {}},
+		CreatedAt:   now, UpdatedAt: now,
 	}
-	if err := store.CreateList(context.Background(), list); err != nil {
+	if err := store.CreateProfile(context.Background(), profile); err != nil {
 		t.Fatal(err)
 	}
-	stored, err := store.List(context.Background(), list.ID)
+	stored, err := store.Profile(context.Background(), profile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !equalStringSlices(stored.Services, []string{"youtube"}) ||
+	if !equalStringSlices(stored.Lists, []string{"youtube"}) ||
 		!equalStringSlices(stored.Categories, []string{"communication", "video"}) ||
 		!equalStringSlices(stored.Exclusions, []string{"discord"}) ||
 		!equalStringSlices(stored.Priority, []string{"youtube", "telegram"}) {
 		t.Fatalf("stored=%#v", stored)
 	}
-	if domains, ok := stored.ServiceDomains["youtube"]; !ok || len(domains) != 0 {
-		t.Fatalf("empty domain override lost: %#v", stored.ServiceDomains)
+	if domains, ok := stored.ListDomains["youtube"]; !ok || len(domains) != 0 {
+		t.Fatalf("empty domain override lost: %#v", stored.ListDomains)
 	}
 
-	stored.ServiceDomains = map[string][]string{"youtube": {"youtu.be", "youtube.com"}}
+	stored.ListDomains = map[string][]string{"youtube": {"youtu.be", "youtube.com"}}
 	stored.Priority = []string{"telegram", "youtube"}
 	stored.UpdatedAt = now.Add(time.Minute)
-	if err := store.UpdateList(context.Background(), stored); err != nil {
+	if err := store.UpdateProfile(context.Background(), stored); err != nil {
 		t.Fatal(err)
 	}
-	updated, err := store.List(context.Background(), list.ID)
+	updated, err := store.Profile(context.Background(), profile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !equalStringSlices(updated.ServiceDomains["youtube"], []string{"youtu.be", "youtube.com"}) {
-		t.Fatalf("updated domain override lost: %#v", updated.ServiceDomains)
+	if !equalStringSlices(updated.ListDomains["youtube"], []string{"youtu.be", "youtube.com"}) {
+		t.Fatalf("updated domain override lost: %#v", updated.ListDomains)
 	}
 	if !equalStringSlices(updated.Priority, []string{"telegram", "youtube"}) {
 		t.Fatalf("updated priority lost: %#v", updated.Priority)
@@ -99,34 +99,34 @@ func TestListCompositionRoundTripsEveryPart(t *testing.T) {
 
 // Naming a service and excluding it is a contradiction the resolver would have
 // to break arbitrarily. The store refuses it rather than picking a winner.
-func TestListRefusesAServiceThatIsBothNamedAndExcluded(t *testing.T) {
+func TestProfileRefusesAListThatIsBothNamedAndExcluded(t *testing.T) {
 	store, err := Open(context.Background(), newDataRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	list := application.List{
+	profile := application.Profile{
 		ID: "55555555555555555555555555555555", Name: "Противоречие",
-		Services: []string{"youtube"}, Exclusions: []string{"youtube"},
+		Lists: []string{"youtube"}, Exclusions: []string{"youtube"},
 		CreatedAt: now, UpdatedAt: now,
 	}
-	if err := store.CreateList(context.Background(), list); err == nil {
+	if err := store.CreateProfile(context.Background(), profile); err == nil {
 		t.Fatal("expected the store to refuse a contradictory composition")
 	}
 }
 
 // A list that names nothing at all would publish an empty file under a name
 // that promises content.
-func TestListRefusesAnEmptyComposition(t *testing.T) {
+func TestProfileRefusesAnEmptyComposition(t *testing.T) {
 	store, err := Open(context.Background(), newDataRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	list := application.List{ID: "66666666666666666666666666666666", Name: "Пусто", CreatedAt: now, UpdatedAt: now}
-	if err := store.CreateList(context.Background(), list); err == nil {
+	profile := application.Profile{ID: "66666666666666666666666666666666", Name: "Пусто", CreatedAt: now, UpdatedAt: now}
+	if err := store.CreateProfile(context.Background(), profile); err == nil {
 		t.Fatal("expected the store to refuse an empty composition")
 	}
 }
@@ -150,8 +150,8 @@ func TestPublicationRowsAreImmutableAndPointersAdvanceAtomically(t *testing.T) {
 	}
 	defer store.Close()
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	list, output := publicationListAndOutput("11111111111111111111111111111111", "99999999999999999999999999999999", now)
-	if err := store.CreateList(context.Background(), list); err != nil {
+	profile, output := publicationProfileAndOutput("11111111111111111111111111111111", "99999999999999999999999999999999", now)
+	if err := store.CreateProfile(context.Background(), profile); err != nil {
 		t.Fatal(err)
 	}
 	tokenHash := sha256.Sum256([]byte("rv1.token.secret"))
@@ -197,8 +197,8 @@ func TestSamePayloadRetainsEarliestContentCreationTime(t *testing.T) {
 	}
 	defer store.Close()
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	list, output := publicationListAndOutput("11111111111111111111111111111111", "99999999999999999999999999999999", now)
-	if err := store.CreateList(context.Background(), list); err != nil {
+	profile, output := publicationProfileAndOutput("11111111111111111111111111111111", "99999999999999999999999999999999", now)
+	if err := store.CreateProfile(context.Background(), profile); err != nil {
 		t.Fatal(err)
 	}
 	h := sha256.Sum256([]byte("token"))
@@ -227,9 +227,9 @@ func TestPointerFaultRollsBackSnapshotBuildAndLatest(t *testing.T) {
 	}
 	defer store.Close()
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	list, output := publicationListAndOutput(strings.Repeat("1", 32), strings.Repeat("9", 32), now)
+	profile, output := publicationProfileAndOutput(strings.Repeat("1", 32), strings.Repeat("9", 32), now)
 	token := sha256.Sum256([]byte("token"))
-	if err := store.CreateList(context.Background(), list); err != nil {
+	if err := store.CreateProfile(context.Background(), profile); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.CreateOutput(context.Background(), application.NewOutput{Output: output, TokenID: strings.Repeat("2", 32), TokenHash: token}); err != nil {
@@ -266,19 +266,19 @@ func TestPublicationHardeningFailureHappensBeforeTransaction(t *testing.T) {
 	}
 	defer store.Close()
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	list, output := publicationListAndOutput(strings.Repeat("1", 32), strings.Repeat("9", 32), now)
+	profile, output := publicationProfileAndOutput(strings.Repeat("1", 32), strings.Repeat("9", 32), now)
 	token := sha256.Sum256([]byte("token"))
 	injected := errors.New("injected hardening failure")
 	store.publicationPreflight = func() error { return injected }
-	if err := store.CreateList(context.Background(), list); !errors.Is(err, injected) {
+	if err := store.CreateProfile(context.Background(), profile); !errors.Is(err, injected) {
 		t.Fatalf("create preflight err=%v", err)
 	}
-	var lists int
-	if err := store.db.QueryRow(`SELECT count(*) FROM profiles`).Scan(&lists); err != nil || lists != 0 {
-		t.Fatalf("failed create committed lists=%d err=%v", lists, err)
+	var profiles int
+	if err := store.db.QueryRow(`SELECT count(*) FROM profiles`).Scan(&profiles); err != nil || profiles != 0 {
+		t.Fatalf("failed create committed lists=%d err=%v", profiles, err)
 	}
 	store.publicationPreflight = nil
-	if err := store.CreateList(context.Background(), list); err != nil {
+	if err := store.CreateProfile(context.Background(), profile); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.CreateOutput(context.Background(), application.NewOutput{Output: output, TokenID: strings.Repeat("2", 32), TokenHash: token}); err != nil {
@@ -306,45 +306,45 @@ func TestPublicationHardeningFailureHappensBeforeTransaction(t *testing.T) {
 	}
 }
 
-func TestListsListNewestFirstAndOutputsSurviveTheRoundTrip(t *testing.T) {
+func TestProfilesListNewestFirstAndOutputsSurviveTheRoundTrip(t *testing.T) {
 	store, err := Open(context.Background(), newDataRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	empty, err := store.Lists(context.Background())
+	empty, err := store.Profiles(context.Background())
 	if err != nil || len(empty) != 0 {
 		t.Fatalf("empty listing=%#v err=%v", empty, err)
 	}
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	olderList, olderOutput := publicationListAndOutput(strings.Repeat("1", 32), strings.Repeat("9", 32), now)
-	newerList, newerOutput := publicationListAndOutput(strings.Repeat("3", 32), strings.Repeat("8", 32), now.Add(time.Hour))
+	olderProfile, olderOutput := publicationProfileAndOutput(strings.Repeat("1", 32), strings.Repeat("9", 32), now)
+	newerProfile, newerOutput := publicationProfileAndOutput(strings.Repeat("3", 32), strings.Repeat("8", 32), now.Add(time.Hour))
 	token := sha256.Sum256([]byte("token"))
-	if err := store.CreateList(context.Background(), olderList); err != nil {
+	if err := store.CreateProfile(context.Background(), olderProfile); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.CreateOutput(context.Background(), application.NewOutput{Output: olderOutput, TokenID: strings.Repeat("2", 32), TokenHash: token}); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.CreateList(context.Background(), newerList); err != nil {
+	if err := store.CreateProfile(context.Background(), newerProfile); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.CreateOutput(context.Background(), application.NewOutput{Output: newerOutput, TokenID: strings.Repeat("4", 32), TokenHash: token}); err != nil {
 		t.Fatal(err)
 	}
-	lists, err := store.Lists(context.Background())
+	profiles, err := store.Profiles(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(lists) != 2 || lists[0].ID != newerList.ID || lists[1].ID != olderList.ID {
-		t.Fatalf("listing=%#v", lists)
+	if len(profiles) != 2 || profiles[0].ID != newerProfile.ID || profiles[1].ID != olderProfile.ID {
+		t.Fatalf("listing=%#v", profiles)
 	}
-	if len(lists[0].Services) != 1 || lists[0].Services[0] != "example" {
-		t.Fatalf("listing lost list composition: %#v", lists[0])
+	if len(profiles[0].Lists) != 1 || profiles[0].Lists[0] != "example" {
+		t.Fatalf("listing lost list composition: %#v", profiles[0])
 	}
 	// The target and renderer identity moved from the profile to its output;
 	// the round trip through the store must not lose it either.
-	outputs, err := store.OutputsByList(context.Background(), newerList.ID)
+	outputs, err := store.OutputsByProfile(context.Background(), newerProfile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -353,10 +353,10 @@ func TestListsListNewestFirstAndOutputsSurviveTheRoundTrip(t *testing.T) {
 	}
 }
 
-func publicationListAndOutput(listID, outputID string, now time.Time) (application.List, application.Output) {
-	list := application.List{ID: listID, Name: "example list", Services: []string{"example"}, CreatedAt: now, UpdatedAt: now}
-	output := application.Output{ID: outputID, ListID: listID, TargetID: "keenetic", ProfileKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat", RendererVersion: "keenetic-bat-ipv4-v1", TargetRevision: string(make([]byte, 64)), CreatedAt: now}
-	return list, output
+func publicationProfileAndOutput(profileID, outputID string, now time.Time) (application.Profile, application.Output) {
+	profile := application.Profile{ID: profileID, Name: "example list", Lists: []string{"example"}, CreatedAt: now, UpdatedAt: now}
+	output := application.Output{ID: outputID, ProfileID: profileID, TargetID: "keenetic", FormatKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat", RendererVersion: "keenetic-bat-ipv4-v1", TargetRevision: string(make([]byte, 64)), CreatedAt: now}
+	return profile, output
 }
 func publicationCandidate(outputID, snapshot, artifact string, jsonBytes []byte, payloadMarker string, now time.Time) application.PublicationCandidate {
 	planHash := sha256.Sum256([]byte("plan"))
@@ -375,14 +375,14 @@ func TestScheduleAndCompositionAreWrittenIndependently(t *testing.T) {
 	}
 	defer store.Close()
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	list := application.List{
+	profile := application.Profile{
 		ID: "77777777777777777777777777777777", Name: "Дом",
 		Categories: []string{"video"}, CreatedAt: now, UpdatedAt: now,
 	}
-	if err := store.CreateList(context.Background(), list); err != nil {
+	if err := store.CreateProfile(context.Background(), profile); err != nil {
 		t.Fatal(err)
 	}
-	stored, err := store.List(context.Background(), list.ID)
+	stored, err := store.Profile(context.Background(), profile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,10 +391,10 @@ func TestScheduleAndCompositionAreWrittenIndependently(t *testing.T) {
 	}
 
 	refreshed := now.Add(time.Hour)
-	if err := store.UpdateListSchedule(context.Background(), list.ID, application.RefreshDaily, refreshed, true, refreshed); err != nil {
+	if err := store.UpdateProfileSchedule(context.Background(), profile.ID, application.RefreshDaily, refreshed, true, refreshed); err != nil {
 		t.Fatal(err)
 	}
-	stored, err = store.List(context.Background(), list.ID)
+	stored, err = store.Profile(context.Background(), profile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,10 +408,10 @@ func TestScheduleAndCompositionAreWrittenIndependently(t *testing.T) {
 	renamed := stored
 	renamed.Name = "Дом и офис"
 	renamed.UpdatedAt = refreshed.Add(time.Hour)
-	if err := store.UpdateList(context.Background(), renamed); err != nil {
+	if err := store.UpdateProfile(context.Background(), renamed); err != nil {
 		t.Fatal(err)
 	}
-	stored, err = store.List(context.Background(), list.ID)
+	stored, err = store.Profile(context.Background(), profile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,25 +423,25 @@ func TestScheduleAndCompositionAreWrittenIndependently(t *testing.T) {
 // Archival is stored apart from both the composition and the schedule: the
 // column carries the moment the list left the shelf, and nothing else moves
 // with it. A restored list keeps the rule and the refresh history it had.
-func TestArchivalIsStoredApartFromTheRestOfTheList(t *testing.T) {
+func TestArchivalIsStoredApartFromTheRestOfTheProfile(t *testing.T) {
 	store, err := Open(context.Background(), newDataRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	list := application.List{
+	profile := application.Profile{
 		ID: "88888888888888888888888888888888", Name: "Дача",
-		Services: []string{"youtube"}, CreatedAt: now, UpdatedAt: now,
+		Lists: []string{"youtube"}, CreatedAt: now, UpdatedAt: now,
 	}
-	if err := store.CreateList(context.Background(), list); err != nil {
+	if err := store.CreateProfile(context.Background(), profile); err != nil {
 		t.Fatal(err)
 	}
 	refreshed := now.Add(time.Hour)
-	if err := store.UpdateListSchedule(context.Background(), list.ID, application.RefreshWeekly, refreshed, false, refreshed); err != nil {
+	if err := store.UpdateProfileSchedule(context.Background(), profile.ID, application.RefreshWeekly, refreshed, false, refreshed); err != nil {
 		t.Fatal(err)
 	}
-	stored, err := store.List(context.Background(), list.ID)
+	stored, err := store.Profile(context.Background(), profile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -450,10 +450,10 @@ func TestArchivalIsStoredApartFromTheRestOfTheList(t *testing.T) {
 	}
 
 	archivedAt := refreshed.Add(time.Hour)
-	if err := store.SetListArchived(context.Background(), list.ID, archivedAt, archivedAt); err != nil {
+	if err := store.SetProfileArchived(context.Background(), profile.ID, archivedAt, archivedAt); err != nil {
 		t.Fatal(err)
 	}
-	stored, err = store.List(context.Background(), list.ID)
+	stored, err = store.Profile(context.Background(), profile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -463,22 +463,22 @@ func TestArchivalIsStoredApartFromTheRestOfTheList(t *testing.T) {
 	if stored.RefreshInterval != application.RefreshWeekly || !stored.LastRefreshedAt.Equal(refreshed) {
 		t.Fatalf("archiving rewrote the schedule: %#v", stored)
 	}
-	if !equalStringSlices(stored.Services, []string{"youtube"}) {
+	if !equalStringSlices(stored.Lists, []string{"youtube"}) {
 		t.Fatalf("archiving rewrote the composition: %#v", stored)
 	}
 
 	// The library read carries the state, so the shelf and the archive are one
 	// query rather than two.
-	listed, err := store.Lists(context.Background())
+	listed, err := store.Profiles(context.Background())
 	if err != nil || len(listed) != 1 || !listed[0].Archived() {
 		t.Fatalf("listed = %#v, err = %v", listed, err)
 	}
 
 	restoredAt := archivedAt.Add(time.Hour)
-	if err := store.SetListArchived(context.Background(), list.ID, time.Time{}, restoredAt); err != nil {
+	if err := store.SetProfileArchived(context.Background(), profile.ID, time.Time{}, restoredAt); err != nil {
 		t.Fatal(err)
 	}
-	stored, err = store.List(context.Background(), list.ID)
+	stored, err = store.Profile(context.Background(), profile.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -486,7 +486,7 @@ func TestArchivalIsStoredApartFromTheRestOfTheList(t *testing.T) {
 		t.Fatalf("restoring did not leave the rest alone: %#v", stored)
 	}
 
-	if err := store.SetListArchived(context.Background(), "99999999999999999999999999999999", archivedAt, archivedAt); !errors.Is(err, application.ErrNotFound) {
+	if err := store.SetProfileArchived(context.Background(), "99999999999999999999999999999999", archivedAt, archivedAt); !errors.Is(err, application.ErrNotFound) {
 		t.Fatalf("archiving an unknown list = %v", err)
 	}
 }

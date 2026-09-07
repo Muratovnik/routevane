@@ -11,9 +11,9 @@ import (
 	"github.com/Muratovnik/routevane/internal/planner"
 )
 
-func testTarget() domain.TargetProfile {
-	return domain.TargetProfile{
-		ID: "openwrt", ProfileKey: Version, RendererID: ID,
+func testTarget() domain.TargetDefinition {
+	return domain.TargetDefinition{
+		ID: "openwrt", FormatKey: Version, RendererID: ID,
 		Constraints: domain.TargetConstraints{
 			// The device resolves names itself, so this target claims suffix
 			// matching and no address capability at all.
@@ -26,12 +26,12 @@ func testTarget() domain.TargetProfile {
 func planWith(t *testing.T, seeds []domain.Seed) domain.RoutingPlan {
 	t.Helper()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	definition := domain.ServiceDefinition{
+	definition := domain.ListDefinition{
 		ID: "example", CatalogRevision: "catalog",
 		Components: []domain.ComponentDefinition{{ID: "web", Required: true}},
 		Seeds:      seeds,
 	}
-	plan, err := planner.BuildPlanSet([]planner.ServiceInput{{Definition: definition, Sightings: nil}}, testTarget(), now)
+	plan, err := planner.BuildPlanSet([]planner.ListInput{{Definition: definition, Sightings: nil}}, testTarget(), now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,13 +185,13 @@ func TestRenderRefusesARuleKindTheFormatCannotExpress(t *testing.T) {
 	// it to every name under the domain, so it must be refused.
 	exact := plan
 	exact.Rules = append([]domain.RouteRule(nil), plan.Rules...)
-	exact.Rules = append(exact.Rules, domain.RouteRule{Kind: domain.RuleDomainExact, Action: domain.ActionRoute, ServiceID: "example", ComponentID: "web", Domain: "www.example.com"})
+	exact.Rules = append(exact.Rules, domain.RouteRule{Kind: domain.RuleDomainExact, Action: domain.ActionRoute, ListID: "example", ComponentID: "web", Domain: "www.example.com"})
 	if _, err := Render(exact); err == nil {
 		t.Fatal("an exact domain rule must fail the render")
 	}
 	address := plan
 	address.Rules = append([]domain.RouteRule(nil), plan.Rules...)
-	address.Rules = append(address.Rules, domain.RouteRule{Kind: domain.RuleKind("mac_address"), Action: domain.ActionRoute, ServiceID: "example", ComponentID: "web"})
+	address.Rules = append(address.Rules, domain.RouteRule{Kind: domain.RuleKind("mac_address"), Action: domain.ActionRoute, ListID: "example", ComponentID: "web"})
 	if _, err := Render(address); err == nil {
 		t.Fatal("an unsupported rule kind must fail the render")
 	}

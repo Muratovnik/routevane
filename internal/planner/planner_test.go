@@ -22,9 +22,9 @@ func TestBuildPlanDomainTargetExcludesFreshIPs(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		sightings = append(sightings, domain.Sighting{ServiceID: "example", ComponentID: "web", Resource: resource, SourceID: "dns:example", SourceClass: domain.SourceObserved, SourceRevision: "test", FirstSeen: now, LastSeen: now, ValidUntil: now.Add(2 * time.Hour), Validity: domain.ValidityValid, ObservationCount: 1})
+		sightings = append(sightings, domain.Sighting{ListID: "example", ComponentID: "web", Resource: resource, SourceID: "dns:example", SourceClass: domain.SourceObserved, SourceRevision: "test", FirstSeen: now, LastSeen: now, ValidUntil: now.Add(2 * time.Hour), Validity: domain.ValidityValid, ObservationCount: 1})
 	}
-	plan, err := BuildPlan(domain.ExampleServiceDefinition(), sightings, domain.RawJSONTargetProfile(), now)
+	plan, err := BuildPlan(domain.ExampleListDefinition(), sightings, domain.RawJSONTargetDefinition(), now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,16 +45,16 @@ func TestBuildPlanDomainSufficiencyIsComponentScoped(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	webIP, _ := domain.NewAddrResourceFromString("192.0.2.1")
 	authIP, _ := domain.NewAddrResourceFromString("192.0.2.2")
-	definition := domain.ServiceDefinition{
+	definition := domain.ListDefinition{
 		ID:         "multi",
 		Components: []domain.ComponentDefinition{{ID: "web", Required: true}, {ID: "auth", Required: true}},
 		Seeds:      []domain.Seed{{Kind: domain.RuleDomainSuffix, Value: "example.com", ComponentID: "web", SourceID: "manual:web", SourceClass: domain.SourceManual}},
 	}
 	sightings := []domain.Sighting{
-		{ServiceID: "multi", ComponentID: "web", Resource: webIP, SourceID: "dns", SourceClass: domain.SourceObserved, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid},
-		{ServiceID: "multi", ComponentID: "auth", Resource: authIP, SourceID: "dns", SourceClass: domain.SourceObserved, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid},
+		{ListID: "multi", ComponentID: "web", Resource: webIP, SourceID: "dns", SourceClass: domain.SourceObserved, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid},
+		{ListID: "multi", ComponentID: "auth", Resource: authIP, SourceID: "dns", SourceClass: domain.SourceObserved, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid},
 	}
-	plan, err := BuildPlan(definition, sightings, domain.RawJSONTargetProfile(), now)
+	plan, err := BuildPlan(definition, sightings, domain.RawJSONTargetDefinition(), now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,8 +70,8 @@ func TestBuildPlanDomainSufficiencyIsComponentScoped(t *testing.T) {
 }
 
 func TestBuildPlanRejectsWhitespaceSeedAsInvalidResource(t *testing.T) {
-	definition := domain.ServiceDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}, Seeds: []domain.Seed{{Kind: domain.RuleDomainSuffix, Value: " example.com", ComponentID: "web"}, {Kind: domain.RuleDomainSuffix, Value: "example.com ", ComponentID: "web"}}}
-	plan, err := BuildPlan(definition, nil, domain.RawJSONTargetProfile(), time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC))
+	definition := domain.ListDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}, Seeds: []domain.Seed{{Kind: domain.RuleDomainSuffix, Value: " example.com", ComponentID: "web"}, {Kind: domain.RuleDomainSuffix, Value: "example.com ", ComponentID: "web"}}}
+	plan, err := BuildPlan(definition, nil, domain.RawJSONTargetDefinition(), time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,12 +88,12 @@ func TestBuildPlanRejectsWhitespaceSeedAsInvalidResource(t *testing.T) {
 func TestBuildPlanIPOnlyFreshAndStale(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	resource, _ := domain.NewAddrResourceFromString("192.0.2.1")
-	fresh := domain.Sighting{ServiceID: "example", ComponentID: "web", Resource: resource, SourceID: "dns", SourceClass: domain.SourceObserved, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid, ObservationCount: 1}
+	fresh := domain.Sighting{ListID: "example", ComponentID: "web", Resource: resource, SourceID: "dns", SourceClass: domain.SourceObserved, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid, ObservationCount: 1}
 	stale := fresh
 	stale.Resource, _ = domain.NewAddrResourceFromString("192.0.2.2")
 	stale.ValidUntil = now
-	target := domain.TargetProfile{ID: "ip-only", ProfileKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true}}
-	plan, err := BuildPlan(domain.ServiceDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}, []domain.Sighting{stale, fresh}, target, now)
+	target := domain.TargetDefinition{ID: "ip-only", FormatKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true}}
+	plan, err := BuildPlan(domain.ListDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}, []domain.Sighting{stale, fresh}, target, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +113,7 @@ func TestBuildPlanIPOnlyFreshAndStale(t *testing.T) {
 func TestBuildPlanQuarantinesObservedPrefixExpansion(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	prefix, _ := domain.NewPrefixResourceFromString("104.16.0.0/12")
-	plan, err := BuildPlan(domain.ServiceDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}, []domain.Sighting{{ServiceID: "example", ComponentID: "web", Resource: prefix, SourceID: "rdap", SourceClass: domain.SourceMetadata, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid}}, domain.TargetProfile{ID: "ip-only", ProfileKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true}}, now)
+	plan, err := BuildPlan(domain.ListDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}, []domain.Sighting{{ListID: "example", ComponentID: "web", Resource: prefix, SourceID: "rdap", SourceClass: domain.SourceMetadata, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid}}, domain.TargetDefinition{ID: "ip-only", FormatKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true}}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,8 +128,8 @@ func TestBuildPlanQuarantinesObservedPrefixExpansion(t *testing.T) {
 func TestBuildPlanAddsSharedCDNReasonOnlyForTrustedEvidence(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	prefix, _ := domain.NewPrefixResourceFromString("104.16.0.0/12")
-	sighting := domain.Sighting{ServiceID: "example", ComponentID: "web", Resource: prefix, SourceID: "untrusted-rdap", SourceClass: domain.SourceMetadata, SharedNetworkEvidence: domain.SharedNetworkEvidenceTrusted, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid}
-	plan, err := BuildPlan(domain.ServiceDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}, []domain.Sighting{sighting}, domain.TargetProfile{ID: "ip-only", ProfileKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true}}, now)
+	sighting := domain.Sighting{ListID: "example", ComponentID: "web", Resource: prefix, SourceID: "untrusted-rdap", SourceClass: domain.SourceMetadata, SharedNetworkEvidence: domain.SharedNetworkEvidenceTrusted, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid}
+	plan, err := BuildPlan(domain.ListDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}, []domain.Sighting{sighting}, domain.TargetDefinition{ID: "ip-only", FormatKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true}}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,16 +269,16 @@ func TestBuildPlanAndRawJSONStableAcrossOrder(t *testing.T) {
 	resource1, _ := domain.NewAddrResourceFromString("192.0.2.1")
 	resource2, _ := domain.NewAddrResourceFromString("192.0.2.2")
 	base := []domain.Sighting{
-		{ServiceID: "example", ComponentID: "web", Resource: resource1, SourceID: "dns", SourceClass: domain.SourceObserved, SourceRevision: "v1", FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid, ObservationCount: 1},
-		{ServiceID: "example", ComponentID: "web", Resource: resource2, SourceID: "dns", SourceClass: domain.SourceObserved, SourceRevision: "v1", FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid, ObservationCount: 1},
+		{ListID: "example", ComponentID: "web", Resource: resource1, SourceID: "dns", SourceClass: domain.SourceObserved, SourceRevision: "v1", FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid, ObservationCount: 1},
+		{ListID: "example", ComponentID: "web", Resource: resource2, SourceID: "dns", SourceClass: domain.SourceObserved, SourceRevision: "v1", FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid, ObservationCount: 1},
 	}
-	target := domain.TargetProfile{ID: "ip-only", ProfileKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true}}
-	first, err := BuildPlan(domain.ServiceDefinition{ID: "example", CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}, base, target, now)
+	target := domain.TargetDefinition{ID: "ip-only", FormatKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true}}
+	first, err := BuildPlan(domain.ListDefinition{ID: "example", CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}, base, target, now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	reordered := []domain.Sighting{base[1], base[0], base[0]}
-	second, err := BuildPlan(domain.ServiceDefinition{ID: "example", CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}, reordered, target, now)
+	second, err := BuildPlan(domain.ListDefinition{ID: "example", CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}, reordered, target, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,8 +308,8 @@ func TestPrefixSupportRequiresMatchingAddressFamily(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			definition := domain.ServiceDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}, Seeds: []domain.Seed{{Kind: test.kind, Value: test.value, ComponentID: "web", SourceID: "manual:prefix", SourceClass: domain.SourceManual}}}
-			plan, err := BuildPlan(definition, nil, domain.TargetProfile{ID: "target", ProfileKey: "target-v1", Constraints: test.target}, now)
+			definition := domain.ListDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}, Seeds: []domain.Seed{{Kind: test.kind, Value: test.value, ComponentID: "web", SourceID: "manual:prefix", SourceClass: domain.SourceManual}}}
+			plan, err := BuildPlan(definition, nil, domain.TargetDefinition{ID: "target", FormatKey: "target-v1", Constraints: test.target}, now)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -322,15 +322,15 @@ func TestPrefixSupportRequiresMatchingAddressFamily(t *testing.T) {
 
 func TestBuildPlanSetIsCanonicalAndAppliesOneGlobalLimitWithoutTruncation(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	definition := func(id string, values ...string) domain.ServiceDefinition {
-		result := domain.ServiceDefinition{ID: id, CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}
+	definition := func(id string, values ...string) domain.ListDefinition {
+		result := domain.ListDefinition{ID: id, CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}
 		for _, value := range values {
 			result.Seeds = append(result.Seeds, domain.Seed{Kind: domain.RuleIPv4, Value: value, ComponentID: "web", SourceID: "manual:" + value, SourceClass: domain.SourceManual})
 		}
 		return result
 	}
-	inputs := []ServiceInput{{Definition: definition("beta", "192.0.2.3", "192.0.2.4")}, {Definition: definition("alpha", "192.0.2.1", "192.0.2.2")}}
-	target := domain.TargetProfile{ID: "keenetic", ProfileKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: 3, MaxArtifactSize: 131072}}
+	inputs := []ListInput{{Definition: definition("beta", "192.0.2.3", "192.0.2.4")}, {Definition: definition("alpha", "192.0.2.1", "192.0.2.2")}}
+	target := domain.TargetDefinition{ID: "keenetic", FormatKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: 3, MaxArtifactSize: 131072}}
 	plan, err := BuildPlanSet(inputs, target, now)
 	if !errors.Is(err, ErrRuleLimitExceeded) {
 		t.Fatalf("global limit error=%v", err)
@@ -338,7 +338,7 @@ func TestBuildPlanSetIsCanonicalAndAppliesOneGlobalLimitWithoutTruncation(t *tes
 	if len(plan.Rules) != 4 {
 		t.Fatalf("global limit truncated diagnostic plan: %#v", plan.Rules)
 	}
-	if !reflect.DeepEqual(plan.Services, []string{"alpha", "beta"}) || !contains(plan.Warnings, "partial_coverage:rule_limit") {
+	if !reflect.DeepEqual(plan.Lists, []string{"alpha", "beta"}) || !contains(plan.Warnings, "partial_coverage:rule_limit") {
 		t.Fatalf("noncanonical limited plan: %#v", plan)
 	}
 	unlimited := target
@@ -347,7 +347,7 @@ func TestBuildPlanSetIsCanonicalAndAppliesOneGlobalLimitWithoutTruncation(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := BuildPlanSet([]ServiceInput{inputs[1], inputs[0]}, unlimited, now)
+	second, err := BuildPlanSet([]ListInput{inputs[1], inputs[0]}, unlimited, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -358,14 +358,14 @@ func TestBuildPlanSetIsCanonicalAndAppliesOneGlobalLimitWithoutTruncation(t *tes
 
 func TestBuildPlanSetFailsRequiredUncoveredButAllowsExplicitPartialCoverage(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	target := domain.TargetProfile{ID: "keenetic", ProfileKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: 1024, MaxArtifactSize: 131072}}
-	definition := domain.ServiceDefinition{ID: "example", CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}, Seeds: []domain.Seed{{Kind: domain.RuleDomainSuffix, Value: "example.com", ComponentID: "web", SourceID: "manual:domain", SourceClass: domain.SourceManual}}}
-	if _, err := BuildPlanSet([]ServiceInput{{Definition: definition}}, target, now); !errors.Is(err, ErrRequiredCoverage) {
+	target := domain.TargetDefinition{ID: "keenetic", FormatKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: 1024, MaxArtifactSize: 131072}}
+	definition := domain.ListDefinition{ID: "example", CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}, Seeds: []domain.Seed{{Kind: domain.RuleDomainSuffix, Value: "example.com", ComponentID: "web", SourceID: "manual:domain", SourceClass: domain.SourceManual}}}
+	if _, err := BuildPlanSet([]ListInput{{Definition: definition}}, target, now); !errors.Is(err, ErrRequiredCoverage) {
 		t.Fatalf("uncovered required component error=%v", err)
 	}
 	freshResource, _ := domain.NewAddrResourceFromString("192.0.2.1")
-	fresh := domain.Sighting{ServiceID: "example", ComponentID: "web", Resource: freshResource, SourceID: "dns", SourceClass: domain.SourceObserved, SourceRevision: "v1", ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid}
-	plan, err := BuildPlanSet([]ServiceInput{{Definition: definition, Sightings: []domain.Sighting{fresh}}}, target, now)
+	fresh := domain.Sighting{ListID: "example", ComponentID: "web", Resource: freshResource, SourceID: "dns", SourceClass: domain.SourceObserved, SourceRevision: "v1", ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid}
+	plan, err := BuildPlanSet([]ListInput{{Definition: definition, Sightings: []domain.Sighting{fresh}}}, target, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,17 +376,17 @@ func TestBuildPlanSetFailsRequiredUncoveredButAllowsExplicitPartialCoverage(t *t
 
 func TestBuildPlanSetExcludesStaleAndMetadataBroadPrefixFromInstallableRules(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	definition := domain.ServiceDefinition{ID: "example", CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}
+	definition := domain.ListDefinition{ID: "example", CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}
 	freshResource, _ := domain.NewAddrResourceFromString("192.0.2.1")
 	staleResource, _ := domain.NewAddrResourceFromString("192.0.2.2")
 	broadResource, _ := domain.NewPrefixResourceFromString("104.16.0.0/12")
 	sightings := []domain.Sighting{
-		{ServiceID: "example", ComponentID: "web", Resource: freshResource, SourceID: "dns", SourceClass: domain.SourceObserved, SourceRevision: "v1", ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid},
-		{ServiceID: "example", ComponentID: "web", Resource: staleResource, SourceID: "dns", SourceClass: domain.SourceObserved, SourceRevision: "v1", ValidUntil: now, Validity: domain.ValidityStale},
-		{ServiceID: "example", ComponentID: "web", Resource: broadResource, SourceID: "rdap", SourceClass: domain.SourceMetadata, SourceRevision: "v1", Metadata: `{"owner":"injected"}`, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid},
+		{ListID: "example", ComponentID: "web", Resource: freshResource, SourceID: "dns", SourceClass: domain.SourceObserved, SourceRevision: "v1", ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid},
+		{ListID: "example", ComponentID: "web", Resource: staleResource, SourceID: "dns", SourceClass: domain.SourceObserved, SourceRevision: "v1", ValidUntil: now, Validity: domain.ValidityStale},
+		{ListID: "example", ComponentID: "web", Resource: broadResource, SourceID: "rdap", SourceClass: domain.SourceMetadata, SourceRevision: "v1", Metadata: `{"owner":"injected"}`, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid},
 	}
-	target := domain.TargetProfile{ID: "keenetic", ProfileKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: 1024, MaxArtifactSize: 131072}}
-	plan, err := BuildPlanSet([]ServiceInput{{Definition: definition, Sightings: sightings}}, target, now)
+	target := domain.TargetDefinition{ID: "keenetic", FormatKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: 1024, MaxArtifactSize: 131072}}
+	plan, err := BuildPlanSet([]ListInput{{Definition: definition, Sightings: sightings}}, target, now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -406,8 +406,8 @@ func contains(values []string, want string) bool {
 
 func TestBuildPlanRefusesSpecialUseAndOverWideDestinations(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	target := domain.TargetProfile{ID: "ip-only", ProfileKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsIPv6: true, SupportsPrefixes: true}}
-	definition := domain.ServiceDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web"}}, CatalogRevision: "test"}
+	target := domain.TargetDefinition{ID: "ip-only", FormatKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsIPv6: true, SupportsPrefixes: true}}
+	definition := domain.ListDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web"}}, CatalogRevision: "test"}
 	cases := []struct {
 		name  string
 		value string
@@ -431,7 +431,7 @@ func TestBuildPlanRefusesSpecialUseAndOverWideDestinations(t *testing.T) {
 				t.Fatal(err)
 			}
 			sighting := domain.Sighting{
-				ServiceID: "example", ComponentID: "web", Resource: resource,
+				ListID: "example", ComponentID: "web", Resource: resource,
 				SourceID: "feed:community", SourceClass: domain.SourceCommunity, SourceRevision: "test",
 				FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid, ObservationCount: 1,
 			}
@@ -454,8 +454,8 @@ func TestBuildPlanRefusesSpecialUseAndOverWideDestinations(t *testing.T) {
 
 func TestBuildPlanRefusesASpecialUseSeedWhateverDeclaredIt(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	target := domain.TargetProfile{ID: "ip-only", ProfileKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true}}
-	definition := domain.ServiceDefinition{
+	target := domain.TargetDefinition{ID: "ip-only", FormatKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true}}
+	definition := domain.ListDefinition{
 		ID: "example", Components: []domain.ComponentDefinition{{ID: "web"}}, CatalogRevision: "test",
 		Seeds: []domain.Seed{{Kind: domain.RulePrefix4, Value: "192.168.0.0/16", ComponentID: "web", SourceID: "official:vendor", SourceClass: domain.SourceOfficial}},
 	}
@@ -476,8 +476,8 @@ func TestBuildPlanDomainSightingCoversAddressesReportedWithIt(t *testing.T) {
 	// One feed answer carrying a name and the addresses it resolves to. The name
 	// alone covers the component, so carrying the addresses spends the device's
 	// budget twice for the same coverage.
-	target := domain.TargetProfile{ID: "domain-and-ip", ProfileKey: "domain-and-ip", Constraints: domain.TargetConstraints{SupportsDomainSuffix: true, SupportsIPv4: true, SupportsPrefixes: true}}
-	definition := domain.ServiceDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web"}}, CatalogRevision: "test"}
+	target := domain.TargetDefinition{ID: "domain-and-ip", FormatKey: "domain-and-ip", Constraints: domain.TargetConstraints{SupportsDomainSuffix: true, SupportsIPv4: true, SupportsPrefixes: true}}
+	definition := domain.ListDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web"}}, CatalogRevision: "test"}
 	sightings := make([]domain.Sighting, 0, 3)
 	for _, value := range []string{"198.51.100.7", "198.51.100.8", "example.com"} {
 		resource, err := resourceFromString(value)
@@ -485,7 +485,7 @@ func TestBuildPlanDomainSightingCoversAddressesReportedWithIt(t *testing.T) {
 			t.Fatal(err)
 		}
 		sightings = append(sightings, domain.Sighting{
-			ServiceID: "example", ComponentID: "web", Resource: resource,
+			ListID: "example", ComponentID: "web", Resource: resource,
 			SourceID: "feed:community", SourceClass: domain.SourceCommunity, SourceRevision: "test",
 			FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid, ObservationCount: 1,
 		})

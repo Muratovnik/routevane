@@ -14,7 +14,7 @@ import (
 func (s *Store) CreateOutput(ctx context.Context, create application.NewOutput) error {
 	o := create.Output
 	hasToken := create.TokenID != "" || create.TokenHash != ([32]byte{})
-	if !validID(o.ID) || !validID(o.ListID) || o.TargetID == "" || o.ProfileKey == "" || o.RendererID == "" || o.RendererVersion == "" || o.TargetRevision == "" || o.CreatedAt.IsZero() || (hasToken && (!validID(create.TokenID) || create.TokenHash == ([32]byte{}))) {
+	if !validID(o.ID) || !validID(o.ProfileID) || o.TargetID == "" || o.FormatKey == "" || o.RendererID == "" || o.RendererVersion == "" || o.TargetRevision == "" || o.CreatedAt.IsZero() || (hasToken && (!validID(create.TokenID) || create.TokenHash == ([32]byte{}))) {
 		return fmt.Errorf("invalid output")
 	}
 	if err := s.preparePublication(); err != nil {
@@ -37,7 +37,7 @@ func (s *Store) CreateOutput(ctx context.Context, create application.NewOutput) 
 	if taken != 0 {
 		return fail(application.ErrIdentityCollision)
 	}
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM outputs WHERE profile_id=? AND target_id=?`, o.ListID, o.TargetID).Scan(&taken); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM outputs WHERE profile_id=? AND target_id=?`, o.ProfileID, o.TargetID).Scan(&taken); err != nil {
 		return fail(fmt.Errorf("check output target: %w", err))
 	}
 	if taken != 0 {
@@ -47,7 +47,7 @@ func (s *Store) CreateOutput(ctx context.Context, create application.NewOutput) 
 	if o.DeviceID != "" {
 		deviceID = o.DeviceID
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,latest_artifact_id,previous_artifact_id,device_id) VALUES(?,?,?,?,?,?,?,?,NULL,NULL,?)`, o.ID, o.ListID, o.TargetID, o.ProfileKey, o.RendererID, o.RendererVersion, o.TargetRevision, o.CreatedAt.UTC().UnixNano(), deviceID)
+	_, err = tx.ExecContext(ctx, `INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,latest_artifact_id,previous_artifact_id,device_id) VALUES(?,?,?,?,?,?,?,?,NULL,NULL,?)`, o.ID, o.ProfileID, o.TargetID, o.FormatKey, o.RendererID, o.RendererVersion, o.TargetRevision, o.CreatedAt.UTC().UnixNano(), deviceID)
 	if err != nil {
 		return fail(fmt.Errorf("insert output: %w", err))
 	}
@@ -135,13 +135,13 @@ func (s *Store) Output(ctx context.Context, id string) (application.Output, erro
 	return scanOutput(s.db.QueryRowContext(ctx, outputSelect+` WHERE id=?`, id))
 }
 
-func (s *Store) OutputsByList(ctx context.Context, listID string) ([]application.Output, error) {
-	if !validID(listID) {
+func (s *Store) OutputsByProfile(ctx context.Context, profileID string) ([]application.Output, error) {
+	if !validID(profileID) {
 		return nil, application.ErrNotFound
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	return s.scanOutputs(ctx, outputSelect+` WHERE profile_id=? ORDER BY created_at_ns ASC, id ASC LIMIT 64`, listID)
+	return s.scanOutputs(ctx, outputSelect+` WHERE profile_id=? ORDER BY created_at_ns ASC, id ASC LIMIT 64`, profileID)
 }
 
 // Outputs bounds the library read the same way Lists does, and newest-first for
@@ -150,7 +150,7 @@ func (s *Store) OutputsByList(ctx context.Context, listID string) ([]application
 func (s *Store) Outputs(ctx context.Context) ([]application.Output, error) {
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	return s.scanOutputs(ctx, outputSelect+` ORDER BY created_at_ns DESC, id ASC LIMIT ?`, listLimit*4)
+	return s.scanOutputs(ctx, outputSelect+` ORDER BY created_at_ns DESC, id ASC LIMIT ?`, profileLimit*4)
 }
 
 func (s *Store) scanOutputs(ctx context.Context, query string, args ...any) ([]application.Output, error) {

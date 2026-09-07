@@ -41,8 +41,8 @@ func TestScheduledRefreshAutomaticallyDeliversAnExplicitOutputBinding(t *testing
 		}
 	}()
 
-	listID := createScheduledList(t, origin, []string{"youtube"})
-	outputID := addScheduledOutput(t, origin, listID, "singbox")
+	profileID := createScheduledProfile(t, origin, []string{"youtube"})
+	outputID := addScheduledOutput(t, origin, profileID, "singbox")
 	var created struct {
 		Device struct {
 			ID string `json:"id"`
@@ -54,14 +54,14 @@ func TestScheduledRefreshAutomaticallyDeliversAnExplicitOutputBinding(t *testing
 	}
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/device", `{"device_id":`+mustQuote(t, created.Device.ID)+`}`)
 	postJSON(t, origin+"/v1/devices/"+created.Device.ID+"/auto-delivery", `{"enabled":true,"credential":""}`)
-	postJSON(t, origin+"/v1/profiles/"+listID+"/schedule", `{"refresh_interval":"daily"}`)
+	postJSON(t, origin+"/v1/profiles/"+profileID+"/schedule", `{"refresh_interval":"daily"}`)
 
 	ticks <- now
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if payload, err := os.ReadFile(ruleSetPath); err == nil {
-			if singbox.Validate(payload) == nil && strings.Contains(string(payload), "youtube.com") && scheduledDeliverySucceeded(stderr.String(), listID, outputID, created.Device.ID) {
-				current := scheduledListDetail(t, origin, listID).output("singbox")
+			if singbox.Validate(payload) == nil && strings.Contains(string(payload), "youtube.com") && scheduledDeliverySucceeded(stderr.String(), profileID, outputID, created.Device.ID) {
+				current := scheduledProfileDetail(t, origin, profileID).output("singbox")
 				if current.Latest == nil {
 					t.Fatal("scheduled delivery wrote a file without publishing an artifact")
 				}
@@ -86,13 +86,13 @@ func mustQuote(t *testing.T, value string) string {
 	return string(encoded)
 }
 
-func scheduledDeliverySucceeded(logs, listID, outputID, deviceID string) bool {
+func scheduledDeliverySucceeded(logs, profileID, outputID, deviceID string) bool {
 	for _, line := range strings.Split(strings.TrimSpace(logs), "\n") {
 		var record map[string]any
 		if json.Unmarshal([]byte(line), &record) != nil {
 			continue
 		}
-		if record["operation"] == "schedule" && record["list"] == listID && record["status"] == "succeeded" &&
+		if record["operation"] == "schedule" && record["list"] == profileID && record["status"] == "succeeded" &&
 			record["count"] == float64(1) && record["delivered"] == float64(1) && record["delivery_failures"] == float64(0) {
 			return true
 		}

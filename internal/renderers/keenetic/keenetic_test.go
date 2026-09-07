@@ -21,10 +21,10 @@ func TestRenderIsDeterministicDeduplicatedAndDoesNotMutateBacking(t *testing.T) 
 	backing := make([]domain.RouteRule, 5)
 	backing[0], backing[1], backing[2] = address, prefix, duplicate
 	backing[3], backing[4] = prefix, address
-	servicesBacking := []string{"beta", "alpha", "hidden"}
-	plan := domain.RoutingPlan{Rules: backing[:3], Services: servicesBacking[:2]}
+	listsBacking := []string{"beta", "alpha", "hidden"}
+	plan := domain.RoutingPlan{Rules: backing[:3], Lists: listsBacking[:2]}
 	wantBacking := cloneRules(backing)
-	wantServices := append([]string(nil), servicesBacking...)
+	wantLists := append([]string(nil), listsBacking...)
 
 	first, err := Render(plan)
 	if err != nil {
@@ -51,8 +51,8 @@ func TestRenderIsDeterministicDeduplicatedAndDoesNotMutateBacking(t *testing.T) 
 	if !bytes.Equal(first, withLabels) {
 		t.Fatalf("route provenance changed BAT bytes:\n%q\n%q", first, withLabels)
 	}
-	if !reflect.DeepEqual(backing, wantBacking) || !reflect.DeepEqual(servicesBacking, wantServices) {
-		t.Fatalf("renderer mutated input backing: rules=%#v services=%#v", backing, servicesBacking)
+	if !reflect.DeepEqual(backing, wantBacking) || !reflect.DeepEqual(listsBacking, wantLists) {
+		t.Fatalf("renderer mutated input backing: rules=%#v services=%#v", backing, listsBacking)
 	}
 	count, err := ProjectedRuleCount(plan)
 	if err != nil || count != 2 {
@@ -126,29 +126,29 @@ func TestGoldenProjectionMatchesPlanRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	var fixture struct {
-		TargetID   string   `json:"target_id"`
-		ProfileKey string   `json:"profile_key"`
-		Services   []string `json:"services"`
-		Rules      []struct {
+		TargetID  string   `json:"target_id"`
+		FormatKey string   `json:"profile_key"`
+		Lists     []string `json:"services"`
+		Rules     []struct {
 			Kind      domain.RuleKind `json:"kind"`
 			Value     string          `json:"value"`
-			Service   string          `json:"service"`
+			List      string          `json:"service"`
 			Component string          `json:"component"`
 		} `json:"rules"`
 	}
 	if err := json.Unmarshal(inputBytes, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	plan := domain.RoutingPlan{TargetID: fixture.TargetID, ProfileKey: fixture.ProfileKey, Services: fixture.Services}
+	plan := domain.RoutingPlan{TargetID: fixture.TargetID, FormatKey: fixture.FormatKey, Lists: fixture.Lists}
 	wantProjection := make([]string, 0, len(fixture.Rules))
 	for _, item := range fixture.Rules {
 		var rule domain.RouteRule
 		switch item.Kind {
 		case domain.RuleIPv4:
-			rule, err = domain.NewAddrRule(netip.MustParseAddr(item.Value), item.Service, item.Component, domain.SourceManual, []string{"manual_rule"}, []string{"golden"})
+			rule, err = domain.NewAddrRule(netip.MustParseAddr(item.Value), item.List, item.Component, domain.SourceManual, []string{"manual_rule"}, []string{"golden"})
 			wantProjection = append(wantProjection, item.Value+"/32")
 		case domain.RulePrefix4:
-			rule, err = domain.NewPrefixRule(netip.MustParsePrefix(item.Value), item.Service, item.Component, domain.SourceManual, []string{"manual_rule"}, []string{"golden"})
+			rule, err = domain.NewPrefixRule(netip.MustParsePrefix(item.Value), item.List, item.Component, domain.SourceManual, []string{"manual_rule"}, []string{"golden"})
 			wantProjection = append(wantProjection, item.Value)
 		default:
 			t.Fatalf("unsupported golden kind %q", item.Kind)

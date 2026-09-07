@@ -29,10 +29,10 @@ const customSourceIDPrefix = "feed-"
 // file import — an operator pasting a routes file states hundreds of
 // destinations in one action, not sixty-four.
 const (
-	maxCustomSourcesPerService = 8
-	maxCustomSourcesTotal      = 64
-	maxServiceVerdicts         = 2048
-	maxVerdictBatch            = 1024
+	maxCustomSourcesPerList = 8
+	maxCustomSourcesTotal   = 64
+	maxListVerdicts         = 2048
+	maxVerdictBatch         = 1024
 	// maxDestinationLength is the longest destination any of the three shapes
 	// can be; it bounds the text a refusal quotes back.
 	maxDestinationLength = 253
@@ -58,7 +58,7 @@ func invalidDestination(value string) error {
 
 type CustomSource struct {
 	ID        string            `json:"id"`
-	ServiceID string            `json:"list_id"`
+	ListID    string            `json:"list_id"`
 	URL       string            `json:"url"`
 	Format    domain.FeedFormat `json:"format"`
 	CreatedAt time.Time         `json:"created_at"`
@@ -75,35 +75,35 @@ const (
 	DomainVerdictAuto DomainVerdict = "auto"
 )
 
-// ServiceTuning is one service's stored corrections, as the repository hands
+// ListTuning is one service's stored corrections, as the repository hands
 // them over in one pass.
-type ServiceTuning struct {
+type ListTuning struct {
 	DisabledSources []string
 	CustomSources   []CustomSource
 	Includes        []string
 	Excludes        []string
 }
 
-type serviceTuningRegistry struct {
+type listTuningRegistry struct {
 	mu   sync.RWMutex
-	byID map[string]ServiceTuning
+	byID map[string]ListTuning
 }
 
-// LoadServiceTuning hydrates the registry from the store, exactly like
-// LoadCustomServices: one read at composition time, write-through afterwards,
+// LoadListTuning hydrates the registry from the store, exactly like
+// LoadCustomLists: one read at composition time, write-through afterwards,
 // with the process lock guaranteeing the single writer.
-func (s *PublicationService) LoadServiceTuning(ctx context.Context) error {
-	stored, err := s.config.Store.ServiceTunings(ctx)
+func (s *PublicationService) LoadListTuning(ctx context.Context) error {
+	stored, err := s.config.Store.ListTunings(ctx)
 	if err != nil {
 		return fmt.Errorf("load service tuning: %w", err)
 	}
-	normalized := make(map[string]ServiceTuning, len(stored))
-	for serviceID, tuning := range stored {
-		clean, err := normalizedServiceTuning(serviceID, tuning)
+	normalized := make(map[string]ListTuning, len(stored))
+	for listID, tuning := range stored {
+		clean, err := normalizedListTuning(listID, tuning)
 		if err != nil {
 			return fmt.Errorf("load service tuning: %w", err)
 		}
-		normalized[serviceID] = clean
+		normalized[listID] = clean
 	}
 	s.tuning.mu.Lock()
 	s.tuning.byID = normalized
@@ -111,12 +111,12 @@ func (s *PublicationService) LoadServiceTuning(ctx context.Context) error {
 	return nil
 }
 
-func (s *PublicationService) serviceTuning(serviceID string) ServiceTuning {
+func (s *PublicationService) listTuning(listID string) ListTuning {
 	s.registryMu.RLock()
 	defer s.registryMu.RUnlock()
 	s.tuning.mu.RLock()
 	defer s.tuning.mu.RUnlock()
-	return s.tuning.byID[serviceID]
+	return s.tuning.byID[listID]
 }
 
 // tunedDefinition applies the operator's corrections to a base definition:
@@ -124,8 +124,8 @@ func (s *PublicationService) serviceTuning(serviceID string) ServiceTuning {
 // verdicts rewrite the static seeds. Because every observation is filtered by
 // the source revisions this definition declares, a disabled source's stored
 // sightings stop reaching plans without being deleted.
-func (s *PublicationService) tunedDefinition(base domain.ServiceDefinition) domain.ServiceDefinition {
-	tuning := s.serviceTuning(base.ID)
+func (s *PublicationService) tunedDefinition(base domain.ListDefinition) domain.ListDefinition {
+	tuning := s.listTuning(base.ID)
 	if len(tuning.DisabledSources) == 0 && len(tuning.CustomSources) == 0 &&
 		len(tuning.Includes) == 0 && len(tuning.Excludes) == 0 {
 		return base
@@ -205,7 +205,7 @@ func customSourceRevision(feed CustomSource) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func firstComponentID(definition domain.ServiceDefinition) string {
+func firstComponentID(definition domain.ListDefinition) string {
 	if len(definition.Components) > 0 {
 		return definition.Components[0].ID
 	}
@@ -216,7 +216,7 @@ func firstComponentID(definition domain.ServiceDefinition) string {
 // definition: a stored sighting reaches a plan only while its source and
 // revision are still declared. This is what makes disabling a source honest —
 // nothing is deleted, it just stops being read.
-func sourceRevisions(definition domain.ServiceDefinition) map[string]string {
+func sourceRevisions(definition domain.ListDefinition) map[string]string {
 	revisions := make(map[string]string, len(definition.Sources))
 	for _, source := range definition.Sources {
 		revisions[source.ID] = source.Revision
@@ -224,22 +224,22 @@ func sourceRevisions(definition domain.ServiceDefinition) map[string]string {
 	return revisions
 }
 
-// SetServiceSourceEnabled switches one automatic source of one service on or
+// SetListSourceEnabled switches one automatic source of one service on or
 // off. Disabling is a standing row; enabling removes it, so the catalog's own
 // default is the absence of a correction.
-func (s *PublicationService) SetServiceSourceEnabled(ctx context.Context, serviceID, sourceID string, enabled bool) error {
-	base, ok := s.baseDefinition(serviceID)
+func (s *PublicationService) SetListSourceEnabled(ctx context.Context, listID, sourceID string, enabled bool) error {
+	base, ok := s.baseDefinition(listID)
 	if !ok {
 		return ErrNotFound
 	}
 	if !s.sourceKnown(base, sourceID) {
 		return ErrNotFound
 	}
-	if err := s.config.Store.SetSourceDisabled(ctx, serviceID, sourceID, !enabled); err != nil {
+	if err := s.config.Store.SetSourceDisabled(ctx, listID, sourceID, !enabled); err != nil {
 		return err
 	}
 	s.tuning.mu.Lock()
-	tuning := s.tuning.byID[serviceID]
+	tuning := s.tuning.byID[listID]
 	kept := make([]string, 0, len(tuning.DisabledSources)+1)
 	for _, id := range tuning.DisabledSources {
 		if id != sourceID {
@@ -251,16 +251,16 @@ func (s *PublicationService) SetServiceSourceEnabled(ctx context.Context, servic
 	}
 	slices.Sort(kept)
 	tuning.DisabledSources = kept
-	s.storeTuningLocked(serviceID, tuning)
+	s.storeTuningLocked(listID, tuning)
 	s.tuning.mu.Unlock()
 	return nil
 }
 
-// AddServiceSource stores one operator HTTP feed for a service. The URL is
+// AddListSource stores one operator HTTP feed for a service. The URL is
 // validated by the same boundary the catalog loader applies, injected by the
 // composition so this package stays below the network layer.
-func (s *PublicationService) AddServiceSource(ctx context.Context, serviceID, url string, format domain.FeedFormat) (CustomSource, error) {
-	if _, ok := s.baseDefinition(serviceID); !ok {
+func (s *PublicationService) AddListSource(ctx context.Context, listID, url string, format domain.FeedFormat) (CustomSource, error) {
+	if _, ok := s.baseDefinition(listID); !ok {
 		return CustomSource{}, ErrNotFound
 	}
 	switch format {
@@ -275,13 +275,13 @@ func (s *PublicationService) AddServiceSource(ctx context.Context, serviceID, ur
 		return CustomSource{}, fmt.Errorf("invalid feed URL: %w", err)
 	}
 	s.tuning.mu.RLock()
-	perService := len(s.tuning.byID[serviceID].CustomSources)
+	perList := len(s.tuning.byID[listID].CustomSources)
 	total := 0
 	for _, tuning := range s.tuning.byID {
 		total += len(tuning.CustomSources)
 	}
 	s.tuning.mu.RUnlock()
-	if perService >= maxCustomSourcesPerService || total >= maxCustomSourcesTotal {
+	if perList >= maxCustomSourcesPerList || total >= maxCustomSourcesTotal {
 		return CustomSource{}, fmt.Errorf("feed source limit reached")
 	}
 	now := s.config.Clock.Now().UTC()
@@ -293,7 +293,7 @@ func (s *PublicationService) AddServiceSource(ctx context.Context, serviceID, ur
 		if err != nil {
 			return CustomSource{}, fmt.Errorf("generate feed identity: %w", err)
 		}
-		feed := CustomSource{ID: customSourceIDPrefix + suffix, ServiceID: serviceID, URL: url, Format: format, CreatedAt: now, UpdatedAt: now}
+		feed := CustomSource{ID: customSourceIDPrefix + suffix, ListID: listID, URL: url, Format: format, CreatedAt: now, UpdatedAt: now}
 		if err := s.config.Store.CreateCustomSource(ctx, feed); err != nil {
 			if errors.Is(err, ErrIdentityCollision) {
 				continue
@@ -301,26 +301,26 @@ func (s *PublicationService) AddServiceSource(ctx context.Context, serviceID, ur
 			return CustomSource{}, err
 		}
 		s.tuning.mu.Lock()
-		tuning := s.tuning.byID[serviceID]
+		tuning := s.tuning.byID[listID]
 		tuning.CustomSources = append(tuning.CustomSources, feed)
 		slices.SortFunc(tuning.CustomSources, func(a, b CustomSource) int { return cmp.Compare(a.ID, b.ID) })
-		s.storeTuningLocked(serviceID, tuning)
+		s.storeTuningLocked(listID, tuning)
 		s.tuning.mu.Unlock()
 		return feed, nil
 	}
 	return CustomSource{}, ErrIdentityCollision
 }
 
-// RemoveServiceSource deletes one operator feed. It is configuration, not a
+// RemoveListSource deletes one operator feed. It is configuration, not a
 // publication: everything already published stays, and the feed's stored
 // observations simply stop being read because no declared revision names them.
-func (s *PublicationService) RemoveServiceSource(ctx context.Context, serviceID, sourceID string) error {
+func (s *PublicationService) RemoveListSource(ctx context.Context, listID, sourceID string) error {
 	if !strings.HasPrefix(sourceID, customSourceIDPrefix) {
 		return ErrNotFound
 	}
 	s.tuning.mu.RLock()
 	owned := false
-	for _, feed := range s.tuning.byID[serviceID].CustomSources {
+	for _, feed := range s.tuning.byID[listID].CustomSources {
 		if feed.ID == sourceID {
 			owned = true
 		}
@@ -333,7 +333,7 @@ func (s *PublicationService) RemoveServiceSource(ctx context.Context, serviceID,
 		return err
 	}
 	s.tuning.mu.Lock()
-	tuning := s.tuning.byID[serviceID]
+	tuning := s.tuning.byID[listID]
 	feeds := make([]CustomSource, 0, len(tuning.CustomSources))
 	for _, feed := range tuning.CustomSources {
 		if feed.ID != sourceID {
@@ -348,18 +348,18 @@ func (s *PublicationService) RemoveServiceSource(ctx context.Context, serviceID,
 		}
 	}
 	tuning.DisabledSources = disabled
-	s.storeTuningLocked(serviceID, tuning)
+	s.storeTuningLocked(listID, tuning)
 	s.tuning.mu.Unlock()
 	return nil
 }
 
-// SetServiceValues records the operator's verdict on destinations of one
+// SetListValues records the operator's verdict on destinations of one
 // service — domains, IP addresses, or networks: include adds them, exclude
 // switches them off wherever they come from, auto removes the standing
 // verdicts. One call is one action, so a pasted or imported file lands as a
 // single bounded batch instead of hundreds of requests.
-func (s *PublicationService) SetServiceValues(ctx context.Context, serviceID string, values []string, verdict DomainVerdict) error {
-	if _, ok := s.baseDefinition(serviceID); !ok {
+func (s *PublicationService) SetListValues(ctx context.Context, listID string, values []string, verdict DomainVerdict) error {
+	if _, ok := s.baseDefinition(listID); !ok {
 		return ErrNotFound
 	}
 	if verdict != DomainVerdictInclude && verdict != DomainVerdictExclude && verdict != DomainVerdictAuto {
@@ -383,7 +383,7 @@ func (s *PublicationService) SetServiceValues(ctx context.Context, serviceID str
 	}
 	if verdict != DomainVerdictAuto {
 		s.tuning.mu.RLock()
-		current := s.tuning.byID[serviceID]
+		current := s.tuning.byID[listID]
 		s.tuning.mu.RUnlock()
 		standing := len(current.Includes) + len(current.Excludes)
 		fresh := 0
@@ -392,15 +392,15 @@ func (s *PublicationService) SetServiceValues(ctx context.Context, serviceID str
 				fresh++
 			}
 		}
-		if standing+fresh > maxServiceVerdicts {
+		if standing+fresh > maxListVerdicts {
 			return fmt.Errorf("destination verdict limit reached")
 		}
 	}
-	if err := s.config.Store.SetDomainVerdicts(ctx, serviceID, normalized, verdict); err != nil {
+	if err := s.config.Store.SetDomainVerdicts(ctx, listID, normalized, verdict); err != nil {
 		return err
 	}
 	s.tuning.mu.Lock()
-	tuning := s.tuning.byID[serviceID]
+	tuning := s.tuning.byID[listID]
 	for _, value := range normalized {
 		tuning.Includes = withoutString(tuning.Includes, value)
 		tuning.Excludes = withoutString(tuning.Excludes, value)
@@ -413,20 +413,20 @@ func (s *PublicationService) SetServiceValues(ctx context.Context, serviceID str
 		tuning.Excludes = append(tuning.Excludes, normalized...)
 		slices.Sort(tuning.Excludes)
 	}
-	s.storeTuningLocked(serviceID, tuning)
+	s.storeTuningLocked(listID, tuning)
 	s.tuning.mu.Unlock()
 	return nil
 }
 
 // storeTuningLocked writes one service's tuning back, dropping the entry when
 // nothing remains so an untouched service stays absent from the registry.
-func (s *PublicationService) storeTuningLocked(serviceID string, tuning ServiceTuning) {
+func (s *PublicationService) storeTuningLocked(listID string, tuning ListTuning) {
 	if len(tuning.DisabledSources) == 0 && len(tuning.CustomSources) == 0 &&
 		len(tuning.Includes) == 0 && len(tuning.Excludes) == 0 {
-		delete(s.tuning.byID, serviceID)
+		delete(s.tuning.byID, listID)
 		return
 	}
-	s.tuning.byID[serviceID] = tuning
+	s.tuning.byID[listID] = tuning
 }
 
 // baseDefinition answers with the untuned definition: the shipped catalog or
@@ -436,31 +436,31 @@ func (s *PublicationService) storeTuningLocked(serviceID string, tuning ServiceT
 // operator removed from the library is subtracted here rather than at each of
 // the readers below it. A catalog list keeps its shipped definition and simply
 // stops resolving; an operator-created one has no row left to resolve.
-func (s *PublicationService) baseDefinition(id string) (domain.ServiceDefinition, bool) {
+func (s *PublicationService) baseDefinition(id string) (domain.ListDefinition, bool) {
 	s.registryMu.RLock()
 	defer s.registryMu.RUnlock()
 	if s.removedFromLibrary(RemovalList, id) {
-		return domain.ServiceDefinition{}, false
+		return domain.ListDefinition{}, false
 	}
 	if definition, ok := s.config.Definitions[id]; ok {
 		return definition, true
 	}
 	s.custom.mu.RLock()
-	service, ok := s.custom.services[id]
+	list, ok := s.custom.lists[id]
 	s.custom.mu.RUnlock()
 	if !ok {
-		return domain.ServiceDefinition{}, false
+		return domain.ListDefinition{}, false
 	}
-	return customServiceDefinition(service, s.catalogRevision), true
+	return customListDefinition(list, s.catalogRevision), true
 }
 
-func (s *PublicationService) sourceKnown(base domain.ServiceDefinition, sourceID string) bool {
+func (s *PublicationService) sourceKnown(base domain.ListDefinition, sourceID string) bool {
 	for _, source := range base.Sources {
 		if source.ID == sourceID {
 			return true
 		}
 	}
-	for _, feed := range s.serviceTuning(base.ID).CustomSources {
+	for _, feed := range s.listTuning(base.ID).CustomSources {
 		if feed.ID == sourceID {
 			return true
 		}
@@ -468,14 +468,14 @@ func (s *PublicationService) sourceKnown(base domain.ServiceDefinition, sourceID
 	return false
 }
 
-func normalizedServiceTuning(serviceID string, tuning ServiceTuning) (ServiceTuning, error) {
-	if domain.ValidateSlug(serviceID) != nil {
-		return ServiceTuning{}, fmt.Errorf("invalid tuned service %q", serviceID)
+func normalizedListTuning(listID string, tuning ListTuning) (ListTuning, error) {
+	if domain.ValidateSlug(listID) != nil {
+		return ListTuning{}, fmt.Errorf("invalid tuned service %q", listID)
 	}
 	tuning.DisabledSources = domain.StableStrings(tuning.DisabledSources)
 	for _, value := range append(append([]string{}, tuning.Includes...), tuning.Excludes...) {
 		if canonical, _, err := domain.NormalizeRuleValue(value); err != nil || canonical != value {
-			return ServiceTuning{}, fmt.Errorf("invalid stored destination verdict for %q", serviceID)
+			return ListTuning{}, fmt.Errorf("invalid stored destination verdict for %q", listID)
 		}
 	}
 	tuning.Includes = domain.StableStrings(tuning.Includes)
@@ -486,7 +486,7 @@ func normalizedServiceTuning(serviceID string, tuning ServiceTuning) (ServiceTun
 	}
 	for _, value := range tuning.Excludes {
 		if _, both := included[value]; both {
-			return ServiceTuning{}, fmt.Errorf("destination %q is both included and excluded for %q", value, serviceID)
+			return ListTuning{}, fmt.Errorf("destination %q is both included and excluded for %q", value, listID)
 		}
 	}
 	slices.SortFunc(tuning.CustomSources, func(a, b CustomSource) int { return cmp.Compare(a.ID, b.ID) })

@@ -15,46 +15,46 @@ import (
 // build plans from. There is one subtraction, in the accessor an id is
 // resolved through, so none of them can disagree with the others (ADR 0029).
 func TestRemovingAListSubtractsItFromEveryReaderOfTheCatalog(t *testing.T) {
-	service, store := overlayTestService(t)
+	publication, store := overlayTestService(t)
 	ctx := context.Background()
-	if err := service.RemoveService(ctx, "roblox"); err != nil {
+	if err := publication.RemoveList(ctx, "roblox"); err != nil {
 		t.Fatal(err)
 	}
 
-	if got := joined(service.Services()); got != "discord,youtube" {
+	if got := joined(publication.Lists()); got != "discord,youtube" {
 		t.Fatalf("services = %s", got)
 	}
-	for _, detail := range service.ServiceDetails() {
+	for _, detail := range publication.ListDetails() {
 		if detail.ID == "roblox" {
 			t.Fatalf("a removed list is still described: %#v", detail)
 		}
 	}
-	if service.knownService("roblox") || service.hasDefinition("roblox") {
+	if publication.knownList("roblox") || publication.hasDefinition("roblox") {
 		t.Fatal("a removed list still resolves")
 	}
-	if _, err := service.ServiceContents(ctx, "roblox"); !errors.Is(err, ErrNotFound) {
+	if _, err := publication.ListContents(ctx, "roblox"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("contents err = %v", err)
 	}
-	if got := categoryTitles(service.Categories()); got != "games=discord video=youtube" {
+	if got := categoryTitles(publication.Categories()); got != "games=discord video=youtube" {
 		t.Fatalf("categories = %s", got)
 	}
-	if got := joined(service.ResolvedServices(listWith(nil, []string{"games"}, nil))); got != "discord" {
+	if got := joined(publication.ResolvedLists(profileWith(nil, []string{"games"}, nil))); got != "discord" {
 		t.Fatalf("resolved = %s", got)
 	}
-	if _, err := service.CreateList(ctx, "Маршрут", ListComposition{Services: []string{"roblox"}}); err == nil {
+	if _, err := publication.CreateProfile(ctx, "Маршрут", ProfileComposition{Lists: []string{"roblox"}}); err == nil {
 		t.Fatal("a composition named a removed list")
 	}
 
 	// The shipped catalog is never edited: the subtraction is a record beside
 	// it, which is what makes it survive the next catalog load.
-	if catalog := service.config.Categories["games"].Services; !reflect.DeepEqual(catalog, []string{"discord", "roblox"}) {
+	if catalog := publication.config.Categories["games"].Lists; !reflect.DeepEqual(catalog, []string{"discord", "roblox"}) {
 		t.Fatalf("the loaded catalog was rewritten: %#v", catalog)
 	}
-	want := []CatalogRemoval{{Kind: RemovalList, ID: "roblox", RemovedAt: service.config.Clock.Now().UTC()}}
+	want := []CatalogRemoval{{Kind: RemovalList, ID: "roblox", RemovedAt: publication.config.Clock.Now().UTC()}}
 	if !reflect.DeepEqual(store.removals, want) {
 		t.Fatalf("stored removals = %#v", store.removals)
 	}
-	if err := service.RemoveService(ctx, "roblox"); !errors.Is(err, ErrNotFound) {
+	if err := publication.RemoveList(ctx, "roblox"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("second deletion err = %v", err)
 	}
 }
@@ -64,25 +64,25 @@ func TestRemovingAListSubtractsItFromEveryReaderOfTheCatalog(t *testing.T) {
 // whatever later took the identity. It leaves the categories that held it the
 // same way a catalog list does.
 func TestDeletingAnOperatorCreatedListLeavesNoRemovalRecord(t *testing.T) {
-	service, store := overlayTestService(t)
+	publication, store := overlayTestService(t)
 	ctx := context.Background()
-	own, err := service.CreateCustomService(ctx, "Мой список", []string{"a.example"})
+	own, err := publication.CreateCustomList(ctx, "Мой список", []string{"a.example"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.UpdateCategory(ctx, "video", CategoryUpdate{Services: &[]string{"youtube", own.ID}}); err != nil {
+	if _, err := publication.UpdateCategory(ctx, "video", CategoryUpdate{Lists: &[]string{"youtube", own.ID}}); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.RemoveService(ctx, own.ID); err != nil {
+	if err := publication.RemoveList(ctx, own.ID); err != nil {
 		t.Fatal(err)
 	}
-	if service.knownService(own.ID) {
+	if publication.knownList(own.ID) {
 		t.Fatal("a deleted list still resolves")
 	}
-	if got := joined(service.Services()); got != "discord,roblox,youtube" {
+	if got := joined(publication.Lists()); got != "discord,roblox,youtube" {
 		t.Fatalf("services = %s", got)
 	}
-	if got := categoryTitles(service.Categories()); got != "games=discord+roblox video=youtube" {
+	if got := categoryTitles(publication.Categories()); got != "games=discord+roblox video=youtube" {
 		t.Fatalf("categories = %s", got)
 	}
 	if len(store.removals) != 0 {
@@ -100,15 +100,15 @@ func TestDeletingAnOperatorCreatedListLeavesNoRemovalRecord(t *testing.T) {
 // grammar refuses stops the process rather than serving a library nobody can
 // explain.
 func TestLoadCategoriesRestoresAndValidatesRemovals(t *testing.T) {
-	service, store := overlayTestService(t)
+	publication, store := overlayTestService(t)
 	ctx := context.Background()
-	if err := service.RemoveService(ctx, "roblox"); err != nil {
+	if err := publication.RemoveList(ctx, "roblox"); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.RemoveCategory(ctx, "video", CategoryListsDetach); err != nil {
+	if err := publication.RemoveCategory(ctx, "video", CategoryListsDetach); err != nil {
 		t.Fatal(err)
 	}
-	before := categoryTitles(service.Categories())
+	before := categoryTitles(publication.Categories())
 
 	restarted, _ := overlayTestService(t)
 	restarted.config.Store = store
@@ -118,10 +118,10 @@ func TestLoadCategoriesRestoresAndValidatesRemovals(t *testing.T) {
 	if after := categoryTitles(restarted.Categories()); after != before {
 		t.Fatalf("restart answered %s, want %s", after, before)
 	}
-	if restarted.knownService("roblox") {
+	if restarted.knownList("roblox") {
 		t.Fatal("a removed list came back on restart")
 	}
-	if !restarted.knownService("youtube") {
+	if !restarted.knownList("youtube") {
 		t.Fatal("detaching a category took its list with it across a restart")
 	}
 
@@ -153,17 +153,17 @@ func TestDeletingACategoryDetachesOrDeletesTheListsItHeld(t *testing.T) {
 	if got := categoryTitles(detached.Categories()); got != "video=youtube" {
 		t.Fatalf("categories = %s", got)
 	}
-	if got := joined(detached.Services()); got != "discord,roblox,youtube" {
+	if got := joined(detached.Lists()); got != "discord,roblox,youtube" {
 		t.Fatalf("detached services = %s", got)
 	}
-	for _, detail := range detached.ServiceDetails() {
+	for _, detail := range detached.ListDetails() {
 		if detail.ID == "discord" && len(detail.Categories) != 0 {
 			t.Fatalf("a detached list still names a category: %#v", detail.Categories)
 		}
 	}
 	// A detached list is still nameable by a route: it is in the library, it
 	// simply belongs to no category.
-	if _, err := detached.CreateList(ctx, "Маршрут", ListComposition{Services: []string{"discord"}}); err != nil {
+	if _, err := detached.CreateProfile(ctx, "Маршрут", ProfileComposition{Lists: []string{"discord"}}); err != nil {
 		t.Fatalf("a detached list could not be named: %v", err)
 	}
 
@@ -174,7 +174,7 @@ func TestDeletingACategoryDetachesOrDeletesTheListsItHeld(t *testing.T) {
 	if got := categoryTitles(deleted.Categories()); got != "video=youtube" {
 		t.Fatalf("categories = %s", got)
 	}
-	if got := joined(deleted.Services()); got != "youtube" {
+	if got := joined(deleted.Lists()); got != "youtube" {
 		t.Fatalf("deleted services = %s", got)
 	}
 	// One category deletion, three removal records: the category and the two
@@ -195,26 +195,26 @@ func TestDeletingACategoryDetachesOrDeletesTheListsItHeld(t *testing.T) {
 // counts, because restoring one whose content vanished meanwhile is exactly
 // the silent change the refusal exists to prevent.
 func TestDeletingIsRefusedByARouteNamingTheObjectDirectly(t *testing.T) {
-	service, store := overlayTestService(t)
+	publication, store := overlayTestService(t)
 	ctx := context.Background()
-	store.lists = []List{
-		{ID: strings.Repeat("b", 32), Name: "Дом", Services: []string{"roblox"}},
-		{ID: strings.Repeat("a", 32), Name: "Офис", Services: []string{"roblox"}, ArchivedAt: time.Unix(0, 1).UTC()},
+	store.profiles = []Profile{
+		{ID: strings.Repeat("b", 32), Name: "Дом", Lists: []string{"roblox"}},
+		{ID: strings.Repeat("a", 32), Name: "Офис", Lists: []string{"roblox"}, ArchivedAt: time.Unix(0, 1).UTC()},
 		{ID: strings.Repeat("c", 32), Name: "Через категорию", Categories: []string{"games"}},
 	}
-	naming := []ListReference{
+	naming := []ProfileReference{
 		{ID: strings.Repeat("a", 32), Title: "Офис"},
 		{ID: strings.Repeat("b", 32), Title: "Дом"},
 	}
 
-	var listInUse ServiceInUseError
-	if err := service.RemoveService(ctx, "roblox"); !errors.As(err, &listInUse) {
+	var listInUse ListInUseError
+	if err := publication.RemoveList(ctx, "roblox"); !errors.As(err, &listInUse) {
 		t.Fatalf("err = %v", err)
 	}
-	if listInUse.ServiceID != "roblox" || !reflect.DeepEqual(listInUse.Lists, naming) {
+	if listInUse.ListID != "roblox" || !reflect.DeepEqual(listInUse.Profiles, naming) {
 		t.Fatalf("in use = %#v", listInUse)
 	}
-	if !service.knownService("roblox") {
+	if !publication.knownList("roblox") {
 		t.Fatal("a refused deletion removed the list anyway")
 	}
 
@@ -222,45 +222,45 @@ func TestDeletingIsRefusedByARouteNamingTheObjectDirectly(t *testing.T) {
 	// own: one shape names every route the deletion would break, whether it
 	// referenced the category or one of the lists.
 	var categoryInUse CategoryInUseError
-	if err := service.RemoveCategory(ctx, "games", CategoryListsDelete); !errors.As(err, &categoryInUse) {
+	if err := publication.RemoveCategory(ctx, "games", CategoryListsDelete); !errors.As(err, &categoryInUse) {
 		t.Fatalf("delete err = %v", err)
 	}
-	wantAll := append(append([]ListReference{}, naming...), ListReference{ID: strings.Repeat("c", 32), Title: "Через категорию"})
-	if !reflect.DeepEqual(categoryInUse.Lists, wantAll) {
+	wantAll := append(append([]ProfileReference{}, naming...), ProfileReference{ID: strings.Repeat("c", 32), Title: "Через категорию"})
+	if !reflect.DeepEqual(categoryInUse.Profiles, wantAll) {
 		t.Fatalf("category in use = %#v", categoryInUse)
 	}
-	if _, ok := service.mergedCategory("games"); !ok {
+	if _, ok := publication.mergedCategory("games"); !ok {
 		t.Fatal("a refused deletion removed the category anyway")
 	}
 
 	// Detaching touches no list, so it inherits none of their references: only
 	// the route naming the category itself refuses it. The two dispositions
 	// answer to different references, which is why the request states one.
-	throughCategory := []ListReference{{ID: strings.Repeat("c", 32), Title: "Через категорию"}}
-	if err := service.RemoveCategory(ctx, "games", CategoryListsDetach); !errors.As(err, &categoryInUse) {
+	throughCategory := []ProfileReference{{ID: strings.Repeat("c", 32), Title: "Через категорию"}}
+	if err := publication.RemoveCategory(ctx, "games", CategoryListsDetach); !errors.As(err, &categoryInUse) {
 		t.Fatalf("detach err = %v", err)
 	}
-	if !reflect.DeepEqual(categoryInUse.Lists, throughCategory) {
+	if !reflect.DeepEqual(categoryInUse.Profiles, throughCategory) {
 		t.Fatalf("detach in use = %#v", categoryInUse)
 	}
 
 	// With that route gone, detaching goes through while deleting still
 	// refuses, and the lists stay in the library with their direct references
 	// intact: a deletion never rewrote a stored route.
-	store.lists = store.lists[:2]
-	if err := service.RemoveCategory(ctx, "games", CategoryListsDelete); !errors.As(err, &categoryInUse) {
+	store.profiles = store.profiles[:2]
+	if err := publication.RemoveCategory(ctx, "games", CategoryListsDelete); !errors.As(err, &categoryInUse) {
 		t.Fatalf("delete err = %v", err)
 	}
-	if !reflect.DeepEqual(categoryInUse.Lists, naming) {
+	if !reflect.DeepEqual(categoryInUse.Profiles, naming) {
 		t.Fatalf("delete in use = %#v", categoryInUse)
 	}
-	if err := service.RemoveCategory(ctx, "games", CategoryListsDetach); err != nil {
+	if err := publication.RemoveCategory(ctx, "games", CategoryListsDetach); err != nil {
 		t.Fatalf("detach err = %v", err)
 	}
-	if !service.knownService("roblox") || !service.knownService("discord") {
+	if !publication.knownList("roblox") || !publication.knownList("discord") {
 		t.Fatal("detaching took the category's lists with it")
 	}
-	if err := service.RemoveService(ctx, "roblox"); !errors.As(err, &listInUse) {
+	if err := publication.RemoveList(ctx, "roblox"); !errors.As(err, &listInUse) {
 		t.Fatalf("a direct reference stopped refusing after the category was detached: %v", err)
 	}
 }
@@ -269,54 +269,54 @@ func TestDeletingIsRefusedByARouteNamingTheObjectDirectly(t *testing.T) {
 // its next build, and the plan says so. The forecast and the planner read the
 // same expansion, so they change together or the artifact would not match what
 // the screen promised.
-func TestRemovingAListChangesWhatARouteNamingItsCategoryWouldBuild(t *testing.T) {
+func TestRemovingAListChangesWhatAProfileNamingItsCategoryWouldBuild(t *testing.T) {
 	store := &publicationFakeStore{}
-	service := forecastTestService(t, store, &publicationFakeFiles{})
+	publication := forecastTestService(t, store, &publicationFakeFiles{})
 	ctx := context.Background()
-	if _, err := service.UpdateCategory(ctx, "video", CategoryUpdate{Services: &[]string{"youtube", "discord"}}); err != nil {
+	if _, err := publication.UpdateCategory(ctx, "video", CategoryUpdate{Lists: &[]string{"youtube", "discord"}}); err != nil {
 		t.Fatal(err)
 	}
-	route := listWith(nil, []string{"video"}, nil)
-	store.lists = []List{{ID: strings.Repeat("c", 32), Name: "Через категорию", Categories: []string{"video"}}}
-	target, renderer, err := service.target("unbounded")
+	profile := profileWith(nil, []string{"video"}, nil)
+	store.profiles = []Profile{{ID: strings.Repeat("c", 32), Name: "Через категорию", Categories: []string{"video"}}}
+	target, renderer, err := publication.target("unbounded")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	composition := ListComposition{Categories: []string{"video"}}
-	before, err := service.ForecastComposition(ctx, composition, []string{"unbounded"})
+	composition := ProfileComposition{Categories: []string{"video"}}
+	before, err := publication.ForecastComposition(ctx, composition, []string{"unbounded"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantBefore := []ServiceRuleForecast{{ServiceID: "discord", Rules: 2}, {ServiceID: "youtube", Rules: 2}}
-	if len(before) != 1 || !reflect.DeepEqual(before[0].PerService, wantBefore) {
+	wantBefore := []ListRuleForecast{{ListID: "discord", Rules: 2}, {ListID: "youtube", Rules: 2}}
+	if len(before) != 1 || !reflect.DeepEqual(before[0].PerList, wantBefore) {
 		t.Fatalf("forecast before = %#v", before)
 	}
-	planBefore, _, err := service.prepareList(ctx, route, target, renderer)
+	planBefore, _, err := publication.prepareProfile(ctx, profile, target, renderer)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := service.RemoveService(ctx, "youtube"); err != nil {
+	if err := publication.RemoveList(ctx, "youtube"); err != nil {
 		t.Fatal(err)
 	}
 
-	after, err := service.ForecastComposition(ctx, composition, []string{"unbounded"})
+	after, err := publication.ForecastComposition(ctx, composition, []string{"unbounded"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(after) != 1 || !reflect.DeepEqual(after[0].PerService, []ServiceRuleForecast{{ServiceID: "discord", Rules: 2}}) {
+	if len(after) != 1 || !reflect.DeepEqual(after[0].PerList, []ListRuleForecast{{ListID: "discord", Rules: 2}}) {
 		t.Fatalf("forecast after = %#v", after)
 	}
 	if after[0].ProjectedRules >= before[0].ProjectedRules {
 		t.Fatalf("projection did not shrink: before=%d after=%d", before[0].ProjectedRules, after[0].ProjectedRules)
 	}
-	planAfter, _, err := service.prepareList(ctx, route, target, renderer)
+	planAfter, _, err := publication.prepareProfile(ctx, profile, target, renderer)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(planAfter.Plan.Services, []string{"discord"}) {
-		t.Fatalf("planned services = %#v", planAfter.Plan.Services)
+	if !reflect.DeepEqual(planAfter.Plan.Lists, []string{"discord"}) {
+		t.Fatalf("planned services = %#v", planAfter.Plan.Lists)
 	}
 	if planAfter.Plan.SemanticHash == planBefore.Plan.SemanticHash {
 		t.Fatal("the semantic hash did not change, so the next build would reuse the previous artifact")
@@ -327,21 +327,21 @@ func TestRemovingAListChangesWhatARouteNamingItsCategoryWouldBuild(t *testing.T)
 // registry is written after the store, never beside it, so a failed write
 // cannot leave the two disagreeing about what the library holds.
 func TestAStoreThatRefusesADeletionLeavesTheLibraryUntouched(t *testing.T) {
-	service, store := overlayTestService(t)
+	publication, store := overlayTestService(t)
 	ctx := context.Background()
-	before := categoryTitles(service.Categories())
+	before := categoryTitles(publication.Categories())
 	store.removalErr = errors.New("storage failed")
 
-	if err := service.RemoveCategory(ctx, "games", CategoryListsDelete); err == nil {
+	if err := publication.RemoveCategory(ctx, "games", CategoryListsDelete); err == nil {
 		t.Fatal("a refused write was reported as a deletion")
 	}
-	if err := service.RemoveService(ctx, "roblox"); err == nil {
+	if err := publication.RemoveList(ctx, "roblox"); err == nil {
 		t.Fatal("a refused write was reported as a deletion")
 	}
-	if after := categoryTitles(service.Categories()); after != before {
+	if after := categoryTitles(publication.Categories()); after != before {
 		t.Fatalf("categories = %s, want %s", after, before)
 	}
-	if got := joined(service.Services()); got != "discord,roblox,youtube" {
+	if got := joined(publication.Lists()); got != "discord,roblox,youtube" {
 		t.Fatalf("services = %s", got)
 	}
 }

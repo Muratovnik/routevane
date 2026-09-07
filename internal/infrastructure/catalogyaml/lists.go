@@ -19,7 +19,7 @@ import (
 	"github.com/Muratovnik/routevane/internal/sources/httpfeed"
 )
 
-type rawService struct {
+type rawList struct {
 	ID         string                  `yaml:"id"`
 	Title      string                  `yaml:"title"`
 	Components map[string]rawComponent `yaml:"components"`
@@ -53,12 +53,12 @@ type rawSourceConfig struct {
 	Class  domain.SourceClass `yaml:"class"`
 }
 
-func loadServices(ctx context.Context, root string) (map[string]domain.ServiceDefinition, map[string]struct{}, error) {
+func loadLists(ctx context.Context, root string) (map[string]domain.ListDefinition, map[string]struct{}, error) {
 	paths, err := catalogFiles(ctx, root)
 	if err != nil {
 		return nil, nil, err
 	}
-	services := make(map[string]domain.ServiceDefinition, len(paths))
+	lists := make(map[string]domain.ListDefinition, len(paths))
 	local := make(map[string]struct{})
 	total := int64(0)
 	for _, path := range paths {
@@ -69,22 +69,22 @@ func loadServices(ctx context.Context, root string) (map[string]domain.ServiceDe
 		if err != nil {
 			return nil, nil, err
 		}
-		service, err := decodeService(payload)
+		list, err := decodeList(payload)
 		if err != nil {
 			return nil, nil, err
 		}
-		if _, collision := services[service.ID]; collision {
-			return nil, nil, fmt.Errorf("%w: duplicate service id %q", ErrInvalidCatalog, service.ID)
+		if _, collision := lists[list.ID]; collision {
+			return nil, nil, fmt.Errorf("%w: duplicate service id %q", ErrInvalidCatalog, list.ID)
 		}
-		services[service.ID] = service
+		lists[list.ID] = list
 		if filepath.Base(filepath.Dir(path)) == LocalGroup {
-			local[service.ID] = struct{}{}
+			local[list.ID] = struct{}{}
 		}
 	}
-	if len(services) == 0 {
+	if len(lists) == 0 {
 		return nil, nil, fmt.Errorf("%w: catalog contains no services", ErrInvalidCatalog)
 	}
-	return services, local, nil
+	return lists, local, nil
 }
 
 func catalogFiles(ctx context.Context, root string) ([]string, error) {
@@ -124,26 +124,26 @@ func catalogFiles(ctx context.Context, root string) ([]string, error) {
 	return paths, nil
 }
 
-func decodeService(payload []byte) (domain.ServiceDefinition, error) {
-	raw, err := decodeStrictYAML[rawService](payload, "empty YAML", "decode YAML", "YAML must contain exactly one document", "unknown or malformed YAML field")
+func decodeList(payload []byte) (domain.ListDefinition, error) {
+	raw, err := decodeStrictYAML[rawList](payload, "empty YAML", "decode YAML", "YAML must contain exactly one document", "unknown or malformed YAML field")
 	if err != nil {
-		return domain.ServiceDefinition{}, err
+		return domain.ListDefinition{}, err
 	}
-	return normalizeService(raw)
+	return normalizeList(raw)
 }
 
-func normalizeService(raw rawService) (domain.ServiceDefinition, error) {
+func normalizeList(raw rawList) (domain.ListDefinition, error) {
 	if domain.ValidateSlug(raw.ID) != nil || strings.TrimSpace(raw.Title) == "" || len(raw.Title) > 128 {
-		return domain.ServiceDefinition{}, fmt.Errorf("%w: invalid service identity", ErrInvalidCatalog)
+		return domain.ListDefinition{}, fmt.Errorf("%w: invalid service identity", ErrInvalidCatalog)
 	}
 	if len(raw.Components) == 0 || len(raw.Components) > MaxListItems || len(raw.Seeds) > MaxListItems || len(raw.Sources) > MaxListItems {
-		return domain.ServiceDefinition{}, fmt.Errorf("%w: list bound exceeded", ErrInvalidCatalog)
+		return domain.ListDefinition{}, fmt.Errorf("%w: list bound exceeded", ErrInvalidCatalog)
 	}
-	definition := domain.ServiceDefinition{ID: raw.ID, Title: strings.TrimSpace(raw.Title)}
+	definition := domain.ListDefinition{ID: raw.ID, Title: strings.TrimSpace(raw.Title)}
 	componentIDs := make([]string, 0, len(raw.Components))
 	for id := range raw.Components {
 		if domain.ValidateSlug(id) != nil {
-			return domain.ServiceDefinition{}, fmt.Errorf("%w: invalid component id", ErrInvalidCatalog)
+			return domain.ListDefinition{}, fmt.Errorf("%w: invalid component id", ErrInvalidCatalog)
 		}
 		componentIDs = append(componentIDs, id)
 	}
@@ -156,12 +156,12 @@ func normalizeService(raw rawService) (domain.ServiceDefinition, error) {
 	seenSeeds := make(map[string]struct{}, len(raw.Seeds))
 	for _, value := range raw.Seeds {
 		if _, ok := components[value.Component]; !ok || (value.Source != "" && value.Source != "manual") {
-			return domain.ServiceDefinition{}, fmt.Errorf("%w: invalid manual seed identity", ErrInvalidCatalog)
+			return domain.ListDefinition{}, fmt.Errorf("%w: invalid manual seed identity", ErrInvalidCatalog)
 		}
 		seed := domain.Seed{Kind: value.Kind, Value: value.Value, ComponentID: value.Component, SourceClass: domain.SourceManual}
 		normalized, err := seed.Normalize()
 		if err != nil {
-			return domain.ServiceDefinition{}, fmt.Errorf("%w: invalid manual seed", ErrInvalidCatalog)
+			return domain.ListDefinition{}, fmt.Errorf("%w: invalid manual seed", ErrInvalidCatalog)
 		}
 		normalized.SourceID = "manual:" + string(normalized.Kind) + ":" + normalized.Value
 		seedKey := strings.Join([]string{string(normalized.Kind), normalized.Value, normalized.ComponentID, normalized.SourceID}, "\x00")
@@ -177,18 +177,18 @@ func normalizeService(raw rawService) (domain.ServiceDefinition, error) {
 	sourceIDs := make(map[string]struct{}, len(raw.Sources))
 	for _, value := range raw.Sources {
 		if domain.ValidateSlug(value.ID) != nil {
-			return domain.ServiceDefinition{}, fmt.Errorf("%w: invalid source identity", ErrInvalidCatalog)
+			return domain.ListDefinition{}, fmt.Errorf("%w: invalid source identity", ErrInvalidCatalog)
 		}
 		if _, duplicate := sourceIDs[value.ID]; duplicate {
-			return domain.ServiceDefinition{}, fmt.Errorf("%w: duplicate source id", ErrInvalidCatalog)
+			return domain.ListDefinition{}, fmt.Errorf("%w: duplicate source id", ErrInvalidCatalog)
 		}
 		sourceIDs[value.ID] = struct{}{}
 		if _, ok := components[value.Component]; !ok {
-			return domain.ServiceDefinition{}, fmt.Errorf("%w: unknown source component", ErrInvalidCatalog)
+			return domain.ListDefinition{}, fmt.Errorf("%w: unknown source component", ErrInvalidCatalog)
 		}
 		source, err := normalizeSource(value)
 		if err != nil {
-			return domain.ServiceDefinition{}, err
+			return domain.ListDefinition{}, err
 		}
 		definition.Sources = append(definition.Sources, source)
 		if source.Type == domain.SourceDNS {

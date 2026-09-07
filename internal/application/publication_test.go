@@ -22,13 +22,13 @@ type publicationFakeStore struct {
 	tokenID        string
 	tokenHash      [32]byte
 	attempts       []OutputAttempt
-	list           List
+	profile        Profile
 	output         Output
 	published      []PublicationCandidate
 	settings       map[string]string
 	globalPriority []string
-	custom         map[string]CustomService
-	tunings        map[string]ServiceTuning
+	custom         map[string]CustomList
+	tunings        map[string]ListTuning
 	// categories and memberships hold the operator's category overlay the way
 	// the real store holds it: a title row per created category, and one
 	// verdict row per disagreement with the shipped catalog.
@@ -43,7 +43,7 @@ type publicationFakeStore struct {
 	removalErr error
 	// lists is the library the reference check reads. list stays the one a
 	// composition test writes; a category test needs several.
-	lists []List
+	profiles []Profile
 	// verdictWrites counts destination-verdict batches that reached storage.
 	verdictWrites int
 	// observedDomains, keyed by source id, makes ReadPlanningSnapshot answer
@@ -52,31 +52,31 @@ type publicationFakeStore struct {
 	observedDomains map[string][]string
 }
 
-func (s *publicationFakeStore) CreateCustomService(_ context.Context, service CustomService) error {
+func (s *publicationFakeStore) CreateCustomList(_ context.Context, list CustomList) error {
 	if s.custom == nil {
-		s.custom = map[string]CustomService{}
+		s.custom = map[string]CustomList{}
 	}
-	if _, taken := s.custom[service.ID]; taken {
+	if _, taken := s.custom[list.ID]; taken {
 		return ErrIdentityCollision
 	}
-	s.custom[service.ID] = service
+	s.custom[list.ID] = list
 	return nil
 }
 
-func (s *publicationFakeStore) UpdateCustomService(_ context.Context, service CustomService) error {
-	if _, ok := s.custom[service.ID]; !ok {
+func (s *publicationFakeStore) UpdateCustomList(_ context.Context, list CustomList) error {
+	if _, ok := s.custom[list.ID]; !ok {
 		return ErrNotFound
 	}
-	s.custom[service.ID] = service
+	s.custom[list.ID] = list
 	return nil
 }
 
-func (s *publicationFakeStore) CustomServices(context.Context) ([]CustomService, error) {
-	services := make([]CustomService, 0, len(s.custom))
-	for _, service := range s.custom {
-		services = append(services, service)
+func (s *publicationFakeStore) CustomLists(context.Context) ([]CustomList, error) {
+	lists := make([]CustomList, 0, len(s.custom))
+	for _, list := range s.custom {
+		lists = append(lists, list)
 	}
-	return services, nil
+	return lists, nil
 }
 
 func (s *publicationFakeStore) CreateCustomCategory(_ context.Context, category CustomCategory, memberships []CategoryMembership) error {
@@ -114,7 +114,7 @@ func (s *publicationFakeStore) RemoveFromLibrary(_ context.Context, removal Libr
 	if s.removalErr != nil {
 		return s.removalErr
 	}
-	services := removal.Services
+	lists := removal.Lists
 	if removal.Kind == RemovalCategory {
 		if strings.HasPrefix(removal.ID, CustomCategoryIDPrefix) {
 			if _, ok := s.categories[removal.ID]; !ok {
@@ -126,22 +126,22 @@ func (s *publicationFakeStore) RemoveFromLibrary(_ context.Context, removal Libr
 		}
 		delete(s.memberships, removal.ID)
 	} else {
-		services = []string{removal.ID}
+		lists = []string{removal.ID}
 	}
-	for _, serviceID := range services {
-		if strings.HasPrefix(serviceID, CustomCategoryIDPrefix) {
-			if _, ok := s.custom[serviceID]; !ok {
+	for _, listID := range lists {
+		if strings.HasPrefix(listID, CustomCategoryIDPrefix) {
+			if _, ok := s.custom[listID]; !ok {
 				return ErrNotFound
 			}
-			delete(s.custom, serviceID)
+			delete(s.custom, listID)
 		} else {
-			s.recordRemoval(RemovalList, serviceID, removal.RemovedAt)
+			s.recordRemoval(RemovalList, listID, removal.RemovedAt)
 		}
-		delete(s.tunings, serviceID)
+		delete(s.tunings, listID)
 		for categoryID, rows := range s.memberships {
 			kept := make([]CategoryMembership, 0, len(rows))
 			for _, row := range rows {
-				if row.ServiceID != serviceID {
+				if row.ListID != listID {
 					kept = append(kept, row)
 				}
 			}
@@ -186,11 +186,11 @@ func (s *publicationFakeStore) putMemberships(categoryID string, rows []Category
 	s.memberships[categoryID] = append([]CategoryMembership(nil), rows...)
 }
 
-func (s *publicationFakeStore) SetSourceDisabled(_ context.Context, serviceID, sourceID string, disabled bool) error {
+func (s *publicationFakeStore) SetSourceDisabled(_ context.Context, listID, sourceID string, disabled bool) error {
 	if s.tunings == nil {
-		s.tunings = map[string]ServiceTuning{}
+		s.tunings = map[string]ListTuning{}
 	}
-	tuning := s.tunings[serviceID]
+	tuning := s.tunings[listID]
 	kept := make([]string, 0, len(tuning.DisabledSources)+1)
 	for _, id := range tuning.DisabledSources {
 		if id != sourceID {
@@ -201,13 +201,13 @@ func (s *publicationFakeStore) SetSourceDisabled(_ context.Context, serviceID, s
 		kept = append(kept, sourceID)
 	}
 	tuning.DisabledSources = kept
-	s.tunings[serviceID] = tuning
+	s.tunings[listID] = tuning
 	return nil
 }
 
 func (s *publicationFakeStore) CreateCustomSource(_ context.Context, source CustomSource) error {
 	if s.tunings == nil {
-		s.tunings = map[string]ServiceTuning{}
+		s.tunings = map[string]ListTuning{}
 	}
 	for _, tuning := range s.tunings {
 		for _, existing := range tuning.CustomSources {
@@ -216,14 +216,14 @@ func (s *publicationFakeStore) CreateCustomSource(_ context.Context, source Cust
 			}
 		}
 	}
-	tuning := s.tunings[source.ServiceID]
+	tuning := s.tunings[source.ListID]
 	tuning.CustomSources = append(tuning.CustomSources, source)
-	s.tunings[source.ServiceID] = tuning
+	s.tunings[source.ListID] = tuning
 	return nil
 }
 
 func (s *publicationFakeStore) RemoveCustomSource(_ context.Context, id string) error {
-	for serviceID, tuning := range s.tunings {
+	for listID, tuning := range s.tunings {
 		kept := make([]CustomSource, 0, len(tuning.CustomSources))
 		found := false
 		for _, source := range tuning.CustomSources {
@@ -235,7 +235,7 @@ func (s *publicationFakeStore) RemoveCustomSource(_ context.Context, id string) 
 		}
 		if found {
 			tuning.CustomSources = kept
-			s.tunings[serviceID] = tuning
+			s.tunings[listID] = tuning
 			return nil
 		}
 	}
@@ -245,12 +245,12 @@ func (s *publicationFakeStore) RemoveCustomSource(_ context.Context, id string) 
 // SetDomainVerdicts stores the batch the way the real store stores it: one
 // action over every value. verdictWrites counts the calls, so a test can prove
 // a refused batch never reached storage at all.
-func (s *publicationFakeStore) SetDomainVerdicts(_ context.Context, serviceID string, values []string, verdict DomainVerdict) error {
+func (s *publicationFakeStore) SetDomainVerdicts(_ context.Context, listID string, values []string, verdict DomainVerdict) error {
 	if s.tunings == nil {
-		s.tunings = map[string]ServiceTuning{}
+		s.tunings = map[string]ListTuning{}
 	}
 	s.verdictWrites++
-	tuning := s.tunings[serviceID]
+	tuning := s.tunings[listID]
 	for _, value := range values {
 		tuning.Includes = withoutString(tuning.Includes, value)
 		tuning.Excludes = withoutString(tuning.Excludes, value)
@@ -261,14 +261,14 @@ func (s *publicationFakeStore) SetDomainVerdicts(_ context.Context, serviceID st
 			tuning.Excludes = append(tuning.Excludes, value)
 		}
 	}
-	s.tunings[serviceID] = tuning
+	s.tunings[listID] = tuning
 	return nil
 }
 
-func (s *publicationFakeStore) ServiceTunings(context.Context) (map[string]ServiceTuning, error) {
-	out := make(map[string]ServiceTuning, len(s.tunings))
-	for serviceID, tuning := range s.tunings {
-		out[serviceID] = tuning
+func (s *publicationFakeStore) ListTunings(context.Context) (map[string]ListTuning, error) {
+	out := make(map[string]ListTuning, len(s.tunings))
+	for listID, tuning := range s.tunings {
+		out[listID] = tuning
 	}
 	return out, nil
 }
@@ -300,44 +300,44 @@ func (s *publicationFakeStore) SetDefaultPriority(_ context.Context, priority []
 	return nil
 }
 
-func (s *publicationFakeStore) UpdateListSchedule(_ context.Context, listID string, interval RefreshInterval, lastRefreshedAt time.Time, failed bool, updatedAt time.Time) error {
-	if s.list.ID != listID {
+func (s *publicationFakeStore) UpdateProfileSchedule(_ context.Context, profileID string, interval RefreshInterval, lastRefreshedAt time.Time, failed bool, updatedAt time.Time) error {
+	if s.profile.ID != profileID {
 		return ErrNotFound
 	}
-	s.list.RefreshInterval = interval
-	s.list.LastRefreshedAt = lastRefreshedAt
-	s.list.LastRefreshFailed = failed
-	s.list.UpdatedAt = updatedAt
+	s.profile.RefreshInterval = interval
+	s.profile.LastRefreshedAt = lastRefreshedAt
+	s.profile.LastRefreshFailed = failed
+	s.profile.UpdatedAt = updatedAt
 	return nil
 }
 
-func (s *publicationFakeStore) SetListArchived(_ context.Context, listID string, archivedAt time.Time, updatedAt time.Time) error {
-	if s.list.ID != listID {
+func (s *publicationFakeStore) SetProfileArchived(_ context.Context, profileID string, archivedAt time.Time, updatedAt time.Time) error {
+	if s.profile.ID != profileID {
 		return ErrNotFound
 	}
-	s.list.ArchivedAt = archivedAt
-	s.list.UpdatedAt = updatedAt
+	s.profile.ArchivedAt = archivedAt
+	s.profile.UpdatedAt = updatedAt
 	return nil
 }
 
-func (s *publicationFakeStore) CreateList(_ context.Context, list List) error {
-	s.list = list
+func (s *publicationFakeStore) CreateProfile(_ context.Context, profile Profile) error {
+	s.profile = profile
 	return nil
 }
-func (s *publicationFakeStore) List(context.Context, string) (List, error) {
-	return s.list, nil
+func (s *publicationFakeStore) Profile(context.Context, string) (Profile, error) {
+	return s.profile, nil
 }
-func (s *publicationFakeStore) Lists(context.Context) ([]List, error) {
-	if len(s.lists) > 0 {
-		return append([]List(nil), s.lists...), nil
+func (s *publicationFakeStore) Profiles(context.Context) ([]Profile, error) {
+	if len(s.profiles) > 0 {
+		return append([]Profile(nil), s.profiles...), nil
 	}
-	if s.list.ID == "" {
-		return []List{}, nil
+	if s.profile.ID == "" {
+		return []Profile{}, nil
 	}
-	return []List{s.list}, nil
+	return []Profile{s.profile}, nil
 }
-func (s *publicationFakeStore) UpdateList(_ context.Context, list List) error {
-	s.list = list
+func (s *publicationFakeStore) UpdateProfile(_ context.Context, profile Profile) error {
+	s.profile = profile
 	return nil
 }
 func (s *publicationFakeStore) CreateOutput(_ context.Context, c NewOutput) error {
@@ -380,7 +380,7 @@ func (s *publicationFakeStore) LatestOutputAttempt(context.Context, string) (Out
 func (s *publicationFakeStore) Output(context.Context, string) (Output, error) {
 	return s.output, nil
 }
-func (s *publicationFakeStore) OutputsByList(context.Context, string) ([]Output, error) {
+func (s *publicationFakeStore) OutputsByProfile(context.Context, string) ([]Output, error) {
 	if s.output.ID == "" {
 		return []Output{}, nil
 	}
@@ -409,11 +409,11 @@ func (*publicationFakeStore) ArtifactBuild(context.Context, string) (ArtifactBui
 }
 func (s *publicationFakeStore) ApplySuccess(context.Context, SuccessCycle) error  { return nil }
 func (s *publicationFakeStore) RecordFailure(context.Context, FailureCycle) error { return nil }
-func (s *publicationFakeStore) ReadPlanningSnapshot(_ context.Context, serviceID string, activeRevisions map[string]string, _ string, _ time.Time) (PlanningSnapshot, error) {
-	raw := domain.RawJSONTargetProfile()
+func (s *publicationFakeStore) ReadPlanningSnapshot(_ context.Context, listID string, activeRevisions map[string]string, _ string, _ time.Time) (PlanningSnapshot, error) {
+	raw := domain.RawJSONTargetDefinition()
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	if s.observedDomains != nil {
-		snapshot := PlanningSnapshot{Profile: ProfileRecord{ProfileKey: raw.ProfileKey, ServiceID: serviceID, TargetID: raw.ID, RendererID: raw.RendererID, CatalogRevision: strings.Repeat("c", 64)}}
+		snapshot := PlanningSnapshot{Format: FormatRecord{FormatKey: raw.FormatKey, ListID: listID, TargetID: raw.ID, RendererID: raw.RendererID, CatalogRevision: strings.Repeat("c", 64)}}
 		sourceIDs := make([]string, 0, len(s.observedDomains))
 		for sourceID := range s.observedDomains {
 			sourceIDs = append(sourceIDs, sourceID)
@@ -430,7 +430,7 @@ func (s *publicationFakeStore) ReadPlanningSnapshot(_ context.Context, serviceID
 					return PlanningSnapshot{}, err
 				}
 				snapshot.Sightings = append(snapshot.Sightings, domain.Sighting{
-					ID: sourceID + ":" + value, ServiceID: serviceID, ComponentID: "web", Resource: resource,
+					ID: sourceID + ":" + value, ListID: listID, ComponentID: "web", Resource: resource,
 					SourceID: sourceID, SourceClass: domain.SourceCommunity, SourceRevision: revision,
 					FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), ObservationCount: 1, Validity: domain.ValidityValid,
 				})
@@ -441,9 +441,9 @@ func (s *publicationFakeStore) ReadPlanningSnapshot(_ context.Context, serviceID
 	resource, _ := domain.NewAddrResourceFromString("198.51.100.8")
 	sourceDomain, _ := domain.NewDomainResource("source.example")
 	targetDomain, _ := domain.NewDomainResource("target.example")
-	sighting := domain.Sighting{ID: "sighting", ServiceID: serviceID, ComponentID: "web", Resource: resource, SourceID: "dns-main", SourceClass: domain.SourceObserved, SourceRevision: "v1", FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), ObservationCount: 1, Metadata: "metadata", Validity: domain.ValidityValid}
-	relation := domain.Relation{SourceResource: sourceDomain, RelationType: domain.RelationCNAMETo, TargetResource: targetDomain, ServiceID: serviceID, ComponentID: "web", FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), SourceID: "dns-main", SourceRevision: "v1", Validity: domain.ValidityValid}
-	return PlanningSnapshot{Sightings: []domain.Sighting{sighting}, Relations: []domain.Relation{relation}, Profile: ProfileRecord{ProfileKey: raw.ProfileKey, ServiceID: serviceID, TargetID: raw.ID, RendererID: raw.RendererID, CatalogRevision: strings.Repeat("c", 64)}}, nil
+	sighting := domain.Sighting{ID: "sighting", ListID: listID, ComponentID: "web", Resource: resource, SourceID: "dns-main", SourceClass: domain.SourceObserved, SourceRevision: "v1", FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), ObservationCount: 1, Metadata: "metadata", Validity: domain.ValidityValid}
+	relation := domain.Relation{SourceResource: sourceDomain, RelationType: domain.RelationCNAMETo, TargetResource: targetDomain, ListID: listID, ComponentID: "web", FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), SourceID: "dns-main", SourceRevision: "v1", Validity: domain.ValidityValid}
+	return PlanningSnapshot{Sightings: []domain.Sighting{sighting}, Relations: []domain.Relation{relation}, Format: FormatRecord{FormatKey: raw.FormatKey, ListID: listID, TargetID: raw.ID, RendererID: raw.RendererID, CatalogRevision: strings.Repeat("c", 64)}}, nil
 }
 
 type publicationFakeFiles struct {
@@ -482,9 +482,9 @@ func (mutatingRenderer) SupportedRuleKinds() []domain.RuleKind {
 func (r mutatingRenderer) ProjectedRuleCount(plan domain.RoutingPlan) (int, error) {
 	count := len(plan.Rules)
 	if r.mutateProjection {
-		plan.Services[0] = "projection-mutated"
+		plan.Lists[0] = "projection-mutated"
 		if len(plan.Rules) > 0 {
-			plan.Rules[0].ServiceID = "projection-mutated"
+			plan.Rules[0].ListID = "projection-mutated"
 			if len(plan.Rules[0].ReasonCodes) > 0 {
 				plan.Rules[0].ReasonCodes[0] = "projection-mutated"
 			}
@@ -497,28 +497,28 @@ func (r mutatingRenderer) ProjectedRuleCount(plan domain.RoutingPlan) (int, erro
 		}
 		if len(plan.Excluded) > 0 {
 			plan.Excluded[0].Outcome = "projection-mutated"
-			plan.Excluded[0].Candidate.ServiceID = "projection-mutated"
+			plan.Excluded[0].Candidate.ListID = "projection-mutated"
 		}
 		if len(plan.Warnings) > 0 {
 			plan.Warnings[0] = "projection-mutated"
 		}
 		if len(plan.Coverage) > 0 {
-			plan.Coverage[0].ServiceID = "projection-mutated"
+			plan.Coverage[0].ListID = "projection-mutated"
 		}
 		if len(plan.Relations) > 0 {
-			plan.Relations[0].ServiceID = "projection-mutated"
+			plan.Relations[0].ListID = "projection-mutated"
 		}
 		if len(plan.Sightings) > 0 {
-			plan.Sightings[0].ServiceID = "projection-mutated"
+			plan.Sightings[0].ListID = "projection-mutated"
 		}
 	}
 	return count, nil
 }
 func (r mutatingRenderer) Render(plan domain.RoutingPlan) ([]byte, error) {
 	if r.mutateRender {
-		plan.Services[0] = "render-mutated"
+		plan.Lists[0] = "render-mutated"
 		if len(plan.Rules) > 0 {
-			plan.Rules[0].ServiceID = "render-mutated"
+			plan.Rules[0].ListID = "render-mutated"
 		}
 	}
 	return []byte("payload"), nil
@@ -540,12 +540,12 @@ func TestOutputTokenIsIssuedOnlyAfterSuccessfulBuild(t *testing.T) {
 	entropyBytes = append(entropyBytes, bytes.Repeat([]byte{0x33}, 32)...)
 	entropyBytes = append(entropyBytes, bytes.Repeat([]byte{0x44}, 48)...)
 	entropy := bytes.NewReader(entropyBytes)
-	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, entropy)
-	list, err := service.CreateList(context.Background(), "example", ListComposition{Services: []string{"example"}})
+	publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, entropy)
+	profile, err := publication.CreateProfile(context.Background(), "example", ProfileComposition{Lists: []string{"example"}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	created, err := service.AddOutput(context.Background(), list.ID, "keenetic")
+	created, err := publication.AddOutput(context.Background(), profile.ID, "keenetic")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -555,10 +555,10 @@ func TestOutputTokenIsIssuedOnlyAfterSuccessfulBuild(t *testing.T) {
 	if created.Output.ID == "" || store.tokenID != "" {
 		t.Fatalf("subscription issued before build: %#v", store)
 	}
-	if _, err := service.Build(context.Background(), created.Output.ID); err != nil {
+	if _, err := publication.Build(context.Background(), created.Output.ID); err != nil {
 		t.Fatal(err)
 	}
-	token, err := service.IssueSubscription(context.Background(), created.Output.ID)
+	token, err := publication.IssueSubscription(context.Background(), created.Output.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -574,17 +574,17 @@ func TestOutputTokenIsIssuedOnlyAfterSuccessfulBuild(t *testing.T) {
 func TestAnOutputBindsOnlyADeviceOfItsOwnTargetAndCanDetachIt(t *testing.T) {
 	const outputID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	store := &publicationFakeStore{output: Output{ID: outputID, TargetID: "keenetic"}}
-	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{1}, 64)))
+	publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{1}, 64)))
 	device := Device{ID: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", TargetID: "keenetic"}
-	bound, err := service.SetOutputDevice(context.Background(), outputID, &device)
+	bound, err := publication.SetOutputDevice(context.Background(), outputID, &device)
 	if err != nil || bound.DeviceID != device.ID || store.output.DeviceID != device.ID {
 		t.Fatalf("bound = %#v stored = %#v err = %v", bound, store.output, err)
 	}
 	foreign := Device{ID: "cccccccccccccccccccccccccccccccc", TargetID: "singbox"}
-	if _, err := service.SetOutputDevice(context.Background(), outputID, &foreign); err == nil || store.output.DeviceID != device.ID {
+	if _, err := publication.SetOutputDevice(context.Background(), outputID, &foreign); err == nil || store.output.DeviceID != device.ID {
 		t.Fatalf("foreign device changed binding: output = %#v err = %v", store.output, err)
 	}
-	detached, err := service.SetOutputDevice(context.Background(), outputID, nil)
+	detached, err := publication.SetOutputDevice(context.Background(), outputID, nil)
 	if err != nil || detached.DeviceID != "" || store.output.DeviceID != "" {
 		t.Fatalf("detached = %#v stored = %#v err = %v", detached, store.output, err)
 	}
@@ -593,16 +593,16 @@ func TestAnOutputBindsOnlyADeviceOfItsOwnTargetAndCanDetachIt(t *testing.T) {
 func TestSnapshotBytesAreFinalBeforeRendererMutationAndInvalidRenderDoesNotPublish(t *testing.T) {
 	store := &publicationFakeStore{}
 	files := &publicationFakeFiles{}
-	service := newPublicationTestService(t, store, files, mutatingRenderer{mutateProjection: true, mutateRender: true}, bytes.NewReader(bytes.Repeat([]byte{0x21}, 256)))
-	list, output := testListAndOutput()
-	store.list, store.output = list, output
-	if _, err := service.Build(context.Background(), output.ID); err != nil {
+	publication := newPublicationTestService(t, store, files, mutatingRenderer{mutateProjection: true, mutateRender: true}, bytes.NewReader(bytes.Repeat([]byte{0x21}, 256)))
+	profile, output := testProfileAndOutput()
+	store.profile, store.output = profile, output
+	if _, err := publication.Build(context.Background(), output.ID); err != nil {
 		t.Fatal(err)
 	}
 	if len(store.published) != 1 || !bytes.Contains(store.published[0].Snapshot.RoutingPlanJSON, []byte(`"services":["example"]`)) || bytes.Contains(store.published[0].Snapshot.RoutingPlanJSON, []byte("mutated")) {
 		t.Fatalf("snapshot=%s", store.published[0].Snapshot.RoutingPlanJSON)
 	}
-	cleanStore := &publicationFakeStore{list: list, output: output}
+	cleanStore := &publicationFakeStore{profile: profile, output: output}
 	clean := newPublicationTestService(t, cleanStore, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x31}, 256)))
 	if _, err := clean.Build(context.Background(), output.ID); err != nil {
 		t.Fatal(err)
@@ -610,7 +610,7 @@ func TestSnapshotBytesAreFinalBeforeRendererMutationAndInvalidRenderDoesNotPubli
 	if !bytes.Equal(store.published[0].Snapshot.RoutingPlanJSON, cleanStore.published[0].Snapshot.RoutingPlanJSON) || store.published[0].Snapshot.RoutingPlanHash != cleanStore.published[0].Snapshot.RoutingPlanHash {
 		t.Fatalf("renderer callback changed planner snapshot/hash")
 	}
-	badStore := &publicationFakeStore{list: list, output: output}
+	badStore := &publicationFakeStore{profile: profile, output: output}
 	badFiles := &publicationFakeFiles{}
 	bad := newPublicationTestService(t, badStore, badFiles, mutatingRenderer{invalid: true}, bytes.NewReader(bytes.Repeat([]byte{0x22}, 256)))
 	if _, err := bad.Build(context.Background(), output.ID); err == nil {
@@ -619,7 +619,7 @@ func TestSnapshotBytesAreFinalBeforeRendererMutationAndInvalidRenderDoesNotPubli
 	if len(badStore.published) != 0 || badFiles.puts != 0 {
 		t.Fatalf("invalid candidate store=%d files=%d", len(badStore.published), badFiles.puts)
 	}
-	fileStore := &publicationFakeStore{list: list, output: output}
+	fileStore := &publicationFakeStore{profile: profile, output: output}
 	fileFailure := errors.New("publication root identity changed")
 	failedFiles := &publicationFakeFiles{err: fileFailure}
 	fileFailed := newPublicationTestService(t, fileStore, failedFiles, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x41}, 256)))
@@ -634,18 +634,18 @@ func TestSnapshotBytesAreFinalBeforeRendererMutationAndInvalidRenderDoesNotPubli
 	}
 }
 
-func TestListCardsResolveTargetsAndTolerateMissingPieces(t *testing.T) {
+func TestProfileCardsResolveTargetsAndTolerateMissingPieces(t *testing.T) {
 	// An output whose latest artifact cannot be read still lists: the fake
 	// store refuses every ArtifactBuild call.
-	list, output := testListAndOutput()
+	profile, output := testProfileAndOutput()
 	output.LatestArtifactID = strings.Repeat("9", 32)
-	store := &publicationFakeStore{list: list, output: output}
-	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x51}, 256)))
-	cards, err := service.ListCards(context.Background())
+	store := &publicationFakeStore{profile: profile, output: output}
+	publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x51}, 256)))
+	cards, err := publication.ProfileCards(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cards) != 1 || cards[0].ID != list.ID || len(cards[0].Outputs) != 1 || cards[0].Outputs[0].Latest != nil {
+	if len(cards) != 1 || cards[0].ID != profile.ID || len(cards[0].Outputs) != 1 || cards[0].Outputs[0].Latest != nil {
 		t.Fatalf("cards = %#v", cards)
 	}
 	if cards[0].Outputs[0].TargetTitle != "keenetic" || cards[0].Outputs[0].FileExtension != keenetic.FileExtension {
@@ -653,11 +653,11 @@ func TestListCardsResolveTargetsAndTolerateMissingPieces(t *testing.T) {
 	}
 	// An output whose target left the catalog keeps its stored identity
 	// instead of disappearing or failing the listing.
-	goneList, goneOutput := testListAndOutput()
+	goneProfile, goneOutput := testProfileAndOutput()
 	goneOutput.TargetID = "gone-device"
-	goneStore := &publicationFakeStore{list: goneList, output: goneOutput}
+	goneStore := &publicationFakeStore{profile: goneProfile, output: goneOutput}
 	goneService := newPublicationTestService(t, goneStore, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x52}, 256)))
-	cards, err = goneService.ListCards(context.Background())
+	cards, err = goneService.ProfileCards(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -671,18 +671,18 @@ func TestListCardsResolveTargetsAndTolerateMissingPieces(t *testing.T) {
 
 func newPublicationTestService(t *testing.T, store *publicationFakeStore, files *publicationFakeFiles, renderer Renderer, entropy *bytes.Reader) *PublicationService {
 	t.Helper()
-	definition := domain.ServiceDefinition{ID: "example", CatalogRevision: strings.Repeat("c", 64), Components: []domain.ComponentDefinition{{ID: "web", Required: true}}, Seeds: []domain.Seed{{Kind: domain.RuleIPv4, Value: "192.0.2.1", ComponentID: "web", SourceID: "manual:seed", SourceClass: domain.SourceManual}, {Kind: domain.RuleDomainSuffix, Value: "example.com", ComponentID: "web", SourceID: "manual:domain", SourceClass: domain.SourceManual}}}
-	target := domain.TargetProfile{ID: "keenetic", ProfileKey: keenetic.Version, RendererID: keenetic.ID, Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: keenetic.MaxLines, MaxArtifactSize: keenetic.MaxArtifactSize}}
-	service, err := NewPublicationService(PublicationConfig{Definitions: map[string]domain.ServiceDefinition{"example": definition}, Targets: map[string]domain.TargetProfile{target.ID: target}, TargetRevision: strings.Repeat("t", 64), FeedURL: func(string) error { return nil }, Store: store, Files: files, Renderers: RendererRegistry{renderer.ID(): renderer}, Sources: SourceRegistry{domain.SourceDNS: publicationFakeSource{}}, Clock: ClockFunc(func() time.Time { return time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC) }), Entropy: entropy})
+	definition := domain.ListDefinition{ID: "example", CatalogRevision: strings.Repeat("c", 64), Components: []domain.ComponentDefinition{{ID: "web", Required: true}}, Seeds: []domain.Seed{{Kind: domain.RuleIPv4, Value: "192.0.2.1", ComponentID: "web", SourceID: "manual:seed", SourceClass: domain.SourceManual}, {Kind: domain.RuleDomainSuffix, Value: "example.com", ComponentID: "web", SourceID: "manual:domain", SourceClass: domain.SourceManual}}}
+	target := domain.TargetDefinition{ID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID, Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: keenetic.MaxLines, MaxArtifactSize: keenetic.MaxArtifactSize}}
+	publication, err := NewPublicationService(PublicationConfig{Definitions: map[string]domain.ListDefinition{"example": definition}, Targets: map[string]domain.TargetDefinition{target.ID: target}, TargetRevision: strings.Repeat("t", 64), FeedURL: func(string) error { return nil }, Store: store, Files: files, Renderers: RendererRegistry{renderer.ID(): renderer}, Sources: SourceRegistry{domain.SourceDNS: publicationFakeSource{}}, Clock: ClockFunc(func() time.Time { return time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC) }), Entropy: entropy})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return service
+	return publication
 }
 
-func TestServiceDetailsExposeOnlyBoundedCatalogDomains(t *testing.T) {
-	service := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x52}, 256)))
-	definition := service.config.Definitions["example"]
+func TestListDetailsExposeOnlyBoundedCatalogDomains(t *testing.T) {
+	publication := newPublicationTestService(t, &publicationFakeStore{}, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x52}, 256)))
+	definition := publication.config.Definitions["example"]
 	definition.Title = "Example"
 	definition.Seeds = append(definition.Seeds,
 		domain.Seed{Kind: domain.RuleDomainExact, Value: "login.example.com", ComponentID: "web"},
@@ -692,42 +692,42 @@ func TestServiceDetailsExposeOnlyBoundedCatalogDomains(t *testing.T) {
 		{ID: "community", Type: domain.SourceHTTP},
 		{ID: "dns", Type: domain.SourceDNS},
 	}
-	service.config.Definitions["example"] = definition
+	publication.config.Definitions["example"] = definition
 
-	details := service.ServiceDetails()
+	details := publication.ListDetails()
 	if len(details) != 1 || details[0].Title != "Example" || details[0].SourceCount != 2 {
 		t.Fatalf("details = %#v", details)
 	}
-	want := []ServiceDomain{
+	want := []ListDomain{
 		{Value: "example.com", IncludeSubdomains: true},
 		{Value: "login.example.com", IncludeSubdomains: true},
 	}
 	if !reflect.DeepEqual(details[0].Domains, want) {
 		t.Fatalf("domains = %#v, want %#v", details[0].Domains, want)
 	}
-	wantSources := []ServiceSource{{ID: "community", Type: "http"}, {ID: "dns", Type: "dns"}}
+	wantSources := []ListSource{{ID: "community", Type: "http"}, {ID: "dns", Type: "dns"}}
 	if !reflect.DeepEqual(details[0].Sources, wantSources) {
 		t.Fatalf("sources = %#v, want %#v", details[0].Sources, wantSources)
 	}
 }
 
-func TestListDomainOverridesAreNormalizedAndAppliedOnlyToStaticDomains(t *testing.T) {
+func TestProfileListDomainOverridesAreNormalizedAndAppliedOnlyToStaticDomains(t *testing.T) {
 	store := &publicationFakeStore{}
-	service := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x61}, 64)))
-	list, err := service.CreateList(context.Background(), "custom domains", ListComposition{
-		Services: []string{"example"},
-		ServiceDomains: map[string][]string{
+	publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x61}, 64)))
+	profile, err := publication.CreateProfile(context.Background(), "custom domains", ProfileComposition{
+		Lists: []string{"example"},
+		ListDomains: map[string][]string{
 			"example": {"Custom.Example.", "custom.example"},
 		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(list.ServiceDomains, map[string][]string{"example": {"custom.example"}}) {
-		t.Fatalf("normalized domains = %#v", list.ServiceDomains)
+	if !reflect.DeepEqual(profile.ListDomains, map[string][]string{"example": {"custom.example"}}) {
+		t.Fatalf("normalized domains = %#v", profile.ListDomains)
 	}
 
-	prepared, _, err := service.prepareList(context.Background(), list, domain.RawJSONTargetProfile(), rawjson.Renderer{})
+	prepared, _, err := publication.prepareProfile(context.Background(), profile, domain.RawJSONTargetDefinition(), rawjson.Renderer{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -745,28 +745,28 @@ func TestListDomainOverridesAreNormalizedAndAppliedOnlyToStaticDomains(t *testin
 	if !custom || catalog || !staticIP {
 		t.Fatalf("override leaked outside static domains: rules=%#v", prepared.Plan.Rules)
 	}
-	definition := service.config.Definitions["example"]
+	definition := publication.config.Definitions["example"]
 	definition.Sources = []domain.SourceDefinition{{ID: "dns-main", Type: domain.SourceDNS}}
-	overridden := withListDomains(definition, list.ID, list.ServiceDomains["example"])
+	overridden := withProfileListDomains(definition, profile.ID, profile.ListDomains["example"])
 	if !reflect.DeepEqual(overridden.Sources, definition.Sources) {
 		t.Fatalf("override rewrote dynamic sources: %#v", overridden.Sources)
 	}
 
-	if _, err := service.CreateList(context.Background(), "foreign override", ListComposition{
-		Services:       []string{"example"},
-		ServiceDomains: map[string][]string{"missing": {"missing.example"}},
+	if _, err := publication.CreateProfile(context.Background(), "foreign override", ProfileComposition{
+		Lists:       []string{"example"},
+		ListDomains: map[string][]string{"missing": {"missing.example"}},
 	}); err == nil {
 		t.Fatal("accepted a domain override for a service outside the list")
 	}
 }
 
-// testListAndOutput returns one list and the output bound to it, matching the
+// testProfileAndOutput returns one list and the output bound to it, matching the
 // composition and target that newPublicationTestService wires up.
-func testListAndOutput() (List, Output) {
+func testProfileAndOutput() (Profile, Output) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	list := List{ID: strings.Repeat("1", 32), Name: "example list", Services: []string{"example"}, CreatedAt: now, UpdatedAt: now}
-	output := Output{ID: strings.Repeat("2", 32), ListID: list.ID, TargetID: "keenetic", ProfileKey: keenetic.Version, RendererID: keenetic.ID, RendererVersion: keenetic.Version, TargetRevision: strings.Repeat("t", 64), CreatedAt: now}
-	return list, output
+	profile := Profile{ID: strings.Repeat("1", 32), Name: "example list", Lists: []string{"example"}, CreatedAt: now, UpdatedAt: now}
+	output := Output{ID: strings.Repeat("2", 32), ProfileID: profile.ID, TargetID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID, RendererVersion: keenetic.Version, TargetRevision: strings.Repeat("t", 64), CreatedAt: now}
+	return profile, output
 }
 
 func FuzzParseSubscriptionToken(f *testing.F) {

@@ -20,8 +20,8 @@ import (
 //
 // The registry is passed in rather than rebuilt so a target backed by an
 // installed plugin is judged by exactly the same rules as a built-in one.
-func catalogTargets(catalog catalogyaml.Catalog, registry application.RendererRegistry) map[string]domain.TargetProfile {
-	targets := make(map[string]domain.TargetProfile, len(catalog.Targets))
+func catalogTargets(catalog catalogyaml.Catalog, registry application.RendererRegistry) map[string]domain.TargetDefinition {
+	targets := make(map[string]domain.TargetDefinition, len(catalog.Targets))
 	for id, target := range catalog.Targets {
 		if id != target.ID {
 			continue
@@ -33,7 +33,7 @@ func catalogTargets(catalog catalogyaml.Catalog, registry application.RendererRe
 		if !renderableTarget(target, renderer) {
 			continue
 		}
-		if frozen, pinned := frozenProfiles[id]; pinned && !frozen(target) {
+		if frozen, pinned := frozenFormats[id]; pinned && !frozen(target) {
 			continue
 		}
 		targets[id] = target
@@ -44,7 +44,7 @@ func catalogTargets(catalog catalogyaml.Catalog, registry application.RendererRe
 // renderableTarget refuses a catalog file that claims a capability the format
 // cannot express. Without this a target could promise domain routing to a
 // renderer that only emits IPv4 routes.
-func renderableTarget(target domain.TargetProfile, renderer application.Renderer) bool {
+func renderableTarget(target domain.TargetDefinition, renderer application.Renderer) bool {
 	supported := make(map[domain.RuleKind]struct{}, 6)
 	for _, kind := range renderer.SupportedRuleKinds() {
 		supported[kind] = struct{}{}
@@ -80,31 +80,31 @@ func renderableTarget(target domain.TargetProfile, renderer application.Renderer
 	return true
 }
 
-// frozenProfiles pins device-specific truth a catalog file must not widen.
-var frozenProfiles = map[string]func(domain.TargetProfile) bool{
-	"keenetic":     isFrozenKeeneticProfile,
-	"keenetic-dns": isFrozenKeeneticDNSProfile,
-	"singbox":      isFrozenSingboxProfile,
-	"openwrt":      isFrozenOpenWrtProfile,
-	"mikrotik":     isFrozenMikrotikProfile,
-	"amnezia":      isFrozenAmneziaProfile,
+// frozenFormats pins device-specific truth a catalog file must not widen.
+var frozenFormats = map[string]func(domain.TargetDefinition) bool{
+	"keenetic":     isFrozenKeeneticFormat,
+	"keenetic-dns": isFrozenKeeneticDNSFormat,
+	"singbox":      isFrozenSingboxFormat,
+	"openwrt":      isFrozenOpenWrtFormat,
+	"mikrotik":     isFrozenMikrotikFormat,
+	"amnezia":      isFrozenAmneziaFormat,
 }
 
-func isFrozenKeeneticProfile(target domain.TargetProfile) bool {
+func isFrozenKeeneticFormat(target domain.TargetDefinition) bool {
 	constraints := target.Constraints
-	return target.ID == "keenetic" && target.ProfileKey == keenetic.Version && target.RendererID == keenetic.ID && len(target.RendererOptions) == 0 &&
+	return target.ID == "keenetic" && target.FormatKey == keenetic.Version && target.RendererID == keenetic.ID && len(target.RendererOptions) == 0 &&
 		!constraints.SupportsDomainExact && !constraints.SupportsDomainSuffix && !constraints.SupportsDynamicDNSSet && constraints.SupportsIPv4 && !constraints.SupportsIPv6 && constraints.SupportsPrefixes &&
 		constraints.MaxRules == keenetic.MaxLines && constraints.MaxArtifactSize == keenetic.MaxArtifactSize
 }
 
-// isFrozenKeeneticDNSProfile pins what an FQDN object group can hold. The
+// isFrozenKeeneticDNSFormat pins what an FQDN object group can hold. The
 // device expands the subdomains of a listed name itself, so exact-domain
 // support would be a promise the group cannot keep, and the two list bounds
 // must match the renderer or a split would be sized against a limit nothing
 // enforces.
-func isFrozenKeeneticDNSProfile(target domain.TargetProfile) bool {
+func isFrozenKeeneticDNSFormat(target domain.TargetDefinition) bool {
 	constraints := target.Constraints
-	return target.ID == "keenetic-dns" && target.ProfileKey == keeneticdns.Version && target.RendererID == keeneticdns.ID && len(target.RendererOptions) == 0 &&
+	return target.ID == "keenetic-dns" && target.FormatKey == keeneticdns.Version && target.RendererID == keeneticdns.ID && len(target.RendererOptions) == 0 &&
 		!constraints.SupportsDomainExact && constraints.SupportsDomainSuffix && constraints.SupportsDynamicDNSSet &&
 		constraints.SupportsIPv4 && constraints.SupportsIPv6 && constraints.SupportsPrefixes &&
 		constraints.MaxRules == keeneticdns.MaxGroups*keeneticdns.MaxEntriesPerGroup &&
@@ -112,43 +112,43 @@ func isFrozenKeeneticDNSProfile(target domain.TargetProfile) bool {
 		constraints.MaxEntriesPerList == keeneticdns.MaxEntriesPerGroup && constraints.MaxLists == keeneticdns.MaxGroups
 }
 
-func isFrozenSingboxProfile(target domain.TargetProfile) bool {
+func isFrozenSingboxFormat(target domain.TargetDefinition) bool {
 	constraints := target.Constraints
-	return target.ID == "singbox" && target.ProfileKey == singbox.Version && target.RendererID == singbox.ID && len(target.RendererOptions) == 0 &&
+	return target.ID == "singbox" && target.FormatKey == singbox.Version && target.RendererID == singbox.ID && len(target.RendererOptions) == 0 &&
 		constraints.SupportsDomainExact && constraints.SupportsDomainSuffix && !constraints.SupportsDynamicDNSSet && constraints.SupportsIPv4 && constraints.SupportsIPv6 && constraints.SupportsPrefixes &&
 		constraints.MaxRules == singbox.MaxEntries && constraints.MaxArtifactSize == singbox.MaxArtifactSize
 }
 
-// isFrozenOpenWrtProfile pins the one capability shape this format can honor.
+// isFrozenOpenWrtFormat pins the one capability shape this format can honor.
 // The device resolves the listed domains itself, so a catalog file that claimed
 // an address capability would promise coverage the fragment cannot carry, and
 // exact-domain support would silently widen every rule to its subdomains.
-func isFrozenOpenWrtProfile(target domain.TargetProfile) bool {
+func isFrozenOpenWrtFormat(target domain.TargetDefinition) bool {
 	constraints := target.Constraints
-	return target.ID == "openwrt" && target.ProfileKey == openwrtnftset.Version && target.RendererID == openwrtnftset.ID && len(target.RendererOptions) == 0 &&
+	return target.ID == "openwrt" && target.FormatKey == openwrtnftset.Version && target.RendererID == openwrtnftset.ID && len(target.RendererOptions) == 0 &&
 		!constraints.SupportsDomainExact && constraints.SupportsDomainSuffix && constraints.SupportsDynamicDNSSet &&
 		!constraints.SupportsIPv4 && !constraints.SupportsIPv6 && !constraints.SupportsPrefixes &&
 		constraints.MaxRules == openwrtnftset.MaxLines && constraints.MaxArtifactSize == openwrtnftset.MaxArtifactSize
 }
 
-// isFrozenMikrotikProfile pins what an address-list entry can hold. A suffix is
+// isFrozenMikrotikFormat pins what an address-list entry can hold. A suffix is
 // not an address-list value, so a catalog file that claimed one would promise
 // coverage the script cannot carry.
-func isFrozenMikrotikProfile(target domain.TargetProfile) bool {
+func isFrozenMikrotikFormat(target domain.TargetDefinition) bool {
 	constraints := target.Constraints
-	return target.ID == "mikrotik" && target.ProfileKey == mikrotik.Version && target.RendererID == mikrotik.ID && len(target.RendererOptions) == 0 &&
+	return target.ID == "mikrotik" && target.FormatKey == mikrotik.Version && target.RendererID == mikrotik.ID && len(target.RendererOptions) == 0 &&
 		constraints.SupportsDomainExact && !constraints.SupportsDomainSuffix && !constraints.SupportsDynamicDNSSet &&
 		constraints.SupportsIPv4 && constraints.SupportsIPv6 && constraints.SupportsPrefixes &&
 		constraints.MaxRules == mikrotik.MaxLines && constraints.MaxArtifactSize == mikrotik.MaxArtifactSize
 }
 
-// isFrozenAmneziaProfile pins what the client will actually route. It collects
+// isFrozenAmneziaFormat pins what the client will actually route. It collects
 // IPv4 answers when it resolves a site and resolves the one name it was given,
 // so a catalog file claiming IPv6 or suffix support would promise coverage the
 // client silently drops.
-func isFrozenAmneziaProfile(target domain.TargetProfile) bool {
+func isFrozenAmneziaFormat(target domain.TargetDefinition) bool {
 	constraints := target.Constraints
-	return target.ID == "amnezia" && target.ProfileKey == amnezia.Version && target.RendererID == amnezia.ID && len(target.RendererOptions) == 0 &&
+	return target.ID == "amnezia" && target.FormatKey == amnezia.Version && target.RendererID == amnezia.ID && len(target.RendererOptions) == 0 &&
 		constraints.SupportsDomainExact && !constraints.SupportsDomainSuffix && !constraints.SupportsDynamicDNSSet &&
 		constraints.SupportsIPv4 && !constraints.SupportsIPv6 && constraints.SupportsPrefixes &&
 		constraints.MaxRules == amnezia.MaxEntries && constraints.MaxArtifactSize == amnezia.MaxArtifactSize

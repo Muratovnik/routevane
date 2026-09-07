@@ -17,7 +17,7 @@ func TestRenderUsesCanonicalTypedValuesAndEmptyArrays(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output, err := Render(domain.RoutingPlan{InterfaceVersion: domain.RoutingPlanInterfaceVersion, TargetID: "raw", ProfileKey: "raw-v1", Services: []string{"example"}, Rules: []domain.RouteRule{rule}, ObservationCutoff: now, PolicyVersion: "auto-v1", CatalogRevision: "m0"})
+	output, err := Render(domain.RoutingPlan{InterfaceVersion: domain.RoutingPlanInterfaceVersion, TargetID: "raw", FormatKey: "raw-v1", Lists: []string{"example"}, Rules: []domain.RouteRule{rule}, ObservationCutoff: now, PolicyVersion: "auto-v1", CatalogRevision: "m0"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,10 +42,10 @@ func testPlan(t *testing.T) domain.RoutingPlan {
 	return domain.RoutingPlan{
 		InterfaceVersion:  domain.RoutingPlanInterfaceVersion,
 		TargetID:          "raw",
-		ProfileKey:        Version,
-		Services:          []string{"youtube"},
+		FormatKey:         Version,
+		Lists:             []string{"youtube"},
 		Rules:             []domain.RouteRule{suffixRule},
-		Coverage:          []domain.Coverage{{ServiceID: "youtube", ComponentID: "web", Complete: true, RuleCount: 1}},
+		Coverage:          []domain.Coverage{{ListID: "youtube", ComponentID: "web", Complete: true, RuleCount: 1}},
 		PolicyVersion:     "auto-v1",
 		CatalogRevision:   "m0",
 		ObservationCutoff: now,

@@ -88,15 +88,15 @@ func TestAdditionalShippedDomainListsPublishSupportedNamesEndToEnd(t *testing.T)
 			if err := json.Unmarshal(refreshBody, &refresh); err != nil || refresh.Summary.Skipped != candidate.skipped {
 				t.Fatalf("skipped diagnostic=%s err=%v", refreshBody, err)
 			}
-			listID, outputID, subscription := createListOutput(t, origin, candidate.id, "keenetic-dns", candidate.id)
-			built := guardedRefreshAndBuild(t, origin, listID, outputID)
+			profileID, outputID, subscription := createProfileOutput(t, origin, candidate.id, "keenetic-dns", candidate.id)
+			built := guardedRefreshAndBuild(t, origin, profileID, outputID)
 			artifact := downloadArtifact(t, origin, built.Artifact.ID)
 			groups, err := keeneticdns.Parse(artifact.body)
 			if err != nil || len(groups) != 1 || groups[0].Name != "routevane-"+candidate.id || !slices.Equal(groups[0].Entries, candidate.want) {
 				t.Fatalf("DNS artifact=%s err=%v", artifact.body, err)
 			}
-			clientOutput := addOutput(t, origin, listID, "singbox")
-			clientBuild := guardedRefreshAndBuild(t, origin, listID, clientOutput)
+			clientOutput := addOutput(t, origin, profileID, "singbox")
+			clientBuild := guardedRefreshAndBuild(t, origin, profileID, clientOutput)
 			clientArtifact := downloadArtifact(t, origin, clientBuild.Artifact.ID)
 			client, err := singbox.Parse(clientArtifact.body)
 			if err != nil || !slices.Equal(client.Rule.DomainSuffix, candidate.want) || len(client.Rule.Domain) != 0 || len(client.Rule.IPCIDR) != 0 {
@@ -104,7 +104,7 @@ func TestAdditionalShippedDomainListsPublishSupportedNamesEndToEnd(t *testing.T)
 			}
 			before := httpGet(t, subscription, nil)
 			failed.Store(true)
-			if response := postGuarded(t, origin+"/v1/profiles/"+listID+"/refresh"); response.status != http.StatusUnprocessableEntity {
+			if response := postGuarded(t, origin+"/v1/profiles/"+profileID+"/refresh"); response.status != http.StatusUnprocessableEntity {
 				t.Fatalf("source failure=%d %s", response.status, response.body)
 			}
 			after := httpGet(t, subscription, nil)

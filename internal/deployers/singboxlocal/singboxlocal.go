@@ -190,9 +190,9 @@ func (*Deployer) Probe(_ context.Context, connection application.Connection) (ap
 		}
 		info.Interface = resolved
 		info.FirmwareVersion = entry.Tag
-		info.ProfileKey = singbox.Version
+		info.FormatKey = singbox.Version
 	}
-	if info.ProfileKey == "" {
+	if info.FormatKey == "" {
 		return info, ErrRuleSetMissing
 	}
 	return info, nil

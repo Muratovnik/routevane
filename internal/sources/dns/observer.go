@@ -32,7 +32,7 @@ type CNAMEResolver interface {
 }
 
 type Query struct {
-	ServiceID   string
+	ListID      string
 	ComponentID string
 	SourceID    string
 	Names       []string
@@ -63,7 +63,7 @@ func (o *Observer) Observe(ctx context.Context, query Query, observedAt time.Tim
 	if ctx == nil {
 		return Result{}, fmt.Errorf("dns context is nil")
 	}
-	if query.ServiceID == "" {
+	if query.ListID == "" {
 		return Result{}, fmt.Errorf("dns query has no service id")
 	}
 	if query.ComponentID == "" {
@@ -129,8 +129,8 @@ func (o *Observer) Observe(ctx context.Context, query Query, observedAt time.Tim
 			resource, _ := domain.NewAddrResource(a)
 			// net.Resolver does not expose an observed DNS TTL. The conservative
 			// validity window is policy, so it must not be mislabeled as TTL data.
-			sighting := domain.Sighting{ServiceID: query.ServiceID, ComponentID: query.ComponentID, Resource: resource, SourceID: query.SourceID, SourceClass: domain.SourceObserved, SourceRevision: revision, FirstSeen: observedAt, LastSeen: observedAt, ValidUntil: observedAt.Add(validity), TTLSeconds: 0, TTLKnown: false, ObservationCount: 1, Validity: domain.ValidityValid}
-			key = strings.Join([]string{query.ServiceID, query.ComponentID, resource.CanonicalValue(), query.SourceID, revision}, "\x00")
+			sighting := domain.Sighting{ListID: query.ListID, ComponentID: query.ComponentID, Resource: resource, SourceID: query.SourceID, SourceClass: domain.SourceObserved, SourceRevision: revision, FirstSeen: observedAt, LastSeen: observedAt, ValidUntil: observedAt.Add(validity), TTLSeconds: 0, TTLKnown: false, ObservationCount: 1, Validity: domain.ValidityValid}
+			key = strings.Join([]string{query.ListID, query.ComponentID, resource.CanonicalValue(), query.SourceID, revision}, "\x00")
 			if _, exists := sightings[key]; !exists {
 				// A source observation cycle is one fact regardless of duplicate
 				// RR rows or multiple query names yielding the same resource.
@@ -164,7 +164,7 @@ func (o *Observer) Observe(ctx context.Context, query Query, observedAt time.Tim
 			if terminal != name {
 				source, _ := domain.NewDomainResource(name)
 				target, _ := domain.NewDomainResource(terminal)
-				relation := domain.Relation{SourceResource: source, RelationType: domain.RelationCNAMETo, TargetResource: target, ServiceID: query.ServiceID, ComponentID: query.ComponentID, FirstSeen: observedAt, LastSeen: observedAt, ValidUntil: observedAt.Add(validity), SourceID: query.SourceID, SourceRevision: revision, Validity: domain.ValidityValid}
+				relation := domain.Relation{SourceResource: source, RelationType: domain.RelationCNAMETo, TargetResource: target, ListID: query.ListID, ComponentID: query.ComponentID, FirstSeen: observedAt, LastSeen: observedAt, ValidUntil: observedAt.Add(validity), SourceID: query.SourceID, SourceRevision: revision, Validity: domain.ValidityValid}
 				relations[relation.Fingerprint()] = relation
 			}
 		}
@@ -179,8 +179,8 @@ func (o *Observer) Observe(ctx context.Context, query Query, observedAt time.Tim
 		out.Relations = append(out.Relations, relation)
 	}
 	slices.SortFunc(out.Sightings, func(a, b domain.Sighting) int {
-		ak := strings.Join([]string{a.ServiceID, a.ComponentID, a.Resource.CanonicalValue(), a.SourceID, a.SourceRevision}, "\x00")
-		bk := strings.Join([]string{b.ServiceID, b.ComponentID, b.Resource.CanonicalValue(), b.SourceID, b.SourceRevision}, "\x00")
+		ak := strings.Join([]string{a.ListID, a.ComponentID, a.Resource.CanonicalValue(), a.SourceID, a.SourceRevision}, "\x00")
+		bk := strings.Join([]string{b.ListID, b.ComponentID, b.Resource.CanonicalValue(), b.SourceID, b.SourceRevision}, "\x00")
 		return cmp.Compare(ak, bk)
 	})
 	slices.SortFunc(out.Relations, func(a, b domain.Relation) int { return cmp.Compare(a.Fingerprint(), b.Fingerprint()) })
@@ -189,6 +189,6 @@ func (o *Observer) Observe(ctx context.Context, query Query, observedAt time.Tim
 
 // ObserveNames is a compact convenience for callers with a single source
 // definition.  Observe remains the primitive used by tests and the command.
-func (o *Observer) ObserveNames(ctx context.Context, serviceID, componentID, sourceID string, names []string, observedAt time.Time) (Result, error) {
-	return o.Observe(ctx, Query{ServiceID: serviceID, ComponentID: componentID, SourceID: sourceID, Names: names}, observedAt)
+func (o *Observer) ObserveNames(ctx context.Context, listID, componentID, sourceID string, names []string, observedAt time.Time) (Result, error) {
+	return o.Observe(ctx, Query{ListID: listID, ComponentID: componentID, SourceID: sourceID, Names: names}, observedAt)
 }

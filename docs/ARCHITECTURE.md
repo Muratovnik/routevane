@@ -40,7 +40,7 @@ the shell does not turn source scheduling into an Electron-only capability.
 
 Domain values and pure planning do not depend on persistence, HTTP, browser or
 device transports. Interfaces belong to their consumers. A renderer projects an
-already decided plan; a target profile supplies format capabilities and limits;
+already decided plan; a target definition supplies format capabilities and limits;
 a deployer changes one compatible destination. These are distinct responsibilities
 ([domain-first](adr/0010-domain-first-and-no-network-expansion.md),
 [planner/renderer boundary](adr/0011-routing-plan-renderer-boundary.md)).
@@ -91,9 +91,9 @@ processes are inside the stated local trust boundary
 
 ## Rendering and immutable publication
 
-One registry maps renderer IDs to implementations. Target profiles are a separate
-catalog joined by renderer ID/version. Composition rejects inconsistent profiles
-and collisions. Seven renderers exist: six user-facing output formats and Raw
+One registry maps renderer IDs to implementations. Target definitions are a
+separate catalog joined by renderer ID/version. Composition rejects an
+inconsistent definition and a collision. Seven renderers exist: six user-facing output formats and Raw
 JSON diagnostics; the [support matrix](usage.md#supported-outputs) owns the
 user-facing acceptance claims.
 

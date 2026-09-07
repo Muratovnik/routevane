@@ -19,7 +19,7 @@ func (s Source) Observe(ctx context.Context, request application.SourceRequest) 
 	}
 	copy := *observer
 	copy.SourceRevision = request.SourceRevision
-	result, err := copy.Observe(ctx, Query{ServiceID: request.ServiceID, ComponentID: request.ComponentID, SourceID: request.SourceID, Names: request.Names}, request.ObservedAt)
+	result, err := copy.Observe(ctx, Query{ListID: request.ListID, ComponentID: request.ComponentID, SourceID: request.SourceID, Names: request.Names}, request.ObservedAt)
 	if err != nil {
 		return application.SourceResult{}, err
 	}

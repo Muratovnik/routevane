@@ -209,8 +209,8 @@ func Classify(evidence SessionEvidence, exercised []string) []Decision {
 // Relations turns the session's provenance into domain relations for one
 // service. A relation records how a dependency appeared; it never asserts that
 // either side owns the other, so it can never widen routing on its own.
-func Relations(evidence SessionEvidence, serviceID, sourceID, sourceRevision string, observedAt time.Time, validity time.Duration) ([]domain.Relation, error) {
-	if domain.ValidateSlug(serviceID) != nil || domain.ValidateSlug(sourceID) != nil || sourceRevision == "" || observedAt.IsZero() || validity <= 0 {
+func Relations(evidence SessionEvidence, listID, sourceID, sourceRevision string, observedAt time.Time, validity time.Duration) ([]domain.Relation, error) {
+	if domain.ValidateSlug(listID) != nil || domain.ValidateSlug(sourceID) != nil || sourceRevision == "" || observedAt.IsZero() || validity <= 0 {
 		return nil, ErrInvalidEvidence
 	}
 	observedAt = observedAt.UTC()
@@ -227,7 +227,7 @@ func Relations(evidence SessionEvidence, serviceID, sourceID, sourceRevision str
 		}
 		relations = append(relations, domain.Relation{
 			SourceResource: source, RelationType: relationType, TargetResource: target,
-			ServiceID: serviceID, ComponentID: componentID,
+			ListID: listID, ComponentID: componentID,
 			FirstSeen: observedAt, LastSeen: observedAt, ValidUntil: validUntil,
 			SourceID: sourceID, SourceRevision: sourceRevision, Validity: domain.ValidityValid,
 		})

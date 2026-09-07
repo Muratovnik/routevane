@@ -41,8 +41,8 @@ func TestAppliesAPublishedRuleSetToALocalSingBox(t *testing.T) {
 		}
 	}()
 
-	listID, outputID, _ := createListOutput(t, origin, "YouTube", "singbox", "youtube")
-	build := refreshAndBuild(t, origin, listID, outputID)
+	profileID, outputID, _ := createProfileOutput(t, origin, "YouTube", "singbox", "youtube")
+	build := refreshAndBuild(t, origin, profileID, outputID)
 	if build.Artifact.ID == "" {
 		t.Fatalf("build = %#v", build)
 	}
@@ -66,7 +66,7 @@ func TestAppliesAPublishedRuleSetToALocalSingBox(t *testing.T) {
 	if !applied.Applied || applied.RolledBack {
 		t.Fatalf("result = %#v", applied)
 	}
-	if applied.Device.Vendor != singboxlocal.Vendor || applied.Device.ProfileKey != singbox.Version {
+	if applied.Device.Vendor != singboxlocal.Vendor || applied.Device.FormatKey != singbox.Version {
 		t.Fatalf("device = %#v", applied.Device)
 	}
 	if applied.Device.Interface != ruleSetPath {

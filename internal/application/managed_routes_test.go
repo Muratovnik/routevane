@@ -257,7 +257,7 @@ type managedSpyDeployer struct {
 	mutation ManagedRouteMutation
 }
 
-func (*managedSpyDeployer) ManagedRouteScope(domain.TargetProfile, Connection) (ManagedRouteScope, error) {
+func (*managedSpyDeployer) ManagedRouteScope(domain.TargetDefinition, Connection) (ManagedRouteScope, error) {
 	return managedScope(), nil
 }
 
@@ -281,7 +281,7 @@ func (m *managedSpyDeployer) ApplyManagedRoutes(_ context.Context, _ DeviceInfo,
 
 func TestFailedManagedRouteVerificationRollsBackWithoutChangingTheLedger(t *testing.T) {
 	prefix := managedPrefix("192.0.2.10/32")
-	base := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
+	base := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
 	deployer := &managedSpyDeployer{spyDeployer: base, desired: managedSpecs(prefix), current: [][]ManagedRouteSpec{nil, nil}}
 	ledger := &memoryManagedRoutes{}
 	request := deployTestRequest()
@@ -302,7 +302,7 @@ func TestFailedManagedRouteVerificationRollsBackWithoutChangingTheLedger(t *test
 func TestManagedRouteDescriptionMismatchRollsBackWithoutChangingTheLedger(t *testing.T) {
 	prefix := managedPrefix("192.0.2.10/32")
 	desired := labeledManagedSpec(prefix, "(Видео/YouTube)")
-	base := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
+	base := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
 	deployer := &managedSpyDeployer{
 		spyDeployer: base,
 		desired:     []ManagedRouteSpec{desired},
@@ -329,7 +329,7 @@ func TestManagedRoutePersistenceFailureRollsBackAndKeepsTheOldLedger(t *testing.
 		Routes: []ManagedRoute{{Prefix: oldPrefix, CreatedByRoutevane: true}},
 		Claims: []ManagedRouteClaim{{OutputID: managedOutputA, Prefix: oldPrefix}},
 	}
-	base := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
+	base := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
 	deployer := &managedSpyDeployer{spyDeployer: base, desired: managedSpecs(newPrefix), current: [][]ManagedRouteSpec{managedSpecs(oldPrefix), managedSpecs(newPrefix)}}
 	ledger := &memoryManagedRoutes{state: prior, err: errors.New("disk full")}
 	request := deployTestRequest()
@@ -352,7 +352,7 @@ func TestManagedRoutePersistenceFailureRollsBackAndKeepsTheOldLedger(t *testing.
 
 func TestCorruptManagedRouteLedgerPreventsDeploymentAndWrites(t *testing.T) {
 	prefix := managedPrefix("192.0.2.10/32")
-	base := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
+	base := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
 	deployer := &managedSpyDeployer{spyDeployer: base, desired: managedSpecs(prefix)}
 	ledger := &memoryManagedRoutes{state: ManagedRouteOwnership{
 		Scope:  managedScope(),

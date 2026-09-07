@@ -13,12 +13,12 @@ import (
 // These are the read-model projections a screen asks for: the catalog as it
 // currently stands, and what each stored list and output currently resolves
 // to. Every one of them only reads Store, Categories, or Targets and returns
-// a presentation shape; none is called from Build, AddOutput, or CreateList,
+// a presentation shape; none is called from Build, AddOutput, or CreateProfile,
 // and none of them calls into those either.
 
-// ServiceDetail is the catalog metadata that is safe for the local control
+// ListDetail is the catalog metadata that is safe for the local control
 // surface. It deliberately omits source configuration and routing evidence.
-type ServiceDetail struct {
+type ListDetail struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
 	// Categories are every catalog grouping that names this service. A service
@@ -27,27 +27,27 @@ type ServiceDetail struct {
 	// Domains are only the bounded rules shipped in the local catalog. Fetched
 	// observations and source configuration stay behind diagnostics and never
 	// enter this collection response.
-	Domains []ServiceDomain `json:"domains"`
+	Domains []ListDomain `json:"domains"`
 	// Sources names the configured automatic inputs without exposing their URL
 	// or other network configuration. They explain where additional rules come
 	// from while the editable domain set remains a bounded list-local override.
-	Sources     []ServiceSource `json:"sources"`
-	SourceCount int             `json:"source_count"`
+	Sources     []ListSource `json:"sources"`
+	SourceCount int          `json:"source_count"`
 	// Custom marks an operator-defined service. The screen offers editing its
 	// own definition only where this is true: a shipped catalog entry is data
 	// the process reads, not a stored row it may rewrite.
 	Custom bool `json:"custom,omitempty"`
 }
 
-// ServiceDomain is a human-readable catalog rule. IncludeSubdomains is kept
+// ListDomain is a human-readable catalog rule. IncludeSubdomains is kept
 // separate from Value so the UI can explain suffix semantics without asking a
 // user to decode an internal rule kind.
-type ServiceDomain struct {
+type ListDomain struct {
 	Value             string `json:"value"`
 	IncludeSubdomains bool   `json:"include_subdomains"`
 }
 
-type ServiceSource struct {
+type ListSource struct {
 	ID   string `json:"id"`
 	Type string `json:"type"`
 }
@@ -61,7 +61,7 @@ type CategoryDetail struct {
 	// Services is the merged membership, not the catalog's own. A screen that
 	// resolved the overlay itself would answer differently from the build
 	// whenever its copy was a moment stale.
-	Services []string `json:"lists"`
+	Lists []string `json:"lists"`
 	// Custom marks a category the operator created: it may be renamed and
 	// deleted, while a shipped one may only gain and lose members. It carries
 	// no omitempty because false is the answer for every shipped category and
@@ -77,7 +77,7 @@ type TargetOption struct {
 	ID            string `json:"id"`
 	Title         string `json:"title"`
 	Kind          string `json:"kind"`
-	ProfileKey    string `json:"profile_key"`
+	FormatKey     string `json:"profile_key"`
 	RendererID    string `json:"renderer_id"`
 	FileExtension string `json:"file_extension"`
 	// ManualInstallationHint is what the operator does with the file. It is
@@ -118,16 +118,16 @@ type OutputCard struct {
 	LastAttempt   *OutputAttempt  `json:"last_attempt,omitempty"`
 }
 
-// ListCard is one row of the library screen: the list itself plus the outputs
+// ProfileCard is one row of the library screen: the list itself plus the outputs
 // it currently feeds.
-type ListCard struct {
-	ID             string              `json:"id"`
-	Name           string              `json:"name"`
-	Services       []string            `json:"lists"`
-	Categories     []string            `json:"categories"`
-	Exclusions     []string            `json:"exclusions"`
-	ServiceDomains map[string][]string `json:"list_domains,omitempty"`
-	Priority       []string            `json:"priority"`
+type ProfileCard struct {
+	ID          string              `json:"id"`
+	Name        string              `json:"name"`
+	Lists       []string            `json:"lists"`
+	Categories  []string            `json:"categories"`
+	Exclusions  []string            `json:"exclusions"`
+	ListDomains map[string][]string `json:"list_domains,omitempty"`
+	Priority    []string            `json:"priority"`
 	// Resolved is what the list publishes right now: named services plus every
 	// category's members, minus exclusions, deduplicated. A screen shows this
 	// and can still explain it, because the stored parts are here too.
@@ -144,34 +144,34 @@ type ListCard struct {
 // Services names every list the library currently holds. A list the operator
 // removed is absent, decided by the same accessor a build resolves an id with,
 // so the picker and the plan can never disagree about what exists (ADR 0029).
-func (s *PublicationService) Services() []string {
-	custom := s.customServices()
+func (s *PublicationService) Lists() []string {
+	custom := s.customLists()
 	ids := make([]string, 0, len(s.config.Definitions)+len(custom))
 	for id := range s.config.Definitions {
 		ids = append(ids, id)
 	}
-	for _, service := range custom {
-		ids = append(ids, service.ID)
+	for _, list := range custom {
+		ids = append(ids, list.ID)
 	}
 	slices.Sort(ids)
 	held := make([]string, 0, len(ids))
 	for _, id := range ids {
-		if s.knownService(id) {
+		if s.knownList(id) {
 			held = append(held, id)
 		}
 	}
 	return held
 }
 
-func (s *PublicationService) ServiceDetails() []ServiceDetail {
+func (s *PublicationService) ListDetails() []ListDetail {
 	membership := make(map[string][]string, len(s.config.Definitions))
 	for _, category := range s.mergedCategories() {
-		for _, serviceID := range category.Services {
-			membership[serviceID] = append(membership[serviceID], category.ID)
+		for _, listID := range category.Lists {
+			membership[listID] = append(membership[listID], category.ID)
 		}
 	}
-	ids := s.Services()
-	details := make([]ServiceDetail, 0, len(ids))
+	ids := s.Lists()
+	details := make([]ListDetail, 0, len(ids))
 	for _, id := range ids {
 		definition, known := s.definition(id)
 		if !known {
@@ -190,16 +190,16 @@ func (s *PublicationService) ServiceDetails() []ServiceDetail {
 			domainValues = append(domainValues, value)
 		}
 		slices.Sort(domainValues)
-		domains := make([]ServiceDomain, 0, len(domainValues))
+		domains := make([]ListDomain, 0, len(domainValues))
 		for _, value := range domainValues {
-			domains = append(domains, ServiceDomain{Value: value, IncludeSubdomains: domainModes[value]})
+			domains = append(domains, ListDomain{Value: value, IncludeSubdomains: domainModes[value]})
 		}
-		sources := make([]ServiceSource, 0, len(definition.Sources))
+		sources := make([]ListSource, 0, len(definition.Sources))
 		for _, source := range definition.Sources {
-			sources = append(sources, ServiceSource{ID: source.ID, Type: string(source.Type)})
+			sources = append(sources, ListSource{ID: source.ID, Type: string(source.Type)})
 		}
-		slices.SortFunc(sources, func(a, b ServiceSource) int { return cmp.Compare(a.ID, b.ID) })
-		details = append(details, ServiceDetail{
+		slices.SortFunc(sources, func(a, b ListSource) int { return cmp.Compare(a.ID, b.ID) })
+		details = append(details, ListDetail{
 			ID: definition.ID, Title: definition.Title,
 			Categories: domain.StableStrings(membership[id]), Domains: domains, Sources: sources, SourceCount: len(sources),
 			Custom: !shipped,
@@ -233,7 +233,7 @@ func (s *PublicationService) Targets() []TargetOption {
 			title = target.ID
 		}
 		options = append(options, TargetOption{
-			ID: target.ID, Title: title, Kind: target.Kind, ProfileKey: target.ProfileKey, RendererID: target.RendererID,
+			ID: target.ID, Title: title, Kind: target.Kind, FormatKey: target.FormatKey, RendererID: target.RendererID,
 			FileExtension:            descriptor.FileExtension,
 			ManualInstallationHint:   target.ManualInstallationHint,
 			TitleEN:                  target.TitleEN,
@@ -243,11 +243,11 @@ func (s *PublicationService) Targets() []TargetOption {
 	return options
 }
 
-// ListCards lists every stored list with the outputs it feeds. A latest
+// ProfileCards lists every stored list with the outputs it feeds. A latest
 // artifact that cannot be read is omitted from its output rather than failing
 // the listing: the list still exists and says so.
-func (s *PublicationService) ListCards(ctx context.Context) ([]ListCard, error) {
-	lists, err := s.config.Store.Lists(ctx)
+func (s *PublicationService) ProfileCards(ctx context.Context) ([]ProfileCard, error) {
+	profiles, err := s.config.Store.Profiles(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -257,21 +257,21 @@ func (s *PublicationService) ListCards(ctx context.Context) ([]ListCard, error) 
 	}
 	// The store returns outputs newest first so a bound drops the oldest; a
 	// list states its own outputs oldest first, the order it acquired them.
-	byList := make(map[string][]Output, len(lists))
+	byProfile := make(map[string][]Output, len(profiles))
 	for i := len(outputs) - 1; i >= 0; i-- {
-		byList[outputs[i].ListID] = append(byList[outputs[i].ListID], outputs[i])
+		byProfile[outputs[i].ProfileID] = append(byProfile[outputs[i].ProfileID], outputs[i])
 	}
-	cards := make([]ListCard, 0, len(lists))
-	for _, list := range lists {
-		card := ListCard{
-			ID: list.ID, Name: list.Name,
-			Services: list.Services, Categories: list.Categories, Exclusions: list.Exclusions, ServiceDomains: list.ServiceDomains, Priority: list.Priority,
-			Resolved: s.ResolvedServices(list), MissingCategories: s.MissingCategories(list),
-			ArchivedAt: list.ArchivedAt,
-			CreatedAt:  list.CreatedAt, UpdatedAt: list.UpdatedAt,
-			Outputs: make([]OutputCard, 0, len(byList[list.ID])),
+	cards := make([]ProfileCard, 0, len(profiles))
+	for _, profile := range profiles {
+		card := ProfileCard{
+			ID: profile.ID, Name: profile.Name,
+			Lists: profile.Lists, Categories: profile.Categories, Exclusions: profile.Exclusions, ListDomains: profile.ListDomains, Priority: profile.Priority,
+			Resolved: s.ResolvedLists(profile), MissingCategories: s.MissingCategories(profile),
+			ArchivedAt: profile.ArchivedAt,
+			CreatedAt:  profile.CreatedAt, UpdatedAt: profile.UpdatedAt,
+			Outputs: make([]OutputCard, 0, len(byProfile[profile.ID])),
 		}
-		for _, output := range byList[list.ID] {
+		for _, output := range byProfile[profile.ID] {
 			card.Outputs = append(card.Outputs, s.outputCard(ctx, output))
 		}
 		cards = append(cards, card)
@@ -280,8 +280,8 @@ func (s *PublicationService) ListCards(ctx context.Context) ([]ListCard, error) 
 }
 
 // OutputCards describes one list's outputs for the list screen.
-func (s *PublicationService) OutputCards(ctx context.Context, listID string) ([]OutputCard, error) {
-	outputs, err := s.Outputs(ctx, listID)
+func (s *PublicationService) OutputCards(ctx context.Context, profileID string) ([]OutputCard, error) {
+	outputs, err := s.Outputs(ctx, profileID)
 	if err != nil {
 		return nil, err
 	}

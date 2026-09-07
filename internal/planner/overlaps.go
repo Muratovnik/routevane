@@ -14,7 +14,7 @@ import (
 type OverlapValue struct {
 	RuleKind domain.RuleKind
 	Value    string
-	Services []string
+	Lists    []string
 }
 
 type RuleOverlap struct {
@@ -38,8 +38,8 @@ type RuleOverlaps struct {
 // OverlapSummary is one row of the complete overlap adjacency graph. The
 // service id never appears in its own Overlaps slice.
 type OverlapSummary struct {
-	ServiceID string
-	Overlaps  []string
+	ListID   string
+	Overlaps []string
 }
 
 type overlapGroup struct {
@@ -63,7 +63,7 @@ func AnalyzeRuleOverlaps(rules []domain.RouteRule, limit int) RuleOverlaps {
 	result := RuleOverlaps{Items: []RuleOverlap{}, Summary: []OverlapSummary{}}
 	limit = max(0, limit)
 	groups := make(map[string]*overlapGroup)
-	services := make(map[string]struct{})
+	lists := make(map[string]struct{})
 	adjacency := make(map[string]map[string]struct{})
 	addEdge := func(a, b string) {
 		if a == "" || b == "" || a == b {
@@ -82,7 +82,7 @@ func AnalyzeRuleOverlaps(rules []domain.RouteRule, limit int) RuleOverlaps {
 		if !rule.IsValid() {
 			continue
 		}
-		services[rule.ServiceID] = struct{}{}
+		lists[rule.ListID] = struct{}{}
 		value := rule.CanonicalValue()
 		key := overlapKey(rule.Kind, value)
 		group := groups[key]
@@ -90,13 +90,13 @@ func AnalyzeRuleOverlaps(rules []domain.RouteRule, limit int) RuleOverlaps {
 			group = &overlapGroup{rule: rule, entry: OverlapValue{RuleKind: rule.Kind, Value: value}}
 			groups[key] = group
 		}
-		group.entry.Services = append(group.entry.Services, rule.ServiceID)
+		group.entry.Lists = append(group.entry.Lists, rule.ListID)
 	}
 	keys := make([]string, 0, len(groups))
 	widths := map[domain.RuleKind][]int{}
 	for key, group := range groups {
 		keys = append(keys, key)
-		group.entry.Services = domain.StableStrings(group.entry.Services)
+		group.entry.Lists = domain.StableStrings(group.entry.Lists)
 		if group.rule.Kind.IsPrefix() {
 			widths[group.rule.Kind] = append(widths[group.rule.Kind], group.rule.Prefix.Bits())
 		}
@@ -117,10 +117,10 @@ func AnalyzeRuleOverlaps(rules []domain.RouteRule, limit int) RuleOverlaps {
 	}
 	for _, key := range keys {
 		entry := groups[key].entry
-		if len(entry.Services) > 1 {
-			for i, serviceID := range entry.Services {
-				for _, other := range entry.Services[i+1:] {
-					addEdge(serviceID, other)
+		if len(entry.Lists) > 1 {
+			for i, listID := range entry.Lists {
+				for _, other := range entry.Lists[i+1:] {
+					addEdge(listID, other)
 				}
 			}
 			appendDetail(RuleOverlap{Kind: "duplicate", Entry: entry})
@@ -133,27 +133,27 @@ func AnalyzeRuleOverlaps(rules []domain.RouteRule, limit int) RuleOverlaps {
 			if parent == nil {
 				continue
 			}
-			for _, serviceID := range group.entry.Services {
-				owners := make([]string, 0, len(parent.entry.Services))
-				for _, owner := range parent.entry.Services {
-					if owner != serviceID {
+			for _, listID := range group.entry.Lists {
+				owners := make([]string, 0, len(parent.entry.Lists))
+				for _, owner := range parent.entry.Lists {
+					if owner != listID {
 						owners = append(owners, owner)
-						addEdge(serviceID, owner)
+						addEdge(listID, owner)
 					}
 				}
 				if len(owners) == 0 {
 					continue
 				}
 				entry, covering := group.entry, parent.entry
-				entry.Services, covering.Services = []string{serviceID}, owners
+				entry.Lists, covering.Lists = []string{listID}, owners
 				appendDetail(RuleOverlap{Kind: "covered", Entry: entry, Covering: &covering})
 			}
 		}
 	}
-	serviceIDs := slices.Sorted(maps.Keys(services))
-	for _, serviceID := range serviceIDs {
-		overlaps := slices.Sorted(maps.Keys(adjacency[serviceID]))
-		result.Summary = append(result.Summary, OverlapSummary{ServiceID: serviceID, Overlaps: overlaps})
+	listIDs := slices.Sorted(maps.Keys(lists))
+	for _, listID := range listIDs {
+		overlaps := slices.Sorted(maps.Keys(adjacency[listID]))
+		result.Summary = append(result.Summary, OverlapSummary{ListID: listID, Overlaps: overlaps})
 	}
 	return result
 }

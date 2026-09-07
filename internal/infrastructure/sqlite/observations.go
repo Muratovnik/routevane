@@ -54,7 +54,7 @@ ON CONFLICT(list_id, component_id, resource_id, source_id, source_revision) DO U
  ttl_seconds=CASE WHEN excluded.ttl_seconds IS NULL THEN sightings.ttl_seconds ELSE excluded.ttl_seconds END,
  observation_count=sightings.observation_count+1,
  metadata_json=CASE WHEN excluded.metadata_json='' THEN sightings.metadata_json ELSE excluded.metadata_json END,
- invalid=0`, cycle.ServiceID, sighting.ComponentID, resourceID, cycle.SourceID, sighting.SourceClass, cycle.SourceRevision, sighting.FirstSeen.UnixNano(), sighting.LastSeen.UnixNano(), sighting.ValidUntil.UnixNano(), ttl, 1, sighting.Metadata)
+ invalid=0`, cycle.ListID, sighting.ComponentID, resourceID, cycle.SourceID, sighting.SourceClass, cycle.SourceRevision, sighting.FirstSeen.UnixNano(), sighting.LastSeen.UnixNano(), sighting.ValidUntil.UnixNano(), ttl, 1, sighting.Metadata)
 		if err != nil {
 			return fail(fmt.Errorf("upsert sighting: %w", err))
 		}
@@ -75,18 +75,18 @@ ON CONFLICT(source_resource_id, relation_type, target_resource_id, list_id, comp
  first_seen_ns=min(relations.first_seen_ns, excluded.first_seen_ns),
  last_seen_ns=max(relations.last_seen_ns, excluded.last_seen_ns),
  valid_until_ns=max(relations.valid_until_ns, excluded.valid_until_ns),
- invalid=0`, sourceID, relation.RelationType, targetID, cycle.ServiceID, relation.ComponentID, relation.FirstSeen.UnixNano(), relation.LastSeen.UnixNano(), relation.ValidUntil.UnixNano(), cycle.SourceID, cycle.SourceRevision)
+ invalid=0`, sourceID, relation.RelationType, targetID, cycle.ListID, relation.ComponentID, relation.FirstSeen.UnixNano(), relation.LastSeen.UnixNano(), relation.ValidUntil.UnixNano(), cycle.SourceID, cycle.SourceRevision)
 		if err != nil {
 			return fail(fmt.Errorf("upsert relation: %w", err))
 		}
 	}
-	if cycle.Profile != nil {
-		if err := upsertProfile(ctx, tx, *cycle.Profile); err != nil {
+	if cycle.Format != nil {
+		if err := upsertFormat(ctx, tx, *cycle.Format); err != nil {
 			return fail(err)
 		}
 	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO source_runs(list_id, source_id, source_revision, started_at_ns, completed_at_ns, status, sighting_count, relation_count, error_code)
-VALUES(?,?,?,?,?,'success',?,?,NULL)`, cycle.ServiceID, cycle.SourceID, cycle.SourceRevision, cycle.StartedAt.UnixNano(), cycle.CompletedAt.UnixNano(), len(sightings), len(relations))
+VALUES(?,?,?,?,?,'success',?,?,NULL)`, cycle.ListID, cycle.SourceID, cycle.SourceRevision, cycle.StartedAt.UnixNano(), cycle.CompletedAt.UnixNano(), len(sightings), len(relations))
 	if err != nil {
 		return fail(fmt.Errorf("record successful source run: %w", err))
 	}
@@ -97,13 +97,13 @@ VALUES(?,?,?,?,?,'success',?,?,NULL)`, cycle.ServiceID, cycle.SourceID, cycle.So
 }
 
 func (s *Store) RecordFailure(ctx context.Context, cycle FailureCycle) error {
-	if !validCycleIdentity(cycle.ServiceID, cycle.SourceID, cycle.SourceRevision, cycle.StartedAt, cycle.CompletedAt) || !validErrorCode(cycle.ErrorCode) {
+	if !validCycleIdentity(cycle.ListID, cycle.SourceID, cycle.SourceRevision, cycle.StartedAt, cycle.CompletedAt) || !validErrorCode(cycle.ErrorCode) {
 		return ErrInvalidCycle
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
 	_, err := s.db.ExecContext(ctx, `INSERT INTO source_runs(list_id, source_id, source_revision, started_at_ns, completed_at_ns, status, sighting_count, relation_count, error_code)
-VALUES(?,?,?,?,?,'failed',0,0,?)`, cycle.ServiceID, cycle.SourceID, cycle.SourceRevision, cycle.StartedAt.UTC().UnixNano(), cycle.CompletedAt.UTC().UnixNano(), cycle.ErrorCode)
+VALUES(?,?,?,?,?,'failed',0,0,?)`, cycle.ListID, cycle.SourceID, cycle.SourceRevision, cycle.StartedAt.UTC().UnixNano(), cycle.CompletedAt.UTC().UnixNano(), cycle.ErrorCode)
 	if err != nil {
 		return fmt.Errorf("record failed source run: %w", err)
 	}
@@ -141,13 +141,13 @@ ON CONFLICT(kind, normalized_value) DO NOTHING`, resource.Kind, resource.Canonic
 	return id, nil
 }
 
-func upsertProfile(ctx context.Context, tx *sql.Tx, profile ProfileRecord) error {
-	if profile.ProfileKey == "" || domain.ValidateSlug(profile.ServiceID) != nil || profile.TargetID == "" || profile.RendererID == "" || len(profile.CatalogRevision) != 64 || profile.UpdatedAt.IsZero() || len(profile.ConfigJSON) == 0 || !json.Valid(profile.ConfigJSON) {
+func upsertFormat(ctx context.Context, tx *sql.Tx, format FormatRecord) error {
+	if format.FormatKey == "" || domain.ValidateSlug(format.ListID) != nil || format.TargetID == "" || format.RendererID == "" || len(format.CatalogRevision) != 64 || format.UpdatedAt.IsZero() || len(format.ConfigJSON) == 0 || !json.Valid(format.ConfigJSON) {
 		return fmt.Errorf("invalid effective profile")
 	}
 	_, err := tx.ExecContext(ctx, `INSERT INTO effective_formats(format_key, list_id, target_id, renderer_id, catalog_revision, config_json, updated_at_ns)
 VALUES(?,?,?,?,?,?,?) ON CONFLICT(format_key, list_id) DO UPDATE SET target_id=excluded.target_id, renderer_id=excluded.renderer_id,
-catalog_revision=excluded.catalog_revision, config_json=excluded.config_json, updated_at_ns=max(effective_formats.updated_at_ns, excluded.updated_at_ns)`, profile.ProfileKey, profile.ServiceID, profile.TargetID, profile.RendererID, profile.CatalogRevision, string(profile.ConfigJSON), profile.UpdatedAt.UTC().UnixNano())
+catalog_revision=excluded.catalog_revision, config_json=excluded.config_json, updated_at_ns=max(effective_formats.updated_at_ns, excluded.updated_at_ns)`, format.FormatKey, format.ListID, format.TargetID, format.RendererID, format.CatalogRevision, string(format.ConfigJSON), format.UpdatedAt.UTC().UnixNano())
 	if err != nil {
 		return fmt.Errorf("upsert profile: %w", err)
 	}
@@ -155,23 +155,23 @@ catalog_revision=excluded.catalog_revision, config_json=excluded.config_json, up
 }
 
 func validateSuccess(cycle SuccessCycle) error {
-	if !validCycleIdentity(cycle.ServiceID, cycle.SourceID, cycle.SourceRevision, cycle.StartedAt, cycle.CompletedAt) {
+	if !validCycleIdentity(cycle.ListID, cycle.SourceID, cycle.SourceRevision, cycle.StartedAt, cycle.CompletedAt) {
 		return ErrInvalidCycle
 	}
-	if cycle.Profile != nil && cycle.Profile.ServiceID != cycle.ServiceID {
+	if cycle.Format != nil && cycle.Format.ListID != cycle.ListID {
 		return ErrInvalidCycle
 	}
 	return nil
 }
 
-func validCycleIdentity(serviceID, sourceID, revision string, startedAt, completedAt time.Time) bool {
-	return domain.ValidateSlug(serviceID) == nil && domain.ValidateSlug(sourceID) == nil && validRevision(revision) && !startedAt.IsZero() && !completedAt.IsZero() && !completedAt.Before(startedAt)
+func validCycleIdentity(listID, sourceID, revision string, startedAt, completedAt time.Time) bool {
+	return domain.ValidateSlug(listID) == nil && domain.ValidateSlug(sourceID) == nil && validRevision(revision) && !startedAt.IsZero() && !completedAt.IsZero() && !completedAt.Before(startedAt)
 }
 
 func canonicalCycleSightings(cycle SuccessCycle) ([]domain.Sighting, error) {
 	byKey := make(map[string]domain.Sighting, len(cycle.Sightings))
 	for _, value := range cycle.Sightings {
-		if value.ServiceID != cycle.ServiceID || value.SourceID != cycle.SourceID || value.SourceRevision != cycle.SourceRevision || domain.ValidateSlug(value.ComponentID) != nil || !value.Resource.IsValid() || value.FirstSeen.IsZero() || value.LastSeen.IsZero() || value.ValidUntil.IsZero() || value.LastSeen.Before(value.FirstSeen) || value.ValidUntil.Before(value.LastSeen) || len(value.Metadata) > maxMetadataBytes || value.TTLSeconds < 0 {
+		if value.ListID != cycle.ListID || value.SourceID != cycle.SourceID || value.SourceRevision != cycle.SourceRevision || domain.ValidateSlug(value.ComponentID) != nil || !value.Resource.IsValid() || value.FirstSeen.IsZero() || value.LastSeen.IsZero() || value.ValidUntil.IsZero() || value.LastSeen.Before(value.FirstSeen) || value.ValidUntil.Before(value.LastSeen) || len(value.Metadata) > maxMetadataBytes || value.TTLSeconds < 0 {
 			return nil, ErrInvalidCycle
 		}
 		key := strings.Join([]string{value.ComponentID, value.Resource.Kind.String(), value.Resource.CanonicalValue()}, "\x00")
@@ -204,7 +204,7 @@ func canonicalCycleSightings(cycle SuccessCycle) ([]domain.Sighting, error) {
 func canonicalCycleRelations(cycle SuccessCycle) ([]domain.Relation, error) {
 	byKey := make(map[string]domain.Relation, len(cycle.Relations))
 	for _, value := range cycle.Relations {
-		if value.ServiceID != cycle.ServiceID || value.SourceID != cycle.SourceID || value.SourceRevision != cycle.SourceRevision || domain.ValidateSlug(value.ComponentID) != nil || !domain.KnownRelationType(value.RelationType) || !value.SourceResource.IsValid() || !value.TargetResource.IsValid() || value.FirstSeen.IsZero() || value.LastSeen.IsZero() || value.ValidUntil.IsZero() || value.LastSeen.Before(value.FirstSeen) || value.ValidUntil.Before(value.LastSeen) {
+		if value.ListID != cycle.ListID || value.SourceID != cycle.SourceID || value.SourceRevision != cycle.SourceRevision || domain.ValidateSlug(value.ComponentID) != nil || !domain.KnownRelationType(value.RelationType) || !value.SourceResource.IsValid() || !value.TargetResource.IsValid() || value.FirstSeen.IsZero() || value.LastSeen.IsZero() || value.ValidUntil.IsZero() || value.LastSeen.Before(value.FirstSeen) || value.ValidUntil.Before(value.LastSeen) {
 			return nil, ErrInvalidCycle
 		}
 		key := value.Fingerprint()

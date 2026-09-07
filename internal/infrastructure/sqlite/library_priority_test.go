@@ -46,7 +46,7 @@ func TestLibraryPrioritySchemaExistsAfterFreshMigration(t *testing.T) {
 	}
 }
 
-func TestLibraryPriorityRoundTripsMoreThan128Services(t *testing.T) {
+func TestLibraryPriorityRoundTripsMoreThan128Lists(t *testing.T) {
 	store := categoryTestStore(t)
 	want := make([]string, 129)
 	for i := range want {

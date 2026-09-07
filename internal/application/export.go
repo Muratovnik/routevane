@@ -34,7 +34,7 @@ func (s *PublicationService) ExportFormats() []ExportFormat {
 	ids := slices.Sorted(maps.Keys(s.config.Targets))
 	type formatChoice struct {
 		format ExportFormat
-		target domain.TargetProfile
+		target domain.TargetDefinition
 	}
 	choices := make(map[string]formatChoice, len(ids))
 	for _, id := range ids {
@@ -47,7 +47,7 @@ func (s *PublicationService) ExportFormats() []ExportFormat {
 			ID: target.ID, RendererID: descriptor.ID,
 			FileExtension: descriptor.FileExtension, ContentType: descriptor.ContentType,
 		}
-		key := target.ProfileKey + "\x00" + descriptor.ID + "\x00" + strings.Join(target.RendererOptions, "\x00")
+		key := target.FormatKey + "\x00" + descriptor.ID + "\x00" + strings.Join(target.RendererOptions, "\x00")
 		current, exists := choices[key]
 		if !exists || preferExportTarget(target, current.target) {
 			choices[key] = formatChoice{format: format, target: target}
@@ -57,8 +57,8 @@ func (s *PublicationService) ExportFormats() []ExportFormat {
 	for _, choice := range choices {
 		formats = append(formats, choice.format)
 	}
-	raw := domain.RawJSONTargetProfile()
-	if renderer, ok := s.config.Renderers[raw.RendererID]; ok && renderer != nil && renderer.Version() == raw.ProfileKey {
+	raw := domain.RawJSONTargetDefinition()
+	if renderer, ok := s.config.Renderers[raw.RendererID]; ok && renderer != nil && renderer.Version() == raw.FormatKey {
 		descriptor := renderer.Descriptor()
 		formats = append(formats, ExportFormat{
 			ID: raw.ID, RendererID: descriptor.ID,
@@ -71,7 +71,7 @@ func (s *PublicationService) ExportFormats() []ExportFormat {
 	return formats
 }
 
-func preferExportTarget(candidate, current domain.TargetProfile) bool {
+func preferExportTarget(candidate, current domain.TargetDefinition) bool {
 	left, right := candidate.Constraints, current.Constraints
 	leftKinds := supportedExportKinds(left)
 	rightKinds := supportedExportKinds(right)
@@ -115,8 +115,8 @@ func exportLimit(value int) int {
 // Export renders one current list without persisting an output or artifact.
 // Durable consumers continue to use AddOutput and Build; this is only the
 // user's explicit "download this file format now" action.
-func (s *PublicationService) Export(ctx context.Context, listID, formatID string) (ExportPayload, error) {
-	list, err := s.List(ctx, listID)
+func (s *PublicationService) Export(ctx context.Context, profileID, formatID string) (ExportPayload, error) {
+	profile, err := s.Profile(ctx, profileID)
 	if err != nil {
 		return ExportPayload{}, err
 	}
@@ -124,7 +124,7 @@ func (s *PublicationService) Export(ctx context.Context, listID, formatID string
 	if err != nil {
 		return ExportPayload{}, ErrNotFound
 	}
-	prepared, _, err := s.prepareList(ctx, list, target, renderer)
+	prepared, _, err := s.prepareProfile(ctx, profile, target, renderer)
 	if err != nil {
 		return ExportPayload{}, err
 	}
@@ -143,14 +143,14 @@ func (s *PublicationService) Export(ctx context.Context, listID, formatID string
 	}, nil
 }
 
-func (s *PublicationService) exportTarget(formatID string) (domain.TargetProfile, Renderer, error) {
-	if formatID != domain.RawJSONTargetProfile().ID {
+func (s *PublicationService) exportTarget(formatID string) (domain.TargetDefinition, Renderer, error) {
+	if formatID != domain.RawJSONTargetDefinition().ID {
 		return s.target(formatID)
 	}
-	target := domain.RawJSONTargetProfile()
+	target := domain.RawJSONTargetDefinition()
 	renderer, ok := s.config.Renderers[target.RendererID]
-	if !ok || renderer == nil || renderer.Version() != target.ProfileKey {
-		return domain.TargetProfile{}, nil, ErrNotFound
+	if !ok || renderer == nil || renderer.Version() != target.FormatKey {
+		return domain.TargetDefinition{}, nil, ErrNotFound
 	}
 	return target, renderer, nil
 }

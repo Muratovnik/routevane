@@ -87,7 +87,7 @@ func (s *fakeDeviceStore) DeleteDevice(_ context.Context, id string) error {
 func deviceService(t *testing.T, secrets *fakeSecretStore) (*DeviceService, *fakeDeviceStore) {
 	t.Helper()
 	store := &fakeDeviceStore{}
-	service, err := NewDeviceService(DeviceConfig{
+	devices, err := NewDeviceService(DeviceConfig{
 		Store:   store,
 		Secrets: secrets,
 		Targets: func() []TargetOption {
@@ -109,12 +109,12 @@ func deviceService(t *testing.T, secrets *fakeSecretStore) (*DeviceService, *fak
 	if err != nil {
 		t.Fatal(err)
 	}
-	return service, store
+	return devices, store
 }
 
-func registered(t *testing.T, service *DeviceService) Device {
+func registered(t *testing.T, devices *DeviceService) Device {
 	t.Helper()
-	device, err := service.RegisterDevice(context.Background(), "keenetic", " Роутер ", " http://192.168.1.1 ", " admin ", " Wireguard0 ")
+	device, err := devices.RegisterDevice(context.Background(), "keenetic", " Роутер ", " http://192.168.1.1 ", " admin ", " Wireguard0 ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,8 +124,8 @@ func registered(t *testing.T, service *DeviceService) Device {
 // A device is registered by hand and trimmed, and it starts without unattended
 // delivery: consent is something the operator gives, never a default.
 func TestARegisteredDeviceStartsWithoutUnattendedDelivery(t *testing.T) {
-	service, _ := deviceService(t, &fakeSecretStore{available: true})
-	device := registered(t, service)
+	devices, _ := deviceService(t, &fakeSecretStore{available: true})
+	device := registered(t, devices)
 	if device.Name != "Роутер" || device.Address != "http://192.168.1.1" || device.Account != "admin" || device.Interface != "Wireguard0" {
 		t.Fatalf("device = %#v", device)
 	}
@@ -135,7 +135,7 @@ func TestARegisteredDeviceStartsWithoutUnattendedDelivery(t *testing.T) {
 }
 
 func TestRegistrationRefusesWhatItCannotStand(t *testing.T) {
-	service, _ := deviceService(t, &fakeSecretStore{available: true})
+	devices, _ := deviceService(t, &fakeSecretStore{available: true})
 	tests := []struct{ name, target, deviceName, address string }{
 		{"unknown target", "absent", "Роутер", "http://192.168.1.1"},
 		{"no name", "keenetic", "  ", "http://192.168.1.1"},
@@ -145,7 +145,7 @@ func TestRegistrationRefusesWhatItCannotStand(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := service.RegisterDevice(context.Background(), test.target, test.deviceName, test.address, "", ""); err == nil {
+			if _, err := devices.RegisterDevice(context.Background(), test.target, test.deviceName, test.address, "", ""); err == nil {
 				t.Fatalf("expected %s to be refused", test.name)
 			}
 		})
@@ -153,13 +153,13 @@ func TestRegistrationRefusesWhatItCannotStand(t *testing.T) {
 }
 
 func TestRegistrationEnforcesTheDeployersConnectionFields(t *testing.T) {
-	service, _ := deviceService(t, &fakeSecretStore{available: true})
+	devices, _ := deviceService(t, &fakeSecretStore{available: true})
 	for name, input := range map[string]struct{ account, interfaceName string }{
 		"missing account":   {interfaceName: "Wireguard0"},
 		"missing interface": {account: "admin"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := service.RegisterDevice(context.Background(), "keenetic", "Роутер", "http://192.168.1.1", input.account, input.interfaceName); err == nil {
+			if _, err := devices.RegisterDevice(context.Background(), "keenetic", "Роутер", "http://192.168.1.1", input.account, input.interfaceName); err == nil {
 				t.Fatal("expected the incomplete connection to be refused")
 			}
 		})
@@ -169,7 +169,7 @@ func TestRegistrationEnforcesTheDeployersConnectionFields(t *testing.T) {
 func TestRegistrationAppliesTheDeployersStoredConnectionPolicy(t *testing.T) {
 	secrets := &fakeSecretStore{available: true}
 	store := &fakeDeviceStore{}
-	service, err := NewDeviceService(DeviceConfig{
+	devices, err := NewDeviceService(DeviceConfig{
 		Store: store, Secrets: secrets,
 		Targets:         func() []TargetOption { return []TargetOption{{ID: "keenetic"}} },
 		Deployable:      func(string) bool { return true },
@@ -187,7 +187,7 @@ func TestRegistrationAppliesTheDeployersStoredConnectionPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.RegisterDevice(context.Background(), "keenetic", "Router", "https://example.com", "admin", "Wireguard0"); !errors.Is(err, ErrConnectionInvalid) {
+	if _, err := devices.RegisterDevice(context.Background(), "keenetic", "Router", "https://example.com", "admin", "Wireguard0"); !errors.Is(err, ErrConnectionInvalid) {
 		t.Fatalf("err = %v", err)
 	}
 	if len(store.devices) != 0 {
@@ -197,18 +197,18 @@ func TestRegistrationAppliesTheDeployersStoredConnectionPolicy(t *testing.T) {
 
 func TestChangingAConnectionRevokesConsentCredentialAndOldRouteOwnership(t *testing.T) {
 	secrets := &fakeSecretStore{available: true}
-	service, store := deviceService(t, secrets)
-	device := registered(t, service)
+	devices, store := deviceService(t, secrets)
+	device := registered(t, devices)
 	var retiredTarget string
 	var retiredConnection Connection
-	service.config.RetireManagedRoutes = func(_ context.Context, target string, connection Connection) error {
+	devices.config.RetireManagedRoutes = func(_ context.Context, target string, connection Connection) error {
 		retiredTarget, retiredConnection = target, connection
 		return nil
 	}
-	if _, err := service.EnableAutoDelivery(context.Background(), device.ID, "password"); err != nil {
+	if _, err := devices.EnableAutoDelivery(context.Background(), device.ID, "password"); err != nil {
 		t.Fatal(err)
 	}
-	updated, err := service.UpdateDevice(context.Background(), device.ID, "New name", "http://192.168.1.2", "operator", "Wireguard1")
+	updated, err := devices.UpdateDevice(context.Background(), device.ID, "New name", "http://192.168.1.2", "operator", "Wireguard1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -228,12 +228,12 @@ func TestChangingAConnectionRevokesConsentCredentialAndOldRouteOwnership(t *test
 
 func TestRenamingADeviceKeepsConsentForTheSameConnection(t *testing.T) {
 	secrets := &fakeSecretStore{available: true}
-	service, _ := deviceService(t, secrets)
-	device := registered(t, service)
-	if _, err := service.EnableAutoDelivery(context.Background(), device.ID, "password"); err != nil {
+	devices, _ := deviceService(t, secrets)
+	device := registered(t, devices)
+	if _, err := devices.EnableAutoDelivery(context.Background(), device.ID, "password"); err != nil {
 		t.Fatal(err)
 	}
-	updated, err := service.UpdateDevice(context.Background(), device.ID, "New name", device.Address, device.Account, device.Interface)
+	updated, err := devices.UpdateDevice(context.Background(), device.ID, "New name", device.Address, device.Account, device.Interface)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,13 +244,13 @@ func TestRenamingADeviceKeepsConsentForTheSameConnection(t *testing.T) {
 
 func TestAConnectionChangeStopsWhenItsCredentialCannotBeRevoked(t *testing.T) {
 	secrets := &fakeSecretStore{available: true}
-	service, store := deviceService(t, secrets)
-	device := registered(t, service)
-	if _, err := service.EnableAutoDelivery(context.Background(), device.ID, "password"); err != nil {
+	devices, store := deviceService(t, secrets)
+	device := registered(t, devices)
+	if _, err := devices.EnableAutoDelivery(context.Background(), device.ID, "password"); err != nil {
 		t.Fatal(err)
 	}
 	secrets.deleteErr = errors.New("credential store locked")
-	if _, err := service.UpdateDevice(context.Background(), device.ID, device.Name, "http://192.168.1.2", device.Account, device.Interface); err == nil {
+	if _, err := devices.UpdateDevice(context.Background(), device.ID, device.Name, "http://192.168.1.2", device.Account, device.Interface); err == nil {
 		t.Fatal("the connection changed while its old credential could not be revoked")
 	}
 	stored := store.devices[0]
@@ -263,22 +263,22 @@ func TestAConnectionChangeStopsWhenItsCredentialCannotBeRevoked(t *testing.T) {
 // never shows a device as unattended while nothing holds its password.
 func TestUnattendedDeliveryIsOnlyOnWhenTheStoreHoldsTheSecret(t *testing.T) {
 	secrets := &fakeSecretStore{available: true}
-	service, _ := deviceService(t, secrets)
-	device := registered(t, service)
+	devices, _ := deviceService(t, secrets)
+	device := registered(t, devices)
 
-	enabled, err := service.EnableAutoDelivery(context.Background(), device.ID, "пароль")
+	enabled, err := devices.EnableAutoDelivery(context.Background(), device.ID, "пароль")
 	if err != nil || !enabled.AutoDeliver {
 		t.Fatalf("device = %#v err = %v", enabled, err)
 	}
 	if secrets.secrets[secretKey(device.ID)] != "пароль" {
 		t.Fatalf("secrets = %#v", secrets.secrets)
 	}
-	credential, err := service.DeviceCredential(context.Background(), device.ID)
+	credential, err := devices.DeviceCredential(context.Background(), device.ID)
 	if err != nil || credential != "пароль" {
 		t.Fatalf("credential = %q err = %v", credential, err)
 	}
 
-	disabled, err := service.DisableAutoDelivery(context.Background(), device.ID)
+	disabled, err := devices.DisableAutoDelivery(context.Background(), device.ID)
 	if err != nil || disabled.AutoDeliver {
 		t.Fatalf("device = %#v err = %v", disabled, err)
 	}
@@ -291,7 +291,7 @@ func TestADeviceWithoutCredentialRequirementsCanOptInWithoutAStoredSecret(t *tes
 	const id = "11111111111111111111111111111111"
 	secrets := &fakeSecretStore{available: false, secrets: map[string]string{secretKey(id): "obsolete"}}
 	store := &fakeDeviceStore{devices: []Device{{ID: id, TargetID: "singbox", Name: "sing-box", Address: "file:///tmp/config.json", CreatedAt: time.Now(), UpdatedAt: time.Now()}}}
-	service, err := NewDeviceService(DeviceConfig{
+	devices, err := NewDeviceService(DeviceConfig{
 		Store: store, Secrets: secrets,
 		Targets:    func() []TargetOption { return []TargetOption{{ID: "singbox"}} },
 		Deployable: func(string) bool { return true }, NeedsCredential: func(string) bool { return false },
@@ -303,11 +303,11 @@ func TestADeviceWithoutCredentialRequirementsCanOptInWithoutAStoredSecret(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	device, err := service.EnableAutoDelivery(context.Background(), id, "")
+	device, err := devices.EnableAutoDelivery(context.Background(), id, "")
 	if err != nil || !device.AutoDeliver {
 		t.Fatalf("device = %#v err = %v", device, err)
 	}
-	credential, err := service.DeviceCredential(context.Background(), id)
+	credential, err := devices.DeviceCredential(context.Background(), id)
 	if err != nil || credential != "" || len(secrets.secrets) != 0 {
 		t.Fatalf("credential = %q secrets = %#v err = %v", credential, secrets.secrets, err)
 	}
@@ -316,7 +316,7 @@ func TestADeviceWithoutCredentialRequirementsCanOptInWithoutAStoredSecret(t *tes
 func TestADeviceWithoutADeployerCannotOptInToAutomaticDelivery(t *testing.T) {
 	const id = "22222222222222222222222222222222"
 	store := &fakeDeviceStore{devices: []Device{{ID: id, TargetID: "download-only", Name: "Файл", Address: "file:///tmp/config.json", CreatedAt: time.Now(), UpdatedAt: time.Now()}}}
-	service, err := NewDeviceService(DeviceConfig{
+	devices, err := NewDeviceService(DeviceConfig{
 		Store: store, Secrets: &fakeSecretStore{available: true},
 		Targets:    func() []TargetOption { return []TargetOption{{ID: "download-only"}} },
 		Deployable: func(string) bool { return false }, NeedsCredential: func(string) bool { return false },
@@ -328,7 +328,7 @@ func TestADeviceWithoutADeployerCannotOptInToAutomaticDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.EnableAutoDelivery(context.Background(), id, ""); !errors.Is(err, ErrDeployerUnavailable) {
+	if _, err := devices.EnableAutoDelivery(context.Background(), id, ""); !errors.Is(err, ErrDeployerUnavailable) {
 		t.Fatalf("err = %v", err)
 	}
 	if store.devices[0].AutoDeliver {
@@ -339,23 +339,23 @@ func TestADeviceWithoutADeployerCannotOptInToAutomaticDelivery(t *testing.T) {
 // A credential left over from a disabled device must not be usable by asking.
 func TestACredentialIsUnreadableWithoutTheConsentFlag(t *testing.T) {
 	secrets := &fakeSecretStore{available: true, secrets: map[string]string{}}
-	service, store := deviceService(t, secrets)
-	device := registered(t, service)
+	devices, store := deviceService(t, secrets)
+	device := registered(t, devices)
 	secrets.secrets[secretKey(device.ID)] = "leftover"
 	store.devices[0].AutoDeliver = false
-	if _, err := service.DeviceCredential(context.Background(), device.ID); !errors.Is(err, ErrNotFound) {
+	if _, err := devices.DeviceCredential(context.Background(), device.ID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("err = %v", err)
 	}
 }
 
 // A platform with no store is told so, and no file is written instead.
 func TestWithoutAStoreUnattendedDeliveryIsRefused(t *testing.T) {
-	service, _ := deviceService(t, &fakeSecretStore{available: false})
-	device := registered(t, service)
-	if service.SecretStoreAvailable() {
+	devices, _ := deviceService(t, &fakeSecretStore{available: false})
+	device := registered(t, devices)
+	if devices.SecretStoreAvailable() {
 		t.Fatal("availability must reflect the platform")
 	}
-	_, err := service.EnableAutoDelivery(context.Background(), device.ID, "пароль")
+	_, err := devices.EnableAutoDelivery(context.Background(), device.ID, "пароль")
 	if !errors.Is(err, ErrSecretStoreUnavailable) {
 		t.Fatalf("err = %v", err)
 	}
@@ -365,10 +365,10 @@ func TestWithoutAStoreUnattendedDeliveryIsRefused(t *testing.T) {
 // only state that stays true to what the operator asked for.
 func TestAFailedFlagWriteTakesTheStoredSecretWithIt(t *testing.T) {
 	secrets := &fakeSecretStore{available: true}
-	service, store := deviceService(t, secrets)
-	device := registered(t, service)
+	devices, store := deviceService(t, secrets)
+	device := registered(t, devices)
 	store.updateErr = errors.New("disk full")
-	if _, err := service.EnableAutoDelivery(context.Background(), device.ID, "пароль"); err == nil {
+	if _, err := devices.EnableAutoDelivery(context.Background(), device.ID, "пароль"); err == nil {
 		t.Fatal("expected the write to fail")
 	}
 	if _, held := secrets.secrets[secretKey(device.ID)]; held {
@@ -380,21 +380,21 @@ func TestAFailedFlagWriteTakesTheStoredSecretWithIt(t *testing.T) {
 // goes first and its failure keeps the device visible.
 func TestForgettingADeviceRemovesItsCredentialFirst(t *testing.T) {
 	secrets := &fakeSecretStore{available: true}
-	service, store := deviceService(t, secrets)
-	device := registered(t, service)
+	devices, store := deviceService(t, secrets)
+	device := registered(t, devices)
 	retireCalls := 0
-	service.config.RetireManagedRoutes = func(_ context.Context, target string, connection Connection) error {
+	devices.config.RetireManagedRoutes = func(_ context.Context, target string, connection Connection) error {
 		retireCalls++
 		if target != device.TargetID || connection.URL != device.Address || connection.Interface != device.Interface || connection.Password != "" {
 			t.Fatalf("retire target=%q connection=%#v", target, connection)
 		}
 		return nil
 	}
-	if _, err := service.EnableAutoDelivery(context.Background(), device.ID, "пароль"); err != nil {
+	if _, err := devices.EnableAutoDelivery(context.Background(), device.ID, "пароль"); err != nil {
 		t.Fatal(err)
 	}
 	secrets.deleteErr = errors.New("store locked")
-	if err := service.ForgetDevice(context.Background(), device.ID); err == nil {
+	if err := devices.ForgetDevice(context.Background(), device.ID); err == nil {
 		t.Fatal("expected forgetting to fail while the credential remains")
 	}
 	if len(store.devices) != 1 {
@@ -404,7 +404,7 @@ func TestForgettingADeviceRemovesItsCredentialFirst(t *testing.T) {
 		t.Fatal("ownership retired while the credential kept forgetting from proceeding")
 	}
 	secrets.deleteErr = nil
-	if err := service.ForgetDevice(context.Background(), device.ID); err != nil {
+	if err := devices.ForgetDevice(context.Background(), device.ID); err != nil {
 		t.Fatal(err)
 	}
 	if len(store.devices) != 0 || len(secrets.secrets) != 0 {
@@ -420,14 +420,14 @@ func TestForgettingADeviceRemovesItsCredentialFirst(t *testing.T) {
 // device must clean it up even though AutoDeliver was never set.
 func TestForgettingADeviceRemovesAnOrphanedCredentialEvenWithoutTheFlag(t *testing.T) {
 	secrets := &fakeSecretStore{available: true, secrets: map[string]string{}}
-	service, store := deviceService(t, secrets)
-	device := registered(t, service)
+	devices, store := deviceService(t, secrets)
+	device := registered(t, devices)
 	if device.AutoDeliver {
 		t.Fatal("a freshly registered device must not be unattended")
 	}
 	secrets.secrets[secretKey(device.ID)] = "orphaned"
 
-	if err := service.ForgetDevice(context.Background(), device.ID); err != nil {
+	if err := devices.ForgetDevice(context.Background(), device.ID); err != nil {
 		t.Fatal(err)
 	}
 	if len(store.devices) != 0 {
@@ -444,13 +444,13 @@ func TestForgettingADeviceRemovesAnOrphanedCredentialEvenWithoutTheFlag(t *testi
 // never carry the secret itself.
 func TestAFailedCompensationIsReportedAlongsideTheOriginalFailure(t *testing.T) {
 	secrets := &fakeSecretStore{available: true}
-	service, store := deviceService(t, secrets)
-	device := registered(t, service)
+	devices, store := deviceService(t, secrets)
+	device := registered(t, devices)
 	store.updateErr = errors.New("disk full")
 	secrets.deleteErr = errors.New("store locked")
 
 	const secret = "топ-секретный-пароль"
-	_, err := service.EnableAutoDelivery(context.Background(), device.ID, secret)
+	_, err := devices.EnableAutoDelivery(context.Background(), device.ID, secret)
 	if err == nil {
 		t.Fatal("expected the write to fail")
 	}
@@ -468,10 +468,10 @@ func TestAFailedCompensationIsReportedAlongsideTheOriginalFailure(t *testing.T) 
 // A target that left the catalog keeps its stored identity rather than being
 // hidden, and it is not offered as deployable.
 func TestADeviceOfAVanishedTargetStillAppears(t *testing.T) {
-	service, store := deviceService(t, &fakeSecretStore{available: true})
-	registered(t, service)
+	devices, store := deviceService(t, &fakeSecretStore{available: true})
+	registered(t, devices)
 	store.devices[0].TargetID = "gone-device"
-	cards, err := service.DeviceCards(context.Background())
+	cards, err := devices.DeviceCards(context.Background())
 	if err != nil || len(cards) != 1 {
 		t.Fatalf("cards = %#v err = %v", cards, err)
 	}

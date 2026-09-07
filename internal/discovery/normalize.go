@@ -147,10 +147,10 @@ func RegistrableDomainOf(host string) (string, error) {
 	return registrable, nil
 }
 
-// ServiceIDFor derives the default local service identity from a registrable
+// ListIDFor derives the default local service identity from a registrable
 // domain. The result is validated against the catalog slug grammar, so it can
 // never become a path.
-func ServiceIDFor(registrableDomain string) (string, error) {
+func ListIDFor(registrableDomain string) (string, error) {
 	label := registrableDomain
 	if index := strings.Index(label, "."); index > 0 {
 		label = label[:index]

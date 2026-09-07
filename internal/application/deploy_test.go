@@ -18,8 +18,8 @@ const deployTestPassword = "device-secret-value"
 type spyDeployer struct {
 	calls []string
 
-	profileKey string
-	backup     []byte
+	formatKey string
+	backup    []byte
 
 	connectionErr error
 	probeErr      error
@@ -69,7 +69,7 @@ func (s *spyDeployer) Probe(_ context.Context, connection Connection) (DeviceInf
 	if s.probeErr != nil {
 		return DeviceInfo{}, s.probeErr
 	}
-	return DeviceInfo{Vendor: "Keenetic", Model: "Giga", FirmwareVersion: "5.1.2", ProfileKey: s.profileKey, Interface: "Wireguard0"}, nil
+	return DeviceInfo{Vendor: "Keenetic", Model: "Giga", FirmwareVersion: "5.1.2", FormatKey: s.formatKey, Interface: "Wireguard0"}, nil
 }
 
 func (s *spyDeployer) Backup(context.Context, DeviceInfo, Connection) (BackupPayload, error) {
@@ -116,8 +116,8 @@ func (m *memoryBackups) PutBackup(_ context.Context, _ string, takenAt time.Time
 	return BackupRef{ID: "backup-1", Path: "backups/keenetic/one.conf", Hash: strings.Repeat("c", 64), SizeBytes: int64(len(payload)), CreatedAt: takenAt}, nil
 }
 
-func deployTestTarget() domain.TargetProfile {
-	return domain.TargetProfile{ID: "keenetic", ProfileKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat"}
+func deployTestTarget() domain.TargetDefinition {
+	return domain.TargetDefinition{ID: "keenetic", FormatKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat"}
 }
 
 func deployTestRequest() DeployRequest {
@@ -141,7 +141,7 @@ func fixedClock() Clock {
 }
 
 func TestDeploySucceedsOnlyAfterProbeBackupDeployAndVerify(t *testing.T) {
-	deployer := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
+	deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
 	backups := &memoryBackups{}
 	result, err := DeployToDevice(context.Background(), deployTestRequest(), DeployerRegistry{deployer.ID(): deployer}, backups, fixedClock())
 	if err != nil {
@@ -176,9 +176,9 @@ func TestDeployRefusesAnIncompatibleDeviceBeforeTouchingIt(t *testing.T) {
 		"firmware reports no profile":      "",
 		"firmware reports another profile": "keenetic-bat-ipv4-v2",
 	}
-	for name, profileKey := range cases {
+	for name, formatKey := range cases {
 		t.Run(name, func(t *testing.T) {
-			deployer := &spyDeployer{profileKey: profileKey, backup: []byte("startup-config")}
+			deployer := &spyDeployer{formatKey: formatKey, backup: []byte("startup-config")}
 			backups := &memoryBackups{}
 			result, err := DeployToDevice(context.Background(), deployTestRequest(), DeployerRegistry{deployer.ID(): deployer}, backups, fixedClock())
 			if !errors.Is(err, ErrDeviceIncompatible) {
@@ -221,7 +221,7 @@ func TestDeployNeverStartsWithoutAVerifiedBackup(t *testing.T) {
 	}
 	for name, arrange := range cases {
 		t.Run(name, func(t *testing.T) {
-			deployer := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
+			deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
 			backups := &memoryBackups{}
 			arrange(deployer, backups)
 			_, err := DeployToDevice(context.Background(), deployTestRequest(), DeployerRegistry{deployer.ID(): deployer}, backups, fixedClock())
@@ -238,7 +238,7 @@ func TestDeployNeverStartsWithoutAVerifiedBackup(t *testing.T) {
 }
 
 func TestAFailedVerifyRollsBackFromTheBackupTakenBefore(t *testing.T) {
-	deployer := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config"), verifyErr: errors.New("two routes missing")}
+	deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config"), verifyErr: errors.New("two routes missing")}
 	result, err := DeployToDevice(context.Background(), deployTestRequest(), DeployerRegistry{deployer.ID(): deployer}, &memoryBackups{}, fixedClock())
 	if !errors.Is(err, ErrVerifyFailed) {
 		t.Fatalf("err = %v, want ErrVerifyFailed", err)
@@ -259,7 +259,7 @@ func TestAFailedVerifyRollsBackFromTheBackupTakenBefore(t *testing.T) {
 }
 
 func TestAFailedDeployRollsBackAndAFailedRollbackReportsBoth(t *testing.T) {
-	deployer := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config"), deployErr: errors.New("device refused a command")}
+	deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config"), deployErr: errors.New("device refused a command")}
 	result, err := DeployToDevice(context.Background(), deployTestRequest(), DeployerRegistry{deployer.ID(): deployer}, &memoryBackups{}, fixedClock())
 	if !errors.Is(err, ErrDeployFailed) {
 		t.Fatalf("err = %v, want ErrDeployFailed", err)
@@ -271,7 +271,7 @@ func TestAFailedDeployRollsBackAndAFailedRollbackReportsBoth(t *testing.T) {
 		t.Fatalf("result = %#v", result)
 	}
 
-	stuck := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config"), deployErr: errors.New("refused"), rollbackErr: errors.New("device unreachable")}
+	stuck := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config"), deployErr: errors.New("refused"), rollbackErr: errors.New("device unreachable")}
 	stuckResult, err := DeployToDevice(context.Background(), deployTestRequest(), DeployerRegistry{stuck.ID(): stuck}, &memoryBackups{}, fixedClock())
 	if !errors.Is(err, ErrRollbackFailed) {
 		t.Fatalf("err = %v, want ErrRollbackFailed", err)
@@ -287,7 +287,7 @@ func TestAFailedDeployRollsBackAndAFailedRollbackReportsBoth(t *testing.T) {
 }
 
 func TestDeployRefusesAnIncoherentComposition(t *testing.T) {
-	deployer := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
+	deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config")}
 	registry := DeployerRegistry{deployer.ID(): deployer}
 	base := deployTestRequest()
 	cases := map[string]func(*DeployRequest){
@@ -298,7 +298,7 @@ func TestDeployRefusesAnIncoherentComposition(t *testing.T) {
 		"no device address":    func(r *DeployRequest) { r.Connection.URL = "" },
 		"no device account":    func(r *DeployRequest) { r.Connection.Username = "" },
 		"no device credential": func(r *DeployRequest) { r.Connection.Password = "" },
-		"no target":            func(r *DeployRequest) { r.Target = domain.TargetProfile{} },
+		"no target":            func(r *DeployRequest) { r.Target = domain.TargetDefinition{} },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -323,7 +323,7 @@ func TestDeployRefusesAnIncoherentComposition(t *testing.T) {
 }
 
 func TestTheAuditTrailNeverCarriesTheDeviceCredential(t *testing.T) {
-	deployer := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config"), verifyErr: errors.New("mismatch")}
+	deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config"), verifyErr: errors.New("mismatch")}
 	result, err := DeployToDevice(context.Background(), deployTestRequest(), DeployerRegistry{deployer.ID(): deployer}, &memoryBackups{}, fixedClock())
 	if err == nil {
 		t.Fatal("expected the verification to fail")

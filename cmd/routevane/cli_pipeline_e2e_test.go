@@ -17,7 +17,7 @@ import (
 	"github.com/Muratovnik/routevane/internal/renderers/rawjson"
 )
 
-const exampleServiceYAML = `id: example
+const exampleListYAML = `id: example
 title: Example
 components:
   web:
@@ -50,7 +50,7 @@ func (r *cannedAddressResolver) LookupHost(context.Context, string) ([]string, e
 func (*cannedAddressResolver) LookupCNAME(context.Context, string) (string, error) { return "", nil }
 
 func TestCommandPipelinePersistsLifecycleAndBuildsVisibleArtifact(t *testing.T) {
-	catalogRoot := writeExampleCatalog(t, exampleServiceYAML)
+	catalogRoot := writeExampleCatalog(t, exampleListYAML)
 	if _, err := filesystem.ResolveRoot(catalogRoot); err != nil {
 		t.Fatalf("resolve test catalog: %v", err)
 	}

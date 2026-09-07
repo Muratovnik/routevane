@@ -55,12 +55,12 @@ func TestServePublishesImmutableArtifactsAcrossExpiringYouTubeAndDiscordObservat
 		}
 	}()
 
-	listID, outputID, subscriptionURL := createListOutput(t, origin, "Видео и общение", "keenetic", "youtube", "discord")
+	profileID, outputID, subscriptionURL := createProfileOutput(t, origin, "Видео и общение", "keenetic", "youtube", "discord")
 	if !strings.HasPrefix(subscriptionURL, origin+"/v1/subscriptions/rv1.") {
 		t.Fatalf("subscription url=%q", subscriptionURL)
 	}
 
-	firstBuild := refreshAndBuild(t, origin, listID, outputID)
+	firstBuild := refreshAndBuild(t, origin, profileID, outputID)
 	firstArtifact := httpGet(t, origin+"/v1/artifacts/"+firstBuild.Artifact.ID, nil)
 	if firstArtifact.status != http.StatusOK {
 		t.Fatalf("first artifact status=%d body=%s", firstArtifact.status, firstArtifact.body)
@@ -72,7 +72,7 @@ func TestServePublishesImmutableArtifactsAcrossExpiringYouTubeAndDiscordObservat
 		"youtube.expiry.test": {"203.0.113.30"},
 		"discord.expiry.test": {"203.0.113.40"},
 	})
-	secondBuild := refreshAndBuild(t, origin, listID, outputID)
+	secondBuild := refreshAndBuild(t, origin, profileID, outputID)
 	if firstBuild.Artifact.ID == secondBuild.Artifact.ID {
 		t.Fatal("changed, expired observations reused the old artifact")
 	}
@@ -107,9 +107,9 @@ type buildResponse struct {
 	} `json:"summary"`
 }
 
-func refreshAndBuild(t *testing.T, origin, listID, outputID string) buildResponse {
+func refreshAndBuild(t *testing.T, origin, profileID, outputID string) buildResponse {
 	t.Helper()
-	postJSON(t, origin+"/v1/profiles/"+listID+"/refresh", `{}`)
+	postJSON(t, origin+"/v1/profiles/"+profileID+"/refresh", `{}`)
 	payload := postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 	if strings.Contains(string(payload), `"routing_plan"`) {
 		t.Fatalf("build response exposes raw plan: %s", payload)

@@ -83,7 +83,7 @@ func (*Deployer) ID() string { return DeployerID }
 
 // Probe authenticates and reports what the device is.
 //
-// An unsupported firmware yields an empty ProfileKey rather than an error, so
+// An unsupported firmware yields an empty FormatKey rather than an error, so
 // the caller refuses the deployment on compatibility grounds with the version it
 // actually found.
 func (d *Deployer) Probe(ctx context.Context, connection application.Connection) (application.DeviceInfo, error) {
@@ -104,7 +104,7 @@ func (d *Deployer) Probe(ctx context.Context, connection application.Connection)
 	if err := session.requireInterface(ctx, info.Interface); err != nil {
 		return info, err
 	}
-	info.ProfileKey = keenetic.Version
+	info.FormatKey = keenetic.Version
 	return info, nil
 }
 
@@ -262,7 +262,7 @@ func (d *Deployer) Deploy(ctx context.Context, device application.DeviceInfo, co
 
 // ManagedRouteScope canonicalizes the durable ownership identity without
 // carrying a credential or a registration-local device ID.
-func (d *Deployer) ManagedRouteScope(target domain.TargetProfile, connection application.Connection) (application.ManagedRouteScope, error) {
+func (d *Deployer) ManagedRouteScope(target domain.TargetDefinition, connection application.Connection) (application.ManagedRouteScope, error) {
 	if target.ID == "" || target.RendererID != DeployerID {
 		return application.ManagedRouteScope{}, fmt.Errorf("%w: target does not use this deployer", ErrDeviceRefused)
 	}
@@ -446,7 +446,7 @@ func artifactRouteSpecs(artifact application.DeployArtifact) ([]application.Mana
 		if err := json.Unmarshal(artifact.PlanSnapshot, &snapshot); err != nil {
 			return nil, fmt.Errorf("%w: plan snapshot: %v", ErrArtifactMismatch, err)
 		}
-		if artifact.RoutingPlanHash == "" || snapshot.SemanticHash != artifact.RoutingPlanHash || snapshot.TargetID != "keenetic" || snapshot.ProfileKey != keenetic.Version {
+		if artifact.RoutingPlanHash == "" || snapshot.SemanticHash != artifact.RoutingPlanHash || snapshot.TargetID != "keenetic" || snapshot.FormatKey != keenetic.Version {
 			return nil, fmt.Errorf("%w: plan snapshot hash", ErrArtifactMismatch)
 		}
 		for _, rule := range snapshot.Rules {

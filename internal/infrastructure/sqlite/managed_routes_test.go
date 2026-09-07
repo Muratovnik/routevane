@@ -158,11 +158,11 @@ func TestManagedRouteOwnershipPersistsTheCompleteMaximumCategoryProvenance(t *te
 func insertManagedRouteOutputs(t *testing.T, store *Store, outputIDs ...string) {
 	t.Helper()
 	for index, outputID := range outputIDs {
-		listID := strings.Repeat(string(rune('a'+index)), 32)
-		if _, err := store.db.Exec(`INSERT INTO profiles(id,name,created_at_ns,updated_at_ns) VALUES(?,?,?,?)`, listID, "managed route test", index+1, index+1); err != nil {
+		profileID := strings.Repeat(string(rune('a'+index)), 32)
+		if _, err := store.db.Exec(`INSERT INTO profiles(id,name,created_at_ns,updated_at_ns) VALUES(?,?,?,?)`, profileID, "managed route test", index+1, index+1); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.db.Exec(`INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns) VALUES(?,?,?,?,?,?,?,?)`, outputID, listID, "keenetic", "keenetic-bat-ipv4-v1", "keenetic-route-bat", "keenetic-bat-ipv4-v1", "test", index+1); err != nil {
+		if _, err := store.db.Exec(`INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns) VALUES(?,?,?,?,?,?,?,?)`, outputID, profileID, "keenetic", "keenetic-bat-ipv4-v1", "keenetic-route-bat", "keenetic-bat-ipv4-v1", "test", index+1); err != nil {
 			t.Fatal(err)
 		}
 	}

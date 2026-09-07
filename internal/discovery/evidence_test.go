@@ -213,7 +213,7 @@ func TestBuildLearnedDraftGivesEachExercisedAreaItsOwnComponent(t *testing.T) {
 		{Host: "cdn.thirdparty.test", Component: domain.ComponentCore, StepIDs: []string{"open"}},
 	}}
 	exercised := []string{domain.ComponentCore, domain.ComponentAuth, domain.ComponentMedia, domain.ComponentTelemetry}
-	draft, err := BuildLearnedDraft(LearnedDraftRequest{Target: target, ServiceID: "example", Evidence: evidence, Exercised: exercised})
+	draft, err := BuildLearnedDraft(LearnedDraftRequest{Target: target, ListID: "example", Evidence: evidence, Exercised: exercised})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +269,7 @@ func TestBuildLearnedDraftRefusesEvidenceWithNothingActivatable(t *testing.T) {
 		{Host: "cdn.thirdparty.test", Component: domain.ComponentCore, StepIDs: []string{"open"}},
 		{Host: "metrics.example.com", Component: domain.ComponentTelemetry, StepIDs: []string{"open"}},
 	}}
-	if _, err := BuildLearnedDraft(LearnedDraftRequest{Target: target, ServiceID: "example", Evidence: evidence, Exercised: []string{domain.ComponentCore, domain.ComponentTelemetry}}); !errors.Is(err, ErrNoUsableEvidence) {
+	if _, err := BuildLearnedDraft(LearnedDraftRequest{Target: target, ListID: "example", Evidence: evidence, Exercised: []string{domain.ComponentCore, domain.ComponentTelemetry}}); !errors.Is(err, ErrNoUsableEvidence) {
 		t.Fatal("evidence with nothing activatable must be refused")
 	}
 }

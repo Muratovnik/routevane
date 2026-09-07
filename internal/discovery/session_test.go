@@ -118,7 +118,7 @@ func TestRunScenarioAttributesHostsToTheStepThatReachedThem(t *testing.T) {
 		t.Fatalf("third party = %q", outcomes["cdn.thirdparty.test"])
 	}
 
-	draft, err := BuildLearnedDraft(LearnedDraftRequest{Target: evidence.Target, ServiceID: "page", Evidence: evidence, Exercised: scenario.ExercisedComponents()})
+	draft, err := BuildLearnedDraft(LearnedDraftRequest{Target: evidence.Target, ListID: "page", Evidence: evidence, Exercised: scenario.ExercisedComponents()})
 	if err != nil {
 		t.Fatal(err)
 	}

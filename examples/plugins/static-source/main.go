@@ -46,7 +46,7 @@ func (handler) Manifest() plugin.Manifest {
 }
 
 func (handler) Observe(call plugin.ObserveCall) ([]plugin.Observation, error) {
-	if call.ServiceID == "" || len(call.Names) == 0 {
+	if call.ListID == "" || len(call.Names) == 0 {
 		return nil, fmt.Errorf("observation request is incomplete")
 	}
 	observations := make([]plugin.Observation, 0, len(call.Names))

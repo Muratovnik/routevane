@@ -33,7 +33,7 @@ func forecastTestService(t *testing.T, store interface {
 }, files PublishedArtifacts) *PublicationService {
 	t.Helper()
 	revision := strings.Repeat("c", 64)
-	definitions := map[string]domain.ServiceDefinition{
+	definitions := map[string]domain.ListDefinition{
 		"youtube": {
 			ID: "youtube", Title: "YouTube", CatalogRevision: revision,
 			Components: []domain.ComponentDefinition{{ID: "web", Required: true}},
@@ -53,13 +53,13 @@ func forecastTestService(t *testing.T, store interface {
 	constraints := domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxArtifactSize: keenetic.MaxArtifactSize}
 	bounded := constraints
 	bounded.MaxRules = 2
-	targets := map[string]domain.TargetProfile{
-		"keenetic":  {ID: "keenetic", ProfileKey: keenetic.Version, RendererID: keenetic.ID, Constraints: bounded},
-		"unbounded": {ID: "unbounded", ProfileKey: keenetic.Version, RendererID: keenetic.ID, Constraints: constraints},
+	targets := map[string]domain.TargetDefinition{
+		"keenetic":  {ID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID, Constraints: bounded},
+		"unbounded": {ID: "unbounded", FormatKey: keenetic.Version, RendererID: keenetic.ID, Constraints: constraints},
 	}
-	service, err := NewPublicationService(PublicationConfig{
+	publication, err := NewPublicationService(PublicationConfig{
 		Definitions: definitions,
-		Categories:  map[string]domain.CategoryDefinition{"video": {ID: "video", Title: "Видео", Services: []string{"youtube"}}},
+		Categories:  map[string]domain.CategoryDefinition{"video": {ID: "video", Title: "Видео", Lists: []string{"youtube"}}},
 		Targets:     targets, TargetRevision: strings.Repeat("t", 64),
 		Store: store, Files: files,
 		Renderers: RendererRegistry{keenetic.ID: keenetic.Renderer{}},
@@ -69,7 +69,7 @@ func forecastTestService(t *testing.T, store interface {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return service
+	return publication
 }
 
 // The forecast answers an overflowing pair with the real numbers instead of the
@@ -77,8 +77,8 @@ func forecastTestService(t *testing.T, store interface {
 // counts before the list exists, and a screen that only learned "it failed"
 // would still be sending the operator to the first build to find out.
 func TestForecastAnswersAnOverflowingTargetWithItsNumbers(t *testing.T) {
-	service := forecastTestService(t, &publicationFakeStore{}, &publicationFakeFiles{})
-	forecasts, err := service.ForecastComposition(context.Background(), ListComposition{Services: []string{"youtube", "discord"}}, []string{"keenetic"})
+	publication := forecastTestService(t, &publicationFakeStore{}, &publicationFakeFiles{})
+	forecasts, err := publication.ForecastComposition(context.Background(), ProfileComposition{Lists: []string{"youtube", "discord"}}, []string{"keenetic"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,14 +94,14 @@ func TestForecastAnswersAnOverflowingTargetWithItsNumbers(t *testing.T) {
 	if got.ProjectedRules != 4 {
 		t.Fatalf("projected = %d, want the renderer's own count of 4", got.ProjectedRules)
 	}
-	wantPerService := []ServiceRuleForecast{{ServiceID: "discord", Rules: 1}, {ServiceID: "youtube", Rules: 3}}
-	if !reflect.DeepEqual(got.PerService, wantPerService) {
-		t.Fatalf("per service = %#v, want %#v", got.PerService, wantPerService)
+	wantPerList := []ListRuleForecast{{ListID: "discord", Rules: 1}, {ListID: "youtube", Rules: 3}}
+	if !reflect.DeepEqual(got.PerList, wantPerList) {
+		t.Fatalf("per service = %#v, want %#v", got.PerList, wantPerList)
 	}
 	// Category-first priority assigns the shared address to YouTube before projection; the
 	// per-service shares now describe the same finished plan the device receives.
 	sum := 0
-	for _, share := range got.PerService {
+	for _, share := range got.PerList {
 		sum += share.Rules
 	}
 	if sum != 4 || sum != got.ProjectedRules {
@@ -113,8 +113,8 @@ func TestForecastAnswersAnOverflowingTargetWithItsNumbers(t *testing.T) {
 // as fitting inside a maximum of zero — a screen that read a limit there would
 // invent one the device never stated.
 func TestForecastReportsAnUnlimitedTargetAsFitting(t *testing.T) {
-	service := forecastTestService(t, &publicationFakeStore{}, &publicationFakeFiles{})
-	forecasts, err := service.ForecastComposition(context.Background(), ListComposition{Services: []string{"youtube", "discord"}}, nil)
+	publication := forecastTestService(t, &publicationFakeStore{}, &publicationFakeFiles{})
+	forecasts, err := publication.ForecastComposition(context.Background(), ProfileComposition{Lists: []string{"youtube", "discord"}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,25 +136,25 @@ func TestForecastReportsAnUnlimitedTargetAsFitting(t *testing.T) {
 // A category reference is resolved before the forecast plans, so a screen
 // forecasts the collection the operator picked rather than the ids they typed.
 func TestForecastResolvesCategoriesAndExclusionsBeforePlanning(t *testing.T) {
-	service := forecastTestService(t, &publicationFakeStore{}, &publicationFakeFiles{})
-	forecasts, err := service.ForecastComposition(context.Background(), ListComposition{Categories: []string{"video"}}, []string{"unbounded"})
+	publication := forecastTestService(t, &publicationFakeStore{}, &publicationFakeFiles{})
+	forecasts, err := publication.ForecastComposition(context.Background(), ProfileComposition{Categories: []string{"video"}}, []string{"unbounded"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []ServiceRuleForecast{{ServiceID: "youtube", Rules: 3}}
-	if len(forecasts) != 1 || !reflect.DeepEqual(forecasts[0].PerService, want) || forecasts[0].ProjectedRules != 3 {
+	want := []ListRuleForecast{{ListID: "youtube", Rules: 3}}
+	if len(forecasts) != 1 || !reflect.DeepEqual(forecasts[0].PerList, want) || forecasts[0].ProjectedRules != 3 {
 		t.Fatalf("forecast = %#v", forecasts[0])
 	}
 	// Excluding the category's only member leaves nothing to forecast. An empty
 	// answer would read as "nothing to worry about" for a list that cannot be
 	// created at all, so it is refused with the same words creation uses.
-	if _, err := service.ForecastComposition(context.Background(), ListComposition{Categories: []string{"video"}, Exclusions: []string{"youtube"}}, nil); err == nil {
+	if _, err := publication.ForecastComposition(context.Background(), ProfileComposition{Categories: []string{"video"}, Exclusions: []string{"youtube"}}, nil); err == nil {
 		t.Fatal("a composition resolving to no services was forecast rather than refused")
 	}
-	if _, err := service.ForecastComposition(context.Background(), ListComposition{Services: []string{"absent"}}, nil); err == nil {
+	if _, err := publication.ForecastComposition(context.Background(), ProfileComposition{Lists: []string{"absent"}}, nil); err == nil {
 		t.Fatal("an unknown service was forecast rather than refused")
 	}
-	if _, err := service.ForecastComposition(context.Background(), ListComposition{Services: []string{"youtube"}}, []string{"absent-device"}); err == nil {
+	if _, err := publication.ForecastComposition(context.Background(), ProfileComposition{Lists: []string{"youtube"}}, []string{"absent-device"}); err == nil {
 		t.Fatal("an unknown target was forecast rather than refused")
 	}
 }
@@ -189,8 +189,12 @@ func (s *forecastGuardStore) ApplySuccess(context.Context, SuccessCycle) error {
 func (s *forecastGuardStore) RecordFailure(context.Context, FailureCycle) error {
 	return s.refuse("RecordFailure")
 }
-func (s *forecastGuardStore) CreateList(context.Context, List) error { return s.refuse("CreateList") }
-func (s *forecastGuardStore) UpdateList(context.Context, List) error { return s.refuse("UpdateList") }
+func (s *forecastGuardStore) CreateProfile(context.Context, Profile) error {
+	return s.refuse("CreateList")
+}
+func (s *forecastGuardStore) UpdateProfile(context.Context, Profile) error {
+	return s.refuse("UpdateList")
+}
 func (s *forecastGuardStore) CreateOutput(context.Context, NewOutput) error {
 	return s.refuse("CreateOutput")
 }
@@ -208,8 +212,8 @@ func (s *forecastGuardStore) PutSetting(context.Context, string, string, time.Ti
 func TestForecastWritesNothing(t *testing.T) {
 	store := &forecastGuardStore{publicationFakeStore: &publicationFakeStore{}}
 	files := &publicationFakeFiles{}
-	service := forecastTestService(t, store, files)
-	if _, err := service.ForecastComposition(context.Background(), ListComposition{Services: []string{"youtube", "discord"}}, nil); err != nil {
+	publication := forecastTestService(t, store, files)
+	if _, err := publication.ForecastComposition(context.Background(), ProfileComposition{Lists: []string{"youtube", "discord"}}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if len(store.writes) != 0 {
@@ -218,12 +222,12 @@ func TestForecastWritesNothing(t *testing.T) {
 	if files.puts != 0 {
 		t.Fatalf("the forecast stored %d artifact(s)", files.puts)
 	}
-	if len(store.attempts) != 0 || len(store.published) != 0 || store.list.ID != "" || store.output.ID != "" {
+	if len(store.attempts) != 0 || len(store.published) != 0 || store.profile.ID != "" || store.output.ID != "" {
 		t.Fatalf("the forecast left state behind: %#v", store.publicationFakeStore)
 	}
 	// A refused forecast writes nothing either: the build path records a failed
 	// attempt against an output, and a preview has no output to record against.
-	if _, err := service.ForecastComposition(context.Background(), ListComposition{Services: []string{"absent"}}, nil); err == nil {
+	if _, err := publication.ForecastComposition(context.Background(), ProfileComposition{Lists: []string{"absent"}}, nil); err == nil {
 		t.Fatal("expected the refusal")
 	}
 	if len(store.writes) != 0 || len(store.attempts) != 0 {
@@ -234,36 +238,36 @@ func TestForecastWritesNothing(t *testing.T) {
 func TestForecastOverlapUsesOnlyThePreparedCutoffAndDistinctLists(t *testing.T) {
 	store := &forecastGuardStore{publicationFakeStore: &publicationFakeStore{}}
 	files := &publicationFakeFiles{}
-	service := forecastTestService(t, store, files)
-	service.config.Categories["other"] = domain.CategoryDefinition{ID: "other", Services: []string{"youtube"}}
+	publication := forecastTestService(t, store, files)
+	publication.config.Categories["other"] = domain.CategoryDefinition{ID: "other", Lists: []string{"youtube"}}
 	ctx := context.Background()
-	read := func(composition ListComposition) CompositionForecast {
+	read := func(composition ProfileComposition) CompositionForecast {
 		t.Helper()
-		result, err := service.ForecastComposition(ctx, composition, []string{"unbounded"})
+		result, err := publication.ForecastComposition(ctx, composition, []string{"unbounded"})
 		if err != nil {
 			t.Fatal(err)
 		}
 		return result[0]
 	}
-	a := read(ListComposition{Services: []string{"youtube"}})
-	b := read(ListComposition{Services: []string{"discord"}})
-	ab := read(ListComposition{Services: []string{"youtube", "discord"}, Categories: []string{"video", "other"}})
+	a := read(ProfileComposition{Lists: []string{"youtube"}})
+	b := read(ProfileComposition{Lists: []string{"discord"}})
+	ab := read(ProfileComposition{Lists: []string{"youtube", "discord"}, Categories: []string{"video", "other"}})
 	if len(a.Overlaps.Items) != 0 || len(b.Overlaps.Items) != 0 || ab.Overlaps.Truncated || len(ab.Overlaps.Items) != 1 {
 		t.Fatalf("a=%#v b=%#v ab=%#v", a, b, ab)
 	}
 	item := ab.Overlaps.Items[0]
-	if item.Kind != "duplicate" || item.Entry.Value != "198.51.100.8" || !slices.Equal(item.Entry.Services, []string{"discord", "youtube"}) {
+	if item.Kind != "duplicate" || item.Entry.Value != "198.51.100.8" || !slices.Equal(item.Entry.Lists, []string{"discord", "youtube"}) {
 		t.Fatalf("overlap=%#v", item)
 	}
-	if !reflect.DeepEqual(a, read(ListComposition{Services: []string{"youtube"}})) || !reflect.DeepEqual(b, read(ListComposition{Services: []string{"discord"}})) {
+	if !reflect.DeepEqual(a, read(ProfileComposition{Lists: []string{"youtube"}})) || !reflect.DeepEqual(b, read(ProfileComposition{Lists: []string{"discord"}})) {
 		t.Fatal("combined preview changed an individual list")
 	}
-	if got := read(ListComposition{Categories: []string{"video", "other"}}); len(got.Overlaps.Items) != 0 {
+	if got := read(ProfileComposition{Categories: []string{"video", "other"}}); len(got.Overlaps.Items) != 0 {
 		t.Fatal("one list selected through two categories overlaps itself")
 	}
-	cutoff := service.config.Clock.Now().Add(2 * time.Hour)
-	service.config.Clock = ClockFunc(func() time.Time { return cutoff })
-	expired := read(ListComposition{Services: []string{"youtube", "discord"}})
+	cutoff := publication.config.Clock.Now().Add(2 * time.Hour)
+	publication.config.Clock = ClockFunc(func() time.Time { return cutoff })
+	expired := read(ProfileComposition{Lists: []string{"youtube", "discord"}})
 	if len(expired.Overlaps.Items) != 0 || expired.ProjectedRules != 3 {
 		t.Fatalf("expired evidence entered overlap/projection: %#v", expired)
 	}
@@ -276,23 +280,23 @@ func TestForecastOverlapUsesOnlyThePreparedCutoffAndDistinctLists(t *testing.T) 
 // overlap facts available for other members. Publication still refuses it.
 func TestForecastRetainsKnownListsWithoutClaimingPartialCompositionFits(t *testing.T) {
 	store := &forecastGuardStore{publicationFakeStore: &publicationFakeStore{}}
-	service := forecastTestService(t, store, &publicationFakeFiles{})
-	missing := service.config.Definitions["discord"]
+	publication := forecastTestService(t, store, &publicationFakeFiles{})
+	missing := publication.config.Definitions["discord"]
 	missing.ID = "missing"
 	missing.Components = append(missing.Components, domain.ComponentDefinition{ID: "required", Required: true})
-	service.config.Definitions[missing.ID] = missing
+	publication.config.Definitions[missing.ID] = missing
 	ctx := context.Background()
-	composition := ListComposition{Services: []string{"youtube", "discord", "missing"}, Priority: []string{"youtube", "discord", "missing"}}
-	answer, err := service.ForecastComposition(ctx, composition, []string{"unbounded"})
+	composition := ProfileComposition{Lists: []string{"youtube", "discord", "missing"}, Priority: []string{"youtube", "discord", "missing"}}
+	answer, err := publication.ForecastComposition(ctx, composition, []string{"unbounded"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := answer[0]
-	if got.Fits || !slices.Equal(got.IncompleteServices, []string{"missing"}) || got.ProjectedRules != 4 || len(got.PerService) != 2 || len(got.Overlaps.Items) != 1 {
+	if got.Fits || !slices.Equal(got.IncompleteLists, []string{"missing"}) || got.ProjectedRules != 4 || len(got.PerList) != 2 || len(got.Overlaps.Items) != 1 {
 		t.Fatalf("partial forecast lost known rules/overlaps or claimed completeness: %#v", got)
 	}
-	target, renderer, _ := service.target("unbounded")
-	_, _, err = service.prepareList(ctx, List{Services: composition.Services}, target, renderer)
+	target, renderer, _ := publication.target("unbounded")
+	_, _, err = publication.prepareProfile(ctx, Profile{Lists: composition.Lists}, target, renderer)
 	if !errors.Is(err, ErrPartialCoverage) {
 		t.Fatalf("publication accepted incomplete coverage: %v", err)
 	}
@@ -301,14 +305,14 @@ func TestForecastRetainsKnownListsWithoutClaimingPartialCompositionFits(t *testi
 	}
 	// The IP-only target has no usable rules when IPv4 is unsupported. Its
 	// failure cannot remove the other target's complete result.
-	unsupported := service.config.Targets["keenetic"]
+	unsupported := publication.config.Targets["keenetic"]
 	unsupported.Constraints.SupportsIPv4 = false
-	service.config.Targets["keenetic"] = unsupported
-	answer, err = service.ForecastComposition(ctx, ListComposition{Services: []string{"youtube", "discord"}}, nil)
+	publication.config.Targets["keenetic"] = unsupported
+	answer, err = publication.ForecastComposition(ctx, ProfileComposition{Lists: []string{"youtube", "discord"}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(answer) != 2 || len(answer[0].IncompleteServices) != 2 || answer[0].Fits || !answer[1].Fits || answer[1].ProjectedRules != 4 {
+	if len(answer) != 2 || len(answer[0].IncompleteLists) != 2 || answer[0].Fits || !answer[1].Fits || answer[1].ProjectedRules != 4 {
 		t.Fatalf("one unavailable format erased another: %#v", answer)
 	}
 }

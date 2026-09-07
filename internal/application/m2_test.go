@@ -21,11 +21,11 @@ type m2Store struct {
 
 func (*m2Store) ApplySuccess(context.Context, SuccessCycle) error  { return nil }
 func (*m2Store) RecordFailure(context.Context, FailureCycle) error { return nil }
-func (s *m2Store) ReadPlanningSnapshot(_ context.Context, serviceID string, _ map[string]string, _ string, _ time.Time) (PlanningSnapshot, error) {
-	if err := s.errFor[serviceID]; err != nil {
+func (s *m2Store) ReadPlanningSnapshot(_ context.Context, listID string, _ map[string]string, _ string, _ time.Time) (PlanningSnapshot, error) {
+	if err := s.errFor[listID]; err != nil {
 		return PlanningSnapshot{}, err
 	}
-	return s.snapshots[serviceID], nil
+	return s.snapshots[listID], nil
 }
 
 type m2SpyRenderer struct {
@@ -67,7 +67,7 @@ func (o *m2Output) Put(_ context.Context, _ domain.RendererDescriptor, _ string,
 	return `C:\data\artifacts\artifact.bat`, false, nil
 }
 
-func TestBuildServicesPreflightRejectsUnsupportedKindBeforeRenderer(t *testing.T) {
+func TestBuildListsPreflightRejectsUnsupportedKindBeforeRenderer(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	definition := m2Definition("example")
 	one := m2Sighting("example", "192.0.2.0", now.Add(time.Hour))
@@ -75,26 +75,26 @@ func TestBuildServicesPreflightRejectsUnsupportedKindBeforeRenderer(t *testing.T
 	store := &m2Store{snapshots: map[string]PlanningSnapshot{"example": m2Snapshot(definition, []domain.Sighting{one, two})}}
 	renderer := &m2SpyRenderer{kinds: []domain.RuleKind{domain.RuleIPv4}}
 	output := &m2Output{}
-	_, err := BuildServices(context.Background(), []domain.ServiceDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
+	_, err := BuildLists(context.Background(), []domain.ListDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
 	if !errors.Is(err, ErrPreflight) || renderer.renderCalls != 0 || output.calls != 0 {
 		t.Fatalf("unsupported preflight err=%v renders=%d outputs=%d", err, renderer.renderCalls, output.calls)
 	}
 }
 
-func TestBuildServicesPreflightRejectsWrongRendererVersionBeforeRenderer(t *testing.T) {
+func TestBuildListsPreflightRejectsWrongRendererVersionBeforeRenderer(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	definition := m2Definition("example")
 	definition.Seeds = []domain.Seed{{Kind: domain.RuleIPv4, Value: "192.0.2.1", ComponentID: "web", SourceID: "manual:ip", SourceClass: domain.SourceManual}}
 	store := &m2Store{snapshots: map[string]PlanningSnapshot{"example": m2Snapshot(definition, nil)}}
 	renderer := &m2SpyRenderer{version: "keenetic-bat-ipv4-v2", kinds: []domain.RuleKind{domain.RuleIPv4, domain.RulePrefix4}}
 	output := &m2Output{}
-	_, err := BuildServices(context.Background(), []domain.ServiceDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
+	_, err := BuildLists(context.Background(), []domain.ListDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
 	if !errors.Is(err, ErrPreflight) || renderer.renderCalls != 0 || output.calls != 0 {
 		t.Fatalf("version preflight err=%v renders=%d outputs=%d", err, renderer.renderCalls, output.calls)
 	}
 }
 
-func TestBuildServicesGlobal1025LimitAndRequiredCoverageFailClosed(t *testing.T) {
+func TestBuildListsGlobal1025LimitAndRequiredCoverageFailClosed(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	t.Run("global 1025", func(t *testing.T) {
 		alpha := m2Definition("alpha")
@@ -108,7 +108,7 @@ func TestBuildServicesGlobal1025LimitAndRequiredCoverageFailClosed(t *testing.T)
 		store := &m2Store{snapshots: map[string]PlanningSnapshot{"alpha": m2Snapshot(alpha, nil), "beta": m2Snapshot(beta, nil)}}
 		renderer := &m2SpyRenderer{kinds: []domain.RuleKind{domain.RuleIPv4, domain.RulePrefix4}}
 		output := &m2Output{}
-		_, err := BuildServices(context.Background(), []domain.ServiceDefinition{beta, alpha}, map[string]map[string]string{"alpha": {}, "beta": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
+		_, err := BuildLists(context.Background(), []domain.ListDefinition{beta, alpha}, map[string]map[string]string{"alpha": {}, "beta": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
 		if !errors.Is(err, ErrRuleLimit) || !errors.Is(err, ErrPreflight) || renderer.renderCalls != 0 || output.calls != 0 {
 			t.Fatalf("1025 rule build err=%v renders=%d outputs=%d", err, renderer.renderCalls, output.calls)
 		}
@@ -119,16 +119,16 @@ func TestBuildServicesGlobal1025LimitAndRequiredCoverageFailClosed(t *testing.T)
 		store := &m2Store{snapshots: map[string]PlanningSnapshot{"example": m2Snapshot(definition, nil)}}
 		renderer := &m2SpyRenderer{kinds: []domain.RuleKind{domain.RuleIPv4, domain.RulePrefix4}}
 		output := &m2Output{}
-		_, err := BuildServices(context.Background(), []domain.ServiceDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
+		_, err := BuildLists(context.Background(), []domain.ListDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
 		if !errors.Is(err, ErrPartialCoverage) || renderer.renderCalls != 0 || output.calls != 0 {
 			t.Fatalf("uncovered build err=%v renders=%d outputs=%d", err, renderer.renderCalls, output.calls)
 		}
 	})
 }
 
-func TestBuildServicesAppliesLineLimitAfterEquivalentRouteProjection(t *testing.T) {
+func TestBuildListsAppliesLineLimitAfterEquivalentRouteProjection(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
-	definition := domain.ServiceDefinition{ID: "example", CatalogRevision: "catalog-revision"}
+	definition := domain.ListDefinition{ID: "example", CatalogRevision: "catalog-revision"}
 	for i := 0; i < keenetic.MaxLines+1; i++ {
 		componentID := fmt.Sprintf("component-%04d", i)
 		definition.Components = append(definition.Components, domain.ComponentDefinition{ID: componentID, Required: true})
@@ -143,7 +143,7 @@ func TestBuildServicesAppliesLineLimitAfterEquivalentRouteProjection(t *testing.
 	store := &m2Store{snapshots: map[string]PlanningSnapshot{"example": m2Snapshot(definition, nil)}}
 	renderer := &m2SpyRenderer{kinds: []domain.RuleKind{domain.RuleIPv4, domain.RulePrefix4}}
 	output := &m2Output{}
-	result, err := BuildServices(context.Background(), []domain.ServiceDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
+	result, err := BuildLists(context.Background(), []domain.ListDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,14 +156,14 @@ func TestBuildServicesAppliesLineLimitAfterEquivalentRouteProjection(t *testing.
 	}
 }
 
-func TestBuildServicesRejectsDefaultRouteBeforeRenderer(t *testing.T) {
+func TestBuildListsRejectsDefaultRouteBeforeRenderer(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	definition := m2Definition("example")
 	definition.Seeds = []domain.Seed{{Kind: domain.RulePrefix4, Value: "0.0.0.0/0", ComponentID: "web", SourceID: "manual:default", SourceClass: domain.SourceManual}}
 	store := &m2Store{snapshots: map[string]PlanningSnapshot{"example": m2Snapshot(definition, nil)}}
 	renderer := &m2SpyRenderer{kinds: []domain.RuleKind{domain.RuleIPv4, domain.RulePrefix4}}
 	output := &m2Output{}
-	_, err := BuildServices(context.Background(), []domain.ServiceDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
+	_, err := BuildLists(context.Background(), []domain.ListDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
 	// The default route is refused by policy, before the preflight it used to
 	// reach: a destination that swallows the whole address space is not a
 	// candidate the planner admits. The component is then uncovered, which is
@@ -174,20 +174,20 @@ func TestBuildServicesRejectsDefaultRouteBeforeRenderer(t *testing.T) {
 	}
 }
 
-func TestBuildServicesTwoServiceMissingStateIsAllOrNothing(t *testing.T) {
+func TestBuildListsTwoListMissingStateIsAllOrNothing(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	alpha := m2Definition("alpha")
 	beta := m2Definition("beta")
 	store := &m2Store{snapshots: map[string]PlanningSnapshot{"alpha": m2Snapshot(alpha, []domain.Sighting{m2Sighting("alpha", "192.0.2.1", now.Add(time.Hour))})}, errFor: map[string]error{"beta": errors.New("missing")}}
 	renderer := &m2SpyRenderer{kinds: []domain.RuleKind{domain.RuleIPv4, domain.RulePrefix4}}
 	output := &m2Output{}
-	_, err := BuildServices(context.Background(), []domain.ServiceDefinition{beta, alpha}, map[string]map[string]string{"alpha": {}, "beta": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
+	_, err := BuildLists(context.Background(), []domain.ListDefinition{beta, alpha}, map[string]map[string]string{"alpha": {}, "beta": {}}, m2Target(), store, renderer, output, ClockFunc(func() time.Time { return now }))
 	if err == nil || renderer.renderCalls != 0 || output.calls != 0 {
 		t.Fatalf("missing state was not all-or-nothing: err=%v renders=%d outputs=%d", err, renderer.renderCalls, output.calls)
 	}
 }
 
-func TestBuildServicesEmitsExplicitPartialDiagnosticWithoutCatalogText(t *testing.T) {
+func TestBuildListsEmitsExplicitPartialDiagnosticWithoutCatalogText(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	definition := m2Definition("example")
 	definition.Title = "SENTINEL-TITLE"
@@ -196,7 +196,7 @@ func TestBuildServicesEmitsExplicitPartialDiagnosticWithoutCatalogText(t *testin
 	target.ManualInstallationHint = "SENTINEL-HINT"
 	store := &m2Store{snapshots: map[string]PlanningSnapshot{"example": m2Snapshot(definition, []domain.Sighting{m2Sighting("example", "192.0.2.1", now.Add(time.Hour))})}}
 	output := &m2Output{}
-	result, err := BuildServices(context.Background(), []domain.ServiceDefinition{definition}, map[string]map[string]string{"example": {}}, target, store, keenetic.Renderer{}, output, ClockFunc(func() time.Time { return now }))
+	result, err := BuildLists(context.Background(), []domain.ListDefinition{definition}, map[string]map[string]string{"example": {}}, target, store, keenetic.Renderer{}, output, ClockFunc(func() time.Time { return now }))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,17 +212,17 @@ func TestBuildServicesEmitsExplicitPartialDiagnosticWithoutCatalogText(t *testin
 	}
 }
 
-func TestBuildServicesParsedOutputExcludesStaleAndInjectedBroadMetadata(t *testing.T) {
+func TestBuildListsParsedOutputExcludesStaleAndInjectedBroadMetadata(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	definition := m2Definition("example")
 	fresh := m2Sighting("example", "192.0.2.1", now.Add(time.Hour))
 	stale := m2Sighting("example", "192.0.2.2", now)
 	stale.Validity = domain.ValidityStale
 	broadResource, _ := domain.NewPrefixResourceFromString("104.16.0.0/12")
-	broad := domain.Sighting{ServiceID: "example", ComponentID: "web", Resource: broadResource, SourceID: "rdap", SourceClass: domain.SourceMetadata, SourceRevision: "injected", Metadata: `{"owner":"SENTINEL-METADATA"}`, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid}
+	broad := domain.Sighting{ListID: "example", ComponentID: "web", Resource: broadResource, SourceID: "rdap", SourceClass: domain.SourceMetadata, SourceRevision: "injected", Metadata: `{"owner":"SENTINEL-METADATA"}`, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid}
 	store := &m2Store{snapshots: map[string]PlanningSnapshot{"example": m2Snapshot(definition, []domain.Sighting{broad, stale, fresh})}}
 	output := &m2Output{}
-	_, err := BuildServices(context.Background(), []domain.ServiceDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, keenetic.Renderer{}, output, ClockFunc(func() time.Time { return now }))
+	_, err := BuildLists(context.Background(), []domain.ListDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, keenetic.Renderer{}, output, ClockFunc(func() time.Time { return now }))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestBuildServicesParsedOutputExcludesStaleAndInjectedBroadMetadata(t *testi
 	}
 }
 
-func TestBuildServicesFreshEvidenceSurvivesAnExpiredSightingOfTheSameAddress(t *testing.T) {
+func TestBuildListsFreshEvidenceSurvivesAnExpiredSightingOfTheSameAddress(t *testing.T) {
 	now := time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC)
 	definition := m2Definition("example")
 	fresh := m2Sighting("example", "192.0.2.1", now.Add(time.Hour))
@@ -245,7 +245,7 @@ func TestBuildServicesFreshEvidenceSurvivesAnExpiredSightingOfTheSameAddress(t *
 	for _, sightings := range [][]domain.Sighting{{stale, fresh}, {fresh, stale}} {
 		store := &m2Store{snapshots: map[string]PlanningSnapshot{"example": m2Snapshot(definition, sightings)}}
 		output := &m2Output{}
-		_, err := BuildServices(context.Background(), []domain.ServiceDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, keenetic.Renderer{}, output, ClockFunc(func() time.Time { return now }))
+		_, err := BuildLists(context.Background(), []domain.ListDefinition{definition}, map[string]map[string]string{"example": {}}, m2Target(), store, keenetic.Renderer{}, output, ClockFunc(func() time.Time { return now }))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -260,7 +260,7 @@ func TestPreflightRejectsStaleAndInjectedSemanticHash(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	definition := m2Definition("example")
 	definition.Seeds = []domain.Seed{{Kind: domain.RuleIPv4, Value: "192.0.2.1", ComponentID: "web", SourceID: "manual:ip", SourceClass: domain.SourceManual}}
-	plan, err := planner.BuildPlanSet([]planner.ServiceInput{{Definition: definition}}, m2Target(), now)
+	plan, err := planner.BuildPlanSet([]planner.ListInput{{Definition: definition}}, m2Target(), now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,29 +280,29 @@ func TestPreflightRejectsStaleAndInjectedSemanticHash(t *testing.T) {
 	}
 }
 
-func m2Definition(id string) domain.ServiceDefinition {
-	return domain.ServiceDefinition{ID: id, CatalogRevision: "catalog-revision", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}
+func m2Definition(id string) domain.ListDefinition {
+	return domain.ListDefinition{ID: id, CatalogRevision: "catalog-revision", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}
 }
 
-func m2Target() domain.TargetProfile {
-	return domain.TargetProfile{ID: "keenetic", ProfileKey: keenetic.Version, RendererID: keenetic.ID, Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: keenetic.MaxLines, MaxArtifactSize: keenetic.MaxArtifactSize}}
+func m2Target() domain.TargetDefinition {
+	return domain.TargetDefinition{ID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID, Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: keenetic.MaxLines, MaxArtifactSize: keenetic.MaxArtifactSize}}
 }
 
-func m2Sighting(serviceID, address string, validUntil time.Time) domain.Sighting {
+func m2Sighting(listID, address string, validUntil time.Time) domain.Sighting {
 	resource, _ := domain.NewAddrResourceFromString(address)
-	return domain.Sighting{ServiceID: serviceID, ComponentID: "web", Resource: resource, SourceID: "dns", SourceClass: domain.SourceObserved, SourceRevision: "v1", ValidUntil: validUntil, Validity: domain.ValidityValid}
+	return domain.Sighting{ListID: listID, ComponentID: "web", Resource: resource, SourceID: "dns", SourceClass: domain.SourceObserved, SourceRevision: "v1", ValidUntil: validUntil, Validity: domain.ValidityValid}
 }
 
-func m2Snapshot(definition domain.ServiceDefinition, sightings []domain.Sighting) PlanningSnapshot {
-	raw := domain.RawJSONTargetProfile()
-	return PlanningSnapshot{Sightings: sightings, Profile: ProfileRecord{ProfileKey: raw.ProfileKey, ServiceID: definition.ID, TargetID: raw.ID, RendererID: raw.RendererID, CatalogRevision: definition.CatalogRevision}}
+func m2Snapshot(definition domain.ListDefinition, sightings []domain.Sighting) PlanningSnapshot {
+	raw := domain.RawJSONTargetDefinition()
+	return PlanningSnapshot{Sightings: sightings, Format: FormatRecord{FormatKey: raw.FormatKey, ListID: definition.ID, TargetID: raw.ID, RendererID: raw.RendererID, CatalogRevision: definition.CatalogRevision}}
 }
 
 // m2IPv4Seed produces addresses no lossless collapse may merge: every value
 // has an even final octet, so its /31 sibling is never present and the rule
 // count the limit is asserted against survives planning.
-func m2IPv4Seed(index int, service string) domain.Seed {
+func m2IPv4Seed(index int, list string) domain.Seed {
 	third := index / 126
 	fourth := (index % 126) * 2
-	return domain.Seed{Kind: domain.RuleIPv4, Value: fmt.Sprintf("198.18.%d.%d", third, fourth), ComponentID: "web", SourceID: fmt.Sprintf("manual:%s:%d", service, index), SourceClass: domain.SourceManual}
+	return domain.Seed{Kind: domain.RuleIPv4, Value: fmt.Sprintf("198.18.%d.%d", third, fourth), ComponentID: "web", SourceID: fmt.Sprintf("manual:%s:%d", list, index), SourceClass: domain.SourceManual}
 }

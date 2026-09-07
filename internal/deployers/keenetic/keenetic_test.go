@@ -465,16 +465,16 @@ func testPlanWithLabels(t *testing.T, prefix string, owners map[string][]string)
 	parsed := netip.MustParsePrefix(prefix)
 	plan := domain.RoutingPlan{
 		InterfaceVersion: domain.RoutingPlanInterfaceVersion,
-		TargetID:         "keenetic", ProfileKey: keenetic.Version, PolicyVersion: planner.PolicyVersion,
+		TargetID:         "keenetic", FormatKey: keenetic.Version, PolicyVersion: planner.PolicyVersion,
 		CatalogRevision: strings.Repeat("c", 64), ObservationCutoff: time.Date(2026, 9, 4, 9, 0, 0, 0, time.UTC),
 	}
-	for serviceID, labels := range owners {
-		rule, err := domain.NewPrefixRule(parsed, serviceID, "web", domain.SourceOfficial, []string{planner.ReasonOfficialRule}, []string{"catalog"})
+	for listID, labels := range owners {
+		rule, err := domain.NewPrefixRule(parsed, listID, "web", domain.SourceOfficial, []string{planner.ReasonOfficialRule}, []string{"catalog"})
 		if err != nil {
 			t.Fatal(err)
 		}
 		rule.Labels = domain.StableStrings(labels)
-		plan.Services = append(plan.Services, serviceID)
+		plan.Lists = append(plan.Lists, listID)
 		plan.Rules = append(plan.Rules, rule)
 	}
 	planner.CanonicalizePlan(&plan)
@@ -482,10 +482,10 @@ func testPlanWithLabels(t *testing.T, prefix string, owners map[string][]string)
 	return plan
 }
 
-func testKeeneticTarget() domain.TargetProfile {
-	return domain.TargetProfile{
+func testKeeneticTarget() domain.TargetDefinition {
+	return domain.TargetDefinition{
 		ID:         "keenetic",
-		ProfileKey: keenetic.Version,
+		FormatKey:  keenetic.Version,
 		RendererID: keenetic.ID,
 		Constraints: domain.TargetConstraints{
 			SupportsIPv4:     true,
@@ -606,7 +606,7 @@ func TestProbeReportsTheFirmwareAndRefusesAnUnsupportedOne(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if device.ProfileKey != keenetic.Version || device.FirmwareVersion != "5.1.2" || device.Model != "Giga" {
+	if device.FormatKey != keenetic.Version || device.FirmwareVersion != "5.1.2" || device.Model != "Giga" {
 		t.Fatalf("device = %#v", device)
 	}
 	if device.Interface != deviceInterface {
@@ -620,7 +620,7 @@ func TestProbeReportsTheFirmwareAndRefusesAnUnsupportedOne(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if older.ProfileKey != "" || older.FirmwareVersion != "4.9.9" {
+	if older.FormatKey != "" || older.FirmwareVersion != "4.9.9" {
 		t.Fatalf("device = %#v", older)
 	}
 	// An unsupported device is never asked about its interfaces or its routes.

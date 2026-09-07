@@ -19,11 +19,11 @@ const MaxSessionEvidenceBytes = 8 << 20
 // Evidence is runtime state, not catalog content: it lives beside the database
 // rather than in the catalog so a replayed scenario can be compared with an
 // earlier run without changing any reviewed definition.
-func WriteSessionEvidence(ctx context.Context, dataRoot, serviceID string, observedAt time.Time, evidence any) (string, error) {
+func WriteSessionEvidence(ctx context.Context, dataRoot, listID string, observedAt time.Time, evidence any) (string, error) {
 	if ctx == nil || ctx.Err() != nil {
 		return "", fmt.Errorf("invalid session evidence context")
 	}
-	if err := validateSegment(serviceID); err != nil {
+	if err := validateSegment(listID); err != nil {
 		return "", err
 	}
 	rootPath, err := ResolvePrivateDataRoot(dataRoot)
@@ -38,7 +38,7 @@ func WriteSessionEvidence(ctx context.Context, dataRoot, serviceID string, obser
 	if len(payload) > MaxSessionEvidenceBytes {
 		return "", fmt.Errorf("session evidence exceeds %d bytes", MaxSessionEvidenceBytes)
 	}
-	directory := filepath.Join(rootPath, "discovery", serviceID)
+	directory := filepath.Join(rootPath, "discovery", listID)
 	if err := os.MkdirAll(directory, 0o700); err != nil {
 		return "", fmt.Errorf("create session evidence directory: %w", err)
 	}

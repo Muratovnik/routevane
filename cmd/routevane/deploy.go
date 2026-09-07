@@ -118,8 +118,8 @@ func runDeploy(ctx context.Context, stdout io.Writer, logger *slog.Logger, optio
 		return 1
 	}
 	defer store.Close()
-	service, err := application.NewPublicationService(application.PublicationConfig{
-		Definitions: catalog.Services, Categories: catalog.Categories,
+	publication, err := application.NewPublicationService(application.PublicationConfig{
+		Definitions: catalog.Lists, Categories: catalog.Categories,
 		Targets: catalogTargets(catalog, resolved.renderers), TargetRevision: catalog.TargetRevision,
 		Store: store, Files: filesystem.PublishedStore{DataRoot: root},
 		Renderers: resolved.renderers, Sources: resolved.sources, Clock: application.ClockFunc(deps.Now),
@@ -128,7 +128,7 @@ func runDeploy(ctx context.Context, stdout io.Writer, logger *slog.Logger, optio
 		logResult(logger, "deploy", "", "", "failed", 0, started, "composition_invalid")
 		return 1
 	}
-	payload, err := service.Artifact(ctx, options.ArtifactID)
+	payload, err := publication.Artifact(ctx, options.ArtifactID)
 	if err != nil {
 		logger.Warn("deploy failed", "operation", "deploy", "error", err.Error())
 		logResult(logger, "deploy", "", "", "failed", 0, started, "artifact_unavailable")
@@ -140,7 +140,7 @@ func runDeploy(ctx context.Context, stdout io.Writer, logger *slog.Logger, optio
 	}
 
 	deployments, err := application.NewDeploymentService(application.DeploymentConfig{
-		Artifacts: service, Deployers: deployerRegistry(deps, options),
+		Artifacts: publication, Deployers: deployerRegistry(deps, options),
 		Backups: filesystem.BackupStore{DataRoot: root}, ManagedRoutes: store,
 		Clock: application.ClockFunc(deps.Now),
 	})

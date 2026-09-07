@@ -13,8 +13,8 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-func (s *Store) ReadPlanningSnapshot(ctx context.Context, serviceID string, activeRevisions map[string]string, profileKey string, cutoff time.Time) (PlanningSnapshot, error) {
-	if domain.ValidateSlug(serviceID) != nil || profileKey == "" || cutoff.IsZero() {
+func (s *Store) ReadPlanningSnapshot(ctx context.Context, listID string, activeRevisions map[string]string, formatKey string, cutoff time.Time) (PlanningSnapshot, error) {
+	if domain.ValidateSlug(listID) != nil || formatKey == "" || cutoff.IsZero() {
 		return PlanningSnapshot{}, fmt.Errorf("invalid planning snapshot request")
 	}
 	ctx, cancel := bounded(ctx)
@@ -27,16 +27,16 @@ func (s *Store) ReadPlanningSnapshot(ctx context.Context, serviceID string, acti
 	result := PlanningSnapshot{}
 	var updatedNS int64
 	if err := tx.QueryRowContext(ctx, `SELECT format_key, list_id, target_id, renderer_id, catalog_revision, config_json, updated_at_ns
-FROM effective_formats WHERE format_key=? AND list_id=?`, profileKey, serviceID).Scan(&result.Profile.ProfileKey, &result.Profile.ServiceID, &result.Profile.TargetID, &result.Profile.RendererID, &result.Profile.CatalogRevision, &result.Profile.ConfigJSON, &updatedNS); err != nil {
+FROM effective_formats WHERE format_key=? AND list_id=?`, formatKey, listID).Scan(&result.Format.FormatKey, &result.Format.ListID, &result.Format.TargetID, &result.Format.RendererID, &result.Format.CatalogRevision, &result.Format.ConfigJSON, &updatedNS); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return PlanningSnapshot{}, ErrProfileNotFound
+			return PlanningSnapshot{}, ErrFormatNotFound
 		}
 		return PlanningSnapshot{}, fmt.Errorf("read profile: %w", err)
 	}
-	result.Profile.UpdatedAt = unixNanos(updatedNS)
+	result.Format.UpdatedAt = unixNanos(updatedNS)
 	rows, err := tx.QueryContext(ctx, `SELECT s.id, s.component_id, r.kind, r.normalized_value, s.source_id, s.source_class, s.source_revision,
 s.first_seen_ns, s.last_seen_ns, s.valid_until_ns, s.ttl_seconds, s.observation_count, s.metadata_json, s.invalid
-FROM sightings s JOIN resources r ON r.id=s.resource_id WHERE s.list_id=?`, serviceID)
+FROM sightings s JOIN resources r ON r.id=s.resource_id WHERE s.list_id=?`, listID)
 	if err != nil {
 		return PlanningSnapshot{}, fmt.Errorf("read sightings: %w", err)
 	}
@@ -57,7 +57,7 @@ FROM sightings s JOIN resources r ON r.id=s.resource_id WHERE s.list_id=?`, serv
 			return PlanningSnapshot{}, closeRowsWith(rows, fmt.Errorf("stored sighting resource is invalid"))
 		}
 		validUntil := unixNanos(validNS)
-		result.Sightings = append(result.Sightings, domain.Sighting{ID: strconv.FormatInt(id, 10), ServiceID: serviceID, ComponentID: component, Resource: resource, SourceID: sourceID, SourceClass: domain.SourceClass(sourceClass), SourceRevision: revision, FirstSeen: unixNanos(firstNS), LastSeen: unixNanos(lastNS), ValidUntil: validUntil, TTLSeconds: ttl.Int64, TTLKnown: ttl.Valid, ObservationCount: count, Metadata: metadata, Validity: domain.LifecycleAt(validUntil, cutoff, invalid != 0)})
+		result.Sightings = append(result.Sightings, domain.Sighting{ID: strconv.FormatInt(id, 10), ListID: listID, ComponentID: component, Resource: resource, SourceID: sourceID, SourceClass: domain.SourceClass(sourceClass), SourceRevision: revision, FirstSeen: unixNanos(firstNS), LastSeen: unixNanos(lastNS), ValidUntil: validUntil, TTLSeconds: ttl.Int64, TTLKnown: ttl.Valid, ObservationCount: count, Metadata: metadata, Validity: domain.LifecycleAt(validUntil, cutoff, invalid != 0)})
 	}
 	// An iteration cut short by a cancelled context or an I/O fault reports
 	// through Err, not Close. Without this the plan would be built from a
@@ -71,7 +71,7 @@ FROM sightings s JOIN resources r ON r.id=s.resource_id WHERE s.list_id=?`, serv
 	rows, err = tx.QueryContext(ctx, `SELECT rs.kind, rs.normalized_value, r.relation_type, rt.kind, rt.normalized_value,
 r.component_id, r.first_seen_ns, r.last_seen_ns, r.valid_until_ns, r.source_id, r.source_revision, r.invalid
 FROM relations r JOIN resources rs ON rs.id=r.source_resource_id JOIN resources rt ON rt.id=r.target_resource_id
-WHERE r.list_id=?`, serviceID)
+WHERE r.list_id=?`, listID)
 	if err != nil {
 		return PlanningSnapshot{}, fmt.Errorf("read relations: %w", err)
 	}
@@ -91,7 +91,7 @@ WHERE r.list_id=?`, serviceID)
 			return PlanningSnapshot{}, closeRowsWith(rows, fmt.Errorf("stored relation resource is invalid"))
 		}
 		validUntil := unixNanos(validNS)
-		result.Relations = append(result.Relations, domain.Relation{SourceResource: source, RelationType: domain.RelationType(relationType), TargetResource: target, ServiceID: serviceID, ComponentID: component, FirstSeen: unixNanos(firstNS), LastSeen: unixNanos(lastNS), ValidUntil: validUntil, SourceID: sourceID, SourceRevision: revision, Validity: domain.LifecycleAt(validUntil, cutoff, invalid != 0)})
+		result.Relations = append(result.Relations, domain.Relation{SourceResource: source, RelationType: domain.RelationType(relationType), TargetResource: target, ListID: listID, ComponentID: component, FirstSeen: unixNanos(firstNS), LastSeen: unixNanos(lastNS), ValidUntil: validUntil, SourceID: sourceID, SourceRevision: revision, Validity: domain.LifecycleAt(validUntil, cutoff, invalid != 0)})
 	}
 	if err := rows.Err(); err != nil {
 		return PlanningSnapshot{}, closeRowsWith(rows, fmt.Errorf("read relations: %w", err))
@@ -106,7 +106,7 @@ WHERE r.list_id=?`, serviceID)
 COALESCE(MAX(CASE WHEN status='success' THEN completed_at_ns END), 0) AS last_success_ns,
 COALESCE(MAX(CASE WHEN status='failed' THEN completed_at_ns END), 0) AS last_failure_ns
 FROM source_runs WHERE list_id=? GROUP BY source_id, source_revision
-ORDER BY source_id, source_revision`, serviceID)
+ORDER BY source_id, source_revision`, listID)
 	if err != nil {
 		return PlanningSnapshot{}, fmt.Errorf("read source health: %w", err)
 	}

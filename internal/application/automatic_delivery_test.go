@@ -71,11 +71,11 @@ func TestAutomaticDeliveryUsesOnlyExplicitOptedInBindingsAndContinuesAfterFailur
 		},
 	}
 	deployments := &automaticDeploymentTarget{failures: map[string]error{"artifact-bad": ErrVerifyFailed}}
-	service, err := NewAutomaticDeliveryService(AutomaticDeliveryConfig{Devices: devices, Deployments: deployments, Outputs: devices, Gate: NewDeliveryGate()})
+	delivery, err := NewAutomaticDeliveryService(AutomaticDeliveryConfig{Devices: devices, Deployments: deployments, Outputs: devices, Gate: NewDeliveryGate()})
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := service.Deliver(context.Background(), []ScheduledRun{{Publications: []ScheduledPublication{
+	runs := delivery.Deliver(context.Background(), []ScheduledRun{{Publications: []ScheduledPublication{
 		{OutputID: "file-only", ArtifactID: "artifact-file"},
 		{OutputID: "off-output", DeviceID: "off", ArtifactID: "artifact-off"},
 		{OutputID: "bad-output", DeviceID: "bad", ArtifactID: "artifact-bad"},
@@ -101,7 +101,7 @@ func TestManualAndAutomaticDeliveryUseTheSameManagedRouteLedger(t *testing.T) {
 	artifacts := deploymentTestArtifacts()
 	artifacts.output.DeviceID = "router"
 	prefix := managedPrefix("192.0.2.10/32")
-	base := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("previous device state")}
+	base := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("previous device state")}
 	deployer := &managedSpyDeployer{
 		spyDeployer: base,
 		desired:     managedSpecs(prefix),
@@ -149,8 +149,8 @@ func TestAutomaticDeliveryReportsMissingCredentialsWithoutCallingADeployer(t *te
 		outputs: map[string]Output{"output": {ID: "output", DeviceID: "router"}},
 	}
 	deployments := &automaticDeploymentTarget{}
-	service, _ := NewAutomaticDeliveryService(AutomaticDeliveryConfig{Devices: devices, Deployments: deployments, Outputs: devices, Gate: NewDeliveryGate()})
-	runs := service.Deliver(context.Background(), []ScheduledRun{{Publications: []ScheduledPublication{{OutputID: "output", DeviceID: "router", ArtifactID: "artifact"}}}})
+	delivery, _ := NewAutomaticDeliveryService(AutomaticDeliveryConfig{Devices: devices, Deployments: deployments, Outputs: devices, Gate: NewDeliveryGate()})
+	runs := delivery.Deliver(context.Background(), []ScheduledRun{{Publications: []ScheduledPublication{{OutputID: "output", DeviceID: "router", ArtifactID: "artifact"}}}})
 	if len(deployments.commands) != 0 || len(runs[0].DeliveryFailures) != 1 || runs[0].DeliveryFailures[0].Code != "credential_unavailable" {
 		t.Fatalf("commands = %#v run = %#v", deployments.commands, runs[0])
 	}
@@ -163,8 +163,8 @@ func TestAutomaticDeliveryStopsWhenTheBindingChangedDuringRefresh(t *testing.T) 
 		outputs: map[string]Output{"output": {ID: "output"}},
 	}
 	deployments := &automaticDeploymentTarget{}
-	service, _ := NewAutomaticDeliveryService(AutomaticDeliveryConfig{Devices: source, Deployments: deployments, Outputs: source, Gate: NewDeliveryGate()})
-	runs := service.Deliver(context.Background(), []ScheduledRun{{Publications: []ScheduledPublication{{OutputID: "output", DeviceID: "old", ArtifactID: "artifact"}}}})
+	delivery, _ := NewAutomaticDeliveryService(AutomaticDeliveryConfig{Devices: source, Deployments: deployments, Outputs: source, Gate: NewDeliveryGate()})
+	runs := delivery.Deliver(context.Background(), []ScheduledRun{{Publications: []ScheduledPublication{{OutputID: "output", DeviceID: "old", ArtifactID: "artifact"}}}})
 	if len(deployments.commands) != 0 || runs[0].Delivered != 0 || len(runs[0].DeliveryFailures) != 0 {
 		t.Fatalf("stale binding was acted on: commands = %#v run = %#v", deployments.commands, runs[0])
 	}
@@ -190,13 +190,13 @@ func TestAutomaticDeliveryHoldsAuthorizationThroughTheDeviceSideEffect(t *testin
 		<-finish
 		return nil
 	}}
-	service, err := NewAutomaticDeliveryService(AutomaticDeliveryConfig{Devices: source, Deployments: deployments, Outputs: source, Gate: gate})
+	delivery, err := NewAutomaticDeliveryService(AutomaticDeliveryConfig{Devices: source, Deployments: deployments, Outputs: source, Gate: gate})
 	if err != nil {
 		t.Fatal(err)
 	}
 	delivered := make(chan []ScheduledRun, 1)
 	go func() {
-		delivered <- service.Deliver(context.Background(), []ScheduledRun{{Publications: []ScheduledPublication{{OutputID: "output", DeviceID: "router", ArtifactID: "artifact"}}}})
+		delivered <- delivery.Deliver(context.Background(), []ScheduledRun{{Publications: []ScheduledPublication{{OutputID: "output", DeviceID: "router", ArtifactID: "artifact"}}}})
 	}()
 	<-started
 
@@ -264,14 +264,14 @@ func TestAutomaticDeliveryGivesEachSiblingAFreshBudget(t *testing.T) {
 		}
 		return nil
 	}}
-	service, err := NewAutomaticDeliveryService(AutomaticDeliveryConfig{
+	delivery, err := NewAutomaticDeliveryService(AutomaticDeliveryConfig{
 		Devices: source, Deployments: deployments, Outputs: source,
 		Gate: NewDeliveryGate(), AttemptBudget: budget,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	runs := service.Deliver(context.Background(), []ScheduledRun{{Publications: []ScheduledPublication{
+	runs := delivery.Deliver(context.Background(), []ScheduledRun{{Publications: []ScheduledPublication{
 		{OutputID: "first-output", DeviceID: "first", ArtifactID: "first-artifact"},
 		{OutputID: "second-output", DeviceID: "second", ArtifactID: "second-artifact"},
 	}}})

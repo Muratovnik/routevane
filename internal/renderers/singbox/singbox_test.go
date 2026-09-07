@@ -12,9 +12,9 @@ import (
 	"github.com/Muratovnik/routevane/internal/planner"
 )
 
-func testTarget() domain.TargetProfile {
-	return domain.TargetProfile{
-		ID: "singbox", ProfileKey: Version, RendererID: ID,
+func testTarget() domain.TargetDefinition {
+	return domain.TargetDefinition{
+		ID: "singbox", FormatKey: Version, RendererID: ID,
 		Constraints: domain.TargetConstraints{
 			SupportsDomainExact: true, SupportsDomainSuffix: true,
 			SupportsIPv4: true, SupportsIPv6: true, SupportsPrefixes: true,
@@ -26,12 +26,12 @@ func testTarget() domain.TargetProfile {
 func planWith(t *testing.T, seeds []domain.Seed, sightings []domain.Sighting) domain.RoutingPlan {
 	t.Helper()
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	definition := domain.ServiceDefinition{
+	definition := domain.ListDefinition{
 		ID: "example", CatalogRevision: "catalog",
 		Components: []domain.ComponentDefinition{{ID: "web", Required: true}},
 		Seeds:      seeds,
 	}
-	plan, err := planner.BuildPlanSet([]planner.ServiceInput{{Definition: definition, Sightings: sightings}}, testTarget(), now)
+	plan, err := planner.BuildPlanSet([]planner.ListInput{{Definition: definition, Sightings: sightings}}, testTarget(), now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func officialPrefix(t *testing.T, value string) domain.Sighting {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
-	return domain.Sighting{ServiceID: "example", ComponentID: "web", Resource: resource, SourceID: "feed", SourceClass: domain.SourceOfficial, SourceRevision: "v1", ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid}
+	return domain.Sighting{ListID: "example", ComponentID: "web", Resource: resource, SourceID: "feed", SourceClass: domain.SourceOfficial, SourceRevision: "v1", ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid}
 }
 
 func TestRenderProducesTheGoldenSourceRuleSet(t *testing.T) {
@@ -206,7 +206,7 @@ func TestRenderRefusesARuleKindTheFormatCannotExpress(t *testing.T) {
 	plan := planWith(t, []domain.Seed{
 		{Kind: domain.RuleDomainSuffix, Value: "example.com", ComponentID: "web", SourceID: "manual:example.com", SourceClass: domain.SourceManual},
 	}, nil)
-	plan.Rules = append(plan.Rules, domain.RouteRule{Kind: domain.RuleKind("mac_address"), Action: domain.ActionRoute, ServiceID: "example", ComponentID: "web"})
+	plan.Rules = append(plan.Rules, domain.RouteRule{Kind: domain.RuleKind("mac_address"), Action: domain.ActionRoute, ListID: "example", ComponentID: "web"})
 	if _, err := Render(plan); err == nil {
 		t.Fatal("an unsupported rule kind must fail the render")
 	}

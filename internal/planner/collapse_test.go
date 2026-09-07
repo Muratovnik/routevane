@@ -128,7 +128,7 @@ func containsReason(reasons []string, want string) bool {
 // not be used (ADR 0015).
 func TestACommunityPrefixListIsRoutable(t *testing.T) {
 	sighting := domain.Sighting{
-		ServiceID: "example", ComponentID: "web",
+		ListID: "example", ComponentID: "web",
 		Resource:    mustPrefixResource(t, "198.51.100.0/24"),
 		SourceID:    "iplist",
 		SourceClass: domain.SourceCommunity,
@@ -160,7 +160,7 @@ func mustPrefixResource(t *testing.T, value string) domain.Resource {
 // endpoints no name reaches, so a name-routing target keeps it. A third party's
 // aggregation of those same names is redundant and goes.
 func TestDomainSufficiencyKeepsAVendorRangeAndDropsAnAggregatedOne(t *testing.T) {
-	definition := domain.ServiceDefinition{
+	definition := domain.ListDefinition{
 		ID:         "example",
 		Components: []domain.ComponentDefinition{{ID: "web", Required: true}},
 		Seeds: []domain.Seed{{
@@ -171,14 +171,14 @@ func TestDomainSufficiencyKeepsAVendorRangeAndDropsAnAggregatedOne(t *testing.T)
 	cutoff := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	sighting := func(value string, class domain.SourceClass, id string) domain.Sighting {
 		return domain.Sighting{
-			ServiceID: "example", ComponentID: "web",
+			ListID: "example", ComponentID: "web",
 			Resource: mustPrefixResource(t, value), SourceID: id, SourceClass: class,
 			FirstSeen: cutoff, LastSeen: cutoff, ValidUntil: cutoff.Add(time.Hour),
 			ObservationCount: 1, Validity: domain.ValidityValid,
 		}
 	}
-	target := domain.TargetProfile{
-		ID: "singbox", ProfileKey: "p", RendererID: "r",
+	target := domain.TargetDefinition{
+		ID: "singbox", FormatKey: "p", RendererID: "r",
 		Constraints: domain.TargetConstraints{
 			SupportsDomainSuffix: true, SupportsIPv4: true, SupportsPrefixes: true,
 			MaxRules: 1000, MaxArtifactSize: 1 << 20,

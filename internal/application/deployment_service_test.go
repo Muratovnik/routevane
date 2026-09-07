@@ -16,7 +16,7 @@ import (
 type stubArtifacts struct {
 	payload  ArtifactPayload
 	output   Output
-	target   domain.TargetProfile
+	target   domain.TargetDefinition
 	snapshot PlanSnapshotRecord
 
 	artifactErr error
@@ -40,7 +40,7 @@ func (s *stubArtifacts) Snapshot(_ context.Context, id string) (PlanSnapshotReco
 	return s.snapshot, s.snapshotErr
 }
 
-func (s *stubArtifacts) TargetProfile(string) (domain.TargetProfile, error) {
+func (s *stubArtifacts) TargetDefinition(string) (domain.TargetDefinition, error) {
 	return s.target, s.targetErr
 }
 
@@ -76,7 +76,7 @@ func deploymentTestArtifacts() *stubArtifacts {
 
 func deploymentTestService(t *testing.T, artifacts ArtifactSource, deployer Deployer) *DeploymentService {
 	t.Helper()
-	service, err := NewDeploymentService(DeploymentConfig{
+	deployments, err := NewDeploymentService(DeploymentConfig{
 		Artifacts: artifacts,
 		Deployers: DeployerRegistry{deployer.ID(): deployer},
 		Backups:   &memoryBackups{},
@@ -85,7 +85,7 @@ func deploymentTestService(t *testing.T, artifacts ArtifactSource, deployer Depl
 	if err != nil {
 		t.Fatal(err)
 	}
-	return service
+	return deployments
 }
 
 func deploymentTestCommand(confirm bool) DeployCommand {
@@ -102,10 +102,10 @@ func deploymentTestCommand(confirm bool) DeployCommand {
 // none.
 func TestDeployRecordsThePlanHashAndNotTheArtifactHashAgain(t *testing.T) {
 	artifacts := deploymentTestArtifacts()
-	deployer := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("previous device state")}
-	service := deploymentTestService(t, artifacts, deployer)
+	deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("previous device state")}
+	deployments := deploymentTestService(t, artifacts, deployer)
 
-	result, err := service.Deploy(context.Background(), deploymentTestCommand(true))
+	result, err := deployments.Deploy(context.Background(), deploymentTestCommand(true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,10 +142,10 @@ func TestDeployRefusesWhenThePlanProvenanceIsUnreadable(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			artifacts := deploymentTestArtifacts()
 			test.mutate(artifacts)
-			deployer := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("previous device state")}
-			service := deploymentTestService(t, artifacts, deployer)
+			deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("previous device state")}
+			deployments := deploymentTestService(t, artifacts, deployer)
 
-			_, err := service.Deploy(context.Background(), deploymentTestCommand(true))
+			_, err := deployments.Deploy(context.Background(), deploymentTestCommand(true))
 			if !errors.Is(err, ErrDeployComposition) {
 				t.Fatalf("err = %v, want a composition refusal", err)
 			}
@@ -160,10 +160,10 @@ func TestDeployRefusesWhenThePlanProvenanceIsUnreadable(t *testing.T) {
 // shows before the operator agrees to change anything.
 func TestPlanDescribesTheDeploymentWithoutContactingTheDevice(t *testing.T) {
 	artifacts := deploymentTestArtifacts()
-	deployer := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1"}
-	service := deploymentTestService(t, artifacts, deployer)
+	deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1"}
+	deployments := deploymentTestService(t, artifacts, deployer)
 
-	plan, err := service.Plan(context.Background(), deploymentTestCommand(false))
+	plan, err := deployments.Plan(context.Background(), deploymentTestCommand(false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,29 +180,29 @@ func TestPlanDescribesTheDeploymentWithoutContactingTheDevice(t *testing.T) {
 
 func TestStoredConnectionValidationUsesTheTargetsDeployerWithoutASecret(t *testing.T) {
 	artifacts := deploymentTestArtifacts()
-	deployer := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1"}
-	service := deploymentTestService(t, artifacts, deployer)
+	deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1"}
+	deployments := deploymentTestService(t, artifacts, deployer)
 	connection := deploymentTestCommand(false).Connection.Redacted()
-	if err := service.ValidateStoredConnection(artifacts.target.ID, connection); err != nil {
+	if err := deployments.ValidateStoredConnection(artifacts.target.ID, connection); err != nil {
 		t.Fatal(err)
 	}
 	connection.Password = deployTestPassword
-	if err := service.ValidateStoredConnection(artifacts.target.ID, connection); !errors.Is(err, ErrConnectionInvalid) {
+	if err := deployments.ValidateStoredConnection(artifacts.target.ID, connection); !errors.Is(err, ErrConnectionInvalid) {
 		t.Fatalf("persisted password err = %v", err)
 	}
 	deployer.connectionErr = errors.New("unsafe destination")
 	connection.Password = ""
-	if err := service.ValidateStoredConnection(artifacts.target.ID, connection); !errors.Is(err, ErrConnectionInvalid) {
+	if err := deployments.ValidateStoredConnection(artifacts.target.ID, connection); !errors.Is(err, ErrConnectionInvalid) {
 		t.Fatalf("destination err = %v", err)
 	}
 }
 
 func TestDeployRefusesWithoutConfirmation(t *testing.T) {
 	artifacts := deploymentTestArtifacts()
-	deployer := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1"}
-	service := deploymentTestService(t, artifacts, deployer)
+	deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1"}
+	deployments := deploymentTestService(t, artifacts, deployer)
 
-	_, err := service.Deploy(context.Background(), deploymentTestCommand(false))
+	_, err := deployments.Deploy(context.Background(), deploymentTestCommand(false))
 	if !errors.Is(err, ErrConfirmationRequired) {
 		t.Fatalf("err = %v", err)
 	}
@@ -216,10 +216,10 @@ func TestDeployRefusesWithoutConfirmation(t *testing.T) {
 func TestDeployRefusesAnArtifactBuiltForAnotherTarget(t *testing.T) {
 	artifacts := deploymentTestArtifacts()
 	artifacts.payload.Artifact.RendererID = "singbox-rule-set"
-	deployer := &spyDeployer{profileKey: "keenetic-bat-ipv4-v1"}
-	service := deploymentTestService(t, artifacts, deployer)
+	deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1"}
+	deployments := deploymentTestService(t, artifacts, deployer)
 
-	_, err := service.Deploy(context.Background(), deploymentTestCommand(true))
+	_, err := deployments.Deploy(context.Background(), deploymentTestCommand(true))
 	if !errors.Is(err, ErrDeployComposition) {
 		t.Fatalf("err = %v", err)
 	}
@@ -232,7 +232,7 @@ func TestDeployRefusesAnArtifactBuiltForAnotherTarget(t *testing.T) {
 // caller who gave up, or a request whose deadline expired mid-write, is exactly
 // when the device is already changed and the backup is the only way back.
 func TestRollbackRunsAfterTheCallerContextIsCancelled(t *testing.T) {
-	deployer := &cancellingDeployer{spyDeployer: spyDeployer{profileKey: "keenetic-bat-ipv4-v1", backup: []byte("previous device state")}}
+	deployer := &cancellingDeployer{spyDeployer: spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("previous device state")}}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	deployer.cancel = cancel

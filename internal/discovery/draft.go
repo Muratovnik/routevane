@@ -52,7 +52,7 @@ type Candidate struct {
 
 // Draft is the reviewable outcome of one discovery session.
 type Draft struct {
-	Definition domain.ServiceDefinition
+	Definition domain.ListDefinition
 	// AcceptedHosts are the same-site hosts the draft configures for observation.
 	// They were actually reached, so a DNS cycle over them is expected to work.
 	AcceptedHosts []string
@@ -72,7 +72,7 @@ type Draft struct {
 // can never become a routing prefix.
 type DraftRequest struct {
 	Target      Target
-	ServiceID   string
+	ListID      string
 	Title       string
 	Page        PageLoad
 	ManualSeeds []string
@@ -91,7 +91,7 @@ func BuildDraft(request DraftRequest) (Draft, error) {
 	}
 	return BuildLearnedDraft(LearnedDraftRequest{
 		Target:      request.Target,
-		ServiceID:   request.ServiceID,
+		ListID:      request.ListID,
 		Title:       request.Title,
 		Evidence:    evidenceFromPageLoad(request.Target, request.Page),
 		Exercised:   []string{domain.ComponentCore},
@@ -147,7 +147,7 @@ func loaderOf(documentHost, host string) []string {
 // a guided browser session, an imported archive, or both merged.
 type LearnedDraftRequest struct {
 	Target      Target
-	ServiceID   string
+	ListID      string
 	Title       string
 	Evidence    SessionEvidence
 	Exercised   []string
@@ -165,8 +165,8 @@ func BuildLearnedDraft(request LearnedDraftRequest) (Draft, error) {
 	if request.Target.RegistrableDomain == "" {
 		return Draft{}, ErrInvalidTarget
 	}
-	if domain.ValidateSlug(request.ServiceID) != nil {
-		return Draft{}, fmt.Errorf("%w: service id %q", ErrInvalidTarget, request.ServiceID)
+	if domain.ValidateSlug(request.ListID) != nil {
+		return Draft{}, fmt.Errorf("%w: service id %q", ErrInvalidTarget, request.ListID)
 	}
 	registrable := request.Target.RegistrableDomain
 	evidence := request.Evidence
@@ -243,8 +243,8 @@ func BuildLearnedDraft(request LearnedDraftRequest) (Draft, error) {
 		title = registrable
 	}
 	return Draft{
-		Definition: domain.ServiceDefinition{
-			ID:         request.ServiceID,
+		Definition: domain.ListDefinition{
+			ID:         request.ListID,
 			Title:      title,
 			Components: components,
 			Seeds:      seeds,

@@ -22,15 +22,15 @@ const (
 type deliveryGateArtifacts struct {
 	payload  application.ArtifactPayload
 	output   application.Output
-	target   domain.TargetProfile
+	target   domain.TargetDefinition
 	snapshot application.PlanSnapshotRecord
 }
 
 func newDeliveryGateArtifacts() *deliveryGateArtifacts {
-	target := domain.TargetProfile{
+	target := domain.TargetDefinition{
 		ID:          "controlled-target",
 		Title:       "Controlled target",
-		ProfileKey:  "controlled-profile-v1",
+		FormatKey:   "controlled-profile-v1",
 		RendererID:  deliveryGateRendererID,
 		Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: 1},
 	}
@@ -70,7 +70,7 @@ func (s *deliveryGateArtifacts) Snapshot(context.Context, string) (application.P
 	return s.snapshot, nil
 }
 
-func (s *deliveryGateArtifacts) TargetProfile(string) (domain.TargetProfile, error) {
+func (s *deliveryGateArtifacts) TargetDefinition(string) (domain.TargetDefinition, error) {
 	return s.target, nil
 }
 
@@ -109,7 +109,7 @@ func (*controlledDeliveryDeployer) ValidateStoredConnection(application.Connecti
 func (*controlledDeliveryDeployer) ValidateConnection(application.Connection) error { return nil }
 
 func (*controlledDeliveryDeployer) Probe(context.Context, application.Connection) (application.DeviceInfo, error) {
-	return application.DeviceInfo{ProfileKey: "controlled-profile-v1"}, nil
+	return application.DeviceInfo{FormatKey: "controlled-profile-v1"}, nil
 }
 
 func (*controlledDeliveryDeployer) Backup(context.Context, application.DeviceInfo, application.Connection) (application.BackupPayload, error) {

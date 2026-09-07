@@ -30,7 +30,7 @@ const LocalGroup = "local"
 // The written document is deliberately the same schema Load already accepts, so
 // a draft is either loadable by the product or rejected at write time; there is
 // no draft-only dialect.
-func WriteLocalDraft(ctx context.Context, catalogRoot string, definition domain.ServiceDefinition) (string, error) {
+func WriteLocalDraft(ctx context.Context, catalogRoot string, definition domain.ListDefinition) (string, error) {
 	if ctx == nil || ctx.Err() != nil {
 		return "", fmt.Errorf("%w: context", ErrInvalidCatalog)
 	}
@@ -102,7 +102,7 @@ func WriteLocalDraft(ctx context.Context, catalogRoot string, definition domain.
 // verifyDraftLoads parses the encoded draft through the same strict decoder the
 // catalog uses, in an isolated temporary directory, before anything is written
 // into the real catalog.
-func verifyDraftLoads(ctx context.Context, payload []byte, definition domain.ServiceDefinition) error {
+func verifyDraftLoads(ctx context.Context, payload []byte, definition domain.ListDefinition) error {
 	probeRoot, err := os.MkdirTemp("", "routevane-draft-probe-")
 	if err != nil {
 		return fmt.Errorf("create draft probe: %w", err)
@@ -118,18 +118,18 @@ func verifyDraftLoads(ctx context.Context, payload []byte, definition domain.Ser
 	if err != nil {
 		return fmt.Errorf("%w: draft is not loadable: %v", ErrInvalidCatalog, err)
 	}
-	loaded, found := catalog.Service(definition.ID)
+	loaded, found := catalog.List(definition.ID)
 	if !found || loaded.ID != definition.ID || len(loaded.Sources) != len(definition.Sources) || len(loaded.Seeds) == 0 {
 		return fmt.Errorf("%w: draft did not round-trip", ErrInvalidCatalog)
 	}
 	return nil
 }
 
-func encodeDraft(definition domain.ServiceDefinition) ([]byte, error) {
+func encodeDraft(definition domain.ListDefinition) ([]byte, error) {
 	if len(definition.Components) == 0 || len(definition.Seeds) == 0 {
 		return nil, fmt.Errorf("%w: draft has no component or seed", ErrInvalidCatalog)
 	}
-	document := rawService{
+	document := rawList{
 		ID:         definition.ID,
 		Title:      definition.Title,
 		Components: map[string]rawComponent{},

@@ -71,7 +71,7 @@ func newFeedFixture(t *testing.T, hosts map[string][]netip.Addr, handler http.Ha
 
 func (f *feedFixture) observe(t *testing.T, ctx context.Context, url string, format domain.FeedFormat) (Result, error) {
 	t.Helper()
-	return f.observer.Observe(ctx, Query{ServiceID: "example", ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: url, Format: format}, time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC))
+	return f.observer.Observe(ctx, Query{ListID: "example", ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: url, Format: format}, time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC))
 }
 
 func textHandler(body string) http.Handler {
@@ -398,9 +398,9 @@ func TestFeedRefusesAnInvalidQuery(t *testing.T) {
 		want  error
 	}{
 		{"missing service", Query{ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: "https://example.com/f", Format: domain.FeedFormatText}, ErrInvalidQuery},
-		{"missing revision", Query{ServiceID: "example", ComponentID: "web", SourceID: "feed", URL: "https://example.com/f", Format: domain.FeedFormatText}, ErrInvalidQuery},
-		{"unknown format", Query{ServiceID: "example", ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: "https://example.com/f", Format: domain.FeedFormat("xml")}, ErrUnsupportedFormat},
-		{"local url", Query{ServiceID: "example", ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: "https://127.0.0.1/f", Format: domain.FeedFormatText}, ErrUnsafeDestination},
+		{"missing revision", Query{ListID: "example", ComponentID: "web", SourceID: "feed", URL: "https://example.com/f", Format: domain.FeedFormatText}, ErrInvalidQuery},
+		{"unknown format", Query{ListID: "example", ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: "https://example.com/f", Format: domain.FeedFormat("xml")}, ErrUnsupportedFormat},
+		{"local url", Query{ListID: "example", ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: "https://127.0.0.1/f", Format: domain.FeedFormatText}, ErrUnsafeDestination},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -409,7 +409,7 @@ func TestFeedRefusesAnInvalidQuery(t *testing.T) {
 			}
 		})
 	}
-	if _, err := fixture.observer.Observe(context.Background(), Query{ServiceID: "example", ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: "https://example.com/f", Format: domain.FeedFormatText}, time.Time{}); !errors.Is(err, ErrInvalidQuery) {
+	if _, err := fixture.observer.Observe(context.Background(), Query{ListID: "example", ComponentID: "web", SourceID: "feed", SourceRevision: "rev", URL: "https://example.com/f", Format: domain.FeedFormatText}, time.Time{}); !errors.Is(err, ErrInvalidQuery) {
 		t.Fatalf("a zero observation time must be refused")
 	}
 }

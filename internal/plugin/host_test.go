@@ -110,9 +110,9 @@ func testPlan(t *testing.T) domain.RoutingPlan {
 		t.Fatal(err)
 	}
 	return domain.RoutingPlan{
-		InterfaceVersion: domain.RoutingPlanInterfaceVersion, TargetID: "example", ProfileKey: "example-csv-v1",
-		Services: []string{"example"}, Rules: []domain.RouteRule{rule, suffix},
-		Coverage:      []domain.Coverage{{ServiceID: "example", ComponentID: "core", Complete: true, RuleCount: 2}},
+		InterfaceVersion: domain.RoutingPlanInterfaceVersion, TargetID: "example", FormatKey: "example-csv-v1",
+		Lists: []string{"example"}, Rules: []domain.RouteRule{rule, suffix},
+		Coverage:      []domain.Coverage{{ListID: "example", ComponentID: "core", Complete: true, RuleCount: 2}},
 		PolicyVersion: "auto-v1", CatalogRevision: strings.Repeat("a", 64), ObservationCutoff: now,
 		SemanticHash: strings.Repeat("b", 64),
 	}
@@ -201,7 +201,7 @@ func TestAnExternalSourceCannotIntroduceAnUncheckedValue(t *testing.T) {
 
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
 	result, err := source.Observe(context.Background(), application.SourceRequest{
-		ServiceID: "example", ComponentID: "core", SourceID: "static", SourceRevision: "example-static-v1",
+		ListID: "example", ComponentID: "core", SourceID: "static", SourceRevision: "example-static-v1",
 		Names: []string{"static.example.test", "edge.example.test", "unknown.example.test"}, ObservedAt: now,
 	})
 	if err != nil {
@@ -214,7 +214,7 @@ func TestAnExternalSourceCannotIntroduceAnUncheckedValue(t *testing.T) {
 		if !sighting.Resource.IsValid() {
 			t.Fatalf("the host stored an invalid resource: %#v", sighting.Resource)
 		}
-		if sighting.ServiceID != "example" || sighting.ComponentID != "core" || sighting.SourceRevision != "example-static-v1" {
+		if sighting.ListID != "example" || sighting.ComponentID != "core" || sighting.SourceRevision != "example-static-v1" {
 			t.Fatalf("a plugin changed the observation identity: %#v", sighting)
 		}
 		// The plugin reported a TTL, so the host honors it rather than its own
@@ -228,7 +228,7 @@ func TestAnExternalSourceCannotIntroduceAnUncheckedValue(t *testing.T) {
 	}
 	// An unknown name contributes nothing rather than an error.
 	if _, err := source.Observe(context.Background(), application.SourceRequest{
-		ServiceID: "example", ComponentID: "core", SourceID: "static", SourceRevision: "example-static-v1",
+		ListID: "example", ComponentID: "core", SourceID: "static", SourceRevision: "example-static-v1",
 		Names: []string{"nothing.example.test"}, ObservedAt: now,
 	}); err == nil {
 		t.Fatal("a source that answers nothing must report a failure")

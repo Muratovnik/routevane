@@ -149,5 +149,5 @@ func (s *MemoryStore) Relations(cutoff time.Time) []domain.Relation {
 }
 
 func sightingKey(value domain.Sighting) string {
-	return strings.Join([]string{value.ServiceID, value.ComponentID, value.Resource.Kind.String(), value.Resource.CanonicalValue(), value.SourceID, value.SourceRevision}, "\x00")
+	return strings.Join([]string{value.ListID, value.ComponentID, value.Resource.Kind.String(), value.Resource.CanonicalValue(), value.SourceID, value.SourceRevision}, "\x00")
 }

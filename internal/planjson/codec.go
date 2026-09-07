@@ -19,7 +19,7 @@ type Rule struct {
 	Kind           string   `json:"kind"`
 	Value          string   `json:"value"`
 	Action         string   `json:"action"`
-	ServiceID      string   `json:"service_id"`
+	ListID         string   `json:"service_id"`
 	ComponentID    string   `json:"component_id"`
 	ExpiresAt      *string  `json:"expires_at"`
 	SourceClass    string   `json:"source_class"`
@@ -34,7 +34,7 @@ type Excluded struct {
 	ProvenanceRefs []string `json:"provenance_refs"`
 }
 type Coverage struct {
-	ServiceID   string `json:"service_id"`
+	ListID      string `json:"service_id"`
 	ComponentID string `json:"component_id"`
 	Complete    bool   `json:"complete"`
 	RuleCount   int    `json:"rule_count"`
@@ -47,7 +47,7 @@ type Relation struct {
 	Source         Resource `json:"source"`
 	RelationType   string   `json:"relation_type"`
 	Target         Resource `json:"target"`
-	ServiceID      string   `json:"service_id"`
+	ListID         string   `json:"service_id"`
 	ComponentID    string   `json:"component_id"`
 	FirstSeen      string   `json:"first_seen"`
 	LastSeen       string   `json:"last_seen"`
@@ -58,7 +58,7 @@ type Relation struct {
 }
 type Sighting struct {
 	ID                    string   `json:"id"`
-	ServiceID             string   `json:"service_id"`
+	ListID                string   `json:"service_id"`
 	ComponentID           string   `json:"component_id"`
 	Resource              Resource `json:"resource"`
 	SourceID              string   `json:"source_id"`
@@ -76,8 +76,8 @@ type Sighting struct {
 type Plan struct {
 	InterfaceVersion  string     `json:"interface_version"`
 	TargetID          string     `json:"target_id"`
-	ProfileKey        string     `json:"profile_key"`
-	Services          []string   `json:"services"`
+	FormatKey         string     `json:"profile_key"`
+	Lists             []string   `json:"services"`
 	Rules             []Rule     `json:"rules"`
 	Excluded          []Excluded `json:"excluded"`
 	Warnings          []string   `json:"warnings"`
@@ -116,7 +116,7 @@ func Validate(encoded []byte) error {
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		return fmt.Errorf("routing plan JSON must contain one document")
 	}
-	if plan.InterfaceVersion != domain.RoutingPlanInterfaceVersion || plan.TargetID == "" || plan.ProfileKey == "" || plan.PolicyVersion == "" || plan.CatalogRevision == "" || plan.ObservationCutoff == "" || plan.SemanticHash == "" {
+	if plan.InterfaceVersion != domain.RoutingPlanInterfaceVersion || plan.TargetID == "" || plan.FormatKey == "" || plan.PolicyVersion == "" || plan.CatalogRevision == "" || plan.ObservationCutoff == "" || plan.SemanticHash == "" {
 		return fmt.Errorf("routing plan JSON identity is incomplete")
 	}
 	return nil
@@ -126,10 +126,10 @@ func Convert(plan domain.RoutingPlan) (Plan, error) {
 	if plan.InterfaceVersion != domain.RoutingPlanInterfaceVersion {
 		return Plan{}, fmt.Errorf("unsupported routing plan interface version %q", plan.InterfaceVersion)
 	}
-	if plan.TargetID == "" || plan.ProfileKey == "" {
+	if plan.TargetID == "" || plan.FormatKey == "" {
 		return Plan{}, fmt.Errorf("routing plan target identity is incomplete")
 	}
-	dto := Plan{InterfaceVersion: plan.InterfaceVersion, TargetID: plan.TargetID, ProfileKey: plan.ProfileKey, Services: stringsOrEmpty(plan.Services), Rules: make([]Rule, 0, len(plan.Rules)), Excluded: make([]Excluded, 0, len(plan.Excluded)), Warnings: stringsOrEmpty(plan.Warnings), Coverage: make([]Coverage, 0, len(plan.Coverage)), Relations: make([]Relation, 0, len(plan.Relations)), Sightings: make([]Sighting, 0, len(plan.Sightings)), PolicyVersion: plan.PolicyVersion, CatalogRevision: plan.CatalogRevision, ObservationCutoff: formatTime(plan.ObservationCutoff), SemanticHash: plan.SemanticHash}
+	dto := Plan{InterfaceVersion: plan.InterfaceVersion, TargetID: plan.TargetID, FormatKey: plan.FormatKey, Lists: stringsOrEmpty(plan.Lists), Rules: make([]Rule, 0, len(plan.Rules)), Excluded: make([]Excluded, 0, len(plan.Excluded)), Warnings: stringsOrEmpty(plan.Warnings), Coverage: make([]Coverage, 0, len(plan.Coverage)), Relations: make([]Relation, 0, len(plan.Relations)), Sightings: make([]Sighting, 0, len(plan.Sightings)), PolicyVersion: plan.PolicyVersion, CatalogRevision: plan.CatalogRevision, ObservationCutoff: formatTime(plan.ObservationCutoff), SemanticHash: plan.SemanticHash}
 	for _, rule := range plan.Rules {
 		if !rule.IsValid() {
 			return Plan{}, fmt.Errorf("routing plan contains invalid rule %q", rule.CanonicalValue())
@@ -140,19 +140,19 @@ func Convert(plan domain.RoutingPlan) (Plan, error) {
 		dto.Excluded = append(dto.Excluded, Excluded{Candidate: convertRule(excluded.Candidate), Outcome: excluded.Outcome, ReasonCodes: stringsOrEmpty(excluded.ReasonCodes), ProvenanceRefs: stringsOrEmpty(excluded.ProvenanceRefs)})
 	}
 	for _, coverage := range plan.Coverage {
-		dto.Coverage = append(dto.Coverage, Coverage{ServiceID: coverage.ServiceID, ComponentID: coverage.ComponentID, Complete: coverage.Complete, RuleCount: coverage.RuleCount})
+		dto.Coverage = append(dto.Coverage, Coverage{ListID: coverage.ListID, ComponentID: coverage.ComponentID, Complete: coverage.Complete, RuleCount: coverage.RuleCount})
 	}
 	for _, relation := range plan.Relations {
 		if !relation.SourceResource.IsValid() || !relation.TargetResource.IsValid() {
 			return Plan{}, fmt.Errorf("routing plan contains invalid relation")
 		}
-		dto.Relations = append(dto.Relations, Relation{Source: convertResource(relation.SourceResource), RelationType: string(relation.RelationType), Target: convertResource(relation.TargetResource), ServiceID: relation.ServiceID, ComponentID: relation.ComponentID, FirstSeen: formatTime(relation.FirstSeen), LastSeen: formatTime(relation.LastSeen), ValidUntil: formatTime(relation.ValidUntil), SourceID: relation.SourceID, SourceRevision: relation.SourceRevision, Validity: string(relation.Validity)})
+		dto.Relations = append(dto.Relations, Relation{Source: convertResource(relation.SourceResource), RelationType: string(relation.RelationType), Target: convertResource(relation.TargetResource), ListID: relation.ListID, ComponentID: relation.ComponentID, FirstSeen: formatTime(relation.FirstSeen), LastSeen: formatTime(relation.LastSeen), ValidUntil: formatTime(relation.ValidUntil), SourceID: relation.SourceID, SourceRevision: relation.SourceRevision, Validity: string(relation.Validity)})
 	}
 	for _, sighting := range plan.Sightings {
 		if !sighting.Resource.IsValid() {
 			return Plan{}, fmt.Errorf("routing plan contains invalid sighting resource")
 		}
-		dto.Sightings = append(dto.Sightings, Sighting{ID: sighting.ID, ServiceID: sighting.ServiceID, ComponentID: sighting.ComponentID, Resource: convertResource(sighting.Resource), SourceID: sighting.SourceID, SourceClass: string(sighting.SourceClass), SourceRevision: sighting.SourceRevision, FirstSeen: formatTime(sighting.FirstSeen), LastSeen: formatTime(sighting.LastSeen), ValidUntil: formatTime(sighting.ValidUntil), TTLSeconds: sighting.TTLSeconds, TTLKnown: sighting.TTLKnown, ObservationCount: sighting.ObservationCount, Validity: string(sighting.Validity), SharedNetworkEvidence: string(sighting.SharedNetworkEvidence)})
+		dto.Sightings = append(dto.Sightings, Sighting{ID: sighting.ID, ListID: sighting.ListID, ComponentID: sighting.ComponentID, Resource: convertResource(sighting.Resource), SourceID: sighting.SourceID, SourceClass: string(sighting.SourceClass), SourceRevision: sighting.SourceRevision, FirstSeen: formatTime(sighting.FirstSeen), LastSeen: formatTime(sighting.LastSeen), ValidUntil: formatTime(sighting.ValidUntil), TTLSeconds: sighting.TTLSeconds, TTLKnown: sighting.TTLKnown, ObservationCount: sighting.ObservationCount, Validity: string(sighting.Validity), SharedNetworkEvidence: string(sighting.SharedNetworkEvidence)})
 	}
 	return dto, nil
 }
@@ -163,7 +163,7 @@ func convertRule(rule domain.RouteRule) Rule {
 		value := formatTime(*rule.ExpiresAt)
 		expires = &value
 	}
-	return Rule{Kind: string(rule.Kind), Value: rule.CanonicalValue(), Action: string(rule.Action), ServiceID: rule.ServiceID, ComponentID: rule.ComponentID, ExpiresAt: expires, SourceClass: string(rule.SourceClass), Labels: append([]string(nil), rule.Labels...), ReasonCodes: stringsOrEmpty(rule.ReasonCodes), ProvenanceRefs: stringsOrEmpty(rule.ProvenanceRefs)}
+	return Rule{Kind: string(rule.Kind), Value: rule.CanonicalValue(), Action: string(rule.Action), ListID: rule.ListID, ComponentID: rule.ComponentID, ExpiresAt: expires, SourceClass: string(rule.SourceClass), Labels: append([]string(nil), rule.Labels...), ReasonCodes: stringsOrEmpty(rule.ReasonCodes), ProvenanceRefs: stringsOrEmpty(rule.ProvenanceRefs)}
 }
 func convertResource(resource domain.Resource) Resource {
 	return Resource{Kind: string(resource.Kind), Value: resource.CanonicalValue()}

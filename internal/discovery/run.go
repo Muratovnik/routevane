@@ -33,9 +33,9 @@ type Deps struct {
 	Load func(context.Context, Target, BrowserOptions) (PageLoad, error)
 	// Observe runs the DNS cycle for the accepted hosts and persists it. It is
 	// the only path by which an address is stored.
-	Observe func(context.Context, domain.ServiceDefinition) (Observation, error)
+	Observe func(context.Context, domain.ListDefinition) (Observation, error)
 	// Write persists the reviewed draft into the local catalog.
-	Write func(context.Context, domain.ServiceDefinition) (string, error)
+	Write func(context.Context, domain.ListDefinition) (string, error)
 	Now   func() time.Time
 }
 
@@ -43,9 +43,9 @@ type Deps struct {
 type Request struct {
 	// URL is what the user typed. It may be a bare host.
 	URL string
-	// ServiceID overrides the identity derived from the registrable domain.
-	ServiceID string
-	Title     string
+	// ListID overrides the identity derived from the registrable domain.
+	ListID string
+	Title  string
 	// ManualSeeds are extra domains the user explicitly wants included.
 	ManualSeeds []string
 	// Confirm must be true for a browser to start. A run without it returns the
@@ -57,7 +57,7 @@ type Request struct {
 // returns only Target and Confirmed=false.
 type Result struct {
 	Target    Target
-	ServiceID string
+	ListID    string
 	Confirmed bool
 	Page      PageLoad
 	Draft     Draft
@@ -81,21 +81,21 @@ func Run(ctx context.Context, request Request, deps Deps) (Result, error) {
 	if err != nil {
 		return Result{}, err
 	}
-	serviceID := request.ServiceID
-	if serviceID == "" {
-		serviceID, err = ServiceIDFor(target.RegistrableDomain)
+	listID := request.ListID
+	if listID == "" {
+		listID, err = ListIDFor(target.RegistrableDomain)
 		if err != nil {
 			return Result{}, err
 		}
 	}
-	if domain.ValidateSlug(serviceID) != nil {
-		return Result{}, fmt.Errorf("%w: service id %q", ErrInvalidTarget, serviceID)
+	if domain.ValidateSlug(listID) != nil {
+		return Result{}, fmt.Errorf("%w: service id %q", ErrInvalidTarget, listID)
 	}
 	if !request.Confirm {
-		return Result{Target: target, ServiceID: serviceID}, ErrConfirmationRequired
+		return Result{Target: target, ListID: listID}, ErrConfirmationRequired
 	}
 	if deps.Observe == nil || deps.Write == nil {
-		return Result{Target: target, ServiceID: serviceID}, ErrInvalidComposition
+		return Result{Target: target, ListID: listID}, ErrInvalidComposition
 	}
 	load := deps.Load
 	if load == nil {
@@ -104,26 +104,26 @@ func Run(ctx context.Context, request Request, deps Deps) (Result, error) {
 
 	page, loadErr := load(ctx, target, deps.Browser)
 	if loadErr != nil {
-		return Result{Target: target, ServiceID: serviceID, Confirmed: true, Page: page}, loadErr
+		return Result{Target: target, ListID: listID, Confirmed: true, Page: page}, loadErr
 	}
 	draft, err := BuildDraft(DraftRequest{
 		Target:      target,
-		ServiceID:   serviceID,
+		ListID:      listID,
 		Title:       request.Title,
 		Page:        page,
 		ManualSeeds: request.ManualSeeds,
 	})
 	if err != nil {
-		return Result{Target: target, ServiceID: serviceID, Confirmed: true, Page: page}, err
+		return Result{Target: target, ListID: listID, Confirmed: true, Page: page}, err
 	}
 	// The draft is written first so the observation runs against the definition
 	// the product actually loaded, with its real catalog and source revisions,
 	// rather than against a synthetic identity that exists only here.
 	path, err := deps.Write(ctx, draft.Definition)
 	if err != nil {
-		return Result{Target: target, ServiceID: serviceID, Confirmed: true, Page: page, Draft: draft}, err
+		return Result{Target: target, ListID: listID, Confirmed: true, Page: page, Draft: draft}, err
 	}
-	result := Result{Target: target, ServiceID: serviceID, Confirmed: true, Page: page, Draft: draft, Path: path}
+	result := Result{Target: target, ListID: listID, Confirmed: true, Page: page, Draft: draft, Path: path}
 	observed, observeErr := deps.Observe(ctx, draft.Definition)
 	result.Observed = observed
 	if observeErr != nil {

@@ -10,28 +10,28 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-// ServiceContents is the one table the service card renders: every
+// ListContents is the one table the service card renders: every
 // destination the service currently stands for — domains, IP addresses and
 // networks — each with where it came from and whether the operator keeps it
 // on. It merges the static definition with the stored observations — the same
 // material the next build reads — so the card and the artifact cannot tell
 // two different stories.
-type ServiceContents struct {
-	ServiceID string                  `json:"list_id"`
-	Rows      []ServiceContentsRow    `json:"rows"`
-	Sources   []ServiceContentsSource `json:"sources"`
+type ListContents struct {
+	ListID  string               `json:"list_id"`
+	Rows    []ListContentsRow    `json:"rows"`
+	Sources []ListContentsSource `json:"sources"`
 	// Observed reports whether stored observations exist for this service. A
 	// service that was never refreshed shows only its static rows, and says so
 	// instead of pretending the automatic material is empty.
 	Observed bool `json:"observed"`
 }
 
-// ServiceContentsRow is one destination of the service. Kind is "domain",
+// ListContentsRow is one destination of the service. Kind is "domain",
 // "ip" or "prefix". Origin names where the value comes from: "catalog" for a
 // shipped seed, "manual" for an operator entry, otherwise the id of the
 // automatic source that observed it. Missing marks a standing verdict whose
 // value no current material offers.
-type ServiceContentsRow struct {
+type ListContentsRow struct {
 	Value   string `json:"value"`
 	Kind    string `json:"kind"`
 	Origin  string `json:"origin"`
@@ -39,10 +39,10 @@ type ServiceContentsRow struct {
 	Missing bool   `json:"missing,omitempty"`
 }
 
-// ServiceContentsSource is one automatic source with the operator's switch.
+// ListContentsSource is one automatic source with the operator's switch.
 // The URL is disclosed only for the operator's own feeds: it is their data,
 // while a catalog feed's configuration stays behind the catalog.
-type ServiceContentsSource struct {
+type ListContentsSource struct {
 	ID      string `json:"id"`
 	Type    string `json:"type"`
 	Custom  bool   `json:"custom"`
@@ -50,12 +50,12 @@ type ServiceContentsSource struct {
 	URL     string `json:"url,omitempty"`
 }
 
-func (s *PublicationService) ServiceContents(ctx context.Context, serviceID string) (ServiceContents, error) {
-	base, ok := s.baseDefinition(serviceID)
+func (s *PublicationService) ListContents(ctx context.Context, listID string) (ListContents, error) {
+	base, ok := s.baseDefinition(listID)
 	if !ok {
-		return ServiceContents{}, ErrNotFound
+		return ListContents{}, ErrNotFound
 	}
-	tuning := s.serviceTuning(serviceID)
+	tuning := s.listTuning(listID)
 	disabled := make(map[string]struct{}, len(tuning.DisabledSources))
 	for _, id := range tuning.DisabledSources {
 		disabled[id] = struct{}{}
@@ -65,29 +65,29 @@ func (s *PublicationService) ServiceContents(ctx context.Context, serviceID stri
 		excluded[value] = struct{}{}
 	}
 
-	contents := ServiceContents{ServiceID: serviceID, Rows: []ServiceContentsRow{}, Sources: []ServiceContentsSource{}}
+	contents := ListContents{ListID: listID, Rows: []ListContentsRow{}, Sources: []ListContentsSource{}}
 	for _, source := range base.Sources {
 		_, off := disabled[source.ID]
-		contents.Sources = append(contents.Sources, ServiceContentsSource{
+		contents.Sources = append(contents.Sources, ListContentsSource{
 			ID: source.ID, Type: string(source.Type), Enabled: !off,
 		})
 	}
 	for _, feed := range tuning.CustomSources {
 		_, off := disabled[feed.ID]
-		contents.Sources = append(contents.Sources, ServiceContentsSource{
+		contents.Sources = append(contents.Sources, ListContentsSource{
 			ID: feed.ID, Type: string(domain.SourceHTTP), Custom: true, Enabled: !off, URL: feed.URL,
 		})
 	}
-	slices.SortFunc(contents.Sources, func(a, b ServiceContentsSource) int { return cmp.Compare(a.ID, b.ID) })
+	slices.SortFunc(contents.Sources, func(a, b ListContentsSource) int { return cmp.Compare(a.ID, b.ID) })
 
 	// The static truth: shipped seeds are catalog rows for a shipped service
 	// and the operator's own rows for a custom service; verdict includes are
 	// always the operator's.
 	staticOrigin := "catalog"
-	if _, shipped := s.config.Definitions[serviceID]; !shipped {
+	if _, shipped := s.config.Definitions[listID]; !shipped {
 		staticOrigin = "manual"
 	}
-	rows := make(map[string]*ServiceContentsRow)
+	rows := make(map[string]*ListContentsRow)
 	addRow := func(value, kind, origin string) {
 		if existing, seen := rows[value]; seen {
 			// A value several origins offer keeps the strongest claim: the
@@ -98,7 +98,7 @@ func (s *PublicationService) ServiceContents(ctx context.Context, serviceID stri
 			return
 		}
 		_, off := excluded[value]
-		rows[value] = &ServiceContentsRow{Value: value, Kind: kind, Origin: origin, Enabled: !off}
+		rows[value] = &ListContentsRow{Value: value, Kind: kind, Origin: origin, Enabled: !off}
 	}
 	for _, seed := range base.Seeds {
 		addRow(seed.Value, rowKind(seed.Kind), staticOrigin)
@@ -115,15 +115,15 @@ func (s *PublicationService) ServiceContents(ctx context.Context, serviceID stri
 	effective := s.tunedDefinition(base)
 	cutoff := s.config.Clock.Now().UTC()
 	if cutoff.IsZero() {
-		return ServiceContents{}, fmt.Errorf("clock returned zero time")
+		return ListContents{}, fmt.Errorf("clock returned zero time")
 	}
-	rawProfile := domain.RawJSONTargetProfile()
-	snapshot, err := s.config.Store.ReadPlanningSnapshot(ctx, serviceID, sourceRevisions(effective), rawProfile.ProfileKey, cutoff)
+	rawFormat := domain.RawJSONTargetDefinition()
+	snapshot, err := s.config.Store.ReadPlanningSnapshot(ctx, listID, sourceRevisions(effective), rawFormat.FormatKey, cutoff)
 	switch {
 	case errors.Is(err, ErrNotFound):
 		// Never refreshed: the static rows are the whole story so far.
 	case err != nil:
-		return ServiceContents{}, fmt.Errorf("read service observations: %w", err)
+		return ListContents{}, fmt.Errorf("read service observations: %w", err)
 	default:
 		contents.Observed = true
 		for _, sighting := range snapshot.Sightings {
@@ -142,7 +142,7 @@ func (s *PublicationService) ServiceContents(ctx context.Context, serviceID stri
 			if _, ruleKind, err := domain.NormalizeRuleValue(value); err == nil {
 				kind = rowKind(ruleKind)
 			}
-			rows[value] = &ServiceContentsRow{Value: value, Kind: kind, Enabled: false, Missing: true}
+			rows[value] = &ListContentsRow{Value: value, Kind: kind, Enabled: false, Missing: true}
 		}
 	}
 
@@ -151,7 +151,7 @@ func (s *PublicationService) ServiceContents(ctx context.Context, serviceID stri
 	}
 	// Domains first, then addresses, then networks; each block alphabetical, so
 	// the readable names lead and the numeric material follows.
-	slices.SortFunc(contents.Rows, func(a, b ServiceContentsRow) int {
+	slices.SortFunc(contents.Rows, func(a, b ListContentsRow) int {
 		return cmp.Or(cmp.Compare(kindRank(a.Kind), kindRank(b.Kind)), cmp.Compare(a.Value, b.Value))
 	})
 	return contents, nil
@@ -193,16 +193,16 @@ func originRank(origin string) int {
 	}
 }
 
-// RefreshServiceByID re-observes one service's automatic sources and persists
+// RefreshListByID re-observes one service's automatic sources and persists
 // the result, so the contents table and the next build read the same fresh
 // material. It is the service card's refresh: no list is touched and nothing
 // is published.
-func (s *PublicationService) RefreshServiceByID(ctx context.Context, serviceID string) (RefreshSummary, error) {
-	definition, ok := s.definition(serviceID)
+func (s *PublicationService) RefreshListByID(ctx context.Context, listID string) (RefreshSummary, error) {
+	definition, ok := s.definition(listID)
 	if !ok {
 		return RefreshSummary{}, ErrNotFound
 	}
-	summary, err := RefreshService(ctx, definition, domain.RawJSONTargetProfile(), s.config.Sources, s.config.Store, s.config.Clock)
+	summary, err := RefreshList(ctx, definition, domain.RawJSONTargetDefinition(), s.config.Sources, s.config.Store, s.config.Clock)
 	if err != nil && !errors.Is(err, ErrSourceDegraded) {
 		return summary, err
 	}

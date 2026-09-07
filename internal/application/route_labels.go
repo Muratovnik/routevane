@@ -9,11 +9,11 @@ import (
 
 const uncategorizedRouteLabel = "Без категории"
 
-// routeLabelsByService derives presentation provenance from the same merged
+// routeLabelsByList derives presentation provenance from the same merged
 // category view used to resolve a route. Titles, not storage identities, cross
 // into the immutable plan so a device description remains meaningful to the
 // operator.
-func routeLabelsByService(definitions []domain.ServiceDefinition, categories []CategoryDetail) map[string][]string {
+func routeLabelsByList(definitions []domain.ListDefinition, categories []CategoryDetail) map[string][]string {
 	titles := make(map[string]string, len(definitions))
 	for _, definition := range definitions {
 		titles[definition.ID] = safeRouteLabelSegment(definition.Title)
@@ -21,8 +21,8 @@ func routeLabelsByService(definitions []domain.ServiceDefinition, categories []C
 	categoryTitles := make(map[string][]string, len(definitions))
 	for _, category := range categories {
 		title := safeRouteLabelSegment(category.Title)
-		for _, serviceID := range category.Services {
-			categoryTitles[serviceID] = append(categoryTitles[serviceID], title)
+		for _, listID := range category.Lists {
+			categoryTitles[listID] = append(categoryTitles[listID], title)
 		}
 	}
 	result := make(map[string][]string, len(definitions))
@@ -74,6 +74,6 @@ func applyRouteLabels(plan *domain.RoutingPlan, labels map[string][]string) {
 		return
 	}
 	for index := range plan.Rules {
-		plan.Rules[index].Labels = append([]string(nil), labels[plan.Rules[index].ServiceID]...)
+		plan.Rules[index].Labels = append([]string(nil), labels[plan.Rules[index].ListID]...)
 	}
 }

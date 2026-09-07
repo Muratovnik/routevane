@@ -12,43 +12,43 @@ import (
 
 type rowScanner interface{ Scan(...any) error }
 
-func scanList(row rowScanner) (application.List, error) {
-	var list application.List
+func scanProfile(row rowScanner) (application.Profile, error) {
+	var profile application.Profile
 	var created, updated, refreshed, archived int64
 	var interval string
 	var failed int
-	if err := row.Scan(&list.ID, &list.Name, &interval, &refreshed, &failed, &archived, &created, &updated); err != nil {
+	if err := row.Scan(&profile.ID, &profile.Name, &interval, &refreshed, &failed, &archived, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return list, application.ErrNotFound
+			return profile, application.ErrNotFound
 		}
-		return list, fmt.Errorf("read list: %w", err)
+		return profile, fmt.Errorf("read list: %w", err)
 	}
-	list.RefreshInterval = application.RefreshInterval(interval)
+	profile.RefreshInterval = application.RefreshInterval(interval)
 	if refreshed > 0 {
-		list.LastRefreshedAt = unixNanos(refreshed)
+		profile.LastRefreshedAt = unixNanos(refreshed)
 	}
-	list.LastRefreshFailed = failed == 1
+	profile.LastRefreshFailed = failed == 1
 	if archived > 0 {
-		list.ArchivedAt = unixNanos(archived)
+		profile.ArchivedAt = unixNanos(archived)
 	}
-	list.CreatedAt = unixNanos(created)
-	list.UpdatedAt = unixNanos(updated)
-	list.Services = make([]string, 0)
-	list.Categories = make([]string, 0)
-	list.Exclusions = make([]string, 0)
-	return list, nil
+	profile.CreatedAt = unixNanos(created)
+	profile.UpdatedAt = unixNanos(updated)
+	profile.Lists = make([]string, 0)
+	profile.Categories = make([]string, 0)
+	profile.Exclusions = make([]string, 0)
+	return profile, nil
 }
 func scanOutput(row rowScanner) (application.Output, error) {
 	var o application.Output
 	var created int64
-	var listID, latest, previous, device sql.NullString
-	if err := row.Scan(&o.ID, &listID, &o.TargetID, &o.ProfileKey, &o.RendererID, &o.RendererVersion, &o.TargetRevision, &created, &latest, &previous, &device); err != nil {
+	var profileID, latest, previous, device sql.NullString
+	if err := row.Scan(&o.ID, &profileID, &o.TargetID, &o.FormatKey, &o.RendererID, &o.RendererVersion, &o.TargetRevision, &created, &latest, &previous, &device); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return o, application.ErrNotFound
 		}
 		return o, fmt.Errorf("read output: %w", err)
 	}
-	o.ListID = listID.String
+	o.ProfileID = profileID.String
 	o.CreatedAt = unixNanos(created)
 	o.LatestArtifactID = latest.String
 	o.PreviousArtifactID = previous.String

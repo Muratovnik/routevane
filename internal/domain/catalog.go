@@ -60,7 +60,7 @@ func (s Seed) Normalize() (Seed, error) {
 	return s, nil
 }
 
-type ServiceDefinition struct {
+type ListDefinition struct {
 	ID              string
 	Title           string
 	Components      []ComponentDefinition
@@ -75,9 +75,9 @@ type ServiceDefinition struct {
 // grouping lives here rather than as a field on the service precisely so that
 // membership can be many-to-many (ADR 0016).
 type CategoryDefinition struct {
-	ID       string
-	Title    string
-	Services []string
+	ID    string
+	Title string
+	Lists []string
 }
 
 type SourceType string
@@ -126,8 +126,8 @@ type SourceDefinition struct {
 	Revision string
 }
 
-func ExampleServiceDefinition() ServiceDefinition {
-	return ServiceDefinition{
+func ExampleListDefinition() ListDefinition {
+	return ListDefinition{
 		ID:              "example",
 		Title:           "Example",
 		Components:      []ComponentDefinition{{ID: "web", Required: true}},

@@ -108,7 +108,7 @@ func TestSameSiteUsesTheRegistrableDomainNotAStringSuffix(t *testing.T) {
 	}
 }
 
-func TestServiceIDForDerivesASlugFromTheRegistrableDomain(t *testing.T) {
+func TestListIDForDerivesASlugFromTheRegistrableDomain(t *testing.T) {
 	cases := map[string]string{
 		"example.com":       "example",
 		"example.co.uk":     "example",
@@ -116,13 +116,13 @@ func TestServiceIDForDerivesASlugFromTheRegistrableDomain(t *testing.T) {
 		"project.github.io": "project",
 	}
 	for registrable, want := range cases {
-		got, err := ServiceIDFor(registrable)
+		got, err := ListIDFor(registrable)
 		if err != nil || got != want {
 			t.Fatalf("ServiceIDFor(%q) = %q, %v; want %q", registrable, got, err, want)
 		}
 	}
 	for _, invalid := range []string{"", "1example.com", "-example.com", "UPPER.com"} {
-		if _, err := ServiceIDFor(invalid); err == nil {
+		if _, err := ListIDFor(invalid); err == nil {
 			t.Fatalf("accepted %q as a service identity", invalid)
 		}
 	}

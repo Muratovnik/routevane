@@ -16,7 +16,7 @@ func sortRules(rules []domain.RouteRule) {
 		return cmp.Or(
 			cmp.Compare(a.Kind, b.Kind),
 			cmp.Compare(a.CanonicalValue(), b.CanonicalValue()),
-			cmp.Compare(a.ServiceID, b.ServiceID),
+			cmp.Compare(a.ListID, b.ListID),
 			cmp.Compare(a.ComponentID, b.ComponentID),
 			cmp.Compare(a.SourceClass, b.SourceClass),
 		)
@@ -26,7 +26,7 @@ func sortRules(rules []domain.RouteRule) {
 func canonicalSightings(input []domain.Sighting) []domain.Sighting {
 	byKey := make(map[string]domain.Sighting, len(input))
 	for _, sighting := range input {
-		key := strings.Join([]string{sighting.ServiceID, sighting.ComponentID, sighting.Resource.Kind.String(), sighting.Resource.CanonicalValue(), sighting.SourceID, sighting.SourceRevision}, "\x00")
+		key := strings.Join([]string{sighting.ListID, sighting.ComponentID, sighting.Resource.Kind.String(), sighting.Resource.CanonicalValue(), sighting.SourceID, sighting.SourceRevision}, "\x00")
 		if prior, ok := byKey[key]; ok {
 			if prior.FirstSeen.IsZero() || (!sighting.FirstSeen.IsZero() && sighting.FirstSeen.Before(prior.FirstSeen)) {
 				prior.FirstSeen = sighting.FirstSeen
@@ -66,8 +66,8 @@ func canonicalSightings(input []domain.Sighting) []domain.Sighting {
 		out = append(out, sighting)
 	}
 	slices.SortFunc(out, func(a, b domain.Sighting) int {
-		ak := strings.Join([]string{a.ServiceID, a.ComponentID, a.Resource.Kind.String(), a.Resource.CanonicalValue(), a.SourceID, a.SourceRevision}, "\x00")
-		bk := strings.Join([]string{b.ServiceID, b.ComponentID, b.Resource.Kind.String(), b.Resource.CanonicalValue(), b.SourceID, b.SourceRevision}, "\x00")
+		ak := strings.Join([]string{a.ListID, a.ComponentID, a.Resource.Kind.String(), a.Resource.CanonicalValue(), a.SourceID, a.SourceRevision}, "\x00")
+		bk := strings.Join([]string{b.ListID, b.ComponentID, b.Resource.Kind.String(), b.Resource.CanonicalValue(), b.SourceID, b.SourceRevision}, "\x00")
 		return cmp.Compare(ak, bk)
 	})
 	return out
@@ -110,7 +110,7 @@ func CanonicalizePlan(plan *domain.RoutingPlan) {
 		return
 	}
 	plan.ObservationCutoff = plan.ObservationCutoff.UTC()
-	plan.Services = domain.StableStrings(plan.Services)
+	plan.Lists = domain.StableStrings(plan.Lists)
 	for i := range plan.Rules {
 		plan.Rules[i].Labels = domain.StableStrings(plan.Rules[i].Labels)
 		plan.Rules[i].ReasonCodes = domain.StableStrings(plan.Rules[i].ReasonCodes)
@@ -132,7 +132,7 @@ func CanonicalizePlan(plan *domain.RoutingPlan) {
 	})
 	plan.Warnings = domain.StableStrings(plan.Warnings)
 	slices.SortFunc(plan.Coverage, func(a, b domain.Coverage) int {
-		return cmp.Or(cmp.Compare(a.ServiceID, b.ServiceID), cmp.Compare(a.ComponentID, b.ComponentID))
+		return cmp.Or(cmp.Compare(a.ListID, b.ListID), cmp.Compare(a.ComponentID, b.ComponentID))
 	})
 	plan.Sightings = canonicalSightings(plan.Sightings)
 	plan.Relations = canonicalRelations(plan.Relations)
@@ -142,7 +142,7 @@ type hashRule struct {
 	Kind        string   `json:"kind"`
 	Value       string   `json:"value"`
 	Action      string   `json:"action"`
-	ServiceID   string   `json:"service_id"`
+	ListID      string   `json:"service_id"`
 	ComponentID string   `json:"component_id"`
 	SourceClass string   `json:"source_class"`
 	Labels      []string `json:"labels,omitempty"`
@@ -164,7 +164,7 @@ type hashTarget struct {
 type hashPayload struct {
 	InterfaceVersion     string     `json:"interface_version"`
 	TargetID             string     `json:"target_id"`
-	ProfileKey           string     `json:"profile_key"`
+	FormatKey            string     `json:"profile_key"`
 	Target               hashTarget `json:"target"`
 	PolicyVersion        string     `json:"policy_version"`
 	CatalogRevision      string     `json:"catalog_revision"`
@@ -173,13 +173,13 @@ type hashPayload struct {
 	RelationFingerprints []string   `json:"relation_fingerprints"`
 }
 
-func SemanticHash(plan domain.RoutingPlan, target domain.TargetProfile) string {
+func SemanticHash(plan domain.RoutingPlan, target domain.TargetDefinition) string {
 	plan = cloneRoutingPlan(plan)
 	CanonicalizePlan(&plan)
-	payload := hashPayload{InterfaceVersion: plan.InterfaceVersion, TargetID: plan.TargetID, ProfileKey: plan.ProfileKey, PolicyVersion: plan.PolicyVersion, CatalogRevision: plan.CatalogRevision,
+	payload := hashPayload{InterfaceVersion: plan.InterfaceVersion, TargetID: plan.TargetID, FormatKey: plan.FormatKey, PolicyVersion: plan.PolicyVersion, CatalogRevision: plan.CatalogRevision,
 		Target: hashTarget{target.Constraints.SupportsDomainExact, target.Constraints.SupportsDomainSuffix, target.Constraints.SupportsDynamicDNSSet, target.Constraints.SupportsIPv4, target.Constraints.SupportsIPv6, target.Constraints.SupportsPrefixes, target.Constraints.MaxRules, target.Constraints.MaxArtifactSize}}
 	for _, rule := range plan.Rules {
-		payload.Rules = append(payload.Rules, hashRule{string(rule.Kind), rule.CanonicalValue(), string(rule.Action), rule.ServiceID, rule.ComponentID, string(rule.SourceClass), domain.StableStrings(rule.Labels), domain.StableStrings(rule.ReasonCodes), domain.StableStrings(rule.ProvenanceRefs)})
+		payload.Rules = append(payload.Rules, hashRule{string(rule.Kind), rule.CanonicalValue(), string(rule.Action), rule.ListID, rule.ComponentID, string(rule.SourceClass), domain.StableStrings(rule.Labels), domain.StableStrings(rule.ReasonCodes), domain.StableStrings(rule.ProvenanceRefs)})
 	}
 	for _, sighting := range plan.Sightings {
 		payload.SightingFingerprints = append(payload.SightingFingerprints, sighting.Fingerprint())
@@ -196,7 +196,7 @@ func SemanticHash(plan domain.RoutingPlan, target domain.TargetProfile) string {
 
 func cloneRoutingPlan(plan domain.RoutingPlan) domain.RoutingPlan {
 	clone := plan
-	clone.Services = append([]string(nil), plan.Services...)
+	clone.Lists = append([]string(nil), plan.Lists...)
 	clone.Rules = append([]domain.RouteRule(nil), plan.Rules...)
 	for i := range clone.Rules {
 		clone.Rules[i].Labels = append([]string(nil), plan.Rules[i].Labels...)

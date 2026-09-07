@@ -37,7 +37,7 @@ func validCustomCategory(category application.CustomCategory) bool {
 // no catalog membership to remove, so only 'added' is meaningful for it — the
 // schema refuses the other case too, and refusing here names it.
 func validMembership(membership application.CategoryMembership) bool {
-	if domain.ValidateSlug(membership.CategoryID) != nil || domain.ValidateSlug(membership.ServiceID) != nil {
+	if domain.ValidateSlug(membership.CategoryID) != nil || domain.ValidateSlug(membership.ListID) != nil {
 		return false
 	}
 	if membership.UpdatedAt.IsZero() {
@@ -196,7 +196,7 @@ func (s *Store) CategoryOverlay(ctx context.Context) (application.CategoryOverla
 		var membership application.CategoryMembership
 		var state string
 		var updated int64
-		if err := memberships.Scan(&membership.CategoryID, &membership.ServiceID, &state, &updated); err != nil {
+		if err := memberships.Scan(&membership.CategoryID, &membership.ListID, &state, &updated); err != nil {
 			_ = memberships.Close()
 			return application.CategoryOverlay{}, fmt.Errorf("read category membership: %w", err)
 		}
@@ -233,10 +233,10 @@ func validMemberships(categoryID string, memberships []application.CategoryMembe
 		if membership.CategoryID != categoryID || !validMembership(membership) {
 			return fmt.Errorf("invalid category membership")
 		}
-		if _, duplicate := seen[membership.ServiceID]; duplicate {
+		if _, duplicate := seen[membership.ListID]; duplicate {
 			return fmt.Errorf("invalid category membership")
 		}
-		seen[membership.ServiceID] = struct{}{}
+		seen[membership.ListID] = struct{}{}
 	}
 	return nil
 }
@@ -245,7 +245,7 @@ func writeMemberships(ctx context.Context, tx *sql.Tx, categoryID string, member
 	for _, membership := range memberships {
 		if _, err := tx.ExecContext(ctx,
 			`INSERT INTO category_memberships(category_id,list_id,state,updated_at_ns) VALUES(?,?,?,?)`,
-			categoryID, membership.ServiceID, string(membership.State), membership.UpdatedAt.UTC().UnixNano()); err != nil {
+			categoryID, membership.ListID, string(membership.State), membership.UpdatedAt.UTC().UnixNano()); err != nil {
 			return fmt.Errorf("write category membership: %w", err)
 		}
 	}

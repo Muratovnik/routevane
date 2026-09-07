@@ -11,12 +11,12 @@ import (
 // routed by a rule owned by a service that the operator placed higher.
 const ReasonLowerPriorityOverlap = "lower_priority_overlap"
 
-// ApplyServicePriority assigns equal destinations to the first service and
+// ApplyListPriority assigns equal destinations to the first service and
 // removes a lower-priority rule when a higher-priority rule wholly covers it.
 // A broader lower-priority rule remains because deleting it would lose the
 // addresses that only it contributes. The operation therefore changes
 // ownership without changing the requested routing union.
-func ApplyServicePriority(plan *domain.RoutingPlan, priority []string) {
+func ApplyListPriority(plan *domain.RoutingPlan, priority []string) {
 	if plan == nil || len(plan.Rules) < 2 {
 		return
 	}
@@ -45,7 +45,7 @@ func ApplyServicePriority(plan *domain.RoutingPlan, priority []string) {
 			group = &overlapGroup{rule: rule, entry: OverlapValue{RuleKind: rule.Kind, Value: rule.CanonicalValue()}}
 			groups[key] = group
 		}
-		group.entry.Services = append(group.entry.Services, rule.ServiceID)
+		group.entry.Lists = append(group.entry.Lists, rule.ListID)
 		if rule.Kind.IsPrefix() {
 			widths[rule.Kind] = append(widths[rule.Kind], rule.Prefix.Bits())
 		}
@@ -58,15 +58,15 @@ func ApplyServicePriority(plan *domain.RoutingPlan, priority []string) {
 	}
 
 	drop := make(map[string]struct{})
-	dropKey := func(kind domain.RuleKind, value, serviceID string) string {
-		return overlapKey(kind, value) + "\x00" + serviceID
+	dropKey := func(kind domain.RuleKind, value, listID string) string {
+		return overlapKey(kind, value) + "\x00" + listID
 	}
 	better := func(a, b string) bool {
 		return cmp.Or(cmp.Compare(position(a), position(b)), cmp.Compare(a, b)) < 0
 	}
 
 	for _, group := range groups {
-		owners := domain.StableStrings(group.entry.Services)
+		owners := domain.StableStrings(group.entry.Lists)
 		if len(owners) > 1 {
 			winner := owners[0]
 			for _, owner := range owners[1:] {
@@ -86,7 +86,7 @@ func ApplyServicePriority(plan *domain.RoutingPlan, priority []string) {
 				continue
 			}
 			for _, owner := range owners {
-				for _, coveringOwner := range domain.StableStrings(parent.entry.Services) {
+				for _, coveringOwner := range domain.StableStrings(parent.entry.Lists) {
 					if owner != coveringOwner && better(coveringOwner, owner) {
 						drop[dropKey(group.rule.Kind, group.rule.CanonicalValue(), owner)] = struct{}{}
 						break
@@ -101,7 +101,7 @@ func ApplyServicePriority(plan *domain.RoutingPlan, priority []string) {
 	}
 	kept := make([]domain.RouteRule, 0, len(plan.Rules)-len(drop))
 	for _, rule := range plan.Rules {
-		if _, remove := drop[dropKey(rule.Kind, rule.CanonicalValue(), rule.ServiceID)]; !remove {
+		if _, remove := drop[dropKey(rule.Kind, rule.CanonicalValue(), rule.ListID)]; !remove {
 			kept = append(kept, rule)
 			continue
 		}

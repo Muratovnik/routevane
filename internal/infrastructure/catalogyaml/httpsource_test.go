@@ -8,7 +8,7 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
-const feedServiceYAML = `id: example
+const feedListYAML = `id: example
 title: Example
 components:
   web:
@@ -33,16 +33,16 @@ sources:
 `
 
 func TestLoadAcceptsAnHTTPFeedSourceAndKeepsItsConfigurationSeparate(t *testing.T) {
-	root := writeCatalogFile(t, "builtin", "example.yaml", []byte(feedServiceYAML))
+	root := writeCatalogFile(t, "builtin", "example.yaml", []byte(feedListYAML))
 	catalog, err := Load(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	service, found := catalog.Service("example")
-	if !found || len(service.Sources) != 2 {
-		t.Fatalf("service = %#v", service)
+	list, found := catalog.List("example")
+	if !found || len(list.Sources) != 2 {
+		t.Fatalf("service = %#v", list)
 	}
-	dnsSource, feedSource := service.Sources[0], service.Sources[1]
+	dnsSource, feedSource := list.Sources[0], list.Sources[1]
 	if dnsSource.ID != "dns-main" || dnsSource.Type != domain.SourceDNS {
 		t.Fatalf("dns source = %#v", dnsSource)
 	}
@@ -59,8 +59,8 @@ func TestLoadAcceptsAnHTTPFeedSourceAndKeepsItsConfigurationSeparate(t *testing.
 		t.Fatalf("a feed source must not carry DNS names: %#v", feedSource)
 	}
 	// The DNS name set stays DNS-only so a feed URL never becomes a lookup.
-	if len(service.DNSNames) != 1 || service.DNSNames[0] != "example.com" {
-		t.Fatalf("dns names = %#v", service.DNSNames)
+	if len(list.DNSNames) != 1 || list.DNSNames[0] != "example.com" {
+		t.Fatalf("dns names = %#v", list.DNSNames)
 	}
 	if feedSource.Revision == "" || feedSource.Revision == dnsSource.Revision {
 		t.Fatalf("each source identity needs its own revision: %q %q", feedSource.Revision, dnsSource.Revision)
@@ -72,19 +72,19 @@ func TestLoadAcceptsAnHTTPFeedSourceAndKeepsItsConfigurationSeparate(t *testing.
 }
 
 func TestFeedSourceRevisionTracksURLAndFormat(t *testing.T) {
-	base := writeCatalogFile(t, "builtin", "example.yaml", []byte(feedServiceYAML))
+	base := writeCatalogFile(t, "builtin", "example.yaml", []byte(feedListYAML))
 	baseCatalog, err := Load(context.Background(), base)
 	if err != nil {
 		t.Fatal(err)
 	}
-	baseService, _ := baseCatalog.Service("example")
+	baseList, _ := baseCatalog.List("example")
 
 	cases := []struct {
 		name    string
 		payload string
 	}{
-		{"different url", strings.Replace(feedServiceYAML, "ranges.json", "other.json", 1)},
-		{"different format", strings.Replace(feedServiceYAML, "format: json", "format: text", 1)},
+		{"different url", strings.Replace(feedListYAML, "ranges.json", "other.json", 1)},
+		{"different format", strings.Replace(feedListYAML, "format: json", "format: text", 1)},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -93,8 +93,8 @@ func TestFeedSourceRevisionTracksURLAndFormat(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			service, _ := catalog.Service("example")
-			if service.Sources[1].Revision == baseService.Sources[1].Revision {
+			list, _ := catalog.List("example")
+			if list.Sources[1].Revision == baseList.Sources[1].Revision {
 				t.Fatal("changing the feed configuration must change its source revision")
 			}
 		})
@@ -106,17 +106,17 @@ func TestLoadRejectsUnsafeOrMalformedFeedSources(t *testing.T) {
 		name    string
 		payload string
 	}{
-		{"plaintext url", strings.Replace(feedServiceYAML, "https://feeds.example.com/ranges.json", "http://feeds.example.com/ranges.json", 1)},
-		{"loopback url", strings.Replace(feedServiceYAML, "https://feeds.example.com/ranges.json", "https://127.0.0.1/ranges.json", 1)},
-		{"metadata url", strings.Replace(feedServiceYAML, "https://feeds.example.com/ranges.json", "https://169.254.169.254/latest", 1)},
-		{"private url", strings.Replace(feedServiceYAML, "https://feeds.example.com/ranges.json", "https://10.1.2.3/ranges.json", 1)},
-		{"credentials in url", strings.Replace(feedServiceYAML, "https://feeds.example.com/ranges.json", "https://user:secret@feeds.example.com/ranges.json", 1)},
-		{"missing url", strings.Replace(feedServiceYAML, "      url: https://feeds.example.com/ranges.json\n", "", 1)},
-		{"unknown format", strings.Replace(feedServiceYAML, "format: json", "format: xml", 1)},
-		{"missing format", strings.Replace(feedServiceYAML, "      format: json\n", "", 1)},
-		{"feed with dns names", strings.Replace(feedServiceYAML, "      format: json\n", "      format: json\n      names: [example.com]\n", 1)},
-		{"dns source with url", strings.Replace(feedServiceYAML, "      names: [example.com]\n", "      names: [example.com]\n      url: https://feeds.example.com/ranges.json\n", 1)},
-		{"unsupported type", strings.Replace(feedServiceYAML, "type: http", "type: rdap", 1)},
+		{"plaintext url", strings.Replace(feedListYAML, "https://feeds.example.com/ranges.json", "http://feeds.example.com/ranges.json", 1)},
+		{"loopback url", strings.Replace(feedListYAML, "https://feeds.example.com/ranges.json", "https://127.0.0.1/ranges.json", 1)},
+		{"metadata url", strings.Replace(feedListYAML, "https://feeds.example.com/ranges.json", "https://169.254.169.254/latest", 1)},
+		{"private url", strings.Replace(feedListYAML, "https://feeds.example.com/ranges.json", "https://10.1.2.3/ranges.json", 1)},
+		{"credentials in url", strings.Replace(feedListYAML, "https://feeds.example.com/ranges.json", "https://user:secret@feeds.example.com/ranges.json", 1)},
+		{"missing url", strings.Replace(feedListYAML, "      url: https://feeds.example.com/ranges.json\n", "", 1)},
+		{"unknown format", strings.Replace(feedListYAML, "format: json", "format: xml", 1)},
+		{"missing format", strings.Replace(feedListYAML, "      format: json\n", "", 1)},
+		{"feed with dns names", strings.Replace(feedListYAML, "      format: json\n", "      format: json\n      names: [example.com]\n", 1)},
+		{"dns source with url", strings.Replace(feedListYAML, "      names: [example.com]\n", "      names: [example.com]\n      url: https://feeds.example.com/ranges.json\n", 1)},
+		{"unsupported type", strings.Replace(feedListYAML, "type: http", "type: rdap", 1)},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
