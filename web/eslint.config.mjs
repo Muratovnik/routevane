@@ -411,7 +411,7 @@ export default withNuxt(
             {
               group: ['@/shared/api/*'],
               message:
-                'Entities present data and features orchestrate the API. Read this in a feature model and pass the result in as props.',
+                "An entity's ui presents what its model hands it. Read the API in the slice's model/useX.ts and pass the result in.",
             },
           ],
         },

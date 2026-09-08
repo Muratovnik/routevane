@@ -21,8 +21,8 @@ commands. Do not add a second runner whose result can drift.
 - ESLint runs without `--max-warnings`: an error is the gate and a warning is
   advice. The warn-level rules are the advisory size and complexity signals
   (`max-lines`, `max-lines-per-function`, `complexity`,
-  `vue/max-lines-per-block`, `sonarjs/cognitive-complexity`, and the two rules
-  a later increment promotes); everything a gate must catch is error level, and
+  `vue/max-lines-per-block`, `sonarjs/cognitive-complexity`); everything a gate
+  must catch is error level, and
   a preset's own `warn` is promoted so an upgrade cannot quietly downgrade a
   gate. Read an advisory warning as a place to look, not as a limit: do not
   split a component, a function or a test for its own sake to silence one.
