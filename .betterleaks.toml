@@ -64,5 +64,5 @@ description = "API contract tests send this fixed fixture only to the mocked fet
 targetRules = ["generic-password"]
 condition = "AND"
 regexTarget = "line"
-paths = ['''(?:^|/)web/tests/unit/shared/api/contracts\.spec\.ts$''']
+paths = ['''(?:^|/)web/tests/unit/shared/api/support/fixtures\.ts$''']
 regexes = ['''password:\s*'secret',''']
