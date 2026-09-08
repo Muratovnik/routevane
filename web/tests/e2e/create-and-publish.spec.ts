@@ -207,7 +207,9 @@ test('the library starts empty and shelves the profile the composer creates and 
   await page.mouse.move(from.x + from.width / 2 + 4, from.y + from.height, {
     steps: 4,
   })
-  await page.waitForTimeout(50)
+  // Sortable clones the chosen row once the pointer has moved, and the clone
+  // is what the geometry below is measured against, so its own visibility is
+  // what the measurement waits for.
   const ghost = dragGhost(page)
   await expect(ghost).toBeVisible()
   const ghostBox = (await ghost.boundingBox())!
@@ -223,7 +225,12 @@ test('the library starts empty and shelves the profile the composer creates and 
   await page.mouse.move(to.x + to.width / 2, to.y + to.height + 8, {
     steps: 16,
   })
-  await page.waitForTimeout(100)
+  // Sortable moves the row itself while the pointer is still down, so the
+  // release waits for the carried row to have taken its new place rather than
+  // for the reorder animation to have run for some number of milliseconds.
+  await expect(priorityRows.nth(0).getByRole('rowheader')).toContainText(
+    'YouTube',
+  )
   await page.mouse.up()
   await expect(priorityRows.nth(0).getByRole('rowheader')).toContainText(
     'YouTube',

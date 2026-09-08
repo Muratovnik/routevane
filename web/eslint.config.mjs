@@ -357,9 +357,9 @@ export default withNuxt(
       // exempt: the e2e suites still deserve a structural pass of their own.
       'playwright/no-conditional-in-test': 'off',
       'playwright/no-conditional-expect': 'off',
-      // The drag and view-transition paths wait out a renderer frame, which is
-      // not an observable condition. Also deferred, not settled.
-      'playwright/no-wait-for-timeout': 'off',
+      // Playwright's own fixed wait is gated by `no-wait-for-timeout` above.
+      // This rule reads the plain timer forms too, and that pass over the
+      // remaining suites is deferred rather than settled.
       'sonarjs/no-fixed-wait-in-tests': 'off',
     },
   },

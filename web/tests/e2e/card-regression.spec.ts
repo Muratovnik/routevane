@@ -95,6 +95,13 @@ for (const language of ['en', 'ru'] as const) {
         const previousTheme = await page.evaluate(() =>
           document.documentElement.getAttribute('data-rv-theme'),
         )
+        // `color-scheme` is declared by a theme's own token block and by
+        // nothing else, so its computed value is the observable end of a
+        // switch: the audit below reads the contrast of the theme it names.
+        const appliedTheme = () =>
+          page.evaluate(
+            () => getComputedStyle(document.documentElement).colorScheme,
+          )
         try {
           for (const theme of ['dark', 'light']) {
             await page.evaluate(
@@ -102,7 +109,7 @@ for (const language of ['en', 'ru'] as const) {
                 document.documentElement.setAttribute('data-rv-theme', value),
               theme,
             )
-            await page.waitForTimeout(150)
+            await expect.poll(appliedTheme).toBe(theme)
             expect(
               await audit(page, `${language}-disabled-library-row-${theme}`),
             ).toEqual([])
