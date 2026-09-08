@@ -26,6 +26,25 @@ hard-to-reverse technical choice as an ADR.
 - For requested prerelease, repository-hygiene, documentation, or installation
   audits, use the repo skill `repository-readiness-audit`.
 
+## Temporary workspace ownership
+
+- Keep task scratch files and disposable clones under ignored `tmp/<task>/`,
+  manually created Git worktrees under `tmp/worktrees/<task>/`, and retained
+  private evidence under `.private/`. Do not create sibling task directories
+  beside Routevane, including for parallel implementation or audits.
+- Resolve the owning checkout and destination, inspect link ancestors and verify
+  containment and `git check-ignore` before creating temporary resources. Never
+  track a nested worktree as a gitlink. If a tool cannot use a project-local
+  location, keep execution local or report the limitation; do not silently
+  choose an external checkout or change a shared client root.
+- The creating task owns cleanup and must reconcile worktree registrations,
+  processes and remaining files before closing. Preserve unique changes and
+  retained evidence; move/remove registered worktrees with Git, then inspect
+  disk residue. Never recursively clean all of `tmp/`, follow junctions during
+  cleanup, or treat ignored content as automatically disposable. Report exact
+  retained paths and reasons. Permanent private repositories and installed
+  services are not temporary resources; relocation requires consumer checks.
+
 ## Product and architecture
 
 - Deliver one working vertical outcome per milestone; do not build horizontal
