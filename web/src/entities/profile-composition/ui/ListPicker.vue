@@ -18,7 +18,7 @@ import type {
   TargetForecast,
 } from '../model/types'
 import { useLocale } from '@/shared/i18n/useLocale'
-import { tableDragGeometry } from '@/shared/lib/tableDrag'
+import { useTableDragGeometry } from '@/shared/model/useTableDragGeometry'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvMenu from '@/shared/ui/RvMenu.vue'
@@ -180,7 +180,7 @@ const sortable = useSortable(tableBody, visibleOrder, {
   handle: '.picker__handle:not(:disabled)',
   filter: '.picker__handle:disabled',
   preventOnFilter: false,
-  ...tableDragGeometry(),
+  ...useTableDragGeometry(),
   watchElement: true,
   onStart: (event) => {
     draggedID = event.item.dataset.id ?? ''

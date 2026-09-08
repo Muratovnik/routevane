@@ -42,7 +42,7 @@ func scanOutput(row rowScanner) (application.Output, error) {
 	var o application.Output
 	var created int64
 	var profileID, latest, previous, device sql.NullString
-	if err := row.Scan(&o.ID, &profileID, &o.TargetID, &o.FormatKey, &o.RendererID, &o.RendererVersion, &o.TargetRevision, &created, &latest, &previous, &device); err != nil {
+	if err := row.Scan(&o.ID, &profileID, &o.TargetID, &o.FormatKey, &o.RendererID, &o.RendererVersion, &o.TargetRevision, &created, &latest, &previous, &device, &o.FQDNGroupPrefix); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return o, application.ErrNotFound
 		}

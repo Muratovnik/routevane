@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { ownedFiles } from './owned-files'
 
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test as base } from '@playwright/test'
@@ -36,8 +37,8 @@ const reportedPids = (output: string): number[] =>
 interface DevSession {
   /** Starts the development supervisor with the arguments one test needs. */
   start: (args: string[]) => SpawnedProduct
-  /** Declares a file this test writes into the working tree, and hands it back. */
-  plant: (path: string) => string
+  /** Creates a new probe and claims cleanup only once creation succeeds. */
+  plant: (path: string, contents: string) => Promise<void>
 }
 
 /**
@@ -56,12 +57,9 @@ const test = base.extend<{ session: DevSession }>({
   // one has none: it owns processes and files rather than another fixture.
   session: async ({}, use, testInfo) => {
     const started: SpawnedProduct[] = []
-    const planted: string[] = []
+    const planted = ownedFiles()
     await use({
-      plant: (path) => {
-        planted.push(path)
-        return path
-      },
+      plant: planted.create,
       start: (args) => {
         const owner = spawnProduct('python', args, {
           cwd: ROOT,
@@ -72,22 +70,25 @@ const test = base.extend<{ session: DevSession }>({
         return owner
       },
     })
-    for (const owner of started) {
-      if (owner.isAlive()) {
-        const exited = once(owner.process, 'exit')
-        owner.process.stdin?.end()
-        if (!(await resolvesWithin(exited, EXIT_TIMEOUT_MILLISECONDS)))
-          owner.process.kill()
+    try {
+      for (const owner of started) {
+        if (owner.isAlive()) {
+          const exited = once(owner.process, 'exit')
+          owner.process.stdin?.end()
+          if (!(await resolvesWithin(exited, EXIT_TIMEOUT_MILLISECONDS)))
+            owner.process.kill()
+        }
+        for (const pid of reportedPids(owner.output()).filter(processIsRunning))
+          spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+            stdio: 'ignore',
+            windowsHide: true,
+          })
+        await mkdir(testInfo.outputDir, { recursive: true })
+        await writeFile(testInfo.outputPath('dev-session.log'), owner.output())
       }
-      for (const pid of reportedPids(owner.output()).filter(processIsRunning))
-        spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
-          stdio: 'ignore',
-          windowsHide: true,
-        })
-      await mkdir(testInfo.outputDir, { recursive: true })
-      await writeFile(testInfo.outputPath('dev-session.log'), owner.output())
+    } finally {
+      await planted.cleanup()
     }
-    for (const path of planted) await rm(path, { force: true })
   },
 })
 
@@ -102,12 +103,8 @@ test('one dev session: real API, HMR, Go recovery and owned cleanup', async ({
   const api = `http://127.0.0.1:${apiPort}`
   const data = testInfo.outputPath('data')
   const probeName = `dev-hmr-probe-${process.pid}`
-  const probe = session.plant(
-    resolve(ROOT, 'web/src/pages', `${probeName}.vue`),
-  )
-  const goProbe = session.plant(
-    resolve(ROOT, 'cmd/routevane', `dev_probe_${process.pid}.go`),
-  )
+  const probe = resolve(ROOT, 'web/src/pages', `${probeName}.vue`)
+  const goProbe = resolve(ROOT, 'cmd/routevane', `dev_probe_${process.pid}.go`)
   // The probe reports what a reload would have thrown away, so it is a named
   // live region rather than an anonymous paragraph: the test reads it by role
   // and name while its own text is what the edit changes.
@@ -121,7 +118,7 @@ const draft = ref('')
 <style>#dev-probe { color: rgb(1, 2, 3); }</style>
 `
   const devProbe = page.getByRole('status', { name: 'HMR probe' })
-  await writeFile(probe, source, { flag: 'wx' })
+  await session.plant(probe, source)
   const owner = session.start([
     'tools/dev_server.py',
     '--port',
@@ -237,9 +234,7 @@ const draft = ref('')
   ).toBe('same-document')
   expect(owner.output()).not.toContain('build 2)')
 
-  await writeFile(goProbe, 'package main\nthis is not valid Go\n', {
-    flag: 'wx',
-  })
+  await session.plant(goProbe, 'package main\nthis is not valid Go\n')
   await expect
     .poll(() => owner.output())
     .toContain('Go build failed; last working backend stays up')

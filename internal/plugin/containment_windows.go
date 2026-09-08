@@ -3,10 +3,12 @@
 package plugin
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"os/exec"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -82,6 +84,36 @@ func (c *windowsProcessContainment) terminate(*exec.Cmd) error {
 		return nil
 	}
 	return windows.TerminateJobObject(c.job, 1)
+}
+
+// Reaping the runner does not reap its Windows child. Job accounting is the
+// native completion condition; the job handle itself is not signaled for an
+// ordinary exit. Keep the job open until it is empty before removing the image.
+func (c *windowsProcessContainment) waitEmpty(ctx context.Context) error {
+	if c.job == 0 {
+		return nil
+	}
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		var accounting struct {
+			TotalUserTime, TotalKernelTime, PeriodUserTime, PeriodKernelTime int64
+			PageFaults, TotalProcesses, ActiveProcesses, TerminatedProcesses uint32
+		}
+		if err := windows.QueryInformationJobObject(c.job, windows.JobObjectBasicAccountingInformation,
+			// #nosec G103 -- Windows requires the address and exact size of its accounting structure.
+			uintptr(unsafe.Pointer(&accounting)), uint32(unsafe.Sizeof(accounting)), nil); err != nil {
+			return fmt.Errorf("read plugin job completion: %w", err)
+		}
+		if accounting.ActiveProcesses == 0 {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("wait for plugin descendants: %w", ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 func (c *windowsProcessContainment) close() error {

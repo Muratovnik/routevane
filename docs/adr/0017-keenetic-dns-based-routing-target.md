@@ -4,6 +4,11 @@ status: adopted
 
 # ADR 0017: a second Keenetic target renders FQDN object groups
 
+Group naming and deployment ownership are amended by
+[ADR 0040](0040-exact-fqdn-output-ownership.md). The original list-only names
+below describe historical output; new builds include output and list identities
+with an explicit shard suffix. A prefix alone never authorizes device changes.
+
 ## Context
 
 ADR 0003 added one Keenetic target: a BAT file of IPv4 static routes, bounded

@@ -64,7 +64,10 @@ func RunScenario(ctx context.Context, scenario Scenario, options BrowserOptions)
 	}
 	defer stopProxy()
 
-	allocatorCtx, cancelAllocator := chromedp.NewExecAllocator(sessionCtx, browserAllocatorOptions(options, profileDir, proxyAddress)...)
+	allocatorCtx, cancelAllocator, err := newBrowserAllocator(sessionCtx, options, profileDir, proxyAddress)
+	if err != nil {
+		return SessionEvidence{}, err
+	}
 	defer cancelAllocator()
 	browserCtx, cancelBrowser := chromedp.NewContext(allocatorCtx)
 	defer cancelBrowser()

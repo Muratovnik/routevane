@@ -147,7 +147,7 @@ Verify the checksum using the [installation guide](installation.md#verify-a-down
 verify the signed source/workflow identity:
 
    ```powershell
-   gh attestation verify .\routevane-v0.1.0-windows-amd64.zip --repo Muratovnik/routevane --signer-workflow Muratovnik/routevane/.github/workflows/release.yml
+   gh attestation verify .\routevane-vX.Y.Z-windows-amd64.zip --repo Muratovnik/routevane --signer-workflow Muratovnik/routevane/.github/workflows/release.yml
    ```
 
 Confirm `routevane version` reports the selected tag. A successful version
@@ -159,8 +159,11 @@ permission to push from a successful local build.
 
 ## Local acceptance before publication
 
-Run `tools/dev.ps1 release -Version v0.1.0` to build the archive set from the
-current source. This is not a bit-for-bit reproducibility promise. Checksums and
+Run `tools/dev.ps1 release -Version vX.Y.Z`, substituting the exact agreed
+candidate from the changelog entry and reviewed release plan, to build the
+archive set from the current source. The version stamped into the binaries must
+identify that candidate; do not reuse an older published version as a local
+placeholder. This is not a bit-for-bit reproducibility promise. Checksums and
 attestations describe the actual published bytes.
 
 The archive verifier checks inventory, licensing, SBOM, checksums and Unix modes.

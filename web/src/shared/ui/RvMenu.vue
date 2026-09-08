@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuPortal,
   DropdownMenuRoot,
   DropdownMenuSub,
@@ -9,10 +8,10 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from 'reka-ui'
-import { computed, resolveComponent, type Component } from 'vue'
 
 import type { IconName, MenuItem } from '@/shared/ui/types'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvMenuItem from '@/shared/ui/RvMenuItem.vue'
 
 /**
  * A compact action or choice menu.
@@ -36,12 +35,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [key: string]
 }>()
-
-// A link item stays a link: the menu gives it menu semantics and the router
-// still owns where it goes.
-const routerLink = computed<string | Component>(() =>
-  resolveComponent('NuxtLink'),
-)
 
 const grouped = (item: MenuItem): boolean =>
   item.children !== undefined && item.children.length > 0
@@ -105,59 +98,17 @@ const onCloseAutoFocus = (event: Event): void => {
                 :collision-padding="8"
                 :side-offset="4"
               >
-                <DropdownMenuItem
+                <RvMenuItem
                   v-for="child in item.children"
                   :key="child.key"
-                  class="rv-menu__item"
-                  :data-menu-key="child.key"
-                  :disabled="child.disabled === true"
+                  :item="child"
                   @select="choose(child)"
-                >
-                  <RvIcon v-if="child.icon !== undefined" :name="child.icon" />
-                  <span class="rv-menu__item-label">{{ child.label }}</span>
-                </DropdownMenuItem>
+                />
               </DropdownMenuSubContent>
             </DropdownMenuPortal>
           </DropdownMenuSub>
 
-          <DropdownMenuItem
-            v-else-if="item.to !== undefined"
-            :as="routerLink"
-            class="rv-menu__item"
-            :class="{ 'rv-menu__item--separated': item.separatorBefore }"
-            :data-menu-key="item.key"
-            :to="item.to"
-            @select="choose(item)"
-          >
-            <RvIcon v-if="item.icon !== undefined" :name="item.icon" />
-            <span class="rv-menu__item-label">{{ item.label }}</span>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            v-else-if="item.href !== undefined"
-            as="a"
-            class="rv-menu__item"
-            :class="{ 'rv-menu__item--separated': item.separatorBefore }"
-            :data-menu-key="item.key"
-            :download="item.download === true ? '' : undefined"
-            :href="item.href"
-            @select="choose(item)"
-          >
-            <RvIcon v-if="item.icon !== undefined" :name="item.icon" />
-            <span class="rv-menu__item-label">{{ item.label }}</span>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            v-else
-            class="rv-menu__item"
-            :class="{ 'rv-menu__item--separated': item.separatorBefore }"
-            :data-menu-key="item.key"
-            :disabled="item.disabled === true"
-            @select="choose(item)"
-          >
-            <RvIcon v-if="item.icon !== undefined" :name="item.icon" />
-            <span class="rv-menu__item-label">{{ item.label }}</span>
-          </DropdownMenuItem>
+          <RvMenuItem v-else :item="item" @select="choose(item)" />
         </template>
       </DropdownMenuContent>
     </DropdownMenuPortal>

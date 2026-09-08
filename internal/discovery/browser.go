@@ -106,10 +106,10 @@ type PageLoad struct {
 // LoadPage performs exactly one managed page load in an isolated temporary
 // profile and returns the hosts the page contacted.
 //
-// Every byte the browser sends passes through an in-process proxy that applies
-// the shared destination policy, and the browser is started with an empty proxy
-// bypass list so not even loopback can escape it. The temporary profile is
-// removed on success, failure, and cancellation.
+// Browser HTTP traffic passes through an in-process proxy that applies the
+// shared destination policy, without a loopback bypass. The isolated profile
+// also disables WebRTC's non-proxied UDP. The temporary profile is removed on
+// success, failure, and cancellation.
 func LoadPage(ctx context.Context, target Target, options BrowserOptions) (result PageLoad, err error) {
 	if ctx == nil || target.URL == "" {
 		return PageLoad{}, ErrInvalidTarget
@@ -146,7 +146,10 @@ func LoadPage(ctx context.Context, target Target, options BrowserOptions) (resul
 	}
 	defer stopProxy()
 
-	allocatorCtx, cancelAllocator := chromedp.NewExecAllocator(sessionCtx, browserAllocatorOptions(options, profileDir, proxyAddress)...)
+	allocatorCtx, cancelAllocator, err := newBrowserAllocator(sessionCtx, options, profileDir, proxyAddress)
+	if err != nil {
+		return PageLoad{}, err
+	}
 	defer cancelAllocator()
 	browserCtx, cancelBrowser := chromedp.NewContext(allocatorCtx)
 	defer cancelBrowser()
@@ -210,6 +213,22 @@ func DefaultBrowserPath() string {
 		return ""
 	}
 	return cleaned
+}
+
+// newBrowserAllocator prepares the isolated profile before Chromium can start.
+// Chromium reads its WebRTC routing policy from this preference. The similarly
+// named command-line override alone is ineffective in Chromium 153.
+func newBrowserAllocator(ctx context.Context, options BrowserOptions, profileDir, proxyAddress string) (context.Context, context.CancelFunc, error) {
+	defaultProfile := filepath.Join(profileDir, "Default")
+	if err := os.Mkdir(defaultProfile, 0o700); err != nil {
+		return nil, nil, fmt.Errorf("create discovery browser preferences directory: %w", err)
+	}
+	preferences := []byte(`{"webrtc":{"ip_handling_policy":"disable_non_proxied_udp"}}`)
+	if err := os.WriteFile(filepath.Join(defaultProfile, "Preferences"), preferences, 0o600); err != nil {
+		return nil, nil, fmt.Errorf("write discovery browser preferences: %w", err)
+	}
+	allocatorCtx, cancel := chromedp.NewExecAllocator(ctx, browserAllocatorOptions(options, profileDir, proxyAddress)...)
+	return allocatorCtx, cancel, nil
 }
 
 // browserAllocatorOptions is the single browser configuration both the one-page

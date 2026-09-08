@@ -1,4 +1,5 @@
 import { useEventListener } from '@vueuse/core'
+import { onScopeDispose, ref, watch } from 'vue'
 
 import {
   invalidateCatalogCache,
@@ -6,41 +7,63 @@ import {
   type Catalog,
 } from '@/shared/api/catalog'
 
-/**
- * The catalog a composing screen holds, kept current while another tab curates
- * it.
- *
- * Composing a profile writes nothing global (ADR 0029), so «Списки» is a second
- * tab and its edits land behind this screen's back. Coming back to this window
- * is when the operator expects to see them, and it is the only moment worth
- * reading: a screen that polled would re-read a catalog nobody changed.
- *
- * The listener is bound to the component that asked for it, so an unmounted
- * screen reads nothing. A screen in the middle of a save reads nothing either —
- * replacing the catalog under a request in flight would judge its result
- * against material it never saw.
- */
+/** Refresh on return to the window; preserve a request owed during a mutation. */
 export const useFreshCatalog = (
   apply: (catalog: Catalog) => void,
   busy: () => boolean,
-): void => {
+  scope: () => string = () => '',
+) => {
+  const state = ref<'idle' | 'loading' | 'stale'>('idle')
   let reading = false
+  let owed = false
+  let disposed = false
+  let generation = 0
 
-  const reread = async (): Promise<void> => {
-    if (reading || busy()) return
+  const drain = async (): Promise<void> => {
+    if (disposed || reading || busy() || !owed) return
+    owed = false
     reading = true
+    state.value = 'loading'
+    const request = generation
+    const identity = scope()
     try {
       invalidateCatalogCache()
-      apply(await loadCatalogCached())
+      const catalog = await loadCatalogCached()
+      if (disposed || request !== generation || identity !== scope()) return
+      if (busy()) {
+        owed = true
+        return
+      }
+      apply(catalog)
+      state.value = 'idle'
     } catch {
-      // Nobody asked for this read, so a catalog that did not answer has
-      // nothing to report: the copy already on screen stands.
+      if (!disposed && request === generation && identity === scope())
+        state.value = 'stale'
     } finally {
       reading = false
+      if (owed) void drain()
     }
   }
 
-  useEventListener(window, 'focus', () => {
-    void reread()
+  const retry = (): Promise<void> => {
+    owed = true
+    generation += 1
+    return drain()
+  }
+
+  watch(busy, (working) => {
+    if (!working) void drain()
   })
+  watch(scope, () => {
+    void retry()
+  })
+  useEventListener(window, 'focus', () => {
+    void retry()
+  })
+  onScopeDispose(() => {
+    disposed = true
+    generation += 1
+  })
+
+  return { state, retry }
 }

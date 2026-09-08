@@ -98,6 +98,9 @@ type Client struct {
 	// It is a channel rather than a mutex so a caller queued behind a slow plugin
 	// still honors its own deadline instead of blocking on an unbounded lock.
 	callSlot chan struct{}
+	// closedSignal releases calls queued for the protocol turn when shutdown
+	// starts. A second closed check after admission closes the select race.
+	closedSignal chan struct{}
 }
 
 // Start launches the plugin and completes the handshake.
@@ -179,7 +182,7 @@ func Start(ctx context.Context, installed Installed, options Options) (*Client, 
 		abort()
 		return nil, fmt.Errorf("%w: open plugin runner gate: %v", ErrUnavailable, err)
 	}
-	client := &Client{installed: installed, options: options, command: command, stdin: stdin, stdout: stdout, logsDone: make(chan struct{}), snapshotDirectory: snapshotDirectory, containment: containment, callSlot: make(chan struct{}, 1)}
+	client := &Client{installed: installed, options: options, command: command, stdin: stdin, stdout: stdout, logsDone: make(chan struct{}), snapshotDirectory: snapshotDirectory, containment: containment, callSlot: make(chan struct{}, 1), closedSignal: make(chan struct{})}
 	keepSnapshot = true
 	keepContainment = true
 	go client.drainDiagnostics(stderr)
@@ -323,6 +326,15 @@ func (c *Client) exchange(ctx context.Context, envelope wire.Envelope, timeout t
 	case c.callSlot <- struct{}{}:
 	case <-ctx.Done():
 		return wire.Envelope{}, fmt.Errorf("%w: %s: %v", ErrTimeout, c.installed.Manifest.Name, ctx.Err())
+	case <-c.closedSignal:
+		return wire.Envelope{}, ErrUnavailable
+	}
+	c.mu.Lock()
+	closed = c.closed
+	c.mu.Unlock()
+	if closed {
+		<-c.callSlot
+		return wire.Envelope{}, ErrUnavailable
 	}
 	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -385,25 +397,58 @@ func (c *Client) Close() error {
 		return nil
 	}
 	c.closed = true
+	close(c.closedSignal)
 	c.mu.Unlock()
 
-	shutdown := wire.Envelope{Type: wire.MessageShutdown}
-	shutdown.ID = c.allocate()
-	_ = wire.WriteFrame(c.stdin, shutdown)
-	_ = c.stdin.Close()
 	exited := make(chan struct{})
 	go func() {
 		_ = c.command.Wait()
 		close(exited)
 	}()
+	shutdownCanceled := make(chan struct{})
+	shutdownDone := make(chan struct{})
+	go func() {
+		defer close(shutdownDone)
+		select {
+		case c.callSlot <- struct{}{}:
+			defer func() { <-c.callSlot }()
+		case <-shutdownCanceled:
+			return
+		}
+		select {
+		case <-shutdownCanceled:
+			return
+		default:
+		}
+		shutdown := wire.Envelope{Type: wire.MessageShutdown}
+		shutdown.ID = c.allocate()
+		_ = wire.WriteFrame(c.stdin, shutdown)
+		_ = c.stdin.Close()
+	}()
+	timer := time.NewTimer(DefaultShutdownGrace)
 	select {
 	case <-exited:
-	case <-time.After(DefaultShutdownGrace):
+		timer.Stop()
+	case <-timer.C:
+		close(shutdownCanceled)
+		_ = c.stdin.Close()
 		_ = c.terminate()
 		<-exited
 	}
+	select {
+	case <-shutdownCanceled:
+	default:
+		close(shutdownCanceled)
+	}
+	_ = c.stdin.Close()
+	<-shutdownDone
 	<-c.logsDone
-	return errors.Join(c.containment.close(), os.RemoveAll(c.snapshotDirectory))
+	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), DefaultShutdownGrace)
+	defer cleanupCancel()
+	if err := c.containment.waitEmpty(cleanupCtx); err != nil {
+		return errors.Join(err, c.containment.close())
+	}
+	return errors.Join(c.containment.close(), removeSnapshot(cleanupCtx, c.snapshotDirectory))
 }
 
 func (c *Client) terminate() error {

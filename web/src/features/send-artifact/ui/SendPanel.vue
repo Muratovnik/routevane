@@ -9,6 +9,7 @@ import {
   type TargetOption,
 } from '@/shared/api/catalog'
 import type { Fact, StatusTone } from '@/shared/ui/types'
+import RvCodeBlock from '@/shared/ui/RvCodeBlock.vue'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvField from '@/shared/ui/RvField.vue'
@@ -268,6 +269,15 @@ onMounted(() => {
           {{ t('send.plan') }}
         </h2>
         <RvFacts :items="planFacts" />
+        <template v-if="deployment.plan.value.fqdnChanges !== undefined">
+          <p class="send__note">{{ t('send.plan.fqdn') }}</p>
+          <RvCodeBlock
+            v-if="deployment.plan.value.fqdnChanges.length > 0"
+            :caption="t('send.plan.fqdn.commands')"
+            :text="deployment.plan.value.fqdnChanges.join('\n')"
+          />
+          <p v-else class="send__note">{{ t('send.plan.fqdn.unchanged') }}</p>
+        </template>
         <p class="send__note">{{ t('send.plan.backup') }}</p>
         <RvButton
           :disabled="deployment.busy.value"
@@ -306,7 +316,9 @@ onMounted(() => {
             :key="event.step"
             class="send__step"
           >
-            <span>{{ t(`send.step.${event.step}`) }}</span>
+            <span>{{
+              tor(`send.step.${event.step}`, t('send.step.other'))
+            }}</span>
             <strong
               :class="{
                 'send__step-outcome--failed': event.outcome !== 'success',

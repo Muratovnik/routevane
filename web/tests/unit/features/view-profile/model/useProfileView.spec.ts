@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { effectScope } from 'vue'
+import {
+  usePublishedProfile,
+  type FreshBuild,
+} from '@/entities/profile-build/model/publishedProfile'
 
 import { useProfileView } from '@/features/view-profile/model/useProfileView'
 import { invalidateCatalogCache } from '@/shared/api/catalog'
@@ -255,4 +260,42 @@ describe('rebuild', () => {
     expect(view.rebuildFailed.value).toBe(true)
     expect(view.work.value).toBe('failed')
   })
+})
+
+it('requires a new reveal when the selected output or its subscription changes', () => {
+  const published = usePublishedProfile()
+  published.clear()
+  const build = (id: string, revision = 'first'): FreshBuild => ({
+    output: { id, profileID: PROFILE_ID, targetID: 'keenetic', deviceID: '' },
+    subscriptionURL: `http://example.test/${id}/${revision}`,
+    artifactID: `artifact-${id}`,
+    artifactHash: 'fixture-hash',
+    snapshotID: `snapshot-${id}`,
+    contentCreatedAt: '2026-09-08T00:00:00Z',
+    validationStatus: 'valid',
+    status: 'published',
+    ruleCount: 1,
+    partialCoverage: false,
+    partialCoverageCount: 0,
+    rendererID: 'fixture',
+    rendererVersion: '1',
+    contentType: 'text/plain',
+    degradedSources: [],
+    stale: false,
+  })
+  published.publish(build(OUTPUT_A))
+  published.publish(build(OUTPUT_B))
+  const scope = effectScope()
+  const view = scope.run(() => useProfileView(() => PROFILE_ID))!
+  view.selectOutput(OUTPUT_A)
+  view.reveal()
+  expect(view.revealed.value).toBe(true)
+  view.selectOutput(OUTPUT_B)
+  expect(view.revealed.value).toBe(false)
+  view.reveal()
+  expect(view.revealed.value).toBe(true)
+  published.publish(build(OUTPUT_B, 'replaced'))
+  expect(view.revealed.value).toBe(false)
+  scope.stop()
+  published.clear()
 })

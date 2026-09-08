@@ -308,14 +308,14 @@ func exportDevices(ctx context.Context, q *sql.Tx, d *application.ConfigTransfer
 	return rows.Err()
 }
 func exportOutputs(ctx context.Context, q *sql.Tx, d *application.ConfigTransferDocument) error {
-	rows, err := q.QueryContext(ctx, "SELECT id,profile_id,target_id,COALESCE(device_id,'') FROM outputs ORDER BY id")
+	rows, err := q.QueryContext(ctx, "SELECT id,profile_id,target_id,COALESCE(device_id,''),fqdn_group_prefix FROM outputs ORDER BY id")
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var v application.TransferOutput
-		if err := rows.Scan(&v.Ref, &v.ProfileRef, &v.TargetID, &v.DeviceRef); err != nil {
+		if err := rows.Scan(&v.Ref, &v.ProfileRef, &v.TargetID, &v.DeviceRef, &v.FQDNGroupPrefix); err != nil {
 			return err
 		}
 		d.Outputs = append(d.Outputs, v)
@@ -460,7 +460,7 @@ func (s *Store) ApplyConfigTransfer(ctx context.Context, a application.ConfigTra
 		if o.DeviceID != "" {
 			device = o.DeviceID
 		}
-		if _, err := tx.ExecContext(ctx, "INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,device_id) VALUES(?,?,?,?,?,?,?,?,?)", o.ID, o.ProfileID, o.TargetID, o.FormatKey, o.RendererID, o.RendererVersion, o.TargetRevision, now, device); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,device_id,fqdn_group_prefix) VALUES(?,?,?,?,?,?,?,?,?,?)", o.ID, o.ProfileID, o.TargetID, o.FormatKey, o.RendererID, o.RendererVersion, o.TargetRevision, now, device, o.FQDNGroupPrefix); err != nil {
 			return err
 		}
 	}

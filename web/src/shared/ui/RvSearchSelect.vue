@@ -11,7 +11,7 @@ import {
   PopoverRoot,
   PopoverTrigger,
 } from 'reka-ui'
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/types'
 import { useLocale } from '@/shared/i18n/useLocale'
 import RvIcon from '@/shared/ui/RvIcon.vue'
@@ -39,6 +39,12 @@ const { t } = useLocale()
 const multiple = computed(() => Array.isArray(props.modelValue))
 const open = ref(false)
 const query = ref('')
+watch(
+  () => props.disabled || props.loading,
+  (unavailable) => {
+    if (unavailable) open.value = false
+  },
+)
 const runs = computed(
   () => props.groups ?? [{ key: '', label: '', options: props.options ?? [] }],
 )
@@ -84,6 +90,16 @@ const choose = (value: unknown): void => {
   )
     return
   emit('update:modelValue', value as T)
+}
+
+const completeSingleSelection = (option: ChoiceOption): void => {
+  if (
+    multiple.value ||
+    props.disabled ||
+    props.loading ||
+    option.disabled === true
+  )
+    return
   open.value = false
 }
 </script>
@@ -127,7 +143,8 @@ const choose = (value: unknown): void => {
         <ListboxRoot
           :model-value="modelValue"
           :multiple="multiple"
-          selection-behavior="toggle"
+          :disabled="disabled || loading"
+          :selection-behavior="multiple ? 'toggle' : 'replace'"
           @update:model-value="choose"
         >
           <div class="rv-search-select__search">
@@ -142,6 +159,7 @@ const choose = (value: unknown): void => {
           <ListboxContent
             class="rv-search-select__options"
             :aria-label="heading"
+            :aria-disabled="disabled || loading || undefined"
           >
             <ListboxGroup
               v-for="group in matches"
@@ -158,7 +176,11 @@ const choose = (value: unknown): void => {
                 :key="option.value"
                 :value="option.value"
                 :disabled="option.disabled"
+                :aria-disabled="
+                  disabled || loading || option.disabled || undefined
+                "
                 class="rv-search-select__option"
+                @select="completeSingleSelection(option)"
               >
                 <RvIcon
                   name="check"

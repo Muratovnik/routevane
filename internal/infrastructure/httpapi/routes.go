@@ -225,6 +225,9 @@ var routes = map[string]routeSpec{
 	"outputs.device": {path: "/v1/outputs/{id}/device", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.setOutputDevice(w, r, r.PathValue("id"))
 	}},
+	"outputs.fqdn-prefix": {path: "/v1/outputs/{id}/fqdn-prefix", methods: []string{http.MethodPut}, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.setOutputFQDNPrefix(w, r, r.PathValue("id"))
+	}},
 	"subscriptions.get": {path: "/v1/subscriptions/{id}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.subscription(w, r, r.PathValue("id"))
 	}},

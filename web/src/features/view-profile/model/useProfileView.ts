@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, ref, watch, type Ref } from 'vue'
 
 import { usePublishedProfile } from '@/entities/profile-build/model/publishedProfile'
 import { useFreshCatalog } from '@/shared/model/useFreshCatalog'
@@ -71,6 +71,13 @@ export const useProfileView = (profileID: () => string) => {
   const resolved = ref<string[]>([])
   const missingCategories = ref<string[]>([])
   const schedule = ref<Schedule | null>(null)
+  const scheduleState = ref<'idle' | 'saving' | 'failed'>('idle')
+  const requestedInterval = ref<RefreshInterval>('off')
+  let scheduleRevision = 0
+  watch(profileID, () => {
+    scheduleRevision += 1
+    scheduleState.value = 'idle'
+  })
   const outputs = ref<OutputCard[]>([])
   const catalog = ref<Catalog | null>(null)
   const deployableIDs = ref<Set<string>>(new Set())
@@ -122,6 +129,13 @@ export const useProfileView = (profileID: () => string) => {
     () => fresh.value?.snapshotID ?? latest.value?.snapshotID ?? '',
   )
   const subscriptionURL = computed(() => fresh.value?.subscriptionURL ?? '')
+  watch(
+    [selectedOutputID, subscriptionURL],
+    () => {
+      revealed.value = false
+    },
+    { flush: 'sync' },
+  )
 
   // What the profile publishes right now, as the server resolved it. The screen
   // never resolves references itself: a stale catalog copy would disagree with
@@ -218,6 +232,7 @@ export const useProfileView = (profileID: () => string) => {
   })
 
   const initialize = async (): Promise<void> => {
+    const revision = scheduleRevision
     state.value = 'loading'
     devices.value = []
     const [detail, loadedCatalog, deployables, formats, registry] =
@@ -253,7 +268,8 @@ export const useProfileView = (profileID: () => string) => {
     profile.value = detail.value.profile
     resolved.value = detail.value.resolved
     missingCategories.value = detail.value.missingCategories
-    schedule.value = detail.value.schedule
+    if (revision === scheduleRevision && scheduleState.value !== 'saving')
+      schedule.value = detail.value.schedule
     outputs.value = detail.value.outputs
     if (!outputs.value.some((output) => output.id === selectedOutputID.value)) {
       selectedOutputID.value =
@@ -404,14 +420,25 @@ export const useProfileView = (profileID: () => string) => {
    * unrequested trip to the network.
    */
   const setSchedule = async (interval: RefreshInterval): Promise<boolean> => {
-    if (busy.value) return false
+    if (scheduleState.value === 'saving' || archived.value) return false
+    const id = profileID()
+    scheduleRevision += 1
+    requestedInterval.value = interval
+    scheduleState.value = 'saving'
     try {
-      schedule.value = await saveProfileRefreshInterval(profileID(), interval)
+      const saved = await saveProfileRefreshInterval(id, interval)
+      if (profileID() !== id) return false
+      schedule.value = saved
+      scheduleState.value = 'idle'
       return true
     } catch {
+      if (profileID() === id) scheduleState.value = 'failed'
       return false
     }
   }
+
+  const retrySchedule = (): Promise<boolean> =>
+    setSchedule(requestedInterval.value)
 
   /**
    * setArchived takes the profile off the shelf or puts it back. Neither direction
@@ -513,9 +540,14 @@ export const useProfileView = (profileID: () => string) => {
     catalog.value = next
   }
 
-  useFreshCatalog(registerCatalog, () => busy.value)
+  const catalogRefresh = useFreshCatalog(
+    registerCatalog,
+    () => busy.value,
+    profileID,
+  )
 
   return {
+    catalogRefresh,
     archived,
     availableTargets,
     bind,
@@ -542,6 +574,8 @@ export const useProfileView = (profileID: () => string) => {
     maskedSubscription,
     missingCategories,
     schedule,
+    scheduleState,
+    retrySchedule,
     setSchedule,
     openContent,
     openDiagnostics,

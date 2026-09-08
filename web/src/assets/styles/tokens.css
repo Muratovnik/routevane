@@ -123,6 +123,8 @@
   --rv-border-hair: 0.0625rem;
   --rv-border-mark: 0.1875rem;
   --rv-focus-offset: 0.125rem;
+  --rv-tab-indicator-size: 0.125rem;
+  --rv-segmented-inset: 0.125rem;
   --rv-shadow-panel: 0 0.0625rem 0.125rem rgb(0 0 0 / 40%);
   --rv-shadow-raised: 0 0.5rem 1.5rem rgb(0 0 0 / 35%);
   --rv-color-scrim: rgb(0 0 0 / 55%);
@@ -130,6 +132,8 @@
   --rv-dialog-panel-width: 34rem;
   --rv-dialog-panel-height: 40rem;
   --rv-artifact-height: max(20rem, calc(100dvh - 22rem));
+  --rv-code-height: 20rem;
+  --rv-leading-code: 1.6;
   --rv-editor-min-height: 14rem;
   --rv-analysis-height: 24rem;
   --rv-library-height: max(30rem, calc(100dvh - 9rem));

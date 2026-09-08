@@ -100,7 +100,13 @@ describe('a build reply describes one published fact', () => {
       output: { id: outputID, list_id: profileID, target_id: 'keenetic' },
     })
     await expect(addOutput(profileID, 'keenetic')).resolves.toEqual({
-      output: { id: outputID, profileID, targetID: 'keenetic', deviceID: '' },
+      output: {
+        id: outputID,
+        profileID,
+        targetID: 'keenetic',
+        deviceID: '',
+        fqdnGroupPrefix: '',
+      },
     })
 
     answer({
@@ -124,6 +130,7 @@ describe('a build reply describes one published fact', () => {
       profileID,
       targetID: 'keenetic',
       deviceID: '',
+      fqdnGroupPrefix: '',
       latestArtifactID: artifactID,
     })
   })

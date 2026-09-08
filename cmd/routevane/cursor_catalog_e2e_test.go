@@ -55,7 +55,7 @@ func TestShippedCursorPublishesOnlyItsDomainsAndSurvivesSourceFailure(t *testing
 	want := []string{"cursor-cdn.com", "cursor.com", "cursor.sh", "cursorapi.com"}
 	artifact := downloadArtifact(t, origin, built.Artifact.ID)
 	groups, err := keeneticdns.Parse(artifact.body)
-	if artifact.status != http.StatusOK || err != nil || len(groups) != 1 || groups[0].Name != "routevane-cursor" || !slices.Equal(groups[0].Entries, want) {
+	if artifact.status != http.StatusOK || err != nil || len(groups) != 1 || !strings.HasPrefix(groups[0].Name, "routevane-") || !slices.Equal(groups[0].Entries, want) {
 		t.Fatalf("Cursor DNS artifact=%s err=%v", artifact.body, err)
 	}
 	clientOutput := addOutput(t, origin, profileID, "singbox")

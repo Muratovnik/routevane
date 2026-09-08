@@ -17,8 +17,8 @@ import (
 // logged, or returned. The request log records the route and method only, and
 // the audit record this returns carries identities and outcomes.
 //
-// Without confirm the handler answers with the plan and touches nothing, which
-// is the same two-step the command line requires.
+// Without confirm the handler answers with the plan, including read-only device
+// inspection when required. Only the confirmed step can mutate the device.
 func (h *handler) deploy(w http.ResponseWriter, r *http.Request, id string) {
 	var request struct {
 		Device    string `json:"device"`
@@ -41,6 +41,10 @@ func (h *handler) deploy(w http.ResponseWriter, r *http.Request, id string) {
 	if !command.Confirm {
 		plan, err := h.backend.DeployPlan(r.Context(), command)
 		if err != nil {
+			if errors.Is(err, application.ErrFQDNOwnershipConflict) || errors.Is(err, application.ErrDeployFailed) || errors.Is(err, application.ErrConnectionInvalid) || errors.Is(err, application.ErrDeviceIncompatible) {
+				writeJSON(w, deployStatus(err), map[string]string{"error": deployFailure(err)})
+				return
+			}
 			h.backendError(w, err)
 			return
 		}
@@ -63,6 +67,10 @@ func (h *handler) deploy(w http.ResponseWriter, r *http.Request, id string) {
 // name a device answer, so it is logged rather than returned.
 func deployFailure(err error) string {
 	switch {
+	case errors.Is(err, application.ErrRollbackFailed):
+		return "rollback_failed"
+	case errors.Is(err, application.ErrFQDNOwnershipConflict):
+		return "fqdn_ownership_conflict"
 	case errors.Is(err, application.ErrConnectionInvalid):
 		return "connection_invalid"
 	case errors.Is(err, application.ErrDeviceIncompatible):
@@ -71,8 +79,6 @@ func deployFailure(err error) string {
 		return "backup_unavailable"
 	case errors.Is(err, application.ErrVerifyFailed):
 		return "verify_failed"
-	case errors.Is(err, application.ErrRollbackFailed):
-		return "rollback_failed"
 	case errors.Is(err, application.ErrDeployerUnavailable):
 		return "deployer_unavailable"
 	case errors.Is(err, application.ErrConfirmationRequired):

@@ -45,6 +45,7 @@ export type DeployPlan = {
   title: string
   deployerID: string
   sizeBytes: number
+  fqdnChanges?: string[]
 }
 
 export type DeployEvent = {
@@ -68,7 +69,8 @@ export type DeployOutcome = {
 export const loadDeployableTargets = (): Promise<DeployableTarget[]> =>
   getJSON('/v1/deployments/targets', parseDeployableTargets)
 
-// planDeployment asks what a deployment would do without contacting the device.
+// planDeployment asks what a deployment would do. DNS plans read the device
+// to preview exact owned changes without modifying its configuration.
 // The credential is sent because the deployer validates it, and it is never
 // stored by this module.
 export const planDeployment = (
@@ -162,6 +164,7 @@ const deployPlanSchema = v.pipe(
       title: text,
       deployer_id: text,
       size_bytes: count,
+      fqdn_changes: v.optional(v.array(text)),
     }),
   }),
   v.transform((envelope): DeployPlan => ({
@@ -171,6 +174,9 @@ const deployPlanSchema = v.pipe(
     title: envelope.plan.title,
     deployerID: envelope.plan.deployer_id,
     sizeBytes: envelope.plan.size_bytes,
+    ...(envelope.plan.fqdn_changes === undefined
+      ? {}
+      : { fqdnChanges: envelope.plan.fqdn_changes }),
   })),
 )
 

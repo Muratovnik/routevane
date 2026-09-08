@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 13
+const CurrentSchemaVersion = 14
 
 type migration struct {
 	version int
@@ -644,9 +644,20 @@ END;
 CREATE TRIGGER outputs_identity_immutable BEFORE UPDATE OF id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns ON outputs BEGIN
     SELECT RAISE(ABORT, 'immutable output identity');
 END;
+`}, {version: 14, sql: `
+ALTER TABLE outputs ADD COLUMN fqdn_group_prefix TEXT NOT NULL DEFAULT '';
+CREATE TABLE managed_fqdn_groups (
+ endpoint TEXT NOT NULL,
+ output_id TEXT NOT NULL REFERENCES outputs(id),
+ name TEXT NOT NULL,
+ interface TEXT NOT NULL,
+ state_json TEXT NOT NULL,
+ PRIMARY KEY(endpoint,name)
+) STRICT;
 `}}
 
 var requiredTables = []string{
+	"managed_fqdn_groups",
 	"settings",
 	"devices",
 	"catalog_removals",
@@ -680,6 +691,7 @@ var requiredTables = []string{
 }
 
 var requiredColumns = map[string][]string{
+	"managed_fqdn_groups":     {"endpoint", "output_id", "name", "interface", "state_json"},
 	"schema_migrations":       {"version", "applied_at_ns"},
 	"resources":               {"id", "kind", "normalized_value", "ip_version", "created_at_ns"},
 	"sightings":               {"id", "list_id", "component_id", "resource_id", "source_id", "source_class", "source_revision", "first_seen_ns", "last_seen_ns", "valid_until_ns", "ttl_seconds", "observation_count", "metadata_json", "invalid"},
@@ -705,7 +717,7 @@ var requiredColumns = map[string][]string{
 	"managed_route_scopes":    {"id", "endpoint", "target_id", "interface", "retired_at_ns", "created_at_ns", "updated_at_ns"},
 	"managed_routes":          {"scope_id", "prefix", "created_by_routevane", "description"},
 	"managed_route_claims":    {"scope_id", "output_id", "prefix", "description", "labels_json"},
-	"outputs":                 {"id", "profile_id", "target_id", "format_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id"},
+	"outputs":                 {"id", "profile_id", "target_id", "format_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id", "fqdn_group_prefix"},
 	"output_attempts":         {"id", "output_id", "status", "code", "projected_rules", "maximum_rules", "artifact_id", "completed_at_ns"},
 	"plan_snapshots":          {"id", "output_id", "routing_plan_hash", "routing_plan_json", "policy_version", "catalog_revision", "observation_cutoff_ns", "created_at_ns", "status"},
 	"artifact_builds":         {"id", "output_id", "plan_snapshot_id", "renderer_id", "renderer_version", "artifact_hash", "artifact_path", "size_bytes", "content_type", "content_created_at_ns", "validation_status", "status"},
@@ -728,6 +740,7 @@ var requiredForeignKeys = map[string][]string{
 	"output_attempts":         {"outputs"},
 	"managed_routes":          {"managed_route_scopes"},
 	"managed_route_claims":    {"managed_routes", "outputs"},
+	"managed_fqdn_groups":     {"outputs"},
 }
 
 var requiredTriggers = []string{

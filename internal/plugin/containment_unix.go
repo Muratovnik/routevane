@@ -3,6 +3,7 @@
 package plugin
 
 import (
+	"context"
 	"errors"
 	"os/exec"
 	"syscall"
@@ -35,3 +36,6 @@ func (unixProcessContainment) terminate(command *exec.Cmd) error {
 }
 
 func (unixProcessContainment) close() error { return nil }
+
+// The Unix runner replaces itself with the plugin; command.Wait has reaped it.
+func (unixProcessContainment) waitEmpty(context.Context) error { return nil }

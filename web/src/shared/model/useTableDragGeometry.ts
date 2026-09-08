@@ -1,9 +1,20 @@
 import type { SortableEvent } from 'sortablejs'
+import { onBeforeUnmount } from 'vue'
 
-/** Preserve a row when Sortable moves its fallback outside the table's container. */
-export const tableDragGeometry = () => {
+/** Preserve a row when Sortable moves its fallback outside the table container. */
+export const useTableDragGeometry = () => {
   const originals = new Map<HTMLElement, string | null>()
+
+  const restore = (): void => {
+    for (const [node, style] of originals) {
+      if (style === null) node.removeAttribute('style')
+      else node.setAttribute('style', style)
+    }
+    originals.clear()
+  }
+
   const onChoose = (event: SortableEvent): void => {
+    restore()
     // Read everything before writing: fixed cell typography must not change the
     // inherited metrics we subsequently capture for compact labels.
     const snapshots = Array.from(event.item.querySelectorAll('*'))
@@ -44,12 +55,8 @@ export const tableDragGeometry = () => {
       Object.assign(node.style, styles)
     }
   }
-  const onUnchoose = (): void => {
-    for (const [node, style] of originals) {
-      if (style === null) node.removeAttribute('style')
-      else node.setAttribute('style', style)
-    }
-    originals.clear()
-  }
-  return { onChoose, onUnchoose }
+
+  onBeforeUnmount(restore)
+
+  return { onChoose, onUnchoose: restore }
 }

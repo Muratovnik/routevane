@@ -128,7 +128,7 @@ describe('RvDialog', () => {
     document.body.style.minHeight = ''
   })
 
-  it('delegates the sheet to Nuxt UI without its CSP-unsafe keyframes', async () => {
+  it('delegates the complete sheet transition to Nuxt UI', async () => {
     const screen = await render(RvDialog, {
       props: { closeLabel: 'Close', open: true, title: 'Google AI' },
     })
@@ -137,9 +137,7 @@ describe('RvDialog', () => {
     await expect.element(sheet).toHaveAccessibleName('Google AI')
     await expect.element(sheet).toHaveAttribute('data-side', 'right')
     await expect.element(sheet).toHaveAttribute('data-dismissible', 'true')
-    // The library's own entrance injects keyframes a strict CSP refuses, so the
-    // facade animates from its own stylesheet instead.
-    await expect.element(sheet).toHaveAttribute('data-transition', 'false')
+    await expect.element(sheet).toHaveAttribute('data-transition', 'true')
     // Cancels the library's compact width so the Routevane token owns it.
     await expect.element(sheet).toHaveClass('max-w-none')
     await expect.element(sheet).toHaveClass('rv-dialog--sheet')

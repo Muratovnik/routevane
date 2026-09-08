@@ -7,6 +7,8 @@ import {
   type Decoder,
   fields,
   getJSON,
+  mutationHeaders,
+  requestJSON,
   jsonObject,
   optionalCount,
   optionalText,
@@ -24,6 +26,7 @@ export type Output = {
   profileID: string
   targetID: string
   deviceID: string
+  fqdnGroupPrefix?: string
 }
 
 export type StoredOutput = Output & {
@@ -58,6 +61,7 @@ export type OutputCard = {
   id: string
   targetID: string
   deviceID: string
+  fqdnGroupPrefix?: string
   targetTitle: string
   targetKind: string
   fileExtension: string
@@ -110,13 +114,34 @@ export const setOutputDevice = (
 export const loadOutput = (outputID: string): Promise<StoredOutput> =>
   getJSON(`/v1/outputs/${outputID}`, parseStoredOutput)
 
+export const setOutputFQDNPrefix = (
+  outputID: string,
+  prefix: string,
+): Promise<CreatedOutput> =>
+  requestJSON(
+    `/v1/outputs/${outputID}/fqdn-prefix`,
+    {
+      method: 'PUT',
+      headers: mutationHeaders,
+      body: JSON.stringify({ fqdn_group_prefix: prefix }),
+    },
+    parseCreatedOutput,
+  )
+
 const outputSchema = v.pipe(
-  fields({ id: text, list_id: text, target_id: text, device_id: optionalText }),
+  fields({
+    id: text,
+    list_id: text,
+    target_id: text,
+    device_id: optionalText,
+    fqdn_group_prefix: optionalText,
+  }),
   v.transform((output): Output => ({
     id: output.id,
     profileID: output.list_id,
     targetID: output.target_id,
     deviceID: output.device_id,
+    fqdnGroupPrefix: output.fqdn_group_prefix,
   })),
 )
 
@@ -136,6 +161,7 @@ const storedOutputSchema = v.pipe(
     list_id: text,
     target_id: text,
     device_id: optionalText,
+    fqdn_group_prefix: optionalText,
     latest_artifact_id: optionalText,
   }),
   v.transform((output): StoredOutput => ({
@@ -143,6 +169,7 @@ const storedOutputSchema = v.pipe(
     profileID: output.list_id,
     targetID: output.target_id,
     deviceID: output.device_id,
+    fqdnGroupPrefix: output.fqdn_group_prefix,
     latestArtifactID: output.latest_artifact_id,
   })),
 )
@@ -272,6 +299,7 @@ const outputCardSchema = v.pipe(
     id: text,
     target_id: text,
     device_id: optionalText,
+    fqdn_group_prefix: optionalText,
     target_title: text,
     target_kind: optionalText,
     file_extension: optionalText,
@@ -283,6 +311,7 @@ const outputCardSchema = v.pipe(
     id: card.id,
     targetID: card.target_id,
     deviceID: card.device_id,
+    fqdnGroupPrefix: card.fqdn_group_prefix,
     targetTitle: card.target_title,
     targetKind: card.target_kind,
     fileExtension: card.file_extension,

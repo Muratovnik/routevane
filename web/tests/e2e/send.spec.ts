@@ -72,7 +72,8 @@ const fileURL = (path: string): string => {
 // The format is chosen from a searchable list of names, so an identity a
 // caller names is resolved to the words that list actually shows.
 const formatNames: Record<string, RegExp> = {
-  keenetic: /Keenetic/,
+  keenetic: /^Keenetic(?! \()/,
+  'keenetic-dns': /Keenetic \(/,
   mikrotik: /MikroTik/,
   singbox: /sing-box/,
 }
@@ -186,6 +187,10 @@ test.beforeAll(async () => {
       join(catalogRoot, 'targets', name),
     )
   }
+  await copyFile(
+    join(repositoryRoot, 'catalog', 'targets', 'keenetic-dns.yaml'),
+    join(catalogRoot, 'targets', 'keenetic-dns.yaml'),
+  )
   await copyFile(
     join(repositoryRoot, 'catalog', 'targets', 'mikrotik.yaml'),
     join(catalogRoot, 'targets', 'mikrotik.yaml'),
@@ -636,3 +641,96 @@ test('a destination the configuration cannot accept is refused before writing', 
   ).resolves.toBe('absent')
   await rm(foreignRoot, { force: true, recursive: true })
 })
+
+for (const language of ['en', 'ru'] as const) {
+  test.describe(`FQDN output settings (${language})`, () => {
+    test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
+
+    test('prefix settings preserve published files and affect only the next build', async ({
+      page,
+    }) => {
+      test.setTimeout(120000)
+      const { profileId, outputId } = await publishProfile(
+        page,
+        'keenetic-dns',
+        language,
+      )
+      const copy = (key: string) => message(language, key)
+      await page
+        .getByRole('tab', { name: copy('profile.tab.outputs'), exact: true })
+        .click()
+      const prefix = page.getByRole('textbox', { name: copy('outputs.prefix') })
+      const save = page.getByRole('button', {
+        name: copy('outputs.prefix.save'),
+      })
+      await expect(prefix).toHaveValue('')
+      await expect(prefix).toHaveAttribute('placeholder', 'routevane')
+      const before = await page.request.get(`${origin}/v1/outputs/${outputId}`)
+      const original = (await before.json()) as { latest_artifact_id: string }
+      const originalFile = await page.request.get(
+        `${origin}/v1/artifacts/${original.latest_artifact_id}`,
+      )
+      const originalBytes = await originalFile.text()
+      expect(originalBytes).toMatch(/^object-group fqdn routevane-/m)
+      await prefix.fill('1-invalid')
+      await expect(save).toBeDisabled()
+      await expect(
+        page.getByText(copy('outputs.prefix.invalid'), { exact: true }),
+      ).toBeVisible()
+      await prefix.fill('web-demo')
+      await save.click()
+      await expect(page.getByText(copy('outputs.prefix.saved'))).toBeVisible()
+      const saved = await page.request.get(`${origin}/v1/outputs/${outputId}`)
+      expect(await saved.json()).toMatchObject({
+        fqdn_group_prefix: 'web-demo',
+        latest_artifact_id: original.latest_artifact_id,
+      })
+      const unchanged = await page.request.get(
+        `${origin}/v1/artifacts/${original.latest_artifact_id}`,
+      )
+      expect(await unchanged.text()).toBe(originalBytes)
+      await page
+        .getByRole('button', {
+          name: copy('profiles.menu').replace('{name}', 'YouTube'),
+        })
+        .click()
+      const rebuilt = page.waitForResponse(
+        (response) =>
+          response.url() === `${origin}/v1/outputs/${outputId}/build` &&
+          response.request().method() === 'POST',
+      )
+      await page
+        .getByRole('menuitem', { name: copy('profile.rebuild'), exact: true })
+        .click()
+      const result = await rebuilt
+      expect(result.ok()).toBe(true)
+      const payload = (await result.json()) as { artifact: { id: string } }
+      expect(payload.artifact.id).not.toBe(original.latest_artifact_id)
+      const customFile = await page.request.get(
+        `${origin}/v1/artifacts/${payload.artifact.id}`,
+      )
+      expect(await customFile.text()).toMatch(/^object-group fqdn web-demo-/m)
+      const retained = await page.request.get(
+        `${origin}/v1/artifacts/${original.latest_artifact_id}`,
+      )
+      expect(await retained.text()).toBe(originalBytes)
+      await expect(prefix).toHaveValue('web-demo')
+      await prefix.fill('')
+      await save.click()
+      await expect(page.getByText(copy('outputs.prefix.saved'))).toBeVisible()
+      const reset = await page.request.get(`${origin}/v1/outputs/${outputId}`)
+      const resetOutput = await reset.json()
+      expect(resetOutput.fqdn_group_prefix ?? '').toBe('')
+      expect(resetOutput).toMatchObject({
+        latest_artifact_id: payload.artifact.id,
+      })
+      await page.reload()
+      await page
+        .getByRole('tab', { name: copy('profile.tab.outputs'), exact: true })
+        .click()
+      await expect(prefix).toHaveValue('')
+      expect(new URL(page.url()).pathname).toBe(`/profiles/${profileId}`)
+      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+    })
+  })
+}

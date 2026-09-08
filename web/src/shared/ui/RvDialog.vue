@@ -219,7 +219,7 @@ const openDialogs = ref(0)
     :content="sheetContentProps"
     :ui="sheetUI"
     :close="false"
-    :transition="false"
+    :transition="!(adaptive && workspace)"
     side="right"
     @update:open="updateOpen"
   >
@@ -327,16 +327,6 @@ const openDialogs = ref(0)
   border-left: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 
-/* USlideover owns focus, dismissal and scroll lock. Its state attribute gives
-   this facade a CSP-safe entrance without inline animation styles. */
-.rv-dialog--sheet:not(
-    .rv-dialog--inspection,
-    .rv-dialog--docked
-  )[data-state='open'] {
-  animation: rv-dialog-sheet-in var(--rv-motion-normal)
-    var(--rv-motion-ease-out);
-}
-
 .rv-dialog--inspection {
   view-transition-name: workspace-detail;
 }
@@ -426,16 +416,6 @@ const openDialogs = ref(0)
 @keyframes rv-dialog-panel-in {
   from {
     box-shadow: var(--rv-shadow-panel);
-  }
-}
-
-@keyframes rv-dialog-sheet-in {
-  from {
-    transform: translateX(100%);
-  }
-
-  to {
-    transform: translateX(0);
   }
 }
 

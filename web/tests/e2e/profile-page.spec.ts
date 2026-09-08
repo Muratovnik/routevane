@@ -367,3 +367,65 @@ test('a failed first build remains retryable and exposes no subscription', async
     page.getByRole('heading', { name: /^Subscription link/ }),
   ).toHaveCount(0)
 })
+
+test('send links navigate through the router for one and multiple published outputs', async ({
+  page,
+  origin,
+}) => {
+  const { profileId, outputId } = await buildProfile(page, origin)
+  const menu = page.getByRole('button', {
+    name: 'Actions for profile Discord, YouTube',
+  })
+  await menu.click()
+  await page
+    .getByRole('menuitem', { name: 'Send to Keenetic', exact: true })
+    .click()
+  await expect(page).toHaveURL(
+    `${origin}/profiles/${profileId}/send/${outputId}`,
+  )
+  const headers = { Origin: origin, 'X-Routevane-Request': '1' }
+  const added = await page.request.post(
+    `${origin}/v1/profiles/${profileId}/outputs`,
+    { headers, data: { target_id: 'singbox' } },
+  )
+  expect(added.ok()).toBe(true)
+  const { output } = (await added.json()) as { output: { id: string } }
+  const built = await page.request.post(
+    `${origin}/v1/outputs/${output.id}/build`,
+    { headers, data: {} },
+  )
+  expect(built.ok()).toBe(true)
+  await page.goto(`${origin}/profiles/${profileId}`)
+  await menu.click()
+  await page
+    .getByRole('menuitem', { name: 'Send to device', exact: true })
+    .click()
+  await page
+    .getByRole('menuitem', { name: 'Send to sing-box', exact: true })
+    .click()
+  await expect(page).toHaveURL(
+    `${origin}/profiles/${profileId}/send/${output.id}`,
+  )
+})
+
+test('a refused schedule change keeps the confirmed value and retries visibly', async ({
+  page,
+  origin,
+}) => {
+  const { profileId } = await buildProfile(page, origin)
+  await page.getByRole('tab', { name: 'Connection', exact: true }).click()
+  await page.route(
+    `**/v1/profiles/${profileId}/schedule`,
+    (route) => route.fulfill({ status: 503, json: { error: 'unavailable' } }),
+    { times: 1 },
+  )
+  await scheduleField(page).click()
+  await page.getByRole('option', { name: 'Daily', exact: true }).click()
+  await expect(page.getByText('The schedule was not changed')).toBeVisible()
+  await expect(scheduleField(page)).toContainText('As in settings')
+  await page.getByRole('button', { name: 'Retry', exact: true }).click()
+  await expect(scheduleField(page)).toContainText('Daily')
+  const response = await page.request.get(`${origin}/v1/profiles/${profileId}`)
+  const detail = (await response.json()) as { schedule: { interval: string } }
+  expect(detail.schedule.interval).toBe('daily')
+})

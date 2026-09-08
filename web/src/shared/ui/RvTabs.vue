@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { TabsContent, TabsList, TabsRoot, TabsTrigger } from 'reka-ui'
 
 import type { TabItem } from '@/shared/ui/types'
 
 /**
- * The tab bar of one object's facets. The host renders each panel itself with
- * role="tabpanel", id `rv-panel-{tab.id}` and aria-labelledby `rv-tab-{tab.id}`
- * — the two halves meet through those ids.
- *
- * Selection follows focus: arrows move between tabs and select as they go,
- * which is the native tabs behavior when panels are cheap to show.
+ * One object's facets. Reka owns the tab/panel IDs, ARIA relationships,
+ * keyboard traversal and focus entry. Named slots keep each facet's existing
+ * root mounted while it is hidden, preserving drafts and deferred state.
  */
 const props = defineProps<{
   label: string
@@ -21,52 +18,43 @@ const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
-const buttons = ref<HTMLButtonElement[]>([])
-
-const select = (id: string): void => {
-  if (id !== props.modelValue) emit('update:modelValue', id)
-}
-
-const onKeydown = (event: KeyboardEvent, index: number): void => {
-  const last = props.tabs.length - 1
-  let next: number | null = null
-  if (event.key === 'ArrowRight') next = index === last ? 0 : index + 1
-  if (event.key === 'ArrowLeft') next = index === 0 ? last : index - 1
-  if (event.key === 'Home') next = 0
-  if (event.key === 'End') next = last
-  if (next === null) return
-  event.preventDefault()
-  const tab = props.tabs[next]
-  if (tab === undefined) return
-  select(tab.id)
-  buttons.value[next]?.focus()
+const update = (value: string | number): void => {
+  if (typeof value === 'string' && value !== props.modelValue)
+    emit('update:modelValue', value)
 }
 </script>
 
 <template>
-  <div :aria-label="label" class="rv-tabs" role="tablist">
-    <button
-      v-for="(tab, index) in tabs"
-      :id="`rv-tab-${tab.id}`"
-      :key="tab.id"
-      ref="buttons"
-      :aria-controls="`rv-panel-${tab.id}`"
-      :aria-selected="tab.id === modelValue"
-      class="rv-tabs__tab"
-      role="tab"
-      :tabindex="tab.id === modelValue ? 0 : -1"
-      type="button"
-      @click="select(tab.id)"
-      @keydown="onKeydown($event, index)"
-    >
-      {{ tab.label }}
-    </button>
-  </div>
+  <TabsRoot
+    class="rv-tabs-root"
+    :model-value="modelValue"
+    :unmount-on-hide="false"
+    @update:model-value="update"
+  >
+    <TabsList :aria-label="label" class="rv-tabs">
+      <TabsTrigger
+        v-for="tab in tabs"
+        :key="tab.id"
+        :value="tab.id"
+        class="rv-tabs__tab"
+      >
+        {{ tab.label }}
+      </TabsTrigger>
+    </TabsList>
+    <TabsContent v-for="tab in tabs" :key="tab.id" as-child :value="tab.id">
+      <slot :name="tab.id" />
+    </TabsContent>
+  </TabsRoot>
 </template>
 
 <style scoped>
+.rv-tabs-root {
+  display: contents;
+}
+
 .rv-tabs {
   display: flex;
+  flex-shrink: 0;
   gap: var(--rv-space-2);
   max-width: 100%;
   overflow-x: auto;
@@ -93,7 +81,7 @@ const onKeydown = (event: KeyboardEvent, index: number): void => {
 
 .rv-tabs__tab:focus-visible {
   outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: -0.1875rem;
+  outline-offset: calc(-1 * var(--rv-border-mark));
   border-radius: var(--rv-radius-sm);
 }
 
@@ -108,7 +96,7 @@ const onKeydown = (event: KeyboardEvent, index: number): void => {
   right: 0;
   bottom: 0;
   left: 0;
-  height: 0.125rem;
+  height: var(--rv-tab-indicator-size);
   background: var(--rv-color-accent);
   content: '';
 }

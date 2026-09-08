@@ -467,7 +467,13 @@ describe('Routevane local API decoders', () => {
 
     fetchMock.mockResolvedValueOnce(json(buildPayload()))
     await expect(buildOutput(outputID)).resolves.toEqual({
-      output: { id: outputID, profileID, targetID: 'keenetic', deviceID: '' },
+      output: {
+        id: outputID,
+        profileID,
+        targetID: 'keenetic',
+        deviceID: '',
+        fqdnGroupPrefix: '',
+      },
       snapshotID: 'c'.repeat(32),
       artifactID,
       artifactHash: 'd'.repeat(64),
@@ -500,6 +506,7 @@ describe('Routevane local API decoders', () => {
         profileID,
         targetID: 'keenetic',
         deviceID: 'e'.repeat(32),
+        fqdnGroupPrefix: '',
       },
     })
     expect(fetchMock).toHaveBeenLastCalledWith(

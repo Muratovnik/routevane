@@ -50,6 +50,17 @@ export const useDeployment = (
   watch(username, (value) => remember('username', value))
   watch(interfaceName, (value) => remember('interface', value))
 
+  watch(
+    [device, username, password, interfaceName],
+    () => {
+      if (plan.value?.fqdnChanges === undefined || state.value !== 'planned')
+        return
+      plan.value = null
+      state.value = 'idle'
+    },
+    { flush: 'sync' },
+  )
+
   const target = computed<DeployableTarget | null>(
     () => targets.value.find((entry) => entry.targetID === targetID()) ?? null,
   )
@@ -94,8 +105,7 @@ export const useDeployment = (
     }
   }
 
-  // review asks the server what would happen. Nothing is contacted and nothing
-  // is changed, so an operator can correct an address before a device is touched.
+  // Review may read the device to preview exact DNS changes; it never applies them.
   const review = async (): Promise<void> => {
     addressTouched.value = true
     if (!canSubmit.value) return
@@ -169,34 +179,18 @@ const failureCodes = new Set([
   'rollback_failed',
   'deployer_unavailable',
   'confirmation_required',
+  'fqdn_ownership_conflict',
   'deploy_failed',
 ])
 
 // A destination is whatever its deployer declares: a device on the network, or
 // a configuration file on this computer. What this rejects is a malformed
 // address, never an address that merely turns out to be unreachable — that
-// answer belongs to the destination. The host is read label by label rather
-// than by one nested pattern, so no input can make the check backtrack.
+// answer belongs to the destination. The URL parser owns host and port syntax,
+// including bracketed IPv6; network destination policy stays on the server.
 const HTTP_SCHEME_PATTERN = /^https?:\/\//i
-const HOST_LABEL_PATTERN = /^[a-z\d-]+$/i
-const PORT_PATTERN = /^\d{1,5}$/
-
-const validHostLabel = (label: string): boolean =>
-  !label.startsWith('-') &&
-  !label.endsWith('-') &&
-  HOST_LABEL_PATTERN.test(label)
-
-const validHostAndPort = (value: string): boolean => {
-  const authority = value.endsWith('/') ? value.slice(0, -1) : value
-  const [host, port, ...extra] = authority.split(':')
-  if (extra.length > 0 || host === undefined || host === '') return false
-  if (!host.split('.').every(validHostLabel)) return false
-  if (port === undefined) return true
-  return PORT_PATTERN.test(port) && Number(port) >= 1 && Number(port) <= 65535
-}
-
 export const validAddress = (value: string): boolean => {
-  if (value === '') return false
+  if (value === '' || value !== value.trim()) return false
   // A local configuration file is a legitimate destination, and its own
   // deployer offers it as the example, so the form must accept what it shows.
   if (/^file:/i.test(value)) {
@@ -206,10 +200,27 @@ export const validAddress = (value: string): boolean => {
       return false
     }
   }
-  if (/^[a-z][a-z\d+.-]*:/i.test(value) && !HTTP_SCHEME_PATTERN.test(value)) {
+  if (value.includes('://') && !HTTP_SCHEME_PATTERN.test(value)) {
     return false
   }
-  return validHostAndPort(value.replace(HTTP_SCHEME_PATTERN, ''))
+  if (/\s|\\/.test(value)) return false
+  try {
+    const url = new URL(
+      HTTP_SCHEME_PATTERN.test(value) ? value : `http://${value}`,
+    )
+    return (
+      (url.protocol === 'http:' || url.protocol === 'https:') &&
+      url.hostname !== '' &&
+      url.username === '' &&
+      url.password === '' &&
+      (url.pathname === '' || url.pathname === '/') &&
+      url.search === '' &&
+      url.hash === '' &&
+      url.port !== '0'
+    )
+  } catch {
+    return false
+  }
 }
 
 export const messageKey = (error: unknown): string => {

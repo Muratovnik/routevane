@@ -27,6 +27,14 @@ func (e *RuleLimitError) Unwrap() error { return ErrRuleLimit }
 // stale, incompatible, non-canonical, or hash-injected plans before any format
 // implementation sees them.
 func PreflightPlan(plan domain.RoutingPlan, target domain.TargetDefinition, renderer Renderer, cutoff time.Time) error {
+	return preflightPlan(plan, target, renderer, cutoff, true)
+}
+
+// preflightPlan validates the complete plan contract. Profile composition calls
+// it once before priority assignment with enforceRuleLimit false, then repeats
+// the full check with the limit after covered lower-priority rules are removed.
+// Other callers keep the exported one-step safety of PreflightPlan.
+func preflightPlan(plan domain.RoutingPlan, target domain.TargetDefinition, renderer Renderer, cutoff time.Time, enforceRuleLimit bool) error {
 	if renderer == nil || cutoff.IsZero() || plan.InterfaceVersion != domain.RoutingPlanInterfaceVersion || plan.PolicyVersion != planner.PolicyVersion || plan.TargetID != target.ID || plan.FormatKey != target.FormatKey || plan.ObservationCutoff.IsZero() || !plan.ObservationCutoff.Equal(cutoff.UTC()) || domain.ValidateSlug(target.ID) != nil || domain.ValidateSlug(target.FormatKey) != nil || domain.ValidateSlug(target.RendererID) != nil || renderer.ID() != target.RendererID || renderer.Version() != target.FormatKey {
 		return fmt.Errorf("%w: identity", ErrPreflight)
 	}
@@ -95,7 +103,7 @@ func PreflightPlan(plan domain.RoutingPlan, target domain.TargetDefinition, rend
 	if err != nil || projectedRuleCount < 0 {
 		return fmt.Errorf("%w: invalid renderer projection", ErrPreflight)
 	}
-	if target.Constraints.MaxRules > 0 && projectedRuleCount > target.Constraints.MaxRules {
+	if enforceRuleLimit && target.Constraints.MaxRules > 0 && projectedRuleCount > target.Constraints.MaxRules {
 		return fmt.Errorf("%w: %w", ErrPreflight, &RuleLimitError{Projected: projectedRuleCount, Maximum: target.Constraints.MaxRules})
 	}
 	if plan.SemanticHash == "" || plan.SemanticHash != planner.SemanticHash(plan, target) {

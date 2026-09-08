@@ -49,10 +49,9 @@ func (s *Store) PutSetting(ctx context.Context, key, value string, updatedAt tim
 	return nil
 }
 
-// UpdateProfileSchedule writes only the scheduling columns, so a timer never
-// rewrites a composition and a composition edit never resets when the profile last
-// refreshed.
-func (s *Store) UpdateProfileSchedule(ctx context.Context, profileID string, interval application.RefreshInterval, lastRefreshedAt time.Time, failed bool, updatedAt time.Time) error {
+// UpdateProfileRefreshInterval writes only the operator-owned scheduling
+// preference and its edit time. A scheduler completion cannot call this path.
+func (s *Store) UpdateProfileRefreshInterval(ctx context.Context, profileID string, interval application.RefreshInterval, updatedAt time.Time) error {
 	if !validID(profileID) || updatedAt.IsZero() {
 		return fmt.Errorf("invalid list schedule")
 	}
@@ -66,19 +65,39 @@ func (s *Store) UpdateProfileSchedule(ctx context.Context, profileID string, int
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	refreshed := int64(0)
-	if !lastRefreshedAt.IsZero() {
-		refreshed = lastRefreshedAt.UTC().UnixNano()
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE profiles SET refresh_interval=?, updated_at_ns=? WHERE id=?`,
+		string(interval), updatedAt.UTC().UnixNano(), profileID)
+	if err != nil {
+		return fmt.Errorf("update profile refresh interval: %w", err)
 	}
+	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
+		return application.ErrNotFound
+	}
+	return nil
+}
+
+// RecordProfileRefreshResult writes only scheduler-owned runtime metadata. It
+// deliberately leaves refresh_interval and updated_at_ns untouched because an
+// operator may have changed either while source I/O was in flight.
+func (s *Store) RecordProfileRefreshResult(ctx context.Context, profileID string, lastRefreshedAt time.Time, failed bool) error {
+	if !validID(profileID) || lastRefreshedAt.IsZero() {
+		return fmt.Errorf("invalid profile refresh result")
+	}
+	if err := s.preparePublication(); err != nil {
+		return err
+	}
+	ctx, cancel := bounded(ctx)
+	defer cancel()
 	marked := 0
 	if failed {
 		marked = 1
 	}
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE profiles SET refresh_interval=?, last_refreshed_at_ns=?, last_refresh_failed=?, updated_at_ns=? WHERE id=?`,
-		string(interval), refreshed, marked, updatedAt.UTC().UnixNano(), profileID)
+		`UPDATE profiles SET last_refreshed_at_ns=?, last_refresh_failed=? WHERE id=?`,
+		lastRefreshedAt.UTC().UnixNano(), marked, profileID)
 	if err != nil {
-		return fmt.Errorf("update list schedule: %w", err)
+		return fmt.Errorf("record profile refresh result: %w", err)
 	}
 	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
 		return application.ErrNotFound

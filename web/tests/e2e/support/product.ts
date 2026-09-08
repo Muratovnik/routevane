@@ -11,6 +11,7 @@
 import { spawn, type ChildProcess, type SpawnOptions } from 'node:child_process'
 import { once } from 'node:events'
 import { createServer, type Server } from 'node:net'
+import { isolatedProductEnvironment } from './environment'
 
 /** How long stopOwnedProduct waits for a signal to take effect before escalating or giving up. */
 const STOP_TIMEOUT_MILLISECONDS = 5000
@@ -36,7 +37,10 @@ export const spawnProduct = (
   args: string[],
   options: SpawnOptions,
 ): SpawnedProduct => {
-  const child = spawn(command, args, options)
+  const child = spawn(command, args, {
+    ...options,
+    env: isolatedProductEnvironment(options.env),
+  })
   let output = ''
   let spawnError: Error | undefined
   child.on('error', (error) => {

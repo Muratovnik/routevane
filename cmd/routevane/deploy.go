@@ -141,7 +141,7 @@ func runDeploy(ctx context.Context, stdout io.Writer, logger *slog.Logger, optio
 
 	deployments, err := application.NewDeploymentService(application.DeploymentConfig{
 		Artifacts: publication, Deployers: deployerRegistry(deps, options),
-		Backups: filesystem.BackupStore{DataRoot: root}, ManagedRoutes: store,
+		Backups: filesystem.BackupStore{DataRoot: root}, ManagedRoutes: store, ManagedFQDN: store,
 		Clock: application.ClockFunc(deps.Now),
 	})
 	if err != nil {
@@ -203,14 +203,16 @@ func deployerRegistry(deps runtimeDeps, options deployOptions) application.Deplo
 
 func deployErrorCode(err error) string {
 	switch {
+	case errors.Is(err, application.ErrRollbackFailed):
+		return "rollback_failed"
+	case errors.Is(err, application.ErrFQDNOwnershipConflict):
+		return "fqdn_ownership_conflict"
 	case errors.Is(err, application.ErrDeviceIncompatible):
 		return "device_incompatible"
 	case errors.Is(err, application.ErrBackupRequired):
 		return "backup_unavailable"
 	case errors.Is(err, application.ErrVerifyFailed):
 		return "verify_failed"
-	case errors.Is(err, application.ErrRollbackFailed):
-		return "rollback_failed"
 	case errors.Is(err, application.ErrDeployerUnavailable):
 		return "deployer_unavailable"
 	case errors.Is(err, application.ErrConnectionInvalid):

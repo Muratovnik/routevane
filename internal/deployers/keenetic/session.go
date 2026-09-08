@@ -128,6 +128,9 @@ func (s *session) command(ctx context.Context, path string, body any, out any) e
 	if err != nil {
 		return err
 	}
+	if err := parseAnswers(payload); err != nil {
+		return err
+	}
 	if out == nil {
 		return nil
 	}
@@ -148,22 +151,7 @@ func (s *session) batch(ctx context.Context, commands []any) error {
 	if err != nil {
 		return err
 	}
-	// The device answers 200 even for a rejected command, so the answer body is
-	// what decides success.
-	var answers []json.RawMessage
-	if err := json.Unmarshal(payload, &answers); err != nil {
-		var single json.RawMessage
-		if err := json.Unmarshal(payload, &single); err != nil {
-			return fmt.Errorf("%w: batch answer is not JSON", ErrDeviceAnswer)
-		}
-		answers = []json.RawMessage{single}
-	}
-	for _, answer := range answers {
-		if err := deviceError(answer); err != nil {
-			return err
-		}
-	}
-	return nil
+	return parseAnswers(payload)
 }
 
 // deviceError reports a status message the device marked as an error.
@@ -176,7 +164,7 @@ func deviceError(answer json.RawMessage) error {
 		} `json:"status"`
 	}
 	if err := json.Unmarshal(answer, &envelope); err != nil {
-		return nil
+		return fmt.Errorf("%w: invalid device status", ErrDeviceAnswer)
 	}
 	for _, status := range envelope.Status {
 		if strings.EqualFold(status.Status, "error") {

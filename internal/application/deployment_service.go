@@ -41,6 +41,7 @@ type DeploymentConfig struct {
 	Deployers     DeployerRegistry
 	Backups       BackupStore
 	ManagedRoutes ManagedRouteRepository
+	ManagedFQDN   ManagedFQDNRepository
 	Clock         Clock
 }
 
@@ -130,12 +131,13 @@ type DeployPlan struct {
 	Title        string                 `json:"title"`
 	DeployerID   string                 `json:"deployer_id"`
 	SizeBytes    int64                  `json:"size_bytes"`
+	FQDNChanges  []string               `json:"fqdn_changes,omitzero"`
 	Requirements ConnectionRequirements `json:"requirements"`
 }
 
 // Plan resolves the artifact, its target, and its deployer, and validates the
-// connection — all without contacting the device. It is what a caller shows
-// before asking for confirmation.
+// connection. DNS deployment additionally reads device state to preview exact
+// changes; it never writes before confirmation.
 func (s *DeploymentService) Plan(ctx context.Context, command DeployCommand) (DeployPlan, error) {
 	payload, target, deployer, err := s.resolve(ctx, command)
 	if err != nil {
@@ -145,11 +147,36 @@ func (s *DeploymentService) Plan(ctx context.Context, command DeployCommand) (De
 	if title == "" {
 		title = target.ID
 	}
-	return DeployPlan{
+	plan := DeployPlan{
 		ArtifactID: payload.Artifact.ID, ArtifactHash: payload.Artifact.ArtifactHash,
 		TargetID: target.ID, Title: title, DeployerID: deployer.ID(),
 		SizeBytes: payload.Artifact.SizeBytes, Requirements: deployer.Requirements(),
-	}, nil
+	}
+	if fqdn, ok := deployer.(ManagedFQDNDeployer); ok {
+		if s.config.ManagedFQDN == nil {
+			return DeployPlan{}, fmt.Errorf("%w: FQDN ownership ledger required", ErrDeployComposition)
+		}
+		device, probeErr := deployer.Probe(ctx, command.Connection)
+		if probeErr != nil {
+			return DeployPlan{}, fmt.Errorf("%w: probe: %w", ErrDeployFailed, probeErr)
+		}
+		if device.FormatKey != target.FormatKey {
+			return DeployPlan{}, ErrDeviceIncompatible
+		}
+		endpoint, endpointErr := fqdn.FQDNEndpoint(command.Connection.Redacted())
+		if endpointErr != nil {
+			return DeployPlan{}, endpointErr
+		}
+		prior, readErr := s.config.ManagedFQDN.ManagedFQDNOwnership(ctx, endpoint, payload.Artifact.OutputID)
+		if readErr != nil {
+			return DeployPlan{}, readErr
+		}
+		plan.FQDNChanges, err = fqdn.PreviewFQDNGroups(ctx, device, command.Connection, DeployArtifact{RendererID: payload.Artifact.RendererID, Payload: payload.Payload, OwnedFQDNGroups: prior.Groups})
+		if err != nil {
+			return DeployPlan{}, fmt.Errorf("%w: preview: %w", ErrDeployFailed, err)
+		}
+	}
+	return plan, nil
 }
 
 // Deploy applies the artifact through the fixed lifecycle. It refuses without
@@ -177,6 +204,7 @@ func (s *DeploymentService) Deploy(ctx context.Context, command DeployCommand) (
 		Connection:    command.Connection,
 		OutputID:      payload.Artifact.OutputID,
 		ManagedRoutes: s.config.ManagedRoutes,
+		ManagedFQDN:   s.config.ManagedFQDN,
 		Artifact: DeployArtifact{
 			ArtifactID:      payload.Artifact.ID,
 			RendererID:      payload.Artifact.RendererID,
@@ -195,7 +223,7 @@ func (s *DeploymentService) Deploy(ctx context.Context, command DeployCommand) (
 // identity without contacting or mutating the device. A later deployment to
 // that address starts from an empty, additive ledger.
 func (s *DeploymentService) RetireManagedRoutes(ctx context.Context, targetID string, connection Connection) error {
-	if s.config.ManagedRoutes == nil {
+	if s.config.ManagedRoutes == nil && s.config.ManagedFQDN == nil {
 		return nil
 	}
 	target, err := s.config.Artifacts.TargetDefinition(targetID)
@@ -207,6 +235,13 @@ func (s *DeploymentService) RetireManagedRoutes(ctx context.Context, targetID st
 		return fmt.Errorf("%w: %q", ErrDeployerUnavailable, target.RendererID)
 	}
 	managed, ok := deployer.(ManagedRouteDeployer)
+	if fqdn, fqdnOK := deployer.(ManagedFQDNDeployer); fqdnOK && s.config.ManagedFQDN != nil {
+		endpoint, err := fqdn.FQDNEndpoint(connection.Redacted())
+		if err != nil {
+			return err
+		}
+		return s.config.ManagedFQDN.RetireManagedFQDNOwnership(ctx, endpoint, connection.Interface)
+	}
 	if !ok {
 		return nil
 	}

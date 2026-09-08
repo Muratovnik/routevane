@@ -46,9 +46,9 @@ const (
 	RefusedBrowserBackgroundService = "browser_background_service"
 )
 
-// guardedProxy is the single chokepoint for every byte the discovery browser
-// sends or receives. The browser is started with no bypass list, so a request
-// it cannot route through this proxy cannot leave the process at all.
+// guardedProxy checks destinations for the discovery browser's HTTP tunnels.
+// The browser has no proxy bypass list; its separate WebRTC transport also
+// disables non-proxied UDP through the isolated profile's routing preference.
 //
 // Plaintext requests are refused rather than forwarded: the session starts from
 // an HTTPS URL, so a plaintext subresource is either downgraded or unrelated,
@@ -63,8 +63,11 @@ type guardedProxy struct {
 	bytes    atomic.Int64
 	requests atomic.Int64
 
-	mu      sync.Mutex
-	hosts   map[string]int
+	mu    sync.Mutex
+	hosts map[string]int
+	// pending counts in-flight attempts for hosts not yet contacted. Together
+	// with hosts it reserves unique destination capacity before DNS or dial.
+	pending map[string]int
 	blocked map[string]string
 	// step and stepComponent describe the exploration step that is running, so a
 	// host can be attributed to an action the user actually performed.
@@ -84,6 +87,7 @@ func newGuardedProxy(resolver Resolver, dialer Dialer, maxRequests, maxHosts int
 		maxHosts:    maxHosts,
 		maxBytes:    maxBytes,
 		hosts:       make(map[string]int),
+		pending:     make(map[string]int),
 		blocked:     make(map[string]string),
 		steps:       make(map[string]map[string]struct{}),
 		components:  make(map[string]string),
@@ -115,11 +119,22 @@ func (p *guardedProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid destination", http.StatusBadRequest)
 		return
 	}
-	host = strings.ToLower(host)
+	if address, parseErr := netip.ParseAddr(host); parseErr == nil {
+		host = address.Unmap().String()
+	} else {
+		normalized, normalizeErr := domain.NormalizeDomain(host)
+		if normalizeErr != nil {
+			p.refuse(strings.ToLower(host), RefusedInvalidHost)
+			http.Error(w, "destination refused by discovery policy", http.StatusForbidden)
+			return
+		}
+		host = normalized
+	}
 	if reason := p.attempt(host); reason != "" {
 		http.Error(w, "destination refused by discovery policy", http.StatusForbidden)
 		return
 	}
+	defer p.releaseAttempt(host)
 	address, reason := p.resolveAllowed(r.Context(), host, port)
 	if reason != "" {
 		p.refuse(host, reason)
@@ -189,15 +204,9 @@ func (p *guardedProxy) tunnel(client, upstream net.Conn) {
 	group.Wait()
 }
 
-// attempt applies the session bounds to one requested host. An empty return
-// value means the request may proceed to the address policy.
+// attempt applies the session bounds to one normalized host. An empty return
+// value reserves capacity until connected or releaseAttempt finishes the attempt.
 func (p *guardedProxy) attempt(host string) string {
-	if _, err := domain.NormalizeDomain(host); err != nil {
-		if _, addrErr := netip.ParseAddr(host); addrErr != nil {
-			p.refuse(host, RefusedInvalidHost)
-			return RefusedInvalidHost
-		}
-	}
 	if backgroundService(host) {
 		// The browser's own background services are not evidence about the page.
 		// This list describes the browser, not the site, so it never affects
@@ -211,11 +220,24 @@ func (p *guardedProxy) attempt(host string) string {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, known := p.hosts[host]; !known && len(p.hosts) >= p.maxHosts {
-		p.blocked[host] = RefusedHostLimit
-		return RefusedHostLimit
+	if _, known := p.hosts[host]; !known {
+		if p.pending[host] == 0 && len(p.hosts)+len(p.pending) >= p.maxHosts {
+			p.blocked[host] = RefusedHostLimit
+			return RefusedHostLimit
+		}
+		p.pending[host]++
 	}
 	return ""
+}
+
+func (p *guardedProxy) releaseAttempt(host string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.pending[host] <= 1 {
+		delete(p.pending, host)
+	} else {
+		p.pending[host]--
+	}
 }
 
 // connected records a host the policy accepted and a connection reached,
@@ -224,6 +246,7 @@ func (p *guardedProxy) connected(host string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.hosts[host]++
+	delete(p.pending, host)
 	delete(p.blocked, host)
 	if p.step != "" {
 		if _, known := p.steps[host]; !known {

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Muratovnik/routevane/internal/application"
-	"github.com/Muratovnik/routevane/internal/domain"
 	"github.com/Muratovnik/routevane/internal/renderers/keeneticdns"
 )
 
@@ -83,17 +82,17 @@ func TestFQDNRouteFlagsAreNotSilentlyTreatedAsEquivalent(t *testing.T) {
 			deployer := NewFQDNDeployer(Options{Dialer: fixtureDialer{target: server.Listener.Addr().String()}})
 			connection := application.Connection{URL: "http://192.168.1.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface}
 			info, err := deployer.Probe(context.Background(), connection)
-			if test.refused && !errors.Is(err, ErrDeviceAnswer) || !test.refused && err != nil {
+			if test.name == "invalid reject" {
+				if !errors.Is(err, ErrDeviceAnswer) {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err != nil {
 				t.Fatal(err)
 			}
 			artifact := fqdnArtifact(t, "example=example.com")
-			if test.refused {
-				request := application.DeployRequest{Connection: connection, Artifact: artifact, Target: domain.TargetDefinition{ID: "keenetic-dns", RendererID: FQDNDeployerID, FormatKey: keeneticdns.Version}}
-				result, err := application.DeployToDevice(context.Background(), request, application.DeployerRegistry{deployer.ID(): deployer}, unusedBackupStore{}, application.ClockFunc(time.Now))
-				if err == nil || len(result.Events) != 1 || result.Events[0].Step != application.StepProbe || result.RolledBack {
-					t.Fatalf("incompatible snapshot reached the write lifecycle: %#v %v", result, err)
-				}
-			}
+			artifact.OwnedFQDNGroups = []application.ManagedFQDNGroup{{Name: name, Entries: []string{"example.com"}, Interface: deviceInterface, Auto: true}}
 			for _, operation := range []func(context.Context, application.DeviceInfo, application.Connection, application.DeployArtifact) error{deployer.Deploy, deployer.Verify} {
 				err := operation(context.Background(), info, connection, artifact)
 				if test.refused && !errors.Is(err, ErrDeviceAnswer) || !test.refused && err != nil {
@@ -105,12 +104,6 @@ func TestFQDNRouteFlagsAreNotSilentlyTreatedAsEquivalent(t *testing.T) {
 			}
 		})
 	}
-}
-
-type unusedBackupStore struct{}
-
-func (unusedBackupStore) PutBackup(context.Context, string, time.Time, []byte) (application.BackupRef, error) {
-	return application.BackupRef{}, errors.New("probe should refuse before backup")
 }
 
 func TestRCIReadBoundsTheResponseBodyAfterHeadersArrive(t *testing.T) {

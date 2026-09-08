@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -353,6 +354,77 @@ func TestProfilesListNewestFirstAndOutputsSurviveTheRoundTrip(t *testing.T) {
 	}
 }
 
+func TestSchedulerAndReferenceQueriesSeeProfilesBeyondTheShelfLimit(t *testing.T) {
+	store, err := Open(context.Background(), newDataRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	now := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+	oldestID := fmt.Sprintf("%032x", 1)
+	for index := 1; index <= profileLimit+1; index++ {
+		profile := application.Profile{
+			ID: fmt.Sprintf("%032x", index), Name: fmt.Sprintf("profile-%d", index),
+			Lists: []string{"unused"}, CreatedAt: now.Add(time.Duration(index) * time.Minute), UpdatedAt: now,
+		}
+		if index == 1 {
+			profile.Lists = []string{"old-list"}
+			profile.Categories = []string{"old-category"}
+			profile.RefreshInterval = application.RefreshDaily
+		}
+		if err := store.CreateProfile(context.Background(), profile); err != nil {
+			t.Fatalf("create profile %d: %v", index, err)
+		}
+		if index == 1 {
+			if err := store.UpdateProfileRefreshInterval(context.Background(), profile.ID, application.RefreshDaily, now.Add(time.Hour)); err != nil {
+				t.Fatalf("schedule oldest profile: %v", err)
+			}
+		}
+	}
+
+	shelf, err := store.Profiles(context.Background())
+	if err != nil || len(shelf) != profileLimit {
+		t.Fatalf("shelf count = %d, err = %v", len(shelf), err)
+	}
+	for _, profile := range shelf {
+		if profile.ID == oldestID {
+			t.Fatal("shelf fixture did not place the oldest profile beyond its limit")
+		}
+	}
+	scheduled, err := store.ProfilesForScheduling(context.Background())
+	if err != nil || len(scheduled) != profileLimit+1 {
+		t.Fatalf("scheduler count = %d, err = %v", len(scheduled), err)
+	}
+	foundOldest := false
+	for _, profile := range scheduled {
+		if profile.ID == oldestID && profile.RefreshInterval == application.RefreshDaily {
+			foundOldest = true
+		}
+	}
+	if !foundOldest {
+		t.Fatal("scheduler omitted the old daily profile")
+	}
+	for _, query := range []struct {
+		name       string
+		categories []string
+		lists      []string
+	}{
+		{name: "list", lists: []string{"old-list"}},
+		{name: "category", categories: []string{"old-category"}},
+	} {
+		t.Run(query.name, func(t *testing.T) {
+			references, err := store.ProfileReferences(context.Background(), query.categories, query.lists)
+			if err != nil || len(references) != 1 || references[0].ID != oldestID || references[0].Title != "profile-1" {
+				t.Fatalf("references = %#v, err = %v", references, err)
+			}
+		})
+	}
+	references, err := store.ProfileReferences(context.Background(), nil, []string{"unreferenced"})
+	if err != nil || len(references) != 0 {
+		t.Fatalf("unused references = %#v, err = %v", references, err)
+	}
+}
+
 func publicationProfileAndOutput(profileID, outputID string, now time.Time) (application.Profile, application.Output) {
 	profile := application.Profile{ID: profileID, Name: "example profile", Lists: []string{"example"}, CreatedAt: now, UpdatedAt: now}
 	output := application.Output{ID: outputID, ProfileID: profileID, TargetID: "keenetic", FormatKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat", RendererVersion: "keenetic-bat-ipv4-v1", TargetRevision: string(make([]byte, 64)), CreatedAt: now}
@@ -391,7 +463,10 @@ func TestScheduleAndCompositionAreWrittenIndependently(t *testing.T) {
 	}
 
 	refreshed := now.Add(time.Hour)
-	if err := store.UpdateProfileSchedule(context.Background(), profile.ID, application.RefreshDaily, refreshed, true, refreshed); err != nil {
+	if err := store.UpdateProfileRefreshInterval(context.Background(), profile.ID, application.RefreshDaily, refreshed); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordProfileRefreshResult(context.Background(), profile.ID, refreshed, true); err != nil {
 		t.Fatal(err)
 	}
 	stored, err = store.Profile(context.Background(), profile.ID)
@@ -420,6 +495,52 @@ func TestScheduleAndCompositionAreWrittenIndependently(t *testing.T) {
 	}
 }
 
+func TestRefreshResultPreservesANewerOperatorIntervalAndEditTime(t *testing.T) {
+	dataRoot := newDataRoot(t)
+	store, err := Open(context.Background(), dataRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createdAt := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
+	profile := application.Profile{
+		ID: strings.Repeat("6", 32), Name: "schedule", Lists: []string{"example"},
+		CreatedAt: createdAt, UpdatedAt: createdAt,
+	}
+	if err := store.CreateProfile(context.Background(), profile); err != nil {
+		t.Fatal(err)
+	}
+	startedAt := createdAt.Add(time.Hour)
+	if err := store.UpdateProfileRefreshInterval(context.Background(), profile.ID, application.RefreshDaily, startedAt); err != nil {
+		t.Fatal(err)
+	}
+	operatorAt := startedAt.Add(time.Hour)
+	if err := store.UpdateProfileRefreshInterval(context.Background(), profile.ID, application.RefreshOff, operatorAt); err != nil {
+		t.Fatal(err)
+	}
+	completedAt := operatorAt.Add(time.Hour)
+	if err := store.RecordProfileRefreshResult(context.Background(), profile.ID, completedAt, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenExisting(context.Background(), dataRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	stored, err := store.Profile(context.Background(), profile.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.RefreshInterval != application.RefreshOff || !stored.UpdatedAt.Equal(operatorAt) {
+		t.Fatalf("refresh result rewrote operator fields: %#v", stored)
+	}
+	if !stored.LastRefreshedAt.Equal(completedAt) || !stored.LastRefreshFailed {
+		t.Fatalf("refresh result was not recorded: %#v", stored)
+	}
+}
+
 // Archival is stored apart from both the composition and the schedule: the
 // column carries the moment the profile left the shelf, and nothing else moves
 // with it. A restored profile keeps the rule and the refresh history it had.
@@ -438,7 +559,10 @@ func TestArchivalIsStoredApartFromTheRestOfTheProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	refreshed := now.Add(time.Hour)
-	if err := store.UpdateProfileSchedule(context.Background(), profile.ID, application.RefreshWeekly, refreshed, false, refreshed); err != nil {
+	if err := store.UpdateProfileRefreshInterval(context.Background(), profile.ID, application.RefreshWeekly, refreshed); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordProfileRefreshResult(context.Background(), profile.ID, refreshed, false); err != nil {
 		t.Fatal(err)
 	}
 	stored, err := store.Profile(context.Background(), profile.ID)

@@ -430,6 +430,20 @@ const onProfileMenu = async (key: string): Promise<void> => {
     </RvStateNotice>
 
     <template v-else>
+      <RvStateNotice
+        v-if="view.catalogRefresh.state.value === 'stale'"
+        live
+        :title="t('catalog.stale')"
+        :body="t('catalog.stale.body')"
+        tone="warning"
+      >
+        <template #action>
+          <RvButton @click="view.catalogRefresh.retry">{{
+            t('action.retry')
+          }}</RvButton>
+        </template>
+      </RvStateNotice>
+
       <header class="profile__header">
         <nav :aria-label="t('profile.breadcrumb')" class="profile__breadcrumb">
           <NuxtLink class="profile__breadcrumb-link" to="/">
@@ -562,197 +576,201 @@ const onProfileMenu = async (key: string): Promise<void> => {
         {{ t('profile.subscription.gone') }}
       </p>
 
-      <RvTabs v-model="tab" :label="t('profile.tabs')" :tabs="tabs" />
-
-      <div
-        v-show="tab === 'overview'"
-        id="rv-panel-overview"
-        aria-labelledby="rv-tab-overview"
-        class="profile__panel profile__panel--composition"
-        role="tabpanel"
-      >
-        <ProfileEditor
-          v-if="!view.archived.value && view.profile.value !== null"
-          :busy="view.busy.value"
-          :categories="view.catalog.value?.categories ?? []"
-          :exclusions="view.profile.value.exclusions"
-          :list-domains="view.profile.value.listDomains"
-          :name="displayName"
-          :outputs="editorOutputs"
-          :priority="view.profile.value.priority"
-          :selected="view.profile.value.lists"
-          :selected-categories="view.profile.value.categories"
-          :lists="view.catalog.value?.listDetails ?? []"
-          @save="onSave"
-        />
-        <RvFacts v-else-if="facts.length > 0" :items="facts" />
-        <section
-          v-if="expert && technicalFacts.length > 0"
-          aria-labelledby="profile-technical"
-          class="profile__technical"
-        >
-          <h2 id="profile-technical" class="profile__section-title">
-            {{ t('profile.technical') }}
-          </h2>
-          <RvFacts :items="technicalFacts" />
-        </section>
-      </div>
-
-      <div
-        v-show="tab === 'outputs'"
-        id="rv-panel-outputs"
-        aria-labelledby="rv-tab-outputs"
-        class="profile__panel"
-        role="tabpanel"
-      >
-        <OutputsPanel
-          :archived="view.archived.value"
-          :busy="view.busy.value"
-          :deployable="view.deployable"
-          :devices="view.devices.value"
-          :profile-id="profileId"
-          :outputs="view.outputs.value"
-          :schedule="view.schedule.value"
-          :selected-id="view.selectedOutputID.value"
-          :target-groups="view.targetGroups.value"
-          :target-title="view.targetTitle"
-          @bind="onBind"
-          @bind-device="view.bindDevice"
-          @select="view.selectOutput"
-          @set-schedule="view.setSchedule"
-        />
-      </div>
-
-      <div
-        v-show="tab === 'file'"
-        id="rv-panel-file"
-        aria-labelledby="rv-tab-file"
-        class="profile__panel"
-        role="tabpanel"
-      >
-        <p v-if="view.outputs.value.length > 1" class="profile__panel-scope">
-          {{ t('profile.panel.scope', { target: selectedTitle }) }}
-        </p>
-        <RvStateNotice
-          v-if="view.latest.value === null"
-          :title="t('profile.diagnostics.none')"
-          tone="waiting"
-        />
-        <RvStateNotice
-          v-else-if="view.contentState.value === 'loading'"
-          live
-          :title="t('profile.file.loading')"
-          tone="busy"
-        />
-        <RvStateNotice
-          v-else-if="view.contentState.value === 'failed'"
-          :body="t('profile.file.failed.body')"
-          live
-          :title="t('profile.file.failed')"
-          tone="warning"
-        >
-          <template #action
-            ><RvButton size="compact" @click="view.openContent()">{{
-              t('action.retry')
-            }}</RvButton></template
-          >
-        </RvStateNotice>
-        <RvCodeBlock
-          v-else-if="view.content.value !== null"
-          fill
-          :caption="tc('profile.lines', view.lineCount.value)"
-          :text="view.content.value.text"
-        >
-          <template #action>
-            <RvCopyButton
-              :copied-label="t('profile.file.copied')"
-              :failed-label="t('profile.subscription.copyFailed')"
-              :label="t('profile.file.copy')"
-              :value="view.content.value.text"
-              variant="quiet"
+      <RvTabs v-model="tab" :label="t('profile.tabs')" :tabs="tabs">
+        <template #overview>
+          <div class="profile__panel profile__panel--composition">
+            <ProfileEditor
+              v-if="!view.archived.value && view.profile.value !== null"
+              :busy="view.busy.value"
+              :categories="view.catalog.value?.categories ?? []"
+              :exclusions="view.profile.value.exclusions"
+              :list-domains="view.profile.value.listDomains"
+              :name="displayName"
+              :outputs="editorOutputs"
+              :priority="view.profile.value.priority"
+              :selected="view.profile.value.lists"
+              :selected-categories="view.profile.value.categories"
+              :lists="view.catalog.value?.listDetails ?? []"
+              @save="onSave"
             />
-          </template>
-        </RvCodeBlock>
-      </div>
-
-      <div
-        v-show="tab === 'diagnostics'"
-        id="rv-panel-diagnostics"
-        aria-labelledby="rv-tab-diagnostics"
-        class="profile__panel"
-        role="tabpanel"
-      >
-        <p v-if="view.outputs.value.length > 1" class="profile__panel-scope">
-          {{ t('profile.panel.scope', { target: selectedTitle }) }}
-        </p>
-        <RvStateNotice
-          v-if="view.snapshotID.value === ''"
-          :title="t('profile.diagnostics.none')"
-          tone="waiting"
-        />
-        <RvStateNotice
-          v-else-if="view.diagnosticsState.value === 'loading'"
-          live
-          :title="t('profile.diagnostics.loading')"
-          tone="busy"
-        />
-        <RvStateNotice
-          v-else-if="view.diagnosticsState.value === 'failed'"
-          :body="t('profile.diagnostics.failed.body')"
-          live
-          :title="t('profile.diagnostics.failed')"
-          tone="warning"
-        >
-          <template #action
-            ><RvButton size="compact" @click="view.openDiagnostics()">{{
-              t('action.retry')
-            }}</RvButton></template
-          >
-        </RvStateNotice>
-        <template v-else-if="view.diagnosticsState.value === 'ready'">
-          <p class="profile__prose">
-            {{ t('profile.diagnostics.perList') }}
-          </p>
-          <ul class="profile__counts">
-            <li
-              v-for="entry in view.rulesByList.value"
-              :key="entry.id"
-              class="profile__count"
+            <RvFacts v-else-if="facts.length > 0" :items="facts" />
+            <section
+              v-if="expert && technicalFacts.length > 0"
+              aria-labelledby="profile-technical"
+              class="profile__technical"
             >
-              <span>{{ view.listTitle(entry.id) }}</span>
-              <strong>{{ tc('profile.rules', entry.count) }}</strong>
-            </li>
-          </ul>
-          <p
-            v-if="view.diagnostics.value.every((rule) => !rule.excluded)"
-            class="profile__prose"
-          >
-            {{ t('profile.diagnostics.empty') }}
-          </p>
-          <ul class="profile__rules">
-            <li
-              v-for="rule in view.diagnostics.value"
-              :key="`${rule.excluded}-${rule.listID}-${rule.value}`"
-              class="profile__rule"
-            >
-              <span class="profile__rule-state">
-                {{
-                  rule.excluded
-                    ? t('profile.diagnostics.excluded')
-                    : t('profile.diagnostics.included')
-                }}
-              </span>
-              <span class="profile__rule-list">
-                {{ view.listTitle(rule.listID) }}
-              </span>
-              <span class="profile__rule-value">{{ rule.value }}</span>
-              <span class="profile__rule-reason">
-                {{ rule.reasons.map(reasonLabel).join(', ') }}
-              </span>
-            </li>
-          </ul>
+              <h2 id="profile-technical" class="profile__section-title">
+                {{ t('profile.technical') }}
+              </h2>
+              <RvFacts :items="technicalFacts" />
+            </section>
+          </div>
         </template>
-      </div>
+
+        <template #outputs>
+          <div class="profile__panel">
+            <OutputsPanel
+              :archived="view.archived.value"
+              :busy="view.busy.value"
+              :deployable="view.deployable"
+              :devices="view.devices.value"
+              :profile-id="profileId"
+              :outputs="view.outputs.value"
+              :schedule="view.schedule.value"
+              :schedule-saving="view.scheduleState.value === 'saving'"
+              :selected-id="view.selectedOutputID.value"
+              :target-groups="view.targetGroups.value"
+              :target-title="view.targetTitle"
+              @bind="onBind"
+              @bind-device="view.bindDevice"
+              @select="view.selectOutput"
+              @set-schedule="view.setSchedule"
+            />
+            <RvStateNotice
+              v-if="view.scheduleState.value === 'failed'"
+              live
+              :title="t('profile.schedule.failed')"
+              :body="t('profile.schedule.failed.body')"
+              tone="failed"
+            >
+              <template #action>
+                <RvButton @click="view.retrySchedule">{{
+                  t('action.retry')
+                }}</RvButton>
+              </template>
+            </RvStateNotice>
+          </div>
+        </template>
+
+        <template #file>
+          <div class="profile__panel">
+            <p
+              v-if="view.outputs.value.length > 1"
+              class="profile__panel-scope"
+            >
+              {{ t('profile.panel.scope', { target: selectedTitle }) }}
+            </p>
+            <RvStateNotice
+              v-if="view.latest.value === null"
+              :title="t('profile.diagnostics.none')"
+              tone="waiting"
+            />
+            <RvStateNotice
+              v-else-if="view.contentState.value === 'loading'"
+              live
+              :title="t('profile.file.loading')"
+              tone="busy"
+            />
+            <RvStateNotice
+              v-else-if="view.contentState.value === 'failed'"
+              :body="t('profile.file.failed.body')"
+              live
+              :title="t('profile.file.failed')"
+              tone="warning"
+            >
+              <template #action
+                ><RvButton size="compact" @click="view.openContent()">{{
+                  t('action.retry')
+                }}</RvButton></template
+              >
+            </RvStateNotice>
+            <RvCodeBlock
+              v-else-if="view.content.value !== null"
+              fill
+              :caption="tc('profile.lines', view.lineCount.value)"
+              :text="view.content.value.text"
+            >
+              <template #action>
+                <RvCopyButton
+                  :copied-label="t('profile.file.copied')"
+                  :failed-label="t('profile.subscription.copyFailed')"
+                  :label="t('profile.file.copy')"
+                  :value="view.content.value.text"
+                  variant="quiet"
+                />
+              </template>
+            </RvCodeBlock>
+          </div>
+        </template>
+
+        <template #diagnostics>
+          <div class="profile__panel">
+            <p
+              v-if="view.outputs.value.length > 1"
+              class="profile__panel-scope"
+            >
+              {{ t('profile.panel.scope', { target: selectedTitle }) }}
+            </p>
+            <RvStateNotice
+              v-if="view.snapshotID.value === ''"
+              :title="t('profile.diagnostics.none')"
+              tone="waiting"
+            />
+            <RvStateNotice
+              v-else-if="view.diagnosticsState.value === 'loading'"
+              live
+              :title="t('profile.diagnostics.loading')"
+              tone="busy"
+            />
+            <RvStateNotice
+              v-else-if="view.diagnosticsState.value === 'failed'"
+              :body="t('profile.diagnostics.failed.body')"
+              live
+              :title="t('profile.diagnostics.failed')"
+              tone="warning"
+            >
+              <template #action
+                ><RvButton size="compact" @click="view.openDiagnostics()">{{
+                  t('action.retry')
+                }}</RvButton></template
+              >
+            </RvStateNotice>
+            <template v-else-if="view.diagnosticsState.value === 'ready'">
+              <p class="profile__prose">
+                {{ t('profile.diagnostics.perList') }}
+              </p>
+              <ul class="profile__counts">
+                <li
+                  v-for="entry in view.rulesByList.value"
+                  :key="entry.id"
+                  class="profile__count"
+                >
+                  <span>{{ view.listTitle(entry.id) }}</span>
+                  <strong>{{ tc('profile.rules', entry.count) }}</strong>
+                </li>
+              </ul>
+              <p
+                v-if="view.diagnostics.value.every((rule) => !rule.excluded)"
+                class="profile__prose"
+              >
+                {{ t('profile.diagnostics.empty') }}
+              </p>
+              <ul class="profile__rules">
+                <li
+                  v-for="rule in view.diagnostics.value"
+                  :key="`${rule.excluded}-${rule.listID}-${rule.value}`"
+                  class="profile__rule"
+                >
+                  <span class="profile__rule-state">
+                    {{
+                      rule.excluded
+                        ? t('profile.diagnostics.excluded')
+                        : t('profile.diagnostics.included')
+                    }}
+                  </span>
+                  <span class="profile__rule-list">
+                    {{ view.listTitle(rule.listID) }}
+                  </span>
+                  <span class="profile__rule-value">{{ rule.value }}</span>
+                  <span class="profile__rule-reason">
+                    {{ rule.reasons.map(reasonLabel).join(', ') }}
+                  </span>
+                </li>
+              </ul>
+            </template>
+          </div>
+        </template>
+      </RvTabs>
     </template>
   </section>
 </template>
@@ -769,7 +787,8 @@ const onProfileMenu = async (key: string): Promise<void> => {
   min-width: 0;
 }
 
-.profile > * {
+.profile > *,
+.profile__panel {
   flex-shrink: 0;
 }
 

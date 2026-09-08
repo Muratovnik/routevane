@@ -14,7 +14,7 @@ import {
   type DeviceCard,
 } from '@/shared/api/devices'
 
-export type DevicesState = 'loading' | 'ready' | 'failed'
+export type DevicesState = 'loading' | 'ready' | 'stale' | 'failed'
 export type DevicesWork = 'idle' | 'working' | 'failed'
 export type RequirementsState = 'unknown' | 'loading' | 'ready' | 'failed'
 
@@ -74,13 +74,28 @@ export const useDevices = () => {
       requirementsState.value = 'failed'
     }
     if (loaded.status === 'rejected') {
-      if (!deviceRead) state.value = 'failed'
+      state.value = deviceRead ? 'stale' : 'failed'
       return
     }
     devices.value = loaded.value.devices
     secretStoreAvailable.value = loaded.value.secretStoreAvailable
     state.value = 'ready'
     deviceRead = true
+  }
+
+  const retryDevices = async (): Promise<void> => {
+    const request = ++initializeRequest
+    try {
+      const loaded = await loadDevices()
+      if (request !== initializeRequest) return
+      devices.value = loaded.devices
+      secretStoreAvailable.value = loaded.secretStoreAvailable
+      state.value = 'ready'
+      deviceRead = true
+    } catch {
+      if (request === initializeRequest)
+        state.value = deviceRead ? 'stale' : 'failed'
+    }
   }
 
   const retryRequirements = async (): Promise<boolean> => {
@@ -105,7 +120,7 @@ export const useDevices = () => {
   }
 
   const run = async (action: () => Promise<unknown>): Promise<boolean> => {
-    if (busy.value) return false
+    if (busy.value || state.value === 'stale') return false
     work.value = 'working'
     try {
       await action()
@@ -168,6 +183,7 @@ export const useDevices = () => {
     register,
     requirementsState,
     retryRequirements,
+    retryDevices,
     secretStoreAvailable,
     state,
     targets,

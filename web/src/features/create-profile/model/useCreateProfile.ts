@@ -262,7 +262,7 @@ export const useCreateProfile = () => {
       next.defaultPriority ?? next.listDetails.map((list) => list.id)
   }
 
-  useFreshCatalog(registerCatalog, () => busy.value)
+  const catalogRefresh = useFreshCatalog(registerCatalog, () => busy.value)
 
   const setTarget = (id: string): void => {
     if (busy.value || !targets.value.some((target) => target.id === id)) return
@@ -303,6 +303,7 @@ export const useCreateProfile = () => {
   }
 
   return {
+    catalogRefresh,
     blocked,
     busy,
     canCreate,

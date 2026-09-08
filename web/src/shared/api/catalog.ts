@@ -179,15 +179,19 @@ export const setDefaultPriority = saveDefaultPriority
 // process restarts, so one session-scoped copy saves a network round trip on
 // every list open. Writes below invalidate it; a failure is never cached.
 let cachedCatalog: Catalog | null = null
+let catalogGeneration = 0
 
 export const loadCatalogCached = async (): Promise<Catalog> => {
   if (cachedCatalog !== null) return cachedCatalog
+  const generation = catalogGeneration
   const catalog = await loadCatalog()
+  if (generation !== catalogGeneration) return loadCatalogCached()
   cachedCatalog = catalog
   return catalog
 }
 
 export const invalidateCatalogCache = (): void => {
+  catalogGeneration += 1
   cachedCatalog = null
 }
 

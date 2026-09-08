@@ -11,6 +11,29 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
+### Changed
+
+- Keenetic DNS builds use output-scoped, collision-checked group names and an
+  optional per-output prefix. Delivery changes only groups with persisted exact
+  ownership. Existing files remain immutable; unowned name conflicts require
+  manual review and migration, including after loss of the ownership ledger.
+
+### Fixed
+
+- Keenetic save errors inside HTTP 200 responses now fail delivery. Recovery must
+  save and read back the restored configuration; recovery failure takes priority
+  over the original verification error.
+- Keenetic DNS delivery detects and repairs `auto` policy drift on owned groups.
+- Browser discovery blocks direct WebRTC UDP and enforces the host limit while
+  connections are still pending.
+- Scheduled refresh preserves newer schedule choices and includes profiles beyond
+  the first 200. Build capacity is checked after overlapping rules are pruned.
+- The web interface restores send-menu navigation, visible retry states and
+  catalog refresh after busy operations. Tabs preserve keyboard access and drafts;
+  repeated single selections close their picker, including when it becomes busy.
+- Plugin shutdown remains bounded when a plugin stops reading its input, and
+  Windows executable cleanup tolerates transient locks after process exit.
+
 ## [0.1.7](https://github.com/Muratovnik/routevane/compare/v0.1.5...v0.1.7) (2026-09-06)
 
 ### Highlights

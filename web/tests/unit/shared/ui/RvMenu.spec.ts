@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
 import { defineComponent, h } from 'vue'
+import { createMemoryHistory, createRouter, RouterLink } from 'vue-router'
 
 import type { MenuItem } from '@/shared/ui/types'
 import RvMenu from '@/shared/ui/RvMenu.vue'
@@ -162,3 +163,65 @@ describe('RvMenu', () => {
     await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
   })
 })
+
+it.each([false, true])(
+  'routes a menu link with a real router (grouped=%s)',
+  async (grouped) => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/', component: { template: '<div />' } },
+        { path: '/send/output-a', component: { template: '<div />' } },
+      ],
+    })
+    await router.push('/')
+    const children: MenuItem[] = [
+      { key: 'send', label: 'Send to router', to: '/send/output-a' },
+      {
+        key: 'blocked',
+        label: 'Unavailable output',
+        to: '/send/output-b',
+        disabled: true,
+      },
+      {
+        key: 'download',
+        label: 'Download file',
+        href: '/file.txt',
+        download: true,
+      },
+    ]
+    const screen = await render(RvMenu, {
+      props: {
+        label: 'Actions',
+        items: grouped
+          ? [{ key: 'outputs', label: 'Outputs', children }]
+          : children,
+      },
+      global: { plugins: [router], components: { NuxtLink: RouterLink } },
+    })
+    await screen.getByRole('button', { name: 'Actions' }).click()
+    if (grouped)
+      await screen
+        .getByRole('menuitem', { name: 'Outputs', exact: true })
+        .click()
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'Unavailable output' }))
+      .toHaveAttribute('data-disabled')
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'Unavailable output' }))
+      .not.toHaveAttribute('href')
+    await screen
+      .getByRole('menuitem', { name: 'Unavailable output' })
+      .click({ force: true })
+    expect(router.currentRoute.value.path).toBe('/')
+    expect(screen.emitted('select')).toBeUndefined()
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'Download file' }))
+      .toHaveAttribute('download', '')
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'Send to router' }))
+      .toHaveAttribute('href', '/send/output-a')
+    await screen.getByRole('menuitem', { name: 'Send to router' }).click()
+    expect(router.currentRoute.value.path).toBe('/send/output-a')
+  },
+)

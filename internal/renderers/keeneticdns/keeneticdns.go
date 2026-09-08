@@ -20,6 +20,7 @@ package keeneticdns
 import (
 	"bytes"
 	"cmp"
+	"crypto/sha256"
 	"fmt"
 	"maps"
 	"net/netip"
@@ -35,7 +36,8 @@ const (
 	// GroupPrefix namespaces every group this product writes. The group budget
 	// is shared with whatever the operator created by hand or with another
 	// tool, and a collision would silently rewrite their group.
-	GroupPrefix = "routevane-"
+	GroupPrefix     = "routevane-"
+	MaxPrefixLength = 24
 	// MaxEntriesPerGroup bounds one group. Keenetic documents no entry limit for
 	// an FQDN group, so this is our value, not theirs: it matches the figure the
 	// field tooling settled on, and it lives here and in the target definition so a
@@ -95,7 +97,16 @@ type Group struct {
 }
 
 func Render(plan domain.RoutingPlan) ([]byte, error) {
-	groups, err := projectPlan(plan)
+	return (Renderer{}).RenderOutput(plan, "", "")
+}
+
+// RenderOutput binds names to immutable output identity. The readable prefix
+// carries no ownership authority; deployment consults its persisted ledger.
+func (Renderer) RenderOutput(plan domain.RoutingPlan, outputID, prefix string) ([]byte, error) {
+	if err := ValidatePrefix(prefix); err != nil {
+		return nil, err
+	}
+	groups, err := projectOutputPlan(plan, outputID, prefix)
 	if err != nil {
 		return nil, err
 	}
@@ -107,6 +118,14 @@ func Render(plan domain.RoutingPlan) ([]byte, error) {
 // Grouping by list is what makes a group on the router attributable: an
 // operator reading the name knows what it is and what removing it costs.
 func projectPlan(plan domain.RoutingPlan) ([]Group, error) {
+	return projectOutputPlan(plan, "", "")
+}
+
+func projectOutputPlan(plan domain.RoutingPlan, outputID, prefix string) ([]Group, error) {
+	if prefix == "" {
+		prefix = "routevane"
+	}
+	owner := sha256.Sum256([]byte(outputID))
 	byList := make(map[string][]string)
 	for _, rule := range plan.Rules {
 		if !rule.IsValid() || rule.Action != domain.ActionRoute {
@@ -123,17 +142,20 @@ func projectPlan(plan domain.RoutingPlan) ([]Group, error) {
 	}
 	lists := slices.Sorted(maps.Keys(byList))
 	groups := make([]Group, 0, len(lists))
+	seen := make(map[string]bool)
 	for _, list := range lists {
+		identity := sha256.Sum256([]byte(list))
 		entries := domain.StableStrings(byList[list])
 		for index := 0; index < len(entries); index += MaxEntriesPerGroup {
 			end := min(index+MaxEntriesPerGroup, len(entries))
-			name := GroupPrefix + list
-			if index > 0 {
-				name = fmt.Sprintf("%s-%d", name, index/MaxEntriesPerGroup+1)
-			}
+			name := fmt.Sprintf("%s-%x-%x-s%d", prefix, owner[:6], identity[:8], index/MaxEntriesPerGroup+1)
 			if len(name) > maxGroupName {
 				return nil, fmt.Errorf("keenetic FQDN group name exceeds the bound")
 			}
+			if seen[name] {
+				return nil, fmt.Errorf("keenetic FQDN group identity collision")
+			}
+			seen[name] = true
 			groups = append(groups, Group{Name: name, Entries: entries[index:end]})
 		}
 	}
@@ -263,8 +285,8 @@ func Validate(payload []byte) error {
 }
 
 func validGroupName(name string) bool {
-	rest, found := strings.CutPrefix(name, GroupPrefix)
-	if !found || rest == "" || len(name) > maxGroupName {
+	rest := name
+	if rest == "" || len(name) > maxGroupName {
 		return false
 	}
 	for i := 0; i < len(rest); i++ {
@@ -274,6 +296,17 @@ func validGroupName(name string) bool {
 		}
 	}
 	return rest[0] != '-' && rest[len(rest)-1] != '-'
+}
+
+// ValidatePrefix accepts only a compact CLI-safe human-readable label.
+func ValidatePrefix(prefix string) error {
+	if prefix == "" {
+		return nil
+	}
+	if len(prefix) > MaxPrefixLength || domain.ValidateSlug(prefix) != nil {
+		return fmt.Errorf("FQDN group prefix must be a lowercase slug of at most %d characters", MaxPrefixLength)
+	}
+	return nil
 }
 
 func validEntry(value string) bool {

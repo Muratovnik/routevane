@@ -121,8 +121,8 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		Artifacts:     publication,
 		Deployers:     deployerRegistry(deps, deployOptions{}),
 		Backups:       filesystem.BackupStore{DataRoot: root},
-		ManagedRoutes: store,
-		Clock:         application.ClockFunc(deps.Now),
+		ManagedRoutes: store, ManagedFQDN: store,
+		Clock: application.ClockFunc(deps.Now),
 	})
 	if err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")

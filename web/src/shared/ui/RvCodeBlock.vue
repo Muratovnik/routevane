@@ -42,13 +42,13 @@ defineProps<{
 }
 
 .rv-code__body {
-  max-height: 20rem;
+  max-height: var(--rv-code-height);
   margin: 0;
   padding: var(--rv-space-4);
   overflow: auto;
   font-size: var(--rv-text-dense);
   font-family: var(--rv-font-mono);
-  line-height: 1.6;
+  line-height: var(--rv-leading-code);
   background: var(--rv-color-canvas);
   border: var(--rv-border-hair) solid var(--rv-color-rule);
   border-radius: var(--rv-radius-sm);

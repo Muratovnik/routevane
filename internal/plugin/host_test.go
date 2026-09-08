@@ -1,17 +1,20 @@
 package plugin
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/netip"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +22,19 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 	wire "github.com/Muratovnik/routevane/sdk/routevaneplugin"
 )
+
+type observedWriteCloser struct {
+	io.WriteCloser
+	started chan struct{}
+	once    sync.Once
+}
+
+func (w *observedWriteCloser) Write(payload []byte) (int, error) {
+	if len(payload) > wire.MaxFrameBytes/2 {
+		w.once.Do(func() { close(w.started) })
+	}
+	return w.WriteCloser.Write(payload)
+}
 
 func TestMain(m *testing.M) {
 	if handled, exitCode := RunProcessRunner(os.Args[1:]); handled {
@@ -289,6 +305,9 @@ func TestTheVerifiedExecutionSnapshotIsRemovedOnClose(t *testing.T) {
 	if err := client.Close(); err != nil {
 		t.Fatal(err)
 	}
+	if client.command.ProcessState == nil {
+		t.Fatal("the cleanly closed plugin process was not reaped")
+	}
 	if _, err := os.Stat(snapshot); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("execution snapshot still exists: %v", err)
 	}
@@ -479,6 +498,70 @@ func TestAPluginThatHangsIsTerminated(t *testing.T) {
 	}
 	if client.command.ProcessState == nil {
 		t.Fatal("the hung plugin process was not reaped")
+	}
+}
+
+func TestCloseIsBoundedWhenAPluginStopsReadingAFullInputPipe(t *testing.T) {
+	installed := buildPlugin(t, "./internal/plugin/testdata/blockinginput", fixtureManifest("blocking-input-plugin", "blocking-input"))
+	client, err := Start(context.Background(), installed, Options{CallTimeout: 30 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = client.terminate()
+		_ = client.Close()
+	})
+	snapshot := client.snapshotDirectory
+
+	writeStarted := make(chan struct{})
+	client.stdin = &observedWriteCloser{WriteCloser: client.stdin, started: writeStarted}
+	callDone := make(chan error, 1)
+	go func() {
+		_, callErr := client.Call(context.Background(), wire.Envelope{
+			Type:     wire.MessageValidate,
+			Validate: &wire.ValidateCall{Payload: bytes.Repeat([]byte("a"), 5<<20)},
+		})
+		callDone <- callErr
+	}()
+	select {
+	case <-writeStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the allowed large call never reached the plugin input pipe")
+	}
+
+	closeDone := make(chan error, 1)
+	go func() { closeDone <- client.Close() }()
+	select {
+	case err := <-closeDone:
+		if err != nil {
+			t.Fatalf("close: %v", err)
+		}
+	case <-time.After(DefaultShutdownGrace + 3*time.Second):
+		_ = client.terminate()
+		select {
+		case <-closeDone:
+		case <-time.After(5 * time.Second):
+			t.Fatal("Close stayed blocked after forced process termination")
+		}
+		t.Fatal("Close did not enforce its shutdown grace while plugin input was blocked")
+	}
+
+	select {
+	case callErr := <-callDone:
+		if !errors.Is(callErr, ErrUnavailable) && !errors.Is(callErr, ErrTimeout) {
+			t.Fatalf("blocked call error = %v", callErr)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the blocked call remained after Close returned")
+	}
+	if client.command.ProcessState == nil {
+		t.Fatal("the input-blocked plugin process was not reaped")
+	}
+	if _, err := os.Stat(snapshot); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("execution snapshot still exists: %v", err)
+	}
+	if _, err := client.Call(context.Background(), wire.Envelope{Type: wire.MessageValidate, Validate: &wire.ValidateCall{}}); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("call after close err = %v, want ErrUnavailable", err)
 	}
 }
 

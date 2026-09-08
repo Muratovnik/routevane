@@ -28,4 +28,26 @@ describe('RvDisclosure', () => {
     await expect.element(panel).not.toHaveAttribute('inert')
     expect(screen.emitted('toggle')).toEqual([[true]])
   })
+
+  it('retains a draft while uncontrolled content is closed and reopened', async () => {
+    const screen = await render(RvDisclosure, {
+      props: { summary: 'Advanced settings' },
+      slots: { default: '<input aria-label="Prefix" />' },
+    })
+    const trigger = screen.getByRole('button', { name: 'Advanced settings' })
+
+    await trigger.click()
+    const field = screen.getByLabelText('Prefix')
+    await field.fill('routevane')
+    await trigger.click()
+    const panel = screen.getByRole('region', {
+      includeHidden: true,
+      name: 'Advanced settings',
+    })
+    await expect.element(panel).toHaveAttribute('inert', '')
+    await expect.element(field).toBeInTheDocument()
+    await trigger.click()
+
+    await expect.element(field).toHaveValue('routevane')
+  })
 })

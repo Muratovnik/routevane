@@ -70,7 +70,7 @@ func TestPublishesEveryBuiltInFormatFromOneProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("group file invalid: %v\n%s", err, names.payload)
 	}
-	if len(groups) != 1 || groups[0].Name != "routevane-youtube" {
+	if len(groups) != 1 || groups[0].Name != "routevane-e3b0c44298fc-24e6654bfd1ab85b-s1" {
 		t.Fatalf("groups = %#v", groups)
 	}
 	if !containsEntry(groups[0].Entries, "youtube.com") {

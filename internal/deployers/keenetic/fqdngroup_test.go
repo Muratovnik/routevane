@@ -19,6 +19,7 @@ type fqdnFixture struct {
 	device     *deviceDouble
 	deployer   *FQDNDeployer
 	connection application.Connection
+	owned      []application.ManagedFQDNGroup
 }
 
 func newFQDNFixture(t *testing.T, firmware string) *fqdnFixture {
@@ -80,12 +81,14 @@ func (f *fqdnFixture) probe(t *testing.T) application.DeviceInfo {
 func (f *fqdnFixture) apply(t *testing.T, artifact application.DeployArtifact) {
 	t.Helper()
 	info := f.probe(t)
+	artifact.OwnedFQDNGroups = f.owned
 	if err := f.deployer.Deploy(context.Background(), info, f.connection, artifact); err != nil {
 		t.Fatal(err)
 	}
 	if err := f.deployer.Verify(context.Background(), info, f.connection, artifact); err != nil {
 		t.Fatalf("the device did not hold what was just applied: %v", err)
 	}
+	f.owned, _ = f.deployer.DesiredFQDNGroups(info, artifact)
 }
 
 // A list that lost a list must stop costing the device its group budget.
@@ -222,7 +225,7 @@ func TestReconcileAttachesTheRouteAfterTheGroupIsFilled(t *testing.T) {
 	commands := reconcileGroups(
 		map[string][]string{"routevane-youtube": {"youtube.com", "ytimg.com"}},
 		map[string][]string{},
-		map[string]string{},
+		map[string]fqdnRoute{},
 		deviceInterface,
 	)
 	want := []string{
@@ -242,7 +245,7 @@ func TestReconcileRemovesBeforeItAdds(t *testing.T) {
 	commands := reconcileGroups(
 		map[string][]string{"routevane-a": {"new.example"}},
 		map[string][]string{"routevane-a": {"old.example"}},
-		map[string]string{"routevane-a": deviceInterface},
+		map[string]fqdnRoute{"routevane-a": {Interface: deviceInterface, Auto: true}},
 		deviceInterface,
 	)
 	want := []string{
@@ -259,7 +262,7 @@ func TestReconcileSaysNothingWhenTheDeviceAlreadyAgrees(t *testing.T) {
 	commands := reconcileGroups(
 		map[string][]string{"routevane-a": {"one.example", "two.example"}},
 		map[string][]string{"routevane-a": {"two.example", "one.example"}},
-		map[string]string{"routevane-a": deviceInterface},
+		map[string]fqdnRoute{"routevane-a": {Interface: deviceInterface, Auto: true}},
 		deviceInterface,
 	)
 	if len(commands) != 0 {
@@ -332,8 +335,8 @@ func TestVerifyReportsDriftAndAnUnexpectedGroup(t *testing.T) {
 		t.Fatalf("verify = %v", err)
 	}
 	message := err.Error()
-	if !strings.Contains(message, "ytimg.com") || !strings.Contains(message, keeneticdns.GroupPrefix+"stale") {
-		t.Fatalf("verify must name the drift and the extra group: %s", message)
+	if !strings.Contains(message, "ytimg.com") || strings.Contains(message, keeneticdns.GroupPrefix+"stale") {
+		t.Fatalf("verify must name owned drift and ignore the unowned extra group: %s", message)
 	}
 }
 

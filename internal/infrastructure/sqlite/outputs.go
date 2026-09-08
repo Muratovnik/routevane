@@ -13,6 +13,9 @@ import (
 
 func (s *Store) CreateOutput(ctx context.Context, create application.NewOutput) error {
 	o := create.Output
+	if err := application.ValidateFQDNPrefix(o.TargetID, o.FQDNGroupPrefix); err != nil {
+		return err
+	}
 	hasToken := create.TokenID != "" || create.TokenHash != ([32]byte{})
 	if !validID(o.ID) || !validID(o.ProfileID) || o.TargetID == "" || o.FormatKey == "" || o.RendererID == "" || o.RendererVersion == "" || o.TargetRevision == "" || o.CreatedAt.IsZero() || (hasToken && (!validID(create.TokenID) || create.TokenHash == ([32]byte{}))) {
 		return fmt.Errorf("invalid output")
@@ -47,7 +50,7 @@ func (s *Store) CreateOutput(ctx context.Context, create application.NewOutput) 
 	if o.DeviceID != "" {
 		deviceID = o.DeviceID
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,latest_artifact_id,previous_artifact_id,device_id) VALUES(?,?,?,?,?,?,?,?,NULL,NULL,?)`, o.ID, o.ProfileID, o.TargetID, o.FormatKey, o.RendererID, o.RendererVersion, o.TargetRevision, o.CreatedAt.UTC().UnixNano(), deviceID)
+	_, err = tx.ExecContext(ctx, `INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,latest_artifact_id,previous_artifact_id,device_id,fqdn_group_prefix) VALUES(?,?,?,?,?,?,?,?,NULL,NULL,?,?)`, o.ID, o.ProfileID, o.TargetID, o.FormatKey, o.RendererID, o.RendererVersion, o.TargetRevision, o.CreatedAt.UTC().UnixNano(), deviceID, o.FQDNGroupPrefix)
 	if err != nil {
 		return fail(fmt.Errorf("insert output: %w", err))
 	}
@@ -101,7 +104,7 @@ func (s *Store) CreateSubscription(ctx context.Context, outputID, tokenID string
 	return nil
 }
 
-const outputSelect = `SELECT id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,latest_artifact_id,previous_artifact_id,device_id FROM outputs`
+const outputSelect = `SELECT id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,latest_artifact_id,previous_artifact_id,device_id,fqdn_group_prefix FROM outputs`
 
 func (s *Store) UpdateOutputDevice(ctx context.Context, outputID, deviceID string) error {
 	if !validID(outputID) || (deviceID != "" && !validID(deviceID)) {

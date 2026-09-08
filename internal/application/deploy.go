@@ -84,6 +84,9 @@ type DeployArtifact struct {
 	// PlanSnapshot carries the immutable renderer-neutral decision so a device
 	// transport can attach provenance without changing the published artifact.
 	PlanSnapshot []byte
+	// OwnedFQDNGroups is trusted persisted creation evidence supplied by the
+	// lifecycle, never inferred from artifact names or device observations.
+	OwnedFQDNGroups []ManagedFQDNGroup
 }
 
 // ConnectionRequirements is what a deployer needs before it can be used. A
@@ -193,6 +196,7 @@ type DeployRequest struct {
 	// ManagedRoutes is optional. Without a ledger, an ownership-aware deployer
 	// remains additive and cannot infer deletion authority from an interface.
 	ManagedRoutes ManagedRouteRepository
+	ManagedFQDN   ManagedFQDNRepository
 }
 
 // DeployToDevice applies one validated artifact in the only order that is safe:
@@ -248,6 +252,33 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 	}
 
 	managedDeployer, supportsManagedRoutes := deployer.(ManagedRouteDeployer)
+	fqdnDeployer, supportsFQDN := deployer.(ManagedFQDNDeployer)
+	var nextFQDN ManagedFQDNOwnership
+	if supportsFQDN {
+		if request.ManagedFQDN == nil || !isHexID(request.OutputID) {
+			return result, fmt.Errorf("%w: FQDN ownership ledger required", ErrDeployComposition)
+		}
+		endpoint, scopeErr := fqdnDeployer.FQDNEndpoint(request.Connection.Redacted())
+		if scopeErr != nil {
+			return result, scopeErr
+		}
+		prior, readErr := request.ManagedFQDN.ManagedFQDNOwnership(ctx, endpoint, request.OutputID)
+		if readErr != nil {
+			return result, fmt.Errorf("%w: read FQDN ownership: %v", ErrDeployComposition, readErr)
+		}
+		if prior.Endpoint != endpoint || prior.OutputID != request.OutputID || prior.Validate() != nil {
+			return result, ErrDeployComposition
+		}
+		request.Artifact.OwnedFQDNGroups = prior.Groups
+		groups, desiredErr := fqdnDeployer.DesiredFQDNGroups(device, request.Artifact)
+		if desiredErr != nil {
+			return result, fmt.Errorf("%w: %v", ErrDeployComposition, desiredErr)
+		}
+		nextFQDN = ManagedFQDNOwnership{Endpoint: endpoint, OutputID: request.OutputID, Groups: groups}
+		if _, previewErr := fqdnDeployer.PreviewFQDNGroups(ctx, device, request.Connection, request.Artifact); previewErr != nil {
+			return result, fmt.Errorf("%w: %w", ErrDeployFailed, previewErr)
+		}
+	}
 	manageRoutes := supportsManagedRoutes && request.ManagedRoutes != nil
 	var (
 		priorOwnership ManagedRouteOwnership
@@ -313,6 +344,12 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 		deployErr = deployer.Deploy(ctx, device, request.Connection, request.Artifact)
 	}
 	record(StepDeploy, started, deployErr, request.Artifact.ArtifactHash)
+	// The second device read can discover a new foreign collision after the
+	// preview. No mutation occurred, so restoring a full backup would itself
+	// overwrite the external change we just refused to adopt.
+	if errors.Is(deployErr, ErrFQDNOwnershipConflict) {
+		return result, deployErr
+	}
 	if deployErr == nil {
 		started = clock.Now()
 		var verifyErr error
@@ -330,6 +367,16 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 			if manageRoutes {
 				started = clock.Now()
 				persistErr := request.ManagedRoutes.ReplaceManagedRouteOwnership(ctx, nextOwnership)
+				record(StepOwnership, started, persistErr, request.OutputID)
+				if persistErr != nil {
+					deployErr = fmt.Errorf("%w: %v", ErrOwnershipPersist, persistErr)
+				} else {
+					result.Applied = true
+					return result, nil
+				}
+			} else if supportsFQDN {
+				started = clock.Now()
+				persistErr := request.ManagedFQDN.ReplaceManagedFQDNOwnership(ctx, nextFQDN)
 				record(StepOwnership, started, persistErr, request.OutputID)
 				if persistErr != nil {
 					deployErr = fmt.Errorf("%w: %v", ErrOwnershipPersist, persistErr)

@@ -298,7 +298,25 @@ func (s *Store) compositionPart(ctx context.Context, query, profileID string) ([
 func (s *Store) Profiles(ctx context.Context) ([]application.Profile, error) {
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, profileColumns+` FROM profiles ORDER BY created_at_ns DESC, id ASC LIMIT ?`, profileLimit)
+	profiles, err := s.readProfiles(ctx, profileColumns+` FROM profiles ORDER BY created_at_ns DESC, id ASC LIMIT ?`, true, profileLimit)
+	if err != nil {
+		return nil, err
+	}
+	return profiles, nil
+}
+
+// ProfilesForScheduling enumerates every stored profile. The scheduler needs
+// only the row-level schedule fields; leaving composition reads to Refresh and
+// Build avoids both the shelf's presentation limit and an N+1 read of data the
+// due decision does not consume.
+func (s *Store) ProfilesForScheduling(ctx context.Context) ([]application.Profile, error) {
+	ctx, cancel := bounded(ctx)
+	defer cancel()
+	return s.readProfiles(ctx, profileColumns+` FROM profiles ORDER BY created_at_ns DESC, id ASC`, false)
+}
+
+func (s *Store) readProfiles(ctx context.Context, query string, includeComposition bool, args ...any) ([]application.Profile, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list profiles: %w", err)
 	}
@@ -318,7 +336,10 @@ func (s *Store) Profiles(ctx context.Context) ([]application.Profile, error) {
 	if err := rows.Close(); err != nil {
 		return nil, fmt.Errorf("list profiles: %w", err)
 	}
-	// The composition read runs after the cursor is closed: this store holds a
+	if !includeComposition {
+		return profiles, nil
+	}
+	// Composition reads run after the cursor is closed: this store holds a
 	// single connection, so a nested query would deadlock against it.
 	for i := range profiles {
 		if err := s.readComposition(ctx, &profiles[i]); err != nil {
@@ -329,6 +350,57 @@ func (s *Store) Profiles(ctx context.Context) ([]application.Profile, error) {
 		}
 	}
 	return profiles, nil
+}
+
+// ProfileReferences queries the normalized reference tables directly so
+// integrity checks see every stored profile, including archived and older rows
+// omitted from the shelf's bounded presentation query.
+func (s *Store) ProfileReferences(ctx context.Context, categoryIDs, listIDs []string) ([]application.ProfileReference, error) {
+	if len(categoryIDs) == 0 && len(listIDs) == 0 {
+		return []application.ProfileReference{}, nil
+	}
+	if len(categoryIDs) > 128 || len(listIDs) > 128 {
+		return nil, fmt.Errorf("invalid profile reference query")
+	}
+	for _, ids := range [][]string{categoryIDs, listIDs} {
+		for _, id := range ids {
+			if domain.ValidateSlug(id) != nil {
+				return nil, fmt.Errorf("invalid profile reference query")
+			}
+		}
+	}
+	// JSON arrays keep both sets as bound values in a fixed query. Empty sets
+	// yield no matching rows, and the OR returns each referring profile once.
+	categories, err := json.Marshal(categoryIDs)
+	if err != nil {
+		return nil, err
+	}
+	lists, err := json.Marshal(listIDs)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := bounded(ctx)
+	defer cancel()
+	rows, err := s.db.QueryContext(ctx, `SELECT id,name FROM profiles WHERE
+		EXISTS (SELECT 1 FROM profile_categories WHERE profile_id=profiles.id AND category_id IN (SELECT value FROM json_each(?)))
+		OR EXISTS (SELECT 1 FROM profile_lists WHERE profile_id=profiles.id AND list_id IN (SELECT value FROM json_each(?)))
+		ORDER BY id ASC`, string(categories), string(lists))
+	if err != nil {
+		return nil, fmt.Errorf("list profile references: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	references := make([]application.ProfileReference, 0)
+	for rows.Next() {
+		var reference application.ProfileReference
+		if err := rows.Scan(&reference.ID, &reference.Title); err != nil {
+			return nil, fmt.Errorf("read profile reference: %w", err)
+		}
+		references = append(references, reference)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list profile references: %w", err)
+	}
+	return references, nil
 }
 
 func (s *Store) UpdateProfile(ctx context.Context, profile application.Profile) error {

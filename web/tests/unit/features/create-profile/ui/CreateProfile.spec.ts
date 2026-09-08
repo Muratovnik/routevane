@@ -508,4 +508,37 @@ describe('CreateProfile forecast', () => {
       .element(screen.getByRole('button', { name: SUBMIT }))
       .toBeEnabled()
   })
+  it('shows a stale library read, retries in place, and keeps the chosen draft', async () => {
+    const catalogRead = vi
+      .fn()
+      .mockReturnValueOnce(json(CATALOG_PAYLOAD))
+      .mockReturnValueOnce(json({ error: 'offline' }, 503))
+      .mockReturnValue(json(CATALOG_PAYLOAD))
+    stubNetwork({ catalog: catalogRead })
+    const screen = await renderComposer()
+    await settle()
+    await chooseList(screen, 'Discord')
+    await screen.getByLabelText('Name').fill('My unsaved profile')
+    window.dispatchEvent(new Event('focus'))
+    await settle()
+    await expect
+      .element(screen.getByText('The library could not be refreshed'))
+      .toBeVisible()
+    await screen.getByRole('button', { name: 'Retry', exact: true }).click()
+    await settle()
+    await expect
+      .element(screen.getByText('The library could not be refreshed'))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByLabelText('Name'))
+      .toHaveValue('My unsaved profile')
+    await expect
+      .element(
+        screen.getByRole('checkbox', {
+          name: 'Remove Discord from the profile',
+        }),
+      )
+      .toBeChecked()
+    expect(catalogRead).toHaveBeenCalledTimes(3)
+  })
 })

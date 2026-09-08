@@ -24,13 +24,6 @@ defineProps<{
   text: string
   items?: string[]
 }>()
-
-// The panel closes when the reader looks elsewhere with the pointer or presses
-// Escape, not when the focus merely moves: an informer that vanished the moment
-// the keyboard entered it could never be read by the keyboard at all.
-const onFocusOutside = (event: Event): void => {
-  event.preventDefault()
-}
 </script>
 
 <template>
@@ -48,7 +41,6 @@ const onFocusOutside = (event: Event): void => {
         class="rv-infotip__panel"
         :collision-padding="8"
         :side-offset="6"
-        @focus-outside="onFocusOutside"
       >
         <template v-if="items"
           ><strong>{{ text }}</strong>

@@ -35,16 +35,19 @@ decision is meant to stop owning.
   application root required by Nuxt UI.
 - `RvButton` delegates element selection, disabled-link behavior and loading
   mechanics to `UButton`. `RvDialog` delegates its full-height sheet structure,
-  focus mechanics, dismissal and scroll locking to `USlideover`; the facade
-  supplies its CSP-safe entrance transition. The bounded centred panel remains
+  focus mechanics, dismissal, scroll locking and ordinary sheet transitions to
+  `USlideover`. The bounded centred panel remains
   on the existing Reka dialog during incremental migration.
-- The sheet keeps a translating entrance on the `RvDialog` facade but does not
-  enable the component's own stateful keyframes. Reka UI 2.10.3 writes
-  `animation-fill-mode` to the element at the end of an exit animation, which
-  violates Routevane's strict `style-src 'self'` policy. Until the upstream
-  primitive stops mutating inline styles, packaged CSS keyed by the primitive's
-  open `data-state` and an immediate exit preserve motion and the CSP without
-  weakening it; USlideover still owns focus return, dismissal and scroll locking.
+- The current Nuxt UI 4.11.1 / Reka UI 2.10.4 sheet uses the library's stateful
+  keyframes. Reka assigns `animationFillMode` through CSSOM; that assignment is
+  permitted by the application's `style-src 'self'` policy. The former rationale
+  equated it with replacing a style attribute, which the policy does block.
+  A workspace inspection pane disables the sheet's own animation because its
+  enclosing workspace already animates a View Transition snapshot: enabling both
+  translates the live pane again after the snapshot settles. This exception
+  preserves one transition owner and immediate removal during workspace changes;
+  it is not a CSP workaround. USlideover still owns focus return, dismissal and
+  scroll locking in that case.
 - Nuxt UI's font and color-mode modules are disabled. Routevane continues to
   own local font stacks, theme selection and all `--rv-*` semantic tokens. A
   small CSS bridge maps Nuxt UI roles to those tokens; feature code does not
@@ -57,6 +60,15 @@ decision is meant to stop owning.
 - Adoption is incremental. A raw control is replaced when its owning flow is
   changed and the facade has regression coverage; installing the library does
   not authorize an unrelated whole-interface rewrite.
+- `RvDisclosure` retains its small local state adapter and CSS grid transition.
+  Reka Collapsible 2.10.4 can retain content with `unmountOnHide=false`, but then
+  hides it with `hidden="until-found"` and reopens it on browser find. With
+  `forceMount` it leaves hiding to the caller. Routevane requires retained draft
+  state with immediate inertness while closing, so either route still needs
+  the existing visibility adapter; the library additionally measures dimensions
+  that the grid transition does not use. This bounded replacement adds no
+  required behavior. Reconsider it if browser-find expansion becomes a product
+  requirement or a shared library mode can own the entire visibility contract.
 - Route priority dragging uses VueUse's maintained SortableJS integration.
   Routevane owns the row styling and an equivalent keyboard action; SortableJS
   owns pointer/touch reordering and its drag lifecycle.
@@ -69,5 +81,7 @@ dependency adds build size and requires compatibility checks during Nuxt UI or
 Reka upgrades. A rollback removes the Nuxt module and restores the internals of
 the affected `Rv*` facades without changing feature callers.
 
-The current pilot covers buttons and full-height side sheets. Other primitives
-remain valid and are not considered migrated merely because Nuxt UI is present.
+Buttons and full-height side sheets use Nuxt UI. Tabs delegate their complete
+tab/retained-panel relationship to Reka, including keyboard traversal and panel
+focus entry. Other facades remain valid and are not considered migrated merely
+because Nuxt UI is present.

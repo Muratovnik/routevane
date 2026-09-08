@@ -17,7 +17,7 @@ import type {
 import { useLocale } from '@/shared/i18n/useLocale'
 import { libraryPageHash, parseLibraryPageHash } from '@/shared/lib/listsHash'
 import type { ChoiceOption, MenuItem, SegmentOption } from '@/shared/ui/types'
-import { tableDragGeometry } from '@/shared/lib/tableDrag'
+import { useTableDragGeometry } from '@/shared/model/useTableDragGeometry'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvField from '@/shared/ui/RvField.vue'
@@ -560,7 +560,7 @@ const sortable = useSortable(tableBody, visibleOrder, {
   handle: '.lists__handle:not(:disabled)',
   filter: '.lists__handle:disabled',
   preventOnFilter: false,
-  ...tableDragGeometry(),
+  ...useTableDragGeometry(),
   animation: 200,
   forceFallback: true,
   fallbackOnBody: true,

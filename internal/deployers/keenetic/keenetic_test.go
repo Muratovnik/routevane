@@ -1,6 +1,7 @@
 package keenetic
 
 import (
+	"bytes"
 	"context"
 	"crypto/md5"
 	"crypto/sha256"
@@ -52,6 +53,7 @@ type deviceDouble struct {
 	// live beside the route table because it is one device.
 	fqdn      map[string][]string
 	dnsRoutes map[string]string
+	dnsAuto   map[string]bool
 	config    []byte
 
 	authenticated bool
@@ -60,7 +62,8 @@ type deviceDouble struct {
 	restoreCalls  int
 	batches       [][]map[string]any
 	// failDeploy and failVerify make the device reject an operation.
-	failDeploy bool
+	failDeploy     bool
+	failParseAfter int
 	// driftAfterDeploy makes the device silently lose one route, which is what a
 	// partial write looks like from outside.
 	driftAfterDeploy  bool
@@ -119,6 +122,7 @@ func (d *deviceDouble) applyLine(line string) map[string]any {
 			return refuse("dnsProxy.missingGroup", "no such group")
 		}
 		d.dnsRoutes[fields[3]] = fields[4]
+		d.dnsAuto[fields[3]] = true
 		return accept
 	case len(fields) == 6 && fields[0] == "no" && fields[1] == "dns-proxy" && fields[2] == "route" && fields[3] == "object-group":
 		delete(d.dnsRoutes, fields[4])
@@ -147,7 +151,7 @@ func (d *deviceDouble) dnsRouteList() []map[string]any {
 	defer d.mu.Unlock()
 	routes := make([]map[string]any, 0, len(d.dnsRoutes))
 	for group, attached := range d.dnsRoutes {
-		routes = append(routes, map[string]any{"group": group, "interface": attached})
+		routes = append(routes, map[string]any{"group": group, "interface": attached, "auto": d.dnsAuto[group]})
 	}
 	sort.Slice(routes, func(i, j int) bool {
 		left, _ := routes[i]["group"].(string)
@@ -187,8 +191,8 @@ func newDeviceDouble(firmware string) *deviceDouble {
 		routes:    map[string]string{},
 		comments:  map[string]string{},
 		fqdn:      map[string][]string{},
-		dnsRoutes: map[string]string{},
-		config:    []byte("! Keenetic startup-config\nsystem hostname router\n"),
+		dnsRoutes: map[string]string{}, dnsAuto: map[string]bool{},
+		config: []byte("! Keenetic startup-config\nsystem hostname router\n"),
 	}
 }
 
@@ -244,20 +248,36 @@ func (d *deviceDouble) handler() http.Handler {
 			writeJSON(w, d.dnsRouteList())
 		case r.URL.Path == "/ci/startup-config" && r.Method == http.MethodGet:
 			d.mu.Lock()
-			config := append([]byte(nil), d.config...)
+			state, _ := json.Marshal(deviceConfiguration{Routes: d.routes, Comments: d.comments, Groups: d.fqdn, DNSRoutes: d.dnsRoutes, Auto: d.dnsAuto})
+			config := append(append([]byte(nil), d.config...), append([]byte("! fixture-state "), state...)...)
 			d.mu.Unlock()
 			w.Header().Set("Content-Type", "text/plain")
 			_, _ = w.Write(config)
 		case r.URL.Path == "/ci/startup-config" && r.Method == http.MethodPost:
 			body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 			d.mu.Lock()
-			d.config = body
+			config, state, found := bytes.Cut(body, []byte("! fixture-state "))
+			d.config = config
 			d.restoreCalls++
 			// A restore returns the device to the state the backup describes.
 			d.routes = map[string]string{}
 			d.comments = map[string]string{}
 			d.fqdn = map[string][]string{}
 			d.dnsRoutes = map[string]string{}
+			d.dnsAuto = map[string]bool{}
+			if found {
+				var restored deviceConfiguration
+				if err := json.Unmarshal(state, &restored); err != nil {
+					d.mu.Unlock()
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				d.routes = restored.Routes
+				d.comments = restored.Comments
+				d.fqdn = restored.Groups
+				d.dnsRoutes = restored.DNSRoutes
+				d.dnsAuto = restored.Auto
+			}
 			d.mu.Unlock()
 			w.WriteHeader(http.StatusOK)
 		case r.URL.Path == "/rci/system/configuration/save":
@@ -296,6 +316,10 @@ func (d *deviceDouble) applyBatch(w http.ResponseWriter, r *http.Request) {
 		// The device accepts both; which one arrives says which artifact format
 		// is being installed.
 		if line, parsed := command["parse"].(string); parsed {
+			if d.failParseAfter > 0 && len(d.commands) >= d.failParseAfter {
+				answers = append(answers, map[string]any{"parse": map[string]any{"status": []map[string]string{{"status": "error"}}}})
+				break
+			}
 			d.commands = append(d.commands, line)
 			answers = append(answers, map[string]any{"parse": d.applyLine(line)})
 			continue
@@ -326,6 +350,13 @@ func (d *deviceDouble) applyBatch(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, answers)
+}
+
+type deviceConfiguration struct {
+	Routes, Comments map[string]string
+	Groups           map[string][]string
+	DNSRoutes        map[string]string
+	Auto             map[string]bool
 }
 
 type deviceRoute struct {

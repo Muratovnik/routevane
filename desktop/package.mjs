@@ -67,6 +67,7 @@ if (fixtureID) {
     fixtureEntry,
     `process.env.ROUTEVANE_DESKTOP_PROFILE = ${JSON.stringify(join(scratch, 'profile'))};
 process.env.ROUTEVANE_DESKTOP_DATA = ${JSON.stringify(join(scratch, 'data'))};
+process.env.ROUTEVANE_PLUGINS_DIR = '';
 await import('./src/main.mjs');
 `,
   )

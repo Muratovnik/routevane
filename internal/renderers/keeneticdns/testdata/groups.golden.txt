@@ -1,5 +1,5 @@
-object-group fqdn routevane-discord include discord.com
-object-group fqdn routevane-youtube include 192.0.2.1
-object-group fqdn routevane-youtube include 198.51.100.0/24
-object-group fqdn routevane-youtube include googlevideo.com
-object-group fqdn routevane-youtube include youtube.com
+object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include 192.0.2.1
+object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include 198.51.100.0/24
+object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include googlevideo.com
+object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include youtube.com
+object-group fqdn routevane-e3b0c44298fc-e1ba4807a15d8579-s1 include discord.com

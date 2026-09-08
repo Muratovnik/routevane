@@ -377,14 +377,15 @@ func (v *TransferDevice) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type TransferOutput struct{ Ref, ProfileRef, TargetID, DeviceRef string }
+type TransferOutput struct{ Ref, ProfileRef, TargetID, DeviceRef, FQDNGroupPrefix string }
 
 func (v TransferOutput) MarshalJSON() ([]byte, error) {
 	type w struct {
-		Ref        string `json:"ref"`
-		ProfileRef string `json:"profile_ref"`
-		TargetID   string `json:"target_id"`
-		DeviceRef  string `json:"device_ref,omitempty"`
+		Ref             string `json:"ref"`
+		ProfileRef      string `json:"profile_ref"`
+		TargetID        string `json:"target_id"`
+		DeviceRef       string `json:"device_ref,omitempty"`
+		FQDNGroupPrefix string `json:"fqdn_group_prefix,omitempty"`
 	}
 	return json.Marshal(w(v))
 }
@@ -396,6 +397,7 @@ func (v *TransferOutput) UnmarshalJSON(b []byte) error {
 		RetiredProfileRef *string `json:"route_ref"`
 		TargetID          string  `json:"target_id"`
 		DeviceRef         string  `json:"device_ref,omitempty"`
+		FQDNGroupPrefix   string  `json:"fqdn_group_prefix,omitempty"`
 	}
 	var x w
 	if err := strictUnmarshal(b, &x); err != nil {
@@ -405,7 +407,7 @@ func (v *TransferOutput) UnmarshalJSON(b []byte) error {
 	if !ok {
 		return transferError("invalid_shape", "profile_ref")
 	}
-	*v = TransferOutput{Ref: x.Ref, ProfileRef: ref, TargetID: x.TargetID, DeviceRef: x.DeviceRef}
+	*v = TransferOutput{Ref: x.Ref, ProfileRef: ref, TargetID: x.TargetID, DeviceRef: x.DeviceRef, FQDNGroupPrefix: x.FQDNGroupPrefix}
 	return nil
 }
 
@@ -1358,6 +1360,9 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 				return transferError("invalid_reference", p+"/device_ref")
 			}
 		}
+		if err := ValidateFQDNPrefix(v.TargetID, v.FQDNGroupPrefix); err != nil {
+			return transferError("invalid_shape", p+"/fqdn_group_prefix")
+		}
 		pair := v.ProfileRef + "\x00" + v.TargetID
 		if pairs[pair] {
 			return transferError("duplicate_key", p)
@@ -1583,7 +1588,7 @@ func (s *PublicationService) prepareApply(d ConfigTransferDocument) (ConfigTrans
 		if err != nil {
 			return a, transferError("target_missing", "outputs")
 		}
-		a.Outputs[v.Ref] = Output{ID: id, ProfileID: a.ProfileIDs[v.ProfileRef], TargetID: v.TargetID, DeviceID: a.DeviceIDs[v.DeviceRef], FormatKey: target.FormatKey, RendererID: target.RendererID, RendererVersion: renderer.Version(), TargetRevision: s.config.TargetRevision, CreatedAt: now}
+		a.Outputs[v.Ref] = Output{ID: id, ProfileID: a.ProfileIDs[v.ProfileRef], TargetID: v.TargetID, DeviceID: a.DeviceIDs[v.DeviceRef], FQDNGroupPrefix: v.FQDNGroupPrefix, FormatKey: target.FormatKey, RendererID: target.RendererID, RendererVersion: renderer.Version(), TargetRevision: s.config.TargetRevision, CreatedAt: now}
 	}
 	return a, nil
 }

@@ -16,6 +16,12 @@ import {
   type VNodeChild,
 } from 'vue'
 
+// Vitest can reuse a browser context for successive files. Storage belongs to
+// each fixture, so a locale chosen by one file must not turn the next file's
+// first visit into a returning visit. Cases within a file can still test reloads.
+window.localStorage.clear()
+window.sessionStorage.clear()
+
 const children = (parts: Array<VNodeChild | VNodeChild[] | undefined>) =>
   parts.flat().filter((part) => part !== undefined)
 

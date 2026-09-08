@@ -1537,6 +1537,7 @@ var everyAPIPath = []struct {
 	{"/v1/outputs/" + testID + "", "outputs.get"},
 	{"/v1/outputs/" + testID + "/build", "outputs.build"},
 	{"/v1/outputs/" + testID + "/device", "outputs.device"},
+	{"/v1/outputs/" + testID + "/fqdn-prefix", "outputs.fqdn-prefix"},
 	{"/v1/subscriptions/" + testID + "", "subscriptions.get"},
 	{"/v1/snapshots/" + testID + "", "snapshots.get"},
 	{"/v1/artifacts/" + testID + "", "artifacts.get"},
@@ -1934,4 +1935,11 @@ func TestListListingCarriesMergedCategoriesWithTheirOwnership(t *testing.T) {
 	if !strings.Contains(response.Body.String(), `"id":"diagnostic","title":"Diagnostic","lists":["example"],"custom":false`) {
 		t.Fatalf("a shipped category omitted its ownership: %s", response.Body.String())
 	}
+}
+
+func (f *fakeBackend) SetOutputFQDNPrefix(_ context.Context, id, prefix string) (application.Output, error) {
+	if err := application.ValidateFQDNPrefix("keenetic-dns", prefix); err != nil {
+		return application.Output{}, err
+	}
+	return application.Output{ID: id, TargetID: "keenetic-dns", FQDNGroupPrefix: prefix}, nil
 }

@@ -2,10 +2,12 @@ package application
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"errors"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -300,14 +302,24 @@ func (s *publicationFakeStore) SetDefaultPriority(_ context.Context, priority []
 	return nil
 }
 
-func (s *publicationFakeStore) UpdateProfileSchedule(_ context.Context, profileID string, interval RefreshInterval, lastRefreshedAt time.Time, failed bool, updatedAt time.Time) error {
+func (s *publicationFakeStore) UpdateProfileRefreshInterval(_ context.Context, profileID string, interval RefreshInterval, updatedAt time.Time) error {
 	if s.profile.ID != profileID {
 		return ErrNotFound
 	}
 	s.profile.RefreshInterval = interval
+	s.profile.UpdatedAt = updatedAt
+	return nil
+}
+
+func (s *publicationFakeStore) RecordProfileRefreshResult(ctx context.Context, profileID string, lastRefreshedAt time.Time, failed bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.profile.ID != profileID {
+		return ErrNotFound
+	}
 	s.profile.LastRefreshedAt = lastRefreshedAt
 	s.profile.LastRefreshFailed = failed
-	s.profile.UpdatedAt = updatedAt
 	return nil
 }
 
@@ -335,6 +347,40 @@ func (s *publicationFakeStore) Profiles(context.Context) ([]Profile, error) {
 		return []Profile{}, nil
 	}
 	return []Profile{s.profile}, nil
+}
+func (s *publicationFakeStore) ProfilesForScheduling(ctx context.Context) ([]Profile, error) {
+	return s.Profiles(ctx)
+}
+func (s *publicationFakeStore) ProfileReferences(_ context.Context, categoryIDs, listIDs []string) ([]ProfileReference, error) {
+	categories := make(map[string]struct{}, len(categoryIDs))
+	for _, id := range categoryIDs {
+		categories[id] = struct{}{}
+	}
+	lists := make(map[string]struct{}, len(listIDs))
+	for _, id := range listIDs {
+		lists[id] = struct{}{}
+	}
+	references := make([]ProfileReference, 0)
+	stored := s.profiles
+	if len(stored) == 0 && s.profile.ID != "" {
+		stored = []Profile{s.profile}
+	}
+	for _, profile := range stored {
+		if namesAnyReference(profile.Categories, categories) || namesAnyReference(profile.Lists, lists) {
+			references = append(references, ProfileReference{ID: profile.ID, Title: profile.Name})
+		}
+	}
+	slices.SortFunc(references, func(a, b ProfileReference) int { return cmp.Compare(a.ID, b.ID) })
+	return references, nil
+}
+
+func namesAnyReference(named []string, wanted map[string]struct{}) bool {
+	for _, id := range named {
+		if _, ok := wanted[id]; ok {
+			return true
+		}
+	}
+	return false
 }
 func (s *publicationFakeStore) UpdateProfile(_ context.Context, profile Profile) error {
 	s.profile = profile
@@ -655,6 +701,7 @@ func TestProfileCardsResolveTargetsAndTolerateMissingPieces(t *testing.T) {
 	// instead of disappearing or failing the listing.
 	goneProfile, goneOutput := testProfileAndOutput()
 	goneOutput.TargetID = "gone-device"
+	goneOutput.FQDNGroupPrefix = "retained-prefix"
 	goneStore := &publicationFakeStore{profile: goneProfile, output: goneOutput}
 	goneService := newPublicationTestService(t, goneStore, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x52}, 256)))
 	cards, err = goneService.ProfileCards(context.Background())
@@ -666,6 +713,9 @@ func TestProfileCardsResolveTargetsAndTolerateMissingPieces(t *testing.T) {
 	}
 	if cards[0].Outputs[0].TargetTitle != "gone-device" || cards[0].Outputs[0].FileExtension != "" || cards[0].Outputs[0].TargetKind != "" {
 		t.Fatalf("cards for a vanished target = %#v", cards[0].Outputs[0])
+	}
+	if cards[0].Outputs[0].FQDNGroupPrefix != "retained-prefix" {
+		t.Fatalf("stored prefix disappeared from output card: %#v", cards[0].Outputs[0])
 	}
 }
 

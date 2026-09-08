@@ -65,3 +65,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0037: Electron desktop and an independently usable Go CLI](./0037-electron-desktop-and-independent-cli.md) | adopted |
 | [ADR 0038: Windows application updates from GitHub releases](./0038-windows-application-updates.md) | adopted |
 | [ADR 0039: one product vocabulary across the executable, API, and storage](./0039-one-product-vocabulary-across-binary-api-and-storage.md) | adopted |
+| [ADR 0040: exact FQDN ownership belongs to a router and output](./0040-exact-fqdn-output-ownership.md) | adopted |

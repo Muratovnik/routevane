@@ -35,9 +35,9 @@ func TestRenderMakesOneGroupPerList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "object-group fqdn routevane-discord include discord.com\n" +
-		"object-group fqdn routevane-youtube include googlevideo.com\n" +
-		"object-group fqdn routevane-youtube include youtube.com\n"
+	want := "object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include googlevideo.com\n" +
+		"object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include youtube.com\n" +
+		"object-group fqdn routevane-e3b0c44298fc-e1ba4807a15d8579-s1 include discord.com\n"
 	if string(payload) != want {
 		t.Fatalf("payload =\n%s", payload)
 	}
@@ -64,10 +64,10 @@ func TestAListOverTheBoundIsSplitIntoSubGroups(t *testing.T) {
 	if len(groups) != 2 {
 		t.Fatalf("groups = %d", len(groups))
 	}
-	if groups[0].Name != "routevane-youtube" || len(groups[0].Entries) != MaxEntriesPerGroup {
+	if groups[0].Name != "routevane-e3b0c44298fc-24e6654bfd1ab85b-s1" || len(groups[0].Entries) != MaxEntriesPerGroup {
 		t.Fatalf("first group = %s/%d", groups[0].Name, len(groups[0].Entries))
 	}
-	if groups[1].Name != "routevane-youtube-2" || len(groups[1].Entries) != 5 {
+	if groups[1].Name != "routevane-e3b0c44298fc-24e6654bfd1ab85b-s2" || len(groups[1].Entries) != 5 {
 		t.Fatalf("second group = %s/%d", groups[1].Name, len(groups[1].Entries))
 	}
 }
@@ -135,7 +135,7 @@ func TestAnExactDomainIsRefused(t *testing.T) {
 
 func TestValidatorRefusesForeignContent(t *testing.T) {
 	cases := map[string]string{
-		"foreign group":   "object-group fqdn homelab include example.com\n",
+		"unsafe group":    "object-group fqdn home.lab include example.com\n",
 		"unknown command": "dns-proxy route object-group routevane-example Wireguard0\n",
 		"no newline":      "object-group fqdn routevane-example include example.com",
 		"duplicate":       "object-group fqdn routevane-example include example.com\nobject-group fqdn routevane-example include example.com\n",
@@ -212,9 +212,9 @@ func TestRenderProducesTheGoldenGroupFile(t *testing.T) {
 // like a valid group file but is reordered, padded, or duplicated must be
 // refused, never silently corrected.
 func FuzzParseNeverAcceptsANonCanonicalFile(f *testing.F) {
-	f.Add("object-group fqdn routevane-discord include discord.com\n" +
-		"object-group fqdn routevane-youtube include googlevideo.com\n" +
-		"object-group fqdn routevane-youtube include youtube.com\n")
+	f.Add("object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include googlevideo.com\n" +
+		"object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include youtube.com\n" +
+		"object-group fqdn routevane-e3b0c44298fc-e1ba4807a15d8579-s1 include discord.com\n")
 	f.Add("object-group fqdn routevane-example include 192.0.2.1\n")
 	f.Add("object-group fqdn routevane-example include 198.51.100.0/24\n")
 	f.Add("")

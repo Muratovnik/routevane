@@ -88,6 +88,14 @@ or a newer version, quit it, replace the folder with your copy, and start
 Routevane again. Do not open a database migrated by a newer version with an
 older one.
 
+That folder does not contain device passwords. Routevane keeps them separately
+in the Windows credential store, whose entries are available only to the Windows
+user that created them. After restoring onto a fresh Windows installation or
+under another account, open **Connections** for every credential-backed device:
+turn off automatic delivery, enter the password, turn it on again, review the
+consent text, and confirm a subsequent delivery succeeds. Do not add passwords
+to a portable configuration export; exports intentionally exclude them.
+
 Data from the CLI package is not imported automatically. To move profiles from a
 CLI installation, use [configuration transfer](usage.md#moving-configuration-to-another-computer),
 enter device passwords again, and publish each connection anew.

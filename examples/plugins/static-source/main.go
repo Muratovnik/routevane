@@ -46,7 +46,10 @@ func (handler) Manifest() plugin.Manifest {
 }
 
 func (handler) Observe(call plugin.ObserveCall) ([]plugin.Observation, error) {
-	if call.ListID == "" || len(call.Names) == 0 {
+	// Protocol v1 also carries the list identity as service_id. These static
+	// answers do not vary by list, so the example only requires names and works
+	// with both the published and current Go names for that wire field.
+	if len(call.Names) == 0 {
 		return nil, fmt.Errorf("observation request is incomplete")
 	}
 	observations := make([]plugin.Observation, 0, len(call.Names))

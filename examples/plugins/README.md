@@ -50,12 +50,46 @@ name and digest. They exercise handshake, refresh, rendering and checksum refusa
 
 ## Write your own plugin
 
-Follow the [SDK contract](../../sdk/routevaneplugin/README.md). Create your own Go
-module and depend on an actually published Routevane tag, for example
-`go get github.com/Muratovnik/routevane/sdk/routevaneplugin@v0.1.0` after that
-release exists. Before the first publication, a local `go mod edit -replace`
-pointing at your Routevane checkout is a development-only alternative.
-There is no fictitious `v0.0.0` template dependency.
+Follow the [SDK contract](../../sdk/routevaneplugin/README.md). For a plugin that
+must build independently of a Routevane checkout, create a fresh Go module and
+depend on the published `v0.1.0` SDK. From the Routevane repository root, this
+block copies one exact shipped example and builds it without a workspace or
+`replace` directive:
+
+```powershell
+$Example = 'static-source'
+$External = Join-Path $PWD "tmp/published-sdk-$Example"
+New-Item -ItemType Directory -Path $External -ErrorAction Stop | Out-Null
+Copy-Item "./examples/plugins/$Example/main.go" $External -ErrorAction Stop
+Push-Location $External
+try {
+  go mod init "example.com/$Example"
+  if ($LASTEXITCODE -ne 0) { throw 'Module initialization failed' }
+  go get github.com/Muratovnik/routevane/sdk/routevaneplugin@v0.1.0
+  if ($LASTEXITCODE -ne 0) { throw 'Published SDK download failed' }
+  go build -o plugin .
+  if ($LASTEXITCODE -ne 0) { throw 'External plugin build failed' }
+} finally {
+  Pop-Location
+}
+```
+
+Use `csv-renderer` as `$Example` to check the renderer in the same way. A plugin
+developed against unreleased SDK changes can instead use the current checkout:
+
+```powershell
+$RoutevaneCheckout = (Resolve-Path 'C:/path/to/Routevane').Path
+go mod edit -require=github.com/Muratovnik/routevane@v0.0.0
+go mod edit -replace=github.com/Muratovnik/routevane=$RoutevaneCheckout
+go mod tidy
+go build ./...
+```
+
+That replacement is a development path, not a claim that the checkout is a
+published SDK. Protocol version 1 still sends the list identity under the JSON
+key `service_id`; Go field names in a particular SDK release do not change that
+separately versioned wire contract. There is no fictitious published `v0.0.0`
+dependency.
 
 Unset `ROUTEVANE_PLUGINS_DIR` to run without plugins. Delete only the disposable
 example directory when finished. Installed plugins execute with your OS account;

@@ -92,7 +92,7 @@ func TestAdditionalShippedDomainListsPublishSupportedNamesEndToEnd(t *testing.T)
 			built := guardedRefreshAndBuild(t, origin, profileID, outputID)
 			artifact := downloadArtifact(t, origin, built.Artifact.ID)
 			groups, err := keeneticdns.Parse(artifact.body)
-			if err != nil || len(groups) != 1 || groups[0].Name != "routevane-"+candidate.id || !slices.Equal(groups[0].Entries, candidate.want) {
+			if err != nil || len(groups) != 1 || !strings.HasPrefix(groups[0].Name, "routevane-") || !slices.Equal(groups[0].Entries, candidate.want) {
 				t.Fatalf("DNS artifact=%s err=%v", artifact.body, err)
 			}
 			clientOutput := addOutput(t, origin, profileID, "singbox")

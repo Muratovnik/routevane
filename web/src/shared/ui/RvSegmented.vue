@@ -92,9 +92,9 @@ const select = (value: string, event: Event): void => {
   /* Four labelled options do not fit a 320px screen on one line, and a control
      that scrolled sideways would hide the option nobody scrolled to. */
   flex-wrap: wrap;
-  gap: 0.125rem;
+  gap: var(--rv-segmented-inset);
   max-width: 100%;
-  padding: 0.125rem;
+  padding: var(--rv-segmented-inset);
   background: var(--rv-color-surface-muted);
   border: var(--rv-border-hair) solid var(--rv-color-rule);
   border-radius: var(--rv-radius-md);

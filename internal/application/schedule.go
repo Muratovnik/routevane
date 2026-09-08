@@ -167,7 +167,7 @@ func (s *PublicationService) SetProfileRefreshInterval(ctx context.Context, prof
 	}
 	profile.RefreshInterval = interval
 	profile.UpdatedAt = now
-	if err := s.config.Store.UpdateProfileSchedule(ctx, profile.ID, interval, profile.LastRefreshedAt, profile.LastRefreshFailed, now); err != nil {
+	if err := s.config.Store.UpdateProfileRefreshInterval(ctx, profile.ID, interval, now); err != nil {
 		return Profile{}, err
 	}
 	return profile, nil
@@ -199,7 +199,7 @@ func (s *PublicationService) RunDueRefreshes(ctx context.Context) ([]ScheduledRu
 		// The default is off, but a profile may still have said daily itself.
 		fallback = RefreshOff
 	}
-	profiles, err := s.config.Store.Profiles(ctx)
+	profiles, err := s.config.Store.ProfilesForScheduling(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -243,7 +243,7 @@ func (s *PublicationService) RunDueRefreshes(ctx context.Context) ([]ScheduledRu
 			}
 		}
 		failed := run.Failed()
-		if err := s.config.Store.UpdateProfileSchedule(ctx, profile.ID, profile.RefreshInterval, now, failed, profile.UpdatedAt); err != nil {
+		if err := s.config.Store.RecordProfileRefreshResult(ctx, profile.ID, now, failed); err != nil {
 			return runs, err
 		}
 		runs = append(runs, run)

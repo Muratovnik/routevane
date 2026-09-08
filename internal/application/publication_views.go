@@ -107,15 +107,16 @@ type OutputArtifact struct {
 // appears under its stored identity, because hiding it would misreport what
 // the store holds.
 type OutputCard struct {
-	ID            string          `json:"id"`
-	TargetID      string          `json:"target_id"`
-	DeviceID      string          `json:"device_id,omitempty"`
-	TargetTitle   string          `json:"target_title"`
-	TargetKind    string          `json:"target_kind,omitempty"`
-	FileExtension string          `json:"file_extension,omitempty"`
-	CreatedAt     time.Time       `json:"created_at"`
-	Latest        *OutputArtifact `json:"latest,omitempty"`
-	LastAttempt   *OutputAttempt  `json:"last_attempt,omitempty"`
+	ID              string          `json:"id"`
+	TargetID        string          `json:"target_id"`
+	DeviceID        string          `json:"device_id,omitempty"`
+	FQDNGroupPrefix string          `json:"fqdn_group_prefix,omitempty"`
+	TargetTitle     string          `json:"target_title"`
+	TargetKind      string          `json:"target_kind,omitempty"`
+	FileExtension   string          `json:"file_extension,omitempty"`
+	CreatedAt       time.Time       `json:"created_at"`
+	Latest          *OutputArtifact `json:"latest,omitempty"`
+	LastAttempt     *OutputAttempt  `json:"last_attempt,omitempty"`
 }
 
 // ProfileCard is one row of the library screen: the profile itself plus the outputs
@@ -295,7 +296,7 @@ func (s *PublicationService) OutputCards(ctx context.Context, profileID string) 
 func (s *PublicationService) outputCard(ctx context.Context, output Output) OutputCard {
 	card := OutputCard{
 		ID: output.ID, TargetID: output.TargetID, DeviceID: output.DeviceID, TargetTitle: output.TargetID,
-		CreatedAt: output.CreatedAt,
+		CreatedAt: output.CreatedAt, FQDNGroupPrefix: output.FQDNGroupPrefix,
 	}
 	if target, renderer, err := s.target(output.TargetID); err == nil {
 		if target.Title != "" {

@@ -3,11 +3,30 @@
 package plugin
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
+
+func TestWindowsContainmentWaitsUntilThePluginChildExits(t *testing.T) {
+	installed := buildPlugin(t, "./internal/plugin/testdata/blockinginput", fixtureManifest("blocking-input-plugin", "blocking-input"))
+	client, err := Start(context.Background(), installed, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = client.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := client.containment.waitEmpty(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("running child was reported empty: %v", err)
+	}
+	if err := client.Close(); err != nil {
+		t.Fatalf("close after child termination: %v", err)
+	}
+}
 
 func TestWindowsContainmentConfiguresEnforcedJobLimits(t *testing.T) {
 	contained, err := newProcessContainment()

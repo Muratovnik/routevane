@@ -21,6 +21,7 @@ type Scenario = {
   holdRoute: Promise<void> | undefined
   published: boolean
   routeStatus: number
+  scheduleStatus: number
 }
 
 const defaultScenario = (): Scenario => ({
@@ -30,6 +31,7 @@ const defaultScenario = (): Scenario => ({
   holdRoute: undefined,
   published: true,
   routeStatus: 200,
+  scheduleStatus: 503,
 })
 
 const json = (payload: unknown, status = 200) =>
@@ -77,6 +79,19 @@ const installFetch = (overrides: Partial<Scenario> = {}) => {
   const scenario: Scenario = { ...defaultScenario(), ...overrides }
   const fetchMock = vi.fn(async (input: unknown) => {
     switch (String(input)) {
+      case '/v1/profiles/profile-1/schedule':
+        return json(
+          scenario.scheduleStatus === 200
+            ? {
+                schedule: {
+                  interval: 'daily',
+                  effective: 'daily',
+                  follows_default: false,
+                },
+              }
+            : { error: 'controlled refusal' },
+          scenario.scheduleStatus,
+        )
       case '/v1/profiles/profile-1':
         await scenario.holdRoute
         return json(
@@ -109,16 +124,16 @@ const installFetch = (overrides: Partial<Scenario> = {}) => {
   return { fetchMock, scenario }
 }
 
-const renderRoute = () =>
+const renderRoute = (realOutputs = false) =>
   render(ProfileView, {
     props: { profileId: 'profile-1' },
     global: {
       stubs: {
         ProfileEditor: true,
-        OutputsPanel: true,
+        OutputsPanel: !realOutputs,
         RvMenu: true,
         RvInfoTip: true,
-        RvSelect: true,
+        RvSelect: !realOutputs,
         NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
       },
     },
@@ -238,4 +253,31 @@ describe('profile screen read boundaries', () => {
       .element(screen.getByRole('tabpanel', { name: 'Diagnostics' }))
       .toMatchTextContent('No exclusions: every rule entered the file.')
   })
+})
+
+it('keeps the saved schedule on refusal and retries the requested interval', async () => {
+  const { scenario, fetchMock } = installFetch()
+  const screen = await renderRoute(true)
+  await screen.getByRole('tab', { name: 'Connection' }).click()
+  const schedule = screen.getByRole('combobox', {
+    name: 'Refresh',
+    exact: true,
+  })
+  await schedule.click()
+  await screen.getByRole('option', { name: 'Daily', exact: true }).click()
+  await expect
+    .element(screen.getByText('The schedule was not changed'))
+    .toBeVisible()
+  await expect.element(schedule).toHaveTextContent('As in settings')
+  scenario.scheduleStatus = 200
+  await screen.getByRole('button', { name: 'Retry', exact: true }).click()
+  await expect.element(schedule).toHaveTextContent('Daily')
+  await expect
+    .element(screen.getByText('The schedule was not changed'))
+    .not.toBeInTheDocument()
+  expect(
+    fetchMock.mock.calls.filter(([input]) =>
+      String(input).endsWith('/schedule'),
+    ),
+  ).toHaveLength(2)
 })

@@ -8,6 +8,7 @@
 package keenetic
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -387,10 +388,31 @@ func (d *Deployer) Rollback(ctx context.Context, device application.DeviceInfo, 
 	if err != nil {
 		return err
 	}
-	if _, err := session.raw(ctx, http.MethodPost, "/ci/startup-config", backup.Payload); err != nil {
+	answer, err := session.raw(ctx, http.MethodPost, "/ci/startup-config", backup.Payload)
+	if err != nil {
 		return err
 	}
-	return session.command(ctx, "/rci/system/configuration/save", map[string]any{}, nil)
+	// The upload endpoint may acknowledge with an empty body; a nonempty
+	// response must be a usable RCI acknowledgement, never an unchecked 200.
+	if len(bytes.TrimSpace(answer)) > 0 {
+		if err := parseAnswers(answer); err != nil {
+			return err
+		}
+	}
+	if err := session.command(ctx, "/rci/system/configuration/save", map[string]any{}, nil); err != nil {
+		return err
+	}
+	restored, err := session.raw(ctx, http.MethodGet, "/ci/startup-config", nil)
+	if err != nil {
+		return err
+	}
+	// Only transport line endings are normalized. Unknown firmware-generated
+	// differences fail closed rather than guessing that recovery succeeded.
+	normalize := func(value []byte) []byte { return bytes.ReplaceAll(value, []byte("\r\n"), []byte("\n")) }
+	if !bytes.Equal(normalize(restored), normalize(backup.Payload)) {
+		return fmt.Errorf("%w: restored configuration does not match backup", ErrDeviceAnswer)
+	}
+	return nil
 }
 
 func routeCommand(prefix netip.Prefix, deviceInterface, description string, remove bool) map[string]any {

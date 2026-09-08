@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import OutputPrefixEditor from '@/features/view-profile/ui/OutputPrefixEditor.vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { TargetOption } from '@/shared/api/catalog'
@@ -25,6 +26,7 @@ const props = defineProps<{
   profileId: string
   outputs: OutputCard[]
   schedule: Schedule | null
+  scheduleSaving?: boolean
   selectedId: string
   targetGroups: { kind: string; targets: TargetOption[] }[]
   // What to call a format here. The catalog owns the words and the page owns
@@ -169,6 +171,12 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
                   {{ t(`kind.${output.targetKind}.one`) }}
                 </span>
               </span>
+              <OutputPrefixEditor
+                v-if="output.targetID === 'keenetic-dns' && !props.archived"
+                :output-id="output.id"
+                :prefix="output.fqdnGroupPrefix ?? ''"
+                :disabled="props.busy"
+              />
             </td>
             <td class="outputs__cell-format">
               {{
@@ -290,10 +298,10 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
       <div class="outputs__schedule-field">
         <RvSelect
           v-model="scheduleValue"
-          :disabled="props.busy"
+          :disabled="props.scheduleSaving"
           input-id="profile-schedule-select"
           labelled-by="profile-schedule"
-          :loading="props.busy"
+          :loading="props.scheduleSaving"
           :options="scheduleOptions"
           :placeholder="t('profile.schedule.default')"
         />

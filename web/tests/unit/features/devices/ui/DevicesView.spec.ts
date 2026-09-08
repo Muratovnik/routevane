@@ -204,3 +204,57 @@ describe('DevicesView prerequisite audit', () => {
     })
   })
 })
+
+it('marks a saved device change stale and retries only the read while preserving drafts', async () => {
+  useLocale().setLocale('en')
+  const fetchMock = installFetch(async (input, init) => {
+    if (input === '/v1/devices/device-1/forget') return json({})
+    if (input === DEVICES) {
+      const reads = callsTo(fetchMock, DEVICES).length
+      if (reads === 2) return json({ error: 'unavailable' }, 503)
+      return json(
+        reads === 1
+          ? DEVICE_PAYLOAD
+          : { devices: [], secret_store_available: true },
+      )
+    }
+    if (input === LISTS) return json(CATALOG_PAYLOAD)
+    if (input === TARGETS) return json(TARGETS_PAYLOAD)
+    if (input === REQUIREMENTS) return json(REQUIREMENTS_PAYLOAD)
+    throw new Error(`unexpected request ${input} ${init?.method}`)
+  })
+  const screen = await render(DevicesView)
+  await screen.getByLabelText('Device or application').click()
+  await screen.getByRole('option', { name: /^Keenetic/ }).click()
+  await screen.getByLabelText('Connection name').fill('Unsaved connection')
+  await screen
+    .getByRole('button', { name: 'Forget this connection', exact: true })
+    .click()
+  await expect
+    .element(screen.getByText('Connections could not be refreshed'))
+    .toBeVisible()
+  await expect
+    .element(screen.getByRole('heading', { name: 'Home router' }))
+    .toBeVisible()
+  await expect
+    .element(
+      screen.getByRole('button', {
+        name: 'Forget this connection',
+        exact: true,
+      }),
+    )
+    .toBeDisabled()
+  await screen.getByRole('button', { name: 'Retry', exact: true }).click()
+  await expect
+    .element(screen.getByRole('heading', { name: 'Home router' }))
+    .not.toBeInTheDocument()
+  await expect
+    .element(screen.getByText('Connections could not be refreshed'))
+    .not.toBeInTheDocument()
+  await expect
+    .element(screen.getByLabelText('Connection name'))
+    .toHaveValue('Unsaved connection')
+  expect(callsTo(fetchMock, '/v1/devices/device-1/forget')).toHaveLength(1)
+  expect(callsTo(fetchMock, DEVICES)).toHaveLength(3)
+  vi.unstubAllGlobals()
+})

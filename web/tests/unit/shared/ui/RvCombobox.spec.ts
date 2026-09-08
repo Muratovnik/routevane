@@ -43,6 +43,8 @@ const PROPS = {
   emptyLabel: 'Nothing found.',
   groups: GROUPS,
   inputId: 'target',
+  loading: false,
+  loadingLabel: 'Loading targets',
   modelValue: '',
   placeholder: 'Choose a device or application',
   toggleLabel: 'Show the list',
@@ -168,6 +170,44 @@ describe('RvCombobox', () => {
       .click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
 
+    expect(screen.emitted('update:modelValue')).toEqual([['keenetic']])
+  })
+
+  it('finishes a repeated single choice with pointer or keyboard', async () => {
+    const screen = await renderCombobox({ modelValue: 'singbox' })
+    const trigger = screen.getByRole('button', { name: 'sing-box' })
+
+    await trigger.click()
+    await screen.getByRole('option', { name: /^sing-box/ }).click()
+    await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
+
+    await trigger.click()
+    await screen.getByLabelText('Search').fill('sing')
+    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.keyboard('{Enter}')
+    await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('makes an open picker inert when its owner becomes busy', async () => {
+    const screen = await renderCombobox()
+    const trigger = screen.getByRole('button', {
+      name: 'Choose a device or application',
+    })
+    await trigger.click()
+
+    const search = screen.getByLabelText('Search')
+    await expect.element(search).toHaveFocus()
+    await screen.rerender({ loading: true })
+
+    const busyTrigger = screen.getByRole('button', { name: 'Loading targets' })
+    await expect.element(busyTrigger).toBeDisabled()
+    await expect.element(busyTrigger).toHaveAttribute('aria-expanded', 'false')
+    await expect.element(search).not.toBeInTheDocument()
+    expect(screen.emitted('update:modelValue')).toBeUndefined()
+    await screen.rerender({ loading: false })
+    await trigger.click()
+    await expect.element(screen.getByLabelText('Search')).toHaveFocus()
+    await screen.getByRole('option', { name: /^Keenetic/ }).click()
     expect(screen.emitted('update:modelValue')).toEqual([['keenetic']])
   })
 })

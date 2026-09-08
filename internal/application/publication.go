@@ -76,9 +76,10 @@ type ProfileComposition struct {
 // the chain of published artifacts; the lists it publishes come from its
 // profile, so an edited profile is served by the same output rather than a new one.
 type Output struct {
-	ID        string `json:"id"`
-	ProfileID string `json:"list_id"`
-	TargetID  string `json:"target_id"`
+	FQDNGroupPrefix string `json:"fqdn_group_prefix,omitempty"`
+	ID              string `json:"id"`
+	ProfileID       string `json:"list_id"`
+	TargetID        string `json:"target_id"`
 	// DeviceID is the one registered destination this output may deliver to.
 	// Empty means file/subscription only. The explicit binding prevents a timer
 	// from guessing among multiple profiles for the same kind of device.
@@ -148,15 +149,24 @@ type PublicationRepository interface {
 	// Setting and PutSetting carry the preferences the process acts on itself.
 	Setting(context.Context, string) (string, error)
 	PutSetting(context.Context, string, string, time.Time) error
-	// UpdateProfileSchedule writes only the scheduling columns. It is separate
-	// from UpdateProfile because a timer must not rewrite a composition, and a
-	// composition edit must not reset when the profile last refreshed.
-	UpdateProfileSchedule(ctx context.Context, profileID string, interval RefreshInterval, lastRefreshedAt time.Time, failed bool, updatedAt time.Time) error
+	// UpdateProfileRefreshInterval records an operator scheduling preference
+	// without changing the result of the last scheduled run.
+	UpdateProfileRefreshInterval(ctx context.Context, profileID string, interval RefreshInterval, updatedAt time.Time) error
+	// RecordProfileRefreshResult records scheduler-owned runtime metadata without
+	// rewriting an interval the operator may have changed while the run was active.
+	RecordProfileRefreshResult(ctx context.Context, profileID string, lastRefreshedAt time.Time, failed bool) error
 	CreateProfile(context.Context, Profile) error
 	Profile(context.Context, string) (Profile, error)
 	// Profiles returns stored profiles newest first. The repository owns the bound
 	// because this transport has no pagination parameters.
 	Profiles(context.Context) ([]Profile, error)
+	// ProfilesForScheduling returns every stored profile. It is a scheduler input,
+	// not a shelf page, so an older profile must never disappear behind a display
+	// limit.
+	ProfilesForScheduling(context.Context) ([]Profile, error)
+	// ProfileReferences returns every stored profile that directly names one of
+	// the supplied categories or lists, including archived profiles.
+	ProfileReferences(ctx context.Context, categoryIDs, listIDs []string) ([]ProfileReference, error)
 	// UpdateProfile replaces the mutable part of a profile: its name and its
 	// composition. Identity and creation time are rejected by the store.
 	UpdateProfile(context.Context, Profile) error

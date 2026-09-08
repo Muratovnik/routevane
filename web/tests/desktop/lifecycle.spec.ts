@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process'
 import { mkdtemp, mkdir, readFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { once } from 'node:events'
+import { isolatedProductEnvironment } from '../e2e/support/environment'
 import {
   reserveLoopbackPort,
   spawnProduct,
@@ -32,7 +33,7 @@ const scratch = async () => {
   await mkdir(parent, { recursive: true })
   const directory = await mkdtemp(join(parent, 'profile '))
   return {
-    ...process.env,
+    ...isolatedProductEnvironment(),
     ROUTEVANE_DESKTOP_PROFILE: join(directory, 'profile'),
     ROUTEVANE_DESKTOP_DATA: join(directory, 'data'),
   }

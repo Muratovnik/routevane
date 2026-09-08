@@ -23,7 +23,7 @@ the format your device understands. Lists refresh manually or on a schedule.
 - **Profiles instead of spreadsheets.** Combine lists and categories into a profile.
   List priority resolves overlapping destinations, and a forecast shows how many
   rules each format would build before you build it.
-- **Five output formats.** Keenetic (IPv4 routes and FQDN groups), sing-box,
+- **Six output formats.** Keenetic IPv4 routes, Keenetic FQDN groups, sing-box,
   OpenWrt, MikroTik, and AmneziaVPN. One profile can publish several formats.
 - **Safe updates.** Every published file is validated first. If a scheduled
   rebuild fails, the previous valid file stays available.
@@ -35,9 +35,11 @@ the format your device understands. Lists refresh manually or on a schedule.
 
 ## Download and start
 
-Every release on the [releases page](https://github.com/Muratovnik/routevane/releases/latest)
-ships the files below. Download from **Assets**, not the **Source code** archive.
-`SHA256SUMS` in the same release lets you [verify a download](docs/installation.md#verify-a-download).
+The current release layout, introduced in `v0.1.7`, includes the files below.
+Earlier releases contain the CLI packages but no desktop installer. Download
+from **Assets** on the [releases page](https://github.com/Muratovnik/routevane/releases/latest),
+not the **Source code** archive. `SHA256SUMS` in the same release lets you
+[verify a download](docs/installation.md#verify-a-download).
 
 | Distribution | Platform | File |
 | --- | --- | --- |
@@ -130,7 +132,7 @@ applying rules to a device.
 Routevane is at version `0.y.z`: a breaking change raises the minor version,
 everything else raises the patch. Rendering and validation of every format, the
 browser interface, the Windows desktop lifetime, and installer updates are
-covered by automated tests on every release. Not yet verified: operation on
+covered by the current release gate. Not yet verified: operation on
 physical Keenetic, OpenWrt, MikroTik, and AmneziaVPN devices, live sing-box
 reload, and a signed installer. Desktop packages exist for Windows only. See
 [open work and limits](docs/requirements.md#open-work-and-limits) and the

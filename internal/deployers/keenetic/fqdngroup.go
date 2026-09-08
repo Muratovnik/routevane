@@ -35,10 +35,8 @@ const (
 // route deployer uses. It shares this package because it is the same
 // authenticated conversation with the same device, not a second protocol.
 //
-// It owns exactly the groups whose names carry the Routevane prefix, and the
-// dns-proxy routes pointing at them. A group or a route the operator created is
-// never read as ours and never removed: the 128-group budget is shared with
-// whatever else is on the router (ADR 0017).
+// Exact persisted creation evidence supplies deletion authority. Names and
+// interface membership never establish ownership (ADR 0040).
 type FQDNDeployer struct {
 	options Options
 }
@@ -68,9 +66,9 @@ func (d *FQDNDeployer) Probe(ctx context.Context, connection application.Connect
 	if err := session.requireInterface(ctx, info.Interface); err != nil {
 		return info, err
 	}
-	// Refuse incompatible route policy at probe, before the lifecycle reaches
-	// backup/deploy/rollback. Deploy reads again to catch subsequent drift.
-	if _, _, err := session.ownedGroups(ctx); err != nil {
+	// Require readable group and route state. The ownership-scoped preview
+	// checks route policy before backup; Deploy reads again to catch drift.
+	if _, _, err := session.observedGroups(ctx); err != nil {
 		return info, err
 	}
 	info.FormatKey = keeneticdns.Version
@@ -112,7 +110,11 @@ func (d *FQDNDeployer) Deploy(ctx context.Context, device application.DeviceInfo
 	if err != nil {
 		return err
 	}
-	existing, routes, err := session.ownedGroups(ctx)
+	existing, routes, err := session.observedGroups(ctx)
+	if err != nil {
+		return err
+	}
+	existing, routes, err = scopedGroups(artifact, wanted, existing, routes, true)
 	if err != nil {
 		return err
 	}
@@ -126,8 +128,8 @@ func (d *FQDNDeployer) Deploy(ctx context.Context, device application.DeviceInfo
 }
 
 // Verify reads the device's own groups back. A deployment is applied only if
-// the device reports exactly the artifact's groups under our prefix, with
-// exactly its entries, each routed on the named interface.
+// the device reports exactly the artifact's groups within the persisted
+// ownership scope, with its entries and automatic routes on the named interface.
 func (d *FQDNDeployer) Verify(ctx context.Context, device application.DeviceInfo, connection application.Connection, artifact application.DeployArtifact) error {
 	wanted, err := artifactGroups(artifact)
 	if err != nil {
@@ -137,7 +139,11 @@ func (d *FQDNDeployer) Verify(ctx context.Context, device application.DeviceInfo
 	if err != nil {
 		return err
 	}
-	existing, routes, err := session.ownedGroups(ctx)
+	existing, routes, err := session.observedGroups(ctx)
+	if err != nil {
+		return err
+	}
+	existing, routes, err = scopedGroups(artifact, wanted, existing, routes, false)
 	if err != nil {
 		return err
 	}
@@ -163,16 +169,24 @@ func (d *FQDNDeployer) routes() *Deployer { return &Deployer{options: d.options}
 // ones are added, so a group that changed heavily never briefly holds more than
 // the device's per-group bound. A route is attached last, when the group it
 // names is complete, so a resolved answer is never sent to a half-filled group.
-func reconcileGroups(wanted, existing map[string][]string, routes map[string]string, deviceInterface string) []string {
+func reconcileGroups(wanted, existing map[string][]string, routes map[string]fqdnRoute, deviceInterface string) []string {
 	commands := make([]string, 0, 16)
-	for _, name := range sortedNames(existing) {
+	observedNames := maps.Clone(existing)
+	for name := range routes {
+		if _, exists := observedNames[name]; !exists {
+			observedNames[name] = nil
+		}
+	}
+	for _, name := range sortedNames(observedNames) {
 		if _, keep := wanted[name]; keep {
 			continue
 		}
 		if attached, bound := routes[name]; bound {
-			commands = append(commands, "no dns-proxy route object-group "+name+" "+attached)
+			commands = append(commands, "no dns-proxy route object-group "+name+" "+attached.Interface)
 		}
-		commands = append(commands, "no object-group fqdn "+name)
+		if _, exists := existing[name]; exists {
+			commands = append(commands, "no object-group fqdn "+name)
+		}
 	}
 	for _, name := range sortedNames(wanted) {
 		present, exists := existing[name]
@@ -192,15 +206,14 @@ func reconcileGroups(wanted, existing map[string][]string, routes map[string]str
 			}
 		}
 		attached, bound := routes[name]
-		if bound && attached == deviceInterface {
+		if bound && attached.Interface == deviceInterface && attached.Auto {
 			continue
 		}
 		if bound {
-			commands = append(commands, "no dns-proxy route object-group "+name+" "+attached)
+			commands = append(commands, "no dns-proxy route object-group "+name+" "+attached.Interface)
 		}
-		// auto is the command form of the "Add automatically" option the
-		// device's own DNS-based routes page offers, which is what makes a
-		// resolved answer install its route.
+		// auto selects the vendor's automatic-application policy. It is part
+		// of desired state, not evidence of interface connectivity.
 		commands = append(commands, "dns-proxy route object-group "+name+" "+deviceInterface+" auto")
 	}
 	return commands
@@ -209,7 +222,7 @@ func reconcileGroups(wanted, existing map[string][]string, routes map[string]str
 // compareGroups states what the device is missing and what it holds that the
 // artifact does not, in terms an operator can act on: a group, one entry of a
 // group, or a group that is not routed where it was asked to be.
-func compareGroups(wanted, existing map[string][]string, routes map[string]string, deviceInterface string) (missing, extra []string) {
+func compareGroups(wanted, existing map[string][]string, routes map[string]fqdnRoute, deviceInterface string) (missing, extra []string) {
 	missing = make([]string, 0)
 	extra = make([]string, 0)
 	for _, name := range sortedNames(wanted) {
@@ -230,13 +243,20 @@ func compareGroups(wanted, existing map[string][]string, routes map[string]strin
 				extra = append(extra, name+"/"+entry)
 			}
 		}
-		if attached, bound := routes[name]; !bound || attached != deviceInterface {
+		if attached, bound := routes[name]; !bound || attached.Interface != deviceInterface || !attached.Auto {
 			missing = append(missing, name+"@"+deviceInterface)
 		}
 	}
 	for _, name := range sortedNames(existing) {
 		if _, wantedGroup := wanted[name]; !wantedGroup {
 			extra = append(extra, name)
+		}
+	}
+	for name := range routes {
+		if _, wantedGroup := wanted[name]; !wantedGroup {
+			if _, exists := existing[name]; !exists {
+				extra = append(extra, name+"@route")
+			}
 		}
 	}
 	return missing, extra
@@ -307,68 +327,6 @@ func (d *FQDNDeployer) ValidateStoredConnection(connection application.Connectio
 	return d.routes().ValidateStoredConnection(connection)
 }
 
-// ownedGroups reads the FQDN groups this product wrote and the dns-proxy routes
-// pointing at them. Everything outside the Routevane prefix is dropped here, at
-// the one place device state enters the deployer, so no later step can act on a
-// name we did not create.
-func (s *session) ownedGroups(ctx context.Context) (map[string][]string, map[string]string, error) {
-	var configured map[string]struct {
-		Include []struct {
-			Address string `json:"address"`
-		} `json:"include"`
-	}
-	if err := s.command(ctx, "/rci/object-group/fqdn", nil, &configured); err != nil {
-		return nil, nil, err
-	}
-	groups := make(map[string][]string, len(configured))
-	for name, group := range configured {
-		if !ownedGroupName(name) {
-			continue
-		}
-		entries := make([]string, 0, len(group.Include))
-		for _, entry := range group.Include {
-			value := strings.TrimSpace(entry.Address)
-			if value != "" {
-				entries = append(entries, value)
-			}
-		}
-		groups[name] = entries
-	}
-	var attached []struct {
-		Group     string `json:"group"`
-		Interface string `json:"interface"`
-		Reject    bool   `json:"reject"`
-	}
-	if err := s.command(ctx, "/rci/dns-proxy/route", nil, &attached); err != nil {
-		return nil, nil, err
-	}
-	routes := make(map[string]string, len(attached))
-	for _, route := range attached {
-		name := strings.TrimSpace(route.Group)
-		if !ownedGroupName(name) {
-			continue
-		}
-		// This artifact creates non-exclusive routes. An exclusive route is
-		// different policy, not an idempotent match to silently keep or replace.
-		attached := strings.TrimSpace(route.Interface)
-		if route.Reject || attached == "" {
-			return nil, nil, fmt.Errorf("%w: unsupported route for group %q", ErrDeviceAnswer, name)
-		}
-		if previous, exists := routes[name]; exists && previous != attached {
-			return nil, nil, fmt.Errorf("%w: ambiguous route for group %q", ErrDeviceAnswer, name)
-		}
-		routes[name] = attached
-	}
-	return groups, routes, nil
-}
-
-// ownedGroupName is the ownership boundary: a name this product wrote, and
-// nothing else.
-func ownedGroupName(name string) bool {
-	rest, found := strings.CutPrefix(name, keeneticdns.GroupPrefix)
-	return found && rest != ""
-}
-
 // parseBatch issues CLI commands through the RCI parse surface. The object
 // group commands have no documented structured form, and the command line is
 // what the device's own reference and the published client both use, so it is
@@ -402,6 +360,10 @@ func (s *session) parseBatch(ctx context.Context, commands []string) error {
 // command. The device answers 200 even for a rejected command, so the body is
 // what decides success.
 func parseAnswers(payload []byte) error {
+	payload = []byte(strings.TrimSpace(string(payload)))
+	if len(payload) == 0 || (payload[0] != '{' && payload[0] != '[') {
+		return fmt.Errorf("%w: command answer is not an object or array", ErrDeviceAnswer)
+	}
 	var answers []json.RawMessage
 	if err := json.Unmarshal(payload, &answers); err != nil {
 		var single json.RawMessage

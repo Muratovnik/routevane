@@ -113,6 +113,20 @@ const submit = async (): Promise<void> => {
     </header>
 
     <RvStateNotice
+      v-if="setup.catalogRefresh.state.value === 'stale'"
+      live
+      :title="t('catalog.stale')"
+      :body="t('catalog.stale.body')"
+      tone="warning"
+    >
+      <template #action>
+        <RvButton @click="setup.catalogRefresh.retry">{{
+          t('action.retry')
+        }}</RvButton>
+      </template>
+    </RvStateNotice>
+
+    <RvStateNotice
       v-if="setup.catalogState.value === 'loading'"
       live
       :title="t('create.catalog.loading')"

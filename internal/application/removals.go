@@ -1,10 +1,8 @@
 package application
 
 import (
-	"cmp"
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -170,35 +168,7 @@ func (s *PublicationService) profilesNaming(ctx context.Context, categoryIDs, li
 	if len(categoryIDs) == 0 && len(listIDs) == 0 {
 		return nil, nil
 	}
-	stored, err := s.config.Store.Profiles(ctx)
-	if err != nil {
-		return nil, err
-	}
-	categories := make(map[string]struct{}, len(categoryIDs))
-	for _, categoryID := range categoryIDs {
-		categories[categoryID] = struct{}{}
-	}
-	lists := make(map[string]struct{}, len(listIDs))
-	for _, listID := range listIDs {
-		lists[listID] = struct{}{}
-	}
-	references := make([]ProfileReference, 0)
-	for _, profile := range stored {
-		if namesAny(profile.Categories, categories) || namesAny(profile.Lists, lists) {
-			references = append(references, ProfileReference{ID: profile.ID, Title: profile.Name})
-		}
-	}
-	slices.SortFunc(references, func(a, b ProfileReference) int { return cmp.Compare(a.ID, b.ID) })
-	return references, nil
-}
-
-func namesAny(named []string, wanted map[string]struct{}) bool {
-	for _, id := range named {
-		if _, found := wanted[id]; found {
-			return true
-		}
-	}
-	return false
+	return s.config.Store.ProfileReferences(ctx, categoryIDs, listIDs)
 }
 
 // forgetCategory brings the registry to what the store now holds: an

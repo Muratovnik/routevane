@@ -108,6 +108,7 @@ const credentials = ref<Record<string, string>>({})
 const canRegister = computed(
   () =>
     !devices.busy.value &&
+    devices.state.value !== 'stale' &&
     devices.requirementsState.value === 'ready' &&
     targetID.value !== '' &&
     name.value.trim() !== '' &&
@@ -205,6 +206,19 @@ const onEnable = async (id: string): Promise<void> => {
 
     <template v-else>
       <RvStateNotice
+        v-if="devices.state.value === 'stale'"
+        live
+        :title="t('devices.stale')"
+        :body="t('devices.stale.body')"
+        tone="warning"
+      >
+        <template #action>
+          <RvButton @click="devices.retryDevices">{{
+            t('action.retry')
+          }}</RvButton>
+        </template>
+      </RvStateNotice>
+      <RvStateNotice
         v-if="confirmation !== ''"
         :title="confirmation"
         tone="ready"
@@ -283,7 +297,9 @@ const onEnable = async (id: string): Promise<void> => {
                 }}
               </p>
               <RvButton
-                :disabled="devices.busy.value"
+                :disabled="
+                  devices.busy.value || devices.state.value === 'stale'
+                "
                 variant="quiet"
                 @click="devices.disable(device.id)"
               >
@@ -310,7 +326,9 @@ const onEnable = async (id: string): Promise<void> => {
                 :id="`device-credential-${device.id}`"
                 autocomplete="off"
                 class="devices__input"
-                :disabled="devices.busy.value"
+                :disabled="
+                  devices.busy.value || devices.state.value === 'stale'
+                "
                 type="password"
                 :value="credentials[device.id] ?? ''"
                 @input="
@@ -323,6 +341,7 @@ const onEnable = async (id: string): Promise<void> => {
               <RvButton
                 :disabled="
                   devices.busy.value ||
+                  devices.state.value === 'stale' ||
                   (needsCredential(device) &&
                     (credentials[device.id] ?? '') === '')
                 "
@@ -353,7 +372,7 @@ const onEnable = async (id: string): Promise<void> => {
             </p>
 
             <RvButton
-              :disabled="devices.busy.value"
+              :disabled="devices.busy.value || devices.state.value === 'stale'"
               variant="quiet"
               @click="devices.forget(device.id)"
             >
@@ -391,7 +410,9 @@ const onEnable = async (id: string): Promise<void> => {
               <RvSelect
                 v-model="targetID"
                 :described-by="describedBy"
-                :disabled="devices.busy.value"
+                :disabled="
+                  devices.busy.value || devices.state.value === 'stale'
+                "
                 searchable
                 input-id="device-target"
                 :invalid="invalid"
@@ -412,7 +433,7 @@ const onEnable = async (id: string): Promise<void> => {
             <RvTextInput
               v-model="name"
               :described-by="describedBy"
-              :disabled="devices.busy.value"
+              :disabled="devices.busy.value || devices.state.value === 'stale'"
               input-id="device-name"
               :invalid="invalid"
               maxlength="120"
@@ -431,7 +452,7 @@ const onEnable = async (id: string): Promise<void> => {
             <RvTextInput
               v-model="address"
               :described-by="describedBy"
-              :disabled="devices.busy.value"
+              :disabled="devices.busy.value || devices.state.value === 'stale'"
               input-id="device-address"
               :invalid="invalid"
               maxlength="512"
@@ -451,7 +472,7 @@ const onEnable = async (id: string): Promise<void> => {
             <RvTextInput
               v-model="account"
               :described-by="describedBy"
-              :disabled="devices.busy.value"
+              :disabled="devices.busy.value || devices.state.value === 'stale'"
               input-id="device-account"
               :invalid="invalid"
               maxlength="120"
@@ -471,7 +492,7 @@ const onEnable = async (id: string): Promise<void> => {
             <RvTextInput
               v-model="interfaceName"
               :described-by="describedBy"
-              :disabled="devices.busy.value"
+              :disabled="devices.busy.value || devices.state.value === 'stale'"
               input-id="device-interface"
               :invalid="invalid"
               maxlength="120"

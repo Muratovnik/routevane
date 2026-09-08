@@ -425,11 +425,30 @@ stay unchanged; this description applies to automatic RCI delivery. See
 
 Keenetic rollback uploads the complete captured configuration, not a scoped
 route delta. Avoid concurrent router changes during delivery: unrelated changes
-made after the backup may also be undone. Physical recovery remains unverified.
+made after the backup may also be undone. Recovery succeeds only after saving
+and reading back the restored configuration; a failed save or mismatch reports
+`rollback_failed`. Physical recovery remains unverified.
 Use an interface ID such as `Wireguard0`, not its description. For DNS-based
 delivery, an exclusive (`reject=true`) or ambiguously attached Routevane group
 is refused before reconciliation; an omitted `reject` or `reject=false` is
-accepted. No automatic conversion of the router's routing policy is performed.
+accepted. Owned attachments are reconciled and verified with `auto=true`; this
+flag is a routing policy, not proof of interface connectivity.
+
+Keenetic DNS groups belong to an exact output and device endpoint. New builds
+name groups `<prefix>-<output hash>-<list hash>-s<shard>`. Set the output's optional
+FQDN group prefix (default `routevane`): at most 24 lowercase ASCII letters,
+digits or hyphens, beginning with a letter and ending without a hyphen. Save it,
+then build again. Existing published files remain unchanged. The send preview
+reads the router without changing it and lists exact commands, including cleanup
+of that output's recorded old names after a prefix change.
+
+A prefix never proves ownership. Unowned groups, including old `routevane-*`
+names and groups from another output, are preserved. If a desired name already
+exists without creation evidence, delivery stops with `fqdn_ownership_conflict`:
+review and migrate that group manually on the router, then retry. Losing or
+retiring the local ledger does not authorize automatic adoption. Interruption
+before the ownership commit can require the same manual review. See
+[ADR 0040](adr/0040-exact-fqdn-output-ownership.md).
 
 For unattended delivery, register the device under **Connections** with every
 non-secret connection field its deployer requests (Keenetic includes the route

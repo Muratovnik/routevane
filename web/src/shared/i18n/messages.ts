@@ -95,6 +95,15 @@ const ru: Dictionary = {
   'devices.loading': 'Читаем устройства…',
   'devices.failed': 'Устройства недоступны',
   'devices.failed.body': 'Сервис не ответил. Повторите попытку.',
+  'devices.stale': 'Список подключений не обновлён',
+  'devices.stale.body':
+    'Показанные сведения могут быть устаревшими. Повторите чтение списка перед следующим изменением.',
+  'catalog.stale': 'Не удалось обновить библиотеку',
+  'catalog.stale.body':
+    'Показана прежняя копия библиотеки. Ваш выбор и черновик сохранены.',
+  'profile.schedule.failed': 'Расписание не изменено',
+  'profile.schedule.failed.body':
+    'Сервис не подтвердил изменение. Показано последнее сохранённое расписание.',
   'devices.catalog.failed': 'Каталог форматов недоступен',
   'devices.catalog.failed.body':
     'Сохранённые устройства показаны, но новое пока нельзя добавить.',
@@ -768,6 +777,22 @@ const ru: Dictionary = {
   'send.steps': 'Шаги применения',
   'send.step.probe': 'Опрос устройства',
   'send.step.backup': 'Резервная копия',
+  'send.step.ownership': 'Учёт управляемых объектов',
+  'send.step.other': 'Операция с устройством',
+  'error.fqdn_ownership_conflict':
+    'FQDN-группа с таким именем не управляется этим подключением. Проверьте или перенесите её вручную перед применением. Изменения не внесены.',
+  'outputs.prefix': 'Префикс FQDN-групп',
+  'outputs.prefix.save': 'Сохранить префикс',
+  'send.plan.fqdn.commands': 'Планируемые команды FQDN',
+  'outputs.prefix.hint':
+    'Пустое поле означает routevane. До 24 строчных латинских букв, цифр и дефисов; начиная с буквы и без дефиса в конце. Изменение вступит в силу после следующей сборки.',
+  'outputs.prefix.invalid':
+    'Введите до 24 строчных латинских букв, цифр и дефисов начиная с буквы и без дефиса в конце.',
+  'outputs.prefix.saved': 'Префикс сохранён для следующей сборки',
+  'outputs.prefix.failed': 'Не удалось сохранить префикс',
+  'send.plan.fqdn':
+    'Будут изменены только объекты, ранее закреплённые за этим подключением. Чужие и неизвестные старые группы сохраняются; совпадение имён блокирует применение.',
+  'send.plan.fqdn.unchanged': 'Изменений FQDN-групп не требуется.',
   'send.step.deploy': 'Применение',
   'send.step.verify': 'Проверка',
   'send.step.rollback': 'Откат',
@@ -995,6 +1020,15 @@ const en: Dictionary = {
   'devices.loading': 'Reading devices…',
   'devices.failed': 'Devices unavailable',
   'devices.failed.body': 'The service did not answer. Try again.',
+  'devices.stale': 'Connections could not be refreshed',
+  'devices.stale.body':
+    'These details may be outdated. Read the list again before making another change.',
+  'catalog.stale': 'The library could not be refreshed',
+  'catalog.stale.body':
+    'The previous library is shown. Your selection and draft are preserved.',
+  'profile.schedule.failed': 'The schedule was not changed',
+  'profile.schedule.failed.body':
+    'The service did not confirm the change. The last saved schedule is shown.',
   'devices.catalog.failed': 'Format catalog unavailable',
   'devices.catalog.failed.body':
     'Saved devices are still shown, but a new one cannot be added yet.',
@@ -1642,6 +1676,22 @@ const en: Dictionary = {
   'send.steps': 'Applying steps',
   'send.step.probe': 'Device probe',
   'send.step.backup': 'Backup',
+  'send.step.ownership': 'Managed object ownership',
+  'send.step.other': 'Device operation',
+  'error.fqdn_ownership_conflict':
+    'An FQDN group with this name is not managed by this connection. Review or migrate it manually before applying. No changes were made.',
+  'outputs.prefix': 'FQDN group prefix',
+  'outputs.prefix.save': 'Save prefix',
+  'send.plan.fqdn.commands': 'Planned FQDN commands',
+  'outputs.prefix.hint':
+    'Leave empty for routevane. Use up to 24 lowercase letters, digits and hyphens, starting with a letter and with no trailing hyphen. Changes take effect on the next build.',
+  'outputs.prefix.invalid':
+    'Use up to 24 lowercase letters, digits and hyphens, starting with a letter and with no trailing hyphen.',
+  'outputs.prefix.saved': 'Prefix saved for the next build',
+  'outputs.prefix.failed': 'The prefix could not be saved',
+  'send.plan.fqdn':
+    'Only objects already owned by this connection will be changed. Other and unknown legacy groups are preserved; a name conflict blocks application.',
+  'send.plan.fqdn.unchanged': 'No FQDN group changes are needed.',
   'send.step.deploy': 'Apply',
   'send.step.verify': 'Verify',
   'send.step.rollback': 'Roll back',

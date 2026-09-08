@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { setTimeout as delay } from 'node:timers/promises'
 import { join, resolve } from 'node:path'
+import { isolatedProductEnvironment } from '../e2e/support/environment'
 
 const root = resolve(import.meta.dirname, '../../..')
 const exec = promisify(execFile)
@@ -77,7 +78,7 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
   const middle = join(scratch, 'middle')
   const next = join(scratch, 'next')
   const env = {
-    ...process.env,
+    ...isolatedProductEnvironment(),
     ROUTEVANE_DESKTOP_PROFILE: join(scratch, 'profile'),
     ROUTEVANE_DESKTOP_DATA: join(scratch, 'data'),
   }

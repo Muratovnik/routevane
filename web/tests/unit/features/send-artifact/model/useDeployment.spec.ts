@@ -13,6 +13,10 @@ describe('address validation', () => {
       'http://192.168.1.1',
       'https://my.keenetic.net',
       'router',
+      'router:8080',
+      'http://[fd00::1]',
+      'https://[fd00::1]:8443/',
+      '[fe80::1]:8080',
       '192.168.1.1:8080',
       'http://192.168.1.1:81/',
       // A local configuration file is what the sing-box deployer declares as
@@ -25,11 +29,24 @@ describe('address validation', () => {
     }
   })
 
+  it.each(['username', 'password'] as const)(
+    'refuses an embedded %s',
+    (field) => {
+      const address = new URL('http://[fd00::1]')
+      address[field] = 'synthetic-fixture'
+      expect(validAddress(address.href)).toBe(false)
+    },
+  )
+
   it('rejects a malformed address before a request is made', () => {
     for (const value of [
       '',
       '192.168.1.1/admin',
       'http://',
+      'http://[fd00::1',
+      'http://[fd00::1]:70000',
+      'http://192.168.1.1?query=yes',
+      'http://192.168.1.1#fragment',
       'ftp://192.168.1.1',
       '192.168.1.1 ',
       'два адреса сразу',
@@ -57,6 +74,12 @@ describe('failure messages', () => {
     expect(messageKey(new RoutevaneAPIError('operation failed', 422))).toBe(
       'error.operationFailed',
     )
+  })
+
+  it('explains an unowned FQDN collision without calling it a changed target', () => {
+    expect(
+      messageKey(new RoutevaneAPIError('fqdn_ownership_conflict', 409)),
+    ).toBe('error.fqdn_ownership_conflict')
   })
 
   it('maps transport and status answers', () => {

@@ -146,7 +146,7 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 	if err := planjson.Validate(snapshotJSON); err != nil {
 		return PublishedBuild{}, fmt.Errorf("validate plan snapshot: %w", err)
 	}
-	payload, err := RenderPrepared(prepared, renderer)
+	payload, err := RenderPreparedOutput(prepared, renderer, output.ID, output.FQDNGroupPrefix)
 	if err != nil {
 		return PublishedBuild{}, err
 	}
@@ -236,7 +236,7 @@ func (s *PublicationService) prepareProfileAt(ctx context.Context, profile Profi
 	if cutoff.IsZero() {
 		return PreparedPlan{}, time.Time{}, fmt.Errorf("clock returned zero time")
 	}
-	prepared, err := PrepareLists(ctx, definitions, revisions, target, s.config.Store, renderer, cutoff)
+	prepared, err := prepareLists(ctx, definitions, revisions, target, s.config.Store, renderer, cutoff, false)
 	if err != nil {
 		return PreparedPlan{}, time.Time{}, err
 	}

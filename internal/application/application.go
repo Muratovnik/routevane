@@ -190,6 +190,13 @@ type Renderer interface {
 	Validate([]byte) error
 }
 
+// OutputRenderer optionally gives a renderer the stable output identity needed
+// by formats whose names must remain distinct across outputs. Generic previews
+// and forecasts continue to use Renderer.Render because no stored output exists.
+type OutputRenderer interface {
+	RenderOutput(domain.RoutingPlan, string, string) ([]byte, error)
+}
+
 // RendererRegistry resolves a renderer id to its implementation. The target
 // catalog is deliberately a separate map: a target describes a device and its
 // limits, a renderer describes a format, and several targets may share one
@@ -254,6 +261,10 @@ type PreparedPlan struct {
 // PrepareLists reads all selected lists at one cutoff and completes
 // planner and renderer preflight without invoking Render.
 func PrepareLists(ctx context.Context, definitions []domain.ListDefinition, activeRevisions map[string]map[string]string, target domain.TargetDefinition, store ObservationStore, renderer Renderer, cutoff time.Time) (PreparedPlan, error) {
+	return prepareLists(ctx, definitions, activeRevisions, target, store, renderer, cutoff, true)
+}
+
+func prepareLists(ctx context.Context, definitions []domain.ListDefinition, activeRevisions map[string]map[string]string, target domain.TargetDefinition, store ObservationStore, renderer Renderer, cutoff time.Time, enforceRuleLimit bool) (PreparedPlan, error) {
 	if ctx == nil || store == nil || renderer == nil || len(definitions) == 0 || target.ID == "" || target.FormatKey == "" || target.RendererID == "" || len(target.RendererOptions) != 0 || cutoff.IsZero() {
 		return PreparedPlan{}, fmt.Errorf("invalid prepare composition")
 	}
@@ -298,7 +309,7 @@ func PrepareLists(ctx context.Context, definitions []domain.ListDefinition, acti
 	if !equalStrings(plan.Lists, wantLists) {
 		return PreparedPlan{}, fmt.Errorf("%w: list set mismatch", ErrPreflight)
 	}
-	if err := PreflightPlan(plan, target, renderer, cutoff); err != nil {
+	if err := preflightPlan(plan, target, renderer, cutoff, enforceRuleLimit); err != nil {
 		return PreparedPlan{}, err
 	}
 	return PreparedPlan{Plan: plan, Target: target}, nil
@@ -306,10 +317,26 @@ func PrepareLists(ctx context.Context, definitions []domain.ListDefinition, acti
 
 // RenderPrepared renders, bounds, and validates one preflighted plan.
 func RenderPrepared(prepared PreparedPlan, renderer Renderer) ([]byte, error) {
+	return renderPrepared(prepared, renderer, "", "")
+}
+
+// RenderPreparedOutput renders a stored output with its stable identity while
+// preserving the ordinary renderer contract for formats that do not need it.
+func RenderPreparedOutput(prepared PreparedPlan, renderer Renderer, outputID, prefix string) ([]byte, error) {
+	return renderPrepared(prepared, renderer, outputID, prefix)
+}
+
+func renderPrepared(prepared PreparedPlan, renderer Renderer, outputID, prefix string) ([]byte, error) {
 	if renderer == nil || renderer.ID() != prepared.Target.RendererID || renderer.Version() != prepared.Target.FormatKey {
 		return nil, fmt.Errorf("%w: renderer identity", ErrPreflight)
 	}
-	payload, err := renderer.Render(cloneRoutingPlan(prepared.Plan))
+	var payload []byte
+	var err error
+	if outputRenderer, ok := renderer.(OutputRenderer); ok && outputID != "" {
+		payload, err = outputRenderer.RenderOutput(cloneRoutingPlan(prepared.Plan), outputID, prefix)
+	} else {
+		payload, err = renderer.Render(cloneRoutingPlan(prepared.Plan))
+	}
 	if err != nil {
 		return nil, fmt.Errorf("render target artifact: %w", err)
 	}
