@@ -73,7 +73,14 @@ const sections = computed<
 
 <template>
   <div class="shell-frame">
-    <div class="shell" :class="{ 'shell--collapsed': collapsed }">
+    <!-- The two columns and the transition between their widths. It has no
+         role and no name of its own, so a test hook is the only way to read
+         the geometry it owns. -->
+    <div
+      class="shell"
+      :class="{ 'shell--collapsed': collapsed }"
+      data-testid="rv-shell-grid"
+    >
       <a class="shell__skip" href="#content">{{ t('shell.skip') }}</a>
       <header class="shell__side">
         <p class="shell__product">

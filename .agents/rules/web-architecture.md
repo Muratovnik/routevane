@@ -38,6 +38,12 @@ through `Promise.withResolvers`, and counts calls on a `vi.fn` record.
 runs in the browser, because that is where a document, browser storage and the
 service-origin lookup actually behave.
 
+A browser suite locates an element the way an operator perceives it — by role,
+accessible name, label, or the words on screen — and uses `data-testid` only
+where none of those identifies it. `playwright/no-raw-locators` gates that, and
+the few selectors it allows are written once in `web/tests/e2e/support`, each
+with the reason it has no accessible handle.
+
 A component is a black box. A host styles its own root class, passes props,
 places slot content, or supplies a documented custom property. It does not
 reach through another component with element or implementation selectors.

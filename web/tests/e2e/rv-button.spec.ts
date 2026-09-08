@@ -37,7 +37,23 @@ let harness: SpawnedProduct | undefined
 let origin = ''
 let port = 0
 
-test.beforeAll(async () => {
+/** How long the whole cold start may take: compile, optimize, first render. */
+const BOOT_TIMEOUT_MILLISECONDS = 180000
+/** How long the listener has to accept a request once Nuxt holds the port. */
+const LISTENER_TIMEOUT_MILLISECONDS = 30000
+/** How long the first render may take, which is where a cold optimize lands. */
+const RENDER_TIMEOUT_MILLISECONDS = 120000
+
+test.beforeAll(async ({ browser }) => {
+  // A cold fixture pays for its own start twice over: Nuxt compiles the app,
+  // and then Vite optimizes the dependencies the client entry pulls in and
+  // reloads the page in the middle of the very load that discovered them. An
+  // HTTP 200 proves only that the listener is up, so the test used to absorb
+  // that reload inside its own first assertion and lose it to the default
+  // expect timeout. This hook owns the cold start instead: its deadline covers
+  // the optimize, and it loads the app once in a page of its own, so the test
+  // below opens a server that has already served this app to a browser.
+  test.setTimeout(BOOT_TIMEOUT_MILLISECONDS)
   port = await reserveLoopbackPort()
   origin = `http://127.0.0.1:${port}`
   harness = spawnProduct(
@@ -62,9 +78,22 @@ test.beforeAll(async () => {
     },
   )
 
-  const deadline = Date.now() + 30_000
+  await waitForListener()
+  const warmup = await browser.newPage()
+  try {
+    await warmup.goto(origin)
+    await expect(warmup.getByTestId('activations')).toHaveText('0', {
+      timeout: RENDER_TIMEOUT_MILLISECONDS,
+    })
+  } finally {
+    await warmup.close()
+  }
+})
+
+const waitForListener = async (): Promise<void> => {
+  const deadline = Date.now() + LISTENER_TIMEOUT_MILLISECONDS
   while (Date.now() < deadline) {
-    harness.assertAlive()
+    harness?.assertAlive()
     try {
       const response = await fetch(origin)
       if (response.ok) return
@@ -73,8 +102,8 @@ test.beforeAll(async () => {
     }
     await delay(100)
   }
-  throw new Error(`Nuxt button harness did not start:\n${harness.output()}`)
-})
+  throw new Error(`Nuxt button harness did not start:\n${harness?.output()}`)
+}
 
 test.afterAll(async () => {
   let cleanupError: unknown

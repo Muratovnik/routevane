@@ -75,9 +75,12 @@ const dots: Record<string, [number, number, number][]> = {
 </script>
 
 <template>
+  <!-- Decoration beside an accessible name, so it is hidden from the
+       accessibility tree and carries a test hook rather than a role. -->
   <svg
     class="rv-icon"
     aria-hidden="true"
+    data-testid="rv-icon"
     fill="none"
     focusable="false"
     viewBox="0 0 16 16"

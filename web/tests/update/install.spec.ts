@@ -150,7 +150,7 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
     await expect.poll(() => exists(exe), { timeout: 30000 }).toBe(true)
     app = await electron.launch({ executablePath: exe, env })
     let page = await app.firstWindow()
-    await page.locator('h1').waitFor()
+    await page.getByRole('heading', { level: 1 }).waitFor()
     expect(await app.evaluate(({ app }) => app.getVersion())).toBe('0.0.1')
     const created = await page.evaluate(async () => {
       localStorage.setItem('rv.locale', 'ru')
@@ -220,7 +220,7 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
     page =
       browser.contexts()[0]!.pages()[0] ??
       (await browser.contexts()[0]!.waitForEvent('page'))
-    await page.locator('h1').waitFor()
+    await page.getByRole('heading', { level: 1 }).waitFor()
     const update = page.getByRole('button', { name: 'Обновить', exact: true })
     await expect(update).toBeVisible({ timeout: 15000 })
     expect(downloads).toBe(0)
@@ -234,9 +234,14 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
       .getByRole('button', { name: 'Свернуть меню', exact: true })
       .click()
     await expect(update).toBeVisible()
-    await expect(page.locator('.shell__product-name')).toHaveCSS('opacity', '0')
+    await expect(
+      page.getByRole('banner').getByText('Routevane', { exact: true }),
+    ).toHaveCSS('opacity', '0')
     await update.focus()
-    await expect(page.locator('.rv-tooltip')).toContainText('0.0.3')
+    // The tooltip's role belongs to an aria-hidden node inside the panel,
+    // which is how a reader hears it as the trigger's description; the panel
+    // that is actually drawn carries the hook instead.
+    await expect(page.getByTestId('rv-tooltip')).toContainText('0.0.3')
     const violations = (
       await new AxeBuilder({ page }).setLegacyMode().analyze()
     ).violations

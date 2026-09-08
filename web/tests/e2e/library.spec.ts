@@ -24,6 +24,33 @@ import {
   stopOwnedProduct,
   type SpawnedProduct,
 } from './support/product'
+import {
+  bodyRows,
+  cardContents,
+  cardRow,
+  cardRows,
+  categoryCell,
+  dialogScrims,
+  dragGhost,
+  escapeRegExp,
+  forecastStatus,
+  infoPanel,
+  libraryCategoryCell,
+  libraryRow,
+  libraryRowName,
+  linkTo,
+  listMembership,
+  listRow,
+  menuPanel,
+  overlapsCell,
+  pressableTargets,
+  priorityHandle,
+  profileOutputsCell,
+  rowCellWidths,
+  selectedListRows,
+  titleField,
+  type Scope,
+} from './support/queries'
 
 // The locale suites read their expected text from the shipped dictionary, so a
 // message the product renames fails the test instead of passing silently.
@@ -35,6 +62,12 @@ const copyFor =
       throw new Error(`Not a string message: ${key}`)
     return value
   }
+
+// The walkthroughs below run in English and name what they expect inline. The
+// shared queries take a dictionary so the localized suites can hand them their
+// own words, and default to this one so an English call site stays a call with
+// one argument.
+const englishCopy = copyFor('en')
 
 const testDirectory = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(testDirectory, '..', '..', '..')
@@ -171,10 +204,9 @@ test('the library starts empty and shelves the profile the composer creates and 
     ),
   ).toBeVisible()
 
-  await page
-    .locator('.profiles__header')
-    .getByRole('link', { name: 'Build a profile' })
-    .click()
+  // The shelf's own header offers the action, above the empty-state copy that
+  // repeats it, so the first of the two is the one on the header.
+  await page.getByRole('link', { name: 'Build a profile' }).first().click()
   await page.waitForURL(`${origin}/profiles/new`)
   await expect(
     page.getByRole('heading', { level: 1, name: 'New profile' }),
@@ -200,7 +232,7 @@ test('the library starts empty and shelves the profile the composer creates and 
   await expect(
     listCard.getByRole('heading', { name: 'List contents' }),
   ).toBeVisible()
-  await expect(listCard.locator('.list-card__value').first()).toBeVisible()
+  await expect(cardRows(listCard).first()).toBeVisible()
   await expect(listCard.getByText('catalog').first()).toBeVisible()
   // The catalog seeds an address as well as a domain. The value says what it
   // is; the caption says only where it came from.
@@ -236,7 +268,7 @@ test('the library starts empty and shelves the profile the composer creates and 
     name: 'Search the contents',
   })
   await contentsFilter.fill('192.0.2.10')
-  await expect(listCard.locator('.list-card__rows li')).toHaveCount(1)
+  await expect(cardRows(listCard)).toHaveCount(1)
   await contentsFilter.fill('no-such-entry')
   await expect(listCard.getByText('Nothing found.')).toBeVisible()
   await contentsFilter.fill('')
@@ -248,24 +280,26 @@ test('the library starts empty and shelves the profile the composer creates and 
   ).toBe(true)
   await listCard.getByRole('button', { name: 'Add to profile' }).click()
   await listCard.getByRole('button', { name: 'Close' }).last().click()
-  await expect(page.locator('input[value="discord"]')).toBeChecked()
+  await expect(listMembership(page, 'Discord')).toBeChecked()
   await expect(page.getByText('1 list in the profile')).toBeVisible()
   await expect(submit).toBeDisabled()
 
   // The search narrows the checkboxes without ever unpicking a list.
   const search = page.getByRole('searchbox', { name: 'Find a list' })
   await search.fill('youtu')
-  await expect(page.locator('input[value="discord"]')).toHaveCount(0)
-  await page.locator('input[value="youtube"]').check()
+  await expect(listMembership(page, 'Discord')).toHaveCount(0)
+  await listMembership(page, 'YouTube').check()
   await expect(page.getByText('2 lists in the profile')).toBeVisible()
 
   // Priority is the profile's overlap policy. The first row is dragged below the
   // second here, while the same handle also exposes arrow-key reordering.
   await search.fill('')
-  const priorityRows = page.locator('.picker__row--selected')
+  const priorityRows = selectedListRows(page)
   await expect(priorityRows).toHaveCount(2)
-  await expect(priorityRows.nth(0)).toHaveAttribute('data-id', 'discord')
-  const dragHandle = priorityRows.nth(0).locator('.picker__handle')
+  await expect(priorityRows.nth(0).getByRole('rowheader')).toContainText(
+    'Discord',
+  )
+  const dragHandle = priorityHandle(priorityRows.nth(0))
   await dragHandle.scrollIntoViewIfNeeded()
   const from = await dragHandle.boundingBox()
   const to = await priorityRows.nth(1).boundingBox()
@@ -277,23 +311,14 @@ test('the library starts empty and shelves the profile the composer creates and 
     steps: 4,
   })
   await page.waitForTimeout(50)
-  const ghost = page.locator('.picker__row.sortable-fallback')
+  const ghost = dragGhost(page)
   await expect(ghost).toBeVisible()
   const ghostBox = (await ghost.boundingBox())!
   const originalBox = (await priorityRows.nth(0).boundingBox())!
   expect(Math.abs(ghostBox.width - originalBox.width)).toBeLessThanOrEqual(1)
   expect(Math.abs(ghostBox.height - originalBox.height)).toBeLessThanOrEqual(1)
-  const originalCells = await priorityRows
-    .nth(0)
-    .locator(':scope > td, :scope > th')
-    .evaluateAll((cells) =>
-      cells.map((cell) => cell.getBoundingClientRect().width),
-    )
-  const ghostCells = await ghost
-    .locator(':scope > td, :scope > th')
-    .evaluateAll((cells) =>
-      cells.map((cell) => cell.getBoundingClientRect().width),
-    )
+  const originalCells = await rowCellWidths(priorityRows.nth(0))
+  const ghostCells = await rowCellWidths(ghost)
   expect(ghostCells).toHaveLength(originalCells.length)
   ghostCells.forEach((width, index) =>
     expect(Math.abs(width - originalCells[index]!)).toBeLessThanOrEqual(1),
@@ -303,10 +328,12 @@ test('the library starts empty and shelves the profile the composer creates and 
   })
   await page.waitForTimeout(100)
   await page.mouse.up()
-  await expect(priorityRows.nth(0)).toHaveAttribute('data-id', 'youtube')
+  await expect(priorityRows.nth(0).getByRole('rowheader')).toContainText(
+    'YouTube',
+  )
 
   // The name is proposed from what was picked.
-  const nameInput = page.locator('#create-name')
+  const nameInput = nameField(page)
   await expect(nameInput).toHaveValue('Discord, YouTube')
 
   // The proposed name is a starting point, never a gate.
@@ -319,8 +346,10 @@ test('the library starts empty and shelves the profile the composer creates and 
   // The list opens against the field it belongs to: the same left edge, and
   // never narrower than it. A panel centred under a field reads as a menu that
   // happens to be near it rather than as that field's own list.
-  const targetField = page.locator('.rv-search-select__trigger--field')
-  const targetPanel = page.locator('.rv-search-select__panel')
+  const targetField = deliveryField(page)
+  const targetPanel = page.getByRole('dialog', {
+    name: englishCopy('create.target.toggle'),
+  })
   await expect(targetPanel).toBeVisible()
   const fieldBox = await targetField.boundingBox()
   const panelBox = await targetPanel.boundingBox()
@@ -334,7 +363,7 @@ test('the library starts empty and shelves the profile the composer creates and 
   )
   // A field drawn as a bordered wrapper around an input stands exactly as tall
   // as a plain input: the wrapper owns the height, not the input inside it.
-  const nameBox = await page.locator('#create-name').boundingBox()
+  const nameBox = await nameField(page).boundingBox()
   expect(Math.round(fieldBox?.height ?? 0)).toBe(
     Math.round(nameBox?.height ?? -1),
   )
@@ -343,7 +372,7 @@ test('the library starts empty and shelves the profile the composer creates and 
     page.getByRole('option', { name: /Keenetic.*\.bat.*from Routevane/ }),
   ).toBeVisible()
   await page.getByRole('option', { name: /Keenetic/ }).click()
-  await expect(page.locator('#create-target')).toHaveText('Keenetic')
+  await expect(targetField).toHaveText('Keenetic')
   await expect(submit).toBeEnabled()
   const outputsResponse = page.waitForResponse(
     (candidate) =>
@@ -397,7 +426,7 @@ test('the library starts empty and shelves the profile the composer creates and 
   await expect(
     page.getByRole('heading', { name: 'Subscription link · Keenetic' }),
   ).toBeVisible()
-  const targetSelect = page.locator('#outputs-target')
+  const targetSelect = addConnectionField(page)
   await expect(targetSelect).toBeEnabled()
 
   const published = profileFlow(mutations)
@@ -450,16 +479,16 @@ test('the library starts empty and shelves the profile the composer creates and 
   ).toHaveAttribute('href', `/profiles/${profileID}`)
   // The profile name keeps the original proposal, while the second line makes
   // the changed priority visible on the shelf.
-  await expect(row.locator('.profiles__lists')).toHaveText('YouTube, Discord')
-  await expect(row.locator('.profiles__cell-outputs')).toHaveText('Keenetic')
-  await expect(row.locator('.profiles__cell-outputs')).not.toContainText('BAT')
+  await expect(row).toContainText('YouTube, Discord')
+  await expect(profileOutputsCell(row)).toHaveText('Keenetic')
+  await expect(profileOutputsCell(row)).not.toContainText('BAT')
   await expect(row.getByRole('button')).toHaveCount(1)
   await row
     .getByRole('button', {
       name: 'Actions for profile Discord, YouTube',
     })
     .click()
-  const menu = page.locator('.rv-menu__panel:visible')
+  const menu = menuPanel(page)
   // Everything in the panel is a menu item, so the keyboard traverses one list
   // rather than a mixture of buttons and links.
   await expect(
@@ -477,7 +506,9 @@ test('the library starts empty and shelves the profile the composer creates and 
   )
   const download = page.waitForEvent('download')
   await menu.getByRole('menuitem', { name: 'Download' }).click()
-  const formats = page.locator('.rv-menu__panel:visible').last()
+  // A grouped choice opens its own menu over the one that offered it, so the
+  // formats are in the last panel the stack holds.
+  const formats = menuPanel(page).last()
   await expect(
     formats.getByRole('menuitem', { name: 'JSON · all rules' }),
   ).toBeVisible()
@@ -491,7 +522,7 @@ test('the library starts empty and shelves the profile the composer creates and 
   await row
     .getByRole('button', { name: 'Actions for profile Discord, YouTube' })
     .click()
-  const reopenedMenu = page.locator('.rv-menu__panel:visible')
+  const reopenedMenu = menuPanel(page)
   await expect(
     reopenedMenu.getByRole('menuitem', { name: 'Copy contents' }),
   ).toBeVisible()
@@ -503,13 +534,13 @@ test('the library starts empty and shelves the profile the composer creates and 
   await expect(
     page.getByRole('heading', { level: 1, name: 'Discord, YouTube' }),
   ).toBeVisible()
-  await expect(page.locator('#editor-name')).toHaveValue('Discord, YouTube')
-  const profilePage = page.locator('main')
+  await expect(nameField(page)).toHaveValue('Discord, YouTube')
+  const profilePage = page.getByRole('main')
 
   // Editing uses the same stable rows and in-table membership controls.
-  const compositionRow = profilePage
-    .locator('.picker__row--selected')
-    .filter({ hasText: 'Discord' })
+  const compositionRow = selectedListRows(profilePage).filter({
+    hasText: 'Discord',
+  })
   await expect(
     compositionRow.getByRole('checkbox', {
       name: 'Remove Discord from the profile',
@@ -520,12 +551,10 @@ test('the library starts empty and shelves the profile the composer creates and 
       name: 'Remove YouTube from the profile',
     }),
   ).toBeVisible()
-  const editorTable = profilePage.locator('.picker__table')
+  const editorTable = profilePage.getByRole('table')
   await expect(editorTable).toBeVisible()
-  await expect(editorTable.locator('.picker__row--selected')).toHaveCount(2)
-  await editorTable
-    .locator('.picker__row')
-    .filter({ hasText: 'Discord' })
+  await expect(selectedListRows(editorTable)).toHaveCount(2)
+  await listRow(editorTable, 'Discord')
     .getByRole('button', { name: 'Open the contents of list Discord' })
     .click()
   const listDialog = page.getByRole('dialog', {
@@ -547,12 +576,12 @@ test('the library starts empty and shelves the profile the composer creates and 
   })
   await editorSearch.fill('Limit fixture')
   await expect(
-    editorTable.locator('.picker__row').filter({ hasText: 'Limit fixture' }),
+    bodyRows(editorTable).filter({ hasText: 'Limit fixture' }),
   ).toHaveCount(1)
   await editorSearch.fill('')
 
-  const discord = profilePage.locator('input[value="discord"]')
-  const discordRow = discord.locator('xpath=ancestor::tr')
+  const discord = listMembership(profilePage, 'Discord')
+  const discordRow = listRow(profilePage, 'Discord')
   const rowHeight = await discordRow.evaluate((element) => element.clientHeight)
   await discord.uncheck()
   await expect(discordRow).toContainText('Discord')
@@ -604,18 +633,36 @@ test('the list card takes domains, addresses and networks, typed or imported', a
     await expect(
       card.getByRole('heading', { name: 'List contents' }),
     ).toBeVisible()
-    // No profile is in question here, so the card asks about none.
-    await expect(card.locator('.list-card__membership')).toHaveCount(0)
+    // No profile is in question here, so the card asks about none: the act its
+    // footer would carry is not offered at all.
+    await expect(
+      card.getByRole('button', {
+        name: /^(Add to profile|Remove from profile)$/,
+      }),
+    ).toHaveCount(0)
 
-    // The filter and the control beside it share one height: a toolbar is one
-    // line, not two controls that happen to be near each other.
-    const filterBox = await card.locator('.list-card__filter').boundingBox()
+    // The filter and the control beside it share one line: the field's frame
+    // owns its height, so the input inside it stands a hairline border shorter
+    // than the control it sits next to, and both are centred on the same line.
+    const filterBox = await card
+      .getByRole('searchbox', { name: 'Search the contents' })
+      .boundingBox()
     const addBox = await card
       .getByRole('button', { name: 'Add entries' })
       .boundingBox()
-    expect(Math.round(filterBox?.height ?? 0)).toBe(
-      Math.round(addBox?.height ?? -1),
-    )
+    expect(filterBox).not.toBeNull()
+    expect(addBox).not.toBeNull()
+    expect(
+      Math.round((addBox?.height ?? 0) - (filterBox?.height ?? 0)),
+    ).toBeLessThanOrEqual(2)
+    expect(
+      Math.abs(
+        (filterBox?.y ?? 0) +
+          (filterBox?.height ?? 0) / 2 -
+          (addBox?.y ?? 0) -
+          (addBox?.height ?? 0) / 2,
+      ),
+    ).toBeLessThanOrEqual(1)
 
     // One field for all three shapes, one submission for the whole draft. The
     // way in sits above the table it adds to, and opens a panel over it rather
@@ -628,14 +675,19 @@ test('the list card takes domains, addresses and networks, typed or imported', a
     await expect(entries).toBeVisible()
 
     // One dimming for the stack: a panel opened over a sheet darkens the page
-    // once, not twice.
-    await expect(page.locator('.rv-dialog__scrim')).toHaveCount(2)
-    await expect(
-      page.locator('.rv-dialog__scrim:not(.rv-dialog__scrim--nested)'),
-    ).toHaveCount(1)
+    // once, not twice. Both layers stay — a pointer landing outside the panel
+    // still closes it — so what must hold is that exactly one of them is
+    // painted.
+    await expect(dialogScrims(page)).toHaveCount(2)
+    const grounds = await dialogScrims(page).evaluateAll((layers) =>
+      layers.map((layer) => getComputedStyle(layer).backgroundColor),
+    )
+    expect(
+      grounds.filter((ground) => ground !== 'rgba(0, 0, 0, 0)'),
+    ).toHaveLength(1)
 
     await entries
-      .locator('#list-add-entries')
+      .getByLabel('Entries')
       .fill('corp.example\n203.0.113.7\n203.0.113.0/29')
     await entries.getByRole('button', { exact: true, name: 'Add' }).click()
     await expect(entries).toBeHidden()
@@ -650,7 +702,9 @@ test('the list card takes domains, addresses and networks, typed or imported', a
     // beside the rows the file did land in.
     await card.getByRole('button', { name: 'Add entries' }).click()
     await expect(entries).toBeVisible()
-    await entries.locator('input[type="file"]').setInputFiles(routesFile)
+    // The picker's own caption names both the input that takes the file and
+    // the surface that opens the chooser; the input is the first of the two.
+    await entries.getByLabel('Import a file').first().setInputFiles(routesFile)
     await expect(entries).toBeHidden()
     await expect(cardRow(card, '198.18.0.0/20')).toContainText('by hand')
     await expect(card.getByText('1 line skipped')).toBeVisible()
@@ -663,7 +717,7 @@ test('the list card takes domains, addresses and networks, typed or imported', a
       '203.0.113.0/29',
       '198.18.0.0/20',
     ]) {
-      await cardRow(card, value).locator('input[type="checkbox"]').click()
+      await cardRow(card, value).getByRole('checkbox').click()
       await expect(cardRow(card, value)).toHaveCount(0)
     }
 
@@ -700,14 +754,14 @@ test('the list card stays whole over a scrolled page and gives the scroll back',
   await expect(
     page.getByRole('heading', { level: 1, name: 'New profile' }),
   ).toBeVisible()
-  const logo = page.locator('.shell__product-mark')
+  const logo = page.getByTestId('rv-shell-product-mark')
   const logoBeforeScroll = await logo.boundingBox()
   expect(logoBeforeScroll).not.toBeNull()
 
   // The page is scrolled before the card opens. The click below would scroll
   // its own target into view, so the position the card must preserve is the
   // one read after that adjustment, not before it.
-  await page.locator('.shell__main').evaluate((element) => {
+  await page.getByRole('main').evaluate((element) => {
     element.scrollTop = element.scrollHeight
   })
   const opener = page.getByRole('button', {
@@ -715,7 +769,7 @@ test('the list card stays whole over a scrolled page and gives the scroll back',
   })
   await opener.scrollIntoViewIfNeeded()
   const scrolled = await page
-    .locator('.shell__main')
+    .getByRole('main')
     .evaluate((element) => Math.round(element.scrollTop))
   expect(scrolled).toBeGreaterThan(0)
   const logoAfterScroll = await logo.boundingBox()
@@ -812,23 +866,26 @@ test('the list card stays whole over a scrolled page and gives the scroll back',
   ).toBe('hidden')
   await page.mouse.move(8, 320)
   await page.mouse.wheel(0, -600)
+  // The card owns the screen, so the surface behind it is hidden from the
+  // accessibility tree — which is what a reader's software must be told. The
+  // landmark is therefore read with hidden elements included rather than
+  // through a markup selector.
   expect(
     await page
-      .locator('.shell__main')
+      .getByRole('main', { includeHidden: true })
       .evaluate((element) => Math.round(element.scrollTop)),
   ).toBe(scrolled)
 
   // The library primitive owns a modal focus loop. Both ends wrap inside the
-  // real USlideover, and close returns to the external opener.
-  const focusable = card.locator(
-    'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-  )
-  await focusable.first().focus()
+  // real USlideover, and close returns to the external opener. The ends are
+  // named rather than counted: the first thing the keyboard reaches is the
+  // link in the card's header, and the last is the act in its footer.
+  await card.getByRole('link', { name: 'Open in the library' }).focus()
   await page.keyboard.press('Shift+Tab')
   expect(
     await card.evaluate((element) => element.contains(document.activeElement)),
   ).toBe(true)
-  await focusable.last().focus()
+  await card.getByRole('button', { name: 'Add to profile' }).focus()
   await page.keyboard.press('Tab')
   expect(
     await card.evaluate((element) => element.contains(document.activeElement)),
@@ -896,7 +953,7 @@ test('the list card stays whole over a scrolled page and gives the scroll back',
     .not.toBe('hidden')
   expect(
     await page
-      .locator('.shell__main')
+      .getByRole('main')
       .evaluate((element) => Math.round(element.scrollTop)),
   ).toBe(scrolled)
 
@@ -928,7 +985,7 @@ test('the list card stays whole over a scrolled page and gives the scroll back',
   await expect(opener).toBeFocused()
   expect(
     await page
-      .locator('.shell__main')
+      .getByRole('main')
       .evaluate((element) => Math.round(element.scrollTop)),
   ).toBe(scrolled)
   await page.emulateMedia({ reducedMotion: 'no-preference' })
@@ -1060,27 +1117,27 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   const { profileId, outputId } = await buildProfile(page)
   const profileURL = `${origin}/profiles/${profileId}`
 
-  await expect(page.locator('.profile__header .rv-status__label')).toHaveText(
-    'Published with notes',
-  )
+  await expect(
+    page.getByText('Published with notes', { exact: true }),
+  ).toBeVisible()
   await expect(page.getByText('Coverage is incomplete')).toBeVisible()
-  await expect(page.locator('#editor-name')).toHaveValue('Discord, YouTube')
+  await expect(nameField(page)).toHaveValue('Discord, YouTube')
   // The contents tab states the composition itself, one row per list, and keeps
   // the catalog behind the control that adds to it.
-  const routePriority = page.locator('main').locator('.picker__row--selected')
+  const routePriority = selectedListRows(page.getByRole('main'))
   await expect(routePriority).toHaveCount(2)
   await expect(routePriority).toContainText(['Discord', 'YouTube'])
 
   // Refresh belongs to Connection. The inactive panel stays mounted for stable
   // state, but its control must not leak into the Contents tab.
-  await expect(page.locator('#profile-schedule-select')).toBeHidden()
+  await expect(scheduleField(page)).toBeHidden()
 
   // The subscription link is shown masked: the raw secret is not in the DOM,
   // not in any request, until the operator asks for it.
   await expect(
     page.getByRole('heading', { name: 'Subscription link · Keenetic' }),
   ).toBeVisible()
-  const secret = page.locator('.profile__secret-value')
+  const secret = page.getByRole('region', { name: /^Subscription link/ })
   await expect(secret).toContainText(`${origin}/v1/subscriptions/`)
   expect(await page.content()).not.toContain('rv1.')
   await page.getByRole('button', { name: 'Show', exact: true }).click()
@@ -1100,12 +1157,17 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   // The file is read only when the operator opens it, and what is shown is
   // byte-for-byte what the device receives.
   await tablist.getByRole('tab', { name: 'Connection' }).click()
-  const scheduleTrigger = page.locator('#profile-schedule-select')
+  const scheduleTrigger = scheduleField(page)
   await expect(scheduleTrigger).toBeVisible()
   const scheduleGround = async (): Promise<string> =>
     scheduleTrigger.evaluate((node) => getComputedStyle(node).backgroundColor)
   const atRest = await scheduleGround()
-  await page.locator('#profile-schedule').hover()
+  await page
+    .getByRole('heading', {
+      name: englishCopy('profile.schedule'),
+      exact: true,
+    })
+    .hover()
   expect(await scheduleGround()).toBe(atRest)
   await scheduleTrigger.hover()
   expect(await scheduleGround()).toBe(atRest)
@@ -1137,12 +1199,12 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
     'route ADD 192.0.2.10 MASK 255.255.255.255 0.0.0.0',
   )
   expect(artifactBytes).not.toContain('127.0.0.1')
-  const rendered = page.locator('pre.rv-code__body')
+  const rendered = page.getByRole('code')
   await expect(rendered).toBeVisible()
   expect(await rendered.evaluate((element) => element.textContent)).toBe(
     artifactBytes,
   )
-  await expect(page.locator('.rv-code__caption')).toContainText('1 line')
+  await expect(page.getByRole('figure')).toContainText('1 line')
   await page.reload()
   await expect(rendered).toHaveText(artifactBytes)
   await expect(tablist.getByRole('tab', { name: 'File' })).toHaveAttribute(
@@ -1159,11 +1221,13 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   )
   await tablist.getByRole('tab', { name: 'Diagnostics' }).click()
   expect((await snapshotResponse).status()).toBe(200)
-  const counts = page.locator('.profile__counts')
+  const diagnosticsPanel = page.getByRole('tabpanel', { name: 'Diagnostics' })
+  // The panel states the per-list counts first and the rules themselves after,
+  // so the first list it holds is what each list contributed.
+  const counts = diagnosticsPanel.getByRole('list').first()
   await expect(counts).toContainText('Discord')
   await expect(counts).not.toContainText('YouTube')
   await expect(counts).toContainText('1 rule')
-  const diagnosticsPanel = page.locator('#rv-panel-diagnostics')
   await expect(diagnosticsPanel).toContainText('Excluded')
   await expect(diagnosticsPanel).toContainText(
     'the rule belongs to a higher-priority list',
@@ -1216,7 +1280,7 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   // output the profile already carries, and the name and the list composition
   // stay two independent facts.
   await tablist.getByRole('tab', { name: 'Contents' }).click()
-  const editorNameInput = page.locator('#editor-name')
+  const editorNameInput = nameField(page)
   await expect(editorNameInput).toHaveValue('Discord, YouTube')
   await editorNameInput.fill('Chat and video')
   await page.getByRole('button', { name: 'Save and rebuild' }).click()
@@ -1245,9 +1309,7 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   await page.waitForURL(`${origin}/`)
   const renamedRow = page.getByRole('row').filter({ hasText: 'Chat and video' })
   await expect(renamedRow).toHaveCount(1)
-  await expect(renamedRow.locator('.profiles__lists')).toHaveText(
-    'Discord, YouTube',
-  )
+  await expect(renamedRow).toContainText('Discord, YouTube')
   await renamedRow
     .getByRole('link', { exact: true, name: 'Chat and video' })
     .click()
@@ -1259,7 +1321,7 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
     .getByRole('navigation', { name: 'Sections' })
     .getByRole('link', { name: 'Settings' })
     .click()
-  await segment(page, 'Full').click()
+  await pressSegment(page, 'Full')
   await page
     .getByRole('navigation', { name: 'Sections' })
     .getByRole('link', { name: 'Profiles' })
@@ -1329,9 +1391,7 @@ test('a failed first build remains retryable and exposes no subscription', async
   })
 
   await page.goto(`${origin}/profiles/${failedProfileID}`)
-  await expect(page.locator('.profile__header .rv-status__label')).toHaveText(
-    'Refresh failed',
-  )
+  await expect(page.getByText('Refresh failed', { exact: true })).toBeVisible()
   // The editor says the same thing the build reported, before the operator
   // presses anything, and still lets the profile be saved.
   await expect(
@@ -1358,9 +1418,7 @@ test('a failed first build remains retryable and exposes no subscription', async
 
   await page.getByRole('link', { name: 'Profiles' }).first().click()
   await page.waitForURL(`${origin}/`)
-  await page
-    .locator(`a.profiles__link[href="/profiles/${failedProfileID}"]`)
-    .click()
+  await linkTo(page, `/profiles/${failedProfileID}`).click()
   await expect(page.getByText('Format not updated')).toBeVisible()
   await page
     .getByRole('tablist', { name: 'Profile sections' })
@@ -1368,11 +1426,10 @@ test('a failed first build remains retryable and exposes no subscription', async
     .click()
   await expect(outputRow).toContainText('Last build failed')
   await page
-    .locator('main')
+    .getByRole('main')
     .getByRole('button', { name: /Actions for profile/ })
     .click()
-  await page
-    .locator('.rv-menu__panel:visible')
+  await menuPanel(page)
     .getByRole('menuitem', { name: 'Refresh and rebuild' })
     .click()
   await expect(page.getByText('Format not updated')).toBeVisible()
@@ -1397,7 +1454,7 @@ test('the composer sizes every format and refuses the pair that cannot hold the 
   expect(observed.ok()).toBe(true)
   await page.goto(`${origin}/profiles/new`)
   // The fixture belongs to no category, but still appears in the one table.
-  await page.locator('input[value="limit-fixture"]').check()
+  await listMembership(page, 'Limit fixture').check()
 
   // Every format states what this draft would weigh in it, against its own
   // bound, in the same list the choice is made from.
@@ -1417,7 +1474,7 @@ test('the composer sizes every format and refuses the pair that cannot hold the 
   // hide it.
   const submit = page.getByRole('button', { name: 'Create and prepare' })
   await page.getByRole('option', { name: /Limited fixture/ }).click()
-  await expect(page.locator('.create__forecast')).toHaveText('≈ 2 of 1 rules')
+  await expect(page.getByText('≈ 2 of 1 rules', { exact: true })).toBeVisible()
   await expect(submit).toBeDisabled()
   await expect(
     page.getByText('The profile does not fit Limited fixture.'),
@@ -1425,7 +1482,7 @@ test('the composer sizes every format and refuses the pair that cannot hold the 
   await expect(page.getByText('sing-box would fit.')).toBeVisible()
 
   await page.getByRole('button', { name: 'Choose sing-box' }).click()
-  await expect(page.locator('#create-target')).toHaveText('sing-box')
+  await expect(deliveryField(page)).toHaveText('sing-box')
   await expect(submit).toBeEnabled()
   assertProductAlive()
 })
@@ -1477,9 +1534,7 @@ test('the composing card carries no row control and never spoils the forecast', 
   // rows the removed switch could never have taken out of a profile.
   await expect(cardRow(card, '192.0.2.20')).toContainText('catalog')
   await expect(cardRow(card, '198.51.100.20')).toContainText('catalog')
-  await expect(
-    card.locator('.list-card__rows input[type="checkbox"]'),
-  ).toHaveCount(0)
+  await expect(card.getByRole('checkbox')).toHaveCount(0)
 
   // The one control the card offers, used both ways with the card open.
   const add = card.getByRole('button', { name: 'Add to profile' })
@@ -1511,22 +1566,28 @@ test('the visible library order seeds new profiles without rewriting saved profi
   const headers = { 'X-Routevane-Request': '1' }
   const catalog = (await (
     await page.request.get(`${origin}/v1/lists`)
-  ).json()) as { default_priority: string[] }
+  ).json()) as {
+    default_priority: string[]
+    list_details: { id: string; title: string }[]
+  }
   const original = [...catalog.default_priority]
+  // The order is stored as identifiers and read on screen as titles, so the
+  // expectations below name the list the same way the row does.
+  const titles = new Map(
+    catalog.list_details.map((list) => [list.id, list.title]),
+  )
+  const rowTitle = (listID: string): string => titles.get(listID) ?? listID
 
   try {
     await page.goto(`${origin}/lists`)
-    const sheet = page.locator('.lists')
+    const sheet = libraryRegion(page)
     await expect(sheet).not.toContainText(
       'New profiles start with this order. Existing saved profiles do not change.',
     )
 
-    const first = sheet.locator('.lists__list-row').first()
-    const firstHandle = await first.locator('.lists__handle').boundingBox()
-    const secondRow = await sheet
-      .locator('.lists__list-row')
-      .nth(1)
-      .boundingBox()
+    const first = bodyRows(sheet).first()
+    const firstHandle = await priorityHandle(first).boundingBox()
+    const secondRow = await bodyRows(sheet).nth(1).boundingBox()
     await page.mouse.move(firstHandle!.x + 8, firstHandle!.y + 8)
     await page.mouse.down()
     await page.mouse.move(
@@ -1535,36 +1596,36 @@ test('the visible library order seeds new profiles without rewriting saved profi
       { steps: 12 },
     )
     await page.mouse.up()
-    await expect(first).toHaveAttribute('data-id', original[1]!)
+    await expect(first.getByRole('rowheader')).toHaveText(
+      rowTitle(original[1]!),
+    )
     await sheet.getByRole('button', { name: 'Reset order' }).click()
-    await expect(first).toHaveAttribute('data-id', original[0]!)
+    await expect(first.getByRole('rowheader')).toHaveText(
+      rowTitle(original[0]!),
+    )
 
-    const youtube = sheet
-      .locator('.lists__list-row')
-      .filter({ hasText: 'YouTube' })
-    const handle = youtube.locator('.lists__handle')
+    const handle = priorityHandle(libraryRow(sheet, 'YouTube'))
     for (let index = original.indexOf('youtube'); index > 0; index -= 1)
       await handle.press('ArrowUp')
-    await expect(sheet.locator('.lists__list-row').first()).toHaveAttribute(
-      'data-id',
-      'youtube',
-    )
+    await expect(first.getByRole('rowheader')).toHaveText('YouTube')
     await sheet.getByRole('button', { name: 'Save order' }).click()
     await expect(sheet.getByRole('button', { name: 'Save order' })).toBeHidden()
 
     await page.goto(`${origin}/profiles/new`)
     const search = page.getByRole('searchbox', { name: 'Find a list' })
     await search.fill('Discord')
-    await page.locator('input[value="discord"]').check()
+    await listMembership(page, 'Discord').check()
     await search.fill('YouTube')
-    await page.locator('input[value="youtube"]').check()
+    await listMembership(page, 'YouTube').check()
     await search.fill('')
-    await expect(
-      page.locator('.picker__row[data-id="youtube"]'),
-    ).toHaveAttribute('data-priority', '1')
-    await expect(
-      page.locator('.picker__row[data-id="discord"]'),
-    ).toHaveAttribute('data-priority', '2')
+    // A row states its own priority on the handle that changes it, which is
+    // where an operator reads the position too.
+    await expect(priorityHandle(listRow(page, 'YouTube'))).toHaveAccessibleName(
+      'Change priority of list YouTube, position 1',
+    )
+    await expect(priorityHandle(listRow(page, 'Discord'))).toHaveAccessibleName(
+      'Change priority of list Discord, position 2',
+    )
   } finally {
     const restored = await page.request.post(`${origin}/v1/lists/priority`, {
       data: { default_priority: original },
@@ -1596,11 +1657,10 @@ test('an operator category carries its lists into a profile and is kept while a 
   // unused page. Its rows stay dense while the two panes claim the available
   // viewport height.
   const viewport = page.viewportSize()
-  const workspaceBox = await page.locator('.lists__workspace').boundingBox()
-  const firstListBox = await page
-    .locator('.lists__list-row')
-    .first()
+  const workspaceBox = await page
+    .getByTestId('rv-lists-workspace')
     .boundingBox()
+  const firstListBox = await bodyRows(libraryRegion(page)).first().boundingBox()
   expect(workspaceBox?.height ?? 0).toBeGreaterThanOrEqual(
     Math.floor((viewport?.height ?? 0) * 0.55),
   )
@@ -1622,14 +1682,18 @@ test('an operator category carries its lists into a profile and is kept while a 
 
   // The category just made is the one on screen, because it was made to be
   // filled.
-  const details = page.locator('.lists')
+  const details = libraryRegion(page)
   await expectLibraryCategory(page, 'Домашние')
 
   await page.getByRole('button', { name: 'New list' }).click()
   const addList = page.getByRole('dialog', { name: 'New list' })
   await addList.getByText('Existing list', { exact: true }).click()
-  await addList.locator('.rv-search-select__trigger').click()
-  await page.locator('.rv-search-select__search input').fill('Discord')
+  await addList
+    .getByRole('button', {
+      name: englishCopy('lists.category.pick.placeholder'),
+    })
+    .click()
+  await choiceSearch(page).fill('Discord')
   await page.getByRole('option', { name: 'Discord' }).click()
   await addList.getByRole('button', { exact: true, name: 'Add' }).click()
   await expect(addList).toBeHidden()
@@ -1642,9 +1706,7 @@ test('an operator category carries its lists into a profile and is kept while a 
 
   // A filtered category exposes an explicit live-reference choice, so the
   // profile follows it rather than freezing today's members.
-  const categoryFilter = page.locator(
-    '.catalog-filters .rv-search-select__trigger',
-  )
+  const categoryFilter = categoryMore(page)
   await categoryFilter.click()
   await page.getByRole('option', { name: 'Домашние' }).click()
   await page.getByRole('button', { name: 'Follow “Домашние”' }).click()
@@ -1655,8 +1717,8 @@ test('an operator category carries its lists into a profile and is kept while a 
     .click()
   await categoryFilter.click()
   await page.getByRole('option', { name: 'Video' }).click()
-  await page.locator('input[value="youtube"]').check()
-  await expect(page.locator('#create-name')).toHaveValue('Домашние, YouTube')
+  await listMembership(page, 'YouTube').check()
+  await expect(nameField(page)).toHaveValue('Домашние, YouTube')
 
   await chooseFormat(page, /Keenetic/)
   await page.getByRole('button', { name: 'Create and prepare' }).click()
@@ -1673,16 +1735,14 @@ test('an operator category carries its lists into a profile and is kept while a 
     .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Contents' })
     .click()
-  const editorFilter = page.locator(
-    '.catalog-filters .rv-search-select__trigger',
-  )
+  const editorFilter = categoryMore(page)
   await editorFilter.click()
   await page.getByRole('option', { name: 'Домашние' }).click()
   await expect(
     page.getByRole('button', { name: 'Follow “Домашние”' }),
   ).toContainText('New lists: automatic')
   await expect(
-    page.locator('.picker__row--selected').filter({ hasText: 'Discord' }),
+    selectedListRows(page).filter({ hasText: 'Discord' }),
   ).toHaveCount(1)
 
   const routeURL = page.url()
@@ -1692,8 +1752,7 @@ test('an operator category carries its lists into a profile and is kept while a 
   // refused, which is the one place the operator is standing.
   await page.goto(`${origin}/lists`)
   await openCategoryActions(page, 'Домашние')
-  await page
-    .locator('.rv-menu__panel:visible')
+  await menuPanel(page)
     .getByRole('menuitem', { name: 'Delete the category' })
     .click()
   const removal = page.getByRole('dialog', { name: 'Delete the category' })
@@ -1706,11 +1765,12 @@ test('an operator category carries its lists into a profile and is kept while a 
   ).toBeVisible()
   await removal.getByRole('button', { name: 'Cancel' }).click()
   await page.getByRole('button', { name: 'Categories', exact: true }).click()
-  await expect(page.locator('.lists__groups')).toContainText('Домашние')
-  await page
-    .getByRole('dialog', { name: 'Categories', exact: true })
-    .getByRole('button', { name: 'Close', exact: true })
-    .click()
+  const categories = page.getByRole('dialog', {
+    name: 'Categories',
+    exact: true,
+  })
+  await expect(categories).toContainText('Домашние')
+  await categories.getByRole('button', { name: 'Close', exact: true }).click()
 
   // Doing what the refusal asks is what makes the deletion possible, and the
   // profile keeps everything it did not follow through the category.
@@ -1719,9 +1779,7 @@ test('an operator category carries its lists into a profile and is kept while a 
     .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Contents' })
     .click()
-  const routeEditorFilter = page.locator(
-    '.catalog-filters .rv-search-select__trigger',
-  )
+  const routeEditorFilter = categoryMore(page)
   await routeEditorFilter.click()
   await page.getByRole('option', { name: 'Домашние' }).click()
   await page.getByRole('button', { name: 'Follow “Домашние”' }).click()
@@ -1737,27 +1795,23 @@ test('an operator category carries its lists into a profile and is kept while a 
     .getByRole('button', { name: 'All categories', exact: true })
     .click()
   await expect(
-    page.locator('.picker__row--selected').filter({ hasText: 'YouTube' }),
+    selectedListRows(page).filter({ hasText: 'YouTube' }),
   ).toHaveCount(1)
 
   // Nothing names it now, so it goes — and the list it held keeps the category
   // it already belonged to.
   await page.goto(`${origin}/lists`)
   await openCategoryActions(page, 'Домашние')
-  await page
-    .locator('.rv-menu__panel:visible')
+  await menuPanel(page)
     .getByRole('menuitem', { name: 'Delete the category' })
     .click()
   await removal.getByRole('button', { exact: true, name: 'Delete' }).click()
   await expect(removal).toBeHidden()
   await page.getByRole('button', { name: 'Categories', exact: true }).click()
-  await expect(page.locator('.lists__groups')).not.toContainText('Домашние')
-  await page
-    .getByRole('dialog', { name: 'Categories', exact: true })
-    .getByRole('button', { name: 'Close', exact: true })
-    .click()
+  await expect(categories).not.toContainText('Домашние')
+  await categories.getByRole('button', { name: 'Close', exact: true }).click()
   await openLibraryCategory(page, 'Communication')
-  await expect(page.locator('.lists__pane-body')).toContainText('Discord')
+  await expect(page.getByRole('table')).toContainText('Discord')
   assertProductAlive()
 })
 
@@ -1791,11 +1845,10 @@ test('the library deletes a category with its lists, and composing offers none o
   await newProfile.getByLabel('Domains').fill('draft.example')
   await newProfile.getByRole('button', { exact: true, name: 'Create' }).click()
   await expect(newProfile).toBeHidden()
-  await expect(page.locator('.lists')).toContainText('Draft fixture')
+  await expect(libraryRegion(page)).toContainText('Draft fixture')
 
   await openCategoryActions(page, 'Черновик')
-  await page
-    .locator('.rv-menu__panel:visible')
+  await menuPanel(page)
     .getByRole('menuitem', { name: 'Delete the category' })
     .click()
   const removal = page.getByRole('dialog', { name: 'Delete the category' })
@@ -1803,24 +1856,27 @@ test('the library deletes a category with its lists, and composing offers none o
   await removal.getByRole('button', { exact: true, name: 'Delete' }).click()
   await expect(removal).toBeHidden()
   await page.getByRole('button', { name: 'Categories', exact: true }).click()
-  await expect(page.locator('.lists__groups')).not.toContainText('Черновик')
-  await page
-    .getByRole('dialog', { name: 'Categories', exact: true })
-    .getByRole('button', { name: 'Close', exact: true })
-    .click()
+  const categories = page.getByRole('dialog', {
+    name: 'Categories',
+    exact: true,
+  })
+  await expect(categories).not.toContainText('Черновик')
+  await categories.getByRole('button', { name: 'Close', exact: true }).click()
   await openLibraryCategory(page, 'Uncategorized')
-  await expect(page.locator('.lists__pane-body')).not.toContainText(
-    'Draft fixture',
-  )
+  await expect(page.getByRole('table')).not.toContainText('Draft fixture')
 
   // Selection is a checkbox and nothing else: the composer has no category
   // menu, no way to make or unmake anything, and no bin on a list row.
   await page.goto(`${origin}/profiles/new`)
-  await expect(page.locator('.picker__table-frame')).toBeVisible()
+  await expect(page.getByRole('table')).toBeVisible()
   for (const gone of ['New category', 'New list'])
     await expect(page.getByRole('button', { name: gone })).toHaveCount(0)
-  await expect(page.locator('.picker .rv-menu__trigger')).toHaveCount(0)
-  await expect(page.locator('.picker__list-remove')).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: /^Actions for list/ }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Delete the list', exact: true }),
+  ).toHaveCount(0)
   assertProductAlive()
 })
 
@@ -1865,7 +1921,7 @@ test('the list card fills the sheet rather than leaving a band above its footer'
   ).toBeVisible()
 
   // The table scrolls inside itself, and the sheet behind it does not grow.
-  const rows = card.locator('.list-card__rows')
+  const rows = cardContents(card)
   expect(
     await rows.evaluate(
       (element) => element.scrollHeight - element.clientHeight,
@@ -1874,8 +1930,12 @@ test('the list card fills the sheet rather than leaving a band above its footer'
   await rows.evaluate((element) => {
     element.scrollTop = element.scrollHeight
   })
-  const rowBox = await rows.locator('li').last().boundingBox()
-  const footerBox = await card.locator('.rv-dialog__footer').boundingBox()
+  // The band is read against the act the footer holds, which is the first
+  // thing under the table and the only part of that band a reader can name.
+  const rowBox = await cardRows(card).last().boundingBox()
+  const footerBox = await card
+    .getByRole('button', { name: 'Add to profile' })
+    .boundingBox()
   expect(rowBox).not.toBeNull()
   expect(footerBox).not.toBeNull()
   const band = (footerBox?.y ?? 0) - ((rowBox?.y ?? 0) + (rowBox?.height ?? 0))
@@ -1889,16 +1949,13 @@ test('the list card fills the sheet rather than leaving a band above its footer'
   await page
     .getByRole('button', { name: 'Actions for list Tall fixture' })
     .click()
-  await page
-    .locator('.rv-menu__panel:visible')
+  await menuPanel(page)
     .getByRole('menuitem', { name: 'Delete the list' })
     .click()
   const removal = page.getByRole('dialog', { name: 'Delete the list' })
   await removal.getByRole('button', { exact: true, name: 'Delete' }).click()
   await expect(removal).toBeHidden()
-  await expect(page.locator('.lists__pane-body')).not.toContainText(
-    'Tall fixture',
-  )
+  await expect(page.getByRole('table')).not.toContainText('Tall fixture')
   assertProductAlive()
 })
 
@@ -1928,28 +1985,38 @@ test('every portalled overlay arrives with its own ground and edge', async ({
   await page
     .getByRole('button', { name: 'Actions for profile Overlay ground' })
     .click()
-  await assertPainted(page.locator('.rv-menu__panel:visible'), 'menu')
+  await assertPainted(menuPanel(page), 'menu')
   await page.keyboard.press('Escape')
 
   await page.goto(`${origin}/connections`)
-  await page.locator('#device-target').click()
+  await deviceField(page, 'devices.field.target').click()
   await assertPainted(
-    page.locator('.rv-search-select__panel'),
+    choicePanel(page, englishCopy('devices.field.target.pick')),
     'connection choice',
   )
   await page.keyboard.press('Escape')
 
   await page.goto(`${origin}/profiles/new`)
   await openFormats(page)
-  await assertPainted(page.locator('.rv-search-select__panel'), 'combobox')
+  await assertPainted(
+    choicePanel(page, englishCopy('create.target.toggle')),
+    'combobox',
+  )
   await page.keyboard.press('Escape')
 
   await page
     .getByRole('button', { name: 'Open the contents of list Discord' })
     .click()
   const card = page.getByRole('dialog', { exact: true, name: 'Discord' })
-  await card.locator('.rv-infotip__trigger').first().click()
-  await assertPainted(page.locator('.rv-infotip__panel'), 'informer')
+  await card
+    .getByRole('button', { name: englishCopy('listCard.domains.info') })
+    .click()
+  // An informer's panel is a dialog of its own, opened over the card that
+  // offers it, so it is addressed by the name of the control it belongs to.
+  await assertPainted(
+    infoPanel(page, englishCopy('listCard.domains.info')),
+    'informer',
+  )
   assertProductAlive()
 })
 
@@ -1957,44 +2024,36 @@ test('the composition table blocks unselected drags and bulk-selects only its ca
   page,
 }) => {
   await page.goto(`${origin}/profiles/new`)
-  const rows = page.locator('.picker__row')
+  const rows = bodyRows(page)
   await expect(rows.first()).toBeVisible()
-  const before = await rows.evaluateAll((elements) =>
-    elements.map((element) => element.getAttribute('data-id')),
-  )
-  const handle = rows.first().locator('.picker__handle')
+  // The order the table is in, read the way it is displayed: the name each row
+  // states in its own header.
+  const order = (): Promise<string[]> =>
+    rows.getByRole('rowheader').allInnerTexts()
+  const before = await order()
+  const handle = priorityHandle(rows.first())
   await expect(handle).toBeDisabled()
   const from = (await handle.boundingBox())!
   const to = (await rows.nth(1).boundingBox())!
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
   await page.mouse.down()
   await page.mouse.move(to.x + to.width / 2, to.y + to.height, { steps: 12 })
-  await expect(page.locator('.sortable-fallback')).toHaveCount(0)
+  await expect(dragGhost(page)).toHaveCount(0)
   await page.mouse.up()
-  expect(
-    await rows.evaluateAll((elements) =>
-      elements.map((element) => element.getAttribute('data-id')),
-    ),
-  ).toEqual(before)
-  await page.locator('input[value="youtube"]').check()
-  await page
-    .locator('.catalog-filters__chip')
-    .filter({ hasText: 'Communication' })
-    .click()
+  expect(await order()).toEqual(before)
+  await listMembership(page, 'YouTube').check()
+  await categoryChip(page, 'Communication').click()
   const bulk = page.getByRole('checkbox', {
     name: 'Select or clear all visible lists',
   })
   await bulk.check()
-  await expect(page.locator('input[value="discord"]')).toBeChecked()
+  await expect(listMembership(page, 'Discord')).toBeChecked()
   await bulk.uncheck()
-  await page
-    .locator('.catalog-filters__chip')
-    .filter({ hasText: 'All categories' })
-    .click()
-  await expect(page.locator('input[value="youtube"]')).toBeChecked()
-  await expect(page.locator('input[value="discord"]')).not.toBeChecked()
-  const text = page.locator('#create-name')
-  const choice = page.locator('#create-target')
+  await categoryChip(page, englishCopy('listPicker.filter.all')).click()
+  await expect(listMembership(page, 'YouTube')).toBeChecked()
+  await expect(listMembership(page, 'Discord')).not.toBeChecked()
+  const text = nameField(page)
+  const choice = deliveryField(page)
   expect(
     await text.evaluate((element) => getComputedStyle(element).backgroundColor),
   ).toBe(
@@ -2002,9 +2061,7 @@ test('the composition table blocks unselected drags and bulk-selects only its ca
       (element) => getComputedStyle(element).backgroundColor,
     ),
   )
-  const refresh = page
-    .locator('.picker__summary')
-    .getByRole('button', { name: 'Refresh from sources', exact: true })
+  const refresh = compositionRefresh(page)
   await expect(refresh).toBeEnabled()
   const read = page.waitForResponse(
     (response) =>
@@ -2026,10 +2083,10 @@ test('the searchable connection choice filters in its panel and reopens by keybo
   page,
 }) => {
   await page.goto(`${origin}/profiles/new`)
-  const field = page.locator('#create-target')
+  const field = deliveryField(page)
   await expect(field).toBeVisible()
   await field.press('Enter')
-  const search = page.locator('.rv-search-select__search input')
+  const search = choiceSearch(page)
   await expect(search).toBeFocused()
   await search.fill('Keenetic')
   await expect(page.getByRole('option')).toHaveCount(1)
@@ -2061,8 +2118,10 @@ test('hiding a format removes it from the connection picker and says where it we
 
   // What this build can talk to at all is reference material behind one
   // disclosure, under the connections the operator actually made.
-  await expect(page.locator('.targets__table')).toBeHidden()
-  await page.locator('.rv-disclosure__summary').click()
+  // A disclosure keeps its contents out of the page until it is opened, so
+  // nothing of the catalog's table is on screen yet.
+  await expect(page.getByRole('columnheader')).toHaveCount(0)
+  await catalogDisclosure(page).click()
   await expect(page.getByRole('columnheader')).toHaveText([
     'Name',
     'Type',
@@ -2090,13 +2149,10 @@ test('hiding a format removes it from the connection picker and says where it we
     .getByRole('navigation', { name: 'Sections' })
     .getByRole('link', { name: 'Profiles' })
     .click()
-  await page
-    .locator('.profiles__header')
-    .getByRole('link', { name: 'Build a profile' })
-    .click()
+  await page.getByRole('link', { name: 'Build a profile' }).first().click()
   await page.waitForURL(`${origin}/profiles/new`)
   await page.getByRole('searchbox', { name: 'Find a list' }).fill('discord')
-  await page.locator('input[value="discord"]').check()
+  await listMembership(page, 'Discord').check()
   const offered = await openFormats(page)
   await expect(offered.getByRole('option', { name: /Keenetic/ })).toHaveCount(0)
   await expect(offered.getByRole('option', { name: /sing-box/ })).toHaveCount(1)
@@ -2112,7 +2168,7 @@ test('hiding a format removes it from the connection picker and says where it we
   await expect(
     page.getByRole('heading', { name: 'Subscription link · sing-box' }),
   ).toBeVisible()
-  await page.locator('#outputs-target').click()
+  await addConnectionField(page).click()
   const outputFormats = page.getByRole('listbox')
   await expect(
     outputFormats.getByRole('option', { name: /Keenetic/ }),
@@ -2120,11 +2176,11 @@ test('hiding a format removes it from the connection picker and says where it we
   await expect(
     outputFormats.getByRole('option', { name: /sing-box/ }),
   ).toHaveCount(0)
-  expect(
-    await outputFormats
-      .locator('.rv-search-select__group-label')
-      .evaluateAll((nodes) => nodes.map((node) => node.textContent?.trim())),
-  ).toEqual(['Applications'])
+  // What is left is one group, and the group says which one it is.
+  await expect(outputFormats.getByRole('group')).toHaveCount(1)
+  await expect(outputFormats.getByRole('group')).toHaveAccessibleName(
+    'Applications',
+  )
   await page.keyboard.press('Escape')
 
   // Unhiding brings it back, in both places it is offered.
@@ -2132,7 +2188,7 @@ test('hiding a format removes it from the connection picker and says where it we
     .getByRole('navigation', { name: 'Sections' })
     .getByRole('link', { name: 'Connections' })
     .click()
-  await page.locator('.rv-disclosure__summary').click()
+  await catalogDisclosure(page).click()
   await toggle.check()
   expect(
     await page.evaluate(() => localStorage.getItem('rv.hiddenTargets')),
@@ -2152,7 +2208,7 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
   // is addressed by this profile's identity rather than by its title.
   const shelfRow = page
     .getByRole('row')
-    .filter({ has: page.locator(`a[href="/profiles/${profileId}"]`) })
+    .filter({ has: linkTo(page, `/profiles/${profileId}`) })
   await page
     .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Connection' })
@@ -2173,14 +2229,13 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
     }
   })
   await page
-    .locator('main')
+    .getByRole('main')
     .getByRole('button', {
       name: 'Actions for profile Discord, YouTube',
       exact: true,
     })
     .click()
-  await page
-    .locator('.rv-menu__panel:visible')
+  await menuPanel(page)
     .getByRole('menuitem', { name: 'Archive', exact: true })
     .click()
   await expect(page.getByText('This profile is archived')).toBeVisible()
@@ -2189,9 +2244,9 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
   // What stops is change. The controls that would edit, rebuild, reschedule or
   // bind a new format are gone rather than disabled, and the file is still
   // offered from the same page.
-  await expect(page.locator('.rv-status__label')).toHaveText('Archived')
-  await expect(page.locator('#editor-name')).toHaveCount(0)
-  await expect(page.locator('#profile-schedule-select')).toHaveCount(0)
+  await expect(page.getByText('Archived', { exact: true })).toBeVisible()
+  await expect(nameField(page)).toHaveCount(0)
+  await expect(scheduleField(page)).toHaveCount(0)
   await expect(
     page.getByRole('link', { name: 'Download the file for Keenetic' }).first(),
   ).toHaveAttribute('href', fileHref ?? '')
@@ -2199,9 +2254,9 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
     .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Connection' })
     .click()
-  await expect(page.locator('#outputs-target')).toHaveCount(0)
+  await expect(addConnectionField(page)).toHaveCount(0)
   await expect(
-    page.locator('main').getByRole('row').filter({ hasText: 'Keenetic' }),
+    page.getByRole('main').getByRole('row').filter({ hasText: 'Keenetic' }),
   ).toBeVisible()
 
   // The archived profile has left the shelf without leaving the library: the row
@@ -2210,12 +2265,14 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
   await page.getByRole('link', { name: 'Profiles' }).first().click()
   await page.waitForURL(`${origin}/`)
   await expect(shelfRow).toHaveCount(0)
-  const archive = page.locator('.profiles__archive')
-  await expect(archive).toContainText('Archive')
-  await archive.locator('.rv-disclosure__summary').click()
-  const archivedRow = archive
-    .locator('.profiles__archive-row')
-    .filter({ has: page.locator(`a[href="/profiles/${profileId}"]`) })
+  // The archive is one disclosure, named by what it holds and how much.
+  const archive = page.getByRole('button', { name: /^Archive/ })
+  await expect(archive).toBeVisible()
+  await archive.click()
+  const archivedRow = page
+    .getByRole('region', { name: /^Archive/ })
+    .getByRole('listitem')
+    .filter({ has: linkTo(page, `/profiles/${profileId}`) })
   await expect(archivedRow).toHaveCount(1)
   await expect(archivedRow).toContainText('Archived since')
   await archivedRow
@@ -2223,15 +2280,9 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
       name: 'Actions for profile Discord, YouTube',
     })
     .click()
-  await page
-    .locator('.rv-menu__panel:visible')
-    .getByRole('menuitem', { name: 'Download' })
-    .click()
+  await menuPanel(page).getByRole('menuitem', { name: 'Download' }).click()
   await expect(
-    page
-      .locator('.rv-menu__panel:visible')
-      .last()
-      .getByRole('menuitem', { name: 'BAT · routes' }),
+    menuPanel(page).last().getByRole('menuitem', { name: 'BAT · routes' }),
   ).toBeVisible()
   await page.keyboard.press('Escape')
 
@@ -2245,13 +2296,10 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
   await archivedRow
     .getByRole('button', { name: 'Actions for profile Discord, YouTube' })
     .click()
-  await page
-    .locator('.rv-menu__panel:visible')
-    .getByRole('menuitem', { name: 'Restore' })
-    .click()
+  await menuPanel(page).getByRole('menuitem', { name: 'Restore' }).click()
   await expect(shelfRow).toHaveCount(1)
   expect(mutations).toEqual([`/v1/profiles/${profileId}/restore`])
-  await expect(page.locator('.profiles__archive')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Archive/ })).toHaveCount(0)
 
   expect(pageErrors).toEqual([])
   assertProductAlive()
@@ -2271,7 +2319,7 @@ test('the surface speaks the language of the operator and declares which one', a
   const declared: Record<string, string> = {}
   declared.initial = await documentLanguage(page)
 
-  await segment(page, 'Русский').click()
+  await pressSegment(page, 'Русский')
   await expect(
     page.getByRole('heading', { level: 1, name: 'Настройки' }),
   ).toBeVisible()
@@ -2285,13 +2333,11 @@ test('the surface speaks the language of the operator and declares which one', a
     page.getByRole('heading', { level: 1, name: 'Профили' }),
   ).toBeVisible()
   await expect(
-    page
-      .locator('.profiles__header')
-      .getByRole('link', { name: 'Собрать профиль' }),
+    page.getByRole('link', { name: 'Собрать профиль' }).first(),
   ).toBeVisible()
 
   await nav.getByRole('link', { name: 'Настройки' }).click()
-  await segment(page, 'English').click()
+  await pressSegment(page, 'English')
   await expect(
     page.getByRole('heading', { level: 1, name: 'Settings' }),
   ).toBeVisible()
@@ -2312,47 +2358,54 @@ test('the device form asks only for fields the selected target needs', async ({
   await expect(
     page.getByRole('heading', { level: 1, name: 'Connections' }),
   ).toBeVisible()
-  const target = page.locator('#device-target')
+  // Every field is addressed by the caption the chosen target's own
+  // requirements give it, which is the same fact the label assertions used to
+  // state separately.
+  const target = deviceField(page, 'devices.field.target')
   await expect(target).toBeEnabled()
-  await expect(page.locator('#device-name')).toHaveCount(0)
-  await expect(page.locator('#device-address')).toHaveCount(0)
-  await expect(page.locator('#device-account')).toHaveCount(0)
-  await expect(page.locator('#device-interface')).toHaveCount(0)
+  for (const absent of [
+    'devices.field.name',
+    'deploy.field.address.keenetic',
+    'deploy.field.account.keenetic',
+    'deploy.field.interface.keenetic',
+  ])
+    await expect(deviceField(page, absent)).toHaveCount(0)
 
   await target.click()
   await page.getByRole('option', { name: 'Keenetic' }).click()
-  await expect(page.locator('label[for="device-address"]')).toHaveText(
-    'Device address',
-  )
-  await expect(page.locator('#device-address')).toHaveAttribute(
+  const keeneticAddress = deviceField(page, 'deploy.field.address.keenetic')
+  await expect(keeneticAddress).toBeVisible()
+  await expect(keeneticAddress).toHaveAttribute(
     'placeholder',
     'http://192.168.1.1',
   )
-  await expect(page.locator('#device-account')).toBeVisible()
-  await expect(page.locator('label[for="device-interface"]')).toHaveText(
-    'Interface for routes',
-  )
-  await expect(page.locator('#device-interface')).toBeVisible()
+  await expect(deviceField(page, 'deploy.field.account.keenetic')).toBeVisible()
+  await expect(
+    deviceField(page, 'deploy.field.interface.keenetic'),
+  ).toBeVisible()
   await expect(
     page.getByText(
       'For example, Wireguard0 — the Keenetic connection/interface ID.',
     ),
   ).toBeVisible()
-  await page.locator('#device-address').fill('http://192.168.1.1')
-  await page.locator('#device-account').fill('admin')
+  await keeneticAddress.fill('http://192.168.1.1')
+  await deviceField(page, 'deploy.field.account.keenetic').fill('admin')
 
   await target.click()
   await page.getByRole('option', { name: 'sing-box' }).click()
-  await expect(page.locator('label[for="device-address"]')).toHaveText(
-    'Path to the sing-box configuration',
-  )
-  await expect(page.locator('#device-address')).toHaveAttribute(
+  const singBoxAddress = deviceField(page, 'deploy.field.address.singbox')
+  await expect(singBoxAddress).toBeVisible()
+  await expect(singBoxAddress).toHaveAttribute(
     'placeholder',
     'file:///C:/sing-box/config.json',
   )
-  await expect(page.locator('#device-address')).toHaveValue('')
-  await expect(page.locator('#device-account')).toHaveCount(0)
-  await expect(page.locator('#device-interface')).toHaveCount(0)
+  await expect(singBoxAddress).toHaveValue('')
+  await expect(deviceField(page, 'deploy.field.account.keenetic')).toHaveCount(
+    0,
+  )
+  await expect(
+    deviceField(page, 'deploy.field.interface.keenetic'),
+  ).toHaveCount(0)
 })
 
 test('an output can be explicitly bound to and detached from a compatible device', async ({
@@ -2378,7 +2431,11 @@ test('an output can be explicitly bound to and detached from a compatible device
     .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Connection' })
     .click()
-  const binding = page.locator(`#output-device-${outputId}`)
+  // The row's device choice is captioned with the connection it belongs to,
+  // which is what identifies it whatever it currently holds.
+  const binding = page.getByLabel(
+    englishCopy('outputs.device.label').replace('{target}', 'Keenetic'),
+  )
   await expect(binding).toHaveText('No automatic delivery')
 
   const bound = page.waitForRequest(
@@ -2430,10 +2487,10 @@ test('the server refresh setting cannot race while a write is pending', async ({
   })
 
   await page.goto(`${origin}/settings`)
-  await expect(segment(page, 'Daily')).toBeVisible()
-  await segment(page, 'Daily').click()
+  await expect(segmentOption(page, 'Daily')).toBeEnabled()
+  await pressSegment(page, 'Daily')
   await expect(page.getByText('Saving the rule…')).toBeVisible()
-  const refreshRadios = page.locator('input[name="rv-refresh-interval"]')
+  const refreshRadios = refreshInterval(page).getByRole('radio')
   await expect(refreshRadios).toHaveCount(3)
   for (let index = 0; index < 3; index++)
     await expect(refreshRadios.nth(index)).toBeDisabled()
@@ -2442,8 +2499,8 @@ test('the server refresh setting cannot race while a write is pending', async ({
   release()
   await expect(page.getByText('Saving the rule…')).toHaveCount(0)
   await page.unroute('**/v1/settings/update')
-  await segment(page, 'Off').click()
-  await expect(segment(page, 'Off').locator('input')).toBeChecked()
+  await pressSegment(page, 'Off')
+  await expect(segmentOption(page, 'Off')).toBeChecked()
 })
 
 for (const language of ['en', 'ru'] as const) {
@@ -2500,14 +2557,19 @@ for (const language of ['en', 'ru'] as const) {
         const beforeRetry = reads
         failRequirements = false
         await page
-          .locator('.devices')
+          .getByRole('region', { name: copy('connections.title') })
           .getByRole('button', { name: copy('action.retry') })
           .click()
-        await expect(page.locator('#device-target')).toBeEnabled()
-        await page.locator('#device-target').click()
+        const target = deviceField(page, 'devices.field.target', copy)
+        await expect(target).toBeEnabled()
+        await target.click()
         await page.getByRole('option', { name: 'Keenetic' }).click()
-        await expect(page.locator('#device-account')).toBeVisible()
-        await expect(page.locator('#device-interface')).toBeVisible()
+        await expect(
+          deviceField(page, 'deploy.field.account.keenetic', copy),
+        ).toBeVisible()
+        await expect(
+          deviceField(page, 'deploy.field.interface.keenetic', copy),
+        ).toBeVisible()
         expect(reads).toBe(beforeRetry + 1)
       } finally {
         await page.unroute('**/v1/deployments/targets')
@@ -2550,21 +2612,22 @@ for (const language of ['en', 'ru'] as const) {
           page.getByText(copy('settings.refresh.read.failed')),
         ).toBeVisible()
         await expect(
-          page.locator('input[name="rv-refresh-interval"]').nth(0),
+          refreshInterval(page, copy).getByRole('radio').nth(0),
         ).not.toBeChecked()
-        await expect(
-          page.locator('input[name="rv-locale"]').first(),
-        ).toBeEnabled()
-        await expect(
-          page.locator('input[name="rv-appearance"]').first(),
-        ).toBeEnabled()
+        for (const settled of ['settings.locale', 'settings.theme'])
+          await expect(
+            page
+              .getByRole('group', { name: copy(settled) })
+              .getByRole('radio')
+              .first(),
+          ).toBeEnabled()
 
         expect(await auditWidths(page, `${language}-settings-failed`)).toEqual(
           [],
         )
         await page.getByRole('button', { name: copy('action.retry') }).click()
         await expect(
-          page.locator('input[name="rv-refresh-interval"]').nth(1),
+          refreshInterval(page, copy).getByRole('radio').nth(1),
         ).toBeChecked()
         expect(reads).toBe(2)
       } finally {
@@ -2643,12 +2706,12 @@ for (const language of ['en', 'ru'] as const) {
         await expect(page.getByRole('status')).toContainText(
           copy('lists.stale'),
         )
-        await expectLibraryCategory(page, copy('listPicker.filter.all'))
+        await expectLibraryCategory(page, copy('listPicker.filter.all'), copy)
         expect(categoryWrites).toHaveLength(1)
 
         expect(await auditWidths(page, `${language}-library-stale`)).toEqual([])
         await page.getByRole('button', { name: copy('lists.refresh') }).click()
-        await expectLibraryCategory(page, categoryTitle)
+        await expectLibraryCategory(page, categoryTitle, copy)
         await expect(
           page.getByRole('status').filter({ hasText: copy('lists.stale') }),
         ).toHaveCount(0)
@@ -2680,7 +2743,7 @@ test('the accessibility helper detects undersized adjacent targets and accepts t
       (finding) => finding.rule === 'target-size',
     ),
   ).toBe(true)
-  await page.locator('button').evaluateAll((buttons) => {
+  await page.getByRole('button').evaluateAll((buttons) => {
     for (const button of buttons) {
       button.style.width = '24px'
       button.style.height = '24px'
@@ -2738,15 +2801,15 @@ for (const language of ['en', 'ru'] as const) {
       await page
         .getByRole('searchbox', { name: copy('create.search') })
         .fill('youtube')
-      await expect(page.locator('input[value="youtube"]')).toBeVisible()
+      await expect(listMembership(page, 'YouTube')).toBeVisible()
       violations.push(...(await auditWidths(page, `${language}-builder`)))
       await page.screenshot({
         path: join(reviewRoot, `${language}-builder.png`),
         fullPage: true,
       })
 
-      await page.locator('input[value="youtube"]').check()
-      await chooseFormat(page, /Keenetic/)
+      await listMembership(page, 'YouTube').check()
+      await chooseFormat(page, /Keenetic/, copy)
       await page.getByRole('button', { name: copy('create.submit') }).click()
       await page.waitForURL(
         new RegExp(`^${escapeRegExp(origin)}/profiles/[a-f0-9]{32}.*$`),
@@ -2773,7 +2836,7 @@ for (const language of ['en', 'ru'] as const) {
         .getByRole('link', { name: copy('profiles.title') })
         .first()
         .click()
-      await expect(page.locator(`a[href="${createdRoutePath}"]`)).toBeVisible()
+      await expect(linkTo(page, createdRoutePath)).toBeVisible()
       violations.push(...(await auditWidths(page, `${language}-library`)))
       await page.screenshot({
         path: join(reviewRoot, `${language}-library.png`),
@@ -2786,7 +2849,7 @@ for (const language of ['en', 'ru'] as const) {
       ).toBeVisible()
       // The section is audited with a category open, because the pane is where its
       // rows and their menus live.
-      await openLibraryCategory(page, copy('category.communication'))
+      await openLibraryCategory(page, copy('category.communication'), copy)
       violations.push(...(await auditWidths(page, `${language}-lists`)))
       await page.screenshot({
         path: join(reviewRoot, `${language}-lists.png`),
@@ -2802,7 +2865,7 @@ for (const language of ['en', 'ru'] as const) {
       ).toBeVisible()
       // The catalog is audited open: a disclosure hides its contents from the
       // sweep exactly as it hides them from the operator.
-      await page.locator('.rv-disclosure__summary').click()
+      await catalogDisclosure(page, copy).click()
       await expect(
         page.getByRole('row').filter({ hasText: 'Keenetic' }),
       ).toBeVisible()
@@ -2852,12 +2915,12 @@ test('the populated library never scrolls sideways', async ({ page }) => {
   )
   const triggerBox = await bottomTrigger.boundingBox()
   expect(triggerBox).not.toBeNull()
-  const scrollBox = page.locator('.profiles__scroll')
+  const scrollBox = page.getByTestId('rv-profiles-scroll')
   const scrollHeight = await scrollBox.evaluate((element) =>
     Math.round(element.scrollHeight),
   )
   await bottomTrigger.click()
-  const panel = page.locator('.rv-menu__panel:visible')
+  const panel = menuPanel(page)
   await expect(panel).toBeVisible()
   const panelBox = await panel.boundingBox()
   expect(panelBox).not.toBeNull()
@@ -2890,22 +2953,21 @@ test('workspace pages share geometry and the category panel supports keyboard se
       '/',
     ]) {
       await page.goto(`${origin}${path}`)
-      await expect(page.locator('h1')).toBeVisible()
-      const geometry = await page
-        .locator('.shell__measure')
-        .evaluate((element) => ({
-          x: element.getBoundingClientRect().x,
-          width: element.getBoundingClientRect().width,
-          background: getComputedStyle(document.documentElement)
-            .backgroundColor,
-        }))
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+      // The content column is the page's own landmark, and it is the box the
+      // shell aligns; every section must place it identically.
+      const geometry = await page.getByRole('main').evaluate((element) => ({
+        x: element.getBoundingClientRect().x,
+        width: element.getBoundingClientRect().width,
+        background: getComputedStyle(document.documentElement).backgroundColor,
+      }))
       reference ??= geometry
       expect(geometry).toEqual(reference)
       if (path === '/profiles/new' || path === '/lists') {
-        const frame = page.locator(
+        const frame = page.getByTestId(
           path === '/profiles/new'
-            ? '.picker__table-frame'
-            : '.lists__workspace',
+            ? 'rv-list-picker-frame'
+            : 'rv-lists-workspace',
         )
         await expect(frame).toBeVisible()
         expect(
@@ -2924,14 +2986,18 @@ test('workspace pages share geometry and the category panel supports keyboard se
   await page.goto(`${origin}/profiles/new`)
   const collapse = page.getByRole('button', { name: 'Collapse sidebar' })
   await collapse.click()
-  await expect(page.locator('.shell')).toHaveClass(/shell--collapsed/)
+  // The control states the collapsed state itself, which is also what the
+  // reload has to bring back.
+  await expect(
+    page.getByRole('button', { name: 'Expand sidebar' }),
+  ).toBeVisible()
   await page.reload()
   await expect(
     page.getByRole('button', { name: 'Expand sidebar' }),
   ).toBeVisible()
   const nav = page.getByRole('link', { name: 'Lists', exact: true })
   await nav.focus()
-  const tooltip = page.locator('.rv-tooltip')
+  const tooltip = page.getByTestId('rv-tooltip')
   await expect(tooltip).toBeVisible()
   await expect(nav).toHaveAccessibleDescription('Lists')
   expect(
@@ -2946,11 +3012,11 @@ test('workspace pages share geometry and the category panel supports keyboard se
     }),
   ).toBe(true)
   await page.getByRole('button', { name: 'Expand sidebar' }).click()
-  const more = page.locator('.catalog-filters .rv-search-select__trigger')
+  const more = categoryMore(page)
   await more.click()
   const search = page.getByRole('textbox', { name: 'Find a category' })
   await expect(search).toBeFocused()
-  const panel = page.locator('.rv-search-select__panel')
+  const panel = choicePanel(page, englishCopy('listPicker.collections'))
   await expect(panel).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
   await expect(panel).toHaveCSS('border-top-width', '1px')
   await search.fill('no category matches this')
@@ -2962,8 +3028,8 @@ test('workspace pages share geometry and the category panel supports keyboard se
   await search.press('Escape')
   await expect(search).toBeHidden()
   await expect(more).toBeFocused()
-  await expect(page.locator('.picker__row')).toHaveCount(1)
-  await expect(page.locator('.picker__row')).toContainText('YouTube')
+  await expect(bodyRows(page)).toHaveCount(1)
+  await expect(bodyRows(page)).toContainText('YouTube')
   await more.click()
   await expect(page.getByRole('option', { name: 'Video' })).toHaveAttribute(
     'aria-selected',
@@ -2973,15 +3039,15 @@ test('workspace pages share geometry and the category panel supports keyboard se
   await search.press('Escape')
   await expect(search).toBeHidden()
   await expect(more).toBeFocused()
-  await expect(page.locator('.picker__row')).toContainText('YouTube')
+  await expect(bodyRows(page)).toContainText('YouTube')
 })
 
 test('the composition editor keeps its geometry across selections and shell breakpoints', async ({
   page,
 }) => {
   await page.goto(`${origin}/profiles/new`)
-  const table = page.locator('.picker__table-frame')
-  const rail = page.locator('.rv-composer__settings')
+  const table = page.getByTestId('rv-list-picker-frame')
+  const rail = composerSettings(page)
   await expect(table).toBeVisible()
 
   await page.setViewportSize({ height: 900, width: 1440 })
@@ -2999,34 +3065,28 @@ test('the composition editor keeps its geometry across selections and shell brea
   ).toBeInViewport()
   // The reference is a dense table: a normal desktop row must not become
   // a 70px two-line card when the priority rail is beside it.
-  const row = await page.locator('.picker__row').first().boundingBox()
+  const row = await bodyRows(page).first().boundingBox()
   expect(row!.height).toBeLessThanOrEqual(48)
   const before = await table.boundingBox()
   expect(before).not.toBeNull()
-  const positions = await page.locator('.picker__row').evaluateAll((rows) =>
-    rows.map((row) => ({
-      id: (row as HTMLElement).dataset.id,
-      y: row.getBoundingClientRect().y,
-    })),
-  )
-  const checkbox = page.locator('input[value="discord"]')
+  // Which lists the table holds and where each row sits: membership must move
+  // neither.
+  const layout = async (): Promise<{ lists: string[]; tops: number[] }> => ({
+    lists: await bodyRows(page).getByRole('rowheader').allInnerTexts(),
+    tops: await bodyRows(page).evaluateAll((rows) =>
+      rows.map((element) => element.getBoundingClientRect().y),
+    ),
+  })
+  const settled = await layout()
+  const checkbox = listMembership(page, 'Discord')
   await checkbox.check()
   await expect(checkbox).toBeFocused()
-  expect(
-    await page.locator('.picker__row').evaluateAll((rows) =>
-      rows.map((row) => ({
-        id: (row as HTMLElement).dataset.id,
-        y: row.getBoundingClientRect().y,
-      })),
-    ),
-  ).toEqual(positions)
-  const chips = await page
-    .locator('.catalog-filters__chip')
-    .first()
-    .boundingBox()
-  const more = await page
-    .locator('.catalog-filters .rv-search-select__trigger')
-    .boundingBox()
+  expect(await layout()).toEqual(settled)
+  const chips = await categoryChip(
+    page,
+    englishCopy('listPicker.filter.all'),
+  ).boundingBox()
+  const more = await categoryMore(page).boundingBox()
   expect(more!.height).toBe(chips!.height)
   const after = await table.boundingBox()
   expect(after).not.toBeNull()
@@ -3041,16 +3101,13 @@ test('the composition editor keeps its geometry across selections and shell brea
       // Resizing also updates the measured quick-filter count. Compare both
       // boxes in one layout snapshot after that reactive update settles.
       await expect
-        .poll(() =>
-          page.evaluate(() => {
-            const table = document.querySelector('.picker__table-frame')!
-            const settings = document.querySelector('.rv-composer__settings')!
-            return (
-              settings.getBoundingClientRect().top -
-              table.getBoundingClientRect().bottom
-            )
-          }),
-        )
+        .poll(async () => {
+          const stacked = await table.boundingBox()
+          const settings = await rail.boundingBox()
+          return (
+            (settings?.y ?? 0) - ((stacked?.y ?? 0) + (stacked?.height ?? 0))
+          )
+        })
         .toBeGreaterThanOrEqual(0)
     }
     expect(
@@ -3076,12 +3133,12 @@ test('the composition editor remains operable with text enlarged to 200%', async
       name: 'New profile',
     }),
   ).toBeVisible()
-  await expect(page.locator('.picker__table-frame')).toBeVisible()
+  await expect(page.getByRole('table')).toBeVisible()
   expect(await fits(page)).toBe(true)
 
   const search = page.getByRole('searchbox', { name: 'Find a list' })
   await search.fill('Discord')
-  await page.locator('input[value="discord"]').check()
+  await listMembership(page, 'Discord').check()
   await expect(page.getByText('1 list in the profile')).toBeVisible()
   expect(await fits(page)).toBe(true)
 })
@@ -3105,9 +3162,9 @@ const buildProfile = async (
   ).toBeVisible()
   const search = page.getByRole('searchbox', { name: 'Find a list' })
   await search.fill('discord')
-  await page.locator('input[value="discord"]').check()
+  await listMembership(page, 'Discord').check()
   await search.fill('youtube')
-  await page.locator('input[value="youtube"]').check()
+  await listMembership(page, 'YouTube').check()
   await chooseFormat(page, /Keenetic/)
   const outputsResponse = page.waitForResponse(
     (candidate) =>
@@ -3130,7 +3187,7 @@ const buildProfile = async (
   await expect(
     page.getByRole('heading', { name: 'Subscription link · Keenetic' }),
   ).toBeVisible()
-  await expect(page.locator('#outputs-target')).toBeEnabled()
+  await expect(addConnectionField(page)).toBeEnabled()
   await page
     .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Contents' })
@@ -3139,35 +3196,46 @@ const buildProfile = async (
   return { profileId, outputId: outputPayload.output.id }
 }
 
+/**
+ * What the filter row says it is filtered by.
+ *
+ * The row reports its choice as a pressed chip, and the chip states the
+ * category and then its size — so the category is what its name starts with. A
+ * category the row has no room to show as a chip is stated by the More control
+ * instead, whose whole name is the collection heading and that category.
+ */
 const expectLibraryCategory = async (
   page: Page,
   category: string,
+  copy: (key: string) => string = englishCopy,
 ): Promise<void> => {
-  await expect
-    .poll(() =>
-      page.locator('.catalog-filters').evaluate((scope) => {
-        const active =
-          scope.querySelector('[aria-pressed="true"]') ??
-          scope.querySelector('.rv-search-select__trigger')
-        if (!active) return ''
-        const copy = active.cloneNode(true) as Element
-        copy.querySelectorAll('small').forEach((count) => count.remove())
-        return copy.textContent!.trim()
-      }),
-    )
-    .toBe(category)
+  await expect(
+    categoryFilters(page, copy)
+      .getByRole('button', {
+        name: new RegExp(`^${escapeRegExp(category)}`),
+        pressed: true,
+      })
+      .or(
+        page.getByRole('button', {
+          name: new RegExp(
+            `^${escapeRegExp(copy('listPicker.collections'))}: ${escapeRegExp(category)}$`,
+          ),
+        }),
+      ),
+  ).toBeVisible()
 }
 
 /** One category's pane in «Списки», opened the way the column opens it. */
 const openLibraryCategory = async (
   page: Page,
   category: string,
+  copy: (key: string) => string = englishCopy,
 ): Promise<void> => {
-  await page.locator('.catalog-filters__chip').first().click()
-  await page.locator('.catalog-filters .rv-search-select__trigger').click()
+  await categoryChip(page, copy('listPicker.filter.all'), copy).click()
+  await categoryMore(page, copy).click()
   await page.getByRole('option', { name: category }).click()
   await page.keyboard.press('Escape')
-  await expectLibraryCategory(page, category)
+  await expectLibraryCategory(page, category, copy)
 }
 
 /**
@@ -3202,15 +3270,12 @@ const assertPainted = async (panel: Locator, name: string): Promise<void> => {
   expect(painted.edge, `${name} panel has no edge`).not.toBe('0px')
 }
 
-// One row of the list card's contents table, addressed by what it names.
-const cardRow = (card: Locator, value: string): Locator =>
-  card.locator('.list-card__rows li').filter({ hasText: value })
-
 /**
  * The connection format is one searchable list, so a test chooses it the way an
  * operator does: open the list, take the option that names the format. Every
  * format's projected size is read from the same list, because that is where it
- * is stated.
+ * is stated. The field is captioned in the operator's own language, so a
+ * localized suite hands its dictionary in.
  */
 test('the forecast explains overlaps in create and edit without rewriting the library', async ({
   page,
@@ -3270,24 +3335,21 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   await page.goto(`${origin}/profiles/new`)
   const select = async (index: number, title: string, checked: boolean) => {
     await page.getByRole('searchbox', { name: 'Find a list' }).fill(title)
-    await page.locator(`input[value="${ids[index]}"]`).setChecked(checked)
+    await listMembership(page, title).setChecked(checked)
   }
   await select(0, 'Overlap Alpha', true)
   await select(1, 'Overlap Beta', true)
   await page.getByRole('searchbox', { name: 'Find a list' }).fill('')
   await chooseFormat(page, /sing-box/)
-  const priority = page.locator('.picker__forecast-status')
-  const alphaRow = page
-    .locator(`input[value="${ids[0]}"]`)
-    .locator('xpath=ancestor::tr')
-  const betaRow = page
-    .locator(`input[value="${ids[1]}"]`)
-    .locator('xpath=ancestor::tr')
+  const alphaRow = listRow(page, 'Overlap Alpha')
+  const betaRow = listRow(page, 'Overlap Beta')
   await expect(alphaRow).toContainText('Overlap: Overlap Beta')
+  // The count is the control that lists the overlaps, and it starts at the
+  // leading edge of the cell it sits in rather than at an inherited indent.
   const countInset = await alphaRow
-    .locator('.picker__overlaps-column')
-    .evaluate((cell) => {
-      const count = cell.querySelector('button')!
+    .getByRole('button', { name: 'Overlap: Overlap Beta', exact: true })
+    .evaluate((count) => {
+      const cell = count.closest('td')!
       const range = document.createRange()
       range.selectNodeContents(count)
       return (
@@ -3345,9 +3407,9 @@ test('the forecast explains overlaps in create and edit without rewriting the li
       release = resolve
     })
     await select(2, 'Overlap Gamma', true)
-    await expect(priority.getByText('Calculating overlaps…')).toBeVisible()
+    await expect(forecastStatus(page, 'Calculating overlaps…')).toBeVisible()
     const pendingTableY = (await page
-      .locator('.picker__table-frame')
+      .getByTestId('rv-list-picker-frame')
       .boundingBox())!.y
     const recalculated = page.waitForResponse(
       (response) => new URL(response.url()).pathname === FORECAST_PATH,
@@ -3359,9 +3421,9 @@ test('the forecast explains overlaps in create and edit without rewriting the li
       recalculatedResponse.status(),
       await recalculatedResponse.text(),
     ).toBe(200)
-    await expect(priority.getByText('Calculating overlaps…')).toBeHidden()
+    await expect(forecastStatus(page, 'Calculating overlaps…')).toBeHidden()
     expect(
-      (await page.locator('.picker__table-frame').boundingBox())!.y,
+      (await page.getByTestId('rv-list-picker-frame').boundingBox())!.y,
     ).toBeCloseTo(pendingTableY, 0)
     fail = true
     const failed = page.waitForResponse(
@@ -3370,9 +3432,9 @@ test('the forecast explains overlaps in create and edit without rewriting the li
     await select(2, 'Overlap Gamma', false)
     expect((await failed).status()).toBe(503)
     await expect(
-      priority.getByText('Calculation unavailable. Try again.'),
+      page.getByText('Calculation unavailable. Try again.'),
     ).toBeVisible()
-    const retry = priority.getByRole('button', {
+    const retry = page.getByRole('button', {
       name: 'Recalculate',
       exact: true,
     })
@@ -3428,10 +3490,11 @@ test('the forecast explains overlaps in create and edit without rewriting the li
   await page.getByRole('button', { name: 'Create and prepare' }).click()
   expect((await built).ok()).toBe(true)
   await page.getByRole('tab', { name: 'Contents', exact: true }).click()
-  const editor = page.locator('.editor')
-  await expect(
-    editor.locator(`.picker__row[data-id="${ids[0]}"]`),
-  ).toContainText('Overlap: Overlap Beta')
+  // The saved profile's own composition tab holds the editor.
+  const editor = page.getByRole('tabpanel', { name: 'Contents' })
+  await expect(listRow(editor, 'Overlap Alpha')).toContainText(
+    'Overlap: Overlap Beta',
+  )
   await expect(
     editor.getByRole('button', { name: 'How overlaps are resolved' }),
   ).toHaveCount(0)
@@ -3583,11 +3646,9 @@ for (const language of ['en', 'ru'] as const) {
         await expect(
           compose.getByRole('heading', { name: copy('listCard.domains') }),
         ).toBeVisible()
-        const rows = compose.locator('.list-card__rows')
-        await expect(rows.locator('li')).toHaveCount(domains.length)
-        const disabledLibraryRow = rows
-          .locator('li')
-          .filter({ hasText: 'row-36.example' })
+        const rows = cardContents(compose)
+        await expect(cardRows(compose)).toHaveCount(domains.length)
+        const disabledLibraryRow = cardRow(compose, 'row-36.example')
         await expect(disabledLibraryRow).toHaveClass(/list-card__row--disabled/)
         await expect(
           disabledLibraryRow.getByText(
@@ -3633,17 +3694,17 @@ for (const language of ['en', 'ru'] as const) {
             await expect(compose).toHaveClass(/rv-dialog--docked/)
           else await expect(compose).not.toHaveClass(/rv-dialog--docked/)
           await filter.fill('')
-          await expect(rows.locator('li')).toHaveCount(domains.length)
-          const normalRowBox = await rows
-            .locator('li')
-            .filter({ hasText: 'match-one.example' })
-            .boundingBox()
+          await expect(cardRows(compose)).toHaveCount(domains.length)
+          const normalRowBox = await cardRow(
+            compose,
+            'match-one.example',
+          ).boundingBox()
           expect(normalRowBox).not.toBeNull()
           const referenceHeight = normalRowBox!.height
           await filter.fill('match-one.example')
-          await expect(rows.locator('li')).toHaveCount(1)
+          await expect(cardRows(compose)).toHaveCount(1)
           const oneRowsBox = await rows.boundingBox()
-          const oneRowBox = await rows.locator('li').first().boundingBox()
+          const oneRowBox = await cardRows(compose).first().boundingBox()
           expect(oneRowsBox).not.toBeNull()
           expect(oneRowBox).not.toBeNull()
           expect(
@@ -3662,27 +3723,31 @@ for (const language of ['en', 'ru'] as const) {
           })
 
           await filter.fill('match-')
-          await expect(rows.locator('li')).toHaveCount(2)
-          for (const row of await rows.locator('li').all()) {
+          await expect(cardRows(compose)).toHaveCount(2)
+          for (const row of await cardRows(compose).all()) {
             expect(
               Math.abs((await row.boundingBox())!.height - referenceHeight),
             ).toBeLessThanOrEqual(1)
           }
           await filter.fill('long')
-          await expect(rows.locator('li')).toHaveCount(1)
-          const longRowBox = await rows.locator('li').first().boundingBox()
+          await expect(cardRows(compose)).toHaveCount(1)
+          const longRowBox = await cardRows(compose).first().boundingBox()
           if (width === 320)
             expect(longRowBox?.height ?? 0).toBeGreaterThan(referenceHeight)
 
           await filter.fill('no-such-card-entry')
-          await expect(rows.locator('li')).toHaveCount(0)
+          await expect(cardRows(compose)).toHaveCount(0)
           await expect(
             compose.getByText(copy('listCard.filter.empty')),
           ).toBeVisible()
           await filter.fill('')
-          await expect(rows.locator('li')).toHaveCount(domains.length)
+          await expect(cardRows(compose)).toHaveCount(domains.length)
         }
-        await expect(compose.locator('.rv-dialog__footer')).toBeVisible()
+        // Composing keeps its footer, because membership is the one act this
+        // flow owns.
+        await expect(
+          compose.getByRole('button', { name: copy('listDetail.add') }),
+        ).toBeVisible()
         await compose
           .getByRole('button', { name: copy('action.close') })
           .last()
@@ -3698,8 +3763,8 @@ for (const language of ['en', 'ru'] as const) {
         const libraryFilter = library.getByRole('searchbox', {
           name: copy('listCard.filter'),
         })
-        const libraryRows = library.locator('.list-card__rows')
-        await expect(libraryRows.locator('li')).toHaveCount(domains.length)
+        const libraryRows = cardContents(library)
+        await expect(cardRows(library)).toHaveCount(domains.length)
 
         // The action remains recognizable while one separate status line owns
         // the pending message. Every dismissal path stays unavailable until
@@ -3719,11 +3784,13 @@ for (const language of ['en', 'ru'] as const) {
             body: JSON.stringify({ refresh: { skipped_entries: 0 } }),
           })
         })
-        const refresh = library
-          .locator('.list-card__commands > .rv-button')
-          .first()
+        // The action names both the act and how many sources it reads, which
+        // is what keeps it recognizable while it works.
+        const refresh = library.getByRole('button', {
+          name: new RegExp(`^${escapeRegExp(copy('listCard.refresh'))}: `),
+        })
         await expect(refresh).toHaveAccessibleName(
-          new RegExp(`^${copy('listCard.refresh')}:`),
+          new RegExp(`^${escapeRegExp(copy('listCard.refresh'))}:`),
         )
         const libraryClose = library
           .getByRole('button', { name: copy('action.close') })
@@ -3732,13 +3799,13 @@ for (const language of ['en', 'ru'] as const) {
           await refresh.click()
           await expect(refresh).not.toHaveAttribute('aria-busy', 'true')
           await expect(refresh).toBeDisabled()
-          await expect(refresh.locator('.rv-button__spinner')).toHaveCount(0)
+          await expect(refresh.getByTestId('rv-button-spinner')).toHaveCount(0)
           await expect(
             library.getByText(copy('listCard.refresh.busy'), {
               exact: true,
             }),
           ).toHaveCount(1)
-          await expect(refresh.locator('.rv-icon')).toHaveCount(1)
+          await expect(refresh.getByTestId('rv-icon')).toHaveCount(1)
           await refresh.click({ force: true })
           await page.evaluate(
             () =>
@@ -3753,23 +3820,19 @@ for (const language of ['en', 'ru'] as const) {
           if (
             (await library.getAttribute('class'))?.includes('rv-dialog--docked')
           ) {
-            await expect(page.locator('.rv-workspace__main')).toHaveAttribute(
+            await expect(page.getByTestId('rv-workspace-main')).toHaveAttribute(
               'inert',
             )
-            const other = await page
-              .locator('.lists__list-name')
-              .first()
-              .boundingBox()
+            const other = await libraryRowName(
+              bodyRows(libraryRegion(page, copy)).first(),
+            ).boundingBox()
             await page.mouse.click(
               other!.x + other!.width / 2,
               other!.y + other!.height / 2,
             )
             await expect(library).toHaveAccessibleName(title)
           } else {
-            await page
-              .locator('.rv-dialog__scrim')
-              .last()
-              .dispatchEvent('pointerdown')
+            await dialogScrims(page).last().dispatchEvent('pointerdown')
           }
           await expect(library).toBeVisible()
         } finally {
@@ -3777,23 +3840,20 @@ for (const language of ['en', 'ru'] as const) {
         }
         await expect(refresh).not.toHaveAttribute('aria-busy', 'true')
         await expect(refresh).toBeEnabled()
-        await expect(page.locator('.rv-workspace__main')).not.toHaveAttribute(
+        await expect(page.getByTestId('rv-workspace-main')).not.toHaveAttribute(
           'inert',
         )
         await page.unroute(refreshPath)
 
         await page.evaluate(() => document.fonts.ready.then(() => true))
-        const normalLibraryRow = await libraryRows
-          .locator('li')
-          .filter({ hasText: 'match-two.example' })
-          .boundingBox()
+        const normalLibraryRow = await cardRow(
+          library,
+          'match-two.example',
+        ).boundingBox()
         await libraryFilter.fill('match-two.example')
-        await expect(libraryRows.locator('li')).toHaveCount(1)
+        await expect(cardRows(library)).toHaveCount(1)
         const libraryRowsBox = await libraryRows.boundingBox()
-        const libraryRowBox = await libraryRows
-          .locator('li')
-          .first()
-          .boundingBox()
+        const libraryRowBox = await cardRows(library).first().boundingBox()
         expect(libraryRowsBox).not.toBeNull()
         expect(libraryRowBox).not.toBeNull()
         expect(
@@ -3802,7 +3862,15 @@ for (const language of ['en', 'ru'] as const) {
         expect(
           (libraryRowBox?.y ?? 0) - (libraryRowsBox?.y ?? 0),
         ).toBeLessThanOrEqual(2)
-        await expect(library.locator('.rv-dialog__footer')).toHaveCount(0)
+        // The library flow owns the list rather than membership, so the act
+        // that would change membership is not offered here at all.
+        await expect(
+          library.getByRole('button', {
+            name: new RegExp(
+              `^(${escapeRegExp(copy('listDetail.add'))}|${escapeRegExp(copy('listDetail.remove'))})$`,
+            ),
+          }),
+        ).toHaveCount(0)
         // Text-only resizing is independent of pixel density. Double the
         // computed root font, keeping the viewport fixed, then restore it.
         await page.setViewportSize({ width: 768, height: 900 })
@@ -3815,8 +3883,8 @@ for (const language of ['en', 'ru'] as const) {
         try {
           expect(await fits(page)).toBe(true)
           await expect(libraryFilter).toBeVisible()
-          await expect(libraryRows.locator('li')).toHaveCount(1)
-          const row = libraryRows.locator('li').first()
+          await expect(cardRows(library)).toHaveCount(1)
+          const row = cardRows(library).first()
           expect(
             await libraryRows.evaluate((element) => element.clientHeight),
           ).toBeGreaterThanOrEqual((await row.boundingBox())!.height)
@@ -3871,18 +3939,17 @@ for (const language of ['en', 'ru'] as const) {
           name: copy('listCard.title.save'),
         })
         try {
-          await library.locator('#list-title').fill(renamedTitle)
+          // The section that holds the field is announced by the same caption,
+          // so the field is addressed as the control it is.
+          await titleField(library, copy).fill(renamedTitle)
           await save.click()
           await expect(save).toHaveAttribute('aria-busy', 'true')
-          await expect(save.locator('.rv-button__spinner')).toHaveCount(1)
+          await expect(save.getByTestId('rv-button-spinner')).toHaveCount(1)
           await expect(libraryClose).toBeDisabled()
           await page.keyboard.press('Escape')
-          await expect(page.locator('.rv-dialog--sheet')).toBeVisible()
-          await page
-            .locator('.rv-dialog__scrim')
-            .last()
-            .dispatchEvent('pointerdown')
-          await expect(page.locator('.rv-dialog--sheet')).toBeVisible()
+          await expect(library).toBeVisible()
+          await dialogScrims(page).last().dispatchEvent('pointerdown')
+          await expect(library).toBeVisible()
         } finally {
           releaseSave()
         }
@@ -3899,9 +3966,7 @@ for (const language of ['en', 'ru'] as const) {
             name: copy('listCard.title.save'),
           }),
         ).not.toHaveAttribute('aria-busy', 'true')
-        await expect(renamedLibrary.locator('#list-title')).toHaveValue(
-          renamedTitle,
-        )
+        await expect(titleField(renamedLibrary, copy)).toHaveValue(renamedTitle)
         await page.unroute(savePath)
       } finally {
         const removed = await page.request.post(
@@ -3936,16 +4001,11 @@ for (const language of ['en', 'ru'] as const) {
         )
       })
       await page.goto(`${origin}/settings`)
-      const daily = page.locator(
-        'input[name="rv-refresh-interval"][value="daily"]',
-      )
-      const weekly = page.locator(
-        'input[name="rv-refresh-interval"][value="weekly"]',
-      )
-      const weeklyLabel = page.locator('label').filter({ has: weekly })
+      const daily = segmentOption(page, copy('settings.refresh.daily'))
+      const weekly = segmentOption(page, copy('settings.refresh.weekly'))
       await expect(daily).toBeChecked()
       for (const success of [false, true]) {
-        await weeklyLabel.click()
+        await pressSegment(page, copy('settings.refresh.weekly'))
         await expect(
           page
             .getByRole('status')
@@ -3954,9 +4014,6 @@ for (const language of ['en', 'ru'] as const) {
         await expect(daily).toBeChecked()
         await expect(weekly).not.toBeChecked()
         await expect(daily).toBeDisabled()
-        await expect(
-          page.locator('.rv-segmented__option--active').filter({ has: daily }),
-        ).toBeVisible()
         release()
         await expect(daily).toBeEnabled()
         await expect(daily).toBeChecked({ checked: !success })
@@ -4081,16 +4138,13 @@ for (const language of ['en', 'ru'] as const) {
         await expect(close).toBeDisabled()
         await page.keyboard.press('Escape')
         await expect(card).toBeVisible()
-        await page
-          .locator('.rv-dialog__scrim')
-          .last()
-          .dispatchEvent('pointerdown')
+        await dialogScrims(page).last().dispatchEvent('pointerdown')
         await expect(card).toBeVisible()
         const pendingFilterBox = await card
           .getByRole('searchbox', { name: copy('listCard.filter') })
           .boundingBox()
         const pendingRefreshStatusBox = await card
-          .locator('.list-card__refresh-status')
+          .getByTestId('rv-list-card-status')
           .boundingBox()
         expect(pendingFilterBox).not.toBeNull()
         expect(pendingRefreshStatusBox).not.toBeNull()
@@ -4112,7 +4166,7 @@ for (const language of ['en', 'ru'] as const) {
           .getByRole('searchbox', { name: copy('listCard.filter') })
           .boundingBox()
         const failedRefreshStatusBox = await card
-          .locator('.list-card__refresh-status')
+          .getByTestId('rv-list-card-status')
           .boundingBox()
         expect(failedFilterBox).not.toBeNull()
         expect(failedRefreshStatusBox).not.toBeNull()
@@ -4139,7 +4193,7 @@ for (const language of ['en', 'ru'] as const) {
           name: copy('listCard.filter'),
         })
         await filter.fill('retry.example')
-        await expect(card.locator('.list-card__rows li')).toHaveCount(1)
+        await expect(cardRows(card)).toHaveCount(1)
         await card
           .getByRole('button', { name: copy('action.retry'), exact: true })
           .click()
@@ -4151,7 +4205,7 @@ for (const language of ['en', 'ru'] as const) {
           .getByRole('searchbox', { name: copy('listCard.filter') })
           .boundingBox()
         const recoveredRefreshStatusBox = await card
-          .locator('.list-card__refresh-status')
+          .getByTestId('rv-list-card-status')
           .boundingBox()
         expect(recoveredFilterBox).not.toBeNull()
         expect(recoveredRefreshStatusBox).not.toBeNull()
@@ -4170,7 +4224,7 @@ for (const language of ['en', 'ru'] as const) {
           ),
         ).toBeLessThanOrEqual(1)
         await expect(filter).toHaveValue('retry.example')
-        await expect(card.locator('.list-card__rows li')).toHaveCount(1)
+        await expect(cardRows(card)).toHaveCount(1)
         expect(refreshCalls).toBe(2)
         expect(
           await (await page.request.get(`${origin}/v1/profiles`)).text(),
@@ -4190,17 +4244,24 @@ for (const language of ['en', 'ru'] as const) {
   })
 }
 
-const openFormats = async (page: Page): Promise<Locator> => {
-  await page.locator('.rv-search-select__trigger--field').click()
+const openFormats = async (
+  page: Page,
+  copy: (key: string) => string = englishCopy,
+): Promise<Locator> => {
+  await deliveryField(page, copy).click()
   await expect(formatList(page)).toBeVisible()
   return formatList(page)
 }
 
-const chooseFormat = async (page: Page, name: RegExp): Promise<void> => {
-  await openFormats(page)
+const chooseFormat = async (
+  page: Page,
+  name: RegExp,
+  copy: (key: string) => string = englishCopy,
+): Promise<void> => {
+  await openFormats(page, copy)
   await page.getByRole('option', { name }).click()
-  await expect(page.locator('#create-target')).not.toHaveText(
-    'Choose a device or application',
+  await expect(deliveryField(page, copy)).not.toHaveText(
+    copy('create.target.placeholder'),
   )
 }
 
@@ -4220,11 +4281,130 @@ const profileFlow = (
 ): { body: string | null; path: string }[] =>
   mutations.filter((mutation) => statesFlow(mutation.path))
 
-const segment = (page: Page, label: string) => {
-  // The radio itself is visually hidden behind its own label, which is exactly
-  // what an operator clicks.
-  return page.locator(`label.rv-segmented__option:has-text("${label}")`)
+/**
+ * One option of a segmented choice, by the words it is announced with. The
+ * radio carries the name and the state.
+ */
+const segmentOption = (scope: Scope, label: string): Locator =>
+  scope.getByRole('radio', { name: label, exact: true })
+
+/**
+ * Presses one segmented option. The radio itself is a clipped pixel behind its
+ * own label, so what an operator presses — and what the browser turns into a
+ * change on the radio — is the label's words.
+ */
+const pressSegment = async (scope: Scope, label: string): Promise<void> => {
+  await scope.getByText(label, { exact: true }).click()
 }
+
+/** The interval a profile without a rule of its own follows. */
+const refreshInterval = (
+  page: Page,
+  copy: (key: string) => string = englishCopy,
+): Locator => page.getByRole('group', { name: copy('settings.refresh.label') })
+
+/** The composer's name field, which the editor captions the same way. */
+const nameField = (scope: Scope): Locator =>
+  scope.getByLabel(englishCopy('create.name'), { exact: true })
+
+/** The field that states where a profile is delivered. */
+const deliveryField = (
+  scope: Scope,
+  copy: (key: string) => string = englishCopy,
+): Locator => scope.getByLabel(copy('create.target'))
+
+/** The field a published profile adds another connection with. */
+const addConnectionField = (
+  scope: Scope,
+  copy: (key: string) => string = englishCopy,
+): Locator => scope.getByLabel(copy('outputs.add'), { exact: true })
+
+/** The choice that says how often a published profile is refreshed. */
+const scheduleField = (
+  page: Page,
+  copy: (key: string) => string = englishCopy,
+): Locator =>
+  page.getByRole('combobox', { name: copy('profile.schedule'), exact: true })
+
+/** One field of the connection form, by the caption its target asks for. */
+const deviceField = (
+  scope: Scope,
+  key: string,
+  copy: (key: string) => string = englishCopy,
+): Locator => scope.getByLabel(copy(key), { exact: true })
+
+/** The panel a searchable choice opens, by the heading it announces. */
+const choicePanel = (page: Page, heading: string): Locator =>
+  page.getByRole('dialog', { name: heading })
+
+/** The field that narrows a searchable choice to what was typed. */
+const choiceSearch = (
+  page: Page,
+  copy: (key: string) => string = englishCopy,
+): Locator =>
+  page.getByRole('textbox', { name: copy('choice.search'), exact: true })
+
+/** The library section of «Списки», by the heading it is announced with. */
+const libraryRegion = (
+  page: Page,
+  copy: (key: string) => string = englishCopy,
+): Locator =>
+  page.getByRole('region', { name: copy('lists.title'), exact: true })
+
+/** The filter row the library and the composer share. */
+const categoryFilters = (
+  page: Page,
+  copy: (key: string) => string = englishCopy,
+): Locator => page.getByRole('group', { name: copy('listPicker.filter.label') })
+
+/**
+ * The control that offers the categories the filter row has no room to show as
+ * chips. It announces the collection heading and then its own choice.
+ */
+const categoryMore = (
+  page: Page,
+  copy: (key: string) => string = englishCopy,
+): Locator =>
+  categoryFilters(page, copy).getByRole('button', {
+    name: new RegExp(`^${escapeRegExp(copy('listPicker.collections'))}: `),
+  })
+
+/** One quick-filter chip, which states its category and then its size. */
+const categoryChip = (
+  page: Page,
+  category: string,
+  copy: (key: string) => string = englishCopy,
+): Locator =>
+  categoryFilters(page, copy).getByRole('button', { name: category })
+
+/** The refresh the composer offers for the lists a draft already holds. */
+const compositionRefresh = (
+  page: Page,
+  copy: (key: string) => string = englishCopy,
+): Locator =>
+  page.getByRole('button', { name: copy('listCard.refresh'), exact: true })
+
+/** The settings rail beside the composition table. */
+const composerSettings = (
+  page: Page,
+  copy: (key: string) => string = englishCopy,
+): Locator => page.getByRole('complementary', { name: copy('create.settings') })
+
+/** The control on a row that opens the list it stands for. */
+const openList = (
+  scope: Scope,
+  list: string,
+  copy: (key: string) => string = englishCopy,
+): Locator =>
+  scope.getByRole('button', {
+    name: copy('listDetail.open.aria').replace('{list}', list),
+  })
+
+/** The disclosure that holds the catalog of everything this build can reach. */
+const catalogDisclosure = (
+  page: Page,
+  copy: (key: string) => string = englishCopy,
+): Locator => page.getByRole('button', { name: copy('targets.title') })
 
 const documentLanguage = (page: Page): Promise<string> =>
   page.evaluate(() => document.documentElement.lang)
@@ -4275,15 +4455,18 @@ const auditWidths = async (
         path: join(reviewRoot, `${screen}-${width}-overflow.png`),
         fullPage: true,
       })
-      const bounds = await page.locator('main *').evaluateAll((elements) =>
-        elements.flatMap((element) => {
+      // A diagnostic dump rather than an assertion: every descendant of the
+      // content column is measured in the page, so this reads the document
+      // directly instead of addressing elements one at a time.
+      const bounds = await page.evaluate(() =>
+        [...document.querySelectorAll('main *')].flatMap((element) => {
           const rect = element.getBoundingClientRect()
           return rect.right > document.documentElement.clientWidth &&
             rect.width > 0
             ? [
                 {
                   tag: element.tagName,
-                  className: element.className,
+                  className: String(element.className),
                   left: rect.left,
                   right: rect.right,
                   width: rect.width,
@@ -4303,31 +4486,37 @@ const auditWidths = async (
     }
     expect(await fits(page), `${screen} overflows at ${width}px`).toBe(true)
     findings.push(...(await audit(page, `${screen}-${width}`)))
-    const smallControls = await page
-      .locator('button:not(:disabled), a.rv-button, .rv-segmented__option')
-      .evaluateAll((controls) =>
-        controls.flatMap((control) => {
-          const bounds = control.getBoundingClientRect()
-          const style = getComputedStyle(control)
-          if (
-            bounds.width === 0 ||
-            bounds.height === 0 ||
-            style.visibility === 'hidden'
-          )
-            return []
-          return bounds.width < 24 || bounds.height < 24
-            ? [
-                {
-                  label:
-                    control.getAttribute('aria-label') ??
-                    control.textContent?.trim(),
-                  width: bounds.width,
-                  height: bounds.height,
-                },
-              ]
-            : []
-        }),
-      )
+    const smallControls = await pressableTargets(page).evaluateAll((controls) =>
+      controls.flatMap((control) => {
+        // A native input drawn as one clipped pixel is not the target: the
+        // label around it is, and a file input behind its own button has none,
+        // so nothing there is pressed directly.
+        const target =
+          control instanceof HTMLInputElement
+            ? control.closest('label')
+            : control
+        if (target === null) return []
+        const bounds = target.getBoundingClientRect()
+        const style = getComputedStyle(target)
+        if (
+          bounds.width === 0 ||
+          bounds.height === 0 ||
+          style.visibility === 'hidden'
+        )
+          return []
+        return bounds.width < 24 || bounds.height < 24
+          ? [
+              {
+                label:
+                  target.getAttribute('aria-label') ??
+                  target.textContent?.trim(),
+                width: bounds.width,
+                height: bounds.height,
+              },
+            ]
+          : []
+      }),
+    )
     expect(
       smallControls,
       `${screen} actionable targets below 24px at ${width}px`,
@@ -4351,9 +4540,6 @@ const fits = (page: Page): Promise<boolean> =>
       document.documentElement.scrollWidth <=
       document.documentElement.clientWidth,
   )
-
-const escapeRegExp = (value: string): string =>
-  value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const profileIDFromURL = (value: string): string =>
   /\/profiles\/([a-f0-9]{32})/.exec(new URL(value).pathname)?.[1] ?? ''
@@ -4460,11 +4646,9 @@ test('source refresh stays available during a forecast and reports its own busy 
   })
   try {
     await page.goto(`${origin}/profiles/new`)
-    await page.locator('input[value="discord"]').check()
+    await listMembership(page, 'Discord').check()
     await expect.poll(() => forecasts).toBe(1)
-    const refresh = page
-      .locator('.picker__summary')
-      .getByRole('button', { name: 'Refresh from sources', exact: true })
+    const refresh = compositionRefresh(page)
     await expect(refresh).toBeEnabled()
     await refresh.click()
     await expect.poll(() => refreshes).toBe(1)
@@ -4480,9 +4664,7 @@ test('source refresh stays available during a forecast and reports its own busy 
     const search = (await page
       .getByRole('searchbox', { name: 'Find a list' })
       .boundingBox())!
-    const categories = (await page
-      .locator('.catalog-filters__categories')
-      .boundingBox())!
+    const categories = (await categoryFilters(page).boundingBox())!
     expect(search.y).toBeGreaterThanOrEqual(categories.y + categories.height)
   } finally {
     releaseForecast()
@@ -4514,31 +4696,41 @@ test('library rows disclose inspection and the card keeps its controls while swi
   })
   try {
     await page.goto(`${origin}/lists`)
-    await page.locator('[data-id="discord"] .lists__category-column').click()
-    const card = page.locator('.rv-dialog--docked')
+    // A row opens from its own cells, so pressing what a row says about its
+    // categories is one of the ways in.
+    await libraryCategoryCell(libraryRow(page, 'Discord')).click()
+    // The docked card is the only dialog the workspace holds.
+    const card = page.getByRole('dialog')
     await expect(card).toHaveAccessibleName('Discord')
-    const filter = card.locator('.list-card__filter-input')
+    const filter = card.getByRole('searchbox', {
+      name: englishCopy('listCard.filter'),
+    })
     await expect(filter).toBeEnabled()
     const before = (await filter.boundingBox())!
-    const rowsBefore = (await card.locator('.list-card__rows').boundingBox())!
-    await page.locator('[data-id="youtube"] .lists__category-column').click()
+    const rowsBefore = (await cardContents(card).boundingBox())!
+    await libraryCategoryCell(libraryRow(page, 'YouTube')).click()
     await expect(card).toHaveAccessibleName('YouTube')
     await expect(filter).toBeDisabled()
     await expect(
       card.getByText('Loading the list contents…', { exact: true }),
     ).toBeVisible()
     const loading = (await filter.boundingBox())!
-    const rowsLoading = (await card.locator('.list-card__rows').boundingBox())!
+    const rowsLoading = (await cardContents(card).boundingBox())!
     expect(Math.abs(loading.y - before.y)).toBeLessThanOrEqual(1)
     expect(Math.abs(rowsLoading.y - rowsBefore.y)).toBeLessThanOrEqual(1)
-    await expect(card.locator('.list-card__count')).toHaveText('—')
+    // The count claims no stale number while it does not know one.
+    await expect(card.getByText('—', { exact: true })).toBeVisible()
     release()
     await expect(filter).toBeEnabled()
     expect(
       Math.abs((await filter.boundingBox())!.y - before.y),
     ).toBeLessThanOrEqual(1)
     await page.keyboard.press('Escape')
-    await page.locator('[data-id="discord"] .lists__open-indicator').click()
+    await libraryRow(page, 'Discord')
+      .getByRole('button', {
+        name: englishCopy('listDetail.open.aria').replace('{list}', 'Discord'),
+      })
+      .click()
     await expect(card).toHaveAccessibleName('Discord')
   } finally {
     release()
@@ -4551,16 +4743,16 @@ test('composition keeps its context in docked and overlaid cards and isolates na
 }) => {
   await page.setViewportSize({ width: 1920, height: 960 })
   await page.goto(`${origin}/profiles/new`)
-  const frame = page.locator('.picker__table-frame')
+  const frame = page.getByTestId('rv-list-picker-frame')
   await expect(frame).toBeVisible()
   const closedBounds = (await frame.boundingBox())!
   const closedWidth = closedBounds.width
   expect(closedWidth).toBeLessThan(1150)
-  const opener = page.locator('[data-id="discord"] .picker__open')
+  const opener = openList(page, 'Discord')
   await opener.click()
   const card = page.getByRole('dialog', { name: 'Discord', exact: true })
   await expect(card).toHaveClass(/rv-dialog--docked/)
-  await expect(page.locator('.rv-dialog__scrim')).toHaveCount(0)
+  await expect(dialogScrims(page)).toHaveCount(0)
   const tableBox = (await frame.boundingBox())!
   const cardBox = (await card.boundingBox())!
   expect(Math.abs(tableBox.x - closedBounds.x)).toBeLessThanOrEqual(1)
@@ -4569,19 +4761,21 @@ test('composition keeps its context in docked and overlaid cards and isolates na
   expect(
     await frame.evaluate((e) => e.scrollWidth - e.clientWidth),
   ).toBeLessThanOrEqual(1)
-  const filter = card.locator('.list-card__filter-input')
+  const filter = card.getByRole('searchbox', {
+    name: englishCopy('listCard.filter'),
+  })
   await filter.fill('discord')
   await filter.press('Enter')
   await expect(page).toHaveURL(`${origin}/profiles/new`)
   expect(
     await filter.evaluate((element) => (element as HTMLInputElement).form),
   ).toBeNull()
-  await page.locator('input[value="discord"]').check()
+  await listMembership(page, 'Discord').check()
   await expect(card).toBeVisible()
   await page.screenshot({ path: join(reviewRoot, 'composition-docked.png') })
   await page.setViewportSize({ width: 1100, height: 850 })
   await expect(card).not.toHaveClass(/rv-dialog--docked/)
-  await expect(page.locator('.rv-dialog__scrim')).toBeVisible()
+  await expect(dialogScrims(page)).toBeVisible()
   await expect(filter).toHaveValue('discord')
   await expect(
     card.getByRole('button', { name: 'Close', exact: true }),
@@ -4589,7 +4783,7 @@ test('composition keeps its context in docked and overlaid cards and isolates na
   await page.keyboard.press('Escape')
   await expect(card).toBeHidden()
   await expect(opener).toBeFocused()
-  await expect(page.locator('input[value="discord"]')).toBeChecked()
+  await expect(listMembership(page, 'Discord')).toBeChecked()
   await page.setViewportSize({ width: 1920, height: 960 })
   await opener.click()
   await expect(card).toHaveClass(/rv-dialog--docked/)
@@ -4604,19 +4798,18 @@ test('composition keeps its context in docked and overlaid cards and isolates na
   ).toBeVisible()
   expect(
     await page
-      .locator('.shell')
+      .getByTestId('rv-shell-grid')
       .evaluate((e) => getComputedStyle(e).transitionProperty),
   ).toContain('grid-template-columns')
   await page.screenshot({ path: join(reviewRoot, 'composition-compact.png') })
   // A long existing profile must scroll its own content without moving navigation.
   await page.goto(`${origin}/settings`)
-  const logoY = (await page.locator('.shell__product-mark').boundingBox())!.y
-  await page.locator('.shell__main').evaluate((e) => {
+  const logo = page.getByTestId('rv-shell-product-mark')
+  const logoY = (await logo.boundingBox())!.y
+  await page.getByRole('main').evaluate((e) => {
     e.scrollTop = e.scrollHeight
   })
-  expect((await page.locator('.shell__product-mark').boundingBox())!.y).toBe(
-    logoY,
-  )
+  expect((await logo.boundingBox())!.y).toBe(logoY)
   expect(
     await page.evaluate(
       () => document.documentElement.scrollHeight - innerHeight,
@@ -4624,7 +4817,7 @@ test('composition keeps its context in docked and overlaid cards and isolates na
   ).toBe(0)
   expect(
     await page
-      .locator('.shell__side')
+      .getByRole('banner')
       .evaluate((e) => e.scrollHeight - e.clientHeight),
   ).toBeLessThanOrEqual(1)
 })
@@ -4634,10 +4827,10 @@ test('page inspection preserves primary actions and full-height geometry in ever
 }) => {
   await page.setViewportSize({ width: 1920, height: 960 })
   await page.goto(`${origin}/profiles/new`)
-  await page.locator('input[value="discord"]').check()
+  await listMembership(page, 'Discord').check()
   await chooseFormat(page, /sing-box/)
-  await page.locator('#create-name').fill('Inspection workflow')
-  await page.locator('[data-id="discord"] .picker__open').click()
+  await nameField(page).fill('Inspection workflow')
+  await openList(page, 'Discord').click()
   const card = page.getByRole('dialog', { name: 'Discord', exact: true })
   const aligned = async (frame: Locator) => {
     await expect(card).toHaveClass(/rv-dialog--docked/)
@@ -4654,31 +4847,34 @@ test('page inspection preserves primary actions and full-height geometry in ever
     expect(
       await frame.evaluate((e) => e.scrollWidth - e.clientWidth),
     ).toBeLessThanOrEqual(1)
-    await expect(page.locator('.rv-dialog__scrim')).toHaveCount(0)
+    await expect(dialogScrims(page)).toHaveCount(0)
   }
-  await aligned(page.locator('.picker__table-frame'))
+  await aligned(page.getByTestId('rv-list-picker-frame'))
+  // The name column and the category column of the composition table, whose
+  // widths the library's own table has to match below.
   const routeNameWidth = (await page
-    .locator('.picker__table thead th')
-    .nth(2)
+    .getByRole('columnheader', {
+      exact: true,
+      name: englishCopy('listPicker.column.list'),
+    })
     .boundingBox())!.width
-  const routeCategoryWidth = (await page
-    .locator('.picker__category-column')
-    .first()
-    .boundingBox())!.width
-  const fields = page.locator('.rv-composer-form__fields > div')
-  await expect(fields).toHaveCount(2)
-  const firstField = (await fields.nth(0).boundingBox())!
-  const secondField = (await fields.nth(1).boundingBox())!
-  expect(Math.abs(firstField.y - secondField.y)).toBeLessThanOrEqual(1)
+  const routeCategoryWidth = (await categoryCell(
+    bodyRows(page).first(),
+  ).boundingBox())!.width
+  // The two fields of the settings form sit on one line, and the act it
+  // carries sits under both. A field is measured from its own caption, which
+  // is where the field starts in both the composer and the editor.
+  const fieldTop = async (caption: string): Promise<number> =>
+    (await composerSettings(page)
+      .getByText(caption, { exact: true })
+      .boundingBox())!.y
+  const firstField = await fieldTop(englishCopy('create.name'))
+  const secondField = await fieldTop(englishCopy('create.target'))
+  expect(Math.abs(firstField - secondField)).toBeLessThanOrEqual(1)
   const actionRow = (await page
-    .locator('.rv-composer-form__actions')
+    .getByRole('button', { name: 'Create and prepare', exact: true })
     .boundingBox())!
-  expect(actionRow.y).toBeGreaterThanOrEqual(
-    Math.max(
-      firstField.y + firstField.height,
-      secondField.y + secondField.height,
-    ),
-  )
+  expect(actionRow.y).toBeGreaterThanOrEqual(Math.max(firstField, secondField))
   const libraryLink = card.getByRole('link', { name: 'Open in the library' })
   await expect(libraryLink).toBeVisible()
   expect((await libraryLink.boundingBox())!.x).toBeGreaterThan(
@@ -4705,13 +4901,13 @@ test('page inspection preserves primary actions and full-height geometry in ever
   expect((await firstOutput).ok()).toBe(true)
   const id = profileIDFromURL(page.url())
   await page.goto(`${origin}/profiles/${id}`)
-  await page.locator('#editor-name').fill('Inspection workflow saved')
-  await page.locator('[data-id="discord"] .picker__open').click()
-  await aligned(page.locator('.picker__table-frame'))
+  await nameField(page).fill('Inspection workflow saved')
+  await openList(page, 'Discord').click()
+  await aligned(page.getByTestId('rv-list-picker-frame'))
   expect(
     Math.abs(
-      (await fields.nth(0).boundingBox())!.y -
-        (await fields.nth(1).boundingBox())!.y,
+      (await fieldTop(englishCopy('create.name'))) -
+        (await fieldTop(englishCopy('create.target'))),
     ),
   ).toBeLessThanOrEqual(1)
   const save = page.getByRole('button', {
@@ -4727,32 +4923,30 @@ test('page inspection preserves primary actions and full-height geometry in ever
     }),
   ).toBeVisible()
   await page.reload()
-  await expect(page.locator('#editor-name')).toHaveValue(
-    'Inspection workflow saved',
-  )
+  await expect(nameField(page)).toHaveValue('Inspection workflow saved')
   await page.goto(`${origin}/lists`)
-  const libraryLeadingEdge = (await page
-    .locator('.lists__workspace')
-    .boundingBox())!.x
-  await page.locator('[data-id="discord"] .lists__list-name').click()
-  await aligned(page.locator('.lists__workspace'))
+  const workspace = page.getByTestId('rv-lists-workspace')
+  const libraryLeadingEdge = (await workspace.boundingBox())!.x
+  await libraryRowName(libraryRow(page, 'Discord')).click()
+  await aligned(workspace)
   expect(
     Math.abs(
-      (await page.locator('.lists__table thead th').nth(1).boundingBox())!
-        .width - routeNameWidth,
+      (await page
+        .getByRole('columnheader', {
+          exact: true,
+          name: englishCopy('listPicker.column.list'),
+        })
+        .boundingBox())!.width - routeNameWidth,
     ),
   ).toBeLessThanOrEqual(8)
   expect(
     Math.abs(
-      (await page.locator('.lists__category-column').first().boundingBox())!
-        .width - routeCategoryWidth,
+      (await libraryCategoryCell(bodyRows(page).first()).boundingBox())!.width -
+        routeCategoryWidth,
     ),
   ).toBeLessThanOrEqual(8)
   expect(
-    Math.abs(
-      (await page.locator('.lists__workspace').boundingBox())!.x -
-        libraryLeadingEdge,
-    ),
+    Math.abs((await workspace.boundingBox())!.x - libraryLeadingEdge),
   ).toBeLessThanOrEqual(1)
   await expect(
     page.getByRole('button', { name: 'New list', exact: true }),
@@ -4760,7 +4954,7 @@ test('page inspection preserves primary actions and full-height geometry in ever
   await page.screenshot({ path: join(reviewRoot, 'library-docked.png') })
   await page.setViewportSize({ width: 1100, height: 850 })
   await expect(card).not.toHaveClass(/rv-dialog--docked/)
-  await expect(page.locator('.rv-dialog__scrim')).toBeVisible()
+  await expect(dialogScrims(page)).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(card).toBeHidden()
 })
@@ -4829,7 +5023,7 @@ test('docked inspection transitions the form and table together on opening and c
 }) => {
   await page.setViewportSize({ width: 1920, height: 960 })
   await page.goto(`${origin}/profiles/new`)
-  await expect(page.locator('[data-id="discord"] .picker__open')).toBeVisible()
+  await expect(openList(page, 'Discord')).toBeVisible()
   const transitionFrames = async (selector: string) =>
     page.evaluate(async (selector) => {
       const rect = (name: string) => {
@@ -4908,7 +5102,7 @@ test('docked inspection transitions the form and table together on opening and c
     expect(result.nestedSlide).toBe('none')
   }
   // Start at the keyboard opener; native click() below does not focus it.
-  await page.locator('[data-id="discord"] .picker__open').focus()
+  await openList(page, 'Discord').focus()
   check(await transitionFrames('[data-id="discord"] .picker__open'))
   await expect(
     page
@@ -4917,12 +5111,14 @@ test('docked inspection transitions the form and table together on opening and c
   ).toBeEnabled({ timeout: 60000 })
   check(await transitionFrames('.rv-dialog__close'))
   await expect(page.getByRole('dialog')).toBeHidden()
-  await expect(page.locator('[data-id="discord"] .picker__open')).toBeFocused()
-  const collapse = await page.locator('.shell__collapse').boundingBox()
+  await expect(openList(page, 'Discord')).toBeFocused()
+  const collapse = await page
+    .getByRole('button', { name: englishCopy('shell.collapse'), exact: true })
+    .boundingBox()
   expect(Math.abs(collapse!.y + collapse!.height - 960)).toBeLessThanOrEqual(1)
   // The same operation stays usable when animation is disabled or unavailable.
   await page.emulateMedia({ reducedMotion: 'reduce' })
-  await page.locator('[data-id="discord"] .picker__open').click()
+  await openList(page, 'Discord').click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.keyboard.press('Escape')
   await page.emulateMedia({ reducedMotion: 'no-preference' })
@@ -4932,7 +5128,7 @@ test('docked inspection transitions the form and table together on opening and c
       configurable: true,
     })
   })
-  await page.locator('[data-id="discord"] .picker__open').click()
+  await openList(page, 'Discord').click()
   await expect(page.getByRole('dialog')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.getByRole('dialog')).toBeHidden()
@@ -4943,13 +5139,14 @@ test('one list without IP coverage preserves other lists and domain-format forec
 }) => {
   const headers = { 'X-Routevane-Request': '1' }
   const ids: string[] = []
+  const fixtures = [
+    ['Partial Alpha', '192.0.2.1'],
+    ['Partial Beta', '192.0.2.1'],
+    ['Partial Missing', ''],
+    ['Partial Separate', '192.0.2.2'],
+  ] as const
   try {
-    for (const [title, address] of [
-      ['Partial Alpha', '192.0.2.1'],
-      ['Partial Beta', '192.0.2.1'],
-      ['Partial Missing', ''],
-      ['Partial Separate', '192.0.2.2'],
-    ] as const) {
+    for (const [title, address] of fixtures) {
       const created = await page.request.post(`${origin}/v1/lists`, {
         headers,
         data: { title, domains: ['forecast.invalid'] },
@@ -5000,31 +5197,39 @@ test('one list without IP coverage preserves other lists and domain-format forec
     expect(targets.find((x) => x.target_id === 'singbox')?.fits).toBe(true)
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(`${origin}/profiles/new`)
-    for (const id of ids) await page.locator(`input[value="${id}"]`).check()
+    for (const [title] of fixtures) await listMembership(page, title).check()
     await chooseFormat(page, /Keenetic/)
-    await expect(page.locator('.picker__forecast-status')).toContainText(
-      'Some lists could not be calculated',
-      { timeout: 60000 },
-    )
-    for (const id of ids.slice(0, 2))
-      await expect(
-        page.locator(`[data-id="${id}"] .picker__overlaps-column`),
-      ).toHaveText('1')
     await expect(
-      page.locator(`[data-id="${ids[3]}"] .picker__overlaps-column`),
-    ).toHaveText('—')
-    await page.locator('.picker__partial button').click()
+      forecastStatus(page, 'Some lists could not be calculated'),
+    ).toBeVisible({ timeout: 60000 })
+    // Each of the two lists that share an address credits the other, and the
+    // count is the control that names it.
+    for (const [title] of fixtures.slice(0, 2))
+      await expect(
+        listRow(page, title).getByRole('button', { name: /^Overlap: / }),
+      ).toHaveText('1')
+    // The separate list overlaps nothing, so its cell states a dash and offers
+    // nothing to open.
+    await expect(overlapsCell(listRow(page, 'Partial Separate'))).toHaveText(
+      '—',
+    )
+    await page
+      .getByRole('button', { name: englishCopy('forecast.partial.missing') })
+      .click()
     await expect(
       page.getByText(
         'These lists have no data usable by the selected connection. Refresh sources or choose another connection:',
       ),
     ).toBeVisible()
-    await expect(page.locator('.rv-infotip__panel')).toContainText(
-      'Partial Missing',
-    )
+    await expect(page.getByRole('dialog')).toContainText('Partial Missing')
     await page.keyboard.press('Escape')
+    // The list without usable data has no forecast at all, which is the same
+    // thing its cell is named after.
     await expect(
-      page.locator(`[data-id="${ids[2]}"] .picker__rules-column`),
+      listRow(page, 'Partial Missing').getByRole('cell', {
+        name: englishCopy('listPicker.rules.unknown'),
+        exact: true,
+      }),
     ).toHaveText('—')
     await expect(
       page.getByRole('button', { name: 'Create and prepare', exact: true }),
@@ -5075,36 +5280,41 @@ test('quick profile reads stay quiet while slow reads and failures remain visibl
           .routeFeedback.samples,
     )
   try {
+    // The shelf has arrived when it either holds the table or says it is
+    // empty.
+    const shelf = page
+      .getByRole('table')
+      .or(page.getByText(englishCopy('profiles.empty'), { exact: true }))
+    const reading = page
+      .getByRole('status')
+      .filter({ hasText: englishCopy('profiles.loading') })
+    const unavailable = page
+      .getByRole('status')
+      .filter({ hasText: englishCopy('profiles.failed') })
     await page.goto(origin)
-    await expect(
-      page.locator('.profiles__scroll, .profiles__empty'),
-    ).toBeVisible()
+    await expect(shelf).toBeVisible()
     expect(await samples()).not.toContain('visible')
     mode = 'slow'
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.goto(origin)
-    await expect(page.locator('.rv-notice--busy')).toBeVisible()
+    await expect(reading).toBeVisible()
     expect((await samples())[0]).toBe('hidden')
     release()
-    await expect(
-      page.locator('.profiles__scroll, .profiles__empty'),
-    ).toBeVisible()
-    await expect(page.locator('.rv-notice--busy')).toHaveCount(0)
+    await expect(shelf).toBeVisible()
+    await expect(reading).toHaveCount(0)
     mode = 'failure'
     held = new Promise<void>((resolve) => {
       release = resolve
     })
     await page.goto(origin)
-    await expect(page.locator('.rv-notice--busy')).toBeVisible()
+    await expect(reading).toBeVisible()
     release()
-    await expect(page.locator('.rv-notice--failed')).toBeVisible()
+    await expect(unavailable).toBeVisible()
     await expect(
       page.getByRole('button', { name: 'Retry', exact: true }),
     ).toBeEnabled()
     expect(
-      await page
-        .locator('.rv-notice--failed')
-        .evaluate((e) => getComputedStyle(e).animationDelay),
+      await unavailable.evaluate((e) => getComputedStyle(e).animationDelay),
     ).toBe('0s')
   } finally {
     release()
@@ -5118,22 +5328,18 @@ test('category tabs and More toggle a union that bulk selection can add to a pro
   await page.setViewportSize({ width: 1920, height: 960 })
   for (const path of ['/lists', '/profiles/new']) {
     await page.goto(origin + path)
-    const filters = page.locator('.catalog-filters')
-    const chips = filters.locator('.catalog-filters__chip')
-    await chips.filter({ hasText: /^Communication/ }).click()
-    await chips.filter({ hasText: /^Video/ }).click()
-    const rows = page.locator(
-      path === '/lists' ? '.lists__list-row' : '.picker__row',
-    )
+    await categoryChip(page, 'Communication').click()
+    await categoryChip(page, 'Video').click()
+    // Both surfaces answer with rows of their own table, each naming the list
+    // it stands for.
+    const rows = bodyRows(page)
     await expect
       .poll(async () =>
-        (
-          await rows.evaluateAll((elements) =>
-            elements.map((e) => e.getAttribute('data-id')),
-          )
-        ).sort(),
+        (await rows.getByRole('rowheader').allInnerTexts())
+          .map((name) => name.split('\n')[0])
+          .sort(),
       )
-      .toEqual(['discord', 'youtube'])
+      .toEqual(['Discord', 'YouTube'])
     if (path === '/lists') {
       // Reload the committed bookmark, not an in-flight router replacement.
       await expect
@@ -5145,26 +5351,25 @@ test('category tabs and More toggle a union that bulk selection can add to a pro
         .toEqual(['communication', 'video'])
       await page.reload()
       await expect.poll(() => rows.count()).toBe(2)
-      await expect(chips.filter({ hasText: /^Communication/ })).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      )
-      await expect(chips.filter({ hasText: /^Video/ })).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      )
+      for (const category of ['Communication', 'Video'])
+        await expect(categoryChip(page, category)).toHaveAttribute(
+          'aria-pressed',
+          'true',
+        )
     } else {
-      await page.locator('thead input[type="checkbox"]').check()
-      for (const id of ['discord', 'youtube'])
-        await expect(page.locator(`input[value="${id}"]`)).toBeChecked()
-      await chips.first().click()
-      await expect(
-        page.locator('input[value="limit-fixture"]'),
-      ).not.toBeChecked()
-      await chips.filter({ hasText: /^Communication/ }).click()
-      await chips.filter({ hasText: /^Video/ }).click()
+      await page
+        .getByRole('checkbox', {
+          name: englishCopy('listPicker.selectVisible'),
+        })
+        .check()
+      for (const title of ['Discord', 'YouTube'])
+        await expect(listMembership(page, title)).toBeChecked()
+      await categoryChip(page, englishCopy('listPicker.filter.all')).click()
+      await expect(listMembership(page, 'Limit fixture')).not.toBeChecked()
+      await categoryChip(page, 'Communication').click()
+      await categoryChip(page, 'Video').click()
     }
-    await filters.locator('.rv-search-select__trigger').click()
+    await categoryMore(page).click()
     const video = page.getByRole('option', { name: /^Video/ })
     await expect(video).toHaveAttribute('aria-selected', 'true')
     await video.click()
@@ -5174,8 +5379,10 @@ test('category tabs and More toggle a union that bulk selection can add to a pro
     ).toHaveAttribute('aria-selected', 'true')
     await page.keyboard.press('Escape')
     await expect.poll(() => rows.count()).toBe(1)
-    await chips.filter({ hasText: /^Communication/ }).click()
-    await expect(chips.first()).toHaveAttribute('aria-pressed', 'true')
+    await categoryChip(page, 'Communication').click()
+    await expect(
+      categoryChip(page, englishCopy('listPicker.filter.all')),
+    ).toHaveAttribute('aria-pressed', 'true')
     await expect.poll(() => rows.count()).toBeGreaterThan(2)
   }
 })
@@ -5185,17 +5392,17 @@ test('profile rows navigate from their cells while menus and links keep their ac
 }) => {
   const { profileId } = await buildProfile(page)
   await page.goto(origin)
-  const row = page.locator('.profiles__row').filter({
-    has: page.locator(`a[href="/profiles/${profileId}"]`),
-  })
-  await row.locator('.profiles__cell-outputs').click()
+  const row = page
+    .getByRole('row')
+    .filter({ has: linkTo(page, `/profiles/${profileId}`) })
+  await profileOutputsCell(row).click()
   await expect(page).toHaveURL(origin + '/profiles/' + profileId)
   await page.goto(origin)
   await row.getByRole('button').click()
   await expect(page.getByRole('menu')).toBeVisible()
   await expect(page).toHaveURL(origin + '/')
   await page.keyboard.press('Escape')
-  await row.locator(`a[href="/profiles/${profileId}"]`).focus()
+  await linkTo(page, `/profiles/${profileId}`).focus()
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(origin + '/profiles/' + profileId)
 })

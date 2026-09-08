@@ -13,9 +13,15 @@ defineProps<{ text: string; disabled?: boolean }>()
     <TooltipRoot :disabled="disabled">
       <TooltipTrigger as-child><slot /></TooltipTrigger>
       <TooltipPortal>
+        <!-- The primitive puts the tooltip role on an aria-hidden node inside
+             this panel, where a reader's software finds it as the trigger's
+             description. The painted panel itself therefore carries no role
+             and no name of its own, and a test that reads what it draws needs
+             a hook. -->
         <TooltipContent
           class="rv-tooltip"
           :aria-label="text"
+          data-testid="rv-tooltip"
           side="right"
           :side-offset="8"
           :collision-padding="8"

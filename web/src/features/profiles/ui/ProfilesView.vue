@@ -217,7 +217,14 @@ const onMenu = (card: ProfileCard, key: string): void => {
       </RvButton>
     </div>
 
-    <div v-else-if="library.rows.value.length > 0" class="profiles__scroll">
+    <!-- The scroll box the table lives in. It is a presentational containing
+         block with no role and no name, and a test reads its own scroll
+         extent, so it carries a test hook. -->
+    <div
+      v-else-if="library.rows.value.length > 0"
+      class="profiles__scroll"
+      data-testid="rv-profiles-scroll"
+    >
       <table class="profiles__table">
         <thead>
           <tr>

@@ -307,6 +307,23 @@ export default withNuxt(
       // A platform-specific case is gated by `test.skip(condition, reason)`,
       // which is Playwright's own mechanism. An unconditional skip still fails.
       'playwright/no-skipped-test': ['error', { allowConditional: true }],
+      // A browser suite locates what an operator perceives: a role, an
+      // accessible name, a label, or the words on screen. Three layers have no
+      // such handle and are named here instead. The modal scrim: RvDialog
+      // hooks the layer it owns itself, but the sheet's belongs to USlideover,
+      // which takes no attributes for it, so the class both variants carry is
+      // the only handle that reaches a whole stack. SortableJS's drag clone,
+      // which copies the row it is dragged from and carries no role or name of
+      // its own. And the design system's own button class, which is what tells
+      // a product action rendered as a link from a link inside a sentence —
+      // a distinction the target-size sweep needs and no role expresses. Each
+      // is written once, in `tests/e2e/support/queries.ts`.
+      'playwright/no-raw-locators': [
+        'error',
+        {
+          allowed: ['.rv-dialog__scrim', '.sortable-fallback', 'a.rv-button'],
+        },
+      ],
     },
   },
   {
@@ -378,15 +395,6 @@ export default withNuxt(
         'warn',
         { max: 800, skipBlankLines: true, skipComments: true },
       ],
-    },
-  },
-  {
-    // A raw id or class locator couples a test to markup. Advisory until the
-    // existing suites are rewritten onto roles and accessible names.
-    name: 'routevane/advisory-playwright-locators',
-    files: [`tests/{${BROWSER_SUITES}}/**/*.ts`],
-    rules: {
-      'playwright/no-raw-locators': 'warn',
     },
   },
   {

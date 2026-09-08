@@ -10,7 +10,7 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 import { dictionaries } from '../../src/shared/i18n/messages'
 
@@ -21,6 +21,7 @@ import {
   stopOwnedProduct,
   type SpawnedProduct,
 } from './support/product'
+import { listMembership, menuPanel } from './support/queries'
 
 const testDirectory = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(testDirectory, '..', '..', '..')
@@ -86,11 +87,12 @@ const publishProfile = async (
   await page
     .getByRole('searchbox', { name: message(language, 'create.search') })
     .fill('youtube')
-  await page.locator('input[value="youtube"]').check()
-  await page.locator('.rv-search-select__trigger--field').click()
+  await listMembership(page, 'YouTube').check()
+  const delivery = page.getByLabel(message(language, 'create.target'))
+  await delivery.click()
   await page.getByRole('option', { name: formatNames[targetID] }).click()
-  await expect(page.locator('#create-target')).not.toHaveText(
-    'Choose a device or application',
+  await expect(delivery).not.toHaveText(
+    message(language, 'create.target.placeholder'),
   )
   const outputsResponse = page.waitForResponse(
     (candidate) =>
@@ -113,7 +115,9 @@ const publishProfile = async (
   }
   // Waiting for the add-format control to re-enable is waiting for the whole
   // bind — create, refresh, build, reload — to actually finish.
-  await expect(page.locator('#outputs-target')).toBeEnabled()
+  await expect(
+    page.getByLabel(message(language, 'outputs.add'), { exact: true }),
+  ).toBeEnabled()
   return { profileId, outputId: outputPayload.output.id }
 }
 
@@ -122,6 +126,13 @@ const message = (language: 'en' | 'ru', key: string): string => {
   if (typeof value !== 'string') throw new Error(`Not a string message: ${key}`)
   return value
 }
+
+/**
+ * The one field a local sing-box destination asks for, found by the caption
+ * that deployer gives it.
+ */
+const sendAddress = (page: Page, language: 'en' | 'ru'): Locator =>
+  page.getByLabel(message(language, 'deploy.field.address.singbox'))
 
 test.beforeAll(async () => {
   await access(binary)
@@ -238,11 +249,10 @@ test('the send screen builds its form from the deployer and applies the file loc
   // The send action exists on the profile page because this format has a
   // deployer, and it leads to that output's own send screen.
   await page
-    .locator('main')
+    .getByRole('main')
     .getByRole('button', { name: 'Actions for profile YouTube', exact: true })
     .click()
-  await page
-    .locator('.rv-menu__panel:visible')
+  await menuPanel(page)
     .getByRole('menuitem', { name: 'Send to sing-box' })
     .click()
   await page.waitForURL(`${profileURL}/send/${outputId}`)
@@ -250,23 +260,24 @@ test('the send screen builds its form from the deployer and applies the file loc
     page.getByRole('heading', { level: 1, name: 'Send to device' }),
   ).toBeVisible()
   await expect(page.getByText('Profile: YouTube')).toBeVisible()
-  await expect(page.locator('.rv-status__label')).toHaveText('Not applied')
+  await expect(page.getByText('Not applied', { exact: true })).toBeVisible()
 
   // A destination on this machine has nowhere to send a credential, so the
-  // form the deployer describes is the form the screen renders — no more.
-  await expect(page.locator('#send-device')).toBeVisible()
-  expect(
-    await page
-      .locator('label[for="send-device"]')
-      .evaluate((element) => element.textContent),
-  ).toBe('Path to the sing-box configuration')
-  await expect(page.locator('#send-device')).toHaveAttribute(
+  // form the deployer describes is the form the screen renders — no more. The
+  // field answers to the caption this deployer gives it, which is the same
+  // fact the label assertion used to state on its own.
+  const address = sendAddress(page, 'en')
+  await expect(address).toBeVisible()
+  await expect(address).toHaveAttribute(
     'placeholder',
     'file:///C:/sing-box/config.json',
   )
-  await expect(page.locator('#send-user')).toHaveCount(0)
-  await expect(page.locator('#send-password')).toHaveCount(0)
-  await expect(page.locator('#send-interface')).toHaveCount(0)
+  for (const absent of [
+    'send.field.account',
+    'send.field.password',
+    'send.field.interface',
+  ])
+    await expect(page.getByLabel(message('en', absent))).toHaveCount(0)
   const review = page.getByRole('button', { name: 'Check the details' })
   await expect(review).toBeVisible()
 
@@ -276,7 +287,9 @@ test('the send screen builds its form from the deployer and applies the file loc
     page.getByRole('heading', { level: 2, name: 'By hand' }),
   ).toBeVisible()
   await expect(
-    page.locator('.send__manual').getByRole('link', { name: 'Download JSON' }),
+    page
+      .getByRole('region', { name: message('en', 'send.manual') })
+      .getByRole('link', { name: 'Download JSON' }),
   ).toHaveAttribute('href', /^\/v1\/artifacts\/[a-f0-9]{32}$/)
   await expect(
     page.getByText(
@@ -286,13 +299,13 @@ test('the send screen builds its form from the deployer and applies the file loc
 
   // The address form a destination accepts is the destination's own statement:
   // the screen offers this example as the placeholder, so it must accept it.
-  await page.locator('#send-device').fill(fileURL(configPath))
+  await address.fill(fileURL(configPath))
   await expect(
     review,
     'the address the deployer itself declares must be accepted',
   ).toBeEnabled()
   await review.click()
-  await expect(page.locator('.rv-status__label')).toHaveText('Ready to apply')
+  await expect(page.getByText('Ready to apply', { exact: true })).toBeVisible()
   await expect(
     page.getByRole('heading', { name: 'What will happen' }),
   ).toBeVisible()
@@ -309,12 +322,17 @@ test('the send screen builds its form from the deployer and applies the file loc
   ).resolves.toBe('absent')
 
   await page.getByRole('button', { name: 'Apply' }).click()
-  await expect(page.locator('.rv-status__label')).toHaveText('Applied')
+  await expect(page.getByText('Applied', { exact: true })).toBeVisible()
   await expect(page.getByText('The file is applied and verified')).toBeVisible()
 
   // Every lifecycle step is reported, and the file on disk is the artifact.
-  await expect(page.locator('.send__steps li')).toHaveCount(4)
-  await expect(page.locator('.send__step-outcome--failed')).toHaveCount(0)
+  const steps = page
+    .getByRole('region', { name: message('en', 'send.steps') })
+    .getByRole('listitem')
+  await expect(steps).toHaveCount(4)
+  await expect(
+    steps.filter({ hasText: message('en', 'send.step.failed') }),
+  ).toHaveCount(0)
   const deployed = await readFile(ruleSetPath, 'utf8')
   expect(deployed).toContain('youtube.com')
   expect(JSON.parse(deployed).version).toBe(3)
@@ -330,7 +348,7 @@ test('the send screen builds its form from the deployer and applies the file loc
   expect(Object.keys(stored.local)).not.toContain('rv.deploy.password')
   expect(Object.keys(stored.session)).not.toContain('rv.deploy.password')
   expect(JSON.stringify(stored)).not.toContain('rv1.')
-  await expect(page.locator('#send-device')).toHaveValue(fileURL(configPath))
+  await expect(address).toHaveValue(fileURL(configPath))
 })
 
 for (const language of ['en', 'ru'] as const) {
@@ -402,14 +420,13 @@ for (const language of ['en', 'ru'] as const) {
         await route.continue()
       })
       await page
-        .locator('main')
+        .getByRole('main')
         .getByRole('button', {
           name: copy('profiles.menu').replace('{name}', 'YouTube'),
           exact: true,
         })
         .click()
-      await page
-        .locator('.rv-menu__panel:visible')
+      await menuPanel(page)
         .getByRole('menuitem', {
           name: copy('profiles.sendTarget').replace('{target}', 'sing-box'),
         })
@@ -435,7 +452,7 @@ for (const language of ['en', 'ru'] as const) {
       await auditEntry()
       await expect.poll(() => pendingRead !== undefined).toBe(true)
       pendingRead!()
-      await expect(page.locator('#send-device')).toBeVisible()
+      await expect(sendAddress(page, language)).toBeVisible()
       await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1)
       await page.unroute(detailURL)
 
@@ -470,7 +487,7 @@ for (const language of ['en', 'ru'] as const) {
       await expect(
         page.getByText(copy('profiles.noArtifact'), { exact: true }),
       ).toBeVisible()
-      await expect(page.locator('#send-device')).toHaveCount(0)
+      await expect(sendAddress(page, language)).toHaveCount(0)
       await page.unroute(detailURL)
 
       await auditEntry()
@@ -522,7 +539,9 @@ test('a target without a deployer is offered the manual path only', async ({
   const profileURL = `${origin}/profiles/${profileId}`
 
   // The profile page never offers an automatic send for this format.
-  await expect(page.locator('.rv-status__label')).toBeVisible()
+  await expect(
+    page.getByRole('tablist', { name: message('en', 'profile.tabs') }),
+  ).toBeVisible()
   await expect(page.getByRole('link', { name: 'Send to device' })).toHaveCount(
     0,
   )
@@ -534,7 +553,9 @@ test('a target without a deployer is offered the manual path only', async ({
   await expect(
     page.getByText('Automatic delivery to MikroTik is unavailable'),
   ).toBeVisible()
-  await expect(page.locator('#send-device')).toHaveCount(0)
+  // Nothing on this screen asks for an address, because nothing here could
+  // use one.
+  await expect(page.getByRole('textbox')).toHaveCount(0)
   await expect(
     page.getByRole('button', { name: 'Check the details' }),
   ).toHaveCount(0)
@@ -543,15 +564,16 @@ test('a target without a deployer is offered the manual path only', async ({
   await expect(
     page.getByRole('heading', { level: 2, name: 'By hand' }),
   ).toBeVisible()
-  await expect(page.locator('.send__manual').getByRole('link')).toHaveAttribute(
+  const manual = page.getByRole('region', {
+    name: message('en', 'send.manual'),
+  })
+  await expect(manual.getByRole('link')).toHaveAttribute(
     'href',
     /^\/v1\/artifacts\/[a-f0-9]{32}$/,
   )
   // The instruction is the catalog's own, and the catalog may state it in one
   // language or two. What must reach the screen is the instruction itself.
-  await expect(page.locator('.send__manual .send__note')).toContainText(
-    '/import',
-  )
+  await expect(manual).toContainText('/import')
 })
 
 test('a destination the configuration cannot accept is refused before writing', async ({
@@ -581,21 +603,25 @@ test('a destination the configuration cannot accept is refused before writing', 
 
   const { profileId, outputId } = await publishProfile(page, 'singbox')
   await page.goto(`${origin}/profiles/${profileId}/send/${outputId}`)
-  await expect(page.locator('#send-device')).toBeVisible()
-  await page.locator('#send-device').fill(fileURL(foreignConfig))
+  const address = sendAddress(page, 'en')
+  await expect(address).toBeVisible()
+  await address.fill(fileURL(foreignConfig))
   const review = page.getByRole('button', { name: 'Check the details' })
   await expect(
     review,
     'the address the deployer itself declares must be accepted',
   ).toBeEnabled()
   await review.click()
-  await expect(page.locator('.rv-status__label')).toHaveText('Ready to apply')
+  await expect(page.getByText('Ready to apply', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Apply' }).click()
 
-  await expect(page.locator('.rv-status__label')).toHaveText('Not applied')
+  await expect(page.getByText('Not applied', { exact: true })).toBeVisible()
   // The refusal reaches the operator as a sentence about the device, never as
-  // the server's own words.
-  const visible = (await page.locator('body').innerText()).toLowerCase()
+  // the server's own words. Every word the page renders is read, so the sweep
+  // is a document one rather than one region's.
+  const visible = (
+    await page.evaluate(() => document.body.innerText)
+  ).toLowerCase()
   expect(visible).not.toContain('operation failed')
   // The refusal happens at the probe, so nothing in that directory changed.
   await expect(

@@ -27,15 +27,19 @@ test('one dev session: real API, HMR, Go recovery and owned cleanup', async ({
   const probeName = `dev-hmr-probe-${process.pid}`
   const probe = resolve(root, 'web/src/pages', `${probeName}.vue`)
   const goProbe = resolve(root, 'cmd/routevane', `dev_probe_${process.pid}.go`)
+  // The probe reports what a reload would have thrown away, so it is a named
+  // live region rather than an anonymous paragraph: the test reads it by role
+  // and name while its own text is what the edit changes.
   const source = `<script setup lang="ts">
 import { ref } from 'vue'
 const draft = ref('')
 </script>
 <template>
-  <main><label>Draft<input v-model="draft" /></label><p id="dev-probe">before-hmr</p></main>
+  <main><label>Draft<input v-model="draft" /></label><output id="dev-probe" aria-label="HMR probe">before-hmr</output></main>
 </template>
 <style>#dev-probe { color: rgb(1, 2, 3); }</style>
 `
+  const devProbe = page.getByRole('status', { name: 'HMR probe' })
   await writeFile(probe, source, { flag: 'wx' })
   const owner = spawnProduct(
     'python',
@@ -133,13 +137,13 @@ const draft = ref('')
 
     await page.goto(`${origin}/${probeName}`)
     await page.getByRole('textbox', { name: 'Draft' }).fill('keep my draft')
-    await expect(page.locator('#dev-probe')).toHaveText('before-hmr')
+    await expect(devProbe).toHaveText('before-hmr')
     await page.evaluate(() => {
       document.documentElement.dataset.hmrSentinel = 'same-document'
     })
     const templateEdit = source.replace('before-hmr', 'after-hmr')
     await writeFile(probe, templateEdit)
-    await expect(page.locator('#dev-probe')).toHaveText('after-hmr')
+    await expect(devProbe).toHaveText('after-hmr')
     await expect(page.getByRole('textbox', { name: 'Draft' })).toHaveValue(
       'keep my draft',
     )
@@ -147,14 +151,15 @@ const draft = ref('')
     // two editor saves, not two writes inside the same coalescing window.
     await delay(100)
     await writeFile(probe, templateEdit.replace('rgb(1, 2, 3)', 'rgb(4, 5, 6)'))
-    await expect(page.locator('#dev-probe')).toHaveCSS('color', 'rgb(4, 5, 6)')
+    await expect(devProbe).toHaveCSS('color', 'rgb(4, 5, 6)')
     await expect(page.getByRole('textbox', { name: 'Draft' })).toHaveValue(
       'keep my draft',
     )
-    await expect(page.locator('html')).toHaveAttribute(
-      'data-hmr-sentinel',
-      'same-document',
-    )
+    // The sentinel lives on the document element, which no role names; the
+    // module replacement above has already settled, so one read is enough.
+    expect(
+      await page.evaluate(() => document.documentElement.dataset.hmrSentinel),
+    ).toBe('same-document')
     expect(owner.output()).not.toContain('build 2)')
 
     await writeFile(goProbe, 'package main\nthis is not valid Go\n', {
@@ -171,7 +176,7 @@ const draft = ref('')
       profilesBefore,
     )
     await page.reload()
-    await expect(page.locator('#dev-probe')).toHaveText('after-hmr')
+    await expect(devProbe).toHaveText('after-hmr')
   } finally {
     try {
       if (owner.process.exitCode === null) {

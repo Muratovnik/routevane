@@ -42,7 +42,7 @@ const start = async (env: NodeJS.ProcessEnv) => {
   const app = await electron.launch({ executablePath, env })
   const page = await app.firstWindow()
   await page.waitForURL('routevane://app/')
-  await page.locator('h1').waitFor()
+  await page.getByRole('heading', { level: 1 }).waitFor()
   return { app, page }
 }
 
@@ -180,7 +180,9 @@ test('a killed shell releases its backend and data lock', async () => {
       .toBe(false)
     const restarted = await start(env)
     try {
-      await expect(restarted.page.locator('h1')).toBeVisible()
+      await expect(
+        restarted.page.getByRole('heading', { level: 1 }),
+      ).toBeVisible()
     } finally {
       await restarted.app.close()
     }
@@ -215,7 +217,7 @@ test('desktop composes and publishes, copies a usable subscription and downloads
       .filter({ hasText: 'Desktop list' })
       .getByRole('checkbox')
       .check()
-    await page.locator('#create-target').click()
+    await page.getByLabel('Where to deliver the profile').click()
     await page.getByRole('option', { name: /Keenetic.*\.txt/ }).click()
     await page
       .getByRole('button', { name: 'Create and prepare', exact: true })

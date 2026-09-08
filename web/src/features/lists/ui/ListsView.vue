@@ -703,7 +703,13 @@ const submitPriority = async (): Promise<void> => {
         live
         tone="failed"
       />
-      <div class="lists__workspace lists__pane-body">
+      <!-- The pane the table scrolls inside. It has no role and no name of its
+           own, and a test reads the geometry and the scroll extent it owns, so
+           it carries a test hook. -->
+      <div
+        class="lists__workspace lists__pane-body"
+        data-testid="rv-lists-workspace"
+      >
         <table class="lists__table">
           <thead>
             <tr>

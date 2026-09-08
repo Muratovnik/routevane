@@ -905,8 +905,12 @@ const onOpenChange = (open: boolean): void => {
           <!-- Source reads keep one compact, reserved status row. The retry
                control is present but invisible until an error so the filter
                and the known rows do not move when the answer changes. -->
+          <!-- The row changes its own role with the answer it carries, so no
+               single accessible query names the row itself; a test that reads
+               the height it reserves needs a hook of its own. -->
           <div
             class="list-card__refresh-status"
+            data-testid="rv-list-card-status"
             :role="
               refreshError !== '' || contentsState === 'failed'
                 ? 'alert'

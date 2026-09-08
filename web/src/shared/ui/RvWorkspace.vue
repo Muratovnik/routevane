@@ -28,7 +28,15 @@ provide(workspacePane, { target: `#${target}`, docked, open, locked })
       'rv-workspace--inspecting': docked && open,
     }"
   >
-    <div class="rv-workspace__main" :inert="docked && locked"><slot /></div>
+    <!-- The pane a docked sheet locks. It has no role and no name of its own,
+         and its `inert` state is what a test reads, so it carries a hook. -->
+    <div
+      class="rv-workspace__main"
+      data-testid="rv-workspace-main"
+      :inert="docked && locked"
+    >
+      <slot />
+    </div>
     <div :id="target" class="rv-workspace__detail" :hidden="!docked || !open" />
   </div>
 </template>

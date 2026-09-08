@@ -402,7 +402,10 @@ const listLabel = (listID: string): string =>
         </div>
       </div>
     </div>
-    <div class="picker__table-frame">
+    <!-- The frame the table scrolls inside. It has no role and no name of its
+         own, and a test reads the geometry and the scroll extent it owns, so
+         it carries a test hook. -->
+    <div class="picker__table-frame" data-testid="rv-list-picker-frame">
       <table class="picker__table">
         <thead>
           <tr>
