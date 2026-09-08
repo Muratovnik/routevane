@@ -10,8 +10,7 @@ import {
 } from 'reka-ui'
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
 
-import { workspacePane } from '@/shared/ui/workspacePane'
-import { openDialogs } from '@/shared/ui/dialogStack'
+import { workspacePane } from '@/shared/model/useWorkspacePane'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 
 /**
@@ -191,6 +190,20 @@ const sheetUI = computed(() => ({
   body: ['rv-dialog__body', props.fill === true ? 'rv-dialog__body--fill' : ''],
   footer: 'rv-dialog__footer',
 }))
+</script>
+
+<script lang="ts">
+/**
+ * How many modal panels are open on the page right now.
+ *
+ * The dimming belongs to the stack, not to each panel in it: a panel opened
+ * over a sheet must not paint a second ground over the first. So the count is
+ * the page's rather than any one dialog's, and a plain script block is
+ * evaluated once per module instead of once per instance, unlike every
+ * top-level binding of the `<script setup>` block. It sits after that block so
+ * that every import of the module the two share stays at the top of it.
+ */
+const openDialogs = ref(0)
 </script>
 
 <template>

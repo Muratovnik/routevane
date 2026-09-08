@@ -3,7 +3,7 @@ import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
 import { defineComponent, h } from 'vue'
 
-import type { MenuItem } from '@/shared/ui/kinds'
+import type { MenuItem } from '@/shared/ui/types'
 import RvMenu from '@/shared/ui/RvMenu.vue'
 
 const GLOBAL = { stubs: { NuxtLink: true } }

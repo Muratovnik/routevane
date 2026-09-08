@@ -3,7 +3,7 @@ import { useLocalStorage } from '@vueuse/core'
 import { computed } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
-import type { IconName } from '@/shared/ui/kinds'
+import type { IconName } from '@/shared/ui/types'
 import RvWorkspace from '@/shared/ui/RvWorkspace.vue'
 import RvTooltip from '@/shared/ui/RvTooltip.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'

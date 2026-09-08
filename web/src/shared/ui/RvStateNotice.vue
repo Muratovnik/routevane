@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-import type { IconName, StatusTone } from '@/shared/ui/kinds'
+import type { IconName, StatusTone } from '@/shared/ui/types'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 
 /**

@@ -65,10 +65,12 @@ export default defineNuxtConfig({
     // Production scripts run `nuxt typecheck` explicitly before generation.
     // The embedded checker's shell command splits tsconfig paths with spaces.
     typeCheck: process.env.NODE_ENV === 'development',
-    // The unit suite lives beside the browser suites in `tests/`, outside
-    // `srcDir`. `include` in an extending tsconfig replaces the inherited list
-    // rather than adding to it, so the entry is appended here and Nuxt keeps
-    // owning the rest of the generated set.
-    tsConfig: { include: ['../tests/unit/**/*'] },
+    // Every suite — the unit specs and the browser ones — lives in `tests/`,
+    // outside `srcDir`, and a file the checker never reads can carry a missing
+    // import or a stale type for as long as nobody runs it. `include` in an
+    // extending tsconfig replaces the inherited list rather than adding to it,
+    // so the entry is appended here and Nuxt keeps owning the rest of the
+    // generated set.
+    tsConfig: { include: ['../tests/**/*'] },
   },
 })

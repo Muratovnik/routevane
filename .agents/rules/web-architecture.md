@@ -10,6 +10,15 @@ enforces that order, including the refusal of a same-layer import between two
 slices; entities present what they are given and do not import `shared/api`,
 which features orchestrate.
 
+Inside a slice a `.vue` file is a component and every other file is named for
+its one role: `model/useX.ts` is a composable and the state it owns, `types.ts`
+is a type contract a host imports without importing a component, and `lib/x.ts`
+is pure functions. There is no separate store layer — state lives in a
+composable, and state the page rather than one caller owns is a module-scope
+`ref` in that composable's module. A component whose own state is the page's
+rather than one instance's keeps it in a plain `<script lang="ts">` block beside
+its `<script setup>`, which is evaluated once per module.
+
 A function is an arrow expression, and the `function` keyword appears only
 where an arrow cannot express the same thing — a class, or an Options-API stub
 that needs `this`. A module-level constant whose value is a literal is

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, inject } from 'vue'
-import { workspacePane } from '@/shared/ui/workspacePane'
+import { workspacePane } from '@/shared/model/useWorkspacePane'
 defineProps<{ settingsLabel: string }>()
 const pane = inject(workspacePane, null)
 const compact = computed(() => pane?.docked.value && pane.open.value)

@@ -8,7 +8,7 @@ import {
   localizedTargetTitle,
   type TargetOption,
 } from '@/shared/api/catalog'
-import type { Fact, StatusTone } from '@/shared/ui/kinds'
+import type { Fact, StatusTone } from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvField from '@/shared/ui/RvField.vue'

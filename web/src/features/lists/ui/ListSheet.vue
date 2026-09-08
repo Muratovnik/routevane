@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
 import { normalizeDomain } from '@/shared/lib/destinationList'
-import type { ChoiceOption, SegmentOption } from '@/shared/ui/kinds'
+import type { ChoiceOption, SegmentOption } from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvCombobox from '@/shared/ui/RvCombobox.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'

@@ -13,7 +13,7 @@ import {
 } from 'reka-ui'
 import { computed } from 'vue'
 
-import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/kinds'
+import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/types'
 import RvSearchSelect from '@/shared/ui/RvSearchSelect.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 

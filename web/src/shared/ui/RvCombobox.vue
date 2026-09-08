@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/kinds'
+import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/types'
 import RvSearchSelect from '@/shared/ui/RvSearchSelect.vue'
 defineProps<{
   describedBy?: string

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useWorkspaceInspection } from '@/shared/ui/workspacePane'
+import { useWorkspaceInspection } from '@/shared/model/useWorkspacePane'
 import { useSortable } from '@vueuse/integrations/useSortable'
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
 
@@ -16,7 +16,7 @@ import type {
 } from '@/shared/api/catalog'
 import { useLocale } from '@/shared/i18n/useLocale'
 import { libraryPageHash, parseLibraryPageHash } from '@/shared/lib/listsHash'
-import type { ChoiceOption, MenuItem, SegmentOption } from '@/shared/ui/kinds'
+import type { ChoiceOption, MenuItem, SegmentOption } from '@/shared/ui/types'
 import { tableDragGeometry } from '@/shared/lib/tableDrag'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { IconName } from '@/shared/ui/kinds'
+import type { IconName } from '@/shared/ui/types'
 
 /**
  * The product's icon set: hand-set 16-unit strokes, one per meaning. Icons are

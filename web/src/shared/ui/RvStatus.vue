@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { StatusTone } from '@/shared/ui/kinds'
+import type { StatusTone } from '@/shared/ui/types'
 
 /**
  * One status mark for the whole surface.

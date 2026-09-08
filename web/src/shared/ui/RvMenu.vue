@@ -11,7 +11,7 @@ import {
 } from 'reka-ui'
 import { computed, resolveComponent, type Component } from 'vue'
 
-import type { IconName, MenuItem } from '@/shared/ui/kinds'
+import type { IconName, MenuItem } from '@/shared/ui/types'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 
 /**

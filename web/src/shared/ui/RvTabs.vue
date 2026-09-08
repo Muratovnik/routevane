@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-import type { TabItem } from '@/shared/ui/kinds'
+import type { TabItem } from '@/shared/ui/types'
 
 /**
  * The tab bar of one object's facets. The host renders each panel itself with

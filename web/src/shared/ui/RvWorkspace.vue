@@ -2,7 +2,7 @@
 import { useResizeObserver } from '@vueuse/core'
 import { computed, provide, ref, useId, useTemplateRef } from 'vue'
 
-import { workspacePane } from '@/shared/ui/workspacePane'
+import { workspacePane } from '@/shared/model/useWorkspacePane'
 
 const host = useTemplateRef<HTMLElement>('host')
 const target = `workspace-pane-${useId().replaceAll(':', '-')}`

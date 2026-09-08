@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { SegmentOption } from '@/shared/ui/kinds'
+import type { SegmentOption } from '@/shared/ui/types'
 
 /**
  * A two-or-three way choice the operator makes about the surface itself: how

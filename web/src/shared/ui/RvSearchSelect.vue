@@ -12,7 +12,7 @@ import {
   PopoverTrigger,
 } from 'reka-ui'
 import { computed, ref } from 'vue'
-import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/kinds'
+import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/types'
 import { useLocale } from '@/shared/i18n/useLocale'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 const props = defineProps<{

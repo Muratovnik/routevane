@@ -11,7 +11,7 @@ import {
   profilePageHash,
   parseLegacyProfileHash,
 } from '@/shared/lib/profileHash'
-import type { MenuItem } from '@/shared/ui/kinds'
+import type { MenuItem } from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvDisclosure from '@/shared/ui/RvDisclosure.vue'

@@ -3,7 +3,7 @@ import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
 import { defineComponent, h } from 'vue'
 
-import type { ChoiceGroup } from '@/shared/ui/kinds'
+import type { ChoiceGroup } from '@/shared/ui/types'
 import RvCombobox from '@/shared/ui/RvCombobox.vue'
 
 const GROUPS: ChoiceGroup[] = [

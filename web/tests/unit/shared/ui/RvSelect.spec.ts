@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
 
-import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/kinds'
+import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/types'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 
 const OPTIONS: ChoiceOption[] = [

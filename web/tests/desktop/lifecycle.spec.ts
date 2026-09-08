@@ -38,8 +38,18 @@ const scratch = async () => {
   }
 }
 
+// Electron's launcher takes a complete string map, while `process.env` declares
+// every value as possibly unset. A variable that is not set is not one to hand
+// on, so it is dropped rather than passed as an empty string.
+const defined = (env: NodeJS.ProcessEnv): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(env).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  )
+
 const start = async (env: NodeJS.ProcessEnv) => {
-  const app = await electron.launch({ executablePath, env })
+  const app = await electron.launch({ executablePath, env: defined(env) })
   const page = await app.firstWindow()
   await page.waitForURL('routevane://app/')
   await page.getByRole('heading', { level: 1 }).waitFor()
@@ -256,9 +266,13 @@ test('desktop composes and publishes, copies a usable subscription and downloads
     const saved = join(env.ROUTEVANE_DESKTOP_PROFILE, 'config.json')
     // Stand in for the operator accepting the native Save dialog; the UI still
     // initiates the real blob download through Electron's download manager.
+    // The Electron typings live with the desktop package, so the main-process
+    // handle this callback receives is described by what it is asked to do.
     await app.evaluate(({ session }, path) => {
-      session.defaultSession.once('will-download', (_event, item) =>
-        item.setSavePath(path),
+      session.defaultSession.once(
+        'will-download',
+        (_event: unknown, item: { setSavePath: (target: string) => void }) =>
+          item.setSavePath(path),
       )
     }, saved)
     await page.goto('routevane://app/settings')

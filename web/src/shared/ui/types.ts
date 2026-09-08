@@ -1,6 +1,8 @@
-/** Shapes the shared primitives accept. They live outside the components
- * because a single-file component's setup block is not a module that can
- * export them, and a host needs the type to build its own data. */
+/** Shapes the shared primitives accept. A component could export them from a
+ * plain `<script lang="ts">` block of its own, but a host needs the contract to
+ * build its own data without importing the component, and a type import that
+ * reaches into a `.vue` file is fragile in the editor and build tooling. So the
+ * contract is a module and the components import it too. */
 
 export type StatusTone = 'ready' | 'warning' | 'failed' | 'busy' | 'waiting'
 

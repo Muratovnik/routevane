@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Fact } from '@/shared/ui/kinds'
+import type { Fact } from '@/shared/ui/types'
 
 /**
  * A fact list: the aligned label/value ledger this product uses everywhere it

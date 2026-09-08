@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useWorkspaceInspection } from '@/shared/ui/workspacePane'
+import { useWorkspaceInspection } from '@/shared/model/useWorkspacePane'
 import { useSortable } from '@vueuse/integrations/useSortable'
 import { computed, ref, useTemplateRef, watch } from 'vue'
 

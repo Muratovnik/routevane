@@ -24,7 +24,7 @@ import {
 } from '@/shared/lib/destinationList'
 import { libraryPageHash } from '@/shared/lib/listsHash'
 import { useDebouncedMutation } from '@/shared/model/useDebouncedMutation'
-import type { ChoiceOption } from '@/shared/ui/kinds'
+import type { ChoiceOption } from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvField from '@/shared/ui/RvField.vue'

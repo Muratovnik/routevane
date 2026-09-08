@@ -346,7 +346,7 @@ test('the list card stays whole over a scrolled page and gives the scroll back',
       new Promise<{ latency: number; removed: boolean }>((resolve) => {
         const sheet = document.querySelector<HTMLElement>('.rv-dialog--sheet')
         const close =
-          sheet?.querySelector<HTMLButtonElement>('.rv-dialog__close')
+          sheet?.querySelector<HTMLButtonElement>('.rv-dialog__close') ?? null
         if (sheet === null || close === null)
           throw new Error('Settled sheet close controls are unavailable')
 
