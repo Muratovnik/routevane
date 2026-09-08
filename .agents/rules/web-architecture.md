@@ -7,8 +7,10 @@ Use Feature-Sliced layers from high to low: `pages`, `widgets`, `features`,
 only a lower layer; cross-slice imports use the `@/` alias. Do not create empty
 layers or index barrels without a current consumer. `eslint-plugin-boundaries`
 enforces that order, including the refusal of a same-layer import between two
-slices; entities present what they are given and do not import `shared/api`,
-which features orchestrate.
+slices. An entity's `ui` presents what it is given and never imports
+`shared/api`, at error level: the requests a slice makes, and the state they
+read and write, live in that slice's `model`, which the component takes its
+state and actions from.
 
 Inside a slice a `.vue` file is a component and every other file is named for
 its one role: `model/useX.ts` is a composable and the state it owns, `types.ts`

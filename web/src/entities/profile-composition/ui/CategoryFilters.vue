@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useElementSize } from '@vueuse/core'
 import { computed, useTemplateRef } from 'vue'
-import type { CategoryDetail, ListDetail } from '@/shared/api/catalog'
+import type { CategoryDetail, ListDetail } from '../model/types'
 import { useLocale } from '@/shared/i18n/useLocale'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvSearchSelect from '@/shared/ui/RvSearchSelect.vue'

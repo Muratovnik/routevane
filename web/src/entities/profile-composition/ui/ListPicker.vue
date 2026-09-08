@@ -11,8 +11,12 @@ import {
   setCompositionCategoryReference,
   toggleCompositionList,
 } from '@/entities/profile-composition/model/composition'
-import type { CategoryDetail, ListDetail } from '@/shared/api/catalog'
-import type { ProfileComposition, TargetForecast } from '@/shared/api/profiles'
+import type {
+  CategoryDetail,
+  ListDetail,
+  ProfileComposition,
+  TargetForecast,
+} from '../model/types'
 import { useLocale } from '@/shared/i18n/useLocale'
 import { tableDragGeometry } from '@/shared/lib/tableDrag'
 import RvButton from '@/shared/ui/RvButton.vue'

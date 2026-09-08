@@ -398,12 +398,14 @@ export default withNuxt(
     },
   },
   {
-    // Entities present what they are given; features orchestrate the API.
-    name: 'routevane/advisory-entities-api-orchestration',
+    // An entity's `ui` presents what it is given. The requests a slice makes
+    // live in that slice's `model`, and a feature orchestrates across slices;
+    // either way the transport never reaches a component. A gate, not advice.
+    name: 'routevane/entities-api-orchestration',
     files: ['src/entities/**/ui/**'],
     rules: {
       'no-restricted-imports': [
-        'warn',
+        'error',
         {
           patterns: [
             {
