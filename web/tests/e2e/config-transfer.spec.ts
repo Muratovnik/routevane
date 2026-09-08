@@ -44,6 +44,11 @@ let destinationProduct: SpawnedProduct | undefined
 
 test.use({ locale: 'en-US' })
 
+// The window the walkthrough reads outside a width sweep, which is the desktop
+// viewport this suite starts every page at. A sweep states the width it leaves
+// the window at rather than restoring whichever one it happened to find.
+const DESKTOP_VIEWPORT = { height: 720, width: 1280 }
+
 test.beforeAll(async () => {
   await access(binary)
   await rm(sourceDataRoot, { force: true, recursive: true })
@@ -241,7 +246,6 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
     'Custom sources are not in the file. Add them again after transfer.',
   )
 
-  const previousViewport = page.viewportSize()
   for (const width of [320, 1440]) {
     await page.setViewportSize({ height: 900, width })
     expect(
@@ -259,7 +263,7 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
       ),
     ).toEqual([])
   }
-  if (previousViewport !== null) await page.setViewportSize(previousViewport)
+  await page.setViewportSize(DESKTOP_VIEWPORT)
 
   await preview.getByRole('button', { name: 'Review and apply' }).click()
   const confirmation = page.getByRole('dialog', {
@@ -281,12 +285,7 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
   expect(applyRequest.headers()['x-routevane-transfer-digest']).toMatch(
     /^sha256:[a-f0-9]{64}$/,
   )
-  if (destinationProduct === undefined) throw new Error('destination missing')
-  await stopOwnedProduct(destinationProduct.process)
-  destinationProduct = undefined
-  await assertPortBindable(destinationPort)
-  destinationProduct = startProduct(destinationPort, destinationDataRoot)
-  await waitForHealth(destinationOrigin, destinationProduct)
+  await restartDestination()
 
   await page.goto(`${destinationOrigin}/`)
   await expect(
@@ -319,6 +318,24 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
   sourceProduct?.assertAlive()
   destinationProduct?.assertAlive()
 })
+
+/**
+ * Restarts the destination installation on the port it already held, proving
+ * the port came back in between.
+ *
+ * The module reference is what `afterAll` stops, so it is cleared while nothing
+ * is running: keeping the lifecycle here rather than in the walkthrough is what
+ * lets the walkthrough state the restart as one step.
+ */
+const restartDestination = async (): Promise<void> => {
+  if (destinationProduct === undefined)
+    throw new Error('the destination installation was never started')
+  await stopOwnedProduct(destinationProduct.process)
+  destinationProduct = undefined
+  await assertPortBindable(destinationPort)
+  destinationProduct = startProduct(destinationPort, destinationDataRoot)
+  await waitForHealth(destinationOrigin, destinationProduct)
+}
 
 const startProduct = (port: number, dataRoot: string): SpawnedProduct =>
   spawnProduct(

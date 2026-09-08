@@ -198,10 +198,10 @@ test('the library starts empty and shelves the profile the composer creates and 
   )
   const dragHandle = priorityHandle(priorityRows.nth(0))
   await dragHandle.scrollIntoViewIfNeeded()
-  const from = await dragHandle.boundingBox()
-  const to = await priorityRows.nth(1).boundingBox()
-  if (from === null || to === null)
-    throw new Error('Priority rows have no geometry')
+  // Both rows have been asserted visible and the handle scrolled into view, so
+  // each has a box — read here the way the clone's own box is read below.
+  const from = (await dragHandle.boundingBox())!
+  const to = (await priorityRows.nth(1).boundingBox())!
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2)
   await page.mouse.down()
   await page.mouse.move(from.x + from.width / 2 + 4, from.y + from.height, {

@@ -10,14 +10,13 @@ import { join } from 'node:path'
 
 import { expect } from '@playwright/test'
 
-import { dictionaries } from '../../src/shared/i18n/messages'
-
 import {
   audit,
   type AuditFinding,
   auditWidths,
   reviewRoot,
 } from './support/audits'
+import { copyFor } from './support/copy'
 import { chooseFormat, openLibraryCategory } from './support/flows'
 import {
   catalogDisclosure,
@@ -56,6 +55,10 @@ test('the accessibility helper detects undersized adjacent targets and accepts t
 for (const language of ['en', 'ru'] as const) {
   test.describe(`accessibility ${language}`, () => {
     test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
+    // The shipped dictionary is the one owner of the product's words, and
+    // `support/copy` is the one reader of it: a message this suite names and
+    // the product renames fails here rather than passing silently.
+    const copy = copyFor(language)
 
     test('every section passes the accessibility gates', async ({
       page,
@@ -63,12 +66,6 @@ for (const language of ['en', 'ru'] as const) {
       assertProductAlive,
     }) => {
       test.setTimeout(300000)
-      const copy = (key: string): string => {
-        const value = dictionaries[language][key]
-        if (typeof value !== 'string')
-          throw new Error(`Missing text for ${key}`)
-        return value
-      }
       // Every screen is audited before anything is asserted, so one screen's
       // regression cannot hide another's.
       const violations: AuditFinding[] = []

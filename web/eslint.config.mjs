@@ -352,12 +352,6 @@ export default withNuxt(
       // Clicking a disabled control is how a test proves the click is refused.
       'playwright/no-force-option': 'off',
       'sonarjs/no-forced-browser-interaction': 'off',
-      // A branch on a loop parameter or the platform is not a branch on the
-      // outcome being asserted, and the branches an assertion does sit inside
-      // are already gated by `playwright/no-conditional-expect`, which the
-      // recommended set above now applies here. Deferred rather than exempt:
-      // the narrowing guards this still allows deserve a pass of their own.
-      'playwright/no-conditional-in-test': 'off',
     },
   },
   eslintConfigPrettier,

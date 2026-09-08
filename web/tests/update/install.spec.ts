@@ -1,6 +1,6 @@
 import { _electron as electron, chromium, expect, test } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
-import { createServer } from 'node:http'
+import { createServer, type Server } from 'node:http'
 import { createReadStream } from 'node:fs'
 import {
   access,
@@ -40,6 +40,31 @@ const exists = async (path: string) => {
   } catch {
     return false
   }
+}
+
+/** The loopback port a listening server was given by the operating system. */
+const listeningPort = (server: Server): number => {
+  const address = server.address()
+  if (address === null || typeof address === 'string')
+    throw new Error('the update fixture server has no port')
+  return address.port
+}
+
+/**
+ * Removes an installation this test made, if one reached the disk: the
+ * installer is what put the uninstaller there, so neither the directory nor
+ * the uninstaller inside it is guaranteed once a step has failed.
+ */
+const uninstall = async (installDir: string): Promise<void> => {
+  if (!(await exists(installDir))) return
+  const uninstaller = (await readdir(installDir)).find((name) =>
+    /uninstall.*\.exe$/i.test(name),
+  )
+  if (uninstaller === undefined) return
+  await exec(join(installDir, uninstaller), ['/S'], {
+    windowsHide: true,
+    timeout: 60000,
+  })
 }
 
 test('installed app rejects a damaged update, retries, restarts into the new version and preserves profiles', async () => {
@@ -95,10 +120,7 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
   })
   server.listen(0, '127.0.0.1')
   await once(server, 'listening')
-  const address = server.address()
-  if (!address || typeof address === 'string')
-    throw new Error('no fixture port')
-  const feed = `http://127.0.0.1:${address.port}/`
+  const feed = `http://127.0.0.1:${listeningPort(server)}/`
   const running = async (): Promise<number[]> => {
     const json = await powershell(
       `ConvertTo-Json -InputObject @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq ${quote(exe)} -and $_.CommandLine -notmatch ' --type=' } | ForEach-Object ProcessId)`,
@@ -321,16 +343,7 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
     await app?.close()
     await browser?.close()
     await stopOwned()
-    if (await exists(installDir)) {
-      const uninstaller = (await readdir(installDir)).find((name) =>
-        /uninstall.*\.exe$/i.test(name),
-      )
-      if (uninstaller)
-        await exec(join(installDir, uninstaller), ['/S'], {
-          windowsHide: true,
-          timeout: 60000,
-        })
-    }
+    await uninstall(installDir)
     server.closeAllConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }

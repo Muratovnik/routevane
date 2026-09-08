@@ -51,6 +51,11 @@ let managedProduct: SpawnedProduct | undefined
 // primary language, so the walkthrough runs against the English dictionary.
 test.use({ locale: 'en-US' })
 
+// The window the walkthrough reads outside a width sweep, which is the desktop
+// viewport every page here starts at. A sweep states the width it leaves the
+// window at rather than restoring whichever one it happened to find.
+const DESKTOP_VIEWPORT = { height: 720, width: 1280 }
+
 // A file URL always uses forward slashes, including on Windows.
 const fileURL = (path: string): string => {
   const normalized = path.replaceAll('\\', '/')
@@ -361,7 +366,6 @@ for (const language of ['en', 'ru'] as const) {
     }) => {
       test.setTimeout(180000)
       const auditEntry = async (): Promise<void> => {
-        const previous = page.viewportSize()
         for (const width of [320, 768, 1024, 1440]) {
           await page.setViewportSize({ width, height: 900 })
           expect(
@@ -385,7 +389,7 @@ for (const language of ['en', 'ru'] as const) {
             ).violations,
           ).toEqual([])
         }
-        if (previous !== null) await page.setViewportSize(previous)
+        await page.setViewportSize(DESKTOP_VIEWPORT)
       }
       const { profileId, outputId } = await publishProfile(
         page,

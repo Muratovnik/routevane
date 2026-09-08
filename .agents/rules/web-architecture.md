@@ -57,7 +57,12 @@ it — by role, accessible name, label, or the words on screen — and uses
 `data-testid` only where none of those identifies it.
 `playwright/no-raw-locators` gates that, and the few selectors it allows are
 written once in `support/queries.ts`, each with the reason it has no accessible
-handle.
+handle. A test states what it set up instead of probing for it: the expectation
+belonging to one case lives in that case's row of the parameter table, the
+processes and files a test creates are torn down by a fixture rather than by a
+branch in `finally`, and a wait names the observable condition it waits for —
+gated by `playwright/no-conditional-in-test`, `no-conditional-expect`,
+`no-wait-for-timeout` and `sonarjs/no-fixed-wait-in-tests`.
 
 A component is a black box. A host styles its own root class, passes props,
 places slot content, or supplies a documented custom property. It does not
