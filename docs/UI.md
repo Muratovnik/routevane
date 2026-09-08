@@ -216,10 +216,15 @@ Sections, addressable by URL:
    has a deployer, and the by-hand path always stated below it.
 6. `/connections` — **Connections / Подключения** (ADR 0027; `/devices`
    redirects here). One section answers «куда»: registered devices and
-   applications first. The primary «Добавить подключение» action opens a
-   catalog-backed creation dialog; closing it preserves its draft within this
-   page. Each saved row opens its own configuration dialog for delivery
-   permission and forgetting the connection. Saved settings never imply
+   applications first. With no saved connections, the catalog-backed creation
+   form is already on the page. «Добавить подключение» returns to that form;
+   cancelling or selecting an existing connection preserves its draft within
+   the page. Saved connections remain selectable beside the creation or
+   configuration area; a constrained window stacks these regions in document
+   flow. Creation and delivery permission are primary page work, without a modal
+   or scroll lock. Opening the editor moves focus to its heading, and closing
+   returns focus to the initiating control when it still exists. Password input
+   is cleared on every departure from its connection. Saved settings never imply
    verified reachability or successful delivery.
    Router login and route-interface fields are required when the selected
    deployer needs them; the interface help names the Keenetic ID format. A
@@ -234,7 +239,9 @@ Sections, addressable by URL:
 7. `/settings` — **Настройки.** Language, theme (system/dark/light), detail
    mode, the default source-refresh schedule, and portable configuration
    transfer. Preferences use aligned label/value rows in a bounded reading
-   area. The server's address is secondary information in a disclosure below
+   area. Whitespace groups these settings without horizontal separators.
+   The source-refresh title, explanation and schedule form one aligned row.
+   The server's address is secondary information in a disclosure below
    transfer. Export and import are separate actions. Preferences live here,
    not in the chrome. Import starts with a product-styled file
    surface backed by the labelled native file chooser, supports dropping a file,
@@ -368,7 +375,12 @@ interface to a smaller window or enlarged content while keeping its actions
 reachable. A narrow viewport is not a requirement for a separate mobile product.
 
 The shell owns one canvas palette and consistent outer insets across every
-section. Its shared workspace centers the page content with the same width limit
+section. The dark palette uses neutral graphite for the sidebar, canvas and
+raised surfaces; green belongs to interactive accents and restrained selection.
+Brand accent and semantic success have separate tokens, so changing the theme
+does not redefine a successful publication. Searchable and plain single-choice
+menus align their names at the leading edge and put selection marks at the end.
+Its shared workspace centers the page content with the same width limit
 on profiles, composition, library, connections and settings; features do not add
 their own page containers. Docked inspection divides the existing workspace
 without moving its outer edges. Reading widths belong to form fields and prose within it.

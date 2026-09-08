@@ -22,7 +22,7 @@ useHead({
          talk to at all is reference material behind one click, not a second
          subject competing with them. -->
     <DevicesView />
-    <RvDisclosure :summary="t('targets.title')">
+    <RvDisclosure borderless :summary="t('targets.title')">
       <TargetsView />
     </RvDisclosure>
   </AppShell>

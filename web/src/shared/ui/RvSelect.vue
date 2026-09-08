@@ -287,11 +287,10 @@ const empty = computed(() =>
   font-size: var(--rv-text-meta);
 }
 
-/* The mark keeps its column whether or not it is showing, so moving the
-   selection never moves the words beside it. */
+/* The trailing mark never shifts the aligned option names. */
 .rv-select__option {
   display: grid;
-  grid-template-columns: var(--rv-control-choice) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) var(--rv-control-choice);
   gap: var(--rv-space-2);
   align-items: center;
   min-height: var(--rv-control-touch);
@@ -318,7 +317,8 @@ const empty = computed(() =>
 
 .rv-select__mark {
   display: inline-flex;
-  grid-column: 1;
+  grid-column: 2;
+  grid-row: 1;
   align-items: center;
   justify-content: center;
   color: var(--rv-color-accent-ink);
@@ -326,7 +326,8 @@ const empty = computed(() =>
 
 .rv-select__option-copy {
   display: grid;
-  grid-column: 2;
+  grid-column: 1;
+  grid-row: 1;
   gap: var(--rv-space-1);
   min-width: 0;
 }

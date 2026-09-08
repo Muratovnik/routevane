@@ -178,9 +178,12 @@ describe('DevicesView prerequisite audit', () => {
     })
     const screen = await render(DevicesView)
 
-    await screen
-      .getByRole('button', { name: 'Add a connection', exact: true })
-      .click()
+    await expect
+      .element(
+        screen.getByRole('region', { name: 'Add a connection', exact: true }),
+      )
+      .toBeVisible()
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
     await screen.getByLabelText('Device or application').click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
     await screen.getByLabelText('Connection name').fill('Manual router')
@@ -208,6 +211,48 @@ describe('DevicesView prerequisite audit', () => {
         ),
       ).toHaveLength(1)
     })
+  })
+
+  it('keeps a connection draft across inline selection and clears departed password input', async () => {
+    const fetchMock = installFetch((input: string) => {
+      if (input === DEVICES) return Promise.resolve(json(DEVICE_PAYLOAD))
+      if (input === LISTS) return Promise.resolve(json(CATALOG_PAYLOAD))
+      if (input === TARGETS) return Promise.resolve(json(TARGETS_PAYLOAD))
+      if (input === REQUIREMENTS)
+        return Promise.resolve(json(REQUIREMENTS_PAYLOAD))
+      return Promise.reject(new Error(`unexpected request ${input}`))
+    })
+    const screen = await render(DevicesView)
+    const connection = screen.getByRole('button', {
+      name: 'Configure connection Home router',
+    })
+    await connection.click()
+    await expect
+      .element(screen.getByRole('heading', { name: 'Home router' }))
+      .toHaveFocus()
+    await screen
+      .getByLabelText('Password', { exact: true })
+      .fill('fixture-password')
+    await screen
+      .getByRole('button', { name: 'Add a connection', exact: true })
+      .click()
+    await screen.getByLabelText('Device or application').click()
+    await screen.getByRole('option', { name: /^Keenetic/ }).click()
+    await screen.getByLabelText('Connection name').fill('Unfinished router')
+    await connection.click()
+    await expect
+      .element(screen.getByLabelText('Password', { exact: true }))
+      .toHaveValue('')
+    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+    await screen
+      .getByRole('button', { name: 'Add a connection', exact: true })
+      .click()
+    await expect
+      .element(screen.getByLabelText('Connection name'))
+      .toHaveValue('Unfinished router')
+    expect(
+      fetchMock.mock.calls.every(([, request]) => request?.method !== 'POST'),
+    ).toBe(true)
   })
 })
 

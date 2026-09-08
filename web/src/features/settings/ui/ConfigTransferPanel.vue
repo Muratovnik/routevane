@@ -272,8 +272,6 @@ const apply = async (): Promise<void> => {
 .config-transfer {
   display: grid;
   gap: var(--rv-space-5);
-  padding-top: var(--rv-space-6);
-  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
   container: config-transfer / inline-size;
 }
 
@@ -291,7 +289,8 @@ const apply = async (): Promise<void> => {
 }
 
 .config-transfer__operation-title {
-  font-size: var(--rv-text-module);
+  font-size: var(--rv-text-emphasis);
+  font-weight: 600;
 }
 
 @container config-transfer (width < 48rem) {

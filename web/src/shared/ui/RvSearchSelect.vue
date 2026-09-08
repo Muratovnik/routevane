@@ -333,6 +333,8 @@ const completeSingleSelection = (option: ChoiceOption): void => {
 .rv-search-select__check {
   visibility: hidden;
   flex: none;
+  order: 1;
+  margin-inline-start: auto;
 }
 
 .rv-search-select__check--selected {

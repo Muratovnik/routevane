@@ -133,9 +133,6 @@ const onConfigTransferApplied = (): void => {
       </section>
 
       <section aria-labelledby="settings-refresh" class="settings__section">
-        <h2 id="settings-refresh" class="settings__section-title">
-          {{ t('settings.refresh') }}
-        </h2>
         <RvStateNotice
           v-if="settings.readState.value === 'failed'"
           :body="
@@ -156,16 +153,16 @@ const onConfigTransferApplied = (): void => {
         <div class="settings__rows">
           <div class="settings__row">
             <div class="settings__copy">
-              <p class="settings__label" aria-hidden="true">
-                {{ t('settings.refresh.label') }}
-              </p>
+              <h2 id="settings-refresh" class="settings__label">
+                {{ t('settings.refresh') }}
+              </h2>
               <p class="settings__note">{{ t('settings.refresh.note') }}</p>
             </div>
             <div class="settings__copy">
               <RvSegmented
                 label-hidden
                 :disabled="!settings.canChange.value"
-                :label="t('settings.refresh.label')"
+                :label="t('settings.refresh')"
                 :model-value="settings.refreshInterval.value ?? ''"
                 name="rv-refresh-interval"
                 :options="refreshOptions"
@@ -200,7 +197,7 @@ const onConfigTransferApplied = (): void => {
       </section>
 
       <ConfigTransferPanel @applied="onConfigTransferApplied" />
-      <RvDisclosure :summary="t('settings.runtime')">
+      <RvDisclosure borderless :summary="t('settings.runtime')">
         <p class="settings__runtime">
           {{ t('settings.runtime.address') }} ·
           <span class="settings__mono">{{ origin }}</span>
@@ -235,7 +232,7 @@ const onConfigTransferApplied = (): void => {
 
 .settings__rows {
   display: grid;
-  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+  gap: var(--rv-space-6);
 }
 
 .settings__row {
@@ -243,8 +240,6 @@ const onConfigTransferApplied = (): void => {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: start;
   gap: var(--rv-space-6);
-  padding-block: var(--rv-space-5);
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 
 .settings__copy {

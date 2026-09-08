@@ -43,24 +43,25 @@
   --rv-blue-400: #7cacf8;
 
   /* Roles: dark, the default scene */
-  --rv-color-chrome: var(--rv-near-black-950);
-  --rv-color-chrome-raised: var(--rv-near-black-900);
-  --rv-color-canvas: #101719;
-  --rv-color-surface: #181f21;
-  --rv-color-surface-muted: #20292c;
+  --rv-color-chrome: #151719;
+  --rv-color-chrome-raised: #202326;
+  --rv-color-canvas: #191b1d;
+  --rv-color-surface: #202326;
+  --rv-color-surface-muted: #272a2d;
   --rv-color-field: var(--rv-color-canvas);
-  --rv-color-surface-hover: var(--rv-near-black-750);
-  --rv-color-surface-selected: #1c2a24;
-  --rv-color-ink: var(--rv-white-050);
-  --rv-color-ink-muted: var(--rv-grey-200);
-  --rv-color-ink-tertiary: var(--rv-grey-300);
+  --rv-color-surface-hover: #2d3135;
+  --rv-color-surface-selected: #252c29;
+  --rv-color-ink: #ecefed;
+  --rv-color-ink-muted: #a5aba8;
+  --rv-color-ink-tertiary: #a5aba8;
   --rv-color-ink-inverted: var(--rv-near-black-950);
-  --rv-color-rule: rgb(255 255 255 / 9%);
-  --rv-color-rule-strong: rgb(255 255 255 / 20%);
-  --rv-color-accent: var(--rv-green-400);
-  --rv-color-accent-ink: var(--rv-green-300);
-  --rv-color-accent-quiet: rgb(88 192 138 / 14%);
-  --rv-color-focus: var(--rv-green-300);
+  --rv-color-rule: #363b40;
+  --rv-color-rule-strong: #363b40;
+  --rv-color-accent: #63b98d;
+  --rv-color-accent-ink: #63b98d;
+  --rv-color-accent-hover: #76c79c;
+  --rv-color-accent-quiet: #23332c;
+  --rv-color-focus: #76c79c;
   --rv-color-status-ready: var(--rv-green-400);
   --rv-color-status-warning: var(--rv-amber-400);
   --rv-color-status-failed: var(--rv-red-400);
@@ -69,13 +70,13 @@
 
   /* Chrome roles keep the application rail self-contained without leaking
    * primitive palette values into the shell component. */
-  --rv-color-chrome-ink: var(--rv-white-050);
-  --rv-color-chrome-ink-muted: var(--rv-grey-200);
-  --rv-color-chrome-ink-tertiary: var(--rv-grey-300);
-  --rv-color-chrome-accent: var(--rv-green-400);
-  --rv-color-chrome-hover: var(--rv-near-black-700);
-  --rv-color-chrome-rule: rgb(255 255 255 / 12%);
-  --rv-color-chrome-rule-strong: rgb(255 255 255 / 24%);
+  --rv-color-chrome-ink: #ecefed;
+  --rv-color-chrome-ink-muted: #a5aba8;
+  --rv-color-chrome-ink-tertiary: #a5aba8;
+  --rv-color-chrome-accent: #63b98d;
+  --rv-color-chrome-hover: #2d3135;
+  --rv-color-chrome-rule: #363b40;
+  --rv-color-chrome-rule-strong: #363b40;
 
   /* Roles: type. 13px is reserved for secondary metadata; 14px is the
    * smallest reading size in working content. */
@@ -231,6 +232,7 @@
     --rv-color-rule-strong: rgb(20 24 21 / 28%);
     --rv-color-accent: var(--rv-green-600);
     --rv-color-accent-ink: var(--rv-green-600);
+    --rv-color-accent-hover: var(--rv-green-600);
     --rv-color-accent-quiet: rgb(18 105 74 / 10%);
     --rv-color-focus: var(--rv-green-600);
     --rv-color-status-ready: var(--rv-green-600);
@@ -262,6 +264,7 @@
   --rv-color-rule-strong: rgb(20 24 21 / 28%);
   --rv-color-accent: var(--rv-green-600);
   --rv-color-accent-ink: var(--rv-green-600);
+  --rv-color-accent-hover: var(--rv-green-600);
   --rv-color-accent-quiet: rgb(18 105 74 / 10%);
   --rv-color-focus: var(--rv-green-600);
   --rv-color-status-ready: var(--rv-green-600);

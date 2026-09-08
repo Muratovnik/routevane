@@ -12,6 +12,94 @@ test.use({
   productCatalog: 'catalog',
 })
 
+test('graphite settings and inline connection choices preserve readable alignment', async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 })
+  await page.goto(`${origin}/settings`)
+  await pressSegment(page, 'Dark')
+  // The requested palette separates graphite grounds from brand and success.
+  const palette = await page.evaluate(() => {
+    const style = getComputedStyle(document.documentElement)
+    return [
+      'chrome',
+      'canvas',
+      'surface',
+      'surface-muted',
+      'surface-hover',
+      'accent',
+      'status-ready',
+    ].map((role) => style.getPropertyValue(`--rv-color-${role}`).trim())
+  })
+  expect(palette).toEqual([
+    '#151719',
+    '#191b1d',
+    '#202326',
+    '#272a2d',
+    '#2d3135',
+    '#63b98d',
+    '#58c08a',
+  ])
+  const title = (await page
+    .getByRole('heading', { name: 'Source refresh', exact: true })
+    .boundingBox())!
+  const choice = (await page
+    .getByRole('group', { name: 'Source refresh', exact: true })
+    .boundingBox())!
+  expect(Math.abs(title.y - choice.y)).toBeLessThanOrEqual(12)
+  expect(await audit(page, 'graphite-settings')).toEqual([])
+  await pressSegment(page, 'Русский')
+  await page.screenshot({
+    path: join(reviewRoot, 'settings-graphite.png'),
+    fullPage: true,
+  })
+  await page
+    .getByRole('navigation', { name: 'Разделы' })
+    .getByRole('link', { name: 'Подключения' })
+    .click()
+  await expect(
+    page.getByRole('region', { name: 'Добавить подключение', exact: true }),
+  ).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.getByLabel('Устройство или приложение', { exact: true }).click()
+  const option = page.getByRole('option', { name: 'Keenetic', exact: true })
+  const inset = await option.evaluate((element) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+    let node = walker.nextNode()
+    while (node && !node.textContent?.trim()) node = walker.nextNode()
+    if (!node) throw new Error('The option must contain its visible name')
+    const range = document.createRange()
+    range.selectNodeContents(node)
+    return (
+      range.getBoundingClientRect().left - element.getBoundingClientRect().left
+    )
+  })
+  expect(inset).toBeGreaterThanOrEqual(8)
+  expect(inset).toBeLessThanOrEqual(16)
+  expect(await audit(page, 'graphite-connection-choice')).toEqual([])
+  await page.screenshot({
+    path: join(reviewRoot, 'connection-choice-graphite.png'),
+  })
+  await option.click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page
+    .getByLabel('Название подключения', { exact: true })
+    .fill('Домашний роутер')
+  await page.screenshot({
+    path: join(reviewRoot, 'connection-form-graphite.png'),
+    fullPage: true,
+  })
+  expect(await auditWidths(page, 'graphite-connection-form')).toEqual([])
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = '200%'
+  })
+  expect(await auditWidths(page, 'graphite-connection-form-text-200')).toEqual(
+    [],
+  )
+  await page.getByRole('button', { name: 'Отменить', exact: true }).click()
+})
+
 for (const reducedMotion of ['reduce', 'no-preference'] as const) {
   test(`list loading reserves space without a first-frame flash (${reducedMotion})`, async ({
     page,
@@ -146,6 +234,13 @@ test('page actions, category context and composition controls share consistent g
     .getByRole('navigation', { name: 'Sections' })
     .getByRole('link', { name: 'Connections', exact: true })
     .click()
+  // First connection setup is already on the page. Closing it reveals the
+  // collection action; reopening must stay in document flow.
+  await expect(
+    page.getByRole('region', { name: 'Add a connection', exact: true }),
+  ).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   const connectionAction = await page
     .getByRole('button', { name: 'Add a connection', exact: true })
     .boundingBox()
@@ -156,9 +251,13 @@ test('page actions, category context and composition controls share consistent g
   await page
     .getByRole('button', { name: 'Add a connection', exact: true })
     .click()
+  await expect(
+    page.getByRole('heading', { name: 'Add a connection', exact: true }),
+  ).toBeFocused()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(await auditWidths(page, 'connection-create')).toEqual([])
   expect(await audit(page, 'connection-create')).toEqual([])
-  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(
     page.getByRole('button', { name: 'Add a connection', exact: true }),
   ).toBeFocused()

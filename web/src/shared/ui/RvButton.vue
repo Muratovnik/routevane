@@ -110,7 +110,7 @@ const unavailable = computed(
 }
 
 .rv-button.rv-button--primary:hover:not(:disabled, [aria-disabled='true']) {
-  background: var(--rv-color-accent-ink);
+  background: var(--rv-color-accent-hover);
 }
 
 .rv-button.rv-button--secondary {

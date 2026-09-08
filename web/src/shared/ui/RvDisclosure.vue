@@ -10,6 +10,8 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
 const props = withDefaults(
   defineProps<{
     hint?: string
+    /** Group with whitespace when a containing page already supplies structure. */
+    borderless?: boolean
     open?: boolean
     summary: string
   }>(),
@@ -39,7 +41,10 @@ const toggle = (): void => {
 </script>
 
 <template>
-  <section class="rv-disclosure">
+  <section
+    class="rv-disclosure"
+    :class="{ 'rv-disclosure--borderless': borderless }"
+  >
     <button
       :id="`${baseID}-trigger`"
       :aria-controls="`${baseID}-panel`"
@@ -77,6 +82,10 @@ const toggle = (): void => {
 <style scoped>
 .rv-disclosure {
   border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+}
+
+.rv-disclosure--borderless {
+  border-top: 0;
 }
 
 .rv-disclosure__summary {
