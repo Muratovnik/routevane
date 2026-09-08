@@ -37,45 +37,29 @@ const address = ref('')
 const account = ref('')
 const interfaceName = ref('')
 const confirmation = ref('')
-const creating = ref(false)
 const selectedID = ref('')
 const editorHeading = ref<HTMLElement | null>(null)
-const workspaceRoot = ref<HTMLElement | null>(null)
-let opener: HTMLElement | null = null
 
-const openEditor = async (event: MouseEvent, id = ''): Promise<void> => {
+const openEditor = async (id = ''): Promise<void> => {
   if (devices.busy.value) return
-  opener =
-    event.currentTarget instanceof HTMLElement ? event.currentTarget : null
   credential.value = ''
   selectedID.value = id
-  creating.value = id === ''
   await nextTick()
   editorHeading.value?.focus()
 }
 
-const closeEditor = async (): Promise<void> => {
-  if (devices.busy.value) return
-  creating.value = false
-  selectedID.value = ''
-  credential.value = ''
-  await nextTick()
-  if (opener?.isConnected) opener.focus()
-  else workspaceRoot.value?.focus()
-}
 const selectedDevice = computed(
   () =>
     devices.devices.value.find((device) => device.id === selectedID.value) ??
     null,
 )
-watch(selectedDevice, (current, previous) => {
-  if (
-    current === null &&
-    previous !== null &&
-    selectedID.value !== '' &&
-    !devices.busy.value
-  )
-    void closeEditor()
+const creating = computed(() => selectedDevice.value === null)
+// Reconcile only an authoritative registry. A failed read keeps the selection
+// and draft in place until the GET-only recovery has answered.
+watch([devices.state, devices.busy, devices.devices], () => {
+  if (devices.state.value !== 'ready' || devices.busy.value) return
+  if (selectedID.value !== '' && selectedDevice.value === null)
+    void openEditor(devices.devices.value[0]?.id ?? '')
 })
 const nameTouched = ref(false)
 const addressTouched = ref(false)
@@ -180,9 +164,20 @@ const fieldError = (
 
 onMounted(async () => {
   await devices.initialize()
-  if (devices.state.value === 'ready' && devices.devices.value.length === 0)
-    creating.value = true
+  selectedID.value = devices.devices.value[0]?.id ?? ''
 })
+
+const clearDraft = (): void => {
+  targetID.value = ''
+  name.value = ''
+  address.value = ''
+  account.value = ''
+  interfaceName.value = ''
+  nameTouched.value = false
+  addressTouched.value = false
+  accountTouched.value = false
+  interfaceTouched.value = false
+}
 
 const submit = async (): Promise<void> => {
   if (!canRegister.value) {
@@ -212,16 +207,9 @@ const submit = async (): Promise<void> => {
         ? 'devices.registered.router'
         : 'devices.registered.other'
     if (manualOnly) messageKey = 'devices.registered.manual'
+    await openEditor(devices.registeredID.value)
     confirmation.value = t(messageKey)
-    await closeEditor()
-    name.value = ''
-    address.value = ''
-    account.value = ''
-    interfaceName.value = ''
-    nameTouched.value = false
-    addressTouched.value = false
-    accountTouched.value = false
-    interfaceTouched.value = false
+    clearDraft()
   }
 }
 
@@ -251,18 +239,11 @@ const onDisable = async (id: string): Promise<void> => {
 const onForget = async (id: string): Promise<void> => {
   confirmation.value = ''
   await devices.forget(id)
-  if (devices.state.value === 'ready' && selectedDevice.value === null)
-    await closeEditor()
 }
 </script>
 
 <template>
-  <section
-    ref="workspaceRoot"
-    tabindex="-1"
-    aria-labelledby="devices-title"
-    class="devices"
-  >
+  <section aria-labelledby="devices-title" class="devices">
     <RvPageHeader title-id="devices-title" :title="t('connections.title')">
       <RvButton
         v-show="!creating"
@@ -273,7 +254,7 @@ const onForget = async (id: string): Promise<void> => {
           !devices.catalogAvailable.value
         "
         variant="primary"
-        @click="openEditor($event)"
+        @click="openEditor()"
       >
         <RvIcon name="plus" />{{ t('devices.add') }}
       </RvButton>
@@ -299,23 +280,6 @@ const onForget = async (id: string): Promise<void> => {
 
     <template v-else>
       <RvStateNotice
-        v-if="
-          devices.state.value === 'stale' &&
-          !creating &&
-          selectedDevice === null
-        "
-        live
-        :title="t('devices.stale')"
-        :body="t('devices.stale.body')"
-        tone="warning"
-      >
-        <template #action>
-          <RvButton @click="devices.retryDevices">{{
-            t('action.retry')
-          }}</RvButton>
-        </template>
-      </RvStateNotice>
-      <RvStateNotice
         v-if="confirmation !== '' && selectedDevice === null"
         :title="confirmation"
         tone="ready"
@@ -332,47 +296,10 @@ const onForget = async (id: string): Promise<void> => {
           }}</RvButton>
         </template>
       </RvStateNotice>
-      <RvStateNotice
-        v-else-if="
-          !devices.deploymentCatalogAvailable.value &&
-          !creating &&
-          selectedDevice === null
-        "
-        :body="
-          devices.requirementsState.value === 'loading'
-            ? undefined
-            : t('devices.requirements.failed.body')
-        "
-        :title="
-          t(
-            devices.requirementsState.value === 'loading'
-              ? 'devices.requirements.reading'
-              : 'devices.requirements.failed',
-          )
-        "
-        :tone="
-          devices.requirementsState.value === 'loading' ? 'busy' : 'warning'
-        "
-      >
-        <template #action>
-          <RvButton
-            :disabled="devices.requirementsState.value === 'loading'"
-            @click="devices.retryRequirements"
-            >{{ t('action.retry') }}</RvButton
-          >
-        </template>
-      </RvStateNotice>
-      <RvStateNotice
-        v-if="devices.devices.value.length === 0 && !creating"
-        :body="t('devices.empty.body')"
-        :title="t('devices.empty')"
-        tone="waiting"
-      />
       <div
         class="devices__workspace"
         :class="{
-          'devices__workspace--editing':
-            (creating || selectedDevice) && devices.devices.value.length > 0,
+          'devices__workspace--editing': devices.devices.value.length > 0,
         }"
       >
         <ul v-if="devices.devices.value.length > 0" class="devices__list">
@@ -388,7 +315,7 @@ const onForget = async (id: string): Promise<void> => {
               :aria-label="t('devices.configure.aria', { name: device.name })"
               :aria-pressed="device.id === selectedID"
               :disabled="devices.busy.value"
-              @click="openEditor($event, device.id)"
+              @click="openEditor(device.id)"
             >
               <span class="devices__identity">
                 <strong class="devices__name">{{ device.name }}</strong>
@@ -414,11 +341,7 @@ const onForget = async (id: string): Promise<void> => {
           </li>
         </ul>
 
-        <section
-          v-if="creating || selectedDevice"
-          class="devices__editor"
-          aria-labelledby="device-editor-title"
-        >
+        <section class="devices__editor" aria-labelledby="device-editor-title">
           <div class="devices__editor-header">
             <h2
               id="device-editor-title"
@@ -428,14 +351,33 @@ const onForget = async (id: string): Promise<void> => {
             >
               {{ creating ? t('devices.add') : selectedDevice?.name }}
             </h2>
-            <RvButton
-              v-if="!creating"
-              :disabled="devices.busy.value"
-              variant="quiet"
-              @click="closeEditor"
-              >{{ t('action.close') }}</RvButton
-            >
           </div>
+          <RvStateNotice
+            v-if="devices.requirementsState.value !== 'ready'"
+            :body="
+              devices.requirementsState.value === 'loading'
+                ? undefined
+                : t('devices.requirements.failed.body')
+            "
+            :title="
+              t(
+                devices.requirementsState.value === 'loading'
+                  ? 'devices.requirements.reading'
+                  : 'devices.requirements.failed',
+              )
+            "
+            :tone="
+              devices.requirementsState.value === 'loading' ? 'busy' : 'warning'
+            "
+          >
+            <template #action>
+              <RvButton
+                :disabled="devices.requirementsState.value === 'loading'"
+                @click="devices.retryRequirements"
+                >{{ t('action.retry') }}</RvButton
+              >
+            </template>
+          </RvStateNotice>
           <div v-if="selectedDevice" class="devices__details">
             <RvStateNotice
               v-if="confirmation !== ''"
@@ -471,6 +413,10 @@ const onForget = async (id: string): Promise<void> => {
               </div>
             </dl>
             <section
+              v-if="
+                selectedDevice.autoDeliver ||
+                devices.requirementsState.value === 'ready'
+              "
               class="devices__automation"
               :aria-label="t('devices.auto.title')"
             >
@@ -545,18 +491,11 @@ const onForget = async (id: string): Promise<void> => {
                   t(
                     !selectedDevice.deployable
                       ? 'devices.manualOnly'
-                      : devices.requirementsState.value !== 'ready'
-                        ? 'devices.requirements.dependency'
-                        : 'devices.auto.unavailable',
+                      : 'devices.auto.unavailable',
                   )
                 }}
               </p>
             </section>
-            <RvButton
-              v-if="devices.requirementsState.value === 'failed'"
-              @click="devices.retryRequirements"
-              >{{ t('action.retry') }}</RvButton
-            >
             <RvStateNotice
               v-if="devices.work.value === 'failed'"
               :body="t('devices.work.failed.body')"
@@ -591,23 +530,6 @@ const onForget = async (id: string): Promise<void> => {
               class="devices__form"
               @submit.prevent="submit"
             >
-              <p
-                v-if="devices.requirementsState.value !== 'ready'"
-                class="devices__meta"
-              >
-                {{
-                  t(
-                    devices.requirementsState.value === 'loading'
-                      ? 'devices.requirements.reading'
-                      : 'devices.requirements.dependency',
-                  )
-                }}
-              </p>
-              <RvButton
-                v-if="devices.requirementsState.value === 'failed'"
-                @click="devices.retryRequirements"
-                >{{ t('action.retry') }}</RvButton
-              >
               <RvField
                 searchable
                 input-id="device-target"
@@ -739,9 +661,13 @@ const onForget = async (id: string): Promise<void> => {
               >
             </RvStateNotice>
             <div class="devices__actions">
-              <RvButton :disabled="devices.busy.value" @click="closeEditor">{{
-                t('action.cancel')
-              }}</RvButton>
+              <RvButton
+                :disabled="
+                  devices.busy.value || devices.state.value === 'stale'
+                "
+                @click="clearDraft"
+                >{{ t('devices.clear') }}</RvButton
+              >
               <RvButton
                 :disabled="!canRegister"
                 form="device-create"

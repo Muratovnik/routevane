@@ -380,9 +380,21 @@ test('docked inspection transitions the form and table together on opening and c
           )
           return { x: matrix.e, y: matrix.f }
         }
+        const snapshots = (name: string) =>
+          ['old', 'new'].map((side) => {
+            const style = getComputedStyle(
+              document.documentElement,
+              `::view-transition-${side}(${name})`,
+            )
+            return { display: style.display, opacity: Number(style.opacity) }
+          })
         frames.push({
           form: position('composer-settings'),
           table: position('composer-content'),
+          snapshots: [
+            ...snapshots('composer-settings'),
+            ...snapshots('composer-content'),
+          ],
         })
       }
       const after = {
@@ -406,6 +418,22 @@ test('docked inspection transitions the form and table together on opening and c
           Math.abs(result.frames[2]![part][axis] - result.after[part][axis]),
         ).toBeLessThan(2)
       }
+    }
+    for (const frame of result.frames) {
+      expect(frame.snapshots.every((image) => image.display !== 'none')).toBe(
+        true,
+      )
+    }
+    // Geometry alone misses a pop: the previous form must still paint at the
+    // start, then both images contribute until the new layout settles.
+    for (const index of [0, 2]) {
+      expect(result.frames[0]!.snapshots[index]!.opacity).toBeCloseTo(1)
+      expect(result.frames[0]!.snapshots[index + 1]!.opacity).toBeCloseTo(0)
+      expect(result.frames[1]!.snapshots[index]!.opacity).toBeGreaterThan(0)
+      expect(result.frames[1]!.snapshots[index]!.opacity).toBeLessThan(1)
+      expect(result.frames[1]!.snapshots[index + 1]!.opacity).toBeGreaterThan(0)
+      expect(result.frames[2]!.snapshots[index]!.opacity).toBeCloseTo(0)
+      expect(result.frames[2]!.snapshots[index + 1]!.opacity).toBeCloseTo(1)
     }
     const positions = result.frames.map((f) => f.form.x)
     expect(positions[1]).toBeGreaterThan(Math.min(positions[0]!, positions[2]!))

@@ -48,6 +48,31 @@ test('graphite settings and inline connection choices preserve readable alignmen
     .getByRole('group', { name: 'Source refresh', exact: true })
     .boundingBox())!
   expect(Math.abs(title.y - choice.y)).toBeLessThanOrEqual(12)
+  const sections = [
+    'Interface',
+    'Source refresh',
+    'Configuration transfer',
+    'Service',
+  ]
+  const geometry = await Promise.all(
+    sections.map(async (name) => {
+      const section = page.getByRole('region', { name, exact: true })
+      return section.evaluate((element) => {
+        const heading = element.querySelector('h2')!.getBoundingClientRect()
+        const content = element.lastElementChild!.getBoundingClientRect()
+        return {
+          heading: heading.x,
+          content: content.x,
+          background: getComputedStyle(element).backgroundColor,
+        }
+      })
+    }),
+  )
+  for (const section of geometry) {
+    expect(section.heading).toBe(geometry[0]!.heading)
+    expect(section.content).toBe(geometry[0]!.content)
+    expect(section.background).toBe('rgb(32, 35, 38)')
+  }
   expect(await audit(page, 'graphite-settings')).toEqual([])
   await pressSegment(page, 'Русский')
   await page.screenshot({
@@ -97,7 +122,7 @@ test('graphite settings and inline connection choices preserve readable alignmen
   expect(await auditWidths(page, 'graphite-connection-form-text-200')).toEqual(
     [],
   )
-  await page.getByRole('button', { name: 'Отменить', exact: true }).click()
+  await page.getByRole('button', { name: 'Очистить', exact: true }).click()
 })
 
 for (const reducedMotion of ['reduce', 'no-preference'] as const) {
@@ -234,13 +259,23 @@ test('page actions, category context and composition controls share consistent g
     .getByRole('navigation', { name: 'Sections' })
     .getByRole('link', { name: 'Connections', exact: true })
     .click()
-  // First connection setup is already on the page. Closing it reveals the
-  // collection action; reopening must stay in document flow.
+  // Returning operators land on their saved connection; adding is navigation.
+  await page.waitForURL(`${origin}/connections`)
+  const created = await page.request.post(`${origin}/v1/devices`, {
+    headers: { Origin: origin, 'X-Routevane-Request': '1' },
+    data: {
+      target_id: 'singbox',
+      name: 'Geometry client',
+      address: 'file:///C:/geometry.json',
+    },
+  })
+  expect(created.ok()).toBe(true)
+  const deviceID = ((await created.json()) as { device: { id: string } }).device
+    .id
+  await page.reload()
   await expect(
-    page.getByRole('region', { name: 'Add a connection', exact: true }),
+    page.getByRole('heading', { name: 'Geometry client', exact: true }),
   ).toBeVisible()
-  await expect(page.getByRole('dialog')).toHaveCount(0)
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   const connectionAction = await page
     .getByRole('button', { name: 'Add a connection', exact: true })
     .boundingBox()
@@ -257,10 +292,18 @@ test('page actions, category context and composition controls share consistent g
   await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(await auditWidths(page, 'connection-create')).toEqual([])
   expect(await audit(page, 'connection-create')).toEqual([])
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await page.getByRole('button', { name: 'Clear form', exact: true }).click()
   await expect(
-    page.getByRole('button', { name: 'Add a connection', exact: true }),
-  ).toBeFocused()
+    page.getByRole('region', { name: 'Add a connection', exact: true }),
+  ).toBeVisible()
+  const forgotten = await page.request.post(
+    `${origin}/v1/devices/${deviceID}/forget`,
+    {
+      headers: { Origin: origin, 'X-Routevane-Request': '1' },
+      data: {},
+    },
+  )
+  expect(forgotten.ok()).toBe(true)
 
   await page.goto(`${origin}/profiles/new`)
   const row = listRow(page, 'Grok')

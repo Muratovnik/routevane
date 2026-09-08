@@ -107,7 +107,7 @@ describe('useDevices degraded dependencies', () => {
       if (url === '/v1/deployments/targets')
         return Promise.reject(new TypeError('unavailable'))
       if (url === '/v1/devices' && init?.method === 'POST')
-        return Promise.resolve(json({}))
+        return Promise.resolve(json({ device: { id: 'created-device' } }))
       return Promise.reject(new Error(`unexpected request ${url}`))
     })
     const devices = useDevices()
@@ -194,7 +194,7 @@ describe('useDevices degraded dependencies', () => {
     fetchMock.mockImplementation((input: FetchInput, init?: RequestInit) => {
       const url = String(input)
       if (url === '/v1/devices' && init?.method === 'POST')
-        return Promise.resolve(json({}))
+        return Promise.resolve(json({ device: { id: 'created-device' } }))
       if (url === '/v1/devices')
         return Promise.resolve(
           json({ devices: [], secret_store_available: true }),
@@ -218,6 +218,7 @@ describe('useDevices degraded dependencies', () => {
         '',
       ),
     ).resolves.toBe(true)
+    expect(devices.registeredID.value).toBe('created-device')
     expect(
       fetchMock.mock.calls.filter(
         ([input, request]) =>

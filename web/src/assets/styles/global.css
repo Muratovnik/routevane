@@ -120,19 +120,8 @@ html[data-rv-workspace-transition]::view-transition-new(composer-settings) {
   object-position: top left;
 }
 
-/* Keep text as one readable image while its group moves/resizes. A crossfade
-   between the vertical rail and horizontal form would paint both forms. */
-html[data-rv-workspace-transition]::view-transition-old(library-content),
-html[data-rv-workspace-transition]::view-transition-old(composer-content),
-html[data-rv-workspace-transition]::view-transition-old(composer-settings) {
-  display: none;
-}
-
-html[data-rv-workspace-transition]::view-transition-new(library-content),
-html[data-rv-workspace-transition]::view-transition-new(composer-content),
-html[data-rv-workspace-transition]::view-transition-new(composer-settings) {
-  animation: none;
-}
+/* Retain both workspace snapshots for the native crossfade. Hiding the old
+   snapshot would reveal the rearranged layout before its group has moved. */
 
 html[data-rv-workspace-transition]::view-transition-image-pair(*) {
   overflow: clip;

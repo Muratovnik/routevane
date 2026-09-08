@@ -13,7 +13,7 @@ import {
   type DetailMode,
 } from '@/shared/model/useSurfacePreferences'
 import RvButton from '@/shared/ui/RvButton.vue'
-import RvDisclosure from '@/shared/ui/RvDisclosure.vue'
+import RvSettingsSection from '@/shared/ui/RvSettingsSection.vue'
 import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import RvSegmented from '@/shared/ui/RvSegmented.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
@@ -82,57 +82,39 @@ const onConfigTransferApplied = (): void => {
   <section aria-labelledby="settings-title" class="settings">
     <RvPageHeader title-id="settings-title" :title="t('settings.title')" />
     <div class="settings__content">
-      <section aria-labelledby="settings-interface" class="settings__section">
-        <h2 id="settings-interface" class="settings__section-title">
-          {{ t('settings.interface') }}
-        </h2>
-        <div class="settings__rows">
-          <div class="settings__row">
-            <p class="settings__label" aria-hidden="true">
-              {{ t('settings.locale') }}
-            </p>
+      <RvSettingsSection :title="t('settings.interface')">
+        <div class="settings__fields">
+          <RvSegmented
+            :label="t('settings.locale')"
+            :model-value="locale"
+            name="rv-locale"
+            :options="localeOptions"
+            @update:model-value="onLocale"
+          />
+          <RvSegmented
+            :label="t('settings.theme')"
+            :model-value="preferences.appearance.value"
+            name="rv-appearance"
+            :options="appearanceOptions"
+            @update:model-value="onAppearance"
+          />
+          <div class="settings__copy">
             <RvSegmented
-              label-hidden
-              :label="t('settings.locale')"
-              :model-value="locale"
-              name="rv-locale"
-              :options="localeOptions"
-              @update:model-value="onLocale"
-            />
-          </div>
-          <div class="settings__row">
-            <p class="settings__label" aria-hidden="true">
-              {{ t('settings.theme') }}
-            </p>
-            <RvSegmented
-              label-hidden
-              :label="t('settings.theme')"
-              :model-value="preferences.appearance.value"
-              name="rv-appearance"
-              :options="appearanceOptions"
-              @update:model-value="onAppearance"
-            />
-          </div>
-          <div class="settings__row">
-            <div class="settings__copy">
-              <p class="settings__label" aria-hidden="true">
-                {{ t('settings.mode') }}
-              </p>
-              <p class="settings__note">{{ t('settings.mode.note') }}</p>
-            </div>
-            <RvSegmented
-              label-hidden
               :label="t('settings.mode')"
               :model-value="preferences.mode.value"
               name="rv-detail-mode"
               :options="modeOptions"
               @update:model-value="onMode"
             />
+            <p class="settings__note">{{ t('settings.mode.note') }}</p>
           </div>
         </div>
-      </section>
+      </RvSettingsSection>
 
-      <section aria-labelledby="settings-refresh" class="settings__section">
+      <RvSettingsSection
+        :title="t('settings.refresh')"
+        :description="t('settings.refresh.note')"
+      >
         <RvStateNotice
           v-if="settings.readState.value === 'failed'"
           :body="
@@ -150,59 +132,49 @@ const onConfigTransferApplied = (): void => {
             <RvButton @click="settings.retry">{{ t('action.retry') }}</RvButton>
           </template>
         </RvStateNotice>
-        <div class="settings__rows">
-          <div class="settings__row">
-            <div class="settings__copy">
-              <h2 id="settings-refresh" class="settings__label">
-                {{ t('settings.refresh') }}
-              </h2>
-              <p class="settings__note">{{ t('settings.refresh.note') }}</p>
-            </div>
-            <div class="settings__copy">
-              <RvSegmented
-                label-hidden
-                :disabled="!settings.canChange.value"
-                :label="t('settings.refresh')"
-                :model-value="settings.refreshInterval.value ?? ''"
-                name="rv-refresh-interval"
-                :options="refreshOptions"
-                @update:model-value="onRefreshInterval"
-              />
-              <p
-                class="settings__note settings__feedback"
-                :class="{
-                  'rv-loading-feedback':
-                    settings.readState.value === 'loading' &&
-                    settings.writeState.value !== 'failed',
-                }"
-                role="status"
-              >
-                {{
-                  settings.writeState.value === 'failed'
-                    ? t('settings.refresh.failed')
-                    : settings.writeState.value === 'saving'
-                      ? t('settings.refresh.saving')
-                      : settings.readState.value === 'loading'
-                        ? t(
-                            settings.refreshInterval.value === null
-                              ? 'settings.refresh.reading'
-                              : 'settings.refresh.refreshing',
-                          )
-                        : ''
-                }}
-              </p>
-            </div>
-          </div>
+        <div class="settings__copy">
+          <RvSegmented
+            label-hidden
+            :disabled="!settings.canChange.value"
+            :label="t('settings.refresh')"
+            :model-value="settings.refreshInterval.value ?? ''"
+            name="rv-refresh-interval"
+            :options="refreshOptions"
+            @update:model-value="onRefreshInterval"
+          />
+          <p
+            class="settings__note settings__feedback"
+            :class="{
+              'rv-loading-feedback':
+                settings.readState.value === 'loading' &&
+                settings.writeState.value !== 'failed',
+            }"
+            role="status"
+          >
+            {{
+              settings.writeState.value === 'failed'
+                ? t('settings.refresh.failed')
+                : settings.writeState.value === 'saving'
+                  ? t('settings.refresh.saving')
+                  : settings.readState.value === 'loading'
+                    ? t(
+                        settings.refreshInterval.value === null
+                          ? 'settings.refresh.reading'
+                          : 'settings.refresh.refreshing',
+                      )
+                    : ''
+            }}
+          </p>
         </div>
-      </section>
+      </RvSettingsSection>
 
       <ConfigTransferPanel @applied="onConfigTransferApplied" />
-      <RvDisclosure borderless :summary="t('settings.runtime')">
+      <RvSettingsSection :title="t('settings.runtime')">
         <p class="settings__runtime">
           {{ t('settings.runtime.address') }} ·
           <span class="settings__mono">{{ origin }}</span>
         </p>
-      </RvDisclosure>
+      </RvSettingsSection>
     </div>
   </section>
 </template>
@@ -216,29 +188,13 @@ const onConfigTransferApplied = (): void => {
 
 .settings__content {
   display: grid;
-  gap: var(--rv-space-8);
+  gap: var(--rv-space-6);
   width: min(100%, var(--rv-settings-width));
   container: settings-content / inline-size;
 }
 
-.settings__section {
+.settings__fields {
   display: grid;
-  gap: var(--rv-space-5);
-}
-
-.settings__section-title {
-  font-size: var(--rv-text-section);
-}
-
-.settings__rows {
-  display: grid;
-  gap: var(--rv-space-6);
-}
-
-.settings__row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: start;
   gap: var(--rv-space-6);
 }
 
@@ -246,19 +202,6 @@ const onConfigTransferApplied = (): void => {
   display: grid;
   gap: var(--rv-space-2);
   min-width: 0;
-}
-
-.settings__label {
-  font-size: var(--rv-text-interface);
-  font-weight: 600;
-  padding-block: var(--rv-space-2);
-}
-
-@container settings-content (width < 42rem) {
-  .settings__row {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--rv-space-3);
-  }
 }
 
 .settings__note {

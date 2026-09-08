@@ -41,11 +41,11 @@ export const registerDevice = (
   address: string,
   account: string,
   interfaceName: string,
-): Promise<true> =>
+): Promise<string> =>
   postJSON(
     '/v1/devices',
     { target_id: targetID, name, address, account, interface: interfaceName },
-    parseAcknowledgement,
+    parseRegisteredID,
   )
 
 export const forgetDevice = (id: string): Promise<true> =>
@@ -110,4 +110,10 @@ const devicesSchema = v.pipe(
 )
 
 const parseDevices: Decoder<DeviceRegistry> = decode(devicesSchema)
+const parseRegisteredID: Decoder<string> = decode(
+  v.pipe(
+    fields({ device: fields({ id: text }) }),
+    v.transform(({ device }) => device.id),
+  ),
+)
 const parseAcknowledgement: Decoder<true> = decode(acknowledged)

@@ -218,12 +218,15 @@ Sections, addressable by URL:
    redirects here). One section answers «куда»: registered devices and
    applications first. With no saved connections, the catalog-backed creation
    form is already on the page. «Добавить подключение» returns to that form;
-   cancelling or selecting an existing connection preserves its draft within
-   the page. Saved connections remain selectable beside the creation or
+   selecting an existing connection preserves its draft within the page.
+   The work area is always present: the first saved connection is selected on
+   arrival, or the new-connection form is shown when none exist. “Clear form”
+   resets the draft in place. Saving selects the server-returned connection ID;
+   forgetting the selection opens the next connection or the form.
+   Saved connections remain selectable beside the creation or
    configuration area; a constrained window stacks these regions in document
    flow. Creation and delivery permission are primary page work, without a modal
-   or scroll lock. Opening the editor moves focus to its heading, and closing
-   returns focus to the initiating control when it still exists. Password input
+   or scroll lock. Switching the work area moves focus to its heading. Password input
    is cleared on every departure from its connection. Saved settings never imply
    verified reachability or successful delivery.
    Router login and route-interface fields are required when the selected
@@ -238,11 +241,14 @@ Sections, addressable by URL:
    which actions cannot be trusted yet.
 7. `/settings` — **Настройки.** Language, theme (system/dark/light), detail
    mode, the default source-refresh schedule, and portable configuration
-   transfer. Preferences use aligned label/value rows in a bounded reading
-   area. Whitespace groups these settings without horizontal separators.
-   The source-refresh title, explanation and schedule form one aligned row.
-   The server's address is secondary information in a disclosure below
-   transfer. Export and import are separate actions. Preferences live here,
+   transfer. Every section uses one surface and grid: title and explanation
+   on the left, related controls and actions on the right. On constrained
+   screens the heading precedes its content. Surface contrast, padding and
+   whitespace distinguish sections without horizontal separators. Interface
+   fields place labels above their controls; export and import stack in the
+   same content column. The source-refresh explanation belongs beside its
+   schedule. The server's address is the final, secondary section.
+   Export and import are separate actions. Preferences live here,
    not in the chrome. Import starts with a product-styled file
    surface backed by the labelled native file chooser, supports dropping a file,
    keeps the chosen file visible while reading or checking it, then shows a
@@ -584,8 +590,10 @@ has no second slide animation inside its column. Opening and closing use the
 same transaction in the profile composer, editor and library. Without API support
 or with reduced motion, the layout switches immediately. Overlaid inspection
 uses the same snapshot lifecycle; standalone sheets retain their CSS entrance.
-Check the actual snapshot animation and both
-layout states, not only the final DOM bounding boxes.
+The old and new workspace images crossfade while their groups move and resize;
+hiding either image early reveals the rearranged content abruptly. Check their
+contribution at the start, midpoint and end on both opening and closing, as well
+as the actual rendered frames and final layout.
 
 Shared catalog column tokens keep list names comparable in the library and profile
 tables. Category columns use the same text-width budget; utility columns remain

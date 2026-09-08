@@ -156,6 +156,7 @@
   --rv-composition-width: 88rem;
   --rv-feedback-delay: 160ms;
   --rv-settings-width: 64rem;
+  --rv-settings-heading-width: 15rem;
   --rv-composer-field-width: 14rem;
   --rv-detail-min-width: 35rem;
   --rv-composer-rail-width: var(--rv-panel-width);

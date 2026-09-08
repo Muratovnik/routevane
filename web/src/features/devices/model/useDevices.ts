@@ -37,6 +37,7 @@ export const useDevices = () => {
   const requirementsState = ref<RequirementsState>('unknown')
   const state = ref<DevicesState>('loading')
   const work = ref<DevicesWork>('idle')
+  const registeredID = ref('')
   let deviceRead = false
   let initializeRequest = 0
   let requirementsRequest = 0
@@ -141,9 +142,15 @@ export const useDevices = () => {
     interfaceName: string,
   ): Promise<boolean> => {
     if (requirementsState.value !== 'ready') return Promise.resolve(false)
-    return run(() =>
-      registerDevice(targetID, name, address, account, interfaceName),
-    )
+    return run(async () => {
+      registeredID.value = await registerDevice(
+        targetID,
+        name,
+        address,
+        account,
+        interfaceName,
+      )
+    })
   }
 
   const forget = (id: string): Promise<boolean> => run(() => forgetDevice(id))
@@ -181,6 +188,7 @@ export const useDevices = () => {
     forget,
     initialize,
     register,
+    registeredID,
     requirementsState,
     retryRequirements,
     retryDevices,

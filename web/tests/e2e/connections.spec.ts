@@ -224,16 +224,24 @@ test('the device form asks only for fields the selected target needs', async ({
   await singBoxAddress.fill('file:///C:/sing-box/config.json')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(
+    page.getByRole('heading', { name: 'Local client', exact: true }),
+  ).toBeFocused()
+  await expect(
     page.getByRole('region', { name: 'Add a connection', exact: true }),
   ).toHaveCount(0)
   await page
     .getByRole('button', { name: 'Add a connection', exact: true })
     .click()
+  await target.click()
+  await page.getByRole('option', { name: 'sing-box' }).click()
   await expect(deviceField(page, 'devices.field.name')).toHaveValue('')
   await expect(
     page.getByText('Fill in this field', { exact: true }),
   ).toHaveCount(0)
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await page.getByRole('button', { name: 'Clear form', exact: true }).click()
+  await expect(
+    page.getByRole('region', { name: 'Add a connection', exact: true }),
+  ).toBeVisible()
   await page
     .getByRole('button', {
       name: 'Configure connection Local client',
@@ -256,6 +264,9 @@ test('the device form asks only for fields the selected target needs', async ({
     .getByRole('button', { name: 'Forget this connection', exact: true })
     .click()
   await expect(details).toHaveCount(0)
+  await expect(
+    page.getByRole('region', { name: 'Add a connection', exact: true }),
+  ).toBeVisible()
   await expect(
     page.getByRole('button', {
       name: 'Configure connection Local client',

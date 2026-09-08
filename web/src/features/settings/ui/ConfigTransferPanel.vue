@@ -6,6 +6,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvFilePicker from '@/shared/ui/RvFilePicker.vue'
+import RvSettingsSection from '@/shared/ui/RvSettingsSection.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 
 const emit = defineEmits<{ applied: [] }>()
@@ -68,10 +69,7 @@ const apply = async (): Promise<void> => {
 </script>
 
 <template>
-  <section aria-labelledby="settings-config-transfer" class="config-transfer">
-    <h2 id="settings-config-transfer" class="config-transfer__title">
-      {{ t('configTransfer.title') }}
-    </h2>
+  <RvSettingsSection :title="t('configTransfer.title')">
     <div class="config-transfer__operations">
       <section
         class="config-transfer__operation"
@@ -265,19 +263,12 @@ const apply = async (): Promise<void> => {
         </RvButton>
       </template>
     </RvDialog>
-  </section>
+  </RvSettingsSection>
 </template>
 
 <style scoped>
-.config-transfer {
-  display: grid;
-  gap: var(--rv-space-5);
-  container: config-transfer / inline-size;
-}
-
 .config-transfer__operations {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--rv-space-8);
 }
 
@@ -293,22 +284,12 @@ const apply = async (): Promise<void> => {
   font-weight: 600;
 }
 
-@container config-transfer (width < 48rem) {
-  .config-transfer__operations {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .config-transfer__actions,
 .config-transfer__file,
 .config-transfer__preview {
   display: grid;
   gap: var(--rv-space-3);
   justify-items: start;
-}
-
-.config-transfer__title {
-  font-size: var(--rv-text-section);
 }
 
 .config-transfer__download-status,

@@ -106,6 +106,10 @@ const select = (value: string, event: Event): void => {
   border-radius: var(--rv-radius-md);
 }
 
+.rv-segmented__legend:not(.rv-segmented__legend--hidden) {
+  margin-block-end: var(--rv-space-2);
+}
+
 .rv-segmented__legend--hidden {
   position: absolute;
   width: 1px;

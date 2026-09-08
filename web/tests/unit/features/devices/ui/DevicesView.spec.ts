@@ -107,7 +107,9 @@ describe('DevicesView prerequisite audit', () => {
 
     // The registered connection and the form are both still readable: a failed
     // prerequisite read is not a reason to take the screen away.
-    await expect.element(screen.getByText('Home router')).toBeVisible()
+    await expect
+      .element(screen.getByRole('heading', { name: 'Home router' }))
+      .toBeVisible()
     await expect
       .element(screen.getByText('Connection requirements unavailable'))
       .toBeVisible()
@@ -166,7 +168,7 @@ describe('DevicesView prerequisite audit', () => {
   it('keeps a no-deployer target registerable without inventing credential fields', async () => {
     const fetchMock = installFetch((input: string, init?: RequestInit) => {
       if (input === DEVICES && init?.method === 'POST')
-        return Promise.resolve(json({}))
+        return Promise.resolve(json({ device: { id: 'manual-router' } }))
       if (input === DEVICES)
         return Promise.resolve(
           json({ devices: [], secret_store_available: true }),
@@ -250,6 +252,22 @@ describe('DevicesView prerequisite audit', () => {
     await expect
       .element(screen.getByLabelText('Connection name'))
       .toHaveValue('Unfinished router')
+    await screen
+      .getByRole('button', { name: 'Clear form', exact: true })
+      .click()
+    await expect
+      .element(
+        screen.getByRole('region', { name: 'Add a connection', exact: true }),
+      )
+      .toBeVisible()
+    await expect
+      .element(screen.getByLabelText('Connection name'))
+      .not.toBeInTheDocument()
+    await screen.getByLabelText('Device or application').click()
+    await screen.getByRole('option', { name: /^Keenetic/ }).click()
+    await expect
+      .element(screen.getByLabelText('Connection name'))
+      .toHaveValue('')
     expect(
       fetchMock.mock.calls.every(([, request]) => request?.method !== 'POST'),
     ).toBe(true)
@@ -281,7 +299,6 @@ it('marks a saved device change stale and retries only the read while preserving
   await screen.getByLabelText('Device or application').click()
   await screen.getByRole('option', { name: /^Keenetic/ }).click()
   await screen.getByLabelText('Connection name').fill('Unsaved connection')
-  await screen.getByRole('button', { name: 'Cancel', exact: true }).click()
   await screen
     .getByRole('button', {
       name: 'Configure connection Home router',
@@ -312,13 +329,80 @@ it('marks a saved device change stale and retries only the read while preserving
   await expect
     .element(screen.getByText('Connections could not be refreshed'))
     .not.toBeInTheDocument()
-  await screen
-    .getByRole('button', { name: 'Add a connection', exact: true })
-    .click()
   await expect
     .element(screen.getByLabelText('Connection name'))
     .toHaveValue('Unsaved connection')
   expect(callsTo(fetchMock, '/v1/devices/device-1/forget')).toHaveLength(1)
   expect(callsTo(fetchMock, DEVICES)).toHaveLength(3)
+  vi.unstubAllGlobals()
+})
+
+it('selects the created identity after a failed reread recovers without repeating registration', async () => {
+  useLocale().setLocale('en')
+  let registered = false
+  let failed = false
+  const created = {
+    ...DEVICE_PAYLOAD.devices[0],
+    id: 'created-id',
+    name: 'Home router',
+  }
+  const fetchMock = installFetch(async (input, init) => {
+    if (input === DEVICES && init?.method === 'POST') {
+      registered = true
+      return json({ device: created })
+    }
+    if (input === DEVICES) {
+      if (registered && !failed) {
+        failed = true
+        return json({ error: 'unavailable' }, 503)
+      }
+      return json({
+        ...DEVICE_PAYLOAD,
+        devices: registered
+          ? [...DEVICE_PAYLOAD.devices, created]
+          : DEVICE_PAYLOAD.devices,
+      })
+    }
+    if (input === LISTS) return json(CATALOG_PAYLOAD)
+    if (input === TARGETS) return json(TARGETS_PAYLOAD)
+    if (input === REQUIREMENTS) return json(REQUIREMENTS_PAYLOAD)
+    throw new Error(`unexpected request ${input}`)
+  })
+  const screen = await render(DevicesView)
+  await screen
+    .getByRole('button', { name: 'Add a connection', exact: true })
+    .click()
+  await screen.getByLabelText('Device or application').click()
+  await screen.getByRole('option', { name: /^Keenetic/ }).click()
+  await screen.getByLabelText('Connection name').fill('Home router')
+  await screen.getByLabelText('Device address').fill('http://192.168.1.1')
+  await screen.getByLabelText('Router login').fill('admin')
+  await screen.getByLabelText('Interface for routes').fill('Wireguard0')
+  await screen.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect
+    .element(screen.getByText('Connections could not be refreshed'))
+    .toBeVisible()
+  await expect
+    .element(screen.getByRole('button', { name: 'Save', exact: true }))
+    .toBeDisabled()
+  await screen.getByRole('button', { name: 'Retry', exact: true }).click()
+  const connections = screen.getByRole('button', {
+    name: 'Configure connection Home router',
+    exact: true,
+  })
+  await expect
+    .element(connections.nth(0))
+    .toHaveAttribute('aria-pressed', 'false')
+  await expect
+    .element(connections.nth(1))
+    .toHaveAttribute('aria-pressed', 'true')
+  await expect
+    .element(screen.getByRole('region', { name: 'Home router', exact: true }))
+    .toBeVisible()
+  expect(
+    fetchMock.mock.calls.filter(
+      ([url, init]) => url === DEVICES && init?.method === 'POST',
+    ),
+  ).toHaveLength(1)
   vi.unstubAllGlobals()
 })

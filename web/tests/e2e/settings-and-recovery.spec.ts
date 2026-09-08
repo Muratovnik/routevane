@@ -184,7 +184,12 @@ for (const language of ['en', 'ru'] as const) {
         await expect(
           page.getByText(copy('devices.requirements.failed')),
         ).toBeVisible()
-        await expect(page.getByText('Requirements retry fixture')).toBeVisible()
+        await expect(
+          page.getByRole('heading', {
+            name: 'Requirements retry fixture',
+            exact: true,
+          }),
+        ).toBeVisible()
         await expect(
           page.getByRole('button', { name: copy('devices.auto.enable') }),
         ).toHaveCount(0)
