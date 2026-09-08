@@ -1,0 +1,269 @@
+/**
+ * The connections section: the formats this build can reach, the ones an
+ * operator hides, and the devices a published output is delivered to.
+ *
+ * The worker fixture in `support/served-product.ts` serves this suite
+ * alone, over the data directory named below.
+ */
+
+import { expect } from '@playwright/test'
+
+import { audit } from './support/audits'
+import { englishCopy } from './support/copy'
+import { buildProfile, openFormats } from './support/flows'
+import {
+  addConnectionField,
+  catalogDisclosure,
+  choiceSearch,
+  deliveryField,
+  deviceField,
+  escapeRegExp,
+  listMembership,
+} from './support/queries'
+import { test } from './support/served-product'
+
+// The surface negotiates its language from the browser, and English is the
+// product's primary language. `productData` is this suite's own data
+// directory: it starts empty, no other suite writes to it, and it is gone
+// again when the suite ends.
+test.use({ locale: 'en-US', productData: 'connections' })
+
+test('the searchable connection choice filters in its panel and reopens by keyboard', async ({
+  page,
+  origin,
+  assertProductAlive,
+}) => {
+  await page.goto(`${origin}/profiles/new`)
+  const field = deliveryField(page)
+  await expect(field).toBeVisible()
+  await field.press('Enter')
+  const search = choiceSearch(page)
+  await expect(search).toBeFocused()
+  await search.fill('Keenetic')
+  await expect(page.getByRole('option')).toHaveCount(1)
+  await search.press('Escape')
+  await expect(field).toHaveAttribute('aria-expanded', 'false')
+  await expect(field).toBeFocused()
+  await field.press('Enter')
+  await expect(search).toHaveValue('')
+  await search.fill('sing-box')
+  await search.press('ArrowDown')
+  await search.press('Enter')
+  await expect(field).toHaveText('sing-box')
+  await expect(field).toHaveAttribute('aria-expanded', 'false')
+  expect(await audit(page, 'searchable connection keyboard cycle')).toEqual([])
+  assertProductAlive()
+})
+
+test('hiding a format removes it from the connection picker and says where it went', async ({
+  page,
+  origin,
+  assertProductAlive,
+}) => {
+  test.setTimeout(120000)
+  // The section was renamed; the address it used to have still resolves, so
+  // an old bookmark lands on it rather than on nothing.
+  await page.goto(`${origin}/devices`)
+  await page.waitForURL(`${origin}/connections`)
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Connections' }),
+  ).toBeVisible()
+
+  // What this build can talk to at all is reference material behind one
+  // disclosure, under the connections the operator actually made.
+  // A disclosure keeps its contents out of the page until it is opened, so
+  // nothing of the catalog's table is on screen yet.
+  await expect(page.getByRole('columnheader')).toHaveCount(0)
+  await catalogDisclosure(page).click()
+  await expect(page.getByRole('columnheader')).toHaveText([
+    'Name',
+    'Type',
+    'Format',
+    'Delivery from Routevane',
+    'Offer when connecting',
+  ])
+  const keeneticRow = page.getByRole('row').filter({ hasText: 'Keenetic' })
+  await expect(keeneticRow).toContainText('Router')
+  await expect(keeneticRow).toContainText('.bat')
+  await expect(keeneticRow).toContainText('Yes')
+
+  // Hiding is a preference of this browser, kept under its own key.
+  const toggle = page.getByRole('checkbox', {
+    name: 'Offer Keenetic when connecting',
+  })
+  await toggle.uncheck()
+  expect(
+    await page.evaluate(() => localStorage.getItem('rv.hiddenTargets')),
+  ).toBe('["keenetic"]')
+
+  // Connection choices honor the same hidden-format preference in the first
+  // setup flow and when another connection is added later.
+  await page
+    .getByRole('navigation', { name: 'Sections' })
+    .getByRole('link', { name: 'Profiles' })
+    .click()
+  await page.getByRole('link', { name: 'Build a profile' }).first().click()
+  await page.waitForURL(`${origin}/profiles/new`)
+  await page.getByRole('searchbox', { name: 'Find a list' }).fill('discord')
+  await listMembership(page, 'Discord').check()
+  const offered = await openFormats(page)
+  await expect(offered.getByRole('option', { name: /Keenetic/ })).toHaveCount(0)
+  await expect(offered.getByRole('option', { name: /sing-box/ })).toHaveCount(1)
+  await page.getByRole('option', { name: /sing-box/ }).click()
+  await page.getByRole('button', { name: 'Create and prepare' }).click()
+  await page.waitForURL(
+    new RegExp(`^${escapeRegExp(origin)}/profiles/[a-f0-9]{32}.*$`),
+  )
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Discord' }),
+  ).toBeVisible()
+
+  await expect(
+    page.getByRole('heading', { name: 'Subscription link · sing-box' }),
+  ).toBeVisible()
+  await addConnectionField(page).click()
+  const outputFormats = page.getByRole('listbox')
+  await expect(
+    outputFormats.getByRole('option', { name: /Keenetic/ }),
+  ).toHaveCount(0)
+  await expect(
+    outputFormats.getByRole('option', { name: /sing-box/ }),
+  ).toHaveCount(0)
+  // What is left is one group, and the group says which one it is.
+  await expect(outputFormats.getByRole('group')).toHaveCount(1)
+  await expect(outputFormats.getByRole('group')).toHaveAccessibleName(
+    'Applications',
+  )
+  await page.keyboard.press('Escape')
+
+  // Unhiding brings it back, in both places it is offered.
+  await page
+    .getByRole('navigation', { name: 'Sections' })
+    .getByRole('link', { name: 'Connections' })
+    .click()
+  await catalogDisclosure(page).click()
+  await toggle.check()
+  expect(
+    await page.evaluate(() => localStorage.getItem('rv.hiddenTargets')),
+  ).toBe('[]')
+  assertProductAlive()
+})
+
+test('the device form asks only for fields the selected target needs', async ({
+  page,
+  origin,
+}) => {
+  await page.goto(`${origin}/connections`)
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Connections' }),
+  ).toBeVisible()
+  // Every field is addressed by the caption the chosen target's own
+  // requirements give it, which is the same fact the label assertions used to
+  // state separately.
+  const target = deviceField(page, 'devices.field.target')
+  await expect(target).toBeEnabled()
+  for (const absent of [
+    'devices.field.name',
+    'deploy.field.address.keenetic',
+    'deploy.field.account.keenetic',
+    'deploy.field.interface.keenetic',
+  ])
+    await expect(deviceField(page, absent)).toHaveCount(0)
+
+  await target.click()
+  await page.getByRole('option', { name: 'Keenetic' }).click()
+  const keeneticAddress = deviceField(page, 'deploy.field.address.keenetic')
+  await expect(keeneticAddress).toBeVisible()
+  await expect(keeneticAddress).toHaveAttribute(
+    'placeholder',
+    'http://192.168.1.1',
+  )
+  await expect(deviceField(page, 'deploy.field.account.keenetic')).toBeVisible()
+  await expect(
+    deviceField(page, 'deploy.field.interface.keenetic'),
+  ).toBeVisible()
+  await expect(
+    page.getByText(
+      'For example, Wireguard0 — the Keenetic connection/interface ID.',
+    ),
+  ).toBeVisible()
+  await keeneticAddress.fill('http://192.168.1.1')
+  await deviceField(page, 'deploy.field.account.keenetic').fill('admin')
+
+  await target.click()
+  await page.getByRole('option', { name: 'sing-box' }).click()
+  const singBoxAddress = deviceField(page, 'deploy.field.address.singbox')
+  await expect(singBoxAddress).toBeVisible()
+  await expect(singBoxAddress).toHaveAttribute(
+    'placeholder',
+    'file:///C:/sing-box/config.json',
+  )
+  await expect(singBoxAddress).toHaveValue('')
+  await expect(deviceField(page, 'deploy.field.account.keenetic')).toHaveCount(
+    0,
+  )
+  await expect(
+    deviceField(page, 'deploy.field.interface.keenetic'),
+  ).toHaveCount(0)
+})
+
+test('an output can be explicitly bound to and detached from a compatible device', async ({
+  page,
+  origin,
+}) => {
+  const headers = { Origin: origin, 'X-Routevane-Request': '1' }
+  const created = await page.request.post(`${origin}/v1/devices`, {
+    data: {
+      account: 'admin',
+      address: 'http://192.168.1.1',
+      interface: 'Wireguard0',
+      name: 'Prerelease Keenetic',
+      target_id: 'keenetic',
+    },
+    headers,
+  })
+  expect(created.ok()).toBe(true)
+  const deviceID = ((await created.json()) as { device: { id: string } }).device
+    .id
+  const { outputId } = await buildProfile(page, origin)
+
+  await page
+    .getByRole('tablist', { name: 'Profile sections' })
+    .getByRole('tab', { name: 'Connection' })
+    .click()
+  // The row's device choice is captioned with the connection it belongs to,
+  // which is what identifies it whatever it currently holds.
+  const binding = page.getByLabel(
+    englishCopy('outputs.device.label').replace('{target}', 'Keenetic'),
+  )
+  await expect(binding).toHaveText('No automatic delivery')
+
+  const bound = page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === `/v1/outputs/${outputId}/device`,
+  )
+  await binding.click()
+  await page
+    .getByRole('option', {
+      name: 'Prerelease Keenetic · turn on automatic delivery in Connections',
+    })
+    .click()
+  expect((await bound).postDataJSON()).toEqual({ device_id: deviceID })
+  await expect(binding).toContainText('Prerelease Keenetic')
+
+  const detached = page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === `/v1/outputs/${outputId}/device`,
+  )
+  await page.getByRole('button', { name: 'Detach' }).click()
+  expect((await detached).postDataJSON()).toEqual({ device_id: '' })
+  await expect(binding).toHaveText('No automatic delivery')
+
+  const forgotten = await page.request.post(
+    `${origin}/v1/devices/${deviceID}/forget`,
+    { data: {}, headers },
+  )
+  expect(forgotten.ok()).toBe(true)
+})
