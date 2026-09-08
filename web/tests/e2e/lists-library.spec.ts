@@ -6,7 +6,7 @@
  * alone, over the data directory named below.
  */
 
-import { expect } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 import { englishCopy } from './support/copy'
 import {
@@ -368,7 +368,14 @@ test('category tabs and More toggle a union that bulk selection can add to a pro
   origin,
 }) => {
   await page.setViewportSize({ width: 1920, height: 960 })
-  for (const path of ['/lists', '/profiles/new']) {
+  // Filtering by category is the same act on both surfaces, and what each does
+  // with the union it produces is its own: the library bookmarks it, the
+  // composer adds it to the draft. Each surface therefore carries what it
+  // claims instead of the body branching on which one it is on.
+  for (const { assertUnionUse, path } of [
+    { assertUnionUse: assertLibraryBookmark, path: '/lists' },
+    { assertUnionUse: assertComposerBulkSelection, path: '/profiles/new' },
+  ]) {
     await page.goto(origin + path)
     await categoryChip(page, 'Communication').click()
     await categoryChip(page, 'Video').click()
@@ -382,35 +389,7 @@ test('category tabs and More toggle a union that bulk selection can add to a pro
           .sort(),
       )
       .toEqual(['Discord', 'YouTube'])
-    if (path === '/lists') {
-      // Reload the committed bookmark, not an in-flight router replacement.
-      await expect
-        .poll(() =>
-          new URLSearchParams(new URL(page.url()).hash.slice(1))
-            .getAll('category')
-            .sort(),
-        )
-        .toEqual(['communication', 'video'])
-      await page.reload()
-      await expect.poll(() => rows.count()).toBe(2)
-      for (const category of ['Communication', 'Video'])
-        await expect(categoryChip(page, category)).toHaveAttribute(
-          'aria-pressed',
-          'true',
-        )
-    } else {
-      await page
-        .getByRole('checkbox', {
-          name: englishCopy('listPicker.selectVisible'),
-        })
-        .check()
-      for (const title of ['Discord', 'YouTube'])
-        await expect(listMembership(page, title)).toBeChecked()
-      await categoryChip(page, englishCopy('listPicker.filter.all')).click()
-      await expect(listMembership(page, 'Limit fixture')).not.toBeChecked()
-      await categoryChip(page, 'Communication').click()
-      await categoryChip(page, 'Video').click()
-    }
+    await assertUnionUse(page, rows)
     await categoryMore(page).click()
     const video = page.getByRole('option', { name: /^Video/ })
     await expect(video).toHaveAttribute('aria-selected', 'true')
@@ -428,3 +407,44 @@ test('category tabs and More toggle a union that bulk selection can add to a pro
     await expect.poll(() => rows.count()).toBeGreaterThan(2)
   }
 })
+
+/**
+ * What the library does with the union: the categories it narrowed by are the
+ * bookmark, so a reload comes back to the same two of them.
+ */
+const assertLibraryBookmark = async (
+  page: Page,
+  rows: Locator,
+): Promise<void> => {
+  // Reload the committed bookmark, not an in-flight router replacement.
+  await expect
+    .poll(() =>
+      new URLSearchParams(new URL(page.url()).hash.slice(1))
+        .getAll('category')
+        .sort(),
+    )
+    .toEqual(['communication', 'video'])
+  await page.reload()
+  await expect.poll(() => rows.count()).toBe(2)
+  for (const category of ['Communication', 'Video'])
+    await expect(categoryChip(page, category)).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+}
+
+/**
+ * What the composer does with the union: one act puts every row it holds into
+ * the draft, and widening the filter afterwards adds nothing on its own.
+ */
+const assertComposerBulkSelection = async (page: Page): Promise<void> => {
+  await page
+    .getByRole('checkbox', { name: englishCopy('listPicker.selectVisible') })
+    .check()
+  for (const title of ['Discord', 'YouTube'])
+    await expect(listMembership(page, title)).toBeChecked()
+  await categoryChip(page, englishCopy('listPicker.filter.all')).click()
+  await expect(listMembership(page, 'Limit fixture')).not.toBeChecked()
+  await categoryChip(page, 'Communication').click()
+  await categoryChip(page, 'Video').click()
+}

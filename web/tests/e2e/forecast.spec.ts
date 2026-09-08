@@ -49,15 +49,16 @@ test('the forecast explains overlaps in create and edit without rewriting the li
       list: { id: string }
     }
     ids.push(list.id)
-    if (values.length > 0)
-      expect(
-        (
-          await page.request.post(`${origin}/v1/lists/${list.id}/domains`, {
-            headers,
-            data: { values, verdict: 'include' },
-          })
-        ).ok(),
-      ).toBe(true)
+    // Every fixture above states the addresses its overlaps are computed from,
+    // so the include is part of building the fixture rather than a case of it.
+    expect(
+      (
+        await page.request.post(`${origin}/v1/lists/${list.id}/domains`, {
+          headers,
+          data: { values, verdict: 'include' },
+        })
+      ).ok(),
+    ).toBe(true)
     expect(
       (
         await page.request.post(`${origin}/v1/lists/${list.id}/refresh`, {
@@ -263,14 +264,17 @@ test('one list without IP coverage preserves other lists and domain-format forec
 }) => {
   const headers = { 'X-Routevane-Request': '1' }
   const ids: string[] = []
+  // The subject of this test is the one list with no address of its own, so
+  // each fixture states the addresses it carries and the empty case is a case
+  // of the table rather than a branch in the loop below.
   const fixtures = [
-    ['Partial Alpha', '192.0.2.1'],
-    ['Partial Beta', '192.0.2.1'],
-    ['Partial Missing', ''],
-    ['Partial Separate', '192.0.2.2'],
+    { addresses: ['192.0.2.1'], title: 'Partial Alpha' },
+    { addresses: ['192.0.2.1'], title: 'Partial Beta' },
+    { addresses: [], title: 'Partial Missing' },
+    { addresses: ['192.0.2.2'], title: 'Partial Separate' },
   ] as const
   try {
-    for (const [title, address] of fixtures) {
+    for (const { addresses, title } of fixtures) {
       const created = await page.request.post(`${origin}/v1/lists`, {
         headers,
         data: { title, domains: ['forecast.invalid'] },
@@ -280,7 +284,7 @@ test('one list without IP coverage preserves other lists and domain-format forec
         list: { id: string }
       }
       ids.push(list.id)
-      if (address)
+      for (const address of addresses)
         expect(
           (
             await page.request.post(`${origin}/v1/lists/${list.id}/domains`, {
@@ -321,14 +325,14 @@ test('one list without IP coverage preserves other lists and domain-format forec
     expect(targets.find((x) => x.target_id === 'singbox')?.fits).toBe(true)
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto(`${origin}/profiles/new`)
-    for (const [title] of fixtures) await listMembership(page, title).check()
+    for (const { title } of fixtures) await listMembership(page, title).check()
     await chooseFormat(page, /Keenetic/)
     await expect(
       forecastStatus(page, 'Some lists could not be calculated'),
     ).toBeVisible({ timeout: 60000 })
     // Each of the two lists that share an address credits the other, and the
     // count is the control that names it.
-    for (const [title] of fixtures.slice(0, 2))
+    for (const { title } of fixtures.slice(0, 2))
       await expect(
         listRow(page, title).getByRole('button', { name: /^Overlap: / }),
       ).toHaveText('1')

@@ -1,10 +1,10 @@
 import { spawnSync } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdir, unlink, writeFile } from 'node:fs/promises'
+import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test } from '@playwright/test'
+import { expect, test as base } from '@playwright/test'
 
 import {
   assertPortBindable,
@@ -12,21 +12,102 @@ import {
   reserveLoopbackPort,
   resolvesWithin,
   spawnProduct,
+  type SpawnedProduct,
 } from '../e2e/support/product'
+
+const ROOT = resolve(import.meta.dirname, '../../..')
+
+/** How long a supervisor has to confirm its exit before it is terminated. */
+const EXIT_TIMEOUT_MILLISECONDS = 20_000
+
+const processIsRunning = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** The servers a supervisor announced by process id as it started them. */
+const reportedPids = (output: string): number[] =>
+  [...output.matchAll(/PID (\d+)/g)].map((match) => Number(match[1]))
+
+interface DevSession {
+  /** Starts the development supervisor with the arguments one test needs. */
+  start: (args: string[]) => SpawnedProduct
+  /** Declares a file this test writes into the working tree, and hands it back. */
+  plant: (path: string) => string
+}
+
+/**
+ * What a dev test owns: the supervisor it starts, and the probe files it plants
+ * in the working tree for the watcher to pick up.
+ *
+ * Teardown stops whatever is still running, reclaims the servers the supervisor
+ * printed, keeps its output beside the test's other artifacts and removes the
+ * probes. It runs whether the test passed or failed, which is what keeps the
+ * session's own claims — that closing stdin stops it, that it exits cleanly and
+ * that its ports come back — in the test body instead of in a `finally` block
+ * that would report a cleanup failure in place of the real one.
+ */
+const test = base.extend<{ session: DevSession }>({
+  // Playwright reads a fixture's own dependencies off this parameter, and this
+  // one has none: it owns processes and files rather than another fixture.
+  session: async ({}, use, testInfo) => {
+    const started: SpawnedProduct[] = []
+    const planted: string[] = []
+    await use({
+      plant: (path) => {
+        planted.push(path)
+        return path
+      },
+      start: (args) => {
+        const owner = spawnProduct('python', args, {
+          cwd: ROOT,
+          stdio: 'pipe',
+          windowsHide: true,
+        })
+        started.push(owner)
+        return owner
+      },
+    })
+    for (const owner of started) {
+      if (owner.isAlive()) {
+        const exited = once(owner.process, 'exit')
+        owner.process.stdin?.end()
+        if (!(await resolvesWithin(exited, EXIT_TIMEOUT_MILLISECONDS)))
+          owner.process.kill()
+      }
+      for (const pid of reportedPids(owner.output()).filter(processIsRunning))
+        spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
+          stdio: 'ignore',
+          windowsHide: true,
+        })
+      await mkdir(testInfo.outputDir, { recursive: true })
+      await writeFile(testInfo.outputPath('dev-session.log'), owner.output())
+    }
+    for (const path of planted) await rm(path, { force: true })
+  },
+})
 
 test('one dev session: real API, HMR, Go recovery and owned cleanup', async ({
   page,
   request,
+  session,
 }, testInfo) => {
-  const root = resolve(import.meta.dirname, '../../..')
   const port = await reserveLoopbackPort()
   const apiPort = await reserveLoopbackPort()
   const origin = `http://127.0.0.1:${port}`
   const api = `http://127.0.0.1:${apiPort}`
   const data = testInfo.outputPath('data')
   const probeName = `dev-hmr-probe-${process.pid}`
-  const probe = resolve(root, 'web/src/pages', `${probeName}.vue`)
-  const goProbe = resolve(root, 'cmd/routevane', `dev_probe_${process.pid}.go`)
+  const probe = session.plant(
+    resolve(ROOT, 'web/src/pages', `${probeName}.vue`),
+  )
+  const goProbe = session.plant(
+    resolve(ROOT, 'cmd/routevane', `dev_probe_${process.pid}.go`),
+  )
   // The probe reports what a reload would have thrown away, so it is a named
   // live region rather than an anonymous paragraph: the test reads it by role
   // and name while its own text is what the edit changes.
@@ -41,244 +122,201 @@ const draft = ref('')
 `
   const devProbe = page.getByRole('status', { name: 'HMR probe' })
   await writeFile(probe, source, { flag: 'wx' })
-  const owner = spawnProduct(
-    'python',
-    [
-      'tools/dev_server.py',
-      '--port',
-      String(port),
-      '--api-port',
-      String(apiPort),
-      '--no-browser',
-      '--stop-on-stdin-close',
-      '--data-dir',
-      data,
-      '--catalog-dir',
-      'testdata/expiry/browser-catalog',
-    ],
-    { cwd: root, stdio: 'pipe', windowsHide: true },
-  )
-  let goProbeCreated = false
-  try {
-    await expect
-      .poll(
-        () => {
-          owner.assertAlive()
-          return owner.output()
-        },
-        { timeout: 90_000 },
-      )
-      .toContain('[dev] Ready:')
+  const owner = session.start([
+    'tools/dev_server.py',
+    '--port',
+    String(port),
+    '--api-port',
+    String(apiPort),
+    '--no-browser',
+    '--stop-on-stdin-close',
+    '--data-dir',
+    data,
+    '--catalog-dir',
+    'testdata/expiry/browser-catalog',
+  ])
+  await expect
+    .poll(
+      () => {
+        owner.assertAlive()
+        return owner.output()
+      },
+      { timeout: 90_000 },
+    )
+    .toContain('[dev] Ready:')
 
-    const health = await request.get(`${origin}/health`)
-    expect(await health.json()).toEqual({ status: 'ok' })
-    expect(health.headers()['access-control-allow-origin']).toBeUndefined()
-    expect((await request.get(`${origin}/v1/lists`)).ok()).toBe(true)
-    const headers = { Origin: origin, 'X-Routevane-Request': '1' }
-    const created = await request.post(`${origin}/v1/profiles`, {
-      headers,
-      data: { name: 'HMR profile', lists: ['youtube'] },
+  const health = await request.get(`${origin}/health`)
+  expect(await health.json()).toEqual({ status: 'ok' })
+  expect(health.headers()['access-control-allow-origin']).toBeUndefined()
+  expect((await request.get(`${origin}/v1/lists`)).ok()).toBe(true)
+  const headers = { Origin: origin, 'X-Routevane-Request': '1' }
+  const created = await request.post(`${origin}/v1/profiles`, {
+    headers,
+    data: { name: 'HMR profile', lists: ['youtube'] },
+  })
+  expect(created.ok(), await created.text()).toBe(true)
+  const profilesBefore = await (
+    await request.get(`${origin}/v1/profiles`)
+  ).json()
+  for (const foreign of ['http://evil.example', 'null', api]) {
+    const refused = await request.post(`${origin}/v1/profiles`, {
+      headers: { ...headers, Origin: foreign },
+      data: { name: 'must not exist', lists: ['youtube'] },
     })
-    expect(created.ok(), await created.text()).toBe(true)
-    const profilesBefore = await (
-      await request.get(`${origin}/v1/profiles`)
-    ).json()
-    for (const foreign of ['http://evil.example', 'null', api]) {
-      const refused = await request.post(`${origin}/v1/profiles`, {
-        headers: { ...headers, Origin: foreign },
-        data: { name: 'must not exist', lists: ['youtube'] },
-      })
-      expect(refused.status()).toBe(404)
-    }
-    expect(
-      (
-        await request.get(`${origin}/health`, {
-          headers: { Host: 'evil.example' },
-        })
-      ).ok(),
-    ).toBe(false)
-    expect(
-      (
-        await request.post(`${origin}/v1/profiles`, {
-          headers: { Origin: origin },
-          data: { name: 'no marker', lists: ['youtube'] },
-        })
-      ).status(),
-    ).toBe(403)
-    expect(
-      (
-        await request.post(`${api}/v1/profiles`, {
-          headers,
-          data: { name: 'direct foreign origin', lists: ['youtube'] },
-        })
-      ).status(),
-    ).toBe(403)
-    expect(await (await request.get(`${origin}/v1/profiles`)).json()).toEqual(
-      profilesBefore,
-    )
-
-    await page.goto(origin)
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Profiles')
-    await expect(page.getByText('HMR profile', { exact: true })).toBeVisible()
-    for (const width of [320, 768, 1024, 1440]) {
-      await page.setViewportSize({ width, height: 900 })
-      await page.screenshot({ path: testInfo.outputPath(`dev-${width}.png`) })
-      const audit = await new AxeBuilder({ page }).analyze()
-      expect(
-        audit.violations.filter(({ impact }) =>
-          ['serious', 'critical'].includes(impact ?? ''),
-        ),
-      ).toEqual([])
-    }
-    await page.keyboard.press('Tab')
-    expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe(
-      'BODY',
-    )
-
-    await page.goto(`${origin}/${probeName}`)
-    await page.getByRole('textbox', { name: 'Draft' }).fill('keep my draft')
-    await expect(devProbe).toHaveText('before-hmr')
-    await page.evaluate(() => {
-      document.documentElement.dataset.hmrSentinel = 'same-document'
-    })
-    const templateEdit = source.replace('before-hmr', 'after-hmr')
-    await writeFile(probe, templateEdit)
-    await expect(devProbe).toHaveText('after-hmr')
-    await expect(page.getByRole('textbox', { name: 'Draft' })).toHaveValue(
-      'keep my draft',
-    )
-    // The pinned watcher coalesces same-path change events for 50 ms. Model
-    // two editor saves, not two writes inside the same coalescing window.
-    await delay(100)
-    await writeFile(probe, templateEdit.replace('rgb(1, 2, 3)', 'rgb(4, 5, 6)'))
-    await expect(devProbe).toHaveCSS('color', 'rgb(4, 5, 6)')
-    await expect(page.getByRole('textbox', { name: 'Draft' })).toHaveValue(
-      'keep my draft',
-    )
-    // The sentinel lives on the document element, which no role names; the
-    // module replacement above has already settled, so one read is enough.
-    expect(
-      await page.evaluate(() => document.documentElement.dataset.hmrSentinel),
-    ).toBe('same-document')
-    expect(owner.output()).not.toContain('build 2)')
-
-    await writeFile(goProbe, 'package main\nthis is not valid Go\n', {
-      flag: 'wx',
-    })
-    goProbeCreated = true
-    await expect
-      .poll(() => owner.output())
-      .toContain('Go build failed; last working backend stays up')
-    expect((await request.get(`${origin}/health`)).ok()).toBe(true)
-    await writeFile(goProbe, 'package main\nconst devProbe = "recovered"\n')
-    await expect.poll(() => owner.output()).toContain('build 2)')
-    expect(await (await request.get(`${origin}/v1/profiles`)).json()).toEqual(
-      profilesBefore,
-    )
-    await page.reload()
-    await expect(devProbe).toHaveText('after-hmr')
-  } finally {
-    try {
-      if (owner.process.exitCode === null) {
-        const exited = once(owner.process, 'exit')
-        owner.process.stdin?.end()
-        expect(await resolvesWithin(exited, 20_000), owner.output()).toBe(true)
-      }
-    } finally {
-      await unlink(probe)
-      if (goProbeCreated) await unlink(goProbe)
-      await mkdir(testInfo.outputDir, { recursive: true })
-      await writeFile(testInfo.outputPath('dev-session.log'), owner.output())
-    }
-    expect(owner.process.exitCode, owner.output()).toBe(0)
-    await assertPortBindable(port)
-    await assertPortBindable(apiPort)
+    expect(refused.status()).toBe(404)
   }
+  expect(
+    (
+      await request.get(`${origin}/health`, {
+        headers: { Host: 'evil.example' },
+      })
+    ).ok(),
+  ).toBe(false)
+  expect(
+    (
+      await request.post(`${origin}/v1/profiles`, {
+        headers: { Origin: origin },
+        data: { name: 'no marker', lists: ['youtube'] },
+      })
+    ).status(),
+  ).toBe(403)
+  expect(
+    (
+      await request.post(`${api}/v1/profiles`, {
+        headers,
+        data: { name: 'direct foreign origin', lists: ['youtube'] },
+      })
+    ).status(),
+  ).toBe(403)
+  expect(await (await request.get(`${origin}/v1/profiles`)).json()).toEqual(
+    profilesBefore,
+  )
+
+  await page.goto(origin)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Profiles')
+  await expect(page.getByText('HMR profile', { exact: true })).toBeVisible()
+  for (const width of [320, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.screenshot({ path: testInfo.outputPath(`dev-${width}.png`) })
+    const audit = await new AxeBuilder({ page }).analyze()
+    expect(
+      audit.violations.filter(({ impact }) =>
+        ['serious', 'critical'].includes(impact ?? ''),
+      ),
+    ).toEqual([])
+  }
+  await page.keyboard.press('Tab')
+  expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe(
+    'BODY',
+  )
+
+  await page.goto(`${origin}/${probeName}`)
+  await page.getByRole('textbox', { name: 'Draft' }).fill('keep my draft')
+  await expect(devProbe).toHaveText('before-hmr')
+  await page.evaluate(() => {
+    document.documentElement.dataset.hmrSentinel = 'same-document'
+  })
+  const templateEdit = source.replace('before-hmr', 'after-hmr')
+  await writeFile(probe, templateEdit)
+  await expect(devProbe).toHaveText('after-hmr')
+  await expect(page.getByRole('textbox', { name: 'Draft' })).toHaveValue(
+    'keep my draft',
+  )
+  // The pinned watcher coalesces same-path change events for 50 ms. Model
+  // two editor saves, not two writes inside the same coalescing window.
+  await delay(100)
+  await writeFile(probe, templateEdit.replace('rgb(1, 2, 3)', 'rgb(4, 5, 6)'))
+  await expect(devProbe).toHaveCSS('color', 'rgb(4, 5, 6)')
+  await expect(page.getByRole('textbox', { name: 'Draft' })).toHaveValue(
+    'keep my draft',
+  )
+  // The sentinel lives on the document element, which no role names; the
+  // module replacement above has already settled, so one read is enough.
+  expect(
+    await page.evaluate(() => document.documentElement.dataset.hmrSentinel),
+  ).toBe('same-document')
+  expect(owner.output()).not.toContain('build 2)')
+
+  await writeFile(goProbe, 'package main\nthis is not valid Go\n', {
+    flag: 'wx',
+  })
+  await expect
+    .poll(() => owner.output())
+    .toContain('Go build failed; last working backend stays up')
+  expect((await request.get(`${origin}/health`)).ok()).toBe(true)
+  await writeFile(goProbe, 'package main\nconst devProbe = "recovered"\n')
+  await expect.poll(() => owner.output()).toContain('build 2)')
+  expect(await (await request.get(`${origin}/v1/profiles`)).json()).toEqual(
+    profilesBefore,
+  )
+  await page.reload()
+  await expect(devProbe).toHaveText('after-hmr')
+
+  // Owned cleanup is this session's last claim, and it is asserted here rather
+  // than in teardown: closing stdin stops the supervisor, it reports a clean
+  // exit, and both ports it held are bindable again.
+  const exited = once(owner.process, 'exit')
+  owner.process.stdin?.end()
+  expect(
+    await resolvesWithin(exited, EXIT_TIMEOUT_MILLISECONDS),
+    owner.output(),
+  ).toBe(true)
+  expect(owner.process.exitCode, owner.output()).toBe(0)
+  await assertPortBindable(port)
+  await assertPortBindable(apiPort)
 })
 
 test('abrupt Windows supervisor termination releases its servers', async ({
   request,
+  session,
 }, testInfo) => {
   test.skip(process.platform !== 'win32', 'Windows Job Object behavior')
-  const root = resolve(import.meta.dirname, '../../..')
   const port = await reserveLoopbackPort()
   const apiPort = await reserveLoopbackPort()
   const origin = `http://127.0.0.1:${port}`
-  const owner = spawnProduct(
-    'python',
-    [
-      'tools/dev_server.py',
-      '--port',
-      String(port),
-      '--api-port',
-      String(apiPort),
-      '--no-browser',
-      '--data-dir',
-      testInfo.outputPath('abrupt-data'),
-      '--catalog-dir',
-      'testdata/expiry/browser-catalog',
-    ],
-    { cwd: root, stdio: 'pipe', windowsHide: true },
-  )
-  let childPids: number[] = []
-  try {
-    await expect
-      .poll(
-        () => {
-          owner.assertAlive()
-          return owner.output()
-        },
-        { timeout: 90_000 },
-      )
-      .toContain('[dev] Ready:')
-    expect((await request.get(`${origin}/health`)).ok()).toBe(true)
-    childPids = [...owner.output().matchAll(/PID (\d+)/g)].map((match) =>
-      Number(match[1]),
+  const owner = session.start([
+    'tools/dev_server.py',
+    '--port',
+    String(port),
+    '--api-port',
+    String(apiPort),
+    '--no-browser',
+    '--data-dir',
+    testInfo.outputPath('abrupt-data'),
+    '--catalog-dir',
+    'testdata/expiry/browser-catalog',
+  ])
+  await expect
+    .poll(
+      () => {
+        owner.assertAlive()
+        return owner.output()
+      },
+      { timeout: 90_000 },
     )
-    expect(childPids).toHaveLength(2)
-    expect(childPids.every(processIsRunning)).toBe(true)
+    .toContain('[dev] Ready:')
+  expect((await request.get(`${origin}/health`)).ok()).toBe(true)
+  const childPids = reportedPids(owner.output())
+  expect(childPids).toHaveLength(2)
+  expect(childPids.every(processIsRunning)).toBe(true)
 
-    const exited = once(owner.process, 'exit')
-    // On Windows ChildProcess.kill calls TerminateProcess for this PID; it does
-    // not ask the supervisor to perform its normal stdin/CTRL_BREAK cleanup.
-    expect(owner.process.kill()).toBe(true)
-    expect(await resolvesWithin(exited, 10_000), owner.output()).toBe(true)
-    await expect
-      .poll(() => childPids.every((pid) => !processIsRunning(pid)))
-      .toBe(true)
-    await expect
-      .poll(async () => {
-        try {
-          await assertPortBindable(port)
-          await assertPortBindable(apiPort)
-          return true
-        } catch {
-          return false
-        }
-      })
-      .toBe(true)
-  } finally {
-    if (owner.isAlive()) {
-      const exited = once(owner.process, 'exit')
-      owner.process.stdin?.end()
-      if (!(await resolvesWithin(exited, 20_000))) owner.process.kill()
-    }
-    for (const pid of childPids.filter(processIsRunning)) {
-      spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
-        stdio: 'ignore',
-        windowsHide: true,
-      })
-    }
-    await mkdir(testInfo.outputDir, { recursive: true })
-    await writeFile(testInfo.outputPath('abrupt-session.log'), owner.output())
-  }
+  const exited = once(owner.process, 'exit')
+  // On Windows ChildProcess.kill calls TerminateProcess for this PID; it does
+  // not ask the supervisor to perform its normal stdin/CTRL_BREAK cleanup.
+  expect(owner.process.kill()).toBe(true)
+  expect(await resolvesWithin(exited, 10_000), owner.output()).toBe(true)
+  await expect
+    .poll(() => childPids.every((pid) => !processIsRunning(pid)))
+    .toBe(true)
+  await expect
+    .poll(async () => {
+      try {
+        await assertPortBindable(port)
+        await assertPortBindable(apiPort)
+        return true
+      } catch {
+        return false
+      }
+    })
+    .toBe(true)
 })
-
-const processIsRunning = (pid: number): boolean => {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
-  }
-}

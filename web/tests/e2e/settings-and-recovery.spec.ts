@@ -17,7 +17,33 @@ import {
   pressSegment,
 } from './support/flows'
 import { deviceField, refreshInterval, segmentOption } from './support/queries'
-import { test } from './support/served-product'
+import { test as servedProduct } from './support/served-product'
+
+/**
+ * The categories a test commits to the product.
+ *
+ * Both language cases of this suite read the same library, so a category one of
+ * them makes has to be gone before the other runs — whether the test that made
+ * it passed or failed. A test hands the id it created here and states nothing
+ * about removing it, which keeps the removal and its own answer out of a
+ * `finally` block that would otherwise report cleanup instead of the failure.
+ */
+const test = servedProduct.extend<{ ownedCategories: string[] }>({
+  ownedCategories: async ({ origin, page }, use) => {
+    const owned: string[] = []
+    await use(owned)
+    for (const id of owned) {
+      const removed = await page.request.post(
+        `${origin}/v1/categories/${id}/remove`,
+        {
+          data: { lists: 'detach' },
+          headers: { 'X-Routevane-Request': '1' },
+        },
+      )
+      expect(removed.status()).toBe(204)
+    }
+  },
+})
 
 // The surface negotiates its language from the browser, and English is the
 // product's primary language. `productData` is this suite's own data
@@ -246,13 +272,12 @@ for (const language of ['en', 'ru'] as const) {
     test('library audit: a committed category waits for GET recovery without a second write', async ({
       page,
       origin,
+      ownedCategories,
       assertProductAlive,
     }) => {
       test.setTimeout(120000)
-      const headers = { 'X-Routevane-Request': '1' }
       const categoryTitle = `Stale browser ${Date.now()}`
       let failCatalogRead = false
-      let categoryID = ''
       const categoryWrites: string[] = []
 
       page.on('request', (request) => {
@@ -308,9 +333,10 @@ for (const language of ['en', 'ru'] as const) {
           .click()
         const createdResponse = await created
         expect(createdResponse.status()).toBe(201)
-        categoryID = (
-          (await createdResponse.json()) as { category: { id: string } }
-        ).category.id
+        ownedCategories.push(
+          ((await createdResponse.json()) as { category: { id: string } })
+            .category.id,
+        )
 
         await expect(form).toBeHidden()
         await expect(page.getByRole('status')).toContainText(
@@ -330,13 +356,6 @@ for (const language of ['en', 'ru'] as const) {
       } finally {
         failCatalogRead = false
         await page.unroute('**/v1/lists')
-        if (categoryID !== '') {
-          const removed = await page.request.post(
-            `${origin}/v1/categories/${categoryID}/remove`,
-            { headers, data: { lists: 'detach' } },
-          )
-          expect(removed.status()).toBe(204)
-        }
       }
     })
   })

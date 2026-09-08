@@ -26,6 +26,14 @@ import { test } from './support/served-product'
 // again when the suite ends.
 test.use({ locale: 'en-US', productData: 'workspace-shell' })
 
+// The sections whose content is a workspace frame that fills the window, each
+// with the frame it owns. A frame is the box its table scrolls inside and has
+// neither a role nor a name, so the test hook it carries is its only handle.
+const WORKSPACE_FRAMES = [
+  { path: '/profiles/new', testID: 'rv-list-picker-frame' },
+  { path: '/lists', testID: 'rv-lists-workspace' },
+]
+
 /**
  * Every overlay on this surface is portalled out of the component that owns it,
  * and a scoped rule that stops matching there takes the panel's ground and edge
@@ -114,24 +122,24 @@ test('workspace pages share geometry and the category panel supports keyboard se
       }))
       reference ??= geometry
       expect(geometry).toEqual(reference)
-      if (path === '/profiles/new' || path === '/lists') {
-        const frame = page.getByTestId(
-          path === '/profiles/new'
-            ? 'rv-list-picker-frame'
-            : 'rv-lists-workspace',
-        )
-        await expect(frame).toBeVisible()
-        expect(
-          await frame.evaluate(
-            (element) => element.scrollWidth - element.clientWidth,
-          ),
-        ).toBe(0)
-        expect(
-          await page.evaluate(
-            () => document.documentElement.scrollHeight - innerHeight,
-          ),
-        ).toBeLessThanOrEqual(1)
-      }
+    }
+    // Two of those sections fill the window with a workspace frame of their
+    // own, which must fit its box without a scrollbar of its own or one on the
+    // document. The frame belongs to the section, so the pair names it.
+    for (const { path, testID } of WORKSPACE_FRAMES) {
+      await page.goto(`${origin}${path}`)
+      const frame = page.getByTestId(testID)
+      await expect(frame).toBeVisible()
+      expect(
+        await frame.evaluate(
+          (element) => element.scrollWidth - element.clientWidth,
+        ),
+      ).toBe(0)
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollHeight - innerHeight,
+        ),
+      ).toBeLessThanOrEqual(1)
     }
   }
   await page.goto(`${origin}/profiles/new`)

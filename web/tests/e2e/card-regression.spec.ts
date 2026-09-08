@@ -32,6 +32,15 @@ import { test } from './support/served-product'
 // again when the suite ends.
 test.use({ locale: 'en-US', productData: 'card-regression' })
 
+// The two widths the card's geometry is measured at, each with the surface the
+// card must have mounted by the time it is measured: a modal panel at the audit
+// width, the workspace's docked sheet at the wide one. The expectation belongs
+// to the width, so the case carries it instead of the body branching on it.
+const CARD_WIDTHS = [
+  { docked: false, width: 320 },
+  { docked: true, width: 1919 },
+]
+
 for (const language of ['en', 'ru'] as const) {
   test.describe(`card regression ${language}`, () => {
     test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
@@ -129,13 +138,17 @@ for (const language of ['en', 'ru'] as const) {
         const filter = compose.getByRole('searchbox', {
           name: copy('listCard.filter'),
         })
-        for (const width of [320, 1919]) {
+        for (const { docked, width } of CARD_WIDTHS) {
           await page.setViewportSize({ width, height: 900 })
           // ResizeObserver moves the card between modal and workspace surfaces.
           // Measure after the requested mode has mounted, not the outgoing tree.
-          if (width === 1919)
-            await expect(compose).toHaveClass(/rv-dialog--docked/)
-          else await expect(compose).not.toHaveClass(/rv-dialog--docked/)
+          await expect
+            .poll(async () =>
+              ((await compose.getAttribute('class')) ?? '').includes(
+                'rv-dialog--docked',
+              ),
+            )
+            .toBe(docked)
           await filter.fill('')
           await expect(cardRows(compose)).toHaveCount(domains.length)
           const normalRowBox = await cardRow(
@@ -175,8 +188,13 @@ for (const language of ['en', 'ru'] as const) {
           await filter.fill('long')
           await expect(cardRows(compose)).toHaveCount(1)
           const longRowBox = await cardRows(compose).first().boundingBox()
-          if (width === 320)
-            expect(longRowBox?.height ?? 0).toBeGreaterThan(referenceHeight)
+          // The long value is deliberately wider than the card at either
+          // width, the docked sheet included, so its row has to wrap past the
+          // reference line rather than be clipped to it.
+          expect(
+            longRowBox!.height,
+            JSON.stringify({ referenceHeight, width }),
+          ).toBeGreaterThan(referenceHeight)
 
           await filter.fill('no-such-card-entry')
           await expect(cardRows(compose)).toHaveCount(0)
@@ -260,23 +278,31 @@ for (const language of ['en', 'ru'] as const) {
           await expect(libraryClose).toBeDisabled()
           await page.keyboard.press('Escape')
           await expect(library).toBeVisible()
-          if (
-            (await library.getAttribute('class'))?.includes('rv-dialog--docked')
-          ) {
-            await expect(page.getByTestId('rv-workspace-main')).toHaveAttribute(
-              'inert',
-            )
-            const other = await libraryRowName(
-              bodyRows(libraryRegion(page, copy)).first(),
-            ).boundingBox()
-            await page.mouse.click(
-              other!.x + other!.width / 2,
-              other!.y + other!.height / 2,
-            )
-            await expect(library).toHaveAccessibleName(title)
-          } else {
-            await dialogScrims(page).last().dispatchEvent('pointerdown')
-          }
+
+          // The card has a dismissal path per surface and the width decides
+          // which surface it is on, so each is set here rather than probed:
+          // both must refuse while the refresh has no result. Docked, the
+          // workspace behind the sheet is inert, so pressing another list's
+          // row cannot swap the card for that list's.
+          await page.setViewportSize({ width: 1919, height: 900 })
+          await expect(library).toHaveClass(/rv-dialog--docked/)
+          await expect(page.getByTestId('rv-workspace-main')).toHaveAttribute(
+            'inert',
+          )
+          const other = await libraryRowName(
+            bodyRows(libraryRegion(page, copy)).first(),
+          ).boundingBox()
+          await page.mouse.click(
+            other!.x + other!.width / 2,
+            other!.y + other!.height / 2,
+          )
+          await expect(library).toHaveAccessibleName(title)
+          await expect(library).toBeVisible()
+
+          // As a modal panel, the dimming layer behind it is the other way out.
+          await page.setViewportSize({ width: 320, height: 900 })
+          await expect(library).not.toHaveClass(/rv-dialog--docked/)
+          await dialogScrims(page).last().dispatchEvent('pointerdown')
           await expect(library).toBeVisible()
         } finally {
           releaseRefresh()
@@ -448,7 +474,10 @@ for (const language of ['en', 'ru'] as const) {
       const daily = segmentOption(page, copy('settings.refresh.daily'))
       const weekly = segmentOption(page, copy('settings.refresh.weekly'))
       await expect(daily).toBeChecked()
-      for (const success of [false, true]) {
+      // One attempt at the weekly rule: the choice stays on the confirmed
+      // value and refuses further presses while the write is held, and settles
+      // on whichever value the answer leaves standing.
+      const attempt = async (settled: 'daily' | 'weekly'): Promise<void> => {
         await pressSegment(page, copy('settings.refresh.weekly'))
         await expect(
           page
@@ -460,19 +489,23 @@ for (const language of ['en', 'ru'] as const) {
         await expect(daily).toBeDisabled()
         release()
         await expect(daily).toBeEnabled()
-        await expect(daily).toBeChecked({ checked: !success })
-        await expect(weekly).toBeChecked({ checked: success })
-        if (!success) {
-          await expect(
-            page
-              .getByRole('status')
-              .filter({ hasText: copy('settings.refresh.failed') }),
-          ).toBeVisible()
-          hold = new Promise<void>((resolve) => {
-            release = resolve
-          })
-        }
+        await expect(daily).toBeChecked({ checked: settled === 'daily' })
+        await expect(weekly).toBeChecked({ checked: settled === 'weekly' })
       }
+
+      // The refused write leaves the confirmed value in place and says so.
+      await attempt('daily')
+      await expect(
+        page
+          .getByRole('status')
+          .filter({ hasText: copy('settings.refresh.failed') }),
+      ).toBeVisible()
+      // The retry runs against a second held answer, which is the one that
+      // succeeds, so the new value is what the surface confirms.
+      hold = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      await attempt('weekly')
       expect(writes).toBe(2)
     })
 
