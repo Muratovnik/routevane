@@ -7,8 +7,9 @@
  */
 
 import { expect } from '@playwright/test'
+import { join } from 'node:path'
 
-import { audit } from './support/audits'
+import { audit, reviewRoot } from './support/audits'
 import { englishCopy } from './support/copy'
 import { buildProfile, openFormats } from './support/flows'
 import {
@@ -160,6 +161,9 @@ test('the device form asks only for fields the selected target needs', async ({
   // Every field is addressed by the caption the chosen target's own
   // requirements give it, which is the same fact the label assertions used to
   // state separately.
+  await page
+    .getByRole('button', { name: 'Add a connection', exact: true })
+    .click()
   const target = deviceField(page, 'devices.field.target')
   await expect(target).toBeEnabled()
   for (const absent of [
@@ -189,6 +193,12 @@ test('the device form asks only for fields the selected target needs', async ({
   ).toBeVisible()
   await keeneticAddress.fill('http://192.168.1.1')
   await deviceField(page, 'deploy.field.account.keenetic').fill('admin')
+  await expect(
+    page.getByRole('button', { name: 'Save', exact: true }),
+  ).toBeInViewport({ ratio: 1 })
+  await page.screenshot({
+    path: join(reviewRoot, 'connection-create-final.png'),
+  })
 
   await target.click()
   await page.getByRole('option', { name: 'sing-box' }).click()
@@ -204,6 +214,43 @@ test('the device form asks only for fields the selected target needs', async ({
   )
   await expect(
     deviceField(page, 'deploy.field.interface.keenetic'),
+  ).toHaveCount(0)
+  await deviceField(page, 'devices.field.name').fill('Local client')
+  await singBoxAddress.fill('file:///C:/sing-box/config.json')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(
+    page.getByRole('dialog', { name: 'Add a connection', exact: true }),
+  ).toHaveCount(0)
+  await page
+    .getByRole('button', { name: 'Add a connection', exact: true })
+    .click()
+  await expect(deviceField(page, 'devices.field.name')).toHaveValue('')
+  await expect(
+    page.getByText('Fill in this field', { exact: true }),
+  ).toHaveCount(0)
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await page
+    .getByRole('button', {
+      name: 'Configure connection Local client',
+      exact: true,
+    })
+    .click()
+  const details = page.getByRole('dialog', {
+    name: 'Local client',
+    exact: true,
+  })
+  await expect(
+    details.getByText('file:///C:/sing-box/config.json', { exact: true }),
+  ).toBeVisible()
+  await details
+    .getByRole('button', { name: 'Forget this connection', exact: true })
+    .click()
+  await expect(details).toHaveCount(0)
+  await expect(
+    page.getByRole('button', {
+      name: 'Configure connection Local client',
+      exact: true,
+    }),
   ).toHaveCount(0)
 })
 

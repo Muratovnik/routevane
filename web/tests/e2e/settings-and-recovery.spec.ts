@@ -120,8 +120,12 @@ test('the server refresh setting cannot race while a write is pending', async ({
 
   await page.goto(`${origin}/settings`)
   await expect(segmentOption(page, 'Daily')).toBeEnabled()
+  await page.setViewportSize({ width: 1920, height: 900 })
+  const settings = page.getByRole('region', { name: 'Settings', exact: true })
+  const readyHeight = (await settings.boundingBox())!.height
   await pressSegment(page, 'Daily')
   await expect(page.getByText('Saving the rule…')).toBeVisible()
+  expect((await settings.boundingBox())!.height).toBe(readyHeight)
   const refreshRadios = refreshInterval(page).getByRole('radio')
   await expect(refreshRadios).toHaveCount(3)
   for (let index = 0; index < 3; index++)
@@ -130,6 +134,7 @@ test('the server refresh setting cannot race while a write is pending', async ({
 
   release()
   await expect(page.getByText('Saving the rule…')).toHaveCount(0)
+  expect((await settings.boundingBox())!.height).toBe(readyHeight)
   await page.unroute('**/v1/settings/update')
   await pressSegment(page, 'Off')
   await expect(segmentOption(page, 'Off')).toBeChecked()
@@ -191,7 +196,10 @@ for (const language of ['en', 'ru'] as const) {
         failRequirements = false
         await page
           .getByRole('region', { name: copy('connections.title') })
-          .getByRole('button', { name: copy('action.retry') })
+          .getByRole('button', { name: copy('action.retry'), exact: true })
+          .click()
+        await page
+          .getByRole('button', { name: copy('devices.add'), exact: true })
           .click()
         const target = deviceField(page, 'devices.field.target', copy)
         await expect(target).toBeEnabled()

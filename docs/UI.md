@@ -187,8 +187,9 @@ Sections, addressable by URL:
    category holds it, for every profile at once (ADR 0029). It uses the same
    dense catalog table, search and category filter as the composer, with list
    management actions in place of membership checkboxes. Category labels use
-   the same identity colors. The filter includes «Без категории»; «Категории»
-   opens category management with a create action at its foot. «Новый список»
+   the same identity colors. The filter includes «Без категории»; a labelled
+   «+» tag beside the filters opens category management with a create action
+   at its foot. «Новый список»
    creates a list or adds an existing one to the selected category. A category's
    menu renames the operator's own category and deletes any category — a catalog
    category included, because deletion is a record in the operator's overlay
@@ -215,7 +216,11 @@ Sections, addressable by URL:
    has a deployer, and the by-hand path always stated below it.
 6. `/connections` — **Connections / Подключения** (ADR 0027; `/devices`
    redirects here). One section answers «куда»: registered devices and
-   applications first, with the catalog-backed «Добавить подключение» form.
+   applications first. The primary «Добавить подключение» action opens a
+   catalog-backed creation dialog; closing it preserves its draft within this
+   page. Each saved row opens its own configuration dialog for delivery
+   permission and forgetting the connection. Saved settings never imply
+   verified reachability or successful delivery.
    Router login and route-interface fields are required when the selected
    deployer needs them; the interface help names the Keenetic ID format. A
    saved connection does not send anything. After registration the screen says
@@ -227,8 +232,11 @@ Sections, addressable by URL:
    is unavailable, the screen keeps known devices readable and states exactly
    which actions cannot be trusted yet.
 7. `/settings` — **Настройки.** Language, theme (system/dark/light), detail
-   mode, the server's address, and portable configuration transfer. Preferences
-   live here, not in the chrome. Transfer starts with a product-styled file
+   mode, the default source-refresh schedule, and portable configuration
+   transfer. Preferences use aligned label/value rows in a bounded reading
+   area. The server's address is secondary information in a disclosure below
+   transfer. Export and import are separate actions. Preferences live here,
+   not in the chrome. Import starts with a product-styled file
    surface backed by the labelled native file chooser, supports dropping a file,
    keeps the chosen file visible while reading or checking it, then shows a
    server-owned preview before enabling the confirmation. Confirmation applies
@@ -304,6 +312,18 @@ the thing that will happen.
 
 ## State and honesty
 
+- Page headers share title geometry and a 44 CSS px primary action. Compact
+  actions belong to rows and filters. Changing sections must not change the
+  outer content alignment when a scrollbar appears.
+- A list is fully read only when every enabled source has a successful current
+  read. Empty successful feeds count; a saved format, old catalog revision,
+  expired observations or failed source do not establish readiness. A partial
+  refresh shows committed rows together with its failure. Forecasts identify
+  lists needing refresh and retain the calculation for usable lists.
+- Loading reserves space immediately and becomes visible after the shared
+  160 ms delay, including reduced motion. Replacing the same list object does
+  not clear its filter or restart its card; changing identity does not expose
+  the previous list's contents under the new title.
 - Every screen state is `loading`, `ready`, `empty`, `degraded` or `error`, and
   every one of them says what is there or missing, why, and what to do next.
   `RvStateNotice` is that shape; a screen does not invent a sixth.

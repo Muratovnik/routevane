@@ -77,13 +77,15 @@ describe('the shape of a value', () => {
     answer({ refresh: {} })
     await expect(refreshList('discord')).resolves.toEqual({
       skippedEntries: 0,
+      failedRuns: 0,
     })
   })
 
   it('preserves skipped source entries and refuses malformed counts', async () => {
-    answer({ refresh: { skipped_entries: 2 } })
+    answer({ refresh: { skipped_entries: 2, failed_runs: 1 } })
     await expect(refreshList('kinopub')).resolves.toEqual({
       skippedEntries: 2,
+      failedRuns: 1,
     })
     for (const payload of [
       {},
@@ -91,6 +93,8 @@ describe('the shape of a value', () => {
       { refresh: { skipped_entries: -1 } },
       { refresh: { skipped_entries: 1.5 } },
       { refresh: { skipped_entries: '1' } },
+      { refresh: { failed_runs: -1 } },
+      { refresh: { failed_runs: '1' } },
     ]) {
       answer(payload)
       await expect(refreshList('kinopub')).rejects.toBeInstanceOf(

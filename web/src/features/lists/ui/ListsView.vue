@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import { useWorkspaceInspection } from '@/shared/model/useWorkspacePane'
 import { useSortable } from '@vueuse/integrations/useSortable'
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
@@ -595,28 +596,18 @@ const submitPriority = async (): Promise<void> => {
 
 <template>
   <section aria-labelledby="lists-title" class="lists">
-    <header class="lists__header">
-      <h1 id="lists-title" class="lists__title">{{ t('lists.title') }}</h1>
-      <div class="lists__actions">
-        <RvButton
-          :disabled="library.busy.value"
-          size="compact"
-          @click="categoriesOpen = true"
-          >{{ t('lists.manageCategories') }}</RvButton
-        >
-        <RvButton
-          :disabled="
-            library.state.value !== 'ready' ||
-            library.busy.value ||
-            library.stale.value
-          "
-          size="compact"
-          variant="primary"
-          @click="startCreateList"
-          ><RvIcon name="plus" />{{ t('lists.addList') }}</RvButton
-        >
-      </div>
-    </header>
+    <RvPageHeader title-id="lists-title" :title="t('lists.title')">
+      <RvButton
+        :disabled="
+          library.state.value !== 'ready' ||
+          library.busy.value ||
+          library.stale.value
+        "
+        variant="primary"
+        @click="startCreateList"
+        ><RvIcon name="plus" />{{ t('lists.addList') }}</RvButton
+      >
+    </RvPageHeader>
 
     <RvStateNotice
       v-if="library.state.value === 'loading'"
@@ -661,6 +652,8 @@ const submitPriority = async (): Promise<void> => {
         :categories="library.categories.value"
         :lists="library.lists.value"
         :disabled="library.busy.value"
+        :action-label="t('lists.manageCategories')"
+        @action="categoriesOpen = true"
       />
       <div v-if="priorityDirty" class="lists__order-bar">
         <RvButton
@@ -1093,32 +1086,17 @@ const submitPriority = async (): Promise<void> => {
   height: 100%;
 }
 
-.lists__title {
-  font-size: var(--rv-text-page);
-  line-height: var(--rv-leading-tight);
-  letter-spacing: var(--rv-tracking-title);
-}
-
-.lists__header,
-.lists__actions,
 .lists__order-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--rv-space-3);
-}
-
-.lists__header {
-  justify-content: space-between;
+  font-size: var(--rv-text-meta);
+  color: var(--rv-color-ink-muted);
 }
 
 .lists__details-title {
   font-size: var(--rv-text-dense);
-}
-
-.lists__order-bar {
-  font-size: var(--rv-text-meta);
-  color: var(--rv-color-ink-muted);
 }
 
 .lists__priority-help {

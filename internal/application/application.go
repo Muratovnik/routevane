@@ -24,11 +24,12 @@ var (
 	// ErrSourceDegraded reports that every failed cycle is inside its grace
 	// window, so the stored observations remain usable and a build can still
 	// publish a reason-coded artifact.
-	ErrSourceDegraded  = errors.New("one or more source cycles failed inside their grace window")
-	ErrFormatMismatch  = errors.New("effective profile does not match catalog")
-	ErrPreflight       = errors.New("routing plan preflight failed")
-	ErrRuleLimit       = errors.New("routing plan exceeds target rule limit")
-	ErrPartialCoverage = errors.New("required routing coverage is incomplete")
+	ErrSourceDegraded             = errors.New("one or more source cycles failed inside their grace window")
+	ErrFormatMismatch             = errors.New("effective profile does not match catalog")
+	ErrObservationRevisionChanged = errors.New("observations were prepared for a previous catalog revision")
+	ErrPreflight                  = errors.New("routing plan preflight failed")
+	ErrRuleLimit                  = errors.New("routing plan exceeds target rule limit")
+	ErrPartialCoverage            = errors.New("required routing coverage is incomplete")
 )
 
 type Clock interface {
@@ -283,8 +284,11 @@ func prepareLists(ctx context.Context, definitions []domain.ListDefinition, acti
 		if err != nil {
 			return PreparedPlan{}, fmt.Errorf("read planning snapshot for %q: %w", definition.ID, err)
 		}
-		if snapshot.Format.CatalogRevision != definition.CatalogRevision || snapshot.Format.ListID != definition.ID || snapshot.Format.FormatKey != rawFormat.FormatKey || snapshot.Format.TargetID != rawFormat.ID || snapshot.Format.RendererID != rawFormat.RendererID {
+		if snapshot.Format.ListID != definition.ID || snapshot.Format.FormatKey != rawFormat.FormatKey || snapshot.Format.TargetID != rawFormat.ID || snapshot.Format.RendererID != rawFormat.RendererID {
 			return PreparedPlan{}, ErrFormatMismatch
+		}
+		if snapshot.Format.CatalogRevision != definition.CatalogRevision {
+			return PreparedPlan{}, fmt.Errorf("%w: %w", ErrFormatMismatch, ErrObservationRevisionChanged)
 		}
 		inputs = append(inputs, planner.ListInput{Definition: definition, Sightings: snapshot.Sightings, Relations: snapshot.Relations, Degraded: DegradedSources(snapshot.SourceHealth, activeRevisions[definition.ID], cutoff)})
 	}

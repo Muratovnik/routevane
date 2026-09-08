@@ -117,6 +117,19 @@ const ru: Dictionary = {
   'devices.empty.body':
     'Добавьте роутер или приложение, чтобы отправлять файлы прямо на него.',
   'devices.add': 'Добавить подключение',
+  'devices.configure': 'Настроить',
+  'devices.configure.aria': 'Настроить подключение {name}',
+  'devices.auto.title': 'Автоматическая отправка',
+  'devices.auto.off': 'Автоотправка выключена',
+  'configTransfer.export.title': 'Экспорт',
+  'configTransfer.export.body':
+    'Сохраните списки, профили и параметры подключений в файл. Пароли и история в него не входят.',
+  'configTransfer.import.title': 'Импорт',
+  'listCard.sourceState.unread': 'Ещё не прочитан',
+  'listCard.sourceState.ready': 'Прочитан',
+  'listCard.sourceState.stale': 'Требуется обновление',
+  'listCard.sourceState.failed': 'Ошибка чтения',
+  'listCard.sourceState.disabled': 'Выключен',
   'devices.add.submit': 'Сохранить',
   'devices.field.target': 'Устройство или приложение',
   'devices.field.target.pick': 'Выберите устройство или приложение',
@@ -143,6 +156,8 @@ const ru: Dictionary = {
     'Сервис отклонил запрос. Проверьте поля и повторите.',
   'devices.registered.router':
     'Роутер сохранён. Включите автоотправку, если хотите обновлять его без ручной загрузки.',
+  'devices.registered.manual':
+    'Подключение сохранено. Выберите его в профиле для ручной отправки.',
   'devices.registered.other':
     'Подключение сохранено. Включите автоотправку, если хотите обновлять его без ручной загрузки.',
   'devices.auto.enabled.next.router':
@@ -833,7 +848,7 @@ const ru: Dictionary = {
   'settings.mode.note':
     '«Подробно» добавляет идентификаторы, форматы и снимки сборки.',
   'settings.runtime': 'Служба',
-  'settings.refresh': 'Автообновление',
+  'settings.refresh': 'Обновление источников',
   'settings.refresh.label': 'По умолчанию',
   'settings.refresh.off': 'Выключено',
   'settings.refresh.daily': 'Раз в сутки',
@@ -1042,6 +1057,19 @@ const en: Dictionary = {
   'devices.empty.body':
     'Add a router or an application to send files straight to it.',
   'devices.add': 'Add a connection',
+  'devices.configure': 'Configure',
+  'devices.configure.aria': 'Configure connection {name}',
+  'devices.auto.title': 'Automatic delivery',
+  'devices.auto.off': 'Automatic delivery is off',
+  'configTransfer.export.title': 'Export',
+  'configTransfer.export.body':
+    'Save lists, profiles and connection settings to a file. Passwords and history are excluded.',
+  'configTransfer.import.title': 'Import',
+  'listCard.sourceState.unread': 'Not read yet',
+  'listCard.sourceState.ready': 'Read',
+  'listCard.sourceState.stale': 'Refresh needed',
+  'listCard.sourceState.failed': 'Read failed',
+  'listCard.sourceState.disabled': 'Disabled',
   'devices.add.submit': 'Save',
   'devices.field.target': 'Device or application',
   'devices.field.target.pick': 'Choose a device or application',
@@ -1069,6 +1097,8 @@ const en: Dictionary = {
     'The service refused the request. Check the fields and try again.',
   'devices.registered.router':
     'Router saved. Turn on automatic delivery if you want updates without manual upload.',
+  'devices.registered.manual':
+    'Connection saved. Choose it in a profile for manual delivery.',
   'devices.registered.other':
     'Connection saved. Turn on automatic delivery if you want updates without manual upload.',
   'devices.auto.enabled.next.router':
@@ -1732,7 +1762,7 @@ const en: Dictionary = {
   'settings.mode.expert': 'Full',
   'settings.mode.note': '“Full” adds identifiers, formats and build snapshots.',
   'settings.runtime': 'List',
-  'settings.refresh': 'Automatic refresh',
+  'settings.refresh': 'Source refresh',
   'settings.refresh.label': 'Default',
   'settings.refresh.off': 'Off',
   'settings.refresh.daily': 'Daily',

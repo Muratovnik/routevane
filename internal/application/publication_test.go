@@ -470,6 +470,7 @@ func (s *publicationFakeStore) ReadPlanningSnapshot(_ context.Context, listID st
 			if !active {
 				continue
 			}
+			snapshot.SourceHealth = append(snapshot.SourceHealth, SourceRunState{SourceID: sourceID, SourceRevision: revision, LastSuccessAt: now})
 			for _, value := range s.observedDomains[sourceID] {
 				resource, err := domain.NewDomainResource(value)
 				if err != nil {

@@ -16,6 +16,7 @@ const props = withDefaults(
     // A control whose value is still being read from the server is disabled
     // rather than hidden: the choice exists, and it is not answerable yet.
     disabled?: boolean
+    labelHidden?: boolean
   }>(),
   { disabled: false },
 )
@@ -44,7 +45,12 @@ const select = (value: string, event: Event): void => {
 
 <template>
   <fieldset class="rv-segmented" :disabled="disabled">
-    <legend class="rv-segmented__legend">{{ label }}</legend>
+    <legend
+      class="rv-segmented__legend"
+      :class="{ 'rv-segmented__legend--hidden': labelHidden }"
+    >
+      {{ label }}
+    </legend>
     <div class="rv-segmented__track">
       <label
         v-for="option in options"
@@ -98,6 +104,15 @@ const select = (value: string, event: Event): void => {
   background: var(--rv-color-surface-muted);
   border: var(--rv-border-hair) solid var(--rv-color-rule);
   border-radius: var(--rv-radius-md);
+}
+
+.rv-segmented__legend--hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .rv-segmented__option {

@@ -4,6 +4,7 @@ import { computed, useTemplateRef } from 'vue'
 import type { CategoryDetail, ListDetail } from '../model/types'
 import { useLocale } from '@/shared/i18n/useLocale'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvTooltip from '@/shared/ui/RvTooltip.vue'
 import RvSearchSelect from '@/shared/ui/RvSearchSelect.vue'
 import CategoryLabel from './CategoryLabel.vue'
 
@@ -13,10 +14,12 @@ const props = defineProps<{
   categories: CategoryDetail[]
   lists: ListDetail[]
   disabled?: boolean
+  actionLabel?: string
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: string[]]
   'update:query': [value: string]
+  action: []
 }>()
 const { t, tor, formatNumber } = useLocale()
 const search = computed({
@@ -119,6 +122,17 @@ const toggle = (id: string): void => {
           >
         </template>
       </RvSearchSelect>
+      <RvTooltip v-if="actionLabel" :text="actionLabel">
+        <button
+          class="catalog-filters__chip catalog-filters__action"
+          type="button"
+          :aria-label="actionLabel"
+          :disabled="disabled"
+          @click="emit('action')"
+        >
+          <RvIcon name="plus" />
+        </button>
+      </RvTooltip>
     </div>
     <label class="catalog-filters__search">
       <RvIcon name="search" />
@@ -206,5 +220,10 @@ const toggle = (id: string): void => {
 .catalog-filters__count {
   margin-inline-start: auto;
   color: var(--rv-color-ink-muted);
+}
+
+.catalog-filters__action {
+  min-width: var(--rv-control-compact);
+  justify-content: center;
 }
 </style>

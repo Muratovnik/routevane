@@ -351,6 +351,7 @@ export type ListContentsSource = {
   custom: boolean
   enabled: boolean
   url: string
+  state?: 'unread' | 'ready' | 'stale' | 'failed' | 'disabled'
 }
 
 export type ListContents = {
@@ -365,16 +366,20 @@ export type DomainVerdict = 'include' | 'exclude' | 'auto'
 export const loadListContents = (listID: string): Promise<ListContents> =>
   getJSON(`/v1/lists/${encodeURIComponent(listID)}/contents`, parseListContents)
 
-export type ListRefresh = { skippedEntries: number }
+export type ListRefresh = { skippedEntries: number; failedRuns: number }
 
 export const refreshList = async (listID: string): Promise<ListRefresh> => {
-  const result = await postJSON(
-    `/v1/lists/${encodeURIComponent(listID)}/refresh`,
-    {},
-    parseListRefresh,
-  )
-  await listChanges.trigger({ listID, observed: true })
-  return result
+  try {
+    return await postJSON(
+      `/v1/lists/${encodeURIComponent(listID)}/refresh`,
+      {},
+      parseListRefresh,
+    )
+  } finally {
+    // A failed cycle can still commit another source's successful material.
+    // This event marks an attempted read, not a claim of complete coverage.
+    await listChanges.trigger({ listID, observed: true })
+  }
 }
 
 export const setListSourceEnabled = async (
@@ -460,6 +465,9 @@ const contentsSourceSchema = fields({
   custom: optionalFlag,
   enabled: optionalFlag,
   url: optionalText,
+  state: v.optional(
+    v.picklist(['unread', 'ready', 'stale', 'failed', 'disabled']),
+  ),
 })
 
 const listContentsSchema = v.pipe(
@@ -688,7 +696,15 @@ const parseAcknowledgement: Decoder<true> = decode(acknowledged)
 
 const parseListRefresh: Decoder<ListRefresh> = decode(
   v.pipe(
-    fields({ refresh: fields({ skipped_entries: v.optional(count, 0) }) }),
-    v.transform(({ refresh }) => ({ skippedEntries: refresh.skipped_entries })),
+    fields({
+      refresh: fields({
+        skipped_entries: v.optional(count, 0),
+        failed_runs: v.optional(count, 0),
+      }),
+    }),
+    v.transform(({ refresh }) => ({
+      skippedEntries: refresh.skipped_entries,
+      failedRuns: refresh.failed_runs,
+    })),
   ),
 )

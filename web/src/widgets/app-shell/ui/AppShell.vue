@@ -271,6 +271,7 @@ const sections = computed<
 .shell__main {
   position: relative;
   overflow: auto;
+  scrollbar-gutter: stable;
   overscroll-behavior: contain;
   min-width: 0;
   min-height: 0;

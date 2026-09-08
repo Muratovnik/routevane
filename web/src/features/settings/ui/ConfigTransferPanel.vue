@@ -72,135 +72,154 @@ const apply = async (): Promise<void> => {
     <h2 id="settings-config-transfer" class="config-transfer__title">
       {{ t('configTransfer.title') }}
     </h2>
-
-    <div class="config-transfer__actions">
-      <RvButton
-        :disabled="transfer.downloadState.value === 'downloading'"
-        :loading="transfer.downloadState.value === 'downloading'"
-        :loading-label="t('configTransfer.download.busy')"
-        @click="transfer.download"
+    <div class="config-transfer__operations">
+      <section
+        class="config-transfer__operation"
+        :aria-label="t('configTransfer.export.title')"
       >
-        {{
-          transfer.downloadState.value === 'downloading'
-            ? t('configTransfer.download.busy')
-            : t('configTransfer.download')
-        }}
-      </RvButton>
-      <p aria-live="polite" class="config-transfer__download-status">
-        {{
-          transfer.downloadState.value === 'failed'
-            ? t('configTransfer.download.failed')
-            : ''
-        }}
-      </p>
-    </div>
-
-    <div class="config-transfer__file">
-      <p class="config-transfer__file-label">
-        {{ t('configTransfer.file.label') }}
-      </p>
-      <RvFilePicker
-        accept="application/json,.json"
-        :action-label="
-          transfer.fileName.value === ''
-            ? t('configTransfer.file.choose')
-            : t('configTransfer.file.replace')
-        "
-        :disabled="transfer.applyState.value === 'applying'"
-        :empty-label="t('configTransfer.file.empty')"
-        :file-name="transfer.fileName.value"
-        :hint="t('configTransfer.file.limit')"
-        :input-id="FILE_INPUT_ID"
-        :label="t('configTransfer.file.label')"
-        @select="onFileSelected"
-      />
-    </div>
-
-    <p class="config-transfer__boundary">
-      {{ t('configTransfer.boundary') }}
-    </p>
-    <p class="config-transfer__boundary">
-      {{ t('configTransfer.afterImport') }}
-    </p>
-
-    <RvStateNotice
-      v-if="transfer.state.value === 'reading'"
-      live
-      :title="t('configTransfer.reading')"
-      tone="busy"
-    />
-    <RvStateNotice
-      v-else-if="failureMessage !== ''"
-      live
-      :title="failureMessage"
-      tone="failed"
-    >
-      <template v-if="transfer.failure.value === 'preview'" #action>
-        <RvButton @click="transfer.previewSelected">
-          {{ t('action.retry') }}
-        </RvButton>
-      </template>
-    </RvStateNotice>
-
-    <div
-      v-if="transfer.fileName.value !== ''"
-      class="config-transfer__file-row"
-    >
-      <RvButton
-        :disabled="
-          !transfer.canPreview.value || transfer.state.value === 'previewing'
-        "
-        :loading="transfer.state.value === 'previewing'"
-        :loading-label="t('configTransfer.preview.busy')"
-        @click="transfer.previewSelected"
+        <h3 class="config-transfer__operation-title">
+          {{ t('configTransfer.export.title') }}
+        </h3>
+        <p class="config-transfer__boundary">
+          {{ t('configTransfer.export.body') }}
+        </p>
+        <div class="config-transfer__actions">
+          <RvButton
+            :disabled="transfer.downloadState.value === 'downloading'"
+            :loading="transfer.downloadState.value === 'downloading'"
+            :loading-label="t('configTransfer.download.busy')"
+            @click="transfer.download"
+          >
+            {{
+              transfer.downloadState.value === 'downloading'
+                ? t('configTransfer.download.busy')
+                : t('configTransfer.download')
+            }}
+          </RvButton>
+          <p aria-live="polite" class="config-transfer__download-status">
+            {{
+              transfer.downloadState.value === 'failed'
+                ? t('configTransfer.download.failed')
+                : ''
+            }}
+          </p>
+        </div>
+      </section>
+      <section
+        class="config-transfer__operation"
+        :aria-label="t('configTransfer.import.title')"
       >
-        {{
-          transfer.state.value === 'previewing'
-            ? t('configTransfer.preview.busy')
-            : t('configTransfer.preview')
-        }}
-      </RvButton>
-    </div>
+        <h3 class="config-transfer__operation-title">
+          {{ t('configTransfer.import.title') }}
+        </h3>
+        <div class="config-transfer__file">
+          <RvFilePicker
+            accept="application/json,.json"
+            :action-label="
+              transfer.fileName.value === ''
+                ? t('configTransfer.file.choose')
+                : t('configTransfer.file.replace')
+            "
+            :disabled="transfer.applyState.value === 'applying'"
+            :empty-label="t('configTransfer.file.empty')"
+            :file-name="transfer.fileName.value"
+            :hint="t('configTransfer.file.limit')"
+            :input-id="FILE_INPUT_ID"
+            :label="t('configTransfer.file.label')"
+            @select="onFileSelected"
+          />
+        </div>
 
-    <RvStateNotice
-      v-if="transfer.state.value === 'previewing'"
-      live
-      :title="t('configTransfer.preview.busy')"
-      tone="busy"
-    />
+        <p class="config-transfer__boundary">
+          {{ t('configTransfer.boundary') }}
+        </p>
+        <p class="config-transfer__boundary">
+          {{ t('configTransfer.afterImport') }}
+        </p>
 
-    <div
-      v-if="transfer.preview.value !== null"
-      aria-labelledby="config-transfer-preview"
-      class="config-transfer__preview"
-      role="region"
-    >
-      <h3 id="config-transfer-preview" class="config-transfer__preview-title">
-        {{ t('configTransfer.preview.title') }}
-      </h3>
-      <ul class="config-transfer__counts">
-        <li v-for="row in countRows" :key="row.key">{{ row.text }}</li>
-      </ul>
-      <ul
-        v-if="transfer.preview.value.warnings.length > 0"
-        class="config-transfer__warnings"
-      >
-        <li
-          v-for="(warning, index) in transfer.preview.value.warnings"
-          :key="`${warning}-${index}`"
+        <RvStateNotice
+          v-if="transfer.state.value === 'reading'"
+          live
+          :title="t('configTransfer.reading')"
+          tone="busy"
+        />
+        <RvStateNotice
+          v-else-if="failureMessage !== ''"
+          live
+          :title="failureMessage"
+          tone="failed"
         >
-          {{ t(`configTransfer.warning.${warning}`) }}
-        </li>
-      </ul>
-      <RvButton
-        :disabled="!transfer.canApply.value"
-        variant="primary"
-        @click="requestConfirmation"
-      >
-        {{ t('configTransfer.apply.review') }}
-      </RvButton>
-    </div>
+          <template v-if="transfer.failure.value === 'preview'" #action>
+            <RvButton @click="transfer.previewSelected">
+              {{ t('action.retry') }}
+            </RvButton>
+          </template>
+        </RvStateNotice>
 
+        <div
+          v-if="transfer.fileName.value !== ''"
+          class="config-transfer__file-row"
+        >
+          <RvButton
+            :disabled="
+              !transfer.canPreview.value ||
+              transfer.state.value === 'previewing'
+            "
+            :loading="transfer.state.value === 'previewing'"
+            :loading-label="t('configTransfer.preview.busy')"
+            @click="transfer.previewSelected"
+          >
+            {{
+              transfer.state.value === 'previewing'
+                ? t('configTransfer.preview.busy')
+                : t('configTransfer.preview')
+            }}
+          </RvButton>
+        </div>
+
+        <RvStateNotice
+          v-if="transfer.state.value === 'previewing'"
+          live
+          :title="t('configTransfer.preview.busy')"
+          tone="busy"
+        />
+
+        <div
+          v-if="transfer.preview.value !== null"
+          aria-labelledby="config-transfer-preview"
+          class="config-transfer__preview"
+          role="region"
+        >
+          <h3
+            id="config-transfer-preview"
+            class="config-transfer__preview-title"
+          >
+            {{ t('configTransfer.preview.title') }}
+          </h3>
+          <ul class="config-transfer__counts">
+            <li v-for="row in countRows" :key="row.key">{{ row.text }}</li>
+          </ul>
+          <ul
+            v-if="transfer.preview.value.warnings.length > 0"
+            class="config-transfer__warnings"
+          >
+            <li
+              v-for="(warning, index) in transfer.preview.value.warnings"
+              :key="`${warning}-${index}`"
+            >
+              {{ t(`configTransfer.warning.${warning}`) }}
+            </li>
+          </ul>
+          <RvButton
+            :disabled="!transfer.canApply.value"
+            variant="primary"
+            @click="requestConfirmation"
+          >
+            {{ t('configTransfer.apply.review') }}
+          </RvButton>
+        </div>
+      </section>
+    </div>
     <RvDialog
       v-model:open="confirming"
       :close-label="t('action.close')"
@@ -255,6 +274,30 @@ const apply = async (): Promise<void> => {
   gap: var(--rv-space-5);
   padding-top: var(--rv-space-6);
   border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+  container: config-transfer / inline-size;
+}
+
+.config-transfer__operations {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--rv-space-8);
+}
+
+.config-transfer__operation {
+  display: grid;
+  align-content: start;
+  gap: var(--rv-space-4);
+  min-width: 0;
+}
+
+.config-transfer__operation-title {
+  font-size: var(--rv-text-module);
+}
+
+@container config-transfer (width < 48rem) {
+  .config-transfer__operations {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .config-transfer__actions,
@@ -281,13 +324,6 @@ const apply = async (): Promise<void> => {
 .config-transfer__download-status {
   min-height: var(--rv-leading-normal);
   color: var(--rv-color-status-failed);
-}
-
-.config-transfer__file-label {
-  color: var(--rv-color-ink);
-  font-weight: 600;
-  font-size: var(--rv-text-dense);
-  letter-spacing: var(--rv-tracking-label);
 }
 
 .config-transfer__file-row {

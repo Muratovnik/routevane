@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import { computed, onMounted } from 'vue'
 
 import { useProfiles } from '@/features/profiles/model/useProfiles'
@@ -171,16 +172,13 @@ const onMenu = (card: ProfileCard, key: string): void => {
 
 <template>
   <section aria-labelledby="profiles-title" class="profiles">
-    <header class="profiles__header">
-      <h1 id="profiles-title" class="profiles__title">
-        {{ t('profiles.title') }}
-      </h1>
+    <RvPageHeader title-id="profiles-title" :title="t('profiles.title')">
       <p class="profiles__copy-message" role="status">{{ copyMessage }}</p>
       <RvButton to="/profiles/new" variant="primary">
         <RvIcon name="plus" />
         {{ t('profiles.new') }}
       </RvButton>
-    </header>
+    </RvPageHeader>
 
     <RvStateNotice
       v-if="library.state.value === 'ready' && importedCount > 0"
@@ -336,21 +334,6 @@ const onMenu = (card: ProfileCard, key: string): void => {
   display: grid;
   gap: var(--rv-space-4);
   width: 100%;
-}
-
-.profiles__header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-4);
-  align-items: center;
-  justify-content: space-between;
-}
-
-.profiles__title {
-  margin-inline-end: auto;
-  font-size: var(--rv-text-page);
-  line-height: var(--rv-leading-tight);
-  letter-spacing: var(--rv-tracking-title);
 }
 
 /* The copy result is announced and shown without moving the table below it. */

@@ -50,6 +50,9 @@ export default defineConfig({
       {
         test: {
           name: 'browser',
+          // Windows may reserve the default 63315 in its dynamic port range.
+          // Vite can advance from this unprivileged port if it is already busy.
+          api: { host: '127.0.0.1', port: 24679 },
           include: ['tests/unit/**/*.spec.ts'],
           exclude: [...defaultExclude, ...NODE_SPECS],
           setupFiles: ['./tests/unit/setup.ts'],

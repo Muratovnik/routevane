@@ -147,6 +147,56 @@ describe('ListDetailDialog', () => {
     vi.unstubAllGlobals()
   })
 
+  it('keeps the current card and its filter when a catalog reload replaces the same list object', async () => {
+    const api = stubAPI({
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
+    })
+    const screen = await renderCard({ mode: 'library' })
+    await screen.getByLabelText(SEARCH_CONTENTS).fill('discord.gg')
+    await screen.rerender({
+      list: { ...DISCORD, categories: [...DISCORD.categories] },
+    })
+    await expect
+      .element(screen.getByLabelText(SEARCH_CONTENTS))
+      .toHaveValue('discord.gg')
+    await expect.element(entry(screen, 'discord.gg')).toBeVisible()
+    expect(api.keys()).toEqual(['GET /v1/lists/discord/contents'])
+  })
+
+  it.each([200, 422])(
+    'shows committed rows after a partial refresh (%s) without a success mark or an automatic retry loop',
+    async (status) => {
+      let refreshed = false
+      const api = stubAPI({
+        'GET /v1/lists/discord/contents': () =>
+          refreshed
+            ? contentsResponse(false, undefined, {}, true)
+            : contentsResponse(false),
+        'POST /v1/lists/discord/refresh': () => {
+          refreshed = true
+          if (status === 200) return json({ refresh: { failed_runs: 1 } })
+          return json(
+            { error: 'source unavailable', code: 'source_unavailable' },
+            422,
+          )
+        },
+      })
+      const screen = await renderCard({ mode: 'library' })
+      await expect.element(entry(screen, 'manual.discord.test')).toBeVisible()
+      await expect
+        .element(screen.getByRole('button', { name: 'Retry', exact: true }))
+        .toBeVisible()
+      await expect
+        .element(screen.getByLabelText(SOURCES_READ))
+        .not.toBeInTheDocument()
+      expect(api.keys()).toEqual([
+        'GET /v1/lists/discord/contents',
+        'POST /v1/lists/discord/refresh',
+        'GET /v1/lists/discord/contents',
+      ])
+    },
+  )
+
   it('reports skipped source entries in both languages and clears them on recovery', async () => {
     const refresh = { failed: false, skipped: 2 }
     stubAPI({
@@ -229,6 +279,7 @@ describe('ListDetailDialog', () => {
     expect(keys()).toEqual([
       'GET /v1/lists/discord/contents',
       'POST /v1/lists/discord/refresh',
+      'GET /v1/lists/discord/contents',
       'POST /v1/lists/discord/refresh',
       'GET /v1/lists/discord/contents',
     ])

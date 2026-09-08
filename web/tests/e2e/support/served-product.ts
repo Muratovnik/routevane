@@ -64,6 +64,7 @@ export interface ServedProduct {
 interface ProductOptions {
   /** The suite's own data directory under `.cache/browser-data`. */
   productData: string
+  productCatalog: string
 }
 
 interface ProductWorkerFixtures {
@@ -78,6 +79,7 @@ interface ProductFixtures {
 
 const startProduct = async (
   dataRoot: string,
+  catalog: string,
 ): Promise<{ product: ServedProduct; spawned: SpawnedProduct }> => {
   await access(binary)
   const expectedUIDigest = await embeddedUIDigest()
@@ -91,7 +93,7 @@ const startProduct = async (
       '--port',
       String(port),
       '--catalog-dir',
-      'testdata/expiry/browser-catalog',
+      catalog,
       '--data-dir',
       dataRoot,
     ],
@@ -139,8 +141,12 @@ export const test = base.extend<
   ProductOptions & ProductWorkerFixtures
 >({
   productData: ['', { option: true, scope: 'worker' }],
+  productCatalog: [
+    'testdata/expiry/browser-catalog',
+    { option: true, scope: 'worker' },
+  ],
   product: [
-    async ({ productData }, use, workerInfo) => {
+    async ({ productData, productCatalog }, use, workerInfo) => {
       if (productData === '')
         throw new Error(
           "a browser suite names its own data directory: test.use({ productData: 'suite' })",
@@ -157,7 +163,7 @@ export const test = base.extend<
         'browser-data',
         `${productData}-${workerInfo.parallelIndex}`,
       )
-      const { product, spawned } = await startProduct(dataRoot)
+      const { product, spawned } = await startProduct(dataRoot, productCatalog)
       await use(product)
       const cleanupError = await stopProduct(spawned, product, dataRoot)
       if (cleanupError !== undefined) throw cleanupError

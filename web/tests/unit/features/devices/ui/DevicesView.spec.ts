@@ -111,6 +111,9 @@ describe('DevicesView prerequisite audit', () => {
     await expect
       .element(screen.getByText('Connection requirements unavailable'))
       .toBeVisible()
+    await screen
+      .getByRole('button', { name: 'Add a connection', exact: true })
+      .click()
     await expect
       .element(screen.getByLabelText('Device or application'))
       .toBeVisible()
@@ -175,6 +178,9 @@ describe('DevicesView prerequisite audit', () => {
     })
     const screen = await render(DevicesView)
 
+    await screen
+      .getByRole('button', { name: 'Add a connection', exact: true })
+      .click()
     await screen.getByLabelText('Device or application').click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
     await screen.getByLabelText('Connection name').fill('Manual router')
@@ -224,9 +230,19 @@ it('marks a saved device change stale and retries only the read while preserving
     throw new Error(`unexpected request ${input} ${init?.method}`)
   })
   const screen = await render(DevicesView)
+  await screen
+    .getByRole('button', { name: 'Add a connection', exact: true })
+    .click()
   await screen.getByLabelText('Device or application').click()
   await screen.getByRole('option', { name: /^Keenetic/ }).click()
   await screen.getByLabelText('Connection name').fill('Unsaved connection')
+  await screen.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await screen
+    .getByRole('button', {
+      name: 'Configure connection Home router',
+      exact: true,
+    })
+    .click()
   await screen
     .getByRole('button', { name: 'Forget this connection', exact: true })
     .click()
@@ -251,6 +267,9 @@ it('marks a saved device change stale and retries only the read while preserving
   await expect
     .element(screen.getByText('Connections could not be refreshed'))
     .not.toBeInTheDocument()
+  await screen
+    .getByRole('button', { name: 'Add a connection', exact: true })
+    .click()
   await expect
     .element(screen.getByLabelText('Connection name'))
     .toHaveValue('Unsaved connection')

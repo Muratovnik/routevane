@@ -253,5 +253,5 @@ func rulesPerList(plan domain.RoutingPlan) []ListRuleForecast {
 }
 
 func unavailableForecastCoverage(err error) bool {
-	return errors.Is(err, ErrPartialCoverage) || errors.Is(err, ErrNotFound)
+	return errors.Is(err, ErrPartialCoverage) || errors.Is(err, ErrNotFound) || errors.Is(err, ErrObservationRevisionChanged)
 }

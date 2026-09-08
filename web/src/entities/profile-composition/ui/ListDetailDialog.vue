@@ -432,7 +432,7 @@ watch(contentsState, async (state) => {
             <li
               v-for="index in 8"
               :key="index"
-              class="list-card__loading-row"
+              class="list-card__loading-row rv-loading-feedback"
               aria-hidden="true"
             />
           </template>
@@ -652,6 +652,9 @@ watch(contentsState, async (state) => {
                 }}
               </strong>
               <small>{{ sourceLabel(source.id, source.type) }}</small>
+              <small v-if="source.state">{{
+                t(`listCard.sourceState.${source.state}`)
+              }}</small>
             </span>
           </label>
           <template v-if="sourceMutations.isPending(source.id)">

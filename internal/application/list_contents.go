@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/Muratovnik/routevane/internal/domain"
 )
@@ -20,9 +21,8 @@ type ListContents struct {
 	ListID  string               `json:"list_id"`
 	Rows    []ListContentsRow    `json:"rows"`
 	Sources []ListContentsSource `json:"sources"`
-	// Observed reports whether stored observations exist for this list. A
-	// list that was never refreshed shows only its static rows, and says so
-	// instead of pretending the automatic material is empty.
+	// Observed means every enabled source has a successful current read. A
+	// format row is written before source work and cannot establish this fact.
 	Observed bool `json:"observed"`
 }
 
@@ -48,6 +48,7 @@ type ListContentsSource struct {
 	Custom  bool   `json:"custom"`
 	Enabled bool   `json:"enabled"`
 	URL     string `json:"url,omitempty"`
+	State   string `json:"state"`
 }
 
 func (s *PublicationService) ListContents(ctx context.Context, listID string) (ListContents, error) {
@@ -125,12 +126,22 @@ func (s *PublicationService) ListContents(ctx context.Context, listID string) (L
 	case err != nil:
 		return ListContents{}, fmt.Errorf("read list observations: %w", err)
 	default:
-		contents.Observed = true
+		if snapshot.Format.ListID != listID || snapshot.Format.FormatKey != rawFormat.FormatKey || snapshot.Format.TargetID != rawFormat.ID || snapshot.Format.RendererID != rawFormat.RendererID {
+			return ListContents{}, ErrFormatMismatch
+		}
 		for _, sighting := range snapshot.Sightings {
 			if sighting.Validity != domain.ValidityValid {
 				continue
 			}
 			addRow(sighting.Resource.CanonicalValue(), string(sighting.Resource.Kind), sighting.SourceID)
+		}
+	}
+	contents.Observed = true
+	for i := range contents.Sources {
+		source := &contents.Sources[i]
+		source.State = listSourceState(*source, snapshot, effective, cutoff)
+		if source.Enabled && source.State != "ready" {
+			contents.Observed = false
 		}
 	}
 
@@ -155,6 +166,39 @@ func (s *PublicationService) ListContents(ctx context.Context, listID string) (L
 		return cmp.Or(cmp.Compare(kindRank(a.Kind), kindRank(b.Kind)), cmp.Compare(a.Value, b.Value))
 	})
 	return contents, nil
+}
+
+// Source state is derived from the same snapshot as the displayed rows. Empty
+// successful reads are legitimate; expired stored observations are not fresh.
+func listSourceState(source ListContentsSource, snapshot PlanningSnapshot, definition domain.ListDefinition, cutoff time.Time) string {
+	if !source.Enabled {
+		return "disabled"
+	}
+	if snapshot.Format.CatalogRevision == "" {
+		return "unread"
+	}
+	if snapshot.Format.CatalogRevision != definition.CatalogRevision {
+		return "stale"
+	}
+	revision := sourceRevisions(definition)[source.ID]
+	for _, state := range snapshot.SourceHealth {
+		if state.SourceID != source.ID || state.SourceRevision != revision {
+			continue
+		}
+		if state.LastRunFailed() {
+			return "failed"
+		}
+		if state.LastSuccessAt.IsZero() || state.LastSuccessAt.After(cutoff) {
+			return "unread"
+		}
+		for _, sighting := range snapshot.Sightings {
+			if sighting.SourceID == source.ID && sighting.SourceRevision == revision && (sighting.Validity == domain.ValidityStale || sighting.Validity == domain.ValidityArchived) {
+				return "stale"
+			}
+		}
+		return "ready"
+	}
+	return "unread"
 }
 
 // rowKind folds the six rule kinds into the three the card names.

@@ -6,6 +6,9 @@ import { localizedTargetTitle } from '@/shared/api/catalog'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { ChoiceOption } from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
+import RvDialog from '@/shared/ui/RvDialog.vue'
+import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
@@ -35,6 +38,13 @@ const address = ref('')
 const account = ref('')
 const interfaceName = ref('')
 const confirmation = ref('')
+const creating = ref(false)
+const selectedID = ref('')
+const selectedDevice = computed(
+  () =>
+    devices.devices.value.find((device) => device.id === selectedID.value) ??
+    null,
+)
 const nameTouched = ref(false)
 const addressTouched = ref(false)
 const accountTouched = ref(false)
@@ -103,7 +113,17 @@ watch(targetID, () => {
 
 // The credential is held in this field for exactly as long as it takes to send
 // it, and cleared the moment it leaves. Nothing in this tab keeps it.
-const credentials = ref<Record<string, string>>({})
+const credential = ref('')
+watch(selectedID, () => {
+  credential.value = ''
+  confirmation.value = ''
+  if (!devices.busy.value) devices.work.value = 'idle'
+})
+watch(creating, (open) => {
+  if (!open) return
+  confirmation.value = ''
+  if (!devices.busy.value) devices.work.value = 'idle'
+})
 
 const canRegister = computed(
   () =>
@@ -149,25 +169,35 @@ const submit = async (): Promise<void> => {
     const target = devices.targets.value.find(
       (candidate) => candidate.id === targetID.value,
     )
-    confirmation.value = t(
+    const manualOnly =
+      selectedRequirements.value === null ||
+      (selectedRequirements.value.needsCredential &&
+        !devices.secretStoreAvailable.value)
+    let messageKey =
       target?.kind === 'router'
         ? 'devices.registered.router'
-        : 'devices.registered.other',
-    )
+        : 'devices.registered.other'
+    if (manualOnly) messageKey = 'devices.registered.manual'
+    confirmation.value = t(messageKey)
+    creating.value = false
     name.value = ''
     address.value = ''
     account.value = ''
     interfaceName.value = ''
+    nameTouched.value = false
+    addressTouched.value = false
+    accountTouched.value = false
+    interfaceTouched.value = false
   }
 }
 
 const onEnable = async (id: string): Promise<void> => {
   const device = devices.devices.value.find((candidate) => candidate.id === id)
   if (device === undefined) return
-  const credential = credentials.value[id] ?? ''
-  if (needsCredential(device) && credential === '') return
-  const done = await devices.enable(id, credential)
-  credentials.value = { ...credentials.value, [id]: '' }
+  const submittedCredential = credential.value
+  if (needsCredential(device) && submittedCredential === '') return
+  credential.value = ''
+  const done = await devices.enable(id, submittedCredential)
   if (!done) return
   const target = devices.targets.value.find(
     (candidate) => candidate.id === device.targetID,
@@ -178,13 +208,34 @@ const onEnable = async (id: string): Promise<void> => {
       : 'devices.auto.enabled.next.other',
   )
 }
+
+const onDisable = async (id: string): Promise<void> => {
+  confirmation.value = ''
+  await devices.disable(id)
+}
+
+const onForget = async (id: string): Promise<void> => {
+  confirmation.value = ''
+  await devices.forget(id)
+}
 </script>
 
 <template>
   <section aria-labelledby="devices-title" class="devices">
-    <h1 id="devices-title" class="devices__title">
-      {{ t('connections.title') }}
-    </h1>
+    <RvPageHeader title-id="devices-title" :title="t('connections.title')">
+      <RvButton
+        :disabled="
+          devices.state.value === 'loading' ||
+          devices.state.value === 'failed' ||
+          devices.busy.value ||
+          !devices.catalogAvailable.value
+        "
+        variant="primary"
+        @click="creating = true"
+      >
+        <RvIcon name="plus" />{{ t('devices.add') }}
+      </RvButton>
+    </RvPageHeader>
 
     <RvStateNotice
       v-if="devices.state.value === 'loading'"
@@ -206,7 +257,11 @@ const onEnable = async (id: string): Promise<void> => {
 
     <template v-else>
       <RvStateNotice
-        v-if="devices.state.value === 'stale'"
+        v-if="
+          devices.state.value === 'stale' &&
+          !creating &&
+          selectedDevice === null
+        "
         live
         :title="t('devices.stale')"
         :body="t('devices.stale.body')"
@@ -219,7 +274,7 @@ const onEnable = async (id: string): Promise<void> => {
         </template>
       </RvStateNotice>
       <RvStateNotice
-        v-if="confirmation !== ''"
+        v-if="confirmation !== '' && selectedDevice === null"
         :title="confirmation"
         tone="ready"
       />
@@ -236,7 +291,11 @@ const onEnable = async (id: string): Promise<void> => {
         </template>
       </RvStateNotice>
       <RvStateNotice
-        v-else-if="!devices.deploymentCatalogAvailable.value"
+        v-else-if="
+          !devices.deploymentCatalogAvailable.value &&
+          !creating &&
+          selectedDevice === null
+        "
         :body="
           devices.requirementsState.value === 'loading'
             ? undefined
@@ -268,29 +327,91 @@ const onEnable = async (id: string): Promise<void> => {
         tone="waiting"
       />
       <ul v-else class="devices__list">
-        <li v-for="device in devices.devices.value" :key="device.id">
-          <article class="devices__card">
+        <li
+          v-for="device in devices.devices.value"
+          :key="device.id"
+          class="devices__connection"
+        >
+          <div class="devices__identity">
             <h2 class="devices__name">{{ device.name }}</h2>
             <p class="devices__meta">
-              {{ targetTitle(device.targetID, device.targetTitle) }} ·
-              <span class="devices__mono">{{ device.address }}</span>
-              <template v-if="device.account !== ''">
-                · {{ device.account }}
-              </template>
-              <template v-if="device.interfaceName !== ''">
-                · <span class="devices__mono">{{ device.interfaceName }}</span>
-              </template>
+              {{ targetTitle(device.targetID, device.targetTitle) }}
             </p>
-            <p v-if="!device.deployable" class="devices__meta">
-              {{ t('devices.manualOnly') }}
-            </p>
+            <p class="devices__meta devices__mono">{{ device.address }}</p>
+          </div>
+          <p class="devices__delivery">
+            {{
+              t(
+                !device.deployable
+                  ? 'devices.manualOnly'
+                  : device.autoDeliver
+                    ? 'devices.auto.on.noCredential'
+                    : 'devices.auto.off',
+              )
+            }}
+          </p>
+          <RvButton
+            :aria-label="t('devices.configure.aria', { name: device.name })"
+            size="compact"
+            @click="selectedID = device.id"
+            >{{ t('devices.configure') }}</RvButton
+          >
+        </li>
+      </ul>
 
-            <div v-if="device.autoDeliver" class="devices__row">
+      <RvDialog
+        :open="selectedDevice !== null"
+        :title="selectedDevice?.name ?? ''"
+        :close-label="t('action.close')"
+        :dismissible="!devices.busy.value"
+        variant="panel"
+        @update:open="selectedID = $event ? selectedID : ''"
+      >
+        <div v-if="selectedDevice" class="devices__details">
+          <RvStateNotice
+            v-if="confirmation !== ''"
+            :title="confirmation"
+            live
+            tone="ready"
+          />
+          <dl class="devices__facts">
+            <div>
+              <dt>{{ t('devices.field.target') }}</dt>
+              <dd>
+                {{
+                  targetTitle(
+                    selectedDevice.targetID,
+                    selectedDevice.targetTitle,
+                  )
+                }}
+              </dd>
+            </div>
+            <div>
+              <dt>{{ t('devices.field.address') }}</dt>
+              <dd class="devices__mono">{{ selectedDevice.address }}</dd>
+            </div>
+            <div v-if="selectedDevice.account">
+              <dt>{{ t('devices.field.account') }}</dt>
+              <dd>{{ selectedDevice.account }}</dd>
+            </div>
+            <div v-if="selectedDevice.interfaceName">
+              <dt>{{ t('devices.field.interface') }}</dt>
+              <dd class="devices__mono">{{ selectedDevice.interfaceName }}</dd>
+            </div>
+          </dl>
+          <section
+            class="devices__automation"
+            :aria-label="t('devices.auto.title')"
+          >
+            <h3 class="devices__section-title">
+              {{ t('devices.auto.title') }}
+            </h3>
+            <template v-if="selectedDevice.autoDeliver">
               <p class="devices__meta">
                 {{
                   t(
-                    hasKnownRequirements(device.targetID) &&
-                      needsCredential(device)
+                    hasKnownRequirements(selectedDevice.targetID) &&
+                      needsCredential(selectedDevice)
                       ? 'devices.auto.on'
                       : 'devices.auto.on.noCredential',
                   )
@@ -300,219 +421,273 @@ const onEnable = async (id: string): Promise<void> => {
                 :disabled="
                   devices.busy.value || devices.state.value === 'stale'
                 "
-                variant="quiet"
-                @click="devices.disable(device.id)"
+                @click="onDisable(selectedDevice.id)"
+                >{{ t('devices.auto.disable') }}</RvButton
               >
-                {{ t('devices.auto.disable') }}
-              </RvButton>
-            </div>
-            <div
+            </template>
+            <form
               v-else-if="
-                device.deployable &&
-                hasKnownRequirements(device.targetID) &&
-                (devices.secretStoreAvailable.value || !needsCredential(device))
+                selectedDevice.deployable &&
+                hasKnownRequirements(selectedDevice.targetID) &&
+                (devices.secretStoreAvailable.value ||
+                  !needsCredential(selectedDevice))
               "
-              class="devices__row"
+              class="devices__automation"
+              @submit.prevent="onEnable(selectedDevice.id)"
             >
-              <label
-                v-if="needsCredential(device)"
-                class="devices__field-label"
-                :for="`device-credential-${device.id}`"
-              >
-                {{ t('devices.auto.label') }}
-              </label>
-              <input
-                v-if="needsCredential(device)"
-                :id="`device-credential-${device.id}`"
-                autocomplete="off"
-                class="devices__input"
-                :disabled="
-                  devices.busy.value || devices.state.value === 'stale'
-                "
-                type="password"
-                :value="credentials[device.id] ?? ''"
-                @input="
-                  credentials = {
-                    ...credentials,
-                    [device.id]: ($event.target as HTMLInputElement).value,
-                  }
-                "
-              />
-              <RvButton
-                :disabled="
-                  devices.busy.value ||
-                  devices.state.value === 'stale' ||
-                  (needsCredential(device) &&
-                    (credentials[device.id] ?? '') === '')
-                "
-                @click="onEnable(device.id)"
-              >
-                {{ t('devices.auto.enable') }}
-              </RvButton>
               <p class="devices__meta">
                 {{
                   t(
-                    needsCredential(device)
+                    needsCredential(selectedDevice)
                       ? 'devices.auto.consent'
                       : 'devices.auto.consent.noCredential',
                   )
                 }}
               </p>
-            </div>
-            <p
-              v-else-if="
-                device.deployable && devices.requirementsState.value !== 'ready'
-              "
-              class="devices__meta"
-            >
-              {{ t('devices.requirements.dependency') }}
+              <RvField
+                v-if="needsCredential(selectedDevice)"
+                :label="t('devices.auto.label')"
+                input-id="device-credential"
+              >
+                <RvTextInput
+                  v-model="credential"
+                  input-id="device-credential"
+                  type="password"
+                  autocomplete="off"
+                  :disabled="
+                    devices.busy.value || devices.state.value === 'stale'
+                  "
+                />
+              </RvField>
+              <RvButton
+                type="submit"
+                :disabled="
+                  devices.busy.value ||
+                  devices.state.value === 'stale' ||
+                  (needsCredential(selectedDevice) && credential === '')
+                "
+                >{{ t('devices.auto.enable') }}</RvButton
+              >
+            </form>
+            <p v-else class="devices__meta">
+              {{
+                t(
+                  !selectedDevice.deployable
+                    ? 'devices.manualOnly'
+                    : devices.requirementsState.value !== 'ready'
+                      ? 'devices.requirements.dependency'
+                      : 'devices.auto.unavailable',
+                )
+              }}
             </p>
-            <p v-else-if="device.deployable" class="devices__meta">
-              {{ t('devices.auto.unavailable') }}
-            </p>
-
-            <RvButton
-              :disabled="devices.busy.value || devices.state.value === 'stale'"
-              variant="quiet"
-              @click="devices.forget(device.id)"
+          </section>
+          <RvButton
+            v-if="devices.requirementsState.value === 'failed'"
+            @click="devices.retryRequirements"
+            >{{ t('action.retry') }}</RvButton
+          >
+          <RvStateNotice
+            v-if="devices.work.value === 'failed'"
+            :body="t('devices.work.failed.body')"
+            live
+            :title="t('devices.work.failed')"
+            tone="failed"
+          />
+          <RvStateNotice
+            v-if="devices.state.value === 'stale'"
+            :body="t('devices.stale.body')"
+            live
+            :title="t('devices.stale')"
+            tone="warning"
+          >
+            <template #action
+              ><RvButton @click="devices.retryDevices">{{
+                t('action.retry')
+              }}</RvButton></template
             >
-              {{ t('devices.forget') }}
-            </RvButton>
-          </article>
-        </li>
-      </ul>
+          </RvStateNotice>
+          <RvButton
+            :disabled="devices.busy.value || devices.state.value === 'stale'"
+            variant="quiet"
+            @click="onForget(selectedDevice.id)"
+            >{{ t('devices.forget') }}</RvButton
+          >
+        </div>
+      </RvDialog>
 
-      <form
-        v-if="devices.catalogAvailable.value"
-        class="devices__form"
-        @submit.prevent="submit"
+      <RvDialog
+        v-model:open="creating"
+        :title="t('devices.add')"
+        :close-label="t('action.close')"
+        :dismissible="!devices.busy.value"
+        variant="panel"
       >
-        <h2 class="devices__section-title">{{ t('devices.add') }}</h2>
-        <p
-          v-if="devices.requirementsState.value !== 'ready'"
-          class="devices__meta"
+        <form
+          v-if="devices.catalogAvailable.value"
+          id="device-create"
+          class="devices__form"
+          @submit.prevent="submit"
         >
-          {{
-            t(
-              devices.requirementsState.value === 'loading'
-                ? 'devices.requirements.reading'
-                : 'devices.requirements.dependency',
-            )
-          }}
-        </p>
-        <RvField
-          searchable
-          input-id="device-target"
-          :label="t('devices.field.target')"
-        >
-          <template #default="{ describedBy, invalid }">
-            <div class="devices__field">
-              <RvSelect
-                v-model="targetID"
+          <p
+            v-if="devices.requirementsState.value !== 'ready'"
+            class="devices__meta"
+          >
+            {{
+              t(
+                devices.requirementsState.value === 'loading'
+                  ? 'devices.requirements.reading'
+                  : 'devices.requirements.dependency',
+              )
+            }}
+          </p>
+          <RvButton
+            v-if="devices.requirementsState.value === 'failed'"
+            @click="devices.retryRequirements"
+            >{{ t('action.retry') }}</RvButton
+          >
+          <RvField
+            searchable
+            input-id="device-target"
+            :label="t('devices.field.target')"
+          >
+            <template #default="{ describedBy, invalid }">
+              <div class="devices__field">
+                <RvSelect
+                  v-model="targetID"
+                  :described-by="describedBy"
+                  :disabled="
+                    devices.busy.value || devices.state.value === 'stale'
+                  "
+                  searchable
+                  input-id="device-target"
+                  :invalid="invalid"
+                  :options="targetChoices"
+                  :placeholder="t('devices.field.target.pick')"
+                />
+              </div>
+            </template>
+          </RvField>
+
+          <RvField
+            v-if="targetID !== ''"
+            :error="fieldError(name, true, nameTouched)"
+            input-id="device-name"
+            :label="t('devices.field.name')"
+          >
+            <template #default="{ describedBy, invalid }">
+              <RvTextInput
+                v-model="name"
                 :described-by="describedBy"
                 :disabled="
                   devices.busy.value || devices.state.value === 'stale'
                 "
-                searchable
-                input-id="device-target"
+                input-id="device-name"
                 :invalid="invalid"
-                :options="targetChoices"
-                :placeholder="t('devices.field.target.pick')"
+                maxlength="120"
+                @blur="nameTouched = true"
               />
-            </div>
-          </template>
-        </RvField>
+            </template>
+          </RvField>
 
-        <RvField
-          v-if="targetID !== ''"
-          :error="fieldError(name, true, nameTouched)"
-          input-id="device-name"
-          :label="t('devices.field.name')"
+          <RvField
+            v-if="targetID !== ''"
+            :error="fieldError(address, true, addressTouched)"
+            input-id="device-address"
+            :label="addressLabel"
+          >
+            <template #default="{ describedBy, invalid }">
+              <RvTextInput
+                v-model="address"
+                :described-by="describedBy"
+                :disabled="
+                  devices.busy.value || devices.state.value === 'stale'
+                "
+                input-id="device-address"
+                :invalid="invalid"
+                maxlength="512"
+                :placeholder="addressPlaceholder"
+                @blur="addressTouched = true"
+              />
+            </template>
+          </RvField>
+
+          <RvField
+            v-if="showAccount"
+            :error="fieldError(account, true, accountTouched)"
+            input-id="device-account"
+            :label="accountLabel"
+          >
+            <template #default="{ describedBy, invalid }">
+              <RvTextInput
+                v-model="account"
+                :described-by="describedBy"
+                :disabled="
+                  devices.busy.value || devices.state.value === 'stale'
+                "
+                input-id="device-account"
+                :invalid="invalid"
+                maxlength="120"
+                @blur="accountTouched = true"
+              />
+            </template>
+          </RvField>
+
+          <RvField
+            v-if="showInterface"
+            :error="fieldError(interfaceName, true, interfaceTouched)"
+            :hint="interfaceHint"
+            input-id="device-interface"
+            :label="interfaceLabel"
+          >
+            <template #default="{ describedBy, invalid }">
+              <RvTextInput
+                v-model="interfaceName"
+                :described-by="describedBy"
+                :disabled="
+                  devices.busy.value || devices.state.value === 'stale'
+                "
+                input-id="device-interface"
+                :invalid="invalid"
+                maxlength="120"
+                @blur="interfaceTouched = true"
+              />
+            </template>
+          </RvField>
+        </form>
+
+        <RvStateNotice
+          v-if="devices.work.value === 'failed'"
+          :body="t('devices.work.failed.body')"
+          live
+          :title="t('devices.work.failed')"
+          tone="failed"
+        />
+        <RvStateNotice
+          v-if="devices.state.value === 'stale'"
+          :body="t('devices.stale.body')"
+          live
+          :title="t('devices.stale')"
+          tone="warning"
         >
-          <template #default="{ describedBy, invalid }">
-            <RvTextInput
-              v-model="name"
-              :described-by="describedBy"
-              :disabled="devices.busy.value || devices.state.value === 'stale'"
-              input-id="device-name"
-              :invalid="invalid"
-              maxlength="120"
-              @blur="nameTouched = true"
-            />
-          </template>
-        </RvField>
-
-        <RvField
-          v-if="targetID !== ''"
-          :error="fieldError(address, true, addressTouched)"
-          input-id="device-address"
-          :label="addressLabel"
-        >
-          <template #default="{ describedBy, invalid }">
-            <RvTextInput
-              v-model="address"
-              :described-by="describedBy"
-              :disabled="devices.busy.value || devices.state.value === 'stale'"
-              input-id="device-address"
-              :invalid="invalid"
-              maxlength="512"
-              :placeholder="addressPlaceholder"
-              @blur="addressTouched = true"
-            />
-          </template>
-        </RvField>
-
-        <RvField
-          v-if="showAccount"
-          :error="fieldError(account, true, accountTouched)"
-          input-id="device-account"
-          :label="accountLabel"
-        >
-          <template #default="{ describedBy, invalid }">
-            <RvTextInput
-              v-model="account"
-              :described-by="describedBy"
-              :disabled="devices.busy.value || devices.state.value === 'stale'"
-              input-id="device-account"
-              :invalid="invalid"
-              maxlength="120"
-              @blur="accountTouched = true"
-            />
-          </template>
-        </RvField>
-
-        <RvField
-          v-if="showInterface"
-          :error="fieldError(interfaceName, true, interfaceTouched)"
-          :hint="interfaceHint"
-          input-id="device-interface"
-          :label="interfaceLabel"
-        >
-          <template #default="{ describedBy, invalid }">
-            <RvTextInput
-              v-model="interfaceName"
-              :described-by="describedBy"
-              :disabled="devices.busy.value || devices.state.value === 'stale'"
-              input-id="device-interface"
-              :invalid="invalid"
-              maxlength="120"
-              @blur="interfaceTouched = true"
-            />
-          </template>
-        </RvField>
-
-        <RvButton :disabled="!canRegister" type="submit" variant="primary">
-          {{ t('devices.add.submit') }}
-        </RvButton>
-      </form>
-
-      <RvStateNotice
-        v-if="devices.work.value === 'failed'"
-        :body="t('devices.work.failed.body')"
-        live
-        :title="t('devices.work.failed')"
-        tone="failed"
-      />
+          <template #action
+            ><RvButton @click="devices.retryDevices">{{
+              t('action.retry')
+            }}</RvButton></template
+          >
+        </RvStateNotice>
+        <template #footer>
+          <RvButton :disabled="devices.busy.value" @click="creating = false">{{
+            t('action.cancel')
+          }}</RvButton>
+          <RvButton
+            :disabled="!canRegister"
+            form="device-create"
+            type="submit"
+            variant="primary"
+            >{{ t('devices.add.submit') }}</RvButton
+          >
+        </template>
+      </RvDialog>
     </template>
   </section>
 </template>
@@ -520,101 +695,108 @@ const onEnable = async (id: string): Promise<void> => {
 <style scoped>
 .devices {
   display: grid;
-  gap: var(--rv-space-8);
+  gap: var(--rv-space-6);
   width: 100%;
   min-width: 0;
-}
-
-.devices__title {
-  font-size: var(--rv-text-page);
-  line-height: var(--rv-leading-tight);
-  letter-spacing: var(--rv-tracking-title);
-}
-
-.devices__section-title {
-  font-size: var(--rv-text-section);
+  container: connections / inline-size;
 }
 
 .devices__list {
   display: grid;
-  gap: var(--rv-space-4);
   min-width: 0;
   list-style: none;
+  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 
-.devices__card {
+.devices__connection {
   display: grid;
-  gap: var(--rv-space-3);
-  justify-items: start;
-  min-width: 0;
-  padding: var(--rv-space-5);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-md);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--rv-space-6);
+  padding-block: var(--rv-space-5);
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 
-.devices__name {
-  font-size: var(--rv-text-section);
+.devices__identity,
+.devices__automation {
+  display: grid;
+  gap: var(--rv-space-2);
+  min-width: 0;
+  justify-items: start;
+}
+
+.devices__name,
+.devices__section-title {
+  font-size: var(--rv-text-module);
 }
 
 .devices__meta {
   min-width: 0;
   color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-meta);
+  font-size: var(--rv-text-dense);
   overflow-wrap: anywhere;
+}
+
+.devices__delivery {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
 }
 
 .devices__mono {
   font-family: var(--rv-font-mono);
 }
 
-/* The row wraps rather than scrolling: a control pushed off a narrow screen is
-   a control nobody finds. */
-.devices__row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-2);
-  align-items: center;
+.devices__details {
+  display: grid;
+  gap: var(--rv-space-6);
+  padding: var(--rv-space-5) var(--rv-space-6);
+}
+
+.devices__facts {
+  display: grid;
+  gap: var(--rv-space-3);
+}
+
+.devices__facts > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: var(--rv-space-4);
+}
+
+.devices__facts dt {
+  color: var(--rv-color-ink-muted);
+}
+
+.devices__facts dd {
   min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.devices__automation {
+  gap: var(--rv-space-4);
 }
 
 .devices__form {
   display: grid;
-  gap: var(--rv-space-3);
-  justify-items: start;
+  gap: var(--rv-space-5);
   min-width: 0;
-  padding-top: var(--rv-space-6);
-  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+  padding: var(--rv-space-5) var(--rv-space-6);
 }
 
-.devices__field-label {
-  color: var(--rv-color-ink);
-  font-weight: 600;
-  font-size: var(--rv-text-dense);
-}
-
-/* An input is as wide as its content wants unless it is told otherwise, and in
-   a grid that intrinsic width becomes the container's minimum. */
 .devices__field {
   width: 100%;
-  max-width: 28rem;
   min-width: 0;
 }
 
-.devices__input {
-  width: 100%;
-  max-width: 28rem;
-  min-width: 0;
-  min-height: var(--rv-control-touch);
-  padding: 0 var(--rv-space-4);
-  color: var(--rv-color-ink);
-  font: inherit;
-  background: var(--rv-color-surface);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-sm);
-}
+@container connections (width < 42rem) {
+  .devices__connection {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--rv-space-3);
+  }
 
-.devices__input:focus-visible {
-  outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: var(--rv-focus-offset);
+  .devices__delivery {
+    grid-column: 1;
+  }
 }
 </style>

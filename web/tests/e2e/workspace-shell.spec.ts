@@ -66,6 +66,9 @@ test('every portalled overlay arrives with its own ground and edge', async ({
   await page.keyboard.press('Escape')
 
   await page.goto(`${origin}/connections`)
+  await page
+    .getByRole('button', { name: 'Add a connection', exact: true })
+    .click()
   await deviceField(page, 'devices.field.target').click()
   await assertPainted(
     choicePanel(page, englishCopy('devices.field.target.pick')),

@@ -780,6 +780,7 @@ const listLabel = (listID: string): string =>
 }
 
 .picker__checkbox {
+  display: block;
   color-scheme: var(--rv-native-color-scheme);
   width: var(--rv-control-choice);
   height: var(--rv-control-choice);

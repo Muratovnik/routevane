@@ -287,8 +287,9 @@ export const useListDetail = (
   }
 
   watch(
-    [() => props.list, () => props.creating],
-    ([list, creating]) => {
+    [() => props.list?.id, () => props.creating],
+    ([, creating]) => {
+      const list = props.list
       contentsRequest += 1
       entryMutations.cancel()
       sourceMutations.cancel()
@@ -424,10 +425,11 @@ export const useListDetail = (
     refreshSkipped.value = 0
     try {
       const result = await refreshList(list.id)
-      const loaded = await loadListContents(list.id)
-      applyContents(request, loaded)
-      if (request === contentsRequest)
+      if (request === contentsRequest) {
         refreshSkipped.value = result.skippedEntries
+        if (result.failedRuns > 0)
+          refreshError.value = t('listCard.refresh.failed.source')
+      }
     } catch (error) {
       if (request === contentsRequest) {
         refreshError.value =
@@ -438,6 +440,16 @@ export const useListDetail = (
             : t('listCard.refresh.failed.generic')
       }
     } finally {
+      // Sources commit independently. Read their resulting material even when
+      // another source failed, preserving the failure beside the updated rows.
+      if (request === contentsRequest) {
+        try {
+          applyContents(request, await loadListContents(list.id))
+        } catch {
+          if (request === contentsRequest && refreshError.value === '')
+            refreshError.value = t('listCard.refresh.failed.generic')
+        }
+      }
       // Closing or switching cards invalidates this generation. In particular,
       // an old request must not clear a newer card's busy state or hide its
       // retry action.
