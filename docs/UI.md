@@ -216,13 +216,17 @@ Sections, addressable by URL:
    has a deployer, and the by-hand path always stated below it.
 6. `/connections` — **Connections / Подключения** (ADR 0027; `/devices`
    redirects here). One section answers «куда»: registered devices and
-   applications first. With no saved connections, the catalog-backed creation
-   form is already on the page. «Добавить подключение» returns to that form;
-   selecting an existing connection preserves its draft within the page.
-   The work area is always present: the first saved connection is selected on
-   arrival, or the new-connection form is shown when none exist. “Clear form”
-   resets the draft in place. Saving selects the server-returned connection ID;
-   forgetting the selection opens the next connection or the form.
+   applications first. The work area is always present: the first saved
+   connection is selected on arrival, or, when none exist, the catalog-backed
+   creation form is the whole work area at a single-column form width, with no
+   cancel because there is nothing to return to. «Добавить подключение» opens
+   the form beside the list and stays in the header, disabled, while the form
+   is open. The form's «Отменить» discards the draft and reopens the connection
+   it replaced, so the list and a connection are on screen again; choosing a
+   connection from the list instead keeps the draft for the next «Добавить
+   подключение». Saving selects the server-returned connection ID; forgetting
+   the selection opens the next connection or the form. Forgetting is the
+   quiet, left-aligned last action beneath a connection's details.
    Saved connections remain selectable beside the creation or
    configuration area; a constrained window stacks these regions in document
    flow. Creation and delivery permission are primary page work, without a modal

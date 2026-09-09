@@ -203,6 +203,10 @@
      one of them is at least this wide. */
   --rv-measure-field: 24rem;
 
+  /* The standing width of a form that is the whole work area: one column of
+     fields and its actions, read without crossing the page. */
+  --rv-measure-form: 34rem;
+
   /* The page's inline padding. The shell narrows it with the viewport, and an
    * element that bleeds to the page edge must bleed exactly this much. */
   --rv-page-inline: var(--rv-space-6);

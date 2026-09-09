@@ -131,7 +131,11 @@ test('graphite settings and inline connection choices preserve readable alignmen
   expect(await auditWidths(page, 'graphite-connection-form-text-200')).toEqual(
     [],
   )
-  await page.getByRole('button', { name: 'Очистить', exact: true }).click()
+  // With nothing saved yet the form is the whole work area: there is no
+  // cancel, because there is nothing it could return to.
+  await expect(
+    page.getByRole('button', { name: 'Отменить', exact: true }),
+  ).toHaveCount(0)
 })
 
 for (const reducedMotion of ['reduce', 'no-preference'] as const) {
@@ -301,9 +305,14 @@ test('page actions, category context and composition controls share consistent g
   await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(await auditWidths(page, 'connection-create')).toEqual([])
   expect(await audit(page, 'connection-create')).toEqual([])
-  await page.getByRole('button', { name: 'Clear form', exact: true }).click()
+  // Leaving the form returns to the saved connection: the work area never
+  // collapses into the header action.
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(
-    page.getByRole('region', { name: 'Add a connection', exact: true }),
+    page.getByRole('heading', { name: 'Geometry client', exact: true }),
+  ).toBeFocused()
+  await expect(
+    page.getByRole('region', { name: 'Geometry client', exact: true }),
   ).toBeVisible()
   const forgotten = await page.request.post(
     `${origin}/v1/devices/${deviceID}/forget`,

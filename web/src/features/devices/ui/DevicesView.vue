@@ -40,10 +40,14 @@ const account = ref('')
 const interfaceName = ref('')
 const confirmation = ref('')
 const selectedID = ref('')
+// The connection the form replaced, so that leaving the form by its own action
+// returns there rather than to an arbitrary row.
+const returnTo = ref('')
 const editorHeading = ref<HTMLElement | null>(null)
 
 const openEditor = async (id = ''): Promise<void> => {
   if (devices.busy.value) return
+  if (id === '' && selectedID.value !== '') returnTo.value = selectedID.value
   credential.value = ''
   selectedID.value = id
   await nextTick()
@@ -181,6 +185,21 @@ const clearDraft = (): void => {
   interfaceTouched.value = false
 }
 
+// Cancel is the form's own exit: it discards the draft and puts the connection
+// it replaced back into the work area. Choosing a connection from the list is a
+// different act and keeps the draft for the next visit to the form. With no
+// saved connection there is nothing to return to, and the form has no cancel.
+const cancelCreation = async (): Promise<void> => {
+  if (devices.busy.value) return
+  clearDraft()
+  const known = devices.devices.value.some(
+    (device) => device.id === returnTo.value,
+  )
+  await openEditor(
+    known ? returnTo.value : (devices.devices.value[0]?.id ?? ''),
+  )
+}
+
 const submit = async (): Promise<void> => {
   if (!canRegister.value) {
     nameTouched.value = true
@@ -247,9 +266,13 @@ const onForget = async (id: string): Promise<void> => {
 <template>
   <section aria-labelledby="devices-title" class="devices">
     <RvPageHeader title-id="devices-title" :title="t('connections.title')">
+      <!-- The header action belongs to the collection. It stays put while the
+           form is open, disabled rather than gone, so the header does not
+           change shape between the two states of the work area. -->
       <RvButton
-        v-show="!creating"
+        v-show="devices.devices.value.length > 0"
         :disabled="
+          creating ||
           devices.state.value === 'loading' ||
           devices.state.value === 'failed' ||
           devices.busy.value ||
@@ -344,7 +367,13 @@ const onForget = async (id: string): Promise<void> => {
           </li>
         </ul>
 
-        <section class="devices__editor" aria-labelledby="device-editor-title">
+        <section
+          class="devices__editor"
+          :class="{
+            'devices__editor--standalone': devices.devices.value.length === 0,
+          }"
+          aria-labelledby="device-editor-title"
+        >
           <div class="devices__editor-header">
             <h2
               id="device-editor-title"
@@ -519,12 +548,16 @@ const onForget = async (id: string): Promise<void> => {
                 }}</RvButton></template
               >
             </RvStateNotice>
-            <RvButton
-              :disabled="devices.busy.value || devices.state.value === 'stale'"
-              variant="quiet"
-              @click="onForget(selectedDevice.id)"
-              >{{ t('devices.forget') }}</RvButton
-            >
+            <div class="devices__footer">
+              <RvButton
+                :disabled="
+                  devices.busy.value || devices.state.value === 'stale'
+                "
+                variant="quiet"
+                @click="onForget(selectedDevice.id)"
+                >{{ t('devices.forget') }}</RvButton
+              >
+            </div>
           </div>
           <template v-if="creating">
             <form
@@ -665,11 +698,10 @@ const onForget = async (id: string): Promise<void> => {
             </RvStateNotice>
             <div class="devices__actions">
               <RvButton
-                :disabled="
-                  devices.busy.value || devices.state.value === 'stale'
-                "
-                @click="clearDraft"
-                >{{ t('devices.clear') }}</RvButton
+                v-if="devices.devices.value.length > 0"
+                :disabled="devices.busy.value"
+                @click="cancelCreation"
+                >{{ t('action.cancel') }}</RvButton
               >
               <RvButton
                 :disabled="!canRegister"
@@ -754,8 +786,13 @@ const onForget = async (id: string): Promise<void> => {
   border-radius: var(--rv-radius-lg);
 }
 
+.devices__editor--standalone {
+  max-width: var(--rv-measure-form);
+}
+
 .devices__editor-header,
-.devices__actions {
+.devices__actions,
+.devices__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -765,6 +802,10 @@ const onForget = async (id: string): Promise<void> => {
 
 .devices__actions {
   justify-content: flex-end;
+}
+
+.devices__footer {
+  justify-content: flex-start;
 }
 
 .devices__identity {

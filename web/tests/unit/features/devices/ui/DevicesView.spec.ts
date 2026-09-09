@@ -186,6 +186,16 @@ describe('DevicesView prerequisite audit', () => {
       )
       .toBeVisible()
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+    // With nothing saved the form is the whole work area: no header action
+    // opens it, and there is nothing a cancel could return to.
+    await expect
+      .element(
+        screen.getByRole('button', { name: 'Add a connection', exact: true }),
+      )
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: 'Cancel', exact: true }))
+      .not.toBeInTheDocument()
     await screen.getByLabelText('Device or application').click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
     await screen.getByLabelText('Connection name').fill('Manual router')
@@ -215,7 +225,7 @@ describe('DevicesView prerequisite audit', () => {
     })
   })
 
-  it('keeps a connection draft across inline selection and clears departed password input', async () => {
+  it('keeps a draft across list selection, and cancel reopens the replaced connection without it', async () => {
     const fetchMock = installFetch((input: string) => {
       if (input === DEVICES) return Promise.resolve(json(DEVICE_PAYLOAD))
       if (input === LISTS) return Promise.resolve(json(CATALOG_PAYLOAD))
@@ -246,20 +256,33 @@ describe('DevicesView prerequisite audit', () => {
       .element(screen.getByLabelText('Password', { exact: true }))
       .toHaveValue('')
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
-    await screen
-      .getByRole('button', { name: 'Add a connection', exact: true })
-      .click()
+    const add = screen.getByRole('button', {
+      name: 'Add a connection',
+      exact: true,
+    })
+    await add.click()
     await expect
       .element(screen.getByLabelText('Connection name'))
       .toHaveValue('Unfinished router')
-    await screen
-      .getByRole('button', { name: 'Clear form', exact: true })
-      .click()
+    // The header action stays in place while the form is open, and the form
+    // leaves through its own cancel: the connection it replaced is the work
+    // area again, with focus on its heading, and nothing was written.
+    await expect.element(add).toBeDisabled()
+    await screen.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await expect
+      .element(screen.getByRole('heading', { name: 'Home router' }))
+      .toHaveFocus()
+    await expect
+      .element(screen.getByRole('region', { name: 'Home router', exact: true }))
+      .toBeVisible()
     await expect
       .element(
         screen.getByRole('region', { name: 'Add a connection', exact: true }),
       )
-      .toBeVisible()
+      .not.toBeInTheDocument()
+    await expect.element(add).toBeEnabled()
+    // Cancel discarded the draft: the next form starts from the target choice.
+    await add.click()
     await expect
       .element(screen.getByLabelText('Connection name'))
       .not.toBeInTheDocument()

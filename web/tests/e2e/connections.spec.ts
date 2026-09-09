@@ -166,6 +166,14 @@ test('the device form asks only for fields the selected target needs', async ({
     page.getByRole('region', { name: 'Add a connection', exact: true }),
   ).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  // With nothing saved the form is the whole work area: no header action
+  // opens it and there is nothing a cancel could return to.
+  await expect(
+    page.getByRole('button', { name: 'Add a connection', exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Cancel', exact: true }),
+  ).toHaveCount(0)
   const target = deviceField(page, 'devices.field.target')
   await expect(target).toBeEnabled()
   for (const absent of [
@@ -229,19 +237,42 @@ test('the device form asks only for fields the selected target needs', async ({
   await expect(
     page.getByRole('region', { name: 'Add a connection', exact: true }),
   ).toHaveCount(0)
-  await page
-    .getByRole('button', { name: 'Add a connection', exact: true })
-    .click()
+  const addConnection = page.getByRole('button', {
+    name: 'Add a connection',
+    exact: true,
+  })
+  await addConnection.click()
+  // The header action keeps its place while the form is open beside the
+  // saved connection.
+  await expect(addConnection).toBeDisabled()
   await target.click()
   await page.getByRole('option', { name: 'sing-box' }).click()
   await expect(deviceField(page, 'devices.field.name')).toHaveValue('')
   await expect(
     page.getByText('Fill in this field', { exact: true }),
   ).toHaveCount(0)
-  await page.getByRole('button', { name: 'Clear form', exact: true }).click()
+  await deviceField(page, 'devices.field.name').fill('Abandoned draft')
+  await page.screenshot({
+    path: join(reviewRoot, 'connection-create-beside-list.png'),
+  })
+  // Cancelling discards the draft and puts the connection the form replaced
+  // back into the work area: the list is still one connection long, the
+  // header action is available again, and nothing collapsed into a button.
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(
+    page.getByRole('heading', { name: 'Local client', exact: true }),
+  ).toBeFocused()
   await expect(
     page.getByRole('region', { name: 'Add a connection', exact: true }),
-  ).toBeVisible()
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: /^Configure connection / }),
+  ).toHaveCount(1)
+  await expect(addConnection).toBeEnabled()
+  await addConnection.click()
+  await target.click()
+  await page.getByRole('option', { name: 'sing-box' }).click()
+  await expect(deviceField(page, 'devices.field.name')).toHaveValue('')
   await page
     .getByRole('button', {
       name: 'Configure connection Local client',
