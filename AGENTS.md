@@ -68,6 +68,9 @@ Read `.agents/rules/go-architecture.md` before changing Go product code,
 `.agents/rules/web-architecture.md` before changing `web/src`,
 `.agents/rules/security-boundaries.md` before any network/browser/device source,
 and `.agents/rules/quality-gates.md` before changing tools, tests, CI, or gates.
+When the skill catalog the session exposes offers a skill for the same work,
+such as a UI workflow for `web/` changes, read it before editing as well; the
+repository requires no such skill and works from a clean clone without one.
 
 ## Verification
 
