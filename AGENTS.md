@@ -22,7 +22,6 @@ hard-to-reverse technical choice as an ADR.
   `.claude/skills/` files are discovery-only adapters that require the matching
   canonical skill to be read completely; `CLAUDE.md` imports this root contract.
 - For Routevane Go milestones, use the repo skill `routevane-go-slice`.
-- For any `web/` implementation, use the repo skill `routevane-ui-slice`.
 - For requested prerelease, repository-hygiene, documentation, or installation
   audits, use the repo skill `repository-readiness-audit`.
 
