@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import RvTable from '@/shared/ui/RvTable.vue'
+import { targetIcon } from '@/shared/lib/targetIcon'
 import { computed, ref } from 'vue'
 import OutputPrefixEditor from '@/features/view-profile/ui/OutputPrefixEditor.vue'
 
@@ -122,6 +124,7 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
       label: props.targetTitle(target.id, target.title),
       mono: '.' + target.fileExtension,
       value: target.id,
+      icon: targetIcon(target.id),
     })),
   })),
 )
@@ -135,220 +138,227 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
       :title="t('outputs.empty')"
       tone="waiting"
     />
-    <div v-else class="outputs__scroll">
-      <table class="outputs__table">
-        <thead>
-          <tr>
-            <th scope="col">{{ t('outputs.column.target') }}</th>
-            <th scope="col">{{ t('outputs.column.format') }}</th>
-            <th scope="col">{{ t('outputs.column.device') }}</th>
-            <th scope="col">{{ t('outputs.column.updated') }}</th>
-            <th scope="col">
-              <span class="outputs__visually-hidden">
-                {{ t('outputs.column.actions') }}
-              </span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="output in props.outputs"
-            :key="output.id"
-            :class="{
-              'outputs__row--selected': output.id === props.selectedId,
-            }"
-          >
-            <td class="outputs__cell-target">
-              <span class="outputs__name">
-                <button
-                  class="outputs__select"
-                  type="button"
-                  @click="emit('select', output.id)"
-                >
-                  {{ outputTitle(output) }}
-                </button>
-                <span v-if="output.targetKind !== ''" class="outputs__kind">
-                  {{ t(`kind.${output.targetKind}.one`) }}
-                </span>
-              </span>
-              <OutputPrefixEditor
-                v-if="output.targetID === 'keenetic-dns' && !props.archived"
-                :output-id="output.id"
-                :prefix="output.fqdnGroupPrefix ?? ''"
-                :disabled="props.busy"
-              />
-            </td>
-            <td class="outputs__cell-format">
-              {{
-                output.fileExtension === '' ? '—' : `.${output.fileExtension}`
-              }}
-            </td>
-            <td class="outputs__cell-device">
-              <label
-                :for="`output-device-${output.id}`"
-                class="outputs__visually-hidden"
+    <RvTable v-else class="outputs__scroll">
+      <thead>
+        <tr>
+          <th scope="col">{{ t('outputs.column.target') }}</th>
+          <th scope="col">{{ t('outputs.column.format') }}</th>
+          <th scope="col">{{ t('outputs.column.device') }}</th>
+          <th scope="col">{{ t('outputs.column.updated') }}</th>
+          <th scope="col">
+            <span class="outputs__visually-hidden">
+              {{ t('outputs.column.actions') }}
+            </span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          v-for="output in props.outputs"
+          :key="output.id"
+          :class="{
+            'outputs__row--selected': output.id === props.selectedId,
+          }"
+        >
+          <td class="outputs__cell-target">
+            <span class="outputs__name">
+              <button
+                class="outputs__select"
+                :aria-pressed="output.id === props.selectedId"
+                type="button"
+                @click="emit('select', output.id)"
               >
-                {{ t('outputs.device.label', { target: outputTitle(output) }) }}
-              </label>
-              <template v-if="props.deployable(output)">
-                <div
-                  v-if="deviceChoices(output).length > 0"
-                  class="outputs__device"
-                >
-                  <RvSelect
-                    :disabled="props.busy || props.archived"
-                    searchable
-                    :input-id="`output-device-${output.id}`"
-                    :loading="props.busy"
-                    :model-value="output.deviceID"
-                    :options="deviceChoices(output)"
-                    :placeholder="t('outputs.device.none')"
-                    @update:model-value="emit('bindDevice', output.id, $event)"
-                  />
-                  <RvButton
-                    v-if="output.deviceID !== ''"
-                    :disabled="props.busy || props.archived"
-                    size="compact"
-                    variant="quiet"
-                    @click="emit('bindDevice', output.id, '')"
-                  >
-                    {{ t('outputs.device.detach') }}
-                  </RvButton>
-                </div>
-                <RvButton
-                  v-else
-                  size="compact"
-                  to="/connections"
-                  variant="quiet"
-                >
-                  <RvIcon name="plus" />
-                  {{ t('outputs.device.add') }}
-                </RvButton>
-                <RvStatus
-                  v-if="!props.archived && deviceChoices(output).length > 0"
-                  class="outputs__readiness"
-                  :label="readinessLabel(output)"
-                  :tone="
-                    readiness(output) === 'ready'
-                      ? 'ready'
-                      : readiness(output) === 'choose'
-                        ? 'waiting'
-                        : 'warning'
-                  "
-                />
-              </template>
-              <span v-else class="outputs__manual">
-                {{ t('outputs.device.manual') }}
+                <RvIcon :name="targetIcon(output.targetID)" />
+                {{ outputTitle(output) }}
+              </button>
+              <span v-if="output.targetKind !== ''" class="outputs__kind">
+                {{ t(`kind.${output.targetKind}.one`) }}
               </span>
-            </td>
-            <td class="outputs__cell-updated">
-              <span class="outputs__updated">
-                <RvStatus
-                  v-if="output.lastAttempt?.status === 'failed'"
-                  :label="t('outputs.failed')"
-                  tone="failed"
+            </span>
+          </td>
+          <td class="outputs__cell-format">
+            {{ output.fileExtension === '' ? '—' : `.${output.fileExtension}` }}
+          </td>
+          <td class="outputs__cell-device">
+            <label
+              :for="`output-device-${output.id}`"
+              class="outputs__visually-hidden"
+            >
+              {{ t('outputs.device.label', { target: outputTitle(output) }) }}
+            </label>
+            <template v-if="props.deployable(output)">
+              <div
+                v-if="deviceChoices(output).length > 0"
+                class="outputs__device"
+              >
+                <RvSelect
+                  :disabled="props.busy || props.archived"
+                  searchable
+                  :input-id="`output-device-${output.id}`"
+                  :loading="props.busy"
+                  :model-value="output.deviceID"
+                  :options="deviceChoices(output)"
+                  :placeholder="t('outputs.device.none')"
+                  @update:model-value="emit('bindDevice', output.id, $event)"
                 />
-                <span>
-                  {{
-                    output.latest === null
-                      ? t('profiles.noArtifact')
-                      : formatTime(output.latest.contentCreatedAt)
-                  }}
-                </span>
-              </span>
-            </td>
-            <td class="outputs__cell-actions">
-              <div class="outputs__actions">
                 <RvButton
-                  v-if="output.latest !== null"
-                  :aria-label="
-                    t('outputs.download.aria', { target: outputTitle(output) })
-                  "
-                  :href="`/v1/artifacts/${output.latest.id}`"
+                  v-if="output.deviceID !== ''"
+                  :disabled="props.busy || props.archived"
                   size="compact"
                   variant="quiet"
+                  @click="emit('bindDevice', output.id, '')"
                 >
-                  <RvIcon name="download" />
-                  {{ t('outputs.download') }}
-                </RvButton>
-                <RvButton
-                  v-if="props.deployable(output)"
-                  size="compact"
-                  :to="`/profiles/${props.profileId}/send/${output.id}`"
-                  variant="quiet"
-                >
-                  <RvIcon name="send" />
-                  {{ t('outputs.send') }}
+                  {{ t('outputs.device.detach') }}
                 </RvButton>
               </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+              <RvButton v-else size="compact" to="/connections" variant="quiet">
+                <RvIcon name="plus" />
+                {{ t('outputs.device.add') }}
+              </RvButton>
+              <RvStatus
+                v-if="!props.archived && deviceChoices(output).length > 0"
+                class="outputs__readiness"
+                :label="readinessLabel(output)"
+                :tone="
+                  readiness(output) === 'ready'
+                    ? 'ready'
+                    : readiness(output) === 'choose'
+                      ? 'waiting'
+                      : 'warning'
+                "
+              />
+            </template>
+            <span v-else class="outputs__manual">
+              {{ t('outputs.device.manual') }}
+            </span>
+          </td>
+          <td class="outputs__cell-updated">
+            <span class="outputs__updated">
+              <RvStatus
+                v-if="output.lastAttempt?.status === 'failed'"
+                :label="t('outputs.failed')"
+                tone="failed"
+              />
+              <span>
+                {{
+                  output.latest === null
+                    ? t('profiles.noArtifact')
+                    : formatTime(output.latest.contentCreatedAt)
+                }}
+              </span>
+            </span>
+          </td>
+          <td class="outputs__cell-actions">
+            <div class="outputs__actions">
+              <RvButton
+                v-if="output.latest !== null"
+                :aria-label="
+                  t('outputs.download.aria', { target: outputTitle(output) })
+                "
+                :href="`/v1/artifacts/${output.latest.id}`"
+                size="compact"
+                variant="quiet"
+              >
+                <RvIcon name="download" />
+                {{ t('outputs.download') }}
+              </RvButton>
+              <RvButton
+                v-if="props.deployable(output)"
+                size="compact"
+                :to="`/profiles/${props.profileId}/send/${output.id}`"
+                variant="quiet"
+              >
+                <RvIcon name="send" />
+                {{ t('outputs.send') }}
+              </RvButton>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </RvTable>
 
     <section
-      v-if="props.schedule !== null && !props.archived"
-      aria-labelledby="profile-schedule"
-      class="outputs__schedule"
+      v-for="output in props.outputs.filter(
+        (item) => item.targetID === 'keenetic-dns' && !props.archived,
+      )"
+      :key="output.id"
+      class="outputs__configuration"
+      :aria-label="outputTitle(output)"
     >
-      <h2 id="profile-schedule" class="outputs__section-title">
-        {{ t('profile.schedule') }}
+      <h2 class="outputs__section-title">
+        <RvIcon :name="targetIcon(output.targetID)" /> {{ outputTitle(output) }}
       </h2>
-      <div class="outputs__schedule-field">
-        <RvSelect
-          v-model="scheduleValue"
-          :disabled="props.scheduleSaving"
-          input-id="profile-schedule-select"
-          labelled-by="profile-schedule"
-          :loading="props.scheduleSaving"
-          :options="scheduleOptions"
-          :placeholder="t('profile.schedule.default')"
-        />
-      </div>
-      <p
-        v-if="props.schedule.lastRefreshFailed"
-        class="outputs__schedule-note"
-        role="status"
-      >
-        {{ t('profile.schedule.failedNote') }}
-      </p>
+      <OutputPrefixEditor
+        :output-id="output.id"
+        :prefix="output.fqdnGroupPrefix ?? ''"
+        :disabled="props.busy"
+      />
     </section>
 
-    <form v-if="!props.archived" class="outputs__add" @submit.prevent="add">
-      <label class="outputs__add-label" for="outputs-target">
-        {{ t('outputs.add') }}
-        <RvInfoTip
-          :label="t('outputs.add.info')"
-          :text="t('outputs.add.info.text')"
-        />
-      </label>
-      <div class="outputs__add-row">
-        <div class="outputs__target-field">
+    <div v-if="!props.archived" class="outputs__settings">
+      <section
+        v-if="props.schedule !== null"
+        aria-labelledby="profile-schedule"
+        class="outputs__schedule"
+      >
+        <h2 id="profile-schedule" class="outputs__section-title">
+          {{ t('profile.schedule') }}
+        </h2>
+        <div class="outputs__schedule-field">
           <RvSelect
-            v-model="chosenTarget"
-            :disabled="props.busy || props.targetGroups.length === 0"
-            :groups="targetChoices"
-            searchable
-            input-id="outputs-target"
-            :loading="props.busy"
-            :placeholder="t('outputs.add.placeholder')"
+            v-model="scheduleValue"
+            :disabled="props.scheduleSaving"
+            input-id="profile-schedule-select"
+            labelled-by="profile-schedule"
+            :loading="props.scheduleSaving"
+            :options="scheduleOptions"
+            :placeholder="t('profile.schedule.default')"
           />
         </div>
-        <RvButton
-          :disabled="props.busy || chosenTarget === ''"
-          :loading="props.busy"
-          type="submit"
-          variant="secondary"
+        <p
+          v-if="props.schedule.lastRefreshFailed"
+          class="outputs__schedule-note"
+          role="status"
         >
-          <RvIcon name="plus" />
-          {{ t('outputs.add.submit') }}
-        </RvButton>
-      </div>
-      <p v-if="props.targetGroups.length === 0" class="outputs__note">
-        {{ t('outputs.add.none') }}
-      </p>
-    </form>
+          {{ t('profile.schedule.failedNote') }}
+        </p>
+      </section>
+
+      <form class="outputs__add" @submit.prevent="add">
+        <label class="outputs__add-label" for="outputs-target">
+          {{ t('outputs.add') }}
+          <RvInfoTip
+            :label="t('outputs.add.info')"
+            :text="t('outputs.add.info.text')"
+          />
+        </label>
+        <div class="outputs__add-row">
+          <div class="outputs__target-field">
+            <RvSelect
+              v-model="chosenTarget"
+              :disabled="props.busy || props.targetGroups.length === 0"
+              :groups="targetChoices"
+              searchable
+              input-id="outputs-target"
+              :loading="props.busy"
+              :placeholder="t('outputs.add.placeholder')"
+            />
+          </div>
+          <RvButton
+            :disabled="props.busy || chosenTarget === ''"
+            :loading="props.busy"
+            type="submit"
+            variant="secondary"
+          >
+            <RvIcon name="plus" />
+            {{ t('outputs.add.submit') }}
+          </RvButton>
+        </div>
+        <p v-if="props.targetGroups.length === 0" class="outputs__note">
+          {{ t('outputs.add.none') }}
+        </p>
+      </form>
+    </div>
   </div>
 </template>
 
@@ -356,37 +366,17 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
 .outputs {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--rv-space-8);
+  gap: var(--rv-space-6);
+  min-width: 0;
 }
 
 /* The table scrolls inside its own box on narrow screens; the page never
    scrolls sideways. The box is also the containing block, so the hidden column
    header cannot escape it and widen the document. */
 .outputs__scroll {
-  position: relative;
-  overflow-x: auto;
-}
-
-.outputs__table {
-  width: 100%;
-  min-width: 34rem;
-  border-collapse: collapse;
-}
-
-.outputs__table th {
-  padding: var(--rv-space-3) var(--rv-space-4);
-  color: var(--rv-color-ink-muted);
-  font-weight: 600;
-  font-size: var(--rv-text-dense);
-  text-align: start;
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule-strong);
-}
-
-.outputs__table td {
-  padding: var(--rv-space-3) var(--rv-space-4);
-  font-size: var(--rv-text-interface);
-  vertical-align: middle;
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+  --rv-table-min-width: var(--rv-outputs-table-width);
+  --rv-table-layout: fixed;
+  --rv-table-cell-padding: var(--rv-space-3);
 }
 
 .outputs__row--selected td {
@@ -394,7 +384,7 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
 }
 
 .outputs__cell-target {
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 /* The cell stays a table cell; the flex column lives inside it, or the name
@@ -402,13 +392,15 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
 .outputs__name {
   display: inline-flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: var(--rv-space-1);
   align-items: flex-start;
 }
 
 .outputs__select {
   display: inline-flex;
   align-items: center;
+  gap: var(--rv-space-2);
+  text-align: start;
   min-height: var(--rv-control-compact);
   padding: 0;
   color: var(--rv-color-ink);
@@ -442,17 +434,18 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
 .outputs__cell-updated {
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .outputs__cell-device {
-  min-width: var(--rv-measure-field);
+  min-width: 0;
 }
 
 .outputs__device {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center start;
   gap: var(--rv-space-2);
-  align-items: center;
 }
 
 .outputs__readiness {
@@ -466,7 +459,7 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
 
 .outputs__updated {
   display: grid;
-  gap: 0.125rem;
+  gap: var(--rv-space-1);
 }
 
 .outputs__cell-actions {
@@ -475,6 +468,7 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
 
 .outputs__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--rv-space-2);
   align-items: center;
   justify-content: flex-end;
@@ -484,18 +478,27 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--rv-space-3);
-  max-width: 36rem;
+  min-width: 0;
+  align-content: start;
+  padding: var(--rv-space-5);
+  background: var(--rv-color-surface);
+  border-radius: var(--rv-radius-lg);
 }
 
 .outputs__schedule {
   display: grid;
   gap: var(--rv-space-3);
-  max-width: 28rem;
-  padding-top: var(--rv-space-6);
-  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+  min-width: 0;
+  align-content: start;
+  padding: var(--rv-space-5);
+  background: var(--rv-color-surface);
+  border-radius: var(--rv-radius-lg);
 }
 
 .outputs__section-title {
+  display: flex;
+  gap: var(--rv-space-2);
+  align-items: center;
   font-size: var(--rv-text-section);
 }
 
@@ -540,5 +543,41 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
   overflow: hidden;
   white-space: nowrap;
   clip-path: inset(50%);
+}
+
+.outputs__settings {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--rv-measure-field)), 1fr)
+  );
+  gap: var(--rv-space-4);
+}
+
+.outputs__configuration {
+  min-width: 0;
+  padding: var(--rv-space-5);
+  background: var(--rv-color-surface);
+  border-radius: var(--rv-radius-lg);
+}
+
+.outputs__scroll th:nth-child(1) {
+  width: 22%;
+}
+
+.outputs__scroll th:nth-child(2) {
+  width: 9%;
+}
+
+.outputs__scroll th:nth-child(3) {
+  width: 27%;
+}
+
+.outputs__scroll th:nth-child(4) {
+  width: 20%;
+}
+
+.outputs__scroll th:nth-child(5) {
+  width: 22%;
 }
 </style>

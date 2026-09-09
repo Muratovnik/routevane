@@ -122,7 +122,8 @@ const completeSingleSelection = (option: ChoiceOption): void => {
         :aria-invalid="invalid || undefined"
         :aria-busy="loading || undefined"
       >
-        <span>{{
+        <RvIcon v-if="selected?.icon && !loading" :name="selected.icon" />
+        <span class="rv-search-select__value">{{
           loading
             ? (loadingLabel ?? placeholder)
             : (triggerLabel ?? selected?.label ?? placeholder)
@@ -194,6 +195,7 @@ const completeSingleSelection = (option: ChoiceOption): void => {
                   }"
                 />
                 <slot name="option" :option="option">
+                  <RvIcon v-if="option.icon" :name="option.icon" />
                   <span class="rv-search-select__copy"
                     ><span
                       >{{ option.label }}
@@ -360,6 +362,13 @@ const completeSingleSelection = (option: ChoiceOption): void => {
   padding: var(--rv-space-2);
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-meta);
+}
+
+.rv-search-select__value {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: start;
 }
 
 .rv-search-select__copy {

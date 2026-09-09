@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RvTable from '@/shared/ui/RvTable.vue'
 import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import { computed, onMounted } from 'vue'
 
@@ -218,77 +219,75 @@ const onMenu = (card: ProfileCard, key: string): void => {
     <!-- The scroll box the table lives in. It is a presentational containing
          block with no role and no name, and a test reads its own scroll
          extent, so it carries a test hook. -->
-    <div
+    <RvTable
       v-else-if="library.rows.value.length > 0"
       class="profiles__scroll"
       data-testid="rv-profiles-scroll"
     >
-      <table class="profiles__table">
-        <thead>
-          <tr>
-            <th scope="col">{{ t('profiles.column.name') }}</th>
-            <th scope="col">{{ t('profiles.column.outputs') }}</th>
-            <th scope="col">{{ t('profiles.column.updated') }}</th>
-            <th scope="col">
-              <span class="profiles__visually-hidden">
-                {{ t('profiles.column.actions') }}
-              </span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="card in library.rows.value"
-            :key="card.id"
-            class="profiles__row"
-            @click="openRoute($event, card)"
+      <thead>
+        <tr>
+          <th scope="col">{{ t('profiles.column.name') }}</th>
+          <th scope="col">{{ t('profiles.column.outputs') }}</th>
+          <th scope="col">{{ t('profiles.column.updated') }}</th>
+          <th scope="col">
+            <span class="profiles__visually-hidden">
+              {{ t('profiles.column.actions') }}
+            </span>
+          </th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          v-for="card in library.rows.value"
+          :key="card.id"
+          class="profiles__row"
+          @click="openRoute($event, card)"
+        >
+          <td class="profiles__cell-name">
+            <NuxtLink class="profiles__link" :to="profileHref(card)">
+              {{ displayName(card) }}
+            </NuxtLink>
+            <span
+              v-if="library.composition(card) !== displayName(card)"
+              class="profiles__lists"
+            >
+              {{ library.composition(card) }}
+            </span>
+          </td>
+          <td
+            class="profiles__cell-outputs"
+            :data-label="t('profiles.column.outputs')"
+            :class="{
+              'profiles__cell-outputs--none': card.outputs.length === 0,
+            }"
           >
-            <td class="profiles__cell-name">
-              <NuxtLink class="profiles__link" :to="profileHref(card)">
-                {{ displayName(card) }}
-              </NuxtLink>
-              <span
-                v-if="library.composition(card) !== displayName(card)"
-                class="profiles__lists"
-              >
-                {{ library.composition(card) }}
-              </span>
-            </td>
-            <td
-              class="profiles__cell-outputs"
-              :data-label="t('profiles.column.outputs')"
-              :class="{
-                'profiles__cell-outputs--none': card.outputs.length === 0,
-              }"
-            >
-              {{ outputSummary(card) }}
-            </td>
-            <td
-              class="profiles__cell-updated"
-              :data-label="t('profiles.column.updated')"
-              :class="{
-                'profiles__cell-updated--none':
-                  library.downloadable(card) === null,
-              }"
-            >
-              {{ updatedAt(card) }}
-            </td>
-            <td
-              class="profiles__cell-actions"
-              :data-label="t('profiles.column.actions')"
-            >
-              <div class="profiles__actions">
-                <RvMenu
-                  :items="menuItems(card)"
-                  :label="t('profiles.menu', { name: displayName(card) })"
-                  @select="(key) => onMenu(card, key)"
-                />
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+            {{ outputSummary(card) }}
+          </td>
+          <td
+            class="profiles__cell-updated"
+            :data-label="t('profiles.column.updated')"
+            :class="{
+              'profiles__cell-updated--none':
+                library.downloadable(card) === null,
+            }"
+          >
+            {{ updatedAt(card) }}
+          </td>
+          <td
+            class="profiles__cell-actions"
+            :data-label="t('profiles.column.actions')"
+          >
+            <div class="profiles__actions">
+              <RvMenu
+                :items="menuItems(card)"
+                :label="t('profiles.menu', { name: displayName(card) })"
+                @select="(key) => onMenu(card, key)"
+              />
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </RvTable>
     <RvStateNotice
       v-else
       :body="t('profiles.allArchived.body')"
@@ -367,31 +366,7 @@ const onMenu = (card: ProfileCard, key: string): void => {
    scrolls sideways. The box is also the containing block, so the hidden
    column header cannot escape it and widen the document. */
 .profiles__scroll {
-  position: relative;
-  overflow-x: auto;
-}
-
-.profiles__table {
-  width: 100%;
-  min-width: 38rem;
-  border-collapse: collapse;
-}
-
-.profiles__table th {
-  padding: var(--rv-space-3) var(--rv-space-4);
-  color: var(--rv-color-ink-muted);
-  font-weight: 600;
-  font-size: var(--rv-text-dense);
-  text-align: start;
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule-strong);
-}
-
-.profiles__table td {
-  min-height: var(--rv-row-default);
-  padding: var(--rv-space-4);
-  font-size: var(--rv-text-interface);
-  vertical-align: middle;
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+  --rv-table-min-width: var(--rv-profiles-table-width);
 }
 
 .profiles__cell-name {
@@ -499,14 +474,12 @@ const onMenu = (card: ProfileCard, key: string): void => {
 @container routes (width <= 40rem) {
   .profiles__scroll {
     overflow-x: visible;
+
+    --rv-table-display: block;
+    --rv-table-min-width: 0;
   }
 
-  .profiles__table {
-    display: block;
-    min-width: 0;
-  }
-
-  .profiles__table thead {
+  .profiles__scroll thead {
     position: absolute;
     width: 0.0625rem;
     height: 0.0625rem;
@@ -514,12 +487,12 @@ const onMenu = (card: ProfileCard, key: string): void => {
     clip-path: inset(50%);
   }
 
-  .profiles__table tbody {
+  .profiles__scroll tbody {
     display: grid;
     gap: var(--rv-space-3);
   }
 
-  .profiles__table tr {
+  .profiles__scroll tr {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--rv-space-2) var(--rv-space-4);
@@ -529,7 +502,7 @@ const onMenu = (card: ProfileCard, key: string): void => {
     border-radius: var(--rv-radius-md);
   }
 
-  .profiles__table td {
+  .profiles__scroll td {
     min-height: 0;
     padding: 0;
     border-bottom: 0;

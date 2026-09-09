@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { targetIcon } from '@/shared/lib/targetIcon'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import { useDevices } from '@/features/devices/model/useDevices'
@@ -30,6 +31,7 @@ const targetChoices = computed<ChoiceOption[]>(() =>
   devices.targets.value.map((target) => ({
     label: targetTitle(target.id, target.title),
     value: target.id,
+    icon: targetIcon(target.id),
   })),
 )
 const name = ref('')
@@ -317,6 +319,7 @@ const onForget = async (id: string): Promise<void> => {
               :disabled="devices.busy.value"
               @click="openEditor(device.id)"
             >
+              <RvIcon :name="targetIcon(device.targetID)" />
               <span class="devices__identity">
                 <strong class="devices__name">{{ device.name }}</strong>
                 <span class="devices__meta">
@@ -325,17 +328,17 @@ const onForget = async (id: string): Promise<void> => {
                 <span class="devices__meta devices__mono">{{
                   device.address
                 }}</span>
-              </span>
-              <span class="devices__delivery">
-                {{
-                  t(
-                    !device.deployable
-                      ? 'devices.manualOnly'
-                      : device.autoDeliver
-                        ? 'devices.auto.on.noCredential'
-                        : 'devices.auto.off',
-                  )
-                }}
+                <span class="devices__delivery">
+                  {{
+                    t(
+                      !device.deployable
+                        ? 'devices.manualOnly'
+                        : device.autoDeliver
+                          ? 'devices.auto.on.noCredential'
+                          : 'devices.auto.off',
+                    )
+                  }}
+                </span>
               </span>
             </button>
           </li>
@@ -531,7 +534,7 @@ const onForget = async (id: string): Promise<void> => {
               @submit.prevent="submit"
             >
               <RvField
-                searchable
+                class="devices__target-field"
                 input-id="device-target"
                 :label="t('devices.field.target')"
               >
@@ -705,7 +708,7 @@ const onForget = async (id: string): Promise<void> => {
   gap: var(--rv-space-8);
   align-items: start;
   min-width: 0;
-  max-width: var(--rv-settings-width);
+  width: 100%;
 }
 
 .devices__workspace--editing {
@@ -714,9 +717,7 @@ const onForget = async (id: string): Promise<void> => {
 
 .devices__choose {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  align-items: flex-start;
   gap: var(--rv-space-4);
   width: 100%;
   padding: var(--rv-space-4);
@@ -725,7 +726,7 @@ const onForget = async (id: string): Promise<void> => {
   color: var(--rv-color-ink);
   background: var(--rv-color-surface);
   border: var(--rv-border-hair) solid transparent;
-  border-radius: var(--rv-radius-md);
+  border-radius: var(--rv-radius-lg);
   cursor: pointer;
 }
 
@@ -746,7 +747,8 @@ const onForget = async (id: string): Promise<void> => {
   display: grid;
   gap: var(--rv-space-6);
   min-width: 0;
-  width: min(100%, var(--rv-dialog-panel-width));
+  width: 100%;
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
   padding: var(--rv-space-6);
   background: var(--rv-color-surface);
   border-radius: var(--rv-radius-lg);
@@ -765,6 +767,10 @@ const onForget = async (id: string): Promise<void> => {
   justify-content: flex-end;
 }
 
+.devices__identity {
+  flex: 1;
+}
+
 .devices__identity,
 .devices__automation {
   display: grid;
@@ -775,7 +781,8 @@ const onForget = async (id: string): Promise<void> => {
 
 .devices__name,
 .devices__section-title {
-  font-size: var(--rv-text-module);
+  font-size: var(--rv-text-section);
+  overflow-wrap: anywhere;
 }
 
 .devices__meta {
@@ -826,8 +833,17 @@ const onForget = async (id: string): Promise<void> => {
 
 .devices__form {
   display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--rv-measure-field)), 1fr)
+  );
   gap: var(--rv-space-5);
   min-width: 0;
+}
+
+.devices__target-field {
+  grid-column: 1 / -1;
+  width: min(100%, var(--rv-measure-field));
 }
 
 .devices__field {

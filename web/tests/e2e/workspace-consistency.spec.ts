@@ -89,19 +89,28 @@ test('graphite settings and inline connection choices preserve readable alignmen
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.getByLabel('Устройство или приложение', { exact: true }).click()
   const option = page.getByRole('option', { name: 'Keenetic', exact: true })
-  const inset = await option.evaluate((element) => {
+  const labelLeft = await option.evaluate((element) => {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
     let node = walker.nextNode()
     while (node && !node.textContent?.trim()) node = walker.nextNode()
     if (!node) throw new Error('The option must contain its visible name')
     const range = document.createRange()
     range.selectNodeContents(node)
-    return (
-      range.getBoundingClientRect().left - element.getBoundingClientRect().left
-    )
+    return range.getBoundingClientRect().left
   })
+  // Target icons now occupy the leading slot; the selection mark stays trailing.
+  const icon = option.getByTestId('rv-icon').filter({ visible: true })
+  await expect(icon).toHaveCount(1)
+  const iconBox = await icon.boundingBox()
+  const optionBox = await option.boundingBox()
+  expect(iconBox).not.toBeNull()
+  expect(optionBox).not.toBeNull()
+  const inset = iconBox!.x - optionBox!.x
   expect(inset).toBeGreaterThanOrEqual(8)
   expect(inset).toBeLessThanOrEqual(16)
+  const gap = labelLeft - (iconBox!.x + iconBox!.width)
+  expect(gap).toBeGreaterThanOrEqual(8)
+  expect(gap).toBeLessThanOrEqual(16)
   expect(await audit(page, 'graphite-connection-choice')).toEqual([])
   await page.screenshot({
     path: join(reviewRoot, 'connection-choice-graphite.png'),

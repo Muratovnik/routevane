@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import RvTable from '@/shared/ui/RvTable.vue'
+import { targetIcon } from '@/shared/lib/targetIcon'
 import { onMounted, ref } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
@@ -10,6 +12,7 @@ import {
   type TargetOption,
 } from '@/shared/api/catalog'
 import { loadDeployableTargets } from '@/shared/api/deploy'
+import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
@@ -104,54 +107,53 @@ const onToggle = (target: TargetOption, event: Event): void => {
           <RvButton @click="initialize">{{ t('action.retry') }}</RvButton>
         </template>
       </RvStateNotice>
-      <div class="targets__scroll">
-        <table class="targets__table">
-          <thead>
-            <tr>
-              <th scope="col">{{ t('targets.column.target') }}</th>
-              <th scope="col">{{ t('targets.column.kind') }}</th>
-              <th scope="col">{{ t('targets.column.format') }}</th>
-              <th scope="col">{{ t('targets.column.auto') }}</th>
-              <th scope="col">{{ t('targets.column.visible') }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="target in targets" :key="target.id">
-              <td class="targets__cell-name">
-                <span class="targets__name">
-                  {{ title(target) }}
-                  <RvInfoTip
-                    :label="t('targets.hint', { target: title(target) })"
-                    :text="hint(target)"
-                  />
-                </span>
-              </td>
-              <td>{{ t(`kind.${target.kind}.one`) }}</td>
-              <td class="targets__cell-format">.{{ target.fileExtension }}</td>
-              <td>
-                {{
-                  !deployabilityKnown
-                    ? t('targets.auto.unknown')
-                    : deployableIDs.has(target.id)
-                      ? t('targets.auto.yes')
-                      : t('targets.auto.no')
-                }}
-              </td>
-              <td>
-                <label class="targets__toggle">
-                  <input
-                    :aria-label="t('targets.toggle', { target: title(target) })"
-                    :checked="visible(target)"
-                    class="targets__checkbox"
-                    type="checkbox"
-                    @change="onToggle(target, $event)"
-                  />
-                </label>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <RvTable class="targets__scroll">
+        <thead>
+          <tr>
+            <th scope="col">{{ t('targets.column.target') }}</th>
+            <th scope="col">{{ t('targets.column.kind') }}</th>
+            <th scope="col">{{ t('targets.column.format') }}</th>
+            <th scope="col">{{ t('targets.column.auto') }}</th>
+            <th scope="col">{{ t('targets.column.visible') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="target in targets" :key="target.id">
+            <td class="targets__cell-name">
+              <span class="targets__name">
+                <RvIcon :name="targetIcon(target.id)" />
+                {{ title(target) }}
+                <RvInfoTip
+                  :label="t('targets.hint', { target: title(target) })"
+                  :text="hint(target)"
+                />
+              </span>
+            </td>
+            <td>{{ t(`kind.${target.kind}.one`) }}</td>
+            <td class="targets__cell-format">.{{ target.fileExtension }}</td>
+            <td>
+              {{
+                !deployabilityKnown
+                  ? t('targets.auto.unknown')
+                  : deployableIDs.has(target.id)
+                    ? t('targets.auto.yes')
+                    : t('targets.auto.no')
+              }}
+            </td>
+            <td>
+              <label class="targets__toggle">
+                <input
+                  :aria-label="t('targets.toggle', { target: title(target) })"
+                  :checked="visible(target)"
+                  class="targets__checkbox"
+                  type="checkbox"
+                  @change="onToggle(target, $event)"
+                />
+              </label>
+            </td>
+          </tr>
+        </tbody>
+      </RvTable>
     </template>
   </section>
 </template>
@@ -165,28 +167,8 @@ const onToggle = (target: TargetOption, event: Event): void => {
 
 .targets__scroll {
   overflow-x: auto;
-}
 
-.targets__table {
-  width: 100%;
-  min-width: 40rem;
-  border-collapse: collapse;
-}
-
-.targets__table th {
-  padding: var(--rv-space-3) var(--rv-space-4);
-  color: var(--rv-color-ink-muted);
-  font-weight: 600;
-  font-size: var(--rv-text-dense);
-  text-align: start;
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule-strong);
-}
-
-.targets__table td {
-  padding: var(--rv-space-4);
-  font-size: var(--rv-text-interface);
-  vertical-align: middle;
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
+  --rv-table-min-width: var(--rv-targets-table-width);
 }
 
 .targets__cell-name {

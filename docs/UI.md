@@ -484,7 +484,7 @@ size, space, radius or duration.
 `web/src/shared/ui` owns the primitives: `RvButton`, `RvStatus`, `RvStateNotice`,
 `RvFacts`, `RvField`, `RvTextInput`, `RvTextarea`, `RvSegmented`, `RvTabs`,
 `RvDialog`, `RvSelect`, `RvCombobox`, `RvSearchSelect`, `RvMenu`, `RvInfoTip`, `RvIcon`,
-`RvDisclosure`, `RvFilePicker`, `RvCopyButton`, `RvCodeBlock`. Nuxt UI supplies
+`RvDisclosure`, `RvTable`, `RvFilePicker`, `RvCopyButton`, `RvCodeBlock`. Nuxt UI supplies
 the styled interaction mechanics behind `RvButton` and the full-height sheet
 variant of `RvDialog`; remaining overlays use headless Reka UI primitives.
 Both libraries are wrapped once here and themed with Routevane tokens: a
@@ -622,3 +622,10 @@ Inspection transitions capture the populated dialog itself, including its text,
 not its empty portal host. Dismissal requests reach the page before the primitive
 unmounts content. Docked and overlaid inspections share one snapshot transition;
 reduced motion and unsupported browsers switch immediately.
+
+Native data tables share `RvTable`: one bordered scroll surface, rounded corners,
+a filled header, cell separators and optional dense rows/sticky headers. Callers
+own column geometry and slot content, including selection and menus. Long forms
+stay outside comparison rows; output FQDN prefixes are configured in a separate
+section below the connection table. Target choices and connection names use the
+same decorative icons, with a generic device icon for an unknown plugin target.

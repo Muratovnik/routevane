@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { targetIcon } from '@/shared/lib/targetIcon'
 import { computed, onMounted } from 'vue'
 
 import RvComposerForm from '@/shared/ui/RvComposerForm.vue'
@@ -67,6 +68,7 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
       mono: `.${target.fileExtension}`,
       note: targetNote(target.id),
       value: target.id,
+      icon: targetIcon(target.id),
       warning: overflowing(target.id)
         ? t('create.forecast.overflow')
         : undefined,

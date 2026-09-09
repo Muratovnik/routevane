@@ -22,6 +22,7 @@ export type SegmentOption = {
 export type ChoiceOption = {
   value: string
   label: string
+  icon?: IconName
   /** Compared character by character — a file extension, an identifier. */
   mono?: string
   /** One short fact about the choice, read under its name. */
@@ -39,6 +40,11 @@ export type ChoiceGroup = {
 }
 
 export type IconName =
+  | 'amnezia'
+  | 'keenetic'
+  | 'mikrotik'
+  | 'openwrt'
+  | 'sing-box'
   | 'archive'
   | 'check'
   | 'chevron'

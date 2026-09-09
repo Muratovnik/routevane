@@ -185,6 +185,17 @@
   --rv-sidebar-width: 15rem;
   --rv-sidebar-collapsed-width: 4rem;
   --rv-panel-width: 20rem;
+
+  /* RvTable defaults; callers override geometry, the component owns density. */
+  --rv-table-display: table;
+  --rv-table-min-width: 0;
+  --rv-table-layout: auto;
+  --rv-table-font-size: var(--rv-text-interface);
+  --rv-table-cell-height: auto;
+  --rv-table-cell-padding: var(--rv-space-3) var(--rv-space-4);
+  --rv-targets-table-width: 40rem;
+  --rv-profiles-table-width: 38rem;
+  --rv-outputs-table-width: 44rem;
   --rv-table-action-width: 3.25rem;
   --rv-measure-workspace: 70rem;
 

@@ -20,34 +20,36 @@ const editor = useOutputPrefix(
 
 <template>
   <form class="output-prefix" @submit.prevent="editor.save">
-    <RvField
-      :input-id="`output-prefix-${outputId}`"
-      :label="t('outputs.prefix')"
-      :error="editor.valid.value ? undefined : t('outputs.prefix.invalid')"
-    >
-      <template #default="{ describedBy, invalid }">
-        <RvTextInput
-          v-model="editor.draft.value"
-          :input-id="`output-prefix-${outputId}`"
-          :described-by="describedBy"
-          :invalid="invalid"
-          :disabled="disabled || editor.state.value === 'saving'"
-          placeholder="routevane"
-        />
-      </template>
-    </RvField>
+    <div class="output-prefix__row">
+      <RvField
+        class="output-prefix__field"
+        :input-id="`output-prefix-${outputId}`"
+        :label="t('outputs.prefix')"
+        :error="editor.valid.value ? undefined : t('outputs.prefix.invalid')"
+      >
+        <template #default="{ describedBy, invalid }">
+          <RvTextInput
+            v-model="editor.draft.value"
+            :input-id="`output-prefix-${outputId}`"
+            :described-by="describedBy"
+            :invalid="invalid"
+            :disabled="disabled || editor.state.value === 'saving'"
+            placeholder="routevane"
+          />
+        </template>
+      </RvField>
+      <RvButton
+        type="submit"
+        :loading="editor.state.value === 'saving'"
+        :disabled="
+          disabled ||
+          !editor.valid.value ||
+          editor.draft.value === editor.saved.value
+        "
+        >{{ t('outputs.prefix.save') }}</RvButton
+      >
+    </div>
     <p class="output-prefix__note">{{ t('outputs.prefix.hint') }}</p>
-    <RvButton
-      type="submit"
-      size="compact"
-      :loading="editor.state.value === 'saving'"
-      :disabled="
-        disabled ||
-        !editor.valid.value ||
-        editor.draft.value === editor.saved.value
-      "
-      >{{ t('outputs.prefix.save') }}</RvButton
-    >
     <RvStateNotice
       v-if="editor.state.value === 'saved'"
       :title="t('outputs.prefix.saved')"
@@ -75,6 +77,9 @@ const editor = useOutputPrefix(
 .output-prefix {
   display: grid;
   gap: var(--rv-space-2);
+  max-width: var(--rv-measure-prose);
+  white-space: normal;
+  overflow-wrap: anywhere;
   margin-top: var(--rv-space-3);
 }
 
@@ -82,5 +87,18 @@ const editor = useOutputPrefix(
   margin: 0;
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
+}
+
+.output-prefix__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--rv-space-3);
+}
+
+.output-prefix__field {
+  flex: 1 1 var(--rv-composer-field-width);
+  min-width: 0;
+  max-width: var(--rv-measure-field);
 }
 </style>

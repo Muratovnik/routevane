@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RvTable from '@/shared/ui/RvTable.vue'
 import { useWorkspaceInspection } from '@/shared/model/useWorkspacePane'
 import { useSortable } from '@vueuse/integrations/useSortable'
 import { computed, ref, useTemplateRef, watch } from 'vue'
@@ -409,234 +410,237 @@ const listLabel = (listID: string): string =>
     <!-- The frame the table scrolls inside. It has no role and no name of its
          own, and a test reads the geometry and the scroll extent it owns, so
          it carries a test hook. -->
-    <div class="picker__table-frame" data-testid="rv-list-picker-frame">
-      <table class="picker__table">
-        <thead>
-          <tr>
-            <th class="picker__priority-column" scope="col">
-              <span class="picker__visually-hidden">{{
-                t('listPicker.column.priority')
-              }}</span>
-            </th>
-            <th class="picker__choice-heading" scope="col">
-              <input
-                type="checkbox"
-                class="picker__checkbox"
-                :checked="allVisibleSelected"
-                :indeterminate="visibleSelected > 0 && !allVisibleSelected"
-                :disabled="disabled || orderedRows.length === 0"
-                :aria-label="t('listPicker.selectVisible')"
-                @change="toggleVisible"
+    <RvTable
+      class="picker__table-frame"
+      data-testid="rv-list-picker-frame"
+      dense
+      sticky-header
+    >
+      <thead>
+        <tr>
+          <th class="picker__priority-column" scope="col">
+            <span class="picker__visually-hidden">{{
+              t('listPicker.column.priority')
+            }}</span>
+          </th>
+          <th class="picker__choice-heading" scope="col">
+            <input
+              type="checkbox"
+              class="picker__checkbox"
+              :checked="allVisibleSelected"
+              :indeterminate="visibleSelected > 0 && !allVisibleSelected"
+              :disabled="disabled || orderedRows.length === 0"
+              :aria-label="t('listPicker.selectVisible')"
+              @change="toggleVisible"
+            />
+          </th>
+          <th scope="col">
+            {{ t('listPicker.column.list')
+            }}<span class="picker__mobile-rules">{{
+              t('listPicker.column.rules')
+            }}</span>
+          </th>
+          <th class="picker__category-column" scope="col">
+            {{ t('listPicker.column.category') }}
+          </th>
+          <th class="picker__rules-column" scope="col">
+            {{ t('listPicker.column.rules') }}
+          </th>
+          <th class="picker__overlaps-column" scope="col">
+            <span class="picker__column-label">
+              {{ t('listPicker.column.overlaps') }}
+              <RvInfoTip
+                :label="t('listPicker.column.overlaps')"
+                :text="t('listPicker.overlap.legend')"
               />
-            </th>
-            <th scope="col">
-              {{ t('listPicker.column.list')
-              }}<span class="picker__mobile-rules">{{
-                t('listPicker.column.rules')
-              }}</span>
-            </th>
-            <th class="picker__category-column" scope="col">
-              {{ t('listPicker.column.category') }}
-            </th>
-            <th class="picker__rules-column" scope="col">
-              {{ t('listPicker.column.rules') }}
-            </th>
-            <th class="picker__overlaps-column" scope="col">
-              <span class="picker__column-label">
-                {{ t('listPicker.column.overlaps') }}
-                <RvInfoTip
-                  :label="t('listPicker.column.overlaps')"
-                  :text="t('listPicker.overlap.legend')"
-                />
-              </span>
-            </th>
-            <th class="picker__action-heading" scope="col">
-              <span class="picker__visually-hidden">{{
-                t('listPicker.column.open')
-              }}</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody ref="tableBody">
-          <tr
-            v-for="list in orderedRows"
-            :key="list.id"
-            :data-id="list.id"
-            :data-priority="
-              included(list.id) ? resolved.indexOf(list.id) + 1 : undefined
-            "
-            class="picker__row"
-            :class="{
-              'picker__row--selected': included(list.id),
-              'picker__row--inspected': activeListID === list.id,
-            }"
-          >
-            <td class="picker__priority-column">
-              <button
-                class="picker__handle"
-                type="button"
-                :disabled="disabled || !included(list.id)"
-                :aria-label="
-                  t(
-                    included(list.id)
-                      ? 'profile.priority.move.aria'
-                      : 'profile.priority.unselected',
-                    {
-                      list: listLabel(list.id),
-                      position: resolved.indexOf(list.id) + 1,
-                      total: resolved.length,
-                    },
-                  )
-                "
-                @keydown.up.prevent="movePriority(list.id, -1)"
-                @keydown.down.prevent="movePriority(list.id, 1)"
-                @keydown.home.prevent="
-                  movePriority(list.id, -resolved.indexOf(list.id))
-                "
-                @keydown.end.prevent="
-                  movePriority(
-                    list.id,
-                    resolved.length - resolved.indexOf(list.id) - 1,
-                  )
-                "
-              >
-                <RvIcon name="drag" />
-              </button>
-            </td>
-            <td>
-              <input
-                :aria-label="
-                  t(
-                    included(list.id)
-                      ? 'listPicker.exclude.aria'
-                      : 'listPicker.include.aria',
-                    {
-                      list: listLabel(list.id),
-                    },
-                  )
-                "
-                :checked="included(list.id)"
-                class="picker__checkbox"
-                :disabled="disabled"
-                type="checkbox"
-                :value="list.id"
-                @change="toggleList(list.id)"
-              />
-            </td>
-            <th scope="row">
-              <strong class="picker__name">{{ listLabel(list.id) }}</strong>
-              <span
-                class="picker__mobile-rules"
-                :aria-label="ruleLabel(list.id)"
-                >{{
-                  ruleCounts.has(list.id)
-                    ? formatNumber(ruleCounts.get(list.id)!)
-                    : '—'
-                }}</span
-              >
-              <span class="picker__mobile-meta">{{ categoryNames(list) }}</span>
-              <span
-                v-for="title in overlapTitles(list.id) ?? []"
-                :key="`mobile-${list.id}-${title}`"
-                class="picker__tag picker__tag--mobile"
-              >
-                {{ t('listPicker.overlap.tag', { list: title }) }}
-              </span>
-            </th>
-            <td class="picker__category-column">
-              <CategoryLabel
-                v-for="category in listCategories(list)"
-                :id="category.id"
-                :key="category.id"
-                :label="categoryLabel(category)"
-              />
-              <span v-if="listCategories(list).length === 0">{{
-                t('listPicker.other')
-              }}</span>
-            </td>
-            <td
-              class="picker__rules-column"
-              :aria-label="ruleLabel(list.id)"
-              :title="ruleLabel(list.id)"
+            </span>
+          </th>
+          <th class="picker__action-heading" scope="col">
+            <span class="picker__visually-hidden">{{
+              t('listPicker.column.open')
+            }}</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody ref="tableBody">
+        <tr
+          v-for="list in orderedRows"
+          :key="list.id"
+          :data-id="list.id"
+          :data-priority="
+            included(list.id) ? resolved.indexOf(list.id) + 1 : undefined
+          "
+          class="picker__row"
+          :class="{
+            'picker__row--selected': included(list.id),
+            'picker__row--inspected': activeListID === list.id,
+          }"
+        >
+          <td class="picker__priority-column">
+            <button
+              class="picker__handle"
+              type="button"
+              :disabled="disabled || !included(list.id)"
+              :aria-label="
+                t(
+                  included(list.id)
+                    ? 'profile.priority.move.aria'
+                    : 'profile.priority.unselected',
+                  {
+                    list: listLabel(list.id),
+                    position: resolved.indexOf(list.id) + 1,
+                    total: resolved.length,
+                  },
+                )
+              "
+              @keydown.up.prevent="movePriority(list.id, -1)"
+              @keydown.down.prevent="movePriority(list.id, 1)"
+              @keydown.home.prevent="
+                movePriority(list.id, -resolved.indexOf(list.id))
+              "
+              @keydown.end.prevent="
+                movePriority(
+                  list.id,
+                  resolved.length - resolved.indexOf(list.id) - 1,
+                )
+              "
             >
-              {{
+              <RvIcon name="drag" />
+            </button>
+          </td>
+          <td>
+            <input
+              :aria-label="
+                t(
+                  included(list.id)
+                    ? 'listPicker.exclude.aria'
+                    : 'listPicker.include.aria',
+                  {
+                    list: listLabel(list.id),
+                  },
+                )
+              "
+              :checked="included(list.id)"
+              class="picker__checkbox"
+              :disabled="disabled"
+              type="checkbox"
+              :value="list.id"
+              @change="toggleList(list.id)"
+            />
+          </td>
+          <th scope="row">
+            <strong class="picker__name">{{ listLabel(list.id) }}</strong>
+            <span
+              class="picker__mobile-rules"
+              :aria-label="ruleLabel(list.id)"
+              >{{
                 ruleCounts.has(list.id)
                   ? formatNumber(ruleCounts.get(list.id)!)
                   : '—'
-              }}
-            </td>
-            <td class="picker__overlaps-column">
-              <RvInfoTip
-                v-if="(overlapTitles(list.id)?.length ?? 0) > 0"
-                numeric
-                :label="
-                  t('listPicker.overlap.tag', {
-                    list: overlapTitles(list.id)?.join(', ') ?? '',
-                  })
-                "
-                :text="
-                  t(
-                    forecast?.incompleteLists?.length
-                      ? 'forecast.partial.found'
-                      : 'listPicker.overlap.heading',
-                  )
-                "
-                :items="overlapTitles(list.id) ?? []"
-                >{{ overlapCount(list.id) }}</RvInfoTip
-              >
-              <span
-                v-if="!included(list.id) || overlapTitles(list.id) === null"
-                class="picker__unknown"
-              >
-                <span aria-hidden="true">—</span>
-                <span class="picker__visually-hidden">
-                  {{
-                    overlapUnavailable && overlapUnavailableLabel
-                      ? overlapUnavailableLabel
-                      : t(
-                          overlapUnavailable
-                            ? 'listPicker.overlap.unavailable'
-                            : forecastPending
-                              ? 'listPicker.overlap.pending'
-                              : 'listPicker.overlap.unknown',
-                        )
-                  }}
-                </span>
-              </span>
-              <span
-                v-else-if="overlapTitles(list.id)?.length === 0"
-                class="picker__unknown"
-              >
-                {{
+              }}</span
+            >
+            <span class="picker__mobile-meta">{{ categoryNames(list) }}</span>
+            <span
+              v-for="title in overlapTitles(list.id) ?? []"
+              :key="`mobile-${list.id}-${title}`"
+              class="picker__tag picker__tag--mobile"
+            >
+              {{ t('listPicker.overlap.tag', { list: title }) }}
+            </span>
+          </th>
+          <td class="picker__category-column">
+            <CategoryLabel
+              v-for="category in listCategories(list)"
+              :id="category.id"
+              :key="category.id"
+              :label="categoryLabel(category)"
+            />
+            <span v-if="listCategories(list).length === 0">{{
+              t('listPicker.other')
+            }}</span>
+          </td>
+          <td
+            class="picker__rules-column"
+            :aria-label="ruleLabel(list.id)"
+            :title="ruleLabel(list.id)"
+          >
+            {{
+              ruleCounts.has(list.id)
+                ? formatNumber(ruleCounts.get(list.id)!)
+                : '—'
+            }}
+          </td>
+          <td class="picker__overlaps-column">
+            <RvInfoTip
+              v-if="(overlapTitles(list.id)?.length ?? 0) > 0"
+              numeric
+              :label="
+                t('listPicker.overlap.tag', {
+                  list: overlapTitles(list.id)?.join(', ') ?? '',
+                })
+              "
+              :text="
+                t(
                   forecast?.incompleteLists?.length
-                    ? '—'
-                    : overlapCount(list.id)
+                    ? 'forecast.partial.found'
+                    : 'listPicker.overlap.heading',
+                )
+              "
+              :items="overlapTitles(list.id) ?? []"
+              >{{ overlapCount(list.id) }}</RvInfoTip
+            >
+            <span
+              v-if="!included(list.id) || overlapTitles(list.id) === null"
+              class="picker__unknown"
+            >
+              <span aria-hidden="true">—</span>
+              <span class="picker__visually-hidden">
+                {{
+                  overlapUnavailable && overlapUnavailableLabel
+                    ? overlapUnavailableLabel
+                    : t(
+                        overlapUnavailable
+                          ? 'listPicker.overlap.unavailable'
+                          : forecastPending
+                            ? 'listPicker.overlap.pending'
+                            : 'listPicker.overlap.unknown',
+                      )
                 }}
               </span>
-            </td>
-            <td>
-              <button
-                :aria-label="
-                  t('listDetail.open.aria', {
-                    list: listLabel(list.id),
-                  })
-                "
-                class="picker__open"
-                :disabled="disabled"
-                type="button"
-                @click="openList(list.id)"
-              >
-                <RvIcon name="chevron" />
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </span>
+            <span
+              v-else-if="overlapTitles(list.id)?.length === 0"
+              class="picker__unknown"
+            >
+              {{
+                forecast?.incompleteLists?.length ? '—' : overlapCount(list.id)
+              }}
+            </span>
+          </td>
+          <td>
+            <button
+              :aria-label="
+                t('listDetail.open.aria', {
+                  list: listLabel(list.id),
+                })
+              "
+              class="picker__open"
+              :disabled="disabled"
+              type="button"
+              @click="openList(list.id)"
+            >
+              <RvIcon name="chevron" />
+            </button>
+          </td>
+        </tr>
+      </tbody>
 
-      <p v-if="orderedRows.length === 0" class="picker__empty">
-        {{ t('create.noMatches', { query: query.trim() }) }}
-      </p>
-    </div>
+      <template #after
+        ><p v-if="orderedRows.length === 0" class="picker__empty">
+          {{ t('create.noMatches', { query: query.trim() }) }}
+        </p></template
+      >
+    </RvTable>
 
     <ListDetailDialog
       :disabled="disabled"
@@ -667,44 +671,19 @@ const listLabel = (listID: string): string =>
   max-height: var(--rv-picker-height);
   overflow: auto;
   overscroll-behavior: contain;
-  background: var(--rv-color-canvas);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-md);
+
+  --rv-table-layout: fixed;
 }
 
-.picker__table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-  color: var(--rv-color-ink);
-  font-size: var(--rv-text-dense);
-}
-
-.picker__table thead {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--rv-color-surface);
-}
-
-.picker__table th,
-.picker__table td {
-  padding: 0 var(--rv-space-3);
-  height: var(--rv-control-default);
-  text-align: start;
-  vertical-align: middle;
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
-}
-
-.picker__table .picker__choice-heading,
-.picker__table .picker__action-heading,
+.picker__table-frame .picker__choice-heading,
+.picker__table-frame .picker__action-heading,
 .picker__row > td:nth-child(2),
 .picker__row > td:last-child {
   width: var(--rv-table-action-width);
   padding-inline: var(--rv-space-2);
 }
 
-.picker__table thead th {
+.picker__table-frame thead th {
   color: var(--rv-color-ink-muted);
   font-weight: 600;
   white-space: nowrap;
@@ -732,7 +711,7 @@ const listLabel = (listID: string): string =>
   font-weight: 400;
 }
 
-.picker__table th:nth-child(3) {
+.picker__table-frame th:nth-child(3) {
   width: var(--rv-catalog-name-column);
 }
 
@@ -840,8 +819,8 @@ const listLabel = (listID: string): string =>
 }
 
 @container (width <= 42rem) {
-  .picker__table {
-    table-layout: auto;
+  .picker__table-frame {
+    --rv-table-layout: auto;
   }
 
   .picker__category-column {
@@ -857,7 +836,7 @@ const listLabel = (listID: string): string =>
 }
 
 @container (width <= 26rem) {
-  .picker__table th:nth-child(3) {
+  .picker__table-frame th:nth-child(3) {
     width: auto;
   }
 
@@ -922,7 +901,7 @@ const listLabel = (listID: string): string =>
   font-size: var(--rv-text-meta);
 }
 
-.picker__table .picker__priority-column {
+.picker__table-frame .picker__priority-column {
   width: var(--rv-picker-priority-width);
   padding-inline: var(--rv-space-1);
 }

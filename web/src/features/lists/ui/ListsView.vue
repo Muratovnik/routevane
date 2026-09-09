@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RvTable from '@/shared/ui/RvTable.vue'
 import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import { useWorkspaceInspection } from '@/shared/model/useWorkspacePane'
 import { useSortable } from '@vueuse/integrations/useSortable'
@@ -699,110 +700,111 @@ const submitPriority = async (): Promise<void> => {
       <!-- The pane the table scrolls inside. It has no role and no name of its
            own, and a test reads the geometry and the scroll extent it owns, so
            it carries a test hook. -->
-      <div
+      <RvTable
         class="lists__workspace lists__pane-body"
         data-testid="rv-lists-workspace"
+        dense
+        sticky-header
       >
-        <table class="lists__table">
-          <thead>
-            <tr>
-              <th class="lists__priority-column" scope="col">
-                <span class="lists__visually-hidden">{{
-                  t('lists.priority.column')
-                }}</span>
-              </th>
-              <th scope="col">{{ t('listPicker.column.list') }}</th>
-              <th class="lists__category-column" scope="col">
-                {{ t('listPicker.collections') }}
-              </th>
-              <th class="lists__action-column" scope="col">
-                <span class="lists__visually-hidden">{{
-                  t('lists.manageCategories')
-                }}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody ref="tableBody" class="lists__members">
-            <tr
-              v-for="list in visibleLists"
-              :key="list.id"
-              class="lists__list-row"
-              :data-id="list.id"
-              @click="openRow($event, list.id)"
-            >
-              <td class="lists__priority-column">
-                <button
-                  type="button"
-                  class="lists__handle"
-                  :disabled="tableDisabled"
-                  :aria-label="
-                    t('profile.priority.move.aria', {
-                      list: list.title,
-                      position: priorityDraft.indexOf(list.id) + 1,
-                      total: priorityDraft.length,
-                    })
-                  "
-                  @keydown.up.prevent="movePriority(list.id, -1)"
-                  @keydown.down.prevent="movePriority(list.id, 1)"
-                  @keydown.home.prevent="
-                    movePriority(list.id, -visibleOrder.indexOf(list.id))
-                  "
-                  @keydown.end.prevent="
-                    movePriority(
-                      list.id,
-                      visibleOrder.length - visibleOrder.indexOf(list.id) - 1,
-                    )
-                  "
-                >
-                  <RvIcon name="drag" />
-                </button>
-              </td>
-              <th scope="row">
-                <button
-                  type="button"
-                  class="lists__list-name"
-                  :disabled="library.busy.value"
-                  @click="openList(list.id)"
-                >
-                  <span>{{ list.title }}</span>
-                </button>
-              </th>
-              <td class="lists__category-column">
-                <CategoryLabel
-                  v-for="category in listCategories(list)"
-                  :id="category.id"
-                  :key="category.id"
-                  :label="category.label"
-                /><span v-if="listCategories(list).length === 0">{{
-                  t('listPicker.other')
-                }}</span>
-              </td>
-              <td class="lists__action-column">
-                <RvMenu
-                  :disabled="library.busy.value"
-                  :items="profileActions(list)"
-                  :label="t('lists.list.menu', { list: list.title })"
-                  @select="onProfileAction(list, $event)"
-                />
-                <button
-                  type="button"
-                  class="lists__open"
-                  :disabled="tableDisabled"
-                  :aria-label="t('listDetail.open.aria', { list: list.title })"
-                  @click="openList(list.id)"
-                >
-                  <RvIcon name="chevron" class="lists__open-indicator" />
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+        <thead>
+          <tr>
+            <th class="lists__priority-column" scope="col">
+              <span class="lists__visually-hidden">{{
+                t('lists.priority.column')
+              }}</span>
+            </th>
+            <th scope="col">{{ t('listPicker.column.list') }}</th>
+            <th class="lists__category-column" scope="col">
+              {{ t('listPicker.collections') }}
+            </th>
+            <th class="lists__action-column" scope="col">
+              <span class="lists__visually-hidden">{{
+                t('lists.manageCategories')
+              }}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody ref="tableBody" class="lists__members">
+          <tr
+            v-for="list in visibleLists"
+            :key="list.id"
+            class="lists__list-row"
+            :data-id="list.id"
+            @click="openRow($event, list.id)"
+          >
+            <td class="lists__priority-column">
+              <button
+                type="button"
+                class="lists__handle"
+                :disabled="tableDisabled"
+                :aria-label="
+                  t('profile.priority.move.aria', {
+                    list: list.title,
+                    position: priorityDraft.indexOf(list.id) + 1,
+                    total: priorityDraft.length,
+                  })
+                "
+                @keydown.up.prevent="movePriority(list.id, -1)"
+                @keydown.down.prevent="movePriority(list.id, 1)"
+                @keydown.home.prevent="
+                  movePriority(list.id, -visibleOrder.indexOf(list.id))
+                "
+                @keydown.end.prevent="
+                  movePriority(
+                    list.id,
+                    visibleOrder.length - visibleOrder.indexOf(list.id) - 1,
+                  )
+                "
+              >
+                <RvIcon name="drag" />
+              </button>
+            </td>
+            <th scope="row">
+              <button
+                type="button"
+                class="lists__list-name"
+                :disabled="library.busy.value"
+                @click="openList(list.id)"
+              >
+                <span>{{ list.title }}</span>
+              </button>
+            </th>
+            <td class="lists__category-column">
+              <CategoryLabel
+                v-for="category in listCategories(list)"
+                :id="category.id"
+                :key="category.id"
+                :label="category.label"
+              /><span v-if="listCategories(list).length === 0">{{
+                t('listPicker.other')
+              }}</span>
+            </td>
+            <td class="lists__action-column">
+              <RvMenu
+                :disabled="library.busy.value"
+                :items="profileActions(list)"
+                :label="t('lists.list.menu', { list: list.title })"
+                @select="onProfileAction(list, $event)"
+              />
+              <button
+                type="button"
+                class="lists__open"
+                :disabled="tableDisabled"
+                :aria-label="t('listDetail.open.aria', { list: list.title })"
+                @click="openList(list.id)"
+              >
+                <RvIcon name="chevron" class="lists__open-indicator" />
+              </button>
+            </td>
+          </tr>
+        </tbody>
+
         <p v-if="visibleLists.length === 0" class="lists__empty">
           {{
             query ? t('create.noMatches', { query }) : t('lists.category.empty')
           }}
         </p>
-      </div>
+      </RvTable>
     </template>
 
     <RvDialog
@@ -1112,45 +1114,21 @@ const submitPriority = async (): Promise<void> => {
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
-  background: var(--rv-color-canvas);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-md);
+
+  --rv-table-min-width: var(--rv-measure-field);
+  --rv-table-layout: fixed;
 }
 
-.lists__table {
-  width: 100%;
-  min-width: var(--rv-measure-field);
-  table-layout: fixed;
-  border-collapse: collapse;
-  font-size: var(--rv-text-dense);
-}
-
-.lists__table thead {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--rv-color-surface);
-}
-
-.lists__table th,
-.lists__table td {
-  height: var(--rv-control-default);
-  padding: 0 var(--rv-space-3);
-  text-align: start;
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
-  font-weight: 400;
-}
-
-.lists__table thead th {
+.lists__workspace thead th {
   color: var(--rv-color-ink-muted);
   font-weight: 600;
 }
 
-.lists__table .lists__priority-column {
+.lists__workspace .lists__priority-column {
   width: var(--rv-table-action-width);
 }
 
-.lists__table .lists__action-column {
+.lists__workspace .lists__action-column {
   width: auto;
   min-width: calc(var(--rv-table-action-width) * 2);
   padding-inline: var(--rv-space-1);
@@ -1158,7 +1136,7 @@ const submitPriority = async (): Promise<void> => {
   white-space: nowrap;
 }
 
-.lists__table th:nth-child(2) {
+.lists__workspace th:nth-child(2) {
   width: var(--rv-catalog-name-column);
 }
 
@@ -1328,12 +1306,12 @@ const submitPriority = async (): Promise<void> => {
 }
 
 @container (width <= 40rem) {
-  .lists__table .lists__priority-column {
+  .lists__workspace .lists__priority-column {
     width: var(--rv-picker-priority-width);
     padding-inline: var(--rv-space-1);
   }
 
-  .lists__table .lists__priority-column[scope='col'] {
+  .lists__workspace .lists__priority-column[scope='col'] {
     font-size: var(--rv-text-meta);
     overflow-wrap: anywhere;
   }
