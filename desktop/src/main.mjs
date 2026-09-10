@@ -18,6 +18,7 @@ import { mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import electronUpdater from 'electron-updater'
 import { createUpdates } from './updates.mjs'
+import { createRecovery } from './recovery.mjs'
 import { startBackend } from './backend.mjs'
 import { appURL, createTransport, externalURL, isAppURL } from './transport.mjs'
 
@@ -48,6 +49,7 @@ let failed = false
 let requestedExitCode = 0
 let updates
 let updateTimer
+const recovery = createRecovery()
 
 function ownsUpdateRequest(event) {
   return (
@@ -104,6 +106,51 @@ async function openExternal(value) {
     cancelId: 0,
   })
   if (result.response === 1) await shell.openExternal(url)
+}
+
+// A window the operator cannot see is a window that cannot carry a question.
+async function ask(message, buttons) {
+  foreground()
+  if (!window || window.isDestroyed()) return undefined
+  const { response } = await dialog.showMessageBox(window, {
+    type: 'warning',
+    title: 'Routevane',
+    message,
+    buttons,
+    defaultId: 0,
+    cancelId: 0,
+  })
+  return response
+}
+
+// A load can fail on a start-up race or a transport that dropped one document,
+// and succeed on the next attempt. The operator decides; the attempts are
+// counted so a reload that keeps failing ends instead of asking forever.
+async function recoverLoad() {
+  const ru = app.getLocale().startsWith('ru')
+  const answer = await ask(
+    ru
+      ? 'Не удалось открыть интерфейс Routevane.'
+      : 'Routevane could not open its interface.',
+    ru ? ['Повторить', 'Выйти'] : ['Retry', 'Quit'],
+  )
+  if (answer === 1) app.quit()
+  else if (
+    answer === 0 &&
+    recovery.retried() &&
+    window?.isDestroyed() === false
+  )
+    await window.loadURL(appURL)
+}
+
+// Waiting is the operator's call. Nothing here kills the window on a timer.
+async function recoverHang() {
+  const ru = app.getLocale().startsWith('ru')
+  const answer = await ask(
+    ru ? 'Routevane не отвечает.' : 'Routevane is not responding.',
+    ru ? ['Подождать', 'Выйти'] : ['Wait', 'Quit'],
+  )
+  if (answer === 1) app.quit()
 }
 
 async function start() {
@@ -196,6 +243,21 @@ async function start() {
     event.preventDefault(),
   )
   window.webContents.on('render-process-gone', () => failure())
+  window.webContents.on('did-finish-load', () => recovery.loaded())
+  window.webContents.on(
+    'did-fail-load',
+    (event, errorCode, description, url, isMainFrame) => {
+      if (failed || quitting) return
+      const action = recovery.failed({ isMainFrame, errorCode })
+      if (action === 'stop') failure()
+      else if (action === 'retry') void recoverLoad().catch(() => {})
+    },
+  )
+  window.on('unresponsive', () => {
+    if (!failed && !quitting && recovery.unresponsive())
+      void recoverHang().catch(() => {})
+  })
+  window.on('responsive', () => recovery.responsive())
   const ru = app.getLocale().startsWith('ru')
   const trayImage = nativeImage
     .createFromPath(
@@ -252,7 +314,10 @@ async function start() {
       },
     ]),
   )
-  await window.loadURL(appURL)
+  // A first load that fails is answered by the recovery question above, not by
+  // the fatal path: the operator still gets a window and another attempt.
+  await window.loadURL(appURL).catch(() => {})
+  if (quitting) return
   foreground()
   if (
     app.isPackaged &&
