@@ -5,7 +5,12 @@ import { resolve } from 'node:path'
 import { ownedFiles } from './owned-files'
 
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test as base } from '@playwright/test'
+import {
+  expect,
+  test as base,
+  type Page,
+  type WebSocketRoute,
+} from '@playwright/test'
 
 import {
   assertPortBindable,
@@ -33,6 +38,31 @@ const processIsRunning = (pid: number): boolean => {
 /** The servers a supervisor announced by process id as it started them. */
 const reportedPids = (output: string): number[] =>
   [...output.matchAll(/PID (\d+)/g)].map((match) => Number(match[1]))
+
+/**
+ * Stands between the development client and its server, so a test can take that
+ * connection away at a moment of its choosing while the server keeps running
+ * for the claims that follow. Every socket the page opens from here on is
+ * forwarded, and the returned call closes them.
+ *
+ * It announces `beforeunload` first, and that is the load-bearing part. A client
+ * that loses its socket pings for the server and reloads the page the moment it
+ * answers — measured here at about 30 ms, which is not a state anything can
+ * observe. Its own rule is that a document already on its way out is not
+ * reloaded, so the page says it is leaving and the loss is then reported and
+ * stays reported. Nothing is unloaded and no server is touched.
+ */
+const holdOpenDevSocket = async (page: Page): Promise<() => Promise<void>> => {
+  const forwarded: WebSocketRoute[] = []
+  await page.routeWebSocket(/.*/, (socket) => {
+    forwarded.push(socket)
+    socket.connectToServer()
+  })
+  return async () => {
+    await page.evaluate(() => window.dispatchEvent(new Event('beforeunload')))
+    for (const socket of forwarded) await socket.close()
+  }
+}
 
 interface DevSession {
   /** Starts the development supervisor with the arguments one test needs. */
@@ -246,6 +276,21 @@ const draft = ref('')
   )
   await page.reload()
   await expect(devProbe).toHaveText('after-hmr')
+
+  // The development server's socket is the only thing telling an open page that
+  // the code it is running can still be rebuilt, and its client reports the
+  // loss to the console alone. The surface says it instead. The page is used
+  // for nothing else after this, so its socket is routed through the test only
+  // now — every claim above ran on the client's own connection.
+  const dropDevSocket = await holdOpenDevSocket(page)
+  await page.goto(origin)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Profiles')
+  await dropDevSocket()
+  await expect(
+    page
+      .getByRole('status')
+      .filter({ hasText: 'Development server disconnected' }),
+  ).toBeVisible()
 
   // Owned cleanup is this session's last claim, and it is asserted here rather
   // than in teardown: closing stdin stops the supervisor, it reports a clean

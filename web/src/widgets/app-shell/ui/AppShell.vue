@@ -3,10 +3,17 @@ import { useLocalStorage } from '@vueuse/core'
 import { computed } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
+import {
+  checkService,
+  retrySection,
+  useServiceHealth,
+} from '@/shared/model/useServiceHealth'
 import type { IconName } from '@/shared/ui/types'
 import RvWorkspace from '@/shared/ui/RvWorkspace.vue'
 import RvTooltip from '@/shared/ui/RvTooltip.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvButton from '@/shared/ui/RvButton.vue'
+import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import ApplicationUpdate from '@/features/application-update/ui/ApplicationUpdate.vue'
 
 /**
@@ -69,6 +76,43 @@ const sections = computed<
     },
   ]
 })
+
+/**
+ * One message about the surface itself, above whatever the screen is saying
+ * about its own work. It lives here because every screen is drawn inside this
+ * shell, and there is exactly one of it: a service that is not answering is
+ * also why a section did not open and why the development server went quiet, so
+ * stacking all three would state one fact three times. They are ordered by how
+ * much they explain.
+ */
+const { devDisconnected, probing, sectionFailure, unreachable } =
+  useServiceHealth()
+
+const SECTION_NOTICE = 'shell.notice.section'
+
+const notice = computed(() => {
+  if (unreachable.value) return 'shell.notice.unreachable'
+  if (sectionFailure.value !== '') return SECTION_NOTICE
+  // Only a development build ever reports this one, so nothing here has to ask
+  // which build it is running in.
+  if (devDisconnected.value) return 'shell.notice.dev'
+  return ''
+})
+
+/**
+ * Retrying a section asks for that section again, and what that takes belongs
+ * to whoever registered the recovery — this is a press, not a decision about
+ * documents. Retrying anything else asks the service whether it is back; a
+ * development server that is still gone answers that question too, and the
+ * message becomes the larger one.
+ */
+const retry = async (): Promise<void> => {
+  if (notice.value === SECTION_NOTICE) {
+    await retrySection()
+    return
+  }
+  await checkService()
+}
 </script>
 
 <template>
@@ -137,7 +181,24 @@ const sections = computed<
         class="shell__main"
         :class="{ 'shell__main--workspace': workspace }"
       >
-        <div class="shell__measure">
+        <div
+          class="shell__measure"
+          :class="{ 'shell__measure--noticed': notice !== '' }"
+        >
+          <div v-if="notice !== ''" class="shell__notice">
+            <!-- The tone states what is true of the service, not what this
+                 tab is doing about it. A check that flipped the tone would
+                 hide the whole message for the reveal delay and announce it
+                 again on the way back, once per scheduled check; the work
+                 belongs to the control that does it. -->
+            <RvStateNotice live :title="t(notice)" tone="failed">
+              <template #action>
+                <RvButton size="compact" :loading="probing" @click="retry">{{
+                  t('action.retry')
+                }}</RvButton>
+              </template>
+            </RvStateNotice>
+          </div>
           <RvWorkspace><slot /></RvWorkspace>
         </div>
       </main>
@@ -288,6 +349,14 @@ const sections = computed<
   container-type: inline-size;
 }
 
+/* The message aligns with the content column rather than with the window, so
+   it reads as part of the page it sits above at every width. */
+.shell__notice {
+  width: 100%;
+  max-width: var(--rv-composition-width);
+  margin-inline: auto;
+}
+
 @container (width <= 40rem) {
   .shell {
     grid-template-rows: auto minmax(0, 1fr);
@@ -432,6 +501,12 @@ const sections = computed<
   .shell__main--workspace .shell__measure {
     height: 100%;
     grid-template-rows: minmax(0, 1fr);
+  }
+
+  /* A workspace fills the window, so the message it is given has to take its
+     own height out of that fill rather than push the frame past it. */
+  .shell__main--workspace .shell__measure--noticed {
+    grid-template-rows: auto minmax(0, 1fr);
   }
 }
 

@@ -90,6 +90,9 @@ const ru: Dictionary = {
   'shell.nav.profiles': 'Профили',
   'shell.nav.lists': 'Списки',
   'shell.nav.connections': 'Подключения',
+  'shell.notice.unreachable': 'Routevane не отвечает',
+  'shell.notice.section': 'Раздел не открылся',
+  'shell.notice.dev': 'Dev-сервер отключён',
 
   'connections.title': 'Подключения',
   'devices.loading': 'Читаем устройства…',
@@ -1030,6 +1033,9 @@ const en: Dictionary = {
   'shell.nav.profiles': 'Profiles',
   'shell.nav.lists': 'Lists',
   'shell.nav.connections': 'Connections',
+  'shell.notice.unreachable': 'Routevane is not responding',
+  'shell.notice.section': 'This section did not load',
+  'shell.notice.dev': 'Development server disconnected',
 
   'connections.title': 'Connections',
   'devices.loading': 'Reading devices…',

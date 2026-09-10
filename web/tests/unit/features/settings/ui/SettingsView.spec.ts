@@ -57,7 +57,11 @@ describe('SettingsView prerequisite audit', () => {
     }
     await expect.element(screen.getByText(READ_FAILED)).toBeVisible()
     await expect.element(screen.getByText(SAVE_FAILED)).not.toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    // One read, no write. A request that never reached the service also makes
+    // the surface ask `/health` whether the service is there, so the counts
+    // are taken over this screen's own endpoints.
+    expect(callsTo(fetchMock, SETTINGS)).toHaveLength(1)
+    expect(callsTo(fetchMock, UPDATE)).toHaveLength(0)
     await expect
       .element(screen.getByRole('button', { name: 'Retry' }))
       .toBeVisible()

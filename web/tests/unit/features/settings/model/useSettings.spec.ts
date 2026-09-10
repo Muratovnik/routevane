@@ -25,8 +25,15 @@ describe('useSettings prerequisite reads', () => {
     expect(settings.readState.value).toBe('failed')
     expect(settings.refreshInterval.value).toBeNull()
     await expect(settings.setRefreshInterval('daily')).resolves.toBe(false)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fetchMock.mock.calls[0]?.[0]).toBe('/v1/settings')
+    // The read and nothing else: a prerequisite that failed writes nothing.
+    // A request that never reached the service also makes the surface ask
+    // `/health` whether the service is there at all, which is not this
+    // screen's traffic and is not counted as it.
+    expect(
+      fetchMock.mock.calls
+        .map(([input]) => String(input))
+        .filter((path) => path !== '/health'),
+    ).toEqual(['/v1/settings'])
   })
 
   it('retries the read and applies a known value, while suppressing duplicate writes', async () => {

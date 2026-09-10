@@ -5,6 +5,7 @@ import {
   type Decoder,
   fields,
   getJSON,
+  request,
   RoutevaneAPIError,
   text,
   texts,
@@ -37,7 +38,7 @@ export const loadDiagnostics = (
 export const loadArtifactContent = async (
   artifactID: string,
 ): Promise<ArtifactContent> => {
-  const response = await fetch(`/v1/artifacts/${artifactID}`, {
+  const response = await request(`/v1/artifacts/${artifactID}`, {
     headers: { Accept: 'text/plain, */*' },
     method: 'GET',
   })

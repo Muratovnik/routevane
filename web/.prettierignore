@@ -3,3 +3,7 @@
 coverage
 node_modules
 package-lock.json
+# Task scratch: reports, traces and probe files a task writes below `tmp` and
+# then removes. The format gate owns this package's own sources, and a file
+# nothing ships is not one of them.
+tmp

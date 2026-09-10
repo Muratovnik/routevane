@@ -1,4 +1,18 @@
+import { fileURLToPath } from 'node:url'
+
 import { createDevProxy } from './dev-proxy'
+
+// This interface's own modules, told from everything else by where they live.
+// Written the way a bundler spells a path on either platform, and anchored to
+// this file so a dependency that happens to carry a `src` folder of its own is
+// never mistaken for one of ours.
+const sourceRoot = fileURLToPath(new URL('src/', import.meta.url)).replaceAll(
+  '\\',
+  '/',
+)
+
+const ownModule = (id: string): boolean =>
+  id.replaceAll('\\', '/').startsWith(sourceRoot)
 
 const disableNuxtUIColorRuntime = (
   _options: Record<string, never>,
@@ -51,6 +65,13 @@ export default defineNuxtConfig({
     // makes browsers mix chunks of different builds. Direct entry references
     // keep every _nuxt file content-addressed.
     entryImportMap: false,
+    // Nuxt's own answer to a section that will not load is a page reload, and
+    // it is armed by a browser event that only the built product ever fires:
+    // during development it never runs at all, and against a service that has
+    // stopped it replaces the interface with an empty window. `manual` keeps
+    // Nuxt stating the fact and leaves the decision to
+    // `plugins/navigation.client.ts`, which asks the service first.
+    emitRouteChunkError: 'manual',
   },
   modules: ['@nuxt/eslint', '@nuxt/ui', disableNuxtUIColorRuntime],
   ui: {
@@ -60,6 +81,23 @@ export default defineNuxtConfig({
     colorMode: false,
   },
   srcDir: 'src/',
+  vite: {
+    build: {
+      rollupOptions: {
+        output: {
+          // Opening a section must not depend on the network. Every module of
+          // this interface is bundled with the entry, so the dynamic import a
+          // section link performs resolves inside code the browser already
+          // holds, and a service that stops answering can no longer make a
+          // link quietly do nothing. Only our own modules are named: an entry
+          // cannot be assigned to a manual chunk, and dependencies keep the
+          // splitting the bundler chose for them.
+          manualChunks: (id: string) =>
+            ownModule(id) ? 'routevane' : undefined,
+        },
+      },
+    },
+  },
   typescript: {
     strict: true,
     // Production scripts run `nuxt typecheck` explicitly before generation.

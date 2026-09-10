@@ -1,5 +1,10 @@
 import * as v from 'valibot'
 
+import {
+  reportReachable,
+  reportTransportFailure,
+} from '@/shared/model/useServiceHealth'
+
 export class RoutevaneAPIError extends Error {
   constructor(
     message: string,
@@ -20,6 +25,31 @@ export class RoutevaneAPIError extends Error {
 export const mutationHeaders = {
   'Content-Type': 'application/json',
   'X-Routevane-Request': '1',
+}
+
+/**
+ * The one place this surface reaches the network, so one place can tell whether
+ * the service is answering at all. Any reply is proof that it is — a refusal
+ * included, because a refusal is an answer. A transport failure is the browser
+ * saying the request never got there, which no single screen can distinguish
+ * from its own endpoint being unhappy.
+ *
+ * The failure travels on exactly as it arrived. Each endpoint below turns what
+ * it catches into the message it owns, and this is a report to the surface, not
+ * a translation for the caller.
+ */
+export const request = async (
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> => {
+  try {
+    const response = await fetch(path, init)
+    reportReachable()
+    return response
+  } catch (error) {
+    reportTransportFailure()
+    throw error
+  }
 }
 
 // A public payload is admitted by validation, never by assertion: the screen
@@ -124,7 +154,7 @@ export const postNoContent = async (
   path: string,
   body: unknown,
 ): Promise<void> => {
-  const response = await fetch(path, {
+  const response = await request(path, {
     method: 'POST',
     headers: mutationHeaders,
     body: JSON.stringify(body),
@@ -138,7 +168,7 @@ export const requestJSON = async <T>(
   init: RequestInit,
   decoder: Decoder<T>,
 ): Promise<T> => {
-  const response = await fetch(path, init)
+  const response = await request(path, init)
   const payload = await readPayload(response)
   if (!response.ok) throw refusal(payload, response.status)
   return contracted(decoder(payload), response.status)
@@ -155,7 +185,7 @@ export const requestDescribed = async <T>(
   decoder: Decoder<T>,
   refused: string,
 ): Promise<T> => {
-  const response = await fetch(path, init)
+  const response = await request(path, init)
   const payload = await readPayload(response)
   const decoded = decoder(payload)
   if (decoded === null) {
@@ -172,7 +202,7 @@ export const requestFile = async <T>(
   init: RequestInit,
   read: (response: Response) => Promise<T>,
 ): Promise<T> => {
-  const response = await fetch(path, init)
+  const response = await request(path, init)
   if (!response.ok) {
     throw new RoutevaneAPIError(
       readError(await refusalPayload(response)) ?? 'Операция не выполнена.',

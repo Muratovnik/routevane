@@ -194,7 +194,14 @@ export default withNuxt(
           ],
         },
       },
-      'boundaries/files': [{ category: 'app-root', pattern: 'src/app.vue' }],
+      // The files that are the application itself rather than a slice of it:
+      // its root component, and the plugins Nuxt runs before any screen exists.
+      // Both may reach any layer, and neither is a folder an element descriptor
+      // could match.
+      'boundaries/files': [
+        { category: 'app-root', pattern: 'src/app.vue' },
+        { category: 'app-root', pattern: 'src/plugins/*.ts' },
+      ],
       'boundaries/elements': [
         { type: 'pages', pattern: 'src/pages' },
         { type: 'widgets', pattern: 'src/widgets/*' },
