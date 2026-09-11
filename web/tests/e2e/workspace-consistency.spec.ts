@@ -2,6 +2,7 @@ import { expect } from '@playwright/test'
 import { join } from 'node:path'
 
 import { audit, auditWidths, reviewRoot } from './support/audits'
+import { localConfigAddress } from './support/environment'
 import { pressSegment } from './support/flows'
 import { libraryRow, libraryRowName, listRow } from './support/queries'
 import { test } from './support/served-product'
@@ -289,7 +290,7 @@ test('page actions, category context and composition controls share consistent g
     data: {
       target_id: 'singbox',
       name: 'Geometry client',
-      address: 'file:///C:/geometry.json',
+      address: localConfigAddress('geometry.json'),
     },
   })
   expect(created.ok()).toBe(true)

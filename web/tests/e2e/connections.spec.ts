@@ -11,6 +11,7 @@ import { join } from 'node:path'
 
 import { audit, auditWidths, reviewRoot } from './support/audits'
 import { englishCopy } from './support/copy'
+import { localConfigAddress } from './support/environment'
 import { buildProfile, openFormats } from './support/flows'
 import {
   addConnectionField,
@@ -232,7 +233,7 @@ test('the device form asks only for fields the selected target needs', async ({
     deviceField(page, 'deploy.field.interface.keenetic'),
   ).toHaveCount(0)
   await deviceField(page, 'devices.field.name').fill('Local client')
-  await singBoxAddress.fill('file:///C:/sing-box/config.json')
+  await singBoxAddress.fill(localConfigAddress())
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(
     page.getByRole('heading', { name: 'Local client', exact: true }),
@@ -287,7 +288,7 @@ test('the device form asks only for fields the selected target needs', async ({
     exact: true,
   })
   await expect(
-    details.getByText('file:///C:/sing-box/config.json', { exact: true }),
+    details.getByText(localConfigAddress(), { exact: true }),
   ).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(await auditWidths(page, 'connection-management')).toEqual([])
