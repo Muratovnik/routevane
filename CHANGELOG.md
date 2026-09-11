@@ -11,49 +11,43 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
-### Added
+## [0.2.0](https://github.com/Muratovnik/routevane/compare/v0.1.7...v0.2.0) (2026-09-11)
 
-- A registered connection's name, address, account and route interface can be
-  edited in place in Connections. Because consent named one exact destination
-  and account, changing the address, account or interface turns automatic
-  delivery off and removes the stored credential; the screen states that before
-  the change is saved and reports the state the service returned afterwards.
+### Highlights
 
-### Changed
+Routevane 0.2.0 completes the one-product vocabulary across the executable,
+CLI, HTTP API, catalog, storage, configuration transfer, and web application.
+It also adds clearer connection management and safer delivery, recovery, and
+browser workflows.
 
-- One word per object across the interface. What a profile publishes in is a
-  **format**, and the profile's «Подключение» tab is now «Публикация»; its table
-  reads Формат · Файл · Подключение · Содержимое от · Действия. **Подключение**
-  now means one thing everywhere: a registered access on the Connections
-  screen. Previously both objects were called a connection, and the two screens
-  named them in opposite order, so «Добавить подключение» stood for three
-  different actions and two empty states shared one sentence.
-- Connections is a two-column workspace: the registered connections on the
-  left, each stating what Routevane does with it, and the selected connection
-  or the creation form on the right. Adding a connection belongs to the list's
-  own header, and forgetting one moved into the connection's action menu and is
-  confirmed before it runs. With nothing registered the section states that and
-  offers to add the first connection instead of opening a form unasked.
-- Keenetic DNS builds use output-scoped, collision-checked group names and an
-  optional per-output prefix. Delivery changes only groups with persisted exact
-  ownership. Existing files remain immutable; unowned name conflicts require
-  manual review and migration, including after loss of the ownership ledger.
+### BREAKING CHANGES
 
-### Fixed
+This release completes the vocabulary migration. The executable, database, and
+lock are now named `routevane`; a composition is a **profile**, its sources are
+**lists**, and a renderer's profile is a **format**. CLI flags such as
+`--service` and `--service-id`, the corresponding API and catalog names, and
+the old browser addresses must be updated to their new names. Configuration
+transfer is now `config-transfer-v1.4`. Retired catalog keys and transfer
+versions remain readable for one minor version; an existing database is
+migrated in place and cannot be opened by an older binary. See
+[ADR 0039](https://github.com/Muratovnik/routevane/blob/main/docs/adr/0039-one-product-vocabulary-across-binary-api-and-storage.md)
+for the complete boundary.
 
-- Keenetic save errors inside HTTP 200 responses now fail delivery. Recovery must
-  save and read back the restored configuration; recovery failure takes priority
-  over the original verification error.
-- Keenetic DNS delivery detects and repairs `auto` policy drift on owned groups.
-- Browser discovery blocks direct WebRTC UDP and enforces the host limit while
-  connections are still pending.
-- Scheduled refresh preserves newer schedule choices and includes profiles beyond
-  the first 200. Build capacity is checked after overlapping rules are pruned.
-- The web interface restores send-menu navigation, visible retry states and
-  catalog refresh after busy operations. Tabs preserve keyboard access and drafts;
-  repeated single selections close their picker, including when it becomes busy.
-- Plugin shutdown remains bounded when a plugin stops reading its input, and
-  Windows executable cleanup tolerates transient locks after process exit.
+### Features
+
+- **connections:** ([23458d5](https://github.com/Muratovnik/routevane/commit/23458d51cee5b9cfa2493085b12e3cf069f30e78)) Edit a registered connection's name, address, account, and route interface in place. Changing an identity-bearing field turns automatic delivery off and removes the stored credential before the change is saved.
+- **connections:** ([23458d5](https://github.com/Muratovnik/routevane/commit/23458d51cee5b9cfa2493085b12e3cf069f30e78), [cff2008](https://github.com/Muratovnik/routevane/commit/cff2008a7a69471688142ada4e4babefcd5cb310)) Manage connections in a two-column workspace and get an explicit empty state with an action to add the first connection.
+- **ui:** ([63e2014](https://github.com/Muratovnik/routevane/commit/63e20149d21958476990872a3ae436ab24a465e0), [c16b76c](https://github.com/Muratovnik/routevane/commit/c16b76ca6b41adcc430c5d54756d2bc0e4b0b6d2)) Show each profile publication with its format, file, connection, and source content clearly named, including the publisher's own mark.
+- **keenetic:** ([073c3d3](https://github.com/Muratovnik/routevane/commit/073c3d390e6859062acf97c223916ea419832f49)) Use output-scoped, collision-checked group names with an optional per-output prefix, changing only groups with persisted exact ownership.
+
+### Bug Fixes
+
+- **keenetic:** ([073c3d3](https://github.com/Muratovnik/routevane/commit/073c3d390e6859062acf97c223916ea419832f49)) Treat save errors inside HTTP 200 responses as failures; recovery now saves and reads back the restored configuration, with recovery failure taking priority over the original verification error.
+- **keenetic:** ([073c3d3](https://github.com/Muratovnik/routevane/commit/073c3d390e6859062acf97c223916ea419832f49)) Detect and repair `auto` policy drift on owned groups.
+- **discovery:** ([073c3d3](https://github.com/Muratovnik/routevane/commit/073c3d390e6859062acf97c223916ea419832f49)) Block direct WebRTC UDP and enforce the host limit while connections are still pending.
+- **scheduler:** ([073c3d3](https://github.com/Muratovnik/routevane/commit/073c3d390e6859062acf97c223916ea419832f49)) Preserve newer schedule choices, include profiles beyond the first 200, and check build capacity after overlapping rules are pruned.
+- **ui:** ([073c3d3](https://github.com/Muratovnik/routevane/commit/073c3d390e6859062acf97c223916ea419832f49)) Restore send-menu navigation, visible retry states, and catalog refresh after busy operations; preserve keyboard access and drafts in tabs, and close repeated single-selection pickers even when they become busy.
+- **plugins:** ([073c3d3](https://github.com/Muratovnik/routevane/commit/073c3d390e6859062acf97c223916ea419832f49)) Keep shutdown bounded when a plugin stops reading its input, and tolerate transient Windows executable locks after process exit.
 
 ## [0.1.7](https://github.com/Muratovnik/routevane/compare/v0.1.5...v0.1.7) (2026-09-06)
 
