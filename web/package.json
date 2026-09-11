@@ -62,7 +62,7 @@
     "stylelint": "17.15.0",
     "stylelint-config-standard": "40.0.0",
     "stylelint-config-standard-vue": "2.0.0",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vitest": "5.0.0",
     "vitest-browser-vue": "3.1.0",
     "vue-tsc": "3.3.11"
