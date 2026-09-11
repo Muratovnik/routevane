@@ -598,6 +598,15 @@ const submitPriority = async (): Promise<void> => {
 <template>
   <section aria-labelledby="lists-title" class="lists">
     <RvPageHeader title-id="lists-title" :title="t('lists.title')">
+      <!-- Renaming a category or retiring one is rare and belongs to no single
+           row, so it is named here rather than hidden behind the plus beside
+           the filters — that plus is where a new category is made, which is
+           what a plus means everywhere else on this screen. -->
+      <RvButton
+        :disabled="library.state.value !== 'ready' || library.busy.value"
+        @click="categoriesOpen = true"
+        >{{ t('lists.manageCategories') }}</RvButton
+      >
       <RvButton
         :disabled="
           library.state.value !== 'ready' ||
@@ -653,8 +662,8 @@ const submitPriority = async (): Promise<void> => {
         :categories="library.categories.value"
         :lists="library.lists.value"
         :disabled="library.busy.value"
-        :action-label="t('lists.manageCategories')"
-        @action="categoriesOpen = true"
+        :action-label="t('lists.addCategory')"
+        @action="startCreateCategory"
       />
       <div v-if="priorityDirty" class="lists__order-bar">
         <RvButton
@@ -852,19 +861,6 @@ const submitPriority = async (): Promise<void> => {
             </div>
           </li>
         </ul>
-        <footer class="lists__collections-footer">
-          <RvButton
-            block
-            :disabled="library.busy.value || library.stale.value"
-            size="compact"
-            type="button"
-            variant="quiet"
-            @click="startCreateCategory"
-          >
-            <RvIcon name="plus" />
-            {{ t('lists.addCategory') }}
-          </RvButton>
-        </footer>
       </section>
     </RvDialog>
 
@@ -1269,10 +1265,6 @@ const submitPriority = async (): Promise<void> => {
 
 .lists__category-mark {
   transform: rotate(-90deg);
-}
-
-.lists__collections-footer {
-  padding: var(--rv-space-3);
 }
 
 .lists__form {

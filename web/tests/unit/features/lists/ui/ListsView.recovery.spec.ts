@@ -12,7 +12,6 @@ import {
   fillField,
   json,
   NEW_CATEGORY,
-  openCategories,
   openCategory,
   openMenu,
   REFRESH,
@@ -52,7 +51,6 @@ describe('recovering an interrupted library write', () => {
     const screen = await renderLibrary()
     await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await openCategories(screen)
     await screen.getByRole('button', { name: NEW_CATEGORY }).click()
     await fillField(
       screen.getByRole('dialog', { name: NEW_CATEGORY }),
@@ -97,7 +95,6 @@ describe('recovering an interrupted library write', () => {
     const screen = await renderLibrary()
     await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await openCategories(screen)
     await screen.getByRole('button', { name: NEW_CATEGORY }).click()
     await fillField(
       screen.getByRole('dialog', { name: NEW_CATEGORY }),

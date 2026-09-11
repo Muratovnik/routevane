@@ -12,7 +12,6 @@ import {
   contentsResponse,
   NEW_CATEGORY,
   NEW_LIST,
-  openCategories,
   openCategory,
   openMenu,
   renderLibrary,
@@ -52,7 +51,6 @@ describe('the library pane', () => {
     await expect.element(screen.getByRole('table')).toBeVisible()
     expect(rowNames(screen)).toHaveLength(4)
 
-    await openCategories(screen)
     await screen.getByRole('button', { name: NEW_CATEGORY }).click()
     // A new category is a full working surface rather than a centred box.
     const sheet = screen.getByRole('dialog', { name: NEW_CATEGORY })

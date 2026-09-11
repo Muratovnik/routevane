@@ -13,7 +13,6 @@ import {
   LISTS,
   NEW_CATEGORY,
   NEW_LIST,
-  openCategories,
   openCategory,
   renderLibrary,
   resetLibrary,
@@ -41,7 +40,6 @@ describe('creating categories and lists', () => {
     const screen = await renderLibrary()
     await expect.element(screen.getByRole('table')).toBeVisible()
 
-    await openCategories(screen)
     await screen.getByRole('button', { name: NEW_CATEGORY }).click()
     await fillField(
       screen.getByRole('dialog', { name: NEW_CATEGORY }),

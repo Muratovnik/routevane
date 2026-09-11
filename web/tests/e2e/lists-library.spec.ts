@@ -149,7 +149,6 @@ test('an operator category carries its lists into a profile and is kept while a 
     48,
   )
 
-  await page.getByRole('button', { name: 'Categories', exact: true }).click()
   await page.getByRole('button', { name: 'New category' }).click()
   const categoryForm = page.getByRole('dialog', { name: 'New category' })
   // The panel opens with the keyboard in its field, so typing starts there
@@ -312,7 +311,6 @@ test('the library deletes a category with its lists, and composing offers none o
     page.getByRole('heading', { level: 1, name: 'Lists' }),
   ).toBeVisible()
 
-  await page.getByRole('button', { name: 'Categories', exact: true }).click()
   await page.getByRole('button', { name: 'New category' }).click()
   const categoryForm = page.getByRole('dialog', { name: 'New category' })
   await categoryForm.getByLabel('Name').fill('Черновик')

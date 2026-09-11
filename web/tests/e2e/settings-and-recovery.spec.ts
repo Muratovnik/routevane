@@ -319,12 +319,6 @@ for (const language of ['en', 'ru'] as const) {
           page.getByRole('heading', { level: 1, name: copy('lists.title') }),
         ).toBeVisible()
         await page
-          .getByRole('button', {
-            name: copy('lists.manageCategories'),
-            exact: true,
-          })
-          .click()
-        await page
           .getByRole('button', { name: copy('lists.addCategory') })
           .click()
         const form = page.getByRole('dialog', {
