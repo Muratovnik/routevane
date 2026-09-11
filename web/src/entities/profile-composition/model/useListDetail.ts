@@ -29,14 +29,6 @@ export type ListDetailProps = {
   creating?: boolean
   disabled?: boolean
   included?: boolean
-  /** The route the footer controls. Blank while a draft has no name yet. */
-  profileName?: string
-  /**
-   * Whether that route is still an unsaved draft. Membership then waits for a
-   * save, and the footer names no route: the composer proposes the name from
-   * the lists picked, so naming it here would read as naming this list.
-   */
-  pending?: boolean
   list: ListDetail | null
 }
 
@@ -248,17 +240,13 @@ export const useListDetail = (
     })}`
   })
 
-  // What the membership switch is called. A switch says on or off by its own
-  // position, so this names the route rather than the state — and it names no
-  // route while the composer's is a draft with no stored name, because the
-  // composer proposes that name from the lists picked and repeating it here
-  // would read as naming this list.
-  const membershipLabel = computed(() => {
-    const name = (props.profileName ?? '').trim()
-    return name === '' || props.pending === true
-      ? t('listCard.membership.in.unnamed')
-      : t('listCard.membership.in', { name })
-  })
+  // What the membership switch is called. It says the same thing whichever way
+  // the switch is thrown, because a label that changes under the hand that is
+  // still on the control reads as a second, unannounced effect of the press —
+  // and a label that changes length moves the card while it is being read. The
+  // switch states on or off by its own position, and the route is named by the
+  // page this card was opened from.
+  const membershipLabel = computed(() => t('listCard.membership.in'))
 
   // Declared above the watch that starts it, because that watch runs immediately:
   // the first read of a card begins while this setup is still evaluating. The

@@ -263,7 +263,6 @@ describe('ListDetailDialog', () => {
     const screen = await renderCard({
       included: false,
       mode: 'compose',
-      pending: true,
     })
 
     // The initial contents remain in place when the automatic read fails, and

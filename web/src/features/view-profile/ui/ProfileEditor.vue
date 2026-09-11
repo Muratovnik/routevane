@@ -179,8 +179,6 @@ const reset = (): void => {
             :overlap-unavailable-label="t('profile.overlap.unavailable')"
             :forecast-pending="forecast.pending.value"
             :refreshing="forecast.observing.value"
-            :profile-name="draftName"
-            :pending="dirty"
             :lists="props.lists"
             :retryable="forecastTargets.length > 0"
             @reorder="setPriority"

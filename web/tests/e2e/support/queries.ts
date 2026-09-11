@@ -119,19 +119,15 @@ export const profileOutputsCell = (row: Locator): Locator =>
 
 /**
  * The switch on an open list card that says — and sets — whether the route being
- * composed carries that list. It is named for the route rather than for the
- * act, because a switch states its own position; a caller that wants the state
- * reads `aria-checked` from the same control it presses.
+ * composed carries that list. Its name is the same at either position, so this
+ * is an exact match; a caller that wants the state reads `aria-checked` from
+ * the same control it presses.
  */
-export const cardMembership = (card: Locator, copy: Copy): Locator => {
-  const named = copy('listCard.membership.in')
-  const prefix = named.slice(0, named.indexOf('{name}'))
-  return card.getByRole('switch', {
-    name: new RegExp(
-      `^(${escapeRegExp(copy('listCard.membership.in.unnamed'))}$|${escapeRegExp(prefix)})`,
-    ),
+export const cardMembership = (card: Locator, copy: Copy): Locator =>
+  card.getByRole('switch', {
+    exact: true,
+    name: copy('listCard.membership.in'),
   })
-}
 
 /**
  * The list card's contents table: one list, whose rows are its entries. The

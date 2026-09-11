@@ -62,8 +62,6 @@ const PICKER_PROPS = {
   forecast: null as TargetForecast | null,
   lists: LISTS as ListDetail[],
   modelValue: EMPTY_COMPOSITION,
-  pending: false,
-  profileName: '',
 }
 
 const json = (payload: unknown, status = 200): Response =>
@@ -620,71 +618,50 @@ describe('ListPicker', () => {
   })
 
   /**
-   * The composing card edits one profile and says which one — except while that
-   * profile is a draft nobody stored. The composer proposes the name from the
-   * lists picked below, so naming it on the switch would read as if the card
-   * were naming the list it is showing.
+   * The one act the composing card owns is a standing state, so pressing it
+   * changes that state and nothing else. The words around the switch say the
+   * same thing at either position and take the same room, because a caption
+   * that appears or a name that arrives on the press reads as a second,
+   * unannounced effect — and either one moves the card under the hand that is
+   * still on the control.
    */
-  it('states membership without naming an unsaved draft', async () => {
+  it('says the same thing at either position of the membership switch', async () => {
     stubAPI({ 'GET /v1/lists/discord/contents': () => contentsResponse() })
-    const screen = await renderPicker({
-      profileName: 'Chat and video',
-      pending: true,
-    })
+    const screen = await renderPicker({})
 
     await screen
       .getByRole('button', { name: 'Open the contents of list Discord' })
       .click()
 
+    const membership = screen.getByRole('switch', { name: 'In this profile' })
+    const band = () =>
+      (
+        membership.element().closest('.list-card__membership') as HTMLElement
+      ).getBoundingClientRect().height
+
+    await expect.element(membership).toHaveAttribute('aria-checked', 'false')
     // No caption explains the reach of an edit, because no surface has two.
     await expect
       .element(screen.getByText('Edits here apply to every profile.'))
       .not.toBeInTheDocument()
-    // The switch is off and says so by its own position, without a second
-    // sentence stating the same thing.
-    await expect
-      .element(screen.getByRole('switch', { name: 'In this profile' }))
-      .toHaveAttribute('aria-checked', 'false')
-    await expect
-      .element(screen.getByText('Chat and video', { exact: false }))
-      .not.toBeInTheDocument()
-    // A draft that was never stored says the membership is waiting on a save.
     await expect
       .element(screen.getByText('applies when the profile is saved'))
       .toBeVisible()
-  })
+    const before = band()
 
-  // A stored profile is named, because the name is the operator's own and the
-  // card can speak for it.
-  it('names the profile once it is stored', async () => {
-    stubAPI({ 'GET /v1/lists/discord/contents': () => contentsResponse() })
-    const screen = await renderPicker({ profileName: 'Chat and video' })
+    await membership.click()
+    // The picker reports membership rather than storing it, so the case plays
+    // the composer's part and hands the reported composition back.
+    await screen.rerender({ modelValue: lastModel(screen) })
 
-    await screen
-      .getByRole('button', { name: 'Open the contents of list Discord' })
-      .click()
-
-    await expect
-      .element(
-        screen.getByRole('switch', { name: 'In profile “Chat and video”' }),
-      )
-      .toBeVisible()
-  })
-
-  // A draft with no name yet still has a switch to label.
-  it('names an unnamed draft as this profile', async () => {
-    stubAPI({ 'GET /v1/lists/discord/contents': () => contentsResponse() })
-    const screen = await renderPicker({ profileName: '   ' })
-
-    await screen
-      .getByRole('button', { name: 'Open the contents of list Discord' })
-      .click()
-
+    await expect.element(membership).toHaveAttribute('aria-checked', 'true')
+    // Same name, same caption, same room taken: only the switch moved.
     await expect
       .element(screen.getByRole('switch', { name: 'In this profile' }))
       .toBeVisible()
     await expect
       .element(screen.getByText('applies when the profile is saved'))
-      .not.toBeInTheDocument()
+      .toBeVisible()
+    expect(band()).toBe(before)
   })
 })

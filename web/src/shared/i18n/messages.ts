@@ -525,8 +525,7 @@ const ru: Dictionary = {
   'listCard.failed.body':
     'Проверьте, что локальный сервис Routevane запущен, и повторите.',
   'listCard.pending': 'применится после сохранения',
-  'listCard.membership.in': 'В профиле «{name}»',
-  'listCard.membership.in.unnamed': 'В этом профиле',
+  'listCard.membership.in': 'В этом профиле',
   'listCard.openLibrary': 'Открыть в библиотеке',
   'listCard.remove': 'Удалить список',
   'listDetail.open.aria': 'Открыть состав списка {list}',
@@ -1464,8 +1463,7 @@ const en: Dictionary = {
   'listCard.failed.body':
     'Check that the local Routevane service is running and try again.',
   'listCard.pending': 'applies when the profile is saved',
-  'listCard.membership.in': 'In profile “{name}”',
-  'listCard.membership.in.unnamed': 'In this profile',
+  'listCard.membership.in': 'In this profile',
   'listCard.openLibrary': 'Open in the library',
   'listCard.remove': 'Delete the list',
   'listDetail.open.aria': 'Open the contents of list {list}',

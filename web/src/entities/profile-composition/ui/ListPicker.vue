@@ -38,8 +38,6 @@ const props = defineProps<{
   lists: ListDetail[]
   categories: CategoryDetail[]
   disabled?: boolean
-  profileName?: string
-  pending?: boolean
   forecast?: TargetForecast | null
   forecastPending?: boolean
   refreshing?: boolean
@@ -649,9 +647,7 @@ const listLabel = (listID: string): string =>
     <ListDetailDialog
       :disabled="disabled"
       :included="activeList === null ? false : included(activeList.id)"
-      :profile-name="props.profileName"
       mode="compose"
-      :pending="props.pending"
       :list="activeList"
       @close="closeList"
       @include="onDialogInclude"

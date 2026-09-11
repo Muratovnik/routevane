@@ -179,8 +179,6 @@ const submit = async (): Promise<void> => {
             :overlap-unavailable="setup.selectedTargetID.value === ''"
             :forecast-pending="setup.forecastPending.value"
             :refreshing="setup.observing.value"
-            :profile-name="setup.name.value"
-            pending
             :lists="setup.lists.value"
             :retryable="setup.selectedTargetID.value !== ''"
             @reorder="setup.setPriority"

@@ -516,6 +516,47 @@ test('a tab that outgrows the window keeps the page inset under its last row', a
 })
 
 /**
+ * Membership is one standing state, and pressing it may change that state and
+ * nothing else. On a stored profile the card used to name the profile until the
+ * first press, then rename itself and grow a caption — two further changes the
+ * operator never asked for, the second of which moved the card while their hand
+ * was still on the control. Both ends and the reading between them are checked
+ * here, on a saved profile, because that is where the rename happened.
+ */
+test('the membership switch says the same thing at either position', async ({
+  page,
+  origin,
+}) => {
+  const { profileId } = await buildProfile(page, origin)
+  await page.goto(`${origin}/profiles/${profileId}`)
+  await expect(page.getByTestId('rv-list-picker-frame')).toBeVisible()
+
+  await openList(page, 'Discord').click()
+  const card = page.getByRole('dialog', { exact: true, name: 'Discord' })
+  const membership = cardMembership(card, englishCopy)
+  await expect(membership).toBeVisible()
+
+  const caption = card.getByText('applies when the profile is saved')
+  await expect(caption).toBeVisible()
+  // What the switch stands above. If the band grows or shrinks, this moves.
+  const contents = card.getByRole('heading', { name: 'List contents' })
+  const before = (await contents.boundingBox())!.y
+  const checkedBefore = await membership.getAttribute('aria-checked')
+
+  await membership.click()
+
+  await expect(membership).toHaveAttribute(
+    'aria-checked',
+    checkedBefore === 'true' ? 'false' : 'true',
+  )
+  // The same control, under the same name, saying the same thing and taking the
+  // same room: only its position moved.
+  await expect(cardMembership(card, englishCopy)).toBeVisible()
+  await expect(caption).toBeVisible()
+  expect((await contents.boundingBox())!.y).toBe(before)
+})
+
+/**
  * The docked card is pinned at the page inset, where it rests when the page
  * fits the window. A page that grew under a notice must not carry the card off
  * the top of the window with it, nor press it against the window's edge, and
