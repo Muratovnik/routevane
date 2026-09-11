@@ -11,6 +11,8 @@ const LISTS = '/v1/lists'
 const TARGETS = '/v1/targets'
 const REQUIREMENTS = '/v1/deployments/targets'
 const MISSING_FIELD = 'Fill in this field'
+const ADDRESS_EXPECTED = 'Expected an address like http://192.168.1.1.'
+const ADDRESS_RULE = 'An explicit http or https address'
 
 const json = (payload: unknown, status = 200): Response =>
   new Response(JSON.stringify(payload), {
@@ -234,6 +236,67 @@ describe('DevicesView prerequisite audit', () => {
         ),
       ).toHaveLength(1)
     })
+  })
+
+  /**
+   * The service stores this address and contacts it later, without the operator
+   * present, so it refuses one whose scheme is left to be guessed. The form used
+   * to take `192.168.1.1`, send it, and report only that the request had been
+   * refused — naming no field and no reason.
+   */
+  it('states the address shape a stored connection needs before it is sent', async () => {
+    const fetchMock = installFetch((input: string) => {
+      if (input === DEVICES)
+        return Promise.resolve(
+          json({ devices: [], secret_store_available: true }),
+        )
+      if (input === LISTS) return Promise.resolve(json(CATALOG_PAYLOAD))
+      if (input === TARGETS) return Promise.resolve(json(TARGETS_PAYLOAD))
+      if (input === REQUIREMENTS)
+        return Promise.resolve(json(REQUIREMENTS_PAYLOAD))
+      return Promise.reject(new Error(`unexpected request ${input}`))
+    })
+    const screen = await render(DevicesView)
+    await screen
+      .getByRole('button', { name: 'Add a connection', exact: true })
+      .click()
+    await screen.getByLabelText('What to connect').click()
+    await screen.getByRole('option', { name: /^Keenetic/ }).click()
+
+    // The rule is stated under the field rather than only after a refusal.
+    await expect
+      .element(screen.getByText(ADDRESS_RULE, { exact: false }))
+      .toBeVisible()
+
+    await screen.getByLabelText('Connection name').fill('Home router')
+    await screen.getByLabelText('Router login').fill('admin')
+    await screen.getByLabelText('Interface for routes').fill('Wireguard0')
+    const address = screen.getByLabelText('Device address')
+    await address.fill('192.168.1.1')
+    // Leaving the field is what asks it to answer, as with a field left empty.
+    await screen.getByLabelText('Connection name').click()
+
+    await expect.element(screen.getByText(ADDRESS_EXPECTED)).toBeVisible()
+    await expect
+      .element(screen.getByRole('button', { name: 'Save' }))
+      .toBeDisabled()
+
+    await address.fill('http://192.168.1.1')
+    await expect
+      .element(screen.getByText(ADDRESS_EXPECTED))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: 'Save' }))
+      .toBeEnabled()
+
+    // Nothing the service would refuse was ever sent.
+    expect(
+      fetchMock.mock.calls.filter(
+        ([input, request]) =>
+          input === DEVICES &&
+          (request as RequestInit | undefined)?.method === 'POST',
+      ),
+    ).toHaveLength(0)
   })
 
   it('keeps a draft across list selection, and cancel reopens the replaced connection without it', async () => {

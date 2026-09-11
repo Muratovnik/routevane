@@ -31,6 +31,13 @@ export const useConnectionFields = (
     addressPlaceholder: computed(
       () => requirements.value?.addressExample ?? '',
     ),
+    // What the service will accept, said before it is typed rather than only
+    // after it is refused. The rule belongs to the target's deployer, so the
+    // dictionary carries one line per target and a target it does not know
+    // gets no empty line under its field.
+    addressHint: computed(() =>
+      tor(`deploy.field.address.${targetID.value}.hint`, ''),
+    ),
     accountLabel: computed(() =>
       tor(`deploy.field.account.${targetID.value}`, t('devices.field.account')),
     ),

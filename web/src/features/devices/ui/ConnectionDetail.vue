@@ -7,6 +7,7 @@ import ConnectionDelivery from '@/features/devices/ui/ConnectionDelivery.vue'
 import ConnectionFields from '@/features/devices/ui/ConnectionFields.vue'
 import type { DeviceCard } from '@/shared/api/devices'
 import { useLocale } from '@/shared/i18n/useLocale'
+import { validAddress } from '@/shared/lib/deviceAddress'
 import { targetIcon } from '@/shared/lib/targetIcon'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
@@ -103,7 +104,7 @@ const dirty = computed(
 const complete = computed(
   () =>
     trimmed.value.name !== '' &&
-    trimmed.value.address !== '' &&
+    validAddress(trimmed.value.address) &&
     (!needsAccount.value || trimmed.value.account !== '') &&
     (!needsInterface.value || trimmed.value.interfaceName !== ''),
 )

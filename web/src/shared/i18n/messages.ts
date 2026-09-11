@@ -151,6 +151,7 @@ const ru: Dictionary = {
   'devices.manualOnly': 'Файл для этого подключения устанавливается вручную.',
   'devices.delivery.manual': 'Только вручную',
   'devices.validation.required': 'Заполните поле',
+  'devices.validation.address': 'Ожидается адрес вида {example}.',
   'devices.auto.label': 'Пароль',
   'devices.auto.enable': 'Включить автоотправку',
   'devices.auto.disable': 'Выключить автоотправку',
@@ -776,6 +777,12 @@ const ru: Dictionary = {
   'deploy.field.address.keenetic': 'Адрес устройства',
   'deploy.field.address.keenetic-dns': 'Адрес устройства',
   'deploy.field.address.singbox': 'Путь к конфигурации sing-box',
+  'deploy.field.address.keenetic.hint':
+    'Явный http- или https-адрес с IP роутера в локальной сети, например http://192.168.1.1. Имя хоста не подойдёт: сохранённый адрес должен быть однозначным без обращения к DNS.',
+  'deploy.field.address.keenetic-dns.hint':
+    'Явный http- или https-адрес с IP роутера в локальной сети, например http://192.168.1.1. Имя хоста не подойдёт: сохранённый адрес должен быть однозначным без обращения к DNS.',
+  'deploy.field.address.singbox.hint':
+    'Путь к файлу в виде file-адреса, например file:///C:/sing-box/config.json.',
   'deploy.field.account.keenetic': 'Логин роутера',
   'deploy.field.account.keenetic-dns': 'Логин роутера',
   'deploy.field.interface.keenetic': 'Интерфейс для маршрутов',
@@ -1101,6 +1108,7 @@ const en: Dictionary = {
   'devices.manualOnly': 'A file for this connection is installed by hand.',
   'devices.delivery.manual': 'Manual only',
   'devices.validation.required': 'Fill in this field',
+  'devices.validation.address': 'Expected an address like {example}.',
   'devices.auto.label': 'Password',
   'devices.auto.enable': 'Turn on automatic delivery',
   'devices.auto.disable': 'Turn off automatic delivery',
@@ -1701,6 +1709,12 @@ const en: Dictionary = {
   'deploy.field.address.keenetic': 'Device address',
   'deploy.field.address.keenetic-dns': 'Device address',
   'deploy.field.address.singbox': 'Path to the sing-box configuration',
+  'deploy.field.address.keenetic.hint':
+    'An explicit http or https address with the router’s IP on the local network, such as http://192.168.1.1. A host name will not do: a stored address has to be unambiguous without asking DNS.',
+  'deploy.field.address.keenetic-dns.hint':
+    'An explicit http or https address with the router’s IP on the local network, such as http://192.168.1.1. A host name will not do: a stored address has to be unambiguous without asking DNS.',
+  'deploy.field.address.singbox.hint':
+    'The path to the file as a file address, such as file:///C:/sing-box/config.json.',
   'deploy.field.account.keenetic': 'Router login',
   'deploy.field.account.keenetic-dns': 'Router login',
   'deploy.field.interface.keenetic': 'Interface for routes',

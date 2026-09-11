@@ -10,6 +10,7 @@ import {
   type DeployPlan,
 } from '@/shared/api/deploy'
 import { RoutevaneAPIError } from '@/shared/api/http'
+import { validAddress } from '@/shared/lib/deviceAddress'
 
 export type DeploymentState =
   'idle' | 'planning' | 'planned' | 'applying' | 'applied' | 'failed'
@@ -182,46 +183,6 @@ const failureCodes = new Set([
   'fqdn_ownership_conflict',
   'deploy_failed',
 ])
-
-// A destination is whatever its deployer declares: a device on the network, or
-// a configuration file on this computer. What this rejects is a malformed
-// address, never an address that merely turns out to be unreachable — that
-// answer belongs to the destination. The URL parser owns host and port syntax,
-// including bracketed IPv6; network destination policy stays on the server.
-const HTTP_SCHEME_PATTERN = /^https?:\/\//i
-export const validAddress = (value: string): boolean => {
-  if (value === '' || value !== value.trim()) return false
-  // A local configuration file is a legitimate destination, and its own
-  // deployer offers it as the example, so the form must accept what it shows.
-  if (/^file:/i.test(value)) {
-    try {
-      return new URL(value).pathname.length > 1
-    } catch {
-      return false
-    }
-  }
-  if (value.includes('://') && !HTTP_SCHEME_PATTERN.test(value)) {
-    return false
-  }
-  if (/\s|\\/.test(value)) return false
-  try {
-    const url = new URL(
-      HTTP_SCHEME_PATTERN.test(value) ? value : `http://${value}`,
-    )
-    return (
-      (url.protocol === 'http:' || url.protocol === 'https:') &&
-      url.hostname !== '' &&
-      url.username === '' &&
-      url.password === '' &&
-      (url.pathname === '' || url.pathname === '/') &&
-      url.search === '' &&
-      url.hash === '' &&
-      url.port !== '0'
-    )
-  } catch {
-    return false
-  }
-}
 
 export const messageKey = (error: unknown): string => {
   if (!(error instanceof RoutevaneAPIError)) return 'error.network'

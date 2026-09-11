@@ -1,65 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-  messageKey,
-  validAddress,
-} from '@/features/send-artifact/model/useDeployment'
+import { messageKey } from '@/features/send-artifact/model/useDeployment'
 import { RoutevaneAPIError } from '@/shared/api/http'
-
-describe('address validation', () => {
-  it('accepts what a device is actually reachable at', () => {
-    for (const value of [
-      '192.168.1.1',
-      'http://192.168.1.1',
-      'https://my.keenetic.net',
-      'router',
-      'router:8080',
-      'http://[fd00::1]',
-      'https://[fd00::1]:8443/',
-      '[fe80::1]:8080',
-      '192.168.1.1:8080',
-      'http://192.168.1.1:81/',
-      // A local configuration file is what the sing-box deployer declares as
-      // its own example, so the form has to accept exactly that.
-      'file:///C:/sing-box/config.json',
-      'file:///C:/Program Files/sing-box/config.json',
-      'file:///etc/sing-box/config.json',
-    ]) {
-      expect(validAddress(value), value).toBe(true)
-    }
-  })
-
-  it.each(['username', 'password'] as const)(
-    'refuses an embedded %s',
-    (field) => {
-      const address = new URL('http://[fd00::1]')
-      address[field] = 'synthetic-fixture'
-      expect(validAddress(address.href)).toBe(false)
-    },
-  )
-
-  it('rejects a malformed address before a request is made', () => {
-    for (const value of [
-      '',
-      '192.168.1.1/admin',
-      'http://',
-      'http://[fd00::1',
-      'http://[fd00::1]:70000',
-      'http://192.168.1.1?query=yes',
-      'http://192.168.1.1#fragment',
-      'ftp://192.168.1.1',
-      '192.168.1.1 ',
-      'два адреса сразу',
-      '192.168.1.1:0',
-      '192.168.1.1:70000',
-      'file://',
-      'file:///',
-      'ssh://192.168.1.1',
-    ]) {
-      expect(validAddress(value), value).toBe(false)
-    }
-  })
-})
 
 describe('failure messages', () => {
   // The whole point: a server code or an English server sentence never reaches

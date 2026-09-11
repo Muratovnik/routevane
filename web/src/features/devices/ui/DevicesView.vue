@@ -9,6 +9,7 @@ import ConnectionList from '@/features/devices/ui/ConnectionList.vue'
 import { localizedTargetTitle } from '@/shared/api/catalog'
 import type { DeviceCard } from '@/shared/api/devices'
 import { useLocale } from '@/shared/i18n/useLocale'
+import { validAddress } from '@/shared/lib/deviceAddress'
 import { targetIcon } from '@/shared/lib/targetIcon'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvField from '@/shared/ui/RvField.vue'
@@ -140,7 +141,7 @@ const canRegister = computed(
     devices.requirementsState.value === 'ready' &&
     targetID.value !== '' &&
     trimmed.value.name !== '' &&
-    trimmed.value.address !== '' &&
+    validAddress(trimmed.value.address) &&
     (!needsAccount.value || trimmed.value.account !== '') &&
     (!needsInterface.value || trimmed.value.interfaceName !== ''),
 )

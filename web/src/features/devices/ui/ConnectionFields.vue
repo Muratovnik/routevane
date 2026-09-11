@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 import { useConnectionFields } from '@/features/devices/model/useConnectionFields'
 import type { ConnectionRequirements } from '@/shared/api/deploy'
 import { useLocale } from '@/shared/i18n/useLocale'
+import { validAddress } from '@/shared/lib/deviceAddress'
 import RvField from '@/shared/ui/RvField.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
@@ -30,6 +31,7 @@ const interfaceName = defineModel<string>('interfaceName', { required: true })
 const { t } = useLocale()
 const {
   accountLabel,
+  addressHint,
   addressLabel,
   addressPlaceholder,
   interfaceHint,
@@ -67,6 +69,21 @@ const error = (value: string, seen: boolean): string | undefined =>
   (seen || props.reveal === true) && value.trim() === ''
     ? t('devices.validation.required')
     : undefined
+
+// An address that is missing is missing; one that is written in a shape no
+// deployer accepts is answered here rather than by a refusal that names no
+// field. What the shape is stays in `shared/lib`, and which networks a device
+// may live on stays on the server.
+const addressError = computed(() => {
+  const required = error(address.value, visited.value.address)
+  if (required !== undefined) return required
+  if (!(visited.value.address || props.reveal === true)) return undefined
+  const value = address.value.trim()
+  if (value === '' || validAddress(value)) return undefined
+  return t('devices.validation.address', {
+    example: addressPlaceholder.value,
+  })
+})
 </script>
 
 <template>
@@ -90,7 +107,8 @@ const error = (value: string, seen: boolean): string | undefined =>
     </RvField>
 
     <RvField
-      :error="error(address, visited.address)"
+      :error="addressError"
+      :hint="addressHint"
       :input-id="`${idPrefix}-address`"
       :label="addressLabel"
     >
