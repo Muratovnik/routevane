@@ -10,6 +10,9 @@ import { englishCopy } from './copy'
 /** The page's own outer inset, `--rv-space-6`, in CSS pixels. */
 export const PAGE_INSET = 24
 
+/** The chrome band's closing inset under its last control, `--rv-space-5`. */
+export const CHROME_FOOT_INSET = 20
+
 /** The reads the catalog is refreshed from when the window is returned to. */
 const CATALOG_ROUTES = ['**/v1/lists', '**/v1/targets']
 

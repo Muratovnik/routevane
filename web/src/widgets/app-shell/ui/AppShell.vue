@@ -257,7 +257,11 @@ const retry = async (): Promise<void> => {
   flex-direction: column;
   gap: var(--rv-space-8);
   height: 100dvh;
-  padding: var(--rv-space-8) var(--rv-space-5) 0;
+
+  /* The band closes under its last control rather than against the window
+     edge, so the collapse toggle reads as the end of the column instead of
+     something the frame cut off. */
+  padding: var(--rv-space-8) var(--rv-space-5) var(--rv-space-5);
   color: var(--rv-color-ink);
   background: var(--rv-color-chrome);
   border-right: var(--rv-border-hair) solid var(--rv-color-rule);
@@ -431,23 +435,21 @@ const retry = async (): Promise<void> => {
   padding-inline: var(--rv-space-2);
 }
 
-.shell--collapsed .shell__product {
-  padding-inline: var(--rv-space-3);
-}
-
 .shell__product-name,
 .shell__nav-label {
   white-space: nowrap;
   flex: none;
+  overflow: hidden;
+  max-width: var(--rv-sidebar-width);
   transition:
-    opacity var(--rv-motion-normal) var(--rv-motion-ease-out),
-    transform var(--rv-motion-normal) var(--rv-motion-ease-out);
+    max-width var(--rv-motion-normal) var(--rv-motion-ease-out),
+    opacity var(--rv-motion-normal) var(--rv-motion-ease-out);
 }
 
 .shell--collapsed .shell__product-name,
 .shell--collapsed .shell__nav-label {
+  max-width: 0;
   opacity: 0;
-  transform: translateX(var(--rv-space-2));
   pointer-events: none;
 }
 
@@ -488,9 +490,16 @@ const retry = async (): Promise<void> => {
   transform: rotate(-90deg);
 }
 
+/* A collapsed rail is a column of glyphs, so each glyph stands on the rail's
+   own centre line. That takes both halves: the row stops reserving the inset a
+   label needs, and the label itself stops holding width while it is invisible —
+   a hidden name that still occupies its track pushes every mark off centre. */
+.shell--collapsed .shell__product,
 .shell--collapsed .shell__nav-link,
 .shell--collapsed .shell__collapse {
-  padding-inline: var(--rv-space-3);
+  gap: 0;
+  justify-content: center;
+  padding-inline: 0;
 }
 
 @media (width > 64rem) and (height > 36rem) {
@@ -523,14 +532,21 @@ const retry = async (): Promise<void> => {
     display: none;
   }
 
+  /* At this width the rail is a wrapped row and never collapses, so a stored
+     collapsed preference must not take the names with it. */
+  .shell--collapsed .shell__product {
+    gap: var(--rv-space-2);
+    justify-content: flex-start;
+  }
+
+  .shell--collapsed .shell__nav-link {
+    gap: var(--rv-space-3);
+    padding-inline: var(--rv-space-3);
+  }
+
+  .shell--collapsed .shell__product-name,
   .shell--collapsed .shell__nav-label {
-    position: static;
-    width: auto;
-    height: auto;
-    overflow: visible;
-    clip-path: none;
-    padding: 0;
-    border: 0;
+    max-width: none;
     opacity: 1;
     pointer-events: auto;
   }

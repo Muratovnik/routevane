@@ -104,15 +104,35 @@ const apply = async () => {
 
 .application-update__label {
   white-space: nowrap;
-  transition: opacity var(--rv-motion-normal) var(--rv-motion-ease-out);
+  overflow: hidden;
+  max-width: var(--rv-sidebar-width);
+  transition:
+    max-width var(--rv-motion-normal) var(--rv-motion-ease-out),
+    opacity var(--rv-motion-normal) var(--rv-motion-ease-out);
+}
+
+/* A hidden label that still holds its track pushes the glyph off the collapsed
+   rail's centre line, so it gives the width up with the text. */
+.application-update--collapsed {
+  gap: 0;
+  justify-content: center;
+  padding-inline: 0;
 }
 
 .application-update--collapsed .application-update__label {
+  max-width: 0;
   opacity: 0;
 }
 
 @container (width <= 40rem) {
+  .application-update--collapsed {
+    gap: var(--rv-space-3);
+    justify-content: flex-start;
+    padding-inline: var(--rv-space-3);
+  }
+
   .application-update--collapsed .application-update__label {
+    max-width: none;
     opacity: 1;
   }
 }

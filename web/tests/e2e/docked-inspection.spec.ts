@@ -12,6 +12,7 @@ import { expect, type Locator } from '@playwright/test'
 import { reviewRoot } from './support/audits'
 import { englishCopy } from './support/copy'
 import { chooseFormat, profileIDFromURL } from './support/flows'
+import { CHROME_FOOT_INSET } from './support/geometry'
 import {
   bodyRows,
   cardContents,
@@ -454,10 +455,14 @@ test('docked inspection transitions the form and table together on opening and c
   check(await transitionFrames('.rv-dialog__close'))
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(openList(page, 'Discord')).toBeFocused()
+  // The chrome band ends under its last control rather than against the window
+  // edge, so the toggle stands one closing inset above the bottom.
   const collapse = await page
     .getByRole('button', { name: englishCopy('shell.collapse'), exact: true })
     .boundingBox()
-  expect(Math.abs(collapse!.y + collapse!.height - 960)).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(collapse!.y + collapse!.height - (960 - CHROME_FOOT_INSET)),
+  ).toBeLessThanOrEqual(1)
   // The same operation stays usable when animation is disabled or unavailable.
   // Each opening is dismissed once the card holds the keyboard, which is what
   // makes the dismissal the card's own rather than a race with its focus.
