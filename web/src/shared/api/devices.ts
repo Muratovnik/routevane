@@ -45,7 +45,24 @@ export const registerDevice = (
   postJSON(
     '/v1/devices',
     { target_id: targetID, name, address, account, interface: interfaceName },
-    parseRegisteredID,
+    parseDeviceID,
+  )
+
+// The target is identity and is not part of this call. Changing the address,
+// the account or the interface revokes automatic delivery and removes the
+// stored credential on the server, because consent named one exact destination
+// and account; the credential itself never travels here.
+export const updateDevice = (
+  id: string,
+  name: string,
+  address: string,
+  account: string,
+  interfaceName: string,
+): Promise<string> =>
+  postJSON(
+    `/v1/devices/${id}/update`,
+    { name, address, account, interface: interfaceName },
+    parseDeviceID,
   )
 
 export const forgetDevice = (id: string): Promise<true> =>
@@ -110,7 +127,9 @@ const devicesSchema = v.pipe(
 )
 
 const parseDevices: Decoder<DeviceRegistry> = decode(devicesSchema)
-const parseRegisteredID: Decoder<string> = decode(
+// Registration and a parameter change both answer with the device they wrote,
+// and both are read for the same one fact: which device this reply is about.
+const parseDeviceID: Decoder<string> = decode(
   v.pipe(
     fields({ device: fields({ id: text }) }),
     v.transform(({ device }) => device.id),

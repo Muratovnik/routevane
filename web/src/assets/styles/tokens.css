@@ -218,6 +218,24 @@
         var(--rv-control-default)
     )
   );
+
+  /* Connections is not a fill layout: the page keeps its natural height and
+     this is a ceiling rather than a standing height. The registered list stops
+     growing at the window less the page inset twice, the page header row and
+     the gap under it, and scrolls its own rows from there. */
+  --rv-connections-list-height: max(
+    var(--rv-picker-mobile-height),
+    calc(
+      100dvh - var(--rv-space-6) * 2 - var(--rv-control-touch) -
+        var(--rv-space-6)
+    )
+  );
+
+  /* The narrowest a field may be drawn in a multi-column form. A standalone
+     field takes a full reading width; two of them side by side do not fit one
+     each, and a two-column form is what makes a connection's parameters
+     comparable at a glance. Below two of these the form is one column. */
+  --rv-form-column-min: 18rem;
   --rv-fact-label-width: 8rem;
   --rv-disabled-opacity: 0.5;
   --rv-sidebar-width: 15rem;

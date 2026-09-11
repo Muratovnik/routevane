@@ -262,4 +262,56 @@ describe('useDevices degraded dependencies', () => {
       ),
     ).toHaveLength(1)
   })
+
+  // Which fields a target's deployer accepts is that catalog's answer, and a
+  // change sent without it could name a field the target does not have.
+  it('refuses a parameter change while requirements are unknown and re-reads the registry once it lands', async () => {
+    const requirements: Response[] = []
+    fetchMock.mockImplementation((input: FetchInput, init?: RequestInit) => {
+      const url = String(input)
+      if (url === '/v1/devices/device-1/update' && init?.method === 'POST')
+        return Promise.resolve(json({ device: { id: 'device-1' } }))
+      if (url === '/v1/devices') return Promise.resolve(json(devicePayload))
+      if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
+      if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
+      if (url === '/v1/deployments/targets') {
+        const answer = requirements.shift()
+        return answer === undefined
+          ? Promise.reject(new TypeError('unavailable'))
+          : Promise.resolve(answer)
+      }
+      return Promise.reject(new Error(`unexpected request ${url}`))
+    })
+    const devices = useDevices()
+
+    await devices.initialize()
+    expect(devices.requirementsState.value).toBe('failed')
+    await expect(
+      devices.update('device-1', 'Study router', 'http://192.168.1.1', '', ''),
+    ).resolves.toBe(false)
+    const writes = (): unknown[][] =>
+      fetchMock.mock.calls.filter(
+        ([input, request]) =>
+          String(input) === '/v1/devices/device-1/update' &&
+          (request as RequestInit | undefined)?.method === 'POST',
+      )
+    expect(writes()).toHaveLength(0)
+
+    requirements.push(json({ targets: [] }))
+    await expect(devices.retryRequirements()).resolves.toBe(true)
+    const readsBefore = fetchMock.mock.calls.filter(
+      ([input]) => String(input) === '/v1/devices',
+    ).length
+    requirements.push(json({ targets: [] }))
+    await expect(
+      devices.update('device-1', 'Study router', 'http://192.168.1.1', '', ''),
+    ).resolves.toBe(true)
+
+    expect(writes()).toHaveLength(1)
+    // The card this tab shows afterwards is the server's own, so the write is
+    // followed by an authoritative read.
+    expect(
+      fetchMock.mock.calls.filter(([input]) => String(input) === '/v1/devices'),
+    ).toHaveLength(readsBefore + 1)
+  })
 })

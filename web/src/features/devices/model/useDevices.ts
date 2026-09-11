@@ -11,6 +11,7 @@ import {
   forgetDevice,
   loadDevices,
   registerDevice,
+  updateDevice,
   type DeviceCard,
 } from '@/shared/api/devices'
 
@@ -153,6 +154,23 @@ export const useDevices = () => {
     })
   }
 
+  /**
+   * Changing a registered connection's parameters. It goes through the same
+   * guard and the same authoritative re-read as registration, because the
+   * server may answer the change by revoking automatic delivery, and the card
+   * this tab shows afterwards has to be the server's own.
+   */
+  const update = (
+    id: string,
+    name: string,
+    address: string,
+    account: string,
+    interfaceName: string,
+  ): Promise<boolean> => {
+    if (requirementsState.value !== 'ready') return Promise.resolve(false)
+    return run(() => updateDevice(id, name, address, account, interfaceName))
+  }
+
   const forget = (id: string): Promise<boolean> => run(() => forgetDevice(id))
 
   /**
@@ -195,6 +213,14 @@ export const useDevices = () => {
     secretStoreAvailable,
     state,
     targets,
+    update,
     work,
   }
 }
+
+/**
+ * What the connections screen reads and acts through. The list and the detail
+ * are two views of one registry, so they take the same model rather than each
+ * holding a copy of its state.
+ */
+export type DevicesModel = ReturnType<typeof useDevices>

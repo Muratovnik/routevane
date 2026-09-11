@@ -216,17 +216,24 @@ Sections, addressable by URL:
    has a deployer, and the by-hand path always stated below it.
 6. `/connections` — **Connections / Подключения** (ADR 0027; `/devices`
    redirects here). One section answers «куда»: registered devices and
-   applications first. The work area is always present: the first saved
-   connection is selected on arrival, or, when none exist, the catalog-backed
-   creation form is the whole work area at a single-column form width, with no
-   cancel because there is nothing to return to. «Добавить подключение» opens
-   the form beside the list and stays in the header, disabled, while the form
+   applications first, as two surfaces of the same level — the registered
+   connections on the left, the selected connection or the creation form on
+   the right. The work area is always present: the first saved connection is
+   selected on arrival, or, when none exist, the catalog-backed creation form
+   is the whole work area at a single-column form width, with no list column
+   and no cancel because there is nothing to return to. «Добавить подключение»
+   belongs to the collection, so it sits in the list's own header beside the
+   number of registered connections and stays there, disabled, while the form
    is open. The form's «Отменить» discards the draft and reopens the connection
    it replaced, so the list and a connection are on screen again; choosing a
    connection from the list instead keeps the draft for the next «Добавить
    подключение». Saving selects the server-returned connection ID; forgetting
-   the selection opens the next connection or the form. Forgetting is the
-   quiet, left-aligned last action beneath a connection's details.
+   the selection opens the next connection or the form. A row states the
+   connection's name, its target and address, and what Routevane does with it
+   — automatic delivery on, off, or by hand only — and nothing about
+   reachability. The selected row is marked by its ground, a hairline accent
+   and a mark that is not a colour; the list scrolls inside its own frame
+   rather than lengthening the page.
    Saved connections remain selectable beside the creation or
    configuration area; a constrained window stacks these regions in document
    flow. Creation and delivery permission are primary page work, without a modal
@@ -235,10 +242,32 @@ Sections, addressable by URL:
    verified reachability or successful delivery.
    Router login and route-interface fields are required when the selected
    deployer needs them; the interface help names the Keenetic ID format. A
-   saved connection does not send anything. After registration the screen says
+   saved connection does not send anything.
+   A saved connection's editable parameters — name, address, account and route
+   interface — are edited in place under «Параметры», in the same two-column
+   grid the creation form uses. The target is the connection's identity and is
+   never editable: a registered Keenetic does not become an OpenWrt. Save waits
+   for a draft that differs from what is stored and has every required field
+   filled; «Отменить» and opening another connection both return the stored
+   values. Because consent names one exact destination and account, changing
+   the address, account or interface turns automatic delivery off and removes
+   the stored credential — the screen says so beside Save before it is pressed,
+   and afterwards reports the state the server returned. A name-only change
+   says nothing of the kind. When the deployment catalog is unavailable the
+   parameters are stated rather than edited, because the fields a target asks
+   for are that catalog's answer.
+   «Автоотправка» is its own section and its own act, never part of saving
+   parameters, and it is one control rather than a switch and a button: while
+   it is on, the screen says so and offers to turn it off, and it never shows a
+   password field or a masked stand-in for a credential it cannot read back.
+   «Забыть подключение» is the connection's only secondary action, in the
+   action menu of its detail header, and it is confirmed before it runs.
+   After registration the screen says
    what remains before unattended delivery, and after opt-in it points to
-   choosing that connection in a profile. The reference of supported devices
-   and formats is collapsed beneath them. The words «цель», «вывод» and
+   choosing that connection in a profile; it never states that a connection is
+   unused, because which profiles name it is not a fact this screen reads. The
+   reference of supported devices and formats is collapsed beneath them and
+   summarized by the catalog's own titles. The words «цель», «вывод» and
    «потребитель» do not appear on any surface: a profile feeds _connections_,
    each made of a device or application and its format. If a catalog dependency
    is unavailable, the screen keeps known devices readable and states exactly

@@ -5,7 +5,6 @@ import DevicesView from '@/features/devices/ui/DevicesView.vue'
 import TargetsView from '@/features/targets-overview/ui/TargetsView.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
 import AppShell from '@/widgets/app-shell/ui/AppShell.vue'
-import RvDisclosure from '@/shared/ui/RvDisclosure.vue'
 
 const { t } = useLocale()
 
@@ -19,11 +18,9 @@ useHead({
 <template>
   <AppShell>
     <!-- The connections this operator made come first. What this build can
-         talk to at all is reference material behind one click, not a second
-         subject competing with them. -->
+         talk to at all is reference material behind one click, and it states
+         its own summary from the catalog it reads. -->
     <DevicesView />
-    <RvDisclosure borderless :summary="t('targets.title')">
-      <TargetsView />
-    </RvDisclosure>
+    <TargetsView />
   </AppShell>
 </template>

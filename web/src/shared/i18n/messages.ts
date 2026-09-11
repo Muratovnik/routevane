@@ -122,6 +122,7 @@ const ru: Dictionary = {
   'devices.add': 'Добавить подключение',
   'devices.configure': 'Настроить',
   'devices.configure.aria': 'Настроить подключение {name}',
+  'devices.menu': 'Действия для подключения {name}',
   'devices.auto.title': 'Автоматическая отправка',
   'devices.auto.off': 'Автоотправка выключена',
   'configTransfer.export.title': 'Экспорт',
@@ -133,7 +134,10 @@ const ru: Dictionary = {
   'listCard.sourceState.stale': 'Требуется обновление',
   'listCard.sourceState.failed': 'Ошибка чтения',
   'listCard.sourceState.disabled': 'Выключен',
-  'devices.add.submit': 'Сохранить',
+  'devices.parameters': 'Параметры',
+  'devices.parameters.revoke': 'Сохранение выключит автоотправку',
+  'devices.parameters.revoke.body':
+    'Согласие было дано для прежнего адреса и логина. Сохранённый пароль будет удалён; включите автоотправку снова после сохранения.',
   'devices.field.target': 'Устройство или приложение',
   'devices.field.target.pick': 'Выберите устройство или приложение',
   'devices.field.name': 'Название подключения',
@@ -141,7 +145,11 @@ const ru: Dictionary = {
   'devices.field.account': 'Логин',
   'devices.field.interface': 'Интерфейс',
   'devices.forget': 'Забыть подключение',
+  'devices.forget.confirm': 'Забыть подключение {name}?',
+  'devices.forget.confirm.body':
+    'Сохранённый пароль будет удалён, автоотправка выключена. Файлы, уже установленные на устройстве, останутся на нём.',
   'devices.manualOnly': 'Файл для этого подключения устанавливается вручную.',
+  'devices.delivery.manual': 'Только вручную',
   'devices.validation.required': 'Заполните поле',
   'devices.auto.label': 'Пароль',
   'devices.auto.enable': 'Включить автоотправку',
@@ -163,6 +171,9 @@ const ru: Dictionary = {
     'Подключение сохранено. Выберите его в профиле для ручной отправки.',
   'devices.registered.other':
     'Подключение сохранено. Включите автоотправку, если хотите обновлять его без ручной загрузки.',
+  'devices.updated': 'Параметры сохранены.',
+  'devices.updated.revoked':
+    'Параметры сохранены, автоотправка выключена. Включите её снова, когда будете готовы.',
   'devices.auto.enabled.next.router':
     'Автоотправка включена. Осталось выбрать этот роутер в профиле.',
   'devices.auto.enabled.next.other':
@@ -966,6 +977,7 @@ const ru: Dictionary = {
   'action.retry': 'Повторить',
   'action.back': 'Назад',
   'action.cancel': 'Отменить',
+  'action.save': 'Сохранить',
   'action.close': 'Закрыть',
 }
 
@@ -1066,6 +1078,7 @@ const en: Dictionary = {
   'devices.add': 'Add a connection',
   'devices.configure': 'Configure',
   'devices.configure.aria': 'Configure connection {name}',
+  'devices.menu': 'Actions for connection {name}',
   'devices.auto.title': 'Automatic delivery',
   'devices.auto.off': 'Automatic delivery is off',
   'configTransfer.export.title': 'Export',
@@ -1077,7 +1090,10 @@ const en: Dictionary = {
   'listCard.sourceState.stale': 'Refresh needed',
   'listCard.sourceState.failed': 'Read failed',
   'listCard.sourceState.disabled': 'Disabled',
-  'devices.add.submit': 'Save',
+  'devices.parameters': 'Parameters',
+  'devices.parameters.revoke': 'Saving turns automatic delivery off',
+  'devices.parameters.revoke.body':
+    'Consent was given for the previous address and login. The stored password is removed; turn automatic delivery on again after saving.',
   'devices.field.target': 'Device or application',
   'devices.field.target.pick': 'Choose a device or application',
   'devices.field.name': 'Connection name',
@@ -1085,7 +1101,11 @@ const en: Dictionary = {
   'devices.field.account': 'Login',
   'devices.field.interface': 'Interface',
   'devices.forget': 'Forget this connection',
+  'devices.forget.confirm': 'Forget connection {name}?',
+  'devices.forget.confirm.body':
+    'The stored password is removed and automatic delivery is turned off. Files already installed on the device stay there.',
   'devices.manualOnly': 'A file for this connection is installed by hand.',
+  'devices.delivery.manual': 'Manual only',
   'devices.validation.required': 'Fill in this field',
   'devices.auto.label': 'Password',
   'devices.auto.enable': 'Turn on automatic delivery',
@@ -1108,6 +1128,9 @@ const en: Dictionary = {
     'Connection saved. Choose it in a profile for manual delivery.',
   'devices.registered.other':
     'Connection saved. Turn on automatic delivery if you want updates without manual upload.',
+  'devices.updated': 'Parameters saved.',
+  'devices.updated.revoked':
+    'Parameters saved and automatic delivery is off. Turn it on again when you are ready.',
   'devices.auto.enabled.next.router':
     'Automatic delivery is on. All that remains is choosing this router in a profile.',
   'devices.auto.enabled.next.other':
@@ -1871,6 +1894,7 @@ const en: Dictionary = {
   'action.retry': 'Retry',
   'action.back': 'Back',
   'action.cancel': 'Cancel',
+  'action.save': 'Save',
   'action.close': 'Close',
 }
 

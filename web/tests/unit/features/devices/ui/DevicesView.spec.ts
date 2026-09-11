@@ -328,6 +328,12 @@ it('marks a saved device change stale and retries only the read while preserving
       exact: true,
     })
     .click()
+  // Forgetting is the connection's own secondary action and it is confirmed:
+  // the menu offers it, the dialog runs it.
+  await screen
+    .getByRole('button', { name: 'Actions for connection Home router' })
+    .click()
+  await screen.getByRole('menuitem', { name: 'Forget this connection' }).click()
   await screen
     .getByRole('button', { name: 'Forget this connection', exact: true })
     .click()
@@ -337,11 +343,11 @@ it('marks a saved device change stale and retries only the read while preserving
   await expect
     .element(screen.getByRole('heading', { name: 'Home router' }))
     .toBeVisible()
+  // A registry this tab could not re-read is not one to write to again.
   await expect
     .element(
       screen.getByRole('button', {
-        name: 'Forget this connection',
-        exact: true,
+        name: 'Actions for connection Home router',
       }),
     )
     .toBeDisabled()
@@ -427,5 +433,235 @@ it('selects the created identity after a failed reread recovers without repeatin
       ([url, init]) => url === DEVICES && init?.method === 'POST',
     ),
   ).toHaveLength(1)
+  vi.unstubAllGlobals()
+})
+
+// A connection that already opted in, complete in every field its target's
+// deployer asks for. Editing it is what the cases below are about.
+const AUTO_DEVICE = {
+  id: 'device-1',
+  target_id: 'keenetic',
+  target_title: 'Keenetic',
+  name: 'Home router',
+  address: 'http://192.168.1.1',
+  account: 'admin',
+  interface: 'Wireguard0',
+  auto_deliver: true,
+  deployable: true,
+}
+
+const UPDATE = `${DEVICES}/device-1/update`
+const FORGET = `${DEVICES}/device-1/forget`
+
+it('saves a renamed connection through the update endpoint and says nothing about consent', async () => {
+  useLocale().setLocale('en')
+  const fetchMock = installFetch(async (input, init) => {
+    if (input === UPDATE) return json({ device: { id: 'device-1' } })
+    if (input === DEVICES)
+      return json({
+        devices: [
+          {
+            ...AUTO_DEVICE,
+            name:
+              callsTo(fetchMock, UPDATE).length === 0
+                ? 'Home router'
+                : 'Study router',
+          },
+        ],
+        secret_store_available: true,
+      })
+    if (input === LISTS) return json(CATALOG_PAYLOAD)
+    if (input === TARGETS) return json(TARGETS_PAYLOAD)
+    if (input === REQUIREMENTS) return json(REQUIREMENTS_PAYLOAD)
+    throw new Error(`unexpected request ${input} ${init?.method}`)
+  })
+  const screen = await render(DevicesView)
+  const save = screen.getByRole('button', { name: 'Save', exact: true })
+  // Nothing has changed yet, so there is nothing to save.
+  await expect.element(save).toBeDisabled()
+
+  await screen.getByLabelText('Connection name').fill('Study router')
+  // The consent this connection gave names a destination and an account, and
+  // its own name is neither of them.
+  await expect
+    .element(screen.getByText('Saving turns automatic delivery off'))
+    .not.toBeInTheDocument()
+  await expect.element(save).toBeEnabled()
+  await save.click()
+
+  await expect.element(screen.getByText('Parameters saved.')).toBeVisible()
+  await expect
+    .element(screen.getByRole('heading', { name: 'Study router' }))
+    .toBeVisible()
+  const written = callsTo(fetchMock, UPDATE)
+  expect(written).toHaveLength(1)
+  expect(JSON.parse(String((written[0]?.[1] as RequestInit).body))).toEqual({
+    account: 'admin',
+    address: 'http://192.168.1.1',
+    interface: 'Wireguard0',
+    name: 'Study router',
+  })
+  vi.unstubAllGlobals()
+})
+
+it('states that a changed destination withdraws consent, then reports the state the service returned', async () => {
+  useLocale().setLocale('en')
+  const fetchMock = installFetch(async (input, init) => {
+    if (input === UPDATE) return json({ device: { id: 'device-1' } })
+    if (input === DEVICES) {
+      // The service answers a changed destination by revoking the opt-in, so
+      // the registry read that follows the write says so.
+      const written = callsTo(fetchMock, UPDATE).length === 1
+      return json({
+        devices: [
+          {
+            ...AUTO_DEVICE,
+            address: written ? 'http://192.168.1.2' : 'http://192.168.1.1',
+            auto_deliver: !written,
+          },
+        ],
+        secret_store_available: true,
+      })
+    }
+    if (input === LISTS) return json(CATALOG_PAYLOAD)
+    if (input === TARGETS) return json(TARGETS_PAYLOAD)
+    if (input === REQUIREMENTS) return json(REQUIREMENTS_PAYLOAD)
+    throw new Error(`unexpected request ${input} ${init?.method}`)
+  })
+  const screen = await render(DevicesView)
+  await expect
+    .element(
+      screen.getByRole('button', { name: 'Turn off automatic delivery' }),
+    )
+    .toBeVisible()
+
+  await screen.getByLabelText('Device address').fill('http://192.168.1.2')
+  // The warning stands beside Save, before it is pressed.
+  await expect
+    .element(screen.getByText('Saving turns automatic delivery off'))
+    .toBeVisible()
+  await screen.getByRole('button', { name: 'Save', exact: true }).click()
+
+  await expect
+    .element(
+      screen.getByText(
+        'Parameters saved and automatic delivery is off. Turn it on again when you are ready.',
+      ),
+    )
+    .toBeVisible()
+  await expect
+    .element(screen.getByLabelText('Password', { exact: true }))
+    .toBeVisible()
+  await expect
+    .element(screen.getByRole('button', { name: 'Turn on automatic delivery' }))
+    .toBeVisible()
+  expect(callsTo(fetchMock, UPDATE)).toHaveLength(1)
+  vi.unstubAllGlobals()
+})
+
+it('opens each connection at its stored parameters while the creation draft survives', async () => {
+  useLocale().setLocale('en')
+  const fetchMock = installFetch(async (input, init) => {
+    if (input === DEVICES)
+      return json({
+        devices: [
+          AUTO_DEVICE,
+          { ...AUTO_DEVICE, id: 'device-2', name: 'Office router' },
+        ],
+        secret_store_available: true,
+      })
+    if (input === LISTS) return json(CATALOG_PAYLOAD)
+    if (input === TARGETS) return json(TARGETS_PAYLOAD)
+    if (input === REQUIREMENTS) return json(REQUIREMENTS_PAYLOAD)
+    throw new Error(`unexpected request ${input} ${init?.method}`)
+  })
+  const screen = await render(DevicesView)
+  await screen.getByLabelText('Connection name').fill('Renamed router')
+
+  await screen
+    .getByRole('button', { name: 'Add a connection', exact: true })
+    .click()
+  await screen.getByLabelText('Device or application').click()
+  await screen.getByRole('option', { name: /^Keenetic/ }).click()
+  await screen.getByLabelText('Connection name').fill('Unfinished router')
+
+  await screen
+    .getByRole('button', {
+      name: 'Configure connection Office router',
+      exact: true,
+    })
+    .click()
+  await screen
+    .getByRole('button', {
+      name: 'Configure connection Home router',
+      exact: true,
+    })
+    .click()
+  // A connection opens at what is stored for it, not at what was typed into
+  // its form and never saved.
+  await expect
+    .element(screen.getByLabelText('Connection name'))
+    .toHaveValue('Home router')
+
+  await screen
+    .getByRole('button', { name: 'Add a connection', exact: true })
+    .click()
+  await expect
+    .element(screen.getByLabelText('Connection name'))
+    .toHaveValue('Unfinished router')
+  expect(
+    fetchMock.mock.calls.every(([, request]) => request?.method !== 'POST'),
+  ).toBe(true)
+  vi.unstubAllGlobals()
+})
+
+it('confirms forgetting a connection and writes nothing when that confirmation is cancelled', async () => {
+  useLocale().setLocale('en')
+  const fetchMock = installFetch(async (input, init) => {
+    if (input === FORGET) return json({ forgotten: 'device-1' })
+    if (input === DEVICES)
+      return json({
+        devices: callsTo(fetchMock, FORGET).length === 0 ? [AUTO_DEVICE] : [],
+        secret_store_available: true,
+      })
+    if (input === LISTS) return json(CATALOG_PAYLOAD)
+    if (input === TARGETS) return json(TARGETS_PAYLOAD)
+    if (input === REQUIREMENTS) return json(REQUIREMENTS_PAYLOAD)
+    throw new Error(`unexpected request ${input} ${init?.method}`)
+  })
+  const screen = await render(DevicesView)
+  const actions = screen.getByRole('button', {
+    name: 'Actions for connection Home router',
+  })
+  await actions.click()
+  await screen.getByRole('menuitem', { name: 'Forget this connection' }).click()
+  await expect
+    .element(
+      screen
+        .getByRole('dialog')
+        .getByText(
+          'The stored password is removed and automatic delivery is turned off. Files already installed on the device stay there.',
+        ),
+    )
+    .toBeVisible()
+  await screen
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Cancel', exact: true })
+    .click()
+  await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
+  expect(callsTo(fetchMock, FORGET)).toHaveLength(0)
+
+  await actions.click()
+  await screen.getByRole('menuitem', { name: 'Forget this connection' }).click()
+  await screen
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Forget this connection', exact: true })
+    .click()
+  await expect
+    .element(
+      screen.getByRole('region', { name: 'Add a connection', exact: true }),
+    )
+    .toBeVisible()
+  expect(callsTo(fetchMock, FORGET)).toHaveLength(1)
   vi.unstubAllGlobals()
 })

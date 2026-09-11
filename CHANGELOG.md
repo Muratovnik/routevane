@@ -11,8 +11,21 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
+### Added
+
+- A registered connection's name, address, account and route interface can be
+  edited in place in Connections. Because consent named one exact destination
+  and account, changing the address, account or interface turns automatic
+  delivery off and removes the stored credential; the screen states that before
+  the change is saved and reports the state the service returned afterwards.
+
 ### Changed
 
+- Connections is a two-column workspace: the registered connections on the
+  left, each stating what Routevane does with it, and the selected connection
+  or the creation form on the right. Adding a connection belongs to the list's
+  own header, and forgetting one moved into the connection's action menu and is
+  confirmed before it runs.
 - Keenetic DNS builds use output-scoped, collision-checked group names and an
   optional per-output prefix. Delivery changes only groups with persisted exact
   ownership. Existing files remain immutable; unowned name conflicts require

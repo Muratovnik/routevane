@@ -291,18 +291,45 @@ test('the device form asks only for fields the selected target needs', async ({
   await page.screenshot({
     path: join(reviewRoot, 'connection-management-graphite.png'),
   })
-  await details
+
+  // A saved connection's own parameters are edited in place. The name that
+  // comes back after a reload is the one the service stored, not the one this
+  // tab typed.
+  await deviceField(details, 'devices.field.name').fill('Local client v2')
+  await details.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Parameters saved.')).toBeVisible()
+  await page.reload()
+  const renamed = page.getByRole('region', {
+    name: 'Local client v2',
+    exact: true,
+  })
+  await expect(renamed).toBeVisible()
+  await expect(
+    page.getByRole('button', {
+      name: 'Configure connection Local client v2',
+      exact: true,
+    }),
+  ).toBeVisible()
+
+  // Forgetting is the connection's own secondary action, in its action menu,
+  // and it is confirmed before it runs.
+  await renamed
+    .getByRole('button', { name: 'Actions for connection Local client v2' })
+    .click()
+  await page.getByRole('menuitem', { name: 'Forget this connection' }).click()
+  const confirmation = page.getByRole('dialog', {
+    name: 'Forget connection Local client v2?',
+  })
+  await expect(confirmation).toBeVisible()
+  await confirmation
     .getByRole('button', { name: 'Forget this connection', exact: true })
     .click()
-  await expect(details).toHaveCount(0)
+  await expect(renamed).toHaveCount(0)
   await expect(
     page.getByRole('region', { name: 'Add a connection', exact: true }),
   ).toBeVisible()
   await expect(
-    page.getByRole('button', {
-      name: 'Configure connection Local client',
-      exact: true,
-    }),
+    page.getByRole('button', { name: /^Configure connection / }),
   ).toHaveCount(0)
 })
 

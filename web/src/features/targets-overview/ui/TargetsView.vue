@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import RvTable from '@/shared/ui/RvTable.vue'
 import { targetIcon } from '@/shared/lib/targetIcon'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
 import { useSurfacePreferences } from '@/shared/model/useSurfacePreferences'
@@ -15,6 +15,7 @@ import { loadDeployableTargets } from '@/shared/api/deploy'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
+import RvDisclosure from '@/shared/ui/RvDisclosure.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 
 type State = 'loading' | 'ready' | 'empty' | 'failed'
@@ -61,6 +62,15 @@ const title = (target: TargetOption): string =>
 const hint = (target: TargetOption): string =>
   localizedTargetHint(target, locale.value)
 
+// What the collapsed section already answers: which devices and applications
+// this build can reach. The catalog states them, so a build that gains or
+// loses a target says so here without anything being rewritten.
+const summary = computed(() =>
+  targets.value.length === 0
+    ? undefined
+    : targets.value.map((target) => title(target)).join(' · '),
+)
+
 const onToggle = (target: TargetOption, event: Event): void => {
   const input = event.target as HTMLInputElement
   preferences.setTargetHidden(target.id, !input.checked)
@@ -70,92 +80,95 @@ const onToggle = (target: TargetOption, event: Event): void => {
 <template>
   <!-- Secondary reference, not a destination: the operator's own connections
        are the page, and this is the catalog they are instances of. The
-       disclosure that holds it carries the heading, so the region takes its
-       name from the same words rather than repeating them on screen. -->
-  <section :aria-label="t('targets.title')" class="targets">
-    <RvStateNotice
-      v-if="state === 'loading'"
-      live
-      :title="t('targets.loading')"
-      tone="busy"
-    />
-    <RvStateNotice
-      v-else-if="state === 'failed'"
-      :body="t('targets.failed.body')"
-      live
-      :title="t('targets.failed')"
-      tone="failed"
-    >
-      <template #action>
-        <RvButton @click="initialize">{{ t('action.retry') }}</RvButton>
-      </template>
-    </RvStateNotice>
-    <RvStateNotice
-      v-else-if="state === 'empty'"
-      :title="t('targets.empty')"
-      tone="waiting"
-    />
-
-    <template v-else>
+       disclosure carries the heading and the names it holds, so the region
+       takes its name from the same words rather than repeating them on screen,
+       and the summary is the catalog's own answer rather than a written list. -->
+  <RvDisclosure borderless :hint="summary" :summary="t('targets.title')">
+    <div class="targets">
       <RvStateNotice
-        v-if="!deployabilityKnown"
-        :body="t('targets.degraded.body')"
-        :title="t('targets.degraded')"
-        tone="warning"
+        v-if="state === 'loading'"
+        live
+        :title="t('targets.loading')"
+        tone="busy"
+      />
+      <RvStateNotice
+        v-else-if="state === 'failed'"
+        :body="t('targets.failed.body')"
+        live
+        :title="t('targets.failed')"
+        tone="failed"
       >
         <template #action>
           <RvButton @click="initialize">{{ t('action.retry') }}</RvButton>
         </template>
       </RvStateNotice>
-      <RvTable class="targets__scroll">
-        <thead>
-          <tr>
-            <th scope="col">{{ t('targets.column.target') }}</th>
-            <th scope="col">{{ t('targets.column.kind') }}</th>
-            <th scope="col">{{ t('targets.column.format') }}</th>
-            <th scope="col">{{ t('targets.column.auto') }}</th>
-            <th scope="col">{{ t('targets.column.visible') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="target in targets" :key="target.id">
-            <td class="targets__cell-name">
-              <span class="targets__name">
-                <RvIcon :name="targetIcon(target.id)" />
-                {{ title(target) }}
-                <RvInfoTip
-                  :label="t('targets.hint', { target: title(target) })"
-                  :text="hint(target)"
-                />
-              </span>
-            </td>
-            <td>{{ t(`kind.${target.kind}.one`) }}</td>
-            <td class="targets__cell-format">.{{ target.fileExtension }}</td>
-            <td>
-              {{
-                !deployabilityKnown
-                  ? t('targets.auto.unknown')
-                  : deployableIDs.has(target.id)
-                    ? t('targets.auto.yes')
-                    : t('targets.auto.no')
-              }}
-            </td>
-            <td>
-              <label class="targets__toggle">
-                <input
-                  :aria-label="t('targets.toggle', { target: title(target) })"
-                  :checked="visible(target)"
-                  class="targets__checkbox"
-                  type="checkbox"
-                  @change="onToggle(target, $event)"
-                />
-              </label>
-            </td>
-          </tr>
-        </tbody>
-      </RvTable>
-    </template>
-  </section>
+      <RvStateNotice
+        v-else-if="state === 'empty'"
+        :title="t('targets.empty')"
+        tone="waiting"
+      />
+
+      <template v-else>
+        <RvStateNotice
+          v-if="!deployabilityKnown"
+          :body="t('targets.degraded.body')"
+          :title="t('targets.degraded')"
+          tone="warning"
+        >
+          <template #action>
+            <RvButton @click="initialize">{{ t('action.retry') }}</RvButton>
+          </template>
+        </RvStateNotice>
+        <RvTable class="targets__scroll">
+          <thead>
+            <tr>
+              <th scope="col">{{ t('targets.column.target') }}</th>
+              <th scope="col">{{ t('targets.column.kind') }}</th>
+              <th scope="col">{{ t('targets.column.format') }}</th>
+              <th scope="col">{{ t('targets.column.auto') }}</th>
+              <th scope="col">{{ t('targets.column.visible') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="target in targets" :key="target.id">
+              <td class="targets__cell-name">
+                <span class="targets__name">
+                  <RvIcon :name="targetIcon(target.id)" />
+                  {{ title(target) }}
+                  <RvInfoTip
+                    :label="t('targets.hint', { target: title(target) })"
+                    :text="hint(target)"
+                  />
+                </span>
+              </td>
+              <td>{{ t(`kind.${target.kind}.one`) }}</td>
+              <td class="targets__cell-format">.{{ target.fileExtension }}</td>
+              <td>
+                {{
+                  !deployabilityKnown
+                    ? t('targets.auto.unknown')
+                    : deployableIDs.has(target.id)
+                      ? t('targets.auto.yes')
+                      : t('targets.auto.no')
+                }}
+              </td>
+              <td>
+                <label class="targets__toggle">
+                  <input
+                    :aria-label="t('targets.toggle', { target: title(target) })"
+                    :checked="visible(target)"
+                    class="targets__checkbox"
+                    type="checkbox"
+                    @change="onToggle(target, $event)"
+                  />
+                </label>
+              </td>
+            </tr>
+          </tbody>
+        </RvTable>
+      </template>
+    </div>
+  </RvDisclosure>
 </template>
 
 <style scoped>
