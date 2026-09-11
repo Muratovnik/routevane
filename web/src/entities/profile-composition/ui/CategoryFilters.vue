@@ -111,14 +111,14 @@ const toggle = (id: string): void => {
         @update:model-value="emit('update:modelValue', $event)"
       >
         <template #option="{ option }">
-          <CategoryLabel :id="option.value" :label="option.label" /><small
+          <CategoryLabel :id="option.value" :label="option.label" /><span
             class="catalog-filters__count"
             >{{
               formatNumber(
                 choices.find((choice) => choice.value === option.value)
                   ?.count ?? 0,
               )
-            }}</small
+            }}</span
           >
         </template>
       </RvSearchSelect>
@@ -217,9 +217,16 @@ const toggle = (id: string): void => {
   border-radius: var(--rv-radius-sm);
 }
 
+/* How many lists a category holds belongs to that category's name, so it reads
+   as one label at the size the name is set in — not as a footnote pushed to the
+   far edge of the panel, where the eye has to travel to pair the two. */
 .catalog-filters__count {
-  margin-inline-start: auto;
+  flex: none;
+  padding-inline: var(--rv-space-1);
   color: var(--rv-color-ink-muted);
+  font-variant-numeric: tabular-nums;
+  background: var(--rv-color-surface-muted);
+  border-radius: var(--rv-radius-sm);
 }
 
 .catalog-filters__action {
