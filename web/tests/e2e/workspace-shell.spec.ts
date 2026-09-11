@@ -288,11 +288,23 @@ test('sidebar labels and buttons retain their geometry throughout expansion and 
       const labels = [
         ...side.querySelectorAll<HTMLElement>('.shell__nav-label'),
       ]
+      // Every mark the rail carries: the product's, each section's, and the one
+      // on the button doing the collapsing.
+      const glyphs = [
+        side.querySelector<HTMLElement>('.shell__product-mark')!,
+        ...side.querySelectorAll<HTMLElement>('.shell__nav-icon'),
+        button.querySelector<HTMLElement>('.rv-icon')!,
+      ]
+      const centre = (element: HTMLElement): number => {
+        const box = element.getBoundingClientRect()
+        return box.x + box.width / 2
+      }
       button.click()
       const frames: {
         height: number
         overflow: number
         labels: number[]
+        glyphs: number[]
         opacity: number
       }[] = []
       const start = performance.now()
@@ -302,6 +314,7 @@ test('sidebar labels and buttons retain their geometry throughout expansion and 
           height: button.getBoundingClientRect().height,
           overflow: side.scrollWidth - side.clientWidth,
           labels: labels.map((e) => e.getBoundingClientRect().height),
+          glyphs: glyphs.map(centre),
           opacity: Number(getComputedStyle(labels[0]!).opacity),
         })
       } while (performance.now() - start < 350)
@@ -328,6 +341,27 @@ test('sidebar labels and buttons retain their geometry throughout expansion and 
       frames.some((f) => f.opacity > 0 && f.opacity < 1),
       direction,
     ).toBe(true)
+
+    // Each mark travels to the rail's centre line rather than being re-aligned
+    // to it in one frame and drifting back out under the closing column. The
+    // path is read, not just its two ends: one direction the whole way, and no
+    // step larger than the travel a single frame can honestly account for.
+    for (let i = 0; i < frames[0]!.glyphs.length; i++) {
+      const path = frames.map((f) => f.glyphs[i]!)
+      const travel = Math.abs(path.at(-1)! - path[0]!)
+      const steps = path
+        .slice(1)
+        .map((value, index) => value - path[index]!)
+        .filter((step) => Math.abs(step) > 0.05)
+      expect(
+        Math.max(0, ...steps.map(Math.abs)),
+        `${direction} ${i}`,
+      ).toBeLessThanOrEqual(Math.max(3, travel / 2))
+      expect(
+        steps.every((step) => step > 0) || steps.every((step) => step < 0),
+        `${direction} ${i}`,
+      ).toBe(true)
+    }
   }
 })
 

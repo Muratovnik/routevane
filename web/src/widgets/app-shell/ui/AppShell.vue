@@ -268,15 +268,37 @@ const retry = async (): Promise<void> => {
 }
 
 .shell__product {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: var(--rv-space-2);
   align-items: center;
+  justify-content: start;
   overflow: hidden;
   flex: none;
   padding: 0 var(--rv-space-3);
+
+  /* The product mark is larger than a nav glyph, so the row that carries it
+     needs its own inset to stand on the same centre line. */
+  --rv-rail-inset: calc(
+    (
+        var(--rv-sidebar-collapsed-width) - var(--rv-sidebar-collapsed-inset) *
+          2 - var(--rv-brand-mark-size)
+      ) /
+      2
+  );
+
   font-weight: 700;
   font-size: var(--rv-text-section);
   letter-spacing: var(--rv-tracking-title);
+
+  /* Closing the rail is a run of lengths, never a switch of alignment: the
+     name's track, the gap behind it and this inset all interpolate, so the
+     glyph travels to the centre line instead of leaping there in one frame
+     while the column is still open. */
+  transition:
+    grid-template-columns var(--rv-motion-normal) var(--rv-motion-ease-out),
+    gap var(--rv-motion-normal) var(--rv-motion-ease-out),
+    padding-inline var(--rv-motion-normal) var(--rv-motion-ease-out);
 }
 
 .shell__product-mark {
@@ -303,9 +325,11 @@ const retry = async (): Promise<void> => {
 .shell__nav-link {
   overflow: hidden;
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   gap: var(--rv-space-3);
   align-items: center;
+  justify-content: start;
   min-height: var(--rv-control-touch);
   padding: 0 var(--rv-space-3);
   color: var(--rv-color-ink-muted);
@@ -313,6 +337,15 @@ const retry = async (): Promise<void> => {
   font-size: var(--rv-text-emphasis);
   text-decoration: none;
   border-radius: var(--rv-radius-md);
+
+  /* Closing the rail is a run of lengths, never a switch of alignment: the
+     name's track, the gap behind it and this inset all interpolate, so the
+     glyph travels to the centre line instead of leaping there in one frame
+     while the column is still open. */
+  transition:
+    grid-template-columns var(--rv-motion-normal) var(--rv-motion-ease-out),
+    gap var(--rv-motion-normal) var(--rv-motion-ease-out),
+    padding-inline var(--rv-motion-normal) var(--rv-motion-ease-out);
 }
 
 .shell__nav-icon {
@@ -432,23 +465,18 @@ const retry = async (): Promise<void> => {
 }
 
 .shell--collapsed .shell__side {
-  padding-inline: var(--rv-space-2);
+  padding-inline: var(--rv-sidebar-collapsed-inset);
 }
 
 .shell__product-name,
 .shell__nav-label {
   white-space: nowrap;
-  flex: none;
   overflow: hidden;
-  max-width: var(--rv-sidebar-width);
-  transition:
-    max-width var(--rv-motion-normal) var(--rv-motion-ease-out),
-    opacity var(--rv-motion-normal) var(--rv-motion-ease-out);
+  transition: opacity var(--rv-motion-normal) var(--rv-motion-ease-out);
 }
 
 .shell--collapsed .shell__product-name,
 .shell--collapsed .shell__nav-label {
-  max-width: 0;
   opacity: 0;
   pointer-events: none;
 }
@@ -458,8 +486,10 @@ const retry = async (): Promise<void> => {
   flex: none;
   white-space: nowrap;
   position: relative;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
+  justify-content: start;
   gap: var(--rv-space-3);
   margin-top: auto;
   min-height: var(--rv-control-touch);
@@ -470,6 +500,15 @@ const retry = async (): Promise<void> => {
   border-radius: var(--rv-radius-md);
   cursor: pointer;
   text-align: start;
+
+  /* Closing the rail is a run of lengths, never a switch of alignment: the
+     name's track, the gap behind it and this inset all interpolate, so the
+     glyph travels to the centre line instead of leaping there in one frame
+     while the column is still open. */
+  transition:
+    grid-template-columns var(--rv-motion-normal) var(--rv-motion-ease-out),
+    gap var(--rv-motion-normal) var(--rv-motion-ease-out),
+    padding-inline var(--rv-motion-normal) var(--rv-motion-ease-out);
 }
 
 .shell__footer {
@@ -490,16 +529,20 @@ const retry = async (): Promise<void> => {
   transform: rotate(-90deg);
 }
 
-/* A collapsed rail is a column of glyphs, so each glyph stands on the rail's
-   own centre line. That takes both halves: the row stops reserving the inset a
-   label needs, and the label itself stops holding width while it is invisible —
-   a hidden name that still occupies its track pushes every mark off centre. */
+/* A collapsed rail is a column of glyphs, each standing on the rail's own
+   centre line, and the way there is watched as closely as the two ends. Every
+   step of it is a length the browser can interpolate: the name's track runs
+   down to nothing, the gap it was held off by closes, and the row's own inset
+   grows to whatever puts this glyph on the centre line. Nothing switches
+   alignment part-way, which is what made the marks jump before — the row
+   re-centred itself in one frame while the column was still 240px wide, so
+   every glyph leapt inward and then drifted back out under it. */
 .shell--collapsed .shell__product,
 .shell--collapsed .shell__nav-link,
 .shell--collapsed .shell__collapse {
+  grid-template-columns: auto minmax(0, 0fr);
   gap: 0;
-  justify-content: center;
-  padding-inline: 0;
+  padding-inline: var(--rv-rail-inset);
 }
 
 @media (width > 64rem) and (height > 36rem) {
@@ -544,9 +587,13 @@ const retry = async (): Promise<void> => {
     padding-inline: var(--rv-space-3);
   }
 
+  .shell--collapsed .shell__product,
+  .shell--collapsed .shell__nav-link {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
   .shell--collapsed .shell__product-name,
   .shell--collapsed .shell__nav-label {
-    max-width: none;
     opacity: 1;
     pointer-events: auto;
   }

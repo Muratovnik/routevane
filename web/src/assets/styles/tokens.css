@@ -246,6 +246,19 @@
   --rv-disabled-opacity: 0.5;
   --rv-sidebar-width: 15rem;
   --rv-sidebar-collapsed-width: 4rem;
+  --rv-sidebar-collapsed-inset: var(--rv-space-2);
+
+  /* The inset a rail row needs for its glyph to stand on the collapsed rail's
+     own centre line. Rows carry a 1rem glyph; a row whose mark is another size
+     restates this with that size. Keeping it a length rather than a switch of
+     alignment is what lets the rail close without the glyphs jumping. */
+  --rv-rail-inset: calc(
+    (
+        var(--rv-sidebar-collapsed-width) - var(--rv-sidebar-collapsed-inset) *
+          2 - 1rem
+      ) /
+      2
+  );
   --rv-panel-width: 20rem;
 
   /* RvTable defaults; callers override geometry, the component owns density. */

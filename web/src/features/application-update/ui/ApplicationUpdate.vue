@@ -81,14 +81,20 @@ const apply = async () => {
      feature's unique layout class global so it reaches that native root. -->
 <style>
 .application-update {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   flex: none;
   align-items: center;
+  justify-content: start;
   gap: var(--rv-space-3);
   width: 100%;
   min-height: var(--rv-control-touch);
   overflow: hidden;
   padding: var(--rv-space-3);
+  transition:
+    grid-template-columns var(--rv-motion-normal) var(--rv-motion-ease-out),
+    gap var(--rv-motion-normal) var(--rv-motion-ease-out),
+    padding-inline var(--rv-motion-normal) var(--rv-motion-ease-out);
   color: var(--rv-color-accent);
   background: var(--rv-color-chrome-raised);
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
@@ -105,34 +111,31 @@ const apply = async () => {
 .application-update__label {
   white-space: nowrap;
   overflow: hidden;
-  max-width: var(--rv-sidebar-width);
-  transition:
-    max-width var(--rv-motion-normal) var(--rv-motion-ease-out),
-    opacity var(--rv-motion-normal) var(--rv-motion-ease-out);
+  transition: opacity var(--rv-motion-normal) var(--rv-motion-ease-out);
 }
 
-/* A hidden label that still holds its track pushes the glyph off the collapsed
-   rail's centre line, so it gives the width up with the text. */
+/* This button sits on the same rail as the navigation and closes the same way:
+   the label's track runs to nothing, the gap closes behind it and the inset
+   grows to the one that puts the glyph on the rail's centre line. Every step is
+   a length, so the glyph travels there instead of being re-aligned in a frame. */
 .application-update--collapsed {
+  grid-template-columns: auto minmax(0, 0fr);
   gap: 0;
-  justify-content: center;
-  padding-inline: 0;
+  padding-inline: var(--rv-rail-inset);
 }
 
 .application-update--collapsed .application-update__label {
-  max-width: 0;
   opacity: 0;
 }
 
 @container (width <= 40rem) {
   .application-update--collapsed {
+    grid-template-columns: auto minmax(0, 1fr);
     gap: var(--rv-space-3);
-    justify-content: flex-start;
     padding-inline: var(--rv-space-3);
   }
 
   .application-update--collapsed .application-update__label {
-    max-width: none;
     opacity: 1;
   }
 }
