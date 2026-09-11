@@ -88,7 +88,7 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
     .filter({ has: linkTo(page, `/profiles/${profileId}`) })
   await page
     .getByRole('tablist', { name: 'Profile sections' })
-    .getByRole('tab', { name: 'Connection' })
+    .getByRole('tab', { name: 'Publishing' })
     .click()
   const fileHref = await page
     .getByRole('link', { name: 'Download the file for Keenetic' })
@@ -129,7 +129,7 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
   ).toHaveAttribute('href', fileHref ?? '')
   await page
     .getByRole('tablist', { name: 'Profile sections' })
-    .getByRole('tab', { name: 'Connection' })
+    .getByRole('tab', { name: 'Publishing' })
     .click()
   await expect(addConnectionField(page)).toHaveCount(0)
   await expect(

@@ -92,7 +92,7 @@ test('graphite settings and inline connection choices preserve readable alignmen
     page.getByRole('region', { name: 'Добавить подключение', exact: true }),
   ).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await page.getByLabel('Устройство или приложение', { exact: true }).click()
+  await page.getByLabel('Что подключаем', { exact: true }).click()
   const option = page.getByRole('option', { name: 'Keenetic', exact: true })
   const labelLeft = await option.evaluate((element) => {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)

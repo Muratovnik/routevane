@@ -346,7 +346,7 @@ test('one list without IP coverage preserves other lists and domain-format forec
       .click()
     await expect(
       page.getByText(
-        'These lists have no data usable by the selected connection. Refresh sources or choose another connection:',
+        'These lists have no data usable by the selected format. Refresh sources or choose another format:',
       ),
     ).toBeVisible()
     await expect(page.getByRole('dialog')).toContainText('Partial Missing')

@@ -28,9 +28,14 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
   require a separate mobile interface. The [UI contract](UI.md#desktop-layout-and-window-adaptation)
   owns layout and accessibility verification.
 - A **rule** is one destination; a **list** holds rules; a **category** groups
-  lists; a **profile** composes them and publishes through one or more
-  **connections**. The interface, the HTTP API, the catalog, the transfer format
-  and the stored schema all use these words (ADR 0039).
+  lists; a **profile** composes them and publishes in one or more **formats**.
+  A **connection** is one registered access — an address, an account, an
+  interface and, on consent, a password — that can deliver a format's file.
+  The interface, the HTTP API, the catalog, the transfer format and the stored
+  schema all use rule, list, category and profile (ADR 0039). Format and
+  connection are interface words for what those surfaces call an output and a
+  device; the interface keeps one word per object and the wire keeps its
+  identifiers (ADR 0041).
 - Prefer safe domain-capable rules when the target supports them. DNS evidence
   never justifies WHOIS/RDAP/ASN expansion. Observation validity and policy
   acceptance are separate; decisions are deterministic and reason-coded.

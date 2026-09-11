@@ -155,18 +155,18 @@ describe('ProfileEditor', () => {
     expect(screen.getByRole('button', { name: 'Add lists' }).all()).toEqual([])
   })
 
-  // The rail states what the profile already publishes, one connection per
-  // line. It is a fact about the stored profile, so it is captioned as the
-  // connections themselves and not with the create form's question about where
-  // a new profile should go. What saving does travels with the control that
+  // The rail states what the profile already publishes, one format per line.
+  // It is a fact about the stored profile, so it is captioned as the formats
+  // themselves and not with the create form's question about where a new
+  // profile should go. What saving does travels with the control that
   // does it, rather than standing above it as a sentence of its own.
-  it('names the connections it publishes and attaches the effect to Save', async () => {
+  it('names the formats it publishes and attaches the effect to Save', async () => {
     stubPreview()
     const screen = await renderEditor()
     await settle()
 
     await expect
-      .element(screen.getByText('Connections', { exact: true }))
+      .element(screen.getByText('Formats', { exact: true }))
       .toBeVisible()
     await expect
       .element(screen.getByText('Where to deliver the profile'))

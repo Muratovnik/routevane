@@ -26,12 +26,18 @@ sessions add no sidebar item. Application updates are independent of source refr
 
 The unit of the product is the **profile** (ADR 0013, named by ADR 0028): a
 stored, server-owned composition of **lists** and **categories** with no
-target of its own. A _list_ is a named set of destinations — domains,
+format of its own. A _list_ is a named set of destinations — domains,
 addresses, networks — seeded by the catalog or created by the operator and
 editable either way; a _category_ contains lists, ships with the catalog and
-is edited by the operator on top of it. What a profile publishes into is an
-**output** — one format, optionally one device — and an output owns its
-subscription link and its chain of published files. One profile therefore feeds
+is edited by the operator on top of it. A profile publishes in one or more
+**formats**, and a format owns its subscription link, its chain of published
+files and, when delivery is set up, the connection that carries them. A
+**connection** is one registered access — an address, an account, an interface
+and, on consent, a password — and it names the access rather than what stands
+at the far end, which may be a router, an application or a service (ADR 0041).
+The API, the schema and the code keep `output` and `device`; the interface word
+and the identifier differ here deliberately, as they already do for three wire
+names under ADR 0039. One profile therefore feeds
 a router and a phone at once, and editing it changes what both receive. The
 interface is a shelf of those objects plus the catalog facts around them —
 not a wizard. No object of the product is a «сервис» / "service" on any
@@ -45,18 +51,18 @@ records as a separate change rather than a rename.
 Sections, addressable by URL:
 
 1. `/` — **Profiles / Профили.** Every stored profile, newest first: its name
-   and composition, its connections and content time. The row is a state
+   and composition, its formats and content time. The row is a state
    summary, not a toolbar: one overflow menu owns configuration, one-off export,
-   delivery, connection and archive actions. Clicking a noninteractive row cell navigates to the
+   delivery, publishing and archive actions. Clicking a noninteractive row cell navigates to the
    profile's own page; the title remains a native link. Nothing on the page explains what a profile is: the rows
    are the explanation. Imported v3 profiles are identified as restored profiles
    and say what to do next rather than leaking migration names. The primary
    action is «Build a profile».
 2. `/profiles/new` — **New profile.** The composer keeps the first setup in one
    visible flow: lists or whole categories on the left; the proposed, editable
-   name and first device or application on the right. The target still
-   belongs to the output, not the profile; after the profile is stored, the profile
-   page creates and publishes that first output so the one-time subscription
+   name and first format on the right. That choice still
+   belongs to the format, not the profile; after the profile is stored, the profile
+   page creates and publishes that first format so the one-time subscription
    URL never crosses storage or a URL. **Capacity is part of composing**
    (ADR 0027): the format is one button opening a searchable choice panel. Options are
    grouped into routers and applications (ADR 0028) — two groups inside one
@@ -76,7 +82,7 @@ Sections, addressable by URL:
    The secondary “New lists” menu explicitly controls whether future category
    members are included automatically; this live reference is distinct from
    the table's selection checkbox and never occupies a separate banner.
-   The settings rail contains the name, first connection choice,
+   The settings rail contains the name, first format choice,
    forecast and create action, without repeating the selected lists. In a
    constrained window it stacks after the table.
    Priority begins grouped by category unless the library has a saved custom
@@ -102,21 +108,21 @@ Sections, addressable by URL:
    retries source reads; normal automatic recovery reads only missing lists once.
    Publication still requires complete coverage.
 3. `/profiles/{profileId}` — **The profile page.** One object with its facets as tabs:
-   Contents · Connection · File · Diagnostics; the active tab and the
+   Contents · Publishing · File · Diagnostics; the active tab and the
    first-setup handoff travel in the URL hash (`#tab=…&setup=…`) because the
    embedded server rejects query strings, and the legacy `/#list={listId}`
    fragment redirects here. A breadcrumb returns to the profile shelf. The Contents
    tab uses the same workspace as profile creation: the dense composition table
-   on the left, profile name, existing connections, and save/cancel on the right
-   (ADR 0027). The existing connections are a summary; adding or changing an
-   output remains on the Connection tab.
+   on the left, profile name, existing formats, and save/cancel on the right
+   (ADR 0027). The existing formats are a summary; adding or changing one
+   remains on the Publishing tab.
    Membership changes keep row positions stable. The table owns selection,
    removal and priority changes by pointer or keyboard; opening a row inspects
    the list without changing membership. Intersection counts and their name disclosures on
-   selected rows use the first connection's format, like the row weights, and
+   selected rows use the first format, like the row weights, and
    name every other selected list with which that row overlaps. Save
    is enabled only once the draft differs from the stored profile, cancel
-   restores it, and an output the draft would overflow is warned about beside
+   restores it, and a format the draft would overflow is warned about beside
    the save action without blocking it. **The composition table selects and
    writes nothing else** (ADR 0029). Every
    category names its members before it is selected; a mixed checkbox always
@@ -136,7 +142,7 @@ Sections, addressable by URL:
    table. Placement belongs to the page workspace, shared by the composer,
    profile editor, and library. The panel starts at the page's top inset and ends
    at its bottom inset. Profile settings move above the table while inspecting,
-   keeping name, connection, and create/save actions available. The same form
+   keeping name, format, and create/save actions available. The same form
    stays mounted, preserving unsaved inputs and validation. The table remains
    interactive; closing the card restores the rail and keyboard focus. At smaller widths
    it becomes a modal right-side sheet up to the shared 64rem working width,
@@ -174,15 +180,14 @@ Sections, addressable by URL:
    Secondary actions — one-off export, send, refresh-and-rebuild, archive —
    live in one overflow menu; format and maintenance choices drill into named
    submenus instead of forming one long flat list.
-   Adding another connection on the Connection tab creates the output and
-   publishes it in one move, because a format with no file is a promise the
-   screen cannot keep. The profile refresh rule is configured on this tab beside
-   its outputs; Settings supplies only the global default. Each output names
-   its next unmet delivery condition — choose a connection, turn on automatic
-   delivery, turn on profile refresh, or ready — using the persisted output,
-   connection, and schedule facts. Automatic delivery is primary when a
-   deployer exists; subscription and manual download remain available
-   connection methods.
+   Adding another format on the Publishing tab creates it and publishes it in
+   one move, because a format with no file is a promise the screen cannot keep.
+   The profile refresh rule is configured on this tab beside those formats;
+   Settings supplies only the global default. Each format names its next unmet
+   delivery condition — choose a connection, turn on automatic delivery, turn
+   on profile refresh, or ready — using the persisted format, connection, and
+   schedule facts. Automatic delivery is primary when a deployer exists;
+   subscription and manual download remain available ways to get the file.
 4. `/lists` — **Lists / Списки.** The library: what a list holds and which
    category holds it, for every profile at once (ADR 0029). It uses the same
    dense catalog table, search and category filter as the composer, with list
@@ -215,8 +220,8 @@ Sections, addressable by URL:
    automatic applying with a plan, a backup and an audit trail when the format
    has a deployer, and the by-hand path always stated below it.
 6. `/connections` — **Connections / Подключения** (ADR 0027; `/devices`
-   redirects here). One section answers «куда»: registered devices and
-   applications first, as two surfaces of the same level — the registered
+   redirects here). One section answers «куда»: registered connections
+   first, as two surfaces of the same level — the registered
    connections on the left, the selected connection or the creation form on
    the right. The first saved connection is selected on arrival. An empty
    registry states across the whole work area that it holds nothing and offers
@@ -231,7 +236,7 @@ Sections, addressable by URL:
    connection from the list instead keeps the draft for the next «Добавить
    подключение». Saving selects the server-returned connection ID; forgetting
    the selection opens the next connection or the form. A row states the
-   connection's name, its target and address, and what Routevane does with it
+   connection's name, its format and address, and what Routevane does with it
    — automatic delivery on, off, or by hand only — and nothing about
    reachability. The selected row is marked by its ground, a hairline accent
    and a mark that is not a colour; the list scrolls inside its own frame
@@ -247,7 +252,7 @@ Sections, addressable by URL:
    saved connection does not send anything.
    A saved connection's editable parameters — name, address, account and route
    interface — are edited in place under «Параметры», in the same two-column
-   grid the creation form uses. The target is the connection's identity and is
+   grid the creation form uses. The format is the connection's identity and is
    never editable: a registered Keenetic does not become an OpenWrt. Save waits
    for a draft that differs from what is stored and has every required field
    filled; «Отменить» and opening another connection both return the stored
@@ -256,7 +261,7 @@ Sections, addressable by URL:
    the stored credential — the screen says so beside Save before it is pressed,
    and afterwards reports the state the server returned. A name-only change
    says nothing of the kind. When the deployment catalog is unavailable the
-   parameters are stated rather than edited, because the fields a target asks
+   parameters are stated rather than edited, because the fields a format asks
    for are that catalog's answer.
    «Автоотправка» is its own section and its own act, never part of saving
    parameters, and it is one control rather than a switch and a button: while
@@ -270,8 +275,12 @@ Sections, addressable by URL:
    unused, because which profiles name it is not a fact this screen reads. The
    reference of supported devices and formats is collapsed beneath them and
    summarized by the catalog's own titles. The words «цель», «вывод» and
-   «потребитель» do not appear on any surface: a profile feeds _connections_,
-   each made of a device or application and its format. If a catalog dependency
+   «потребитель» do not appear on any surface, and «подключение» names exactly
+   one thing on every surface: the registered access this screen owns
+   (ADR 0041). What a profile publishes in is a _format_, and the catalog
+   collapsed here is the list of formats this build carries. «Устройство»
+   is left for a physical device during a delivery attempt — a deploy step
+   or a deploy error — and names no object of the product. If a catalog dependency
    is unavailable, the screen keeps known devices readable and states exactly
    which actions cannot be trusted yet.
 7. `/settings` — **Настройки.** Language, theme (system/dark/light), detail
@@ -291,7 +300,7 @@ Sections, addressable by URL:
    only the bytes just previewed; selecting another file invalidates it. Read,
    preview, download, and apply failures remain distinct retryable states. The
    destination must be empty. Imported connections carry no credentials or
-   delivery authority, outputs carry no publication/subscription state, and
+   delivery authority, formats carry no publication/subscription state, and
    operator-added HTTP sources carry no portable URL: preview warns that they
    must be recreated. Catalog-source on/off choices and the library's default
    list priority still transfer. The browser
@@ -314,11 +323,11 @@ server's own address is a Settings fact, not a footer — and no section is
 ever locked.
 
 A profile's name and composition are editable; saving them republishes every
-output, so a stored profile and the files it stands behind never quietly
+format, so a stored profile and the files it stands behind never quietly
 disagree. What was published stays immutable: an edit adds a version, it never
 rewrites one.
 
-One-off export is not an output. `POST /v1/profiles/{profileId}/export` renders the
+One-off export is not a published format. `POST /v1/profiles/{profileId}/export` renders the
 current profile in any available file dialect without adding a consumer, issuing a
 subscription or changing publication history. File-dialect labels describe the
 bytes (for example `BAT · routes` or `JSON · all rules`), never pretend that
@@ -384,23 +393,23 @@ the thing that will happen.
   says so in words alone. Neither takes the status dot that reports whether a
   file was published.
 - The interface reports what it knows. A profile restored from the server says the
-  subscription link was shown at creation; a target that left the catalog keeps
+  subscription link was shown at creation; a format that left the catalog keeps
   its stored identity instead of disappearing. Nothing is filled in to look
   complete.
-- Each output exposes the last persisted publication attempt. A failed rebuild
+- Each format exposes the last persisted publication attempt. A failed rebuild
   never removes the artifact already published, and the screen says the
-  previous file still stands. A rebuild of several outputs continues after one
-  failure and reports the affected outputs instead of presenting the group as a
+  previous file still stands. A rebuild of several formats continues after one
+  failure and reports the affected formats instead of presenting the group as a
   single success or failure.
-- A toggle states an applied fact, never an optimistic click: hiding a target
+- A toggle states an applied fact, never an optimistic click: hiding a format
   changes exactly what its caption says it changes.
 - Server codes and server English never reach the operator as themselves.
   Models answer with message keys; the interface owns the sentence.
 
 ## The one-time secret
 
-Creating an output creates no bearer credential. The subscription URL is
-issued once, after that output's first successful publication, so a failed
+Adding a format creates no bearer credential. The subscription URL is
+issued once, after that format's first successful publication, so a failed
 initial build leaves no unusable secret behind. It lives in memory for the life
 of the tab: never in storage, never in the URL, never in a query, never in a
 log. The profile that survives a refresh is the server's; it deliberately
@@ -574,7 +583,7 @@ English is the primary language and the fallback when the browser prefers a
 language this build does not speak; Russian is a complete, equal dictionary,
 and both are equal layout cases. Interface copy lives in
 `web/src/shared/i18n/messages.ts` and nowhere else; a literal sentence in a
-component is a defect. Catalog data — list titles, target titles,
+component is a defect. Catalog data — list titles, format titles,
 installation sentences — is data and is never translated in the interface; the
 catalog itself may carry per-language variants (`title_en`,
 `manual_installation_hint_en`, ADR 0027), and one accessor picks by locale
@@ -680,6 +689,6 @@ reduced motion and unsupported browsers switch immediately.
 Native data tables share `RvTable`: one bordered scroll surface, rounded corners,
 a filled header, cell separators and optional dense rows/sticky headers. Callers
 own column geometry and slot content, including selection and menus. Long forms
-stay outside comparison rows; output FQDN prefixes are configured in a separate
-section below the connection table. Target choices and connection names use the
+stay outside comparison rows; FQDN group prefixes are configured in a separate
+section below the format table. Format choices and connection names use the
 same decorative icons, with a generic device icon for an unknown plugin target.

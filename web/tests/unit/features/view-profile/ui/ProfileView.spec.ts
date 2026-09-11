@@ -258,7 +258,7 @@ describe('profile screen read boundaries', () => {
 it('keeps the saved schedule on refusal and retries the requested interval', async () => {
   const { scenario, fetchMock } = installFetch()
   const screen = await renderRoute(true)
-  await screen.getByRole('tab', { name: 'Connection' }).click()
+  await screen.getByRole('tab', { name: 'Publishing' }).click()
   const schedule = screen.getByRole('combobox', {
     name: 'Refresh',
     exact: true,

@@ -21,6 +21,13 @@ This file starts at the first published version, 0.1.0.
 
 ### Changed
 
+- One word per object across the interface. What a profile publishes in is a
+  **format**, and the profile's «Подключение» tab is now «Публикация»; its table
+  reads Формат · Файл · Подключение · Содержимое от · Действия. **Подключение**
+  now means one thing everywhere: a registered access on the Connections
+  screen. Previously both objects were called a connection, and the two screens
+  named them in opposite order, so «Добавить подключение» stood for three
+  different actions and two empty states shared one sentence.
 - Connections is a two-column workspace: the registered connections on the
   left, each stating what Routevane does with it, and the selected connection
   or the creation form on the right. Adding a connection belongs to the list's

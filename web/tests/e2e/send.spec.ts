@@ -267,7 +267,7 @@ test('the send screen builds its form from the deployer and applies the file loc
     .click()
   await page.waitForURL(`${profileURL}/send/${outputId}`)
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Send to device' }),
+    page.getByRole('heading', { level: 1, name: 'Send the file' }),
   ).toBeVisible()
   await expect(page.getByText('Profile: YouTube')).toBeVisible()
   await expect(page.getByText('Not applied', { exact: true })).toBeVisible()
@@ -366,7 +366,7 @@ for (const language of ['en', 'ru'] as const) {
     test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
     const copy = (key: string): string => message(language, key)
 
-    test('send entry distinguishes unavailable, missing profile, missing connection and missing file', async ({
+    test('send entry distinguishes unavailable, missing profile, missing format and missing file', async ({
       page,
     }) => {
       test.setTimeout(180000)
@@ -551,13 +551,11 @@ test('a target without a deployer is offered the manual path only', async ({
   await expect(
     page.getByRole('tablist', { name: message('en', 'profile.tabs') }),
   ).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Send to device' })).toHaveCount(
-    0,
-  )
+  await expect(page.getByRole('link', { name: 'Send the file' })).toHaveCount(0)
 
   await page.goto(`${profileURL}/send/${outputId}`)
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Send to device' }),
+    page.getByRole('heading', { level: 1, name: 'Send the file' }),
   ).toBeVisible()
   await expect(
     page.getByText('Automatic delivery to MikroTik is unavailable'),

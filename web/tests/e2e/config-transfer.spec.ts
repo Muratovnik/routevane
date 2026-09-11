@@ -238,9 +238,9 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
   expect((await validPreviewRequest).postData()).toBe(rawTransfer)
   const preview = page.getByRole('region', { name: 'Will be imported' })
   await expect(preview).toContainText('1 profile')
-  await expect(preview).toContainText('1 connection')
+  await expect(preview).toContainText('1 format')
   await expect(preview).toContainText(
-    'Publish connections again and create new subscriptions.',
+    'Publish the formats again and create new subscriptions.',
   )
   await expect(preview).toContainText(
     'Custom sources are not in the file. Add them again after transfer.',

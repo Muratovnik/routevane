@@ -7,7 +7,7 @@ import RvTabs from '@/shared/ui/RvTabs.vue'
 
 const TABS = [
   { id: 'overview', label: 'Contents' },
-  { id: 'outputs', label: 'Connection' },
+  { id: 'outputs', label: 'Publishing' },
   { id: 'file', label: 'File' },
   { id: 'diagnostics', label: 'Diagnostics' },
 ]
@@ -41,7 +41,7 @@ describe('RvTabs', () => {
   it('delegates selection, keyboard traversal and panel focus to Reka', async () => {
     const screen = await render(Host)
     const contents = screen.getByRole('tab', { name: 'Contents' })
-    const connection = screen.getByRole('tab', { name: 'Connection' })
+    const connection = screen.getByRole('tab', { name: 'Publishing' })
     const file = screen.getByRole('tab', { name: 'File' })
     const diagnostics = screen.getByRole('tab', { name: 'Diagnostics' })
 
@@ -59,7 +59,7 @@ describe('RvTabs', () => {
 
     await connection.click()
     await expect.element(connection).toHaveAttribute('aria-selected', 'true')
-    const panel = screen.getByRole('tabpanel', { name: 'Connection' })
+    const panel = screen.getByRole('tabpanel', { name: 'Publishing' })
     await expect.element(panel).toHaveAttribute('tabindex', '0')
 
     connection.element().focus()

@@ -97,7 +97,7 @@ test('the library starts empty and shelves the profile the composer creates and 
   await expect(page.getByText('No profiles yet')).toBeVisible()
   await expect(
     page.getByText(
-      'Choose lists and a device; Routevane will prepare the rules and show the available connection methods.',
+      'Choose lists and a format; Routevane will prepare the rules and show how to get the file.',
     ),
   ).toBeVisible()
 
@@ -316,7 +316,7 @@ test('the library starts empty and shelves the profile the composer creates and 
   const tablist = page.getByRole('tablist', { name: 'Profile sections' })
   await expect(tablist.getByRole('tab')).toHaveText([
     'Contents',
-    'Connection',
+    'Publishing',
     'File',
     'Diagnostics',
   ])

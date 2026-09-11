@@ -4,6 +4,12 @@ status: adopted
 
 # ADR 0027: capacity joins composition, and «куда» is one section
 
+> Current scope: the vocabulary clause below gave «подключение» to both the
+> registered access and the profile-to-format binding.
+> [ADR 0041](0041-one-interface-word-per-object.md) replaces that clause; the
+> section, its address and the retirement of «цель», «вывод» and «потребитель»
+> stand.
+
 ## Context
 
 A full product walk found the default path broken: the shipped
@@ -37,6 +43,8 @@ Russian under an English-first product.
   devices lead, and the format catalog is a collapsed reference beneath them.
   The words «цель», «вывод» and «потребитель» leave the interface: what a list
   feeds is a *connection*, made of a device or application and its format.
+  *(The last sentence is replaced by ADR 0041: what a profile publishes in is
+  a format, and «подключение» names only the registered access.)*
 - **The Contents tab shows the list first.** The list's own collections and
   services render as rows with their forecast weights and removal controls;
   the full catalog picker appears only behind «Добавить сервисы». The composer

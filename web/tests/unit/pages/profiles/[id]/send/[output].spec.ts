@@ -38,7 +38,7 @@ const renderPage = () =>
         SendPanel: {
           props: ['artifactId'],
           template:
-            '<section><h1>Send to device</h1><p>{{ artifactId }}</p></section>',
+            '<section><h1>Send the file</h1><p>{{ artifactId }}</p></section>',
         },
       },
     },
@@ -100,12 +100,12 @@ describe('send entry read states', () => {
     },
   )
 
-  it('names a missing connection, not a missing profile, and returns to that profile', async () => {
+  it('names a missing format, not a missing profile, and returns to that profile', async () => {
     HOST.model.state.value = 'ready'
     HOST.model.outputs.value = []
     const screen = await renderPage()
 
-    await expect.element(screen.getByText('Connection not found')).toBeVisible()
+    await expect.element(screen.getByText('Format not found')).toBeVisible()
     await expect
       .element(screen.getByText('Profile not found'))
       .not.toBeInTheDocument()
@@ -115,7 +115,7 @@ describe('send entry read states', () => {
     expect(screen.getByRole('heading', { level: 1 }).all()).toHaveLength(1)
   })
 
-  it('keeps a connection without a file distinct from a missing connection', async () => {
+  it('keeps a format without a file distinct from a missing format', async () => {
     HOST.model.state.value = 'ready'
     HOST.model.outputs.value[1]!.latest = null
     const screen = await renderPage()

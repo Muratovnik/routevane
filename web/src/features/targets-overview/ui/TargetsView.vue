@@ -62,9 +62,9 @@ const title = (target: TargetOption): string =>
 const hint = (target: TargetOption): string =>
   localizedTargetHint(target, locale.value)
 
-// What the collapsed section already answers: which devices and applications
-// this build can reach. The catalog states them, so a build that gains or
-// loses a target says so here without anything being rewritten.
+// What the collapsed section already answers: which formats this build
+// carries. The catalog states them, so a build that gains or loses one says
+// so here without anything being rewritten.
 const summary = computed(() =>
   targets.value.length === 0
     ? undefined

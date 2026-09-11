@@ -114,8 +114,8 @@ const readinessLabel = (output: OutputCard): string => {
   return t(`outputs.readiness.${state}`)
 }
 
-// Devices and applications stay named runs: a format is looked for by the kind
-// of thing it feeds before it is looked for by name.
+// Formats stay grouped by the kind of thing they feed: a reader looks for a
+// router or an application before looking for a name.
 const targetChoices = computed<ChoiceGroup[]>(() =>
   props.targetGroups.map((group) => ({
     key: group.kind,

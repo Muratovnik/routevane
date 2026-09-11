@@ -67,7 +67,7 @@ describe('OutputsPanel connection readiness', () => {
       .element(screen.getByText('Add a connection', { exact: false }).first())
       .toBeVisible()
     await expect
-      .element(screen.getByText('Device for Keenetic —', { exact: false }))
+      .element(screen.getByText('Connection for Keenetic —', { exact: false }))
       .not.toBeInTheDocument()
     // The refresh choice is named by the section heading above it, which is how
     // a reader knows what the control changes.

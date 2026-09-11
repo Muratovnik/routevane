@@ -116,9 +116,7 @@ describe('DevicesView prerequisite audit', () => {
     await screen
       .getByRole('button', { name: 'Add a connection', exact: true })
       .click()
-    await expect
-      .element(screen.getByLabelText('Device or application'))
-      .toBeVisible()
+    await expect.element(screen.getByLabelText('What to connect')).toBeVisible()
     // Automatic delivery cannot be offered while its requirements are unknown.
     await expect
       .element(
@@ -126,7 +124,7 @@ describe('DevicesView prerequisite audit', () => {
       )
       .not.toBeInTheDocument()
 
-    await screen.getByLabelText('Device or application').click()
+    await screen.getByLabelText('What to connect').click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
 
     // Nothing has been touched yet, so nothing is reported as missing.
@@ -209,7 +207,7 @@ describe('DevicesView prerequisite audit', () => {
       .toHaveFocus()
 
     await add.click()
-    await screen.getByLabelText('Device or application').click()
+    await screen.getByLabelText('What to connect').click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
     await screen.getByLabelText('Connection name').fill('Manual router')
     await screen.getByLabelText('Device address').fill('file:///router.conf')
@@ -261,7 +259,7 @@ describe('DevicesView prerequisite audit', () => {
     await screen
       .getByRole('button', { name: 'Add a connection', exact: true })
       .click()
-    await screen.getByLabelText('Device or application').click()
+    await screen.getByLabelText('What to connect').click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
     await screen.getByLabelText('Connection name').fill('Unfinished router')
     await connection.click()
@@ -299,7 +297,7 @@ describe('DevicesView prerequisite audit', () => {
     await expect
       .element(screen.getByLabelText('Connection name'))
       .not.toBeInTheDocument()
-    await screen.getByLabelText('Device or application').click()
+    await screen.getByLabelText('What to connect').click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
     await expect
       .element(screen.getByLabelText('Connection name'))
@@ -332,7 +330,7 @@ it('marks a saved device change stale and retries only the read while preserving
   await screen
     .getByRole('button', { name: 'Add a connection', exact: true })
     .click()
-  await screen.getByLabelText('Device or application').click()
+  await screen.getByLabelText('What to connect').click()
   await screen.getByRole('option', { name: /^Keenetic/ }).click()
   await screen.getByLabelText('Connection name').fill('Unsaved connection')
   await screen
@@ -422,7 +420,7 @@ it('selects the created identity after a failed reread recovers without repeatin
   await screen
     .getByRole('button', { name: 'Add a connection', exact: true })
     .click()
-  await screen.getByLabelText('Device or application').click()
+  await screen.getByLabelText('What to connect').click()
   await screen.getByRole('option', { name: /^Keenetic/ }).click()
   await screen.getByLabelText('Connection name').fill('Home router')
   await screen.getByLabelText('Device address').fill('http://192.168.1.1')
@@ -602,7 +600,7 @@ it('opens each connection at its stored parameters while the creation draft surv
   await screen
     .getByRole('button', { name: 'Add a connection', exact: true })
     .click()
-  await screen.getByLabelText('Device or application').click()
+  await screen.getByLabelText('What to connect').click()
   await screen.getByRole('option', { name: /^Keenetic/ }).click()
   await screen.getByLabelText('Connection name').fill('Unfinished router')
 
@@ -661,7 +659,7 @@ it('confirms forgetting a connection and writes nothing when that confirmation i
       screen
         .getByRole('dialog')
         .getByText(
-          'The stored password is removed and automatic delivery is turned off. Files already installed on the device stay there.',
+          'The stored password is removed and automatic delivery is turned off. Files already installed stay where they are.',
         ),
     )
     .toBeVisible()

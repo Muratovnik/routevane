@@ -96,14 +96,14 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   const tablist = page.getByRole('tablist', { name: 'Profile sections' })
   await expect(tablist.getByRole('tab')).toHaveText([
     'Contents',
-    'Connection',
+    'Publishing',
     'File',
     'Diagnostics',
   ])
 
   // The file is read only when the operator opens it, and what is shown is
   // byte-for-byte what the device receives.
-  await tablist.getByRole('tab', { name: 'Connection' }).click()
+  await tablist.getByRole('tab', { name: 'Publishing' }).click()
   const scheduleTrigger = scheduleField(page)
   await expect(scheduleTrigger).toBeVisible()
   const scheduleGround = async (): Promise<string> =>
@@ -354,7 +354,7 @@ test('a failed first build remains retryable and exposes no subscription', async
   // The connection table lives on its own tab; a hidden row has no role.
   await page
     .getByRole('tablist', { name: 'Profile sections' })
-    .getByRole('tab', { name: 'Connection' })
+    .getByRole('tab', { name: 'Publishing' })
     .click()
   const outputRow = page.getByRole('row').filter({ hasText: 'Limited fixture' })
   await expect(outputRow).toContainText('Last build failed')
@@ -370,7 +370,7 @@ test('a failed first build remains retryable and exposes no subscription', async
   await expect(page.getByText('Format not updated')).toBeVisible()
   await page
     .getByRole('tablist', { name: 'Profile sections' })
-    .getByRole('tab', { name: 'Connection' })
+    .getByRole('tab', { name: 'Publishing' })
     .click()
   await expect(outputRow).toContainText('Last build failed')
   await page
@@ -416,7 +416,7 @@ test('send links navigate through the router for one and multiple published outp
   await page.goto(`${origin}/profiles/${profileId}`)
   await menu.click()
   await page
-    .getByRole('menuitem', { name: 'Send to device', exact: true })
+    .getByRole('menuitem', { name: 'Send the file', exact: true })
     .click()
   await page
     .getByRole('menuitem', { name: 'Send to sing-box', exact: true })
@@ -498,7 +498,7 @@ test('a tab that outgrows the window keeps the page inset under its last row', a
   await page.goto(`${origin}/profiles/${profileId}`)
   await page
     .getByRole('tablist', { name: 'Profile sections' })
-    .getByRole('tab', { name: 'Connection' })
+    .getByRole('tab', { name: 'Publishing' })
     .click()
   await expect(
     page.getByRole('row').filter({ hasText: 'sing-box' }),
@@ -556,7 +556,7 @@ test('a refused schedule change keeps the confirmed value and retries visibly', 
   origin,
 }) => {
   const { profileId } = await buildProfile(page, origin)
-  await page.getByRole('tab', { name: 'Connection', exact: true }).click()
+  await page.getByRole('tab', { name: 'Publishing', exact: true }).click()
   await page.route(
     `**/v1/profiles/${profileId}/schedule`,
     (route) => route.fulfill({ status: 503, json: { error: 'unavailable' } }),

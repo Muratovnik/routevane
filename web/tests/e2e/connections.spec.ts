@@ -79,7 +79,7 @@ test('hiding a format removes it from the connection picker and says where it we
   await expect(page.getByRole('columnheader')).toHaveText([
     'Name',
     'Type',
-    'Format',
+    'File',
     'Delivery from Routevane',
     'Offer when connecting',
   ])
@@ -363,7 +363,7 @@ test('an output can be explicitly bound to and detached from a compatible device
 
   await page
     .getByRole('tablist', { name: 'Profile sections' })
-    .getByRole('tab', { name: 'Connection' })
+    .getByRole('tab', { name: 'Publishing' })
     .click()
   // The row's device choice is captioned with the connection it belongs to,
   // which is what identifies it whatever it currently holds.
