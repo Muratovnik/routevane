@@ -76,6 +76,27 @@ def stop(process: subprocess.Popen) -> None:
         process.wait(timeout=5)
 
 
+def confirm_stopped(port: int, deadline: float = 15.0) -> None:
+    """Require the launcher's listener to be gone, giving the kill time to land.
+
+    Tearing a process tree down is not instantaneous: on Windows the launching
+    console exits about a second before the terminated server's socket is
+    closed. A single probe taken the moment the parent exits therefore reported
+    a listener left running by a launcher that had in fact stopped, so the
+    probe repeats and only a port still accepting connections at the deadline
+    is a failure.
+    """
+    limit = time.monotonic() + deadline
+    while True:
+        with socket.socket() as probe:
+            probe.settimeout(1)
+            if probe.connect_ex(("127.0.0.1", port)) != 0:
+                return
+        if time.monotonic() >= limit:
+            raise ValueError("launcher left its listener running")
+        time.sleep(0.1)
+
+
 def smoke(archive_path: Path, version: str, target: str, temp_dir: Path | None = None) -> None:
     native = native_target()
     if target != native:
@@ -148,10 +169,7 @@ def smoke(archive_path: Path, version: str, target: str, temp_dir: Path | None =
                 print(f"native launcher: {target}, {reported}, health=ok, UI={digest}, catalog=ok")
             finally:
                 stop(process)
-        with socket.socket() as probe:
-            probe.settimeout(1)
-            if probe.connect_ex(("127.0.0.1", port)) == 0:
-                raise ValueError("launcher left its listener running")
+        confirm_stopped(port)
     digest = hashlib.sha256(archive_path.read_bytes()).hexdigest()
     print(f"archive SHA256: {digest}; task-owned process and data cleaned")
 

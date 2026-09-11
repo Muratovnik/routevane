@@ -1,7 +1,9 @@
 """Project-owned managed-release and native archive selection contracts."""
 
 import re
+import socket
 import tempfile
+import threading
 import tomllib
 import unittest
 from pathlib import Path
@@ -102,6 +104,39 @@ class ManagedReleaseContracts(unittest.TestCase):
         for version in ("../v1.2.3", "v01.2.3", "v1.2.3-rc.1", "1.2.3"):
             with self.subTest(version=version), self.assertRaises(ValueError):
                 release_smoke.archive_for(Path("assets"), version, "windows-amd64")
+
+    def serving(self, listener):
+        """Answer probes the way a running server does, until the socket closes."""
+        listener.bind(("127.0.0.1", 0))
+        listener.listen(8)
+
+        def accept():
+            while True:
+                try:
+                    connection, _ = listener.accept()
+                except OSError:
+                    return
+                connection.close()
+
+        worker = threading.Thread(target=accept, daemon=True)
+        worker.start()
+        self.addCleanup(worker.join, 5)
+        return listener.getsockname()[1]
+
+    def test_a_listener_outliving_the_kill_passes_but_a_surviving_one_fails(self):
+        # Terminating the launcher's process tree is not instantaneous, and the
+        # smoke run must not read that delay as a server left behind.
+        with socket.socket() as closing:
+            port = self.serving(closing)
+            release = threading.Timer(0.4, closing.close)
+            release.start()
+            self.addCleanup(release.cancel)
+            release_smoke.confirm_stopped(port, deadline=10)
+        # A listener still answering when the deadline passes is the failure
+        # this check exists for.
+        with socket.socket() as surviving:
+            with self.assertRaisesRegex(ValueError, "left its listener running"):
+                release_smoke.confirm_stopped(self.serving(surviving), deadline=0.3)
 
     def test_default_scratch_is_project_local_and_wrong_platform_cannot_extract(self):
         with patch("release_smoke.native_target", return_value="windows-amd64"), patch("release_smoke.tempfile.TemporaryDirectory", side_effect=RuntimeError("stop before extraction")) as temporary:
