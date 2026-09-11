@@ -6,14 +6,21 @@
  * alone, over the data directory named below.
  */
 
-import { expect } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 
 import { englishCopy } from './support/copy'
 import { buildProfile, pressSegment, statesFlow } from './support/flows'
 import {
+  forceStaleCatalog,
+  PAGE_INSET,
+  pageFoot,
+  releaseCatalog,
+} from './support/geometry'
+import {
   linkTo,
   menuPanel,
   nameField,
+  openList,
   scheduleField,
   selectedListRows,
 } from './support/queries'
@@ -24,6 +31,17 @@ import { test } from './support/served-product'
 // directory: it starts empty, no other suite writes to it, and it is gone
 // again when the suite ends.
 test.use({ locale: 'en-US', productData: 'profile-page' })
+
+/** Enough lists that the composition table cannot fit the window it is in. */
+const seedTallCatalog = async (page: Page, origin: string): Promise<void> => {
+  for (let index = 0; index < 20; index += 1) {
+    const created = await page.request.post(`${origin}/v1/lists`, {
+      data: { title: `Tall catalog ${index}`, domains: [`t${index}.example`] },
+      headers: { Origin: origin, 'X-Routevane-Request': '1' },
+    })
+    expect(created.ok()).toBe(true)
+  }
+}
 
 test('the profile page guards the secret, shows the file and its diagnostics, and republishes on rename', async ({
   page,
@@ -406,6 +424,131 @@ test('send links navigate through the router for one and multiple published outp
   await expect(page).toHaveURL(
     `${origin}/profiles/${profileId}/send/${output.id}`,
   )
+})
+
+/**
+ * A notice is an addition to the page, not a subtraction from the table it
+ * appears above, and the page's closing inset stays under its last row.
+ *
+ * Nothing else would catch either regression: the notice is readable whether
+ * or not the table shrank under it, and a page that has lost its bottom inset
+ * still shows everything it holds.
+ */
+test('a notice lengthens the profile page instead of shortening its table', async ({
+  page,
+  origin,
+}) => {
+  await seedTallCatalog(page, origin)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const { profileId } = await buildProfile(page, origin)
+  // The freshly published profile still shows its one-time link and stands on
+  // the tab the publication left it on; the page as an operator returns to it,
+  // opened on its contents, is the one whose height is the subject here.
+  await page.goto(`${origin}/profiles/${profileId}`)
+  const frame = page.getByTestId('rv-list-picker-frame')
+  await expect(frame).toBeVisible()
+  const standing = (await frame.boundingBox())!.height
+
+  // With nothing added, the section fills the window exactly and the catalog
+  // scrolls inside its own frame.
+  const resting = await pageFoot(page)
+  expect(resting.overflow).toBe(0)
+  expect(resting.inset).toBeGreaterThanOrEqual(PAGE_INSET)
+  expect(
+    await frame.evaluate(
+      (element) => element.scrollHeight - element.clientHeight,
+    ),
+  ).toBeGreaterThan(0)
+
+  try {
+    const notice = await forceStaleCatalog(page)
+    const added = (await notice.boundingBox())!.height
+    expect((await frame.boundingBox())!.height).toBeCloseTo(standing, 0)
+    const noticed = await pageFoot(page)
+    expect(noticed.overflow).toBeGreaterThanOrEqual(added)
+    expect(noticed.inset).toBeGreaterThanOrEqual(PAGE_INSET)
+  } finally {
+    await releaseCatalog(page)
+  }
+})
+
+/**
+ * The same rule on a tab the window cannot hold: the page scrolls and its
+ * closing inset travels with the content instead of staying at the window's
+ * edge. The window is the constrained desktop case from the UI contract, which
+ * is where this tab and one notice no longer fit together. The tab has no
+ * region that fills the window, so what it has to show is only that the page
+ * scrolls and where it ends.
+ */
+test('a tab that outgrows the window keeps the page inset under its last row', async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 640 })
+  const { profileId } = await buildProfile(page, origin)
+  const added = await page.request.post(
+    `${origin}/v1/profiles/${profileId}/outputs`,
+    {
+      data: { target_id: 'singbox' },
+      headers: { Origin: origin, 'X-Routevane-Request': '1' },
+    },
+  )
+  expect(added.ok()).toBe(true)
+
+  await page.goto(`${origin}/profiles/${profileId}`)
+  await page
+    .getByRole('tablist', { name: 'Profile sections' })
+    .getByRole('tab', { name: 'Connection' })
+    .click()
+  await expect(
+    page.getByRole('row').filter({ hasText: 'sing-box' }),
+  ).toBeVisible()
+
+  try {
+    await forceStaleCatalog(page)
+    const foot = await pageFoot(page)
+    expect(foot.overflow).toBeGreaterThan(0)
+    expect(foot.inset).toBeGreaterThanOrEqual(PAGE_INSET)
+  } finally {
+    await releaseCatalog(page)
+  }
+})
+
+/**
+ * The docked card is pinned at the page inset, where it rests when the page
+ * fits the window. A page that grew under a notice must not carry the card off
+ * the top of the window with it, nor press it against the window's edge, and
+ * the act the card owns stays reachable without scrolling back.
+ */
+test('a docked list card stays pinned while the page scrolls under a notice', async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1920, height: 906 })
+  const { profileId } = await buildProfile(page, origin)
+  await page.goto(`${origin}/profiles/${profileId}`)
+  await expect(page.getByTestId('rv-list-picker-frame')).toBeVisible()
+
+  try {
+    const notice = await forceStaleCatalog(page)
+    const height = (await notice.boundingBox())!.height
+    await openList(page, 'Discord').click()
+    const card = page.getByRole('dialog', { exact: true, name: 'Discord' })
+    await expect(card).toHaveClass(/rv-dialog--docked/)
+    const resting = (await card.boundingBox())!.y
+
+    await page.getByRole('main').evaluate((main, by) => {
+      main.scrollTop = by
+    }, height)
+    const scrolled = (await card.boundingBox())!
+    expect(Math.abs(scrolled.y - resting)).toBeLessThanOrEqual(1)
+    expect(scrolled.y).toBeGreaterThanOrEqual(PAGE_INSET - 1)
+    // The one act this card owns is still on screen, not scrolled past.
+    const act = card.getByRole('button', { name: 'Remove from profile' })
+    await expect(act).toBeInViewport()
+  } finally {
+    await releaseCatalog(page)
+  }
 })
 
 test('a refused schedule change keeps the confirmed value and retries visibly', async ({

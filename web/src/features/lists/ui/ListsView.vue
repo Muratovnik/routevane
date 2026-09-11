@@ -1107,9 +1107,14 @@ const submitPriority = async (): Promise<void> => {
   overflow-wrap: anywhere;
 }
 
+/* The table's standing height comes from the window rather than from what the
+   header and the filters leave over: a definite height is what keeps the rows
+   scrolling inside this frame, so a notice or the order bar lengthens the page
+   instead of shortening the table. */
 .lists__workspace {
   position: relative;
-  flex: 1;
+  flex: none;
+  height: var(--rv-library-height);
   min-width: 0;
   min-height: 0;
   overflow: auto;

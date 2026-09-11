@@ -112,21 +112,22 @@ const submit = async (): Promise<void> => {
   <section aria-labelledby="create-title" class="create">
     <header class="create__header">
       <h1 id="create-title" class="create__title">{{ t('create.title') }}</h1>
+      <!-- A stale library is said in the header row, which grows with it, so
+           the composer below keeps the standing height of its own row. -->
+      <RvStateNotice
+        v-if="setup.catalogRefresh.state.value === 'stale'"
+        live
+        :title="t('catalog.stale')"
+        :body="t('catalog.stale.body')"
+        tone="warning"
+      >
+        <template #action>
+          <RvButton @click="setup.catalogRefresh.retry">{{
+            t('action.retry')
+          }}</RvButton>
+        </template>
+      </RvStateNotice>
     </header>
-
-    <RvStateNotice
-      v-if="setup.catalogRefresh.state.value === 'stale'"
-      live
-      :title="t('catalog.stale')"
-      :body="t('catalog.stale.body')"
-      tone="warning"
-    >
-      <template #action>
-        <RvButton @click="setup.catalogRefresh.retry">{{
-          t('action.retry')
-        }}</RvButton>
-      </template>
-    </RvStateNotice>
 
     <RvStateNotice
       v-if="setup.catalogState.value === 'loading'"
@@ -288,13 +289,17 @@ const submit = async (): Promise<void> => {
 </template>
 
 <style scoped>
+/* The composer's row is the section's standing height, taken from the window
+   less the title above it. The table inside scrolls in its own frame, and in
+   the docked layout the settings stack above the table within this same row,
+   so the table still ends where the docked card ends. A notice in the header
+   adds to the page instead of taking height out of this row. */
 .create {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--rv-space-5) var(--rv-space-6);
   align-items: start;
-  grid-template-rows: auto minmax(0, 1fr);
-  height: 100%;
+  grid-template-rows: auto var(--rv-create-floor);
   min-height: 0;
   width: 100%;
 }
@@ -418,7 +423,14 @@ const submit = async (): Promise<void> => {
 }
 
 @media (width <= 64rem), (height <= 36rem) {
+  /* The picker caps itself at the same boundary, so the rows take the height
+     their contents need rather than a share of the window. */
   .create {
+    grid-template-rows: auto;
+  }
+
+  .create__lists,
+  .create__lists-body {
     height: auto;
   }
 }

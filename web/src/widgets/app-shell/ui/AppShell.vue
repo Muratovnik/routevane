@@ -498,8 +498,12 @@ const retry = async (): Promise<void> => {
     height: 100dvh;
   }
 
+  /* A floor rather than a fixed height: each section inside states the
+     standing height of its own data region, so this column fills the window
+     when the page fits and grows when something is added above or below that
+     region — carrying its closing inset down with it. */
   .shell__main--workspace .shell__measure {
-    height: 100%;
+    min-height: 100%;
     grid-template-rows: minmax(0, 1fr);
   }
 

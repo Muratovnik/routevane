@@ -348,6 +348,10 @@ the thing that will happen.
   loading skeleton; it does not flash a temporary sentence above the profile.
 - A status is an icon or a dot plus words — never a filled surface, never a
   colored edge stripe, and never colour alone.
+- Membership is a fact, not a status: a list that belongs to the profile says
+  so in words beside a check mark in the brand accent, and a list that does not
+  says so in words alone. Neither takes the status dot that reports whether a
+  file was published.
 - The interface reports what it knows. A profile restored from the server says the
   subscription link was shown at creation; a target that left the catalog keeps
   its stored identity instead of disappearing. Nothing is filled in to look
@@ -398,7 +402,13 @@ The sidebar keeps its place on desktop and
 can collapse to icons with labels on hover or keyboard focus. The profile composer
 and library allocate remaining height to their data regions; headings and filters
 keep natural height. Short windows and enlarged content may scroll to preserve
-access to actions. Invisible accessibility labels must stay within the table's
+access to actions. In a section that fills the window, the data region, or the
+composer row that holds it, has a standing height taken from the window itself
+— the viewport less that section's own chrome — and its rows scroll inside
+that frame rather than down the page. A notice, a bar or a secondary section is therefore an addition to
+the page, which lengthens and scrolls with its bottom inset still under the
+last row, and never takes height out of the data region.
+Invisible accessibility labels must stay within the table's
 scrolling context, and list-column widths include controls and their padding.
 
 Category filters are shared by composition and library. «Ещё» opens an anchored
@@ -457,6 +467,9 @@ values wrap or scroll inside their own box; wide tables scroll inside their own
 container, never the page. Menus are viewport overlays: they collision-position
 above or below their trigger and never extend a table's scroll area. A screen
 that unexpectedly jumps during a background update fails this contract.
+On the profile page the composition panel holds a standing height, so a notice
+appearing above it lengthens the page instead of shortening the table. A docked
+card keeps the page inset while the page scrolls under it.
 In the desktop composition layout, changing category content must not stretch
 adjacent rows or displace the command area; use the reserved detail pane's own
 scrolling. At constrained widths, panes may stack as described in the composing
@@ -507,8 +520,14 @@ than it; a single choice or name field is `--rv-measure-field` wide; a stack of
 dialogs dims the page once.
 Composition selection is the shared `ServicePicker` entity used by the create
 and edit flows, and its list card is one modal `RvDialog`. There is
-one button, one status mark, one fact ledger, one icon set. Icons are hand-set
-16-unit strokes, always decorative, always beside or behind an accessible name
+one button, one status mark, one fact ledger, one icon set. A refresh command
+carries the refresh glyph and turns that glyph in place while its sources are
+read, keeping the width it had at rest; while it works it is disabled and
+`aria-busy`, and any pending sentence belongs to the status text beside it.
+Every other pending command keeps the button's own ring. A disabled primary
+keeps the accent at low emphasis, so the principal act stays recognizable while
+it is unavailable; the other variants keep the neutral disabled ground.
+Icons are hand-set 16-unit strokes, always decorative, always beside or behind an accessible name
 — navigation and menus never go icon-only. A feature that needs a different
 look asks for a role or a variant, never a parallel class. A component is a
 black box: a host styles its own root class, passes props or fills a slot.

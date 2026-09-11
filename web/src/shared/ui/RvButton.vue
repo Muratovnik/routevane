@@ -109,6 +109,15 @@ const unavailable = computed(
   background: var(--rv-color-accent);
 }
 
+/* An unavailable primary is still the primary act: it keeps the accent at low
+   emphasis rather than becoming the secondary button standing beside it. */
+.rv-button.rv-button--primary:disabled,
+.rv-button.rv-button--primary[aria-disabled='true'] {
+  color: var(--rv-color-ink-muted);
+  background: var(--rv-color-accent-quiet);
+  border-color: transparent;
+}
+
 .rv-button.rv-button--primary:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--rv-color-accent-hover);
 }

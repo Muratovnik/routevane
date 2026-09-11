@@ -273,10 +273,13 @@ test('page inspection preserves primary actions and full-height geometry in ever
   await nameField(page).fill('Inspection workflow saved')
   await openList(page, 'Discord').click()
   await aligned(page.getByTestId('rv-list-picker-frame'))
+  // A stored profile states the connections it already publishes where the
+  // create form asks where a new one should go, so the second field of the
+  // pair is captioned for what the editor is talking about.
   expect(
     Math.abs(
       (await fieldTop(englishCopy('create.name'))) -
-        (await fieldTop(englishCopy('create.target'))),
+        (await fieldTop(englishCopy('profile.edit.connections'))),
     ),
   ).toBeLessThanOrEqual(1)
   const save = page.getByRole('button', {

@@ -5,9 +5,14 @@ import type { IconName } from '@/shared/ui/types'
  * The product's icon set: hand-set 16-unit strokes, one per meaning. Icons are
  * always decorative here — the accessible name belongs to the control that
  * hosts the icon, so every rendering is aria-hidden.
+ *
+ * `spin` turns the glyph in place while the act it names is running. It is for
+ * a command whose own glyph is the progress — a refresh — so the control keeps
+ * its width and its identity instead of growing a second mark.
  */
 defineProps<{
   name: IconName
+  spin?: boolean
 }>()
 
 const strokes: Record<string, string[]> = {
@@ -94,6 +99,7 @@ const dots: Record<string, [number, number, number][]> = {
        accessibility tree and carries a test hook rather than a role. -->
   <svg
     class="rv-icon"
+    :class="{ 'rv-icon--spin': spin }"
     aria-hidden="true"
     data-testid="rv-icon"
     fill="none"
@@ -126,5 +132,17 @@ const dots: Record<string, [number, number, number][]> = {
   width: 1em;
   height: 1em;
   font-size: 1rem;
+}
+
+/* Reduced motion is neutralised once, globally, for every animation on this
+   surface; nothing is repeated here. */
+.rv-icon--spin {
+  animation: rv-icon-spin var(--rv-motion-working) linear infinite;
+}
+
+@keyframes rv-icon-spin {
+  to {
+    transform: rotate(1turn);
+  }
 }
 </style>

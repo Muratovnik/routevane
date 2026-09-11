@@ -272,6 +272,7 @@ watch(contentsState, async (state) => {
           <RvTooltip :text="t('listCard.refresh')">
             <RvButton
               class="list-card__refresh-button"
+              :aria-busy="refreshing ? 'true' : undefined"
               :aria-label="`${t('listCard.refresh')}: ${t('listCard.sources.open', { count: sourceCount })}`"
               :disabled="interactionBusy || contentsState !== 'ready'"
               size="compact"
@@ -279,10 +280,7 @@ watch(contentsState, async (state) => {
               variant="secondary"
               @click="onRefreshSources"
             >
-              <RvIcon
-                name="refresh"
-                :class="{ 'list-card__refresh-icon--busy': refreshing }"
-              />
+              <RvIcon name="refresh" :spin="refreshing" />
               <span>{{
                 t('listCard.sources.open', { count: sourceCount })
               }}</span>
@@ -533,10 +531,16 @@ watch(contentsState, async (state) => {
 
     <template v-if="composing && !creating" #footer>
       <p class="list-card__membership">
-        <RvStatus
-          :label="membershipLabel"
-          :tone="included === true ? 'ready' : 'waiting'"
-        />
+        <!-- Where the list stands is a fact, not a status: no dot, and the
+             check mark that says it belongs is the brand's, not a success
+             signal from the same vocabulary as a published file. -->
+        <span
+          class="list-card__membership-state"
+          :class="{ 'list-card__membership-state--in': included === true }"
+        >
+          <RvIcon v-if="included === true" name="check" />
+          {{ membershipLabel }}
+        </span>
         <small v-if="pending">{{ t('listCard.pending') }}</small>
       </p>
       <RvButton
@@ -1212,6 +1216,23 @@ watch(contentsState, async (state) => {
   min-width: 0;
 }
 
+.list-card__membership-state {
+  display: inline-flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+  color: var(--rv-color-ink-muted);
+  font-weight: 600;
+  font-size: var(--rv-text-dense);
+}
+
+.list-card__membership-state--in {
+  color: var(--rv-color-ink);
+}
+
+.list-card__membership-state--in .rv-icon {
+  color: var(--rv-color-accent-ink);
+}
+
 .list-card__membership small {
   color: var(--rv-color-ink-tertiary);
   font-size: var(--rv-text-meta);
@@ -1297,21 +1318,5 @@ watch(contentsState, async (state) => {
 
 .list-card__library-link:hover {
   background: var(--rv-color-surface-hover);
-}
-
-.list-card__refresh-icon--busy {
-  animation: list-card-refresh var(--rv-motion-working) linear infinite;
-}
-
-@keyframes list-card-refresh {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .list-card__refresh-icon--busy {
-    animation: none;
-  }
 }
 </style>

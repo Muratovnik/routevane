@@ -11,6 +11,12 @@ import { expect } from '@playwright/test'
 import { englishCopy } from './support/copy'
 import { assertPainted, openFormats } from './support/flows'
 import {
+  forceStaleCatalog,
+  PAGE_INSET,
+  pageFoot,
+  releaseCatalog,
+} from './support/geometry'
+import {
   bodyRows,
   categoryMore,
   choicePanel,
@@ -201,6 +207,67 @@ test('workspace pages share geometry and the category panel supports keyboard se
   await expect(bodyRows(page)).toContainText('YouTube')
 })
 
+/**
+ * A workspace frame keeps its own scroll when the catalog is taller than the
+ * window: the page states the section's chrome and the frame states its rows.
+ * The fixture catalog is three lists long, so the case that matters — a table
+ * that cannot fit — has to be created before it can be measured. Nothing else
+ * here sees it: the frame is readable at any height, and the document cannot
+ * scroll either way, because the shell is exactly one window tall.
+ */
+test('a catalog taller than the window scrolls inside its frame, not down the page', async ({
+  page,
+  origin,
+}) => {
+  const headers = { Origin: origin, 'X-Routevane-Request': '1' }
+  for (let index = 0; index < 20; index += 1) {
+    const created = await page.request.post(`${origin}/v1/lists`, {
+      data: { title: `Tall catalog ${index}`, domains: [`t${index}.example`] },
+      headers,
+    })
+    expect(created.ok()).toBe(true)
+  }
+  // The third section that fills the window is one profile's own composition,
+  // which needs a profile to belong to.
+  const created = await page.request.post(`${origin}/v1/profiles`, {
+    data: {
+      categories: [],
+      exclusions: [],
+      lists: ['youtube'],
+      name: 'Tall catalog',
+    },
+    headers,
+  })
+  expect(created.ok()).toBe(true)
+  const { profile } = (await created.json()) as { profile: { id: string } }
+  const frames = [
+    ...WORKSPACE_FRAMES,
+    { path: `/profiles/${profile.id}`, testID: 'rv-list-picker-frame' },
+  ]
+
+  for (const height of [900, 906]) {
+    await page.setViewportSize({ width: 1440, height })
+    for (const { path, testID } of frames) {
+      const where = `${path} at ${height}`
+      await page.goto(`${origin}${path}`)
+      const frame = page.getByTestId(testID)
+      await expect(frame).toBeVisible()
+      expect(
+        await frame.evaluate(
+          (element) => element.scrollHeight - element.clientHeight,
+        ),
+        where,
+      ).toBeGreaterThan(0)
+      expect(
+        await page
+          .getByRole('main')
+          .evaluate((element) => element.scrollHeight - element.clientHeight),
+        where,
+      ).toBe(0)
+    }
+  }
+})
+
 test('sidebar labels and buttons retain their geometry throughout expansion and collapse', async ({
   page,
   origin,
@@ -258,5 +325,39 @@ test('sidebar labels and buttons retain their geometry throughout expansion and 
       frames.some((f) => f.opacity > 0 && f.opacity < 1),
       direction,
     ).toBe(true)
+  }
+})
+
+/**
+ * A notice on the new-profile page is an addition to the page, not a
+ * subtraction from the catalog it appears above: the composer keeps the
+ * standing height of its own row, and the page lengthens by the notice and
+ * scrolls with its closing inset still under the last row. The notice is said
+ * in the header row, which is what keeps it out of the composer's; a notice
+ * that took that row would leave the composer with no height of its own and
+ * the catalog running down the page.
+ */
+test('a stale-library notice lengthens the new-profile page instead of shortening its table', async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${origin}/profiles/new`)
+  const frame = page.getByTestId('rv-list-picker-frame')
+  await expect(frame).toBeVisible()
+  const standing = (await frame.boundingBox())!.height
+  const resting = await pageFoot(page)
+  expect(resting.overflow).toBe(0)
+  expect(resting.inset).toBeGreaterThanOrEqual(PAGE_INSET)
+
+  try {
+    const notice = await forceStaleCatalog(page)
+    const added = (await notice.boundingBox())!.height
+    expect((await frame.boundingBox())!.height).toBeCloseTo(standing, 0)
+    const noticed = await pageFoot(page)
+    expect(noticed.overflow).toBeGreaterThanOrEqual(added)
+    expect(noticed.inset).toBeGreaterThanOrEqual(PAGE_INSET)
+  } finally {
+    await releaseCatalog(page)
   }
 })

@@ -792,9 +792,13 @@ const onProfileMenu = async (key: string): Promise<void> => {
   flex-shrink: 0;
 }
 
+/* The composition table has a standing height of its own, taken from the
+   window rather than from whatever is left over. A notice above it is an
+   addition to the page, not a subtraction from the table: the panel keeps this
+   height and the page lengthens. It is a height rather than a flexible basis
+   because a flexible item is exactly what "whatever is left over" means. */
 .profile__panel--composition {
-  flex: 1;
-  min-height: var(--rv-picker-mobile-height);
+  height: var(--rv-composition-floor);
 }
 
 /* The first read keeps the page's final silhouette in place. No transient
@@ -1061,6 +1065,16 @@ const onProfileMenu = async (key: string): Promise<void> => {
 
   .profile__header-tools {
     margin-inline-start: 0;
+  }
+}
+
+/* Outside the fill layout the page is a column of natural heights and the
+   table is capped on its own, so the panel takes the height its contents
+   need — the same boundary the picker uses for its own fill. */
+@media (width <= 64rem), (height <= 36rem) {
+  .profile__panel--composition {
+    height: auto;
+    min-height: var(--rv-picker-mobile-height);
   }
 }
 </style>

@@ -67,9 +67,13 @@ provide(workspacePane, { target: `#${target}`, docked, open, locked })
   gap: var(--rv-space-6);
 }
 
+/* The docked sheet is pinned at the page inset, which is where it rests when
+   the page fits the window, so a page that scrolls under a notice carries the
+   sheet along without taking that inset away from it. Its height leaves the
+   same inset below, and it ends where the table beside it ends. */
 .rv-workspace__detail {
   position: sticky;
-  top: 0;
+  top: var(--rv-space-6);
   min-width: 0;
   min-height: var(--rv-picker-mobile-height);
   height: calc(100dvh - var(--rv-space-6) * 2);

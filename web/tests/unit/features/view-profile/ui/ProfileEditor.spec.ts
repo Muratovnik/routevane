@@ -155,6 +155,37 @@ describe('ProfileEditor', () => {
     expect(screen.getByRole('button', { name: 'Add lists' }).all()).toEqual([])
   })
 
+  // The rail states what the profile already publishes, one connection per
+  // line. It is a fact about the stored profile, so it is captioned as the
+  // connections themselves and not with the create form's question about where
+  // a new profile should go. What saving does travels with the control that
+  // does it, rather than standing above it as a sentence of its own.
+  it('names the connections it publishes and attaches the effect to Save', async () => {
+    stubPreview()
+    const screen = await renderEditor()
+    await settle()
+
+    await expect
+      .element(screen.getByText('Connections', { exact: true }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('Where to deliver the profile'))
+      .not.toBeInTheDocument()
+    for (const output of OUTPUTS)
+      await expect
+        .element(screen.getByText(output.title, { exact: true }))
+        .toBeVisible()
+
+    await expect
+      .element(
+        screen.getByText('Saving rebuilds every connection of this profile.'),
+      )
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: 'What happens when saving' }))
+      .toBeVisible()
+  })
+
   it('does not recalculate when output objects refresh without changing the formats', async () => {
     const fetchMock = stubPreview()
     const screen = await renderEditor()

@@ -8,11 +8,13 @@ import {
   resolvedComposition,
 } from '@/entities/profile-composition/model/composition'
 import { useCompositionForecast } from '@/entities/profile-composition/model/forecast'
+import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvComposerForm from '@/shared/ui/RvComposerForm.vue'
 import RvComposer from '@/shared/ui/RvComposer.vue'
 import ListPicker from '@/entities/profile-composition/ui/ListPicker.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
+import { targetIcon } from '@/shared/lib/targetIcon'
 import type { CategoryDetail, ListDetail } from '@/shared/api/catalog'
 import type { ProfileComposition } from '@/shared/api/profiles'
 import RvButton from '@/shared/ui/RvButton.vue'
@@ -210,42 +212,50 @@ const reset = (): void => {
             />
           </div>
 
+          <!-- What this profile already publishes, stated one connection per
+               line with the glyph of the format it is delivered in. It is a
+               fact about the stored profile, not a choice this form offers. -->
           <div v-if="outputs.length" class="editor__field">
-            <span class="editor__label">{{ t('create.target') }}</span>
-            <p class="editor__connection-value">
-              {{ outputs.map((output) => output.title).join(', ') }}
-            </p>
+            <span class="editor__label">{{
+              t('profile.edit.connections')
+            }}</span>
+            <ul class="editor__connections">
+              <li
+                v-for="output in outputs"
+                :key="output.id"
+                class="editor__connection"
+              >
+                <RvIcon :name="targetIcon(output.targetID)" />
+                {{ output.title }}
+              </li>
+            </ul>
           </div>
-          <template v-if="!compact || overflowLines.length > 0" #details>
-            <p v-if="!compact" class="editor__note">
-              {{ t('profile.edit.note') }}
-            </p>
-
-            <div
-              v-if="overflowLines.length > 0"
-              class="editor__forecast"
-              role="status"
-            >
+          <template v-if="overflowLines.length > 0" #details>
+            <div class="editor__forecast" role="status">
               <p v-for="line in overflowLines" :key="line">{{ line }}</p>
             </div>
           </template>
           <template #actions>
-            <RvButton
-              :disabled="!canSave || !dirty"
-              :loading="props.busy"
-              :loading-label="t('profile.edit.saving')"
-              type="submit"
-              variant="primary"
-            >
-              {{
-                props.busy ? t('profile.edit.saving') : t('profile.edit.save')
-              }}
-            </RvButton>
-            <RvInfoTip
-              v-if="compact"
-              :label="t('profile.edit.effect')"
-              :text="t('profile.edit.note')"
-            />
+            <!-- What saving does is attached to the control that does it,
+                 rather than standing above it as a sentence that repeats the
+                 control's own words. -->
+            <div class="editor__submit">
+              <RvButton
+                :disabled="!canSave || !dirty"
+                :loading="props.busy"
+                :loading-label="t('profile.edit.saving')"
+                type="submit"
+                variant="primary"
+              >
+                {{
+                  props.busy ? t('profile.edit.saving') : t('profile.edit.save')
+                }}
+              </RvButton>
+              <RvInfoTip
+                :label="t('profile.edit.effect')"
+                :text="t('profile.edit.note')"
+              />
+            </div>
             <RvButton
               v-if="dirty"
               :disabled="props.busy"
@@ -314,12 +324,6 @@ const reset = (): void => {
   min-width: 0;
 }
 
-.editor__note {
-  max-width: var(--rv-measure-prose);
-  color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-dense);
-}
-
 .editor__forecast {
   display: grid;
   gap: var(--rv-space-1);
@@ -341,11 +345,31 @@ const reset = (): void => {
   clip-path: inset(50%);
 }
 
-.editor__connection-value {
-  display: flex;
-  align-items: center;
+/* The block keeps a control row's height so the two-column compact layout
+   still aligns this summary with the name field beside it. */
+.editor__connections {
+  display: grid;
+  gap: var(--rv-space-1);
+  align-content: center;
   min-height: var(--rv-control-touch);
-  margin: 0;
+  min-width: 0;
+}
+
+.editor__connection {
+  display: flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+  min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* Save is the row's subject and the informer sits at its end, so the control
+   keeps the whole width the rail gives it. */
+.editor__submit {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--rv-space-2);
+  align-items: center;
+  min-width: 0;
 }
 </style>

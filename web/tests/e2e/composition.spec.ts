@@ -355,10 +355,17 @@ test('source refresh stays available during a forecast and reports its own busy 
     await expect.poll(() => forecasts).toBe(1)
     const refresh = compositionRefresh(page)
     await expect(refresh).toBeEnabled()
+    const idle = (await refresh.boundingBox())!
     await refresh.click()
     await expect.poll(() => refreshes).toBe(1)
     await expect(refresh).toBeDisabled()
     await expect(refresh).toHaveAttribute('aria-busy', 'true')
+    // The refresh glyph is the progress: one mark, never the ring a pending
+    // command grows, so the control keeps the width it had at rest and the
+    // count standing beside it does not move.
+    await expect(refresh.getByTestId('rv-icon')).toHaveCount(1)
+    await expect(refresh.getByTestId('rv-button-spinner')).toHaveCount(0)
+    expect((await refresh.boundingBox())!.width).toBe(idle.width)
     releaseRefresh()
     await expect.poll(() => forecasts).toBeGreaterThan(1)
     await expect(refresh).toBeEnabled()

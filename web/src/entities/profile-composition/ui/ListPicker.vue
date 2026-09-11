@@ -346,12 +346,16 @@ const listLabel = (listID: string): string =>
         :disabled="disabled"
       />
       <div class="picker__summary">
+        <!-- A refresh states its progress by turning its own glyph, so the
+             control keeps the width it had at rest and the count beside it
+             does not move. -->
         <RvButton
           size="compact"
-          :loading="refreshing"
-          :disabled="disabled || resolved.length === 0"
+          :aria-busy="refreshing ? 'true' : undefined"
+          :disabled="disabled || refreshing || resolved.length === 0"
           @click="emit('refresh')"
         >
+          <RvIcon name="refresh" :spin="refreshing" />
           {{ t('listCard.refresh') }}
         </RvButton>
         <RvMenu

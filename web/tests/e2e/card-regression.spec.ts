@@ -258,7 +258,9 @@ for (const language of ['en', 'ru'] as const) {
           .last()
         try {
           await refresh.click()
-          await expect(refresh).not.toHaveAttribute('aria-busy', 'true')
+          // The command states its own work: it is busy, its glyph is the
+          // only mark of that, and the sentence lives in the status beside it.
+          await expect(refresh).toHaveAttribute('aria-busy', 'true')
           await expect(refresh).toBeDisabled()
           await expect(refresh.getByTestId('rv-button-spinner')).toHaveCount(0)
           await expect(

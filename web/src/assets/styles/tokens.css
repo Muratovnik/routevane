@@ -137,7 +137,6 @@
   --rv-leading-code: 1.6;
   --rv-editor-min-height: 14rem;
   --rv-analysis-height: 24rem;
-  --rv-library-height: max(30rem, calc(100dvh - 9rem));
 
   /* A menu, a select list or a combobox list is a viewport overlay: it starts
      at least as wide as a readable label and never grows past a screenful. */
@@ -180,6 +179,45 @@
   --rv-picker-rule-width: 5rem;
   --rv-picker-overlap-width: 10rem;
   --rv-picker-mobile-height: clamp(22rem, 64dvh, 32rem);
+
+  /* The standing height of a region that fills the desktop window — a data
+     table, or the composer row that holds one — is the window less that
+     section's own chrome, above and below it. A definite
+     height is what lets the region scroll inside its own frame instead of
+     lengthening the page, so a notice, a bar or a second section adds to the
+     page rather than taking height out of the table. Each constant is written
+     as the parts it is made of, so a change to one of those parts carries into
+     it. Outside the fill layout every section returns to natural height. */
+
+  /* Profile composition: page inset twice, the breadcrumb and title row, the
+     tab bar, and the two gaps between them — 11.25rem, measured on the page,
+     because the header row's height is not the sum of tokens it names. */
+  --rv-composition-floor: max(
+    var(--rv-picker-mobile-height),
+    calc(100dvh - 11.25rem)
+  );
+
+  /* New profile: the composer row, which holds the table and, while a card is
+     docked, the settings stacked above it. Its chrome is the page inset twice,
+     the page title's own line box, and the row gap under it. */
+  --rv-create-floor: max(
+    var(--rv-picker-mobile-height),
+    calc(
+      100dvh - var(--rv-space-6) * 2 - var(--rv-text-page) *
+        var(--rv-leading-tight) - var(--rv-space-5)
+    )
+  );
+
+  /* Library: page inset twice, the page header, the filter row — category
+     chips, their gap, the search field — and the gap above and below it. */
+  --rv-library-height: max(
+    var(--rv-picker-mobile-height),
+    calc(
+      100dvh - var(--rv-space-6) * 2 - var(--rv-control-touch) -
+        var(--rv-space-4) * 2 - var(--rv-control-compact) - var(--rv-space-3) -
+        var(--rv-control-default)
+    )
+  );
   --rv-fact-label-width: 8rem;
   --rv-disabled-opacity: 0.5;
   --rv-sidebar-width: 15rem;
