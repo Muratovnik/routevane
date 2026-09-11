@@ -11,11 +11,11 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
-## [0.2.1](https://github.com/Muratovnik/routevane/compare/v0.2.0...v0.2.1) (2026-09-11)
+## [0.2.2](https://github.com/Muratovnik/routevane/compare/v0.2.0...v0.2.2) (2026-09-11)
 
 ### Bug Fixes
 
-- **storage:** ([273923f](https://github.com/Muratovnik/routevane/commit/273923fc377ab0f0aa208d5909e4ccb016e2fb17)) Finish a first run on a slow or busy disk instead of reporting an unavailable database. Bringing a database to the current schema is a sequence of operations that grows with the schema, and it now gets a time budget per step instead of one budget for the whole sequence.
+- **storage:** ([273923f](https://github.com/Muratovnik/routevane/commit/273923fc377ab0f0aa208d5909e4ccb016e2fb17), [e26bdde](https://github.com/Muratovnik/routevane/commit/e26bdde598afc6487e59317e8c64ab6d794d8d74)) Finish a first run on a slow or busy machine instead of reporting an unavailable database. Bringing a database to the current schema is startup work that grows with the schema, and each step of it is now measured on its own and against what schema work costs rather than against the budget a query gets.
 
 ## [0.2.0](https://github.com/Muratovnik/routevane/compare/v0.1.7...v0.2.0) (2026-09-11)
 
