@@ -99,20 +99,18 @@ func TestMigrationFailureRollsBackAndNewerSchemaFailsClosed(t *testing.T) {
 	})
 }
 
-// A first run has to apply every migration before the product can be used, and
-// that sequence grows with the schema while one operation's budget does not.
-// Measured as a whole against that budget, a first run on a slow or busy disk
-// reported an unavailable database while it was still applying migrations, so
-// the sequence here is deliberately longer than the budget and has to finish.
-func TestASchemaSequenceOutlastingOneBudgetStillFinishes(t *testing.T) {
-	pause := operationTimeout / 4
+// A first run has to apply every migration before the product can be used.
+// Neither the length of that sequence nor the size of one migration in it is
+// what a query budget describes: a build measured one migration past five
+// seconds while a race detector and four test packages shared the machine, and
+// a first run there reported an unavailable database while it was still
+// applying the schema. One step here outlasts a query budget and has to finish.
+func TestSchemaWorkOutlastingAQueryBudgetStillFinishes(t *testing.T) {
+	pause := operationTimeout + time.Second
 	registerPause(t, pause)
 	// The baseline migration carries the ledger every later one records itself
-	// in; the pauses after it make the sequence outlast a single budget.
-	set := []migration{migrations[0]}
-	for version := 2; time.Duration(len(set))*pause <= operationTimeout; version++ {
-		set = append(set, migration{version: version, sql: "SELECT " + pauseFunction + "();"})
-	}
+	// in; the pausing migration after it is the step that outlasts the budget.
+	set := []migration{migrations[0], {version: 2, sql: "SELECT " + pauseFunction + "();"}}
 	root := newDataRoot(t)
 	path := filepath.Join(root, DatabaseName)
 	db, err := sql.Open("sqlite", path)
@@ -166,14 +164,18 @@ func TestSchemaWorkIsBoundedOneStepAtATime(t *testing.T) {
 			}
 			return seen
 		}
+		// Schema work is not measured against the budget a query gets.
+		if schemaStepTimeout <= operationTimeout {
+			t.Fatalf("schema step budget %s is no larger than a query's %s", schemaStepTimeout, operationTimeout)
+		}
 		before := time.Now()
 		first := deadline()
 		after := time.Now()
 		// The step is bounded from the moment it starts, which is somewhere
-		// between these two readings, so its budget is one operation's worth
+		// between these two readings, so its budget is one step's worth
 		// measured from inside that interval and never more.
-		if !first.After(before) || first.After(after.Add(operationTimeout)) {
-			t.Fatalf("first step deadline = %s, want within (%s, %s]", first, before, after.Add(operationTimeout))
+		if !first.After(before) || first.After(after.Add(schemaStepTimeout)) {
+			t.Fatalf("first step deadline = %s, want within (%s, %s]", first, before, after.Add(schemaStepTimeout))
 		}
 		time.Sleep(10 * time.Millisecond)
 		if second := deadline(); !second.After(first) {

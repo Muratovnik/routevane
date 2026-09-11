@@ -21,7 +21,14 @@ import (
 const (
 	DatabaseName     = "routevane.db"
 	operationTimeout = 5 * time.Second
-	maxMetadataBytes = 4096
+	// Bringing a database to the current schema is startup work rather than an
+	// interactive query. One migration rewrites a whole schema and commits it
+	// with `synchronous = FULL`, and the machine doing it may be slow, busy,
+	// or running everything under a race detector, where a single migration
+	// has been measured past the budget a query gets. A step of schema work is
+	// given an order more time before it is called stuck.
+	schemaStepTimeout = time.Minute
+	maxMetadataBytes  = 4096
 )
 
 var (
@@ -314,23 +321,29 @@ func verifySchema(ctx context.Context, q queryer) error {
 	return nil
 }
 
-// schemaStep gives one unit of schema work the budget of a single operation,
-// so a database that keeps making progress is never cut off for the length of
-// the sequence while a step that cannot finish still ends.
+// schemaStep gives one unit of schema work its own bound, so neither the
+// length of the sequence nor the budget a query gets can cut off a database
+// that is still making progress, while a step that cannot finish still ends.
 func schemaStep(ctx context.Context, run func(context.Context) error) error {
-	step, cancel := bounded(ctx)
+	step, cancel := boundedBy(ctx, schemaStepTimeout)
 	defer cancel()
 	return run(step)
 }
 
 func bounded(ctx context.Context) (context.Context, context.CancelFunc) {
+	return boundedBy(ctx, operationTimeout)
+}
+
+// boundedBy keeps a caller's own deadline when it has one: a caller that
+// bounds the whole call decides for everything inside it.
+func boundedBy(ctx context.Context, limit time.Duration) (context.Context, context.CancelFunc) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if _, ok := ctx.Deadline(); ok {
 		return context.WithCancel(ctx)
 	}
-	return context.WithTimeout(ctx, operationTimeout)
+	return context.WithTimeout(ctx, limit)
 }
 
 func unixNanos(value int64) time.Time {
