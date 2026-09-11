@@ -15,6 +15,7 @@ import { pressSegment } from './support/flows'
 import {
   bodyRows,
   cardContents,
+  cardMembership,
   cardRow,
   cardRows,
   dialogScrims,
@@ -204,11 +205,9 @@ for (const language of ['en', 'ru'] as const) {
           await filter.fill('')
           await expect(cardRows(compose)).toHaveCount(domains.length)
         }
-        // Composing keeps its footer, because membership is the one act this
-        // flow owns.
-        await expect(
-          compose.getByRole('button', { name: copy('listDetail.add') }),
-        ).toBeVisible()
+        // Composing keeps its membership switch, because membership is the one
+        // act this flow owns.
+        await expect(cardMembership(compose, copy)).toBeVisible()
         await compose
           .getByRole('button', { name: copy('action.close') })
           .last()
@@ -333,15 +332,9 @@ for (const language of ['en', 'ru'] as const) {
         expect(
           (libraryRowBox?.y ?? 0) - (libraryRowsBox?.y ?? 0),
         ).toBeLessThanOrEqual(2)
-        // The library flow owns the list rather than membership, so the act
+        // The library flow owns the list rather than membership, so the control
         // that would change membership is not offered here at all.
-        await expect(
-          library.getByRole('button', {
-            name: new RegExp(
-              `^(${escapeRegExp(copy('listDetail.add'))}|${escapeRegExp(copy('listDetail.remove'))})$`,
-            ),
-          }),
-        ).toHaveCount(0)
+        await expect(cardMembership(library, copy)).toHaveCount(0)
         // Text-only resizing is independent of pixel density. Double the
         // computed root font, keeping the viewport fixed, then restore it.
         await page.setViewportSize({ width: 768, height: 900 })

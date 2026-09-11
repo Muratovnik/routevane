@@ -16,6 +16,7 @@ import RvTooltip from '@/shared/ui/RvTooltip.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStatus from '@/shared/ui/RvStatus.vue'
+import RvSwitch from '@/shared/ui/RvSwitch.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
 import RvTextarea from '@/shared/ui/RvTextarea.vue'
 
@@ -206,6 +207,21 @@ watch(contentsState, async (state) => {
     <!-- One element owns the sheet's height, so the table below fills it and
          the card ends where the panel ends. -->
     <div v-else-if="list !== null" class="list-card__body">
+      <!-- Whether this route carries this list is a standing state, not an act
+           with a result to report, so it is a switch and it sits where the card
+           starts: the first thing the composer wants to know about a list it
+           opened is whether the route already has it. The switch's own position
+           states that, which is why nothing beside it repeats it in words. -->
+      <div v-if="composing" class="list-card__membership">
+        <RvSwitch
+          :description="pending ? t('listCard.pending') : undefined"
+          :disabled="interactionBusy"
+          :label="membershipLabel"
+          :model-value="included === true"
+          @update:model-value="emit('include', $event)"
+        />
+      </div>
+
       <!-- A custom list's name is the operator's and stays editable where the
            list itself is the subject. -->
       <section
@@ -268,8 +284,12 @@ watch(contentsState, async (state) => {
         <div class="list-card__commands">
           <!-- Reading the sources is the frequent act; editing which sources
                there are is the rare one, so the frequent one is the control
-               and the rare one opens a panel. -->
-          <RvTooltip :text="t('listCard.refresh')">
+               and the rare one opens a panel. Re-reading belongs to the library
+               that owns these sources: a route only reads a list, and the
+               composer already carries one control that re-reads every list it
+               uses. Offering a third one here would put the same act on one
+               screen three times over, at three scopes nobody asked about. -->
+          <RvTooltip v-if="curating" :text="t('listCard.refresh')">
             <RvButton
               class="list-card__refresh-button"
               :aria-busy="refreshing ? 'true' : undefined"
@@ -286,6 +306,9 @@ watch(contentsState, async (state) => {
               }}</span>
             </RvButton>
           </RvTooltip>
+          <p v-else class="list-card__sources-fact">
+            {{ t('listCard.sources.open', { count: sourceCount }) }}
+          </p>
           <RvTooltip v-if="curating" :text="t('listCard.sources.configure')">
             <RvButton
               class="list-card__sources-button"
@@ -528,29 +551,6 @@ watch(contentsState, async (state) => {
         </p>
       </section>
     </div>
-
-    <template v-if="composing && !creating" #footer>
-      <p class="list-card__membership">
-        <!-- Where the list stands is a fact, not a status: no dot, and the
-             check mark that says it belongs is the brand's, not a success
-             signal from the same vocabulary as a published file. -->
-        <span
-          class="list-card__membership-state"
-          :class="{ 'list-card__membership-state--in': included === true }"
-        >
-          <RvIcon v-if="included === true" name="check" />
-          {{ membershipLabel }}
-        </span>
-        <small v-if="pending">{{ t('listCard.pending') }}</small>
-      </p>
-      <RvButton
-        :disabled="interactionBusy"
-        variant="primary"
-        @click="emit('include', included !== true)"
-      >
-        {{ included === true ? t('listDetail.remove') : t('listDetail.add') }}
-      </RvButton>
-    </template>
   </RvDialog>
 
   <!-- Adding is one bounded act taken over the table, not a form growing out of
@@ -1206,36 +1206,13 @@ watch(contentsState, async (state) => {
   justify-content: flex-end;
 }
 
-/* One line: where the list stands in this route, and — while the route is an
-   unsaved draft — that the answer is waiting on a save. */
+/* The one act this flow owns, banded off from the list it acts on so the card
+   below it stays a reading surface. */
 .list-card__membership {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-2);
-  align-items: baseline;
+  flex: none;
   min-width: 0;
-}
-
-.list-card__membership-state {
-  display: inline-flex;
-  gap: var(--rv-space-2);
-  align-items: center;
-  color: var(--rv-color-ink-muted);
-  font-weight: 600;
-  font-size: var(--rv-text-dense);
-}
-
-.list-card__membership-state--in {
-  color: var(--rv-color-ink);
-}
-
-.list-card__membership-state--in .rv-icon {
-  color: var(--rv-color-accent-ink);
-}
-
-.list-card__membership small {
-  color: var(--rv-color-ink-tertiary);
-  font-size: var(--rv-text-meta);
+  padding: var(--rv-space-4) var(--rv-space-6);
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 
 /* Disabled library values remain fully opaque so their value, origin and
@@ -1256,6 +1233,7 @@ watch(contentsState, async (state) => {
 }
 
 @container dialog (width <= 36rem) {
+  .list-card__membership,
   .list-card__section,
   .list-card__entries {
     padding-right: var(--rv-space-4);
@@ -1293,6 +1271,14 @@ watch(contentsState, async (state) => {
   flex: none;
   width: var(--rv-control-compact);
   padding: 0;
+}
+
+/* Composing states how many feeds the list reads; it does not offer to read
+   them again, so the count is a fact rather than a control. */
+.list-card__sources-fact {
+  flex: none;
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
 }
 
 .list-card__ready {

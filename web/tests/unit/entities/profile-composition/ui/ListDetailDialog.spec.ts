@@ -133,6 +133,11 @@ const named = (value: string): RegExp =>
 const entrySwitch = (screen: RenderResult<unknown>, value: string) =>
   screen.getByRole('checkbox', { name: named(value) })
 
+// Whether the route being composed carries this list. One switch says it and
+// sets it, so a case reads the state from the same control it presses.
+const membership = (screen: RenderResult<unknown>) =>
+  screen.getByRole('switch', { name: 'In this profile' })
+
 const isChecked = (box: { element: () => Element }): boolean =>
   (box.element() as HTMLInputElement).checked
 
@@ -269,7 +274,9 @@ describe('ListDetailDialog', () => {
       .toBeVisible()
     expect(entries(screen).all()).toHaveLength(4)
     await expect.element(screen.getByLabelText(SEARCH_CONTENTS)).toBeVisible()
-    await expect.element(screen.getByText('Not in this profile')).toBeVisible()
+    await expect
+      .element(membership(screen))
+      .toHaveAttribute('aria-checked', 'false')
     expect(screen.emitted('include')).toBeUndefined()
 
     await screen.getByRole('button', { name: 'Retry' }).click()
@@ -381,7 +388,7 @@ describe('ListDetailDialog', () => {
       .element(screen.getByText('3 entries on', { exact: false }))
       .toBeVisible()
 
-    await screen.getByRole('button', { name: 'Add to profile' }).click()
+    await membership(screen).click()
 
     expect(screen.emitted('include')?.at(-1)).toEqual([true])
     // Reading the contents stays the only request a composing card makes.
@@ -418,7 +425,11 @@ describe('ListDetailDialog', () => {
       .toHaveAttribute('href', '/lists#category=communication&list=discord')
     await expect.element(link).toHaveAttribute('rel', 'noopener')
     await expect.element(link).toHaveAttribute('target', '_blank')
-    await expect.element(screen.getByText('Not in this profile')).toBeVisible()
+    // Membership is one switch that states where the list stands by its own
+    // position, so nothing beside it repeats that in words.
+    await expect
+      .element(membership(screen))
+      .toHaveAttribute('aria-checked', 'false')
   })
 
   /**

@@ -17,6 +17,7 @@ import {
   releaseCatalog,
 } from './support/geometry'
 import {
+  cardMembership,
   linkTo,
   menuPanel,
   nameField,
@@ -544,8 +545,7 @@ test('a docked list card stays pinned while the page scrolls under a notice', as
     expect(Math.abs(scrolled.y - resting)).toBeLessThanOrEqual(1)
     expect(scrolled.y).toBeGreaterThanOrEqual(PAGE_INSET - 1)
     // The one act this card owns is still on screen, not scrolled past.
-    const act = card.getByRole('button', { name: 'Remove from profile' })
-    await expect(act).toBeInViewport()
+    await expect(cardMembership(card, englishCopy)).toBeInViewport()
   } finally {
     await releaseCatalog(page)
   }

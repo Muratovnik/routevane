@@ -248,18 +248,16 @@ export const useListDetail = (
     })}`
   })
 
-  // The footer names the route it is talking about, unless that route is a draft
-  // with no stored name to use.
+  // What the membership switch is called. A switch says on or off by its own
+  // position, so this names the route rather than the state — and it names no
+  // route while the composer's is a draft with no stored name, because the
+  // composer proposes that name from the lists picked and repeating it here
+  // would read as naming this list.
   const membershipLabel = computed(() => {
     const name = (props.profileName ?? '').trim()
-    if (name === '' || props.pending === true) {
-      return props.included === true
-        ? t('listCard.membership.in.unnamed')
-        : t('listCard.membership.out.unnamed')
-    }
-    return props.included === true
-      ? t('listCard.membership.in', { name })
-      : t('listCard.membership.out', { name })
+    return name === '' || props.pending === true
+      ? t('listCard.membership.in.unnamed')
+      : t('listCard.membership.in', { name })
   })
 
   // Declared above the watch that starts it, because that watch runs immediately:

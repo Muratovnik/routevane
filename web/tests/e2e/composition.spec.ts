@@ -13,6 +13,7 @@ import { englishCopy } from './support/copy'
 import { FORECAST_PATH, openFormats } from './support/flows'
 import {
   bodyRows,
+  cardMembership,
   cardRow,
   categoryChip,
   categoryFilters,
@@ -135,15 +136,17 @@ test('the composing card carries no row control and never spoils the forecast', 
   await expect(cardRow(card, '198.51.100.20')).toContainText('catalog')
   await expect(card.getByRole('checkbox')).toHaveCount(0)
 
-  // The one control the card offers, used both ways with the card open.
-  const add = card.getByRole('button', { name: 'Add to profile' })
-  const drop = card.getByRole('button', { name: 'Remove from profile' })
-  await add.click()
-  await expect(drop).toBeVisible()
-  await drop.click()
-  await expect(add).toBeVisible()
-  await add.click()
-  await expect(drop).toBeVisible()
+  // The one control the card offers, used both ways with the card open. It is
+  // a switch, so the same control carries both directions and states which one
+  // it is on.
+  const membership = cardMembership(card, englishCopy)
+  await expect(membership).toHaveAttribute('aria-checked', 'false')
+  await membership.click()
+  await expect(membership).toHaveAttribute('aria-checked', 'true')
+  await membership.click()
+  await expect(membership).toHaveAttribute('aria-checked', 'false')
+  await membership.click()
+  await expect(membership).toHaveAttribute('aria-checked', 'true')
 
   // The composer asks what the draft weighs while the card is still open, and
   // is answered rather than refused: nothing the card did put a value into the

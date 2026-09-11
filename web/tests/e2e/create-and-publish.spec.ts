@@ -19,6 +19,7 @@ import {
 import {
   addConnectionField,
   bodyRows,
+  cardMembership,
   cardRow,
   cardRows,
   deliveryField,
@@ -137,27 +138,16 @@ test('the library starts empty and shelves the profile the composer creates and 
   await expect(seededAddress).toContainText('catalog')
   await expect(seededAddress).not.toContainText('IP address')
 
-  // The card opens on the composition. Which feeds a list reads is the
-  // library's subject (ADR 0029), so the composing card states how many there
-  // are and offers nothing here that would change them.
+  // The card opens on the composition. Which feeds a list reads, and when they
+  // are read again, is the library's subject (ADR 0029), so the composing card
+  // states how many there are and offers no control over them at all — neither
+  // the panel that edits them nor the command that re-reads them.
   await expect(
     listCard.getByRole('heading', { name: 'Automatic sources' }),
   ).toHaveCount(0)
   await expect(listCard.getByText(/^Sources · \d+$/)).toBeVisible()
-  for (const absent of [/^Sources · \d+$/])
+  for (const absent of [/^Sources · \d+$/, /^Refresh from sources/])
     await expect(listCard.getByRole('button', { name: absent })).toHaveCount(0)
-
-  const refresh = listCard.getByRole('button', {
-    name: /^Refresh from sources: Sources · \d+$/,
-  })
-  await expect(refresh).toBeEnabled()
-  const refreshed = page.waitForResponse(
-    (response) =>
-      response.url().endsWith('/v1/lists/discord/refresh') &&
-      response.request().method() === 'POST',
-  )
-  await refresh.click()
-  expect((await refreshed).ok()).toBe(true)
 
   // A list can stand for hundreds of destinations, so the card narrows them in
   // place rather than asking the operator to scroll.
@@ -175,7 +165,7 @@ test('the library starts empty and shelves the profile the composer creates and 
       () => getComputedStyle(document.body).overflow === 'hidden',
     ),
   ).toBe(true)
-  await listCard.getByRole('button', { name: 'Add to profile' }).click()
+  await cardMembership(listCard, englishCopy).click()
   await listCard.getByRole('button', { name: 'Close' }).last().click()
   await expect(listMembership(page, 'Discord')).toBeChecked()
   await expect(page.getByText('1 list in the profile')).toBeVisible()

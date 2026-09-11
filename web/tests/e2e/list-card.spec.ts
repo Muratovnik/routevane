@@ -13,9 +13,11 @@ import { expect } from '@playwright/test'
 
 import { dictionaries } from '../../src/shared/i18n/messages'
 
+import { englishCopy } from './support/copy'
 import { openLibraryCategory } from './support/flows'
 import {
   cardContents,
+  cardMembership,
   cardRow,
   cardRows,
   dialogScrims,
@@ -64,13 +66,9 @@ test('the list card takes domains, addresses and networks, typed or imported', a
     await expect(
       card.getByRole('heading', { name: 'List contents' }),
     ).toBeVisible()
-    // No profile is in question here, so the card asks about none: the act its
-    // footer would carry is not offered at all.
-    await expect(
-      card.getByRole('button', {
-        name: /^(Add to profile|Remove from profile)$/,
-      }),
-    ).toHaveCount(0)
+    // No profile is in question here, so the card asks about none: the switch
+    // that would set membership is not offered at all.
+    await expect(cardMembership(card, englishCopy)).toHaveCount(0)
 
     // The filter and the control beside it share one line: the field's frame
     // owns its height, so the input inside it stands a hairline border shorter
@@ -312,13 +310,13 @@ test('the list card stays whole over a scrolled page and gives the scroll back',
   // The library primitive owns a modal focus loop. Both ends wrap inside the
   // real USlideover, and close returns to the external opener. The ends are
   // named rather than counted: the first thing the keyboard reaches is the
-  // link in the card's header, and the last is the act in its footer.
+  // link in the card's header, and the last is the contents the card is for.
   await card.getByRole('link', { name: 'Open in the library' }).focus()
   await page.keyboard.press('Shift+Tab')
   expect(
     await card.evaluate((element) => element.contains(document.activeElement)),
   ).toBe(true)
-  await card.getByRole('button', { name: 'Add to profile' }).focus()
+  await cardContents(card).focus()
   await page.keyboard.press('Tab')
   expect(
     await card.evaluate((element) => element.contains(document.activeElement)),
@@ -540,18 +538,17 @@ test('the list card fills the sheet rather than leaving a band above its footer'
   await rows.evaluate((element) => {
     element.scrollTop = element.scrollHeight
   })
-  // The band is read against the act the footer holds, which is the first
-  // thing under the table and the only part of that band a reader can name.
+  // Composing carries no footer, so the band is read against the sheet's own
+  // closing edge: the table ends where the card ends.
   const rowBox = await cardRows(card).last().boundingBox()
-  const footerBox = await card
-    .getByRole('button', { name: 'Add to profile' })
-    .boundingBox()
+  const cardBox = await card.boundingBox()
   expect(rowBox).not.toBeNull()
-  expect(footerBox).not.toBeNull()
-  const band = (footerBox?.y ?? 0) - ((rowBox?.y ?? 0) + (rowBox?.height ?? 0))
-  expect(band, 'empty band between the last row and the footer').toBeLessThan(
-    48,
-  )
+  expect(cardBox).not.toBeNull()
+  const band =
+    (cardBox?.y ?? 0) +
+    (cardBox?.height ?? 0) -
+    ((rowBox?.y ?? 0) + (rowBox?.height ?? 0))
+  expect(band, 'empty band between the last row and the sheet').toBeLessThan(48)
 
   await card.getByRole('button', { name: 'Close' }).last().click()
   await page.goto(`${origin}/lists`)

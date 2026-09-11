@@ -607,14 +607,14 @@ describe('ListPicker', () => {
     })
   })
 
-  it('adds an open list to the profile from the card footer', async () => {
+  it('adds an open list to the profile from the card switch', async () => {
     stubAPI({ 'GET /v1/lists/discord/contents': () => contentsResponse() })
     const screen = await renderPicker()
 
     await screen
       .getByRole('button', { name: 'Open the contents of list Discord' })
       .click()
-    await screen.getByRole('button', { name: 'Add to profile' }).click()
+    await screen.getByRole('switch', { name: 'In this profile' }).click()
 
     expect(lastModel(screen)).toMatchObject({ lists: ['discord'] })
   })
@@ -622,7 +622,7 @@ describe('ListPicker', () => {
   /**
    * The composing card edits one profile and says which one — except while that
    * profile is a draft nobody stored. The composer proposes the name from the
-   * lists picked below, so naming it in the footer would read as if the card
+   * lists picked below, so naming it on the switch would read as if the card
    * were naming the list it is showing.
    */
   it('states membership without naming an unsaved draft', async () => {
@@ -640,7 +640,11 @@ describe('ListPicker', () => {
     await expect
       .element(screen.getByText('Edits here apply to every profile.'))
       .not.toBeInTheDocument()
-    await expect.element(screen.getByText('Not in this profile')).toBeVisible()
+    // The switch is off and says so by its own position, without a second
+    // sentence stating the same thing.
+    await expect
+      .element(screen.getByRole('switch', { name: 'In this profile' }))
+      .toHaveAttribute('aria-checked', 'false')
     await expect
       .element(screen.getByText('Chat and video', { exact: false }))
       .not.toBeInTheDocument()
@@ -661,11 +665,13 @@ describe('ListPicker', () => {
       .click()
 
     await expect
-      .element(screen.getByText('Not in profile “Chat and video”'))
+      .element(
+        screen.getByRole('switch', { name: 'In profile “Chat and video”' }),
+      )
       .toBeVisible()
   })
 
-  // A draft with no name yet still has a footer to label.
+  // A draft with no name yet still has a switch to label.
   it('names an unnamed draft as this profile', async () => {
     stubAPI({ 'GET /v1/lists/discord/contents': () => contentsResponse() })
     const screen = await renderPicker({ profileName: '   ' })
@@ -674,7 +680,9 @@ describe('ListPicker', () => {
       .getByRole('button', { name: 'Open the contents of list Discord' })
       .click()
 
-    await expect.element(screen.getByText('Not in this profile')).toBeVisible()
+    await expect
+      .element(screen.getByRole('switch', { name: 'In this profile' }))
+      .toBeVisible()
     await expect
       .element(screen.getByText('applies when the profile is saved'))
       .not.toBeInTheDocument()

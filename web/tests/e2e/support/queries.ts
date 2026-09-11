@@ -118,6 +118,22 @@ export const profileOutputsCell = (row: Locator): Locator =>
   row.getByRole('cell').nth(PROFILE_OUTPUTS_CELL)
 
 /**
+ * The switch on an open list card that says — and sets — whether the route being
+ * composed carries that list. It is named for the route rather than for the
+ * act, because a switch states its own position; a caller that wants the state
+ * reads `aria-checked` from the same control it presses.
+ */
+export const cardMembership = (card: Locator, copy: Copy): Locator => {
+  const named = copy('listCard.membership.in')
+  const prefix = named.slice(0, named.indexOf('{name}'))
+  return card.getByRole('switch', {
+    name: new RegExp(
+      `^(${escapeRegExp(copy('listCard.membership.in.unnamed'))}$|${escapeRegExp(prefix)})`,
+    ),
+  })
+}
+
+/**
  * The list card's contents table: one list, whose rows are its entries. The
  * card holds exactly one, so the role is the whole address.
  */
