@@ -160,7 +160,7 @@ describe('ProfileEditor', () => {
   // themselves and not with the create form's question about where a new
   // profile should go. What saving does travels with the control that
   // does it, rather than standing above it as a sentence of its own.
-  it('names the formats it publishes and attaches the effect to Save', async () => {
+  it('names the formats it publishes and says the effect of Save once', async () => {
     stubPreview()
     const screen = await renderEditor()
     await settle()
@@ -176,14 +176,19 @@ describe('ProfileEditor', () => {
         .element(screen.getByText(output.title, { exact: true }))
         .toBeVisible()
 
+    // What saving does is in the name of the control that does it, so no note
+    // beside it repeats that name in a sentence.
     await expect
-      .element(
-        screen.getByText('Saving rebuilds every connection of this profile.'),
-      )
-      .not.toBeInTheDocument()
+      .element(screen.getByRole('button', { name: 'Save and rebuild' }))
+      .toBeVisible()
     await expect
       .element(screen.getByRole('button', { name: 'What happens when saving' }))
-      .toBeVisible()
+      .not.toBeInTheDocument()
+    await expect
+      .element(
+        screen.getByText('Saving rebuilds every format of this profile.'),
+      )
+      .not.toBeInTheDocument()
   })
 
   it('does not recalculate when output objects refresh without changing the formats', async () => {

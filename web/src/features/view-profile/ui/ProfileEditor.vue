@@ -9,7 +9,6 @@ import {
 } from '@/entities/profile-composition/model/composition'
 import { useCompositionForecast } from '@/entities/profile-composition/model/forecast'
 import RvIcon from '@/shared/ui/RvIcon.vue'
-import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvComposerForm from '@/shared/ui/RvComposerForm.vue'
 import RvComposer from '@/shared/ui/RvComposer.vue'
 import ListPicker from '@/entities/profile-composition/ui/ListPicker.vue'
@@ -247,26 +246,20 @@ const reset = (): void => {
             >
               {{ t('profile.edit.discard') }}
             </RvButton>
-            <!-- What saving does is attached to the control that does it,
-                 rather than standing above it as a sentence that repeats the
-                 control's own words. -->
-            <div class="editor__submit">
-              <RvButton
-                :disabled="!canSave || !dirty"
-                :loading="props.busy"
-                :loading-label="t('profile.edit.saving')"
-                type="submit"
-                variant="primary"
-              >
-                {{
-                  props.busy ? t('profile.edit.saving') : t('profile.edit.save')
-                }}
-              </RvButton>
-              <RvInfoTip
-                :label="t('profile.edit.effect')"
-                :text="t('profile.edit.note')"
-              />
-            </div>
+            <!-- What saving does is in the name of the control that does it.
+                 A note beside it could only restate that name, so there is
+                 none. -->
+            <RvButton
+              :disabled="!canSave || !dirty"
+              :loading="props.busy"
+              :loading-label="t('profile.edit.saving')"
+              type="submit"
+              variant="primary"
+            >
+              {{
+                props.busy ? t('profile.edit.saving') : t('profile.edit.save')
+              }}
+            </RvButton>
           </template>
         </RvComposerForm>
       </template>
@@ -364,15 +357,5 @@ const reset = (): void => {
   align-items: center;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-
-/* Save is the row's subject and the informer sits at its end, so the control
-   keeps the whole width the rail gives it. */
-.editor__submit {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--rv-space-2);
-  align-items: center;
-  min-width: 0;
 }
 </style>
