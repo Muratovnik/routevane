@@ -60,9 +60,12 @@ paths = ['''web/src/shared/i18n/messages\.ts''']
 regexes = [''''send\.field\.password': '(?:Пароль устройства|Device password)',''']
 
 [[allowlists]]
-description = "API contract tests send this fixed fixture only to the mocked fetch function"
+description = "API contract tests send this fixed fixture only to the mocked fetch function, at the path the specs live in and the one they were introduced at"
 targetRules = ["generic-password"]
 condition = "AND"
 regexTarget = "line"
-paths = ['''(?:^|/)web/tests/unit/shared/api/support/fixtures\.ts$''']
+paths = [
+  '''(?:^|/)web/tests/unit/shared/api/support/fixtures\.ts$''',
+  '''(?:^|/)web/src/shared/api/contracts\.spec\.ts$''',
+]
 regexes = ['''password:\s*'secret',''']
