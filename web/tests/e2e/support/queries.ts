@@ -322,12 +322,16 @@ export const categoryChip = (
 ): Locator =>
   categoryFilters(page, copy).getByRole('button', { name: category })
 
-/** The refresh the composer offers for the lists a draft already holds. */
+/**
+ * The refresh the composer offers for the lists a draft already holds. It is
+ * named for the lists it reads, which is what tells it from rebuilding the
+ * profile's files — a different act on a different object, named for those.
+ */
 export const compositionRefresh = (
   page: Page,
   copy: Copy = englishCopy,
 ): Locator =>
-  page.getByRole('button', { name: copy('listCard.refresh'), exact: true })
+  page.getByRole('button', { name: copy('listPicker.refresh'), exact: true })
 
 /** The settings rail beside the composition table. */
 export const composerSettings = (

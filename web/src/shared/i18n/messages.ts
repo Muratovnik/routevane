@@ -326,6 +326,7 @@ const ru: Dictionary = {
   'listPicker.back': 'Все категории',
   'listPicker.detail.title': 'Списки: {category}',
   'listPicker.other': 'Без категории',
+  'listPicker.refresh': 'Обновить списки',
   'listPicker.filter.more': 'Ещё',
   'listPicker.filter.label': 'Фильтр по категории',
   'listPicker.filter.all': 'Все категории',
@@ -620,7 +621,7 @@ const ru: Dictionary = {
   'profile.notice.action.failed': 'Изменения не сохранены',
   'profile.notice.action.failed.body':
     'Проверьте введённые данные и повторите. Опубликованные файлы не изменены.',
-  'profile.rebuild': 'Обновить и пересобрать',
+  'profile.rebuild': 'Пересобрать файлы',
   'profile.rebuild.busy': 'Пересобираем…',
   'profile.file.loading': 'Читаем опубликованный файл…',
   'profile.file.failed': 'Файл не прочитан',
@@ -1271,6 +1272,7 @@ const en: Dictionary = {
   'listPicker.back': 'All categories',
   'listPicker.detail.title': 'Lists: {category}',
   'listPicker.other': 'Uncategorized',
+  'listPicker.refresh': 'Refresh lists',
   'listPicker.filter.more': 'More',
   'listPicker.filter.label': 'Filter by category',
   'listPicker.filter.all': 'All categories',
@@ -1552,7 +1554,7 @@ const en: Dictionary = {
   'profile.notice.action.failed': 'Changes were not saved',
   'profile.notice.action.failed.body':
     'Check the entered values and try again. Published files were not changed.',
-  'profile.rebuild': 'Refresh and rebuild',
+  'profile.rebuild': 'Rebuild files',
   'profile.rebuild.busy': 'Rebuilding…',
   'profile.file.loading': 'Reading the published file…',
   'profile.file.failed': 'The file was not read',

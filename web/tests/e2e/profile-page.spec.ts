@@ -378,9 +378,7 @@ test('a failed first build remains retryable and exposes no subscription', async
     .getByRole('main')
     .getByRole('button', { name: /Actions for profile/ })
     .click()
-  await menuPanel(page)
-    .getByRole('menuitem', { name: 'Refresh and rebuild' })
-    .click()
+  await menuPanel(page).getByRole('menuitem', { name: 'Rebuild files' }).click()
   await expect(page.getByText('Format not updated')).toBeVisible()
   await expect(
     page.getByRole('heading', { name: /^Subscription link/ }),

@@ -346,7 +346,12 @@ const listLabel = (listID: string): string =>
       <div class="picker__summary">
         <!-- A refresh states its progress by turning its own glyph, so the
              control keeps the width it had at rest and the count beside it
-             does not move. -->
+             does not move.
+
+             It names the lists, because that is what it acts on: this reads
+             their sources again so the rules and overlaps below are current.
+             Rebuilding the profile's files is a different act, named for the
+             files, and it lives on the profile rather than on this table. -->
         <RvButton
           size="compact"
           :aria-busy="refreshing ? 'true' : undefined"
@@ -354,7 +359,7 @@ const listLabel = (listID: string): string =>
           @click="emit('refresh')"
         >
           <RvIcon name="refresh" :spin="refreshing" />
-          {{ t('listCard.refresh') }}
+          {{ t('listPicker.refresh') }}
         </RvButton>
         <RvMenu
           v-if="selectedCategory"
