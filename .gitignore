@@ -6,13 +6,12 @@
 /coverage/
 
 # Frontend
-/web/node_modules/
 /web/.nuxt/
 /web/.output/
 /web/.vitest/
 /web/dist/
 /web/coverage/
-/desktop/node_modules/
+**/node_modules/
 
 # Generated Nuxt public output embedded by the Go HTTP boundary. The tracked
 # marker keeps the package compilable until tools/dev.ps1 generates and syncs it.
@@ -51,7 +50,7 @@ __pycache__/
 /.playwright-mcp/
 # Agent working output: review reports and scratch files. Untracked but unignored,
 # it showed up in every status listing and was one `git add -A` from the history.
-/tmp/
+**/tmp/
 /docs/plans/private/
 /private.key
 
