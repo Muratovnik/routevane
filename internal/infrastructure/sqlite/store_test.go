@@ -4,18 +4,22 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/Muratovnik/routevane/internal/application"
 	"github.com/Muratovnik/routevane/internal/domain"
 	"github.com/Muratovnik/routevane/internal/infrastructure/filesystem"
+	modern "modernc.org/sqlite"
 )
 
 func TestMigrationsAreRepeatableAndPragmasAreVerified(t *testing.T) {
@@ -91,6 +95,110 @@ func TestMigrationFailureRollsBackAndNewerSchemaFailsClosed(t *testing.T) {
 		}
 		if version, err := ReadUserVersion(context.Background(), root); err != nil || version != newer {
 			t.Fatalf("newer database was changed: version=%d err=%v", version, err)
+		}
+	})
+}
+
+// A first run has to apply every migration before the product can be used, and
+// that sequence grows with the schema while one operation's budget does not.
+// Measured as a whole against that budget, a first run on a slow or busy disk
+// reported an unavailable database while it was still applying migrations, so
+// the sequence here is deliberately longer than the budget and has to finish.
+func TestASchemaSequenceOutlastingOneBudgetStillFinishes(t *testing.T) {
+	pause := operationTimeout / 4
+	registerPause(t, pause)
+	// The baseline migration carries the ledger every later one records itself
+	// in; the pauses after it make the sequence outlast a single budget.
+	set := []migration{migrations[0]}
+	for version := 2; time.Duration(len(set))*pause <= operationTimeout; version++ {
+		set = append(set, migration{version: version, sql: "SELECT " + pauseFunction + "();"})
+	}
+	root := newDataRoot(t)
+	path := filepath.Join(root, DatabaseName)
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	db.SetMaxOpenConns(1)
+	store := &Store{db: db, path: path}
+
+	started := time.Now()
+	err = store.initialize(context.Background(), set)
+	elapsed := time.Since(started)
+
+	if elapsed <= operationTimeout {
+		t.Fatalf("the sequence took %s, which one budget of %s already covers; the run proves nothing", elapsed, operationTimeout)
+	}
+	// Reaching the end of a set that stops short of the current version is the
+	// only refusal expected here: every migration in it was applied.
+	if !errors.Is(err, ErrIncompatibleSchema) {
+		t.Fatalf("initialize error = %v, want %v", err, ErrIncompatibleSchema)
+	}
+	var version int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
+		t.Fatal(err)
+	}
+	if version != len(set) {
+		t.Fatalf("applied %d of %d migrations", version, len(set))
+	}
+}
+
+// Bringing a database to the current schema is a sequence of operations, and
+// the sequence grows every time the schema gains a migration. Measuring the
+// whole sequence against the budget of one operation let a first run on a slow
+// or busy disk fail as an unavailable database while it was still making
+// progress, so each step is measured on its own. A caller that bounds the open
+// still bounds everything inside it, and a step that cannot finish still ends.
+func TestSchemaWorkIsBoundedOneStepAtATime(t *testing.T) {
+	t.Run("each step starts its own budget", func(t *testing.T) {
+		deadline := func() time.Time {
+			var seen time.Time
+			if err := schemaStep(context.Background(), func(ctx context.Context) error {
+				value, ok := ctx.Deadline()
+				if !ok {
+					return errors.New("schema step ran unbounded")
+				}
+				seen = value
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			return seen
+		}
+		started := time.Now()
+		first := deadline()
+		if budget := first.Sub(started); budget <= 0 || budget > operationTimeout {
+			t.Fatalf("first step budget = %s, want a positive budget of at most %s", budget, operationTimeout)
+		}
+		time.Sleep(10 * time.Millisecond)
+		if second := deadline(); !second.After(first) {
+			t.Fatalf("the second step reused the first budget: first=%s second=%s", first, second)
+		}
+	})
+	t.Run("a caller's own deadline still covers the sequence", func(t *testing.T) {
+		caller, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		want, _ := caller.Deadline()
+		if err := schemaStep(caller, func(ctx context.Context) error {
+			got, ok := ctx.Deadline()
+			if !ok || !got.Equal(want) {
+				return fmt.Errorf("step deadline = %s (present=%t), want %s", got, ok, want)
+			}
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("a step that cannot finish ends", func(t *testing.T) {
+		caller, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancel()
+		err := schemaStep(caller, func(ctx context.Context) error {
+			<-ctx.Done()
+			return ctx.Err()
+		})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("blocked step error = %v, want %v", err, context.DeadlineExceeded)
 		}
 	})
 }
@@ -460,6 +568,28 @@ func TestDoctorInspectionDoesNotMutateDatabaseFiles(t *testing.T) {
 		if after[path] != hash {
 			t.Fatalf("doctor mutated %s", path)
 		}
+	}
+}
+
+// pauseFunction is a test-only SQLite function that spends a fixed amount of
+// time inside one statement, so a migration sequence can be made longer than a
+// single operation's budget without depending on how fast the host is.
+const pauseFunction = "routevane_test_pause"
+
+var pauseRegistration = sync.OnceValue(func() error {
+	return modern.RegisterScalarFunction(pauseFunction, 0, func(*modern.FunctionContext, []driver.Value) (driver.Value, error) {
+		time.Sleep(registeredPause.Load().(time.Duration))
+		return int64(1), nil
+	})
+})
+
+var registeredPause atomic.Value
+
+func registerPause(t *testing.T, pause time.Duration) {
+	t.Helper()
+	registeredPause.Store(pause)
+	if err := pauseRegistration(); err != nil {
+		t.Fatal(err)
 	}
 }
 

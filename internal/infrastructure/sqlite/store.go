@@ -125,14 +125,24 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// initialize brings a database to the current schema. Every part of that is a
+// separate database operation: a ping, two inspections, the connection
+// pragmas, one transaction for each pending migration and a closing
+// verification, and every migration commits with `synchronous = FULL`. Giving
+// the whole sequence the budget of a single operation made the time a first
+// run is allowed shrink with each migration the schema gains, so a slow or
+// busy disk reported an unavailable database instead of finishing an
+// initialization that was still making progress. Each step carries the budget
+// on its own; a caller that bounds the open keeps its own limit over all of
+// them.
 func (s *Store) initialize(ctx context.Context, migrationSet []migration) error {
-	ctx, cancel := bounded(ctx)
-	defer cancel()
-	if err := s.db.PingContext(ctx); err != nil {
+	if err := schemaStep(ctx, s.db.PingContext); err != nil {
 		return fmt.Errorf("ping SQLite: %w", err)
 	}
 	var version int
-	if err := s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil {
+	if err := schemaStep(ctx, func(ctx context.Context) error {
+		return s.db.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version)
+	}); err != nil {
 		return fmt.Errorf("read schema version: %w", err)
 	}
 	if version > CurrentSchemaVersion || version < 0 {
@@ -140,14 +150,18 @@ func (s *Store) initialize(ctx context.Context, migrationSet []migration) error 
 	}
 	if version == 0 {
 		var count int
-		if err := s.db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").Scan(&count); err != nil {
+		if err := schemaStep(ctx, func(ctx context.Context) error {
+			return s.db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").Scan(&count)
+		}); err != nil {
 			return fmt.Errorf("inspect empty schema: %w", err)
 		}
 		if count != 0 {
 			return fmt.Errorf("%w: unversioned database is not empty", ErrIncompatibleSchema)
 		}
 	}
-	if err := configureConnection(ctx, s.db, true); err != nil {
+	if err := schemaStep(ctx, func(ctx context.Context) error {
+		return configureConnection(ctx, s.db, true)
+	}); err != nil {
 		return err
 	}
 	for _, item := range migrationSet {
@@ -157,36 +171,49 @@ func (s *Store) initialize(ctx context.Context, migrationSet []migration) error 
 		if item.version != version+1 || item.version > CurrentSchemaVersion {
 			return fmt.Errorf("%w: migration sequence", ErrIncompatibleSchema)
 		}
-		tx, err := s.db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("begin migration %d: %w", item.version, err)
-		}
-		failed := func() error {
-			if _, err := tx.ExecContext(ctx, item.sql); err != nil {
-				return fmt.Errorf("execute migration %d: %w", item.version, err)
-			}
-			if _, err := tx.ExecContext(ctx, "INSERT INTO schema_migrations(version, applied_at_ns) VALUES(?, ?)", item.version, time.Now().UTC().UnixNano()); err != nil {
-				return fmt.Errorf("record migration %d: %w", item.version, err)
-			}
-			if _, err := tx.ExecContext(ctx, "PRAGMA user_version = "+strconv.Itoa(item.version)); err != nil {
-				return fmt.Errorf("set schema version %d: %w", item.version, err)
-			}
-			return nil
-		}()
-		if failed != nil {
-			_ = tx.Rollback()
-			return failed
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration %d: %w", item.version, err)
+		if err := schemaStep(ctx, func(ctx context.Context) error {
+			return s.applyMigration(ctx, item)
+		}); err != nil {
+			return err
 		}
 		version = item.version
 	}
 	if version != CurrentSchemaVersion {
 		return fmt.Errorf("%w: database version %d", ErrIncompatibleSchema, version)
 	}
-	if err := verifySchema(ctx, s.db); err != nil {
+	if err := schemaStep(ctx, func(ctx context.Context) error {
+		return verifySchema(ctx, s.db)
+	}); err != nil {
 		return err
+	}
+	return nil
+}
+
+// applyMigration either commits one migration or leaves the database exactly
+// as it was. The transaction is the unit of work one bound covers.
+func (s *Store) applyMigration(ctx context.Context, item migration) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin migration %d: %w", item.version, err)
+	}
+	failed := func() error {
+		if _, err := tx.ExecContext(ctx, item.sql); err != nil {
+			return fmt.Errorf("execute migration %d: %w", item.version, err)
+		}
+		if _, err := tx.ExecContext(ctx, "INSERT INTO schema_migrations(version, applied_at_ns) VALUES(?, ?)", item.version, time.Now().UTC().UnixNano()); err != nil {
+			return fmt.Errorf("record migration %d: %w", item.version, err)
+		}
+		if _, err := tx.ExecContext(ctx, "PRAGMA user_version = "+strconv.Itoa(item.version)); err != nil {
+			return fmt.Errorf("set schema version %d: %w", item.version, err)
+		}
+		return nil
+	}()
+	if failed != nil {
+		_ = tx.Rollback()
+		return failed
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit migration %d: %w", item.version, err)
 	}
 	return nil
 }
@@ -285,6 +312,15 @@ func verifySchema(ctx context.Context, q queryer) error {
 		return fmt.Errorf("%w: migration history", ErrIncompatibleSchema)
 	}
 	return nil
+}
+
+// schemaStep gives one unit of schema work the budget of a single operation,
+// so a database that keeps making progress is never cut off for the length of
+// the sequence while a step that cannot finish still ends.
+func schemaStep(ctx context.Context, run func(context.Context) error) error {
+	step, cancel := bounded(ctx)
+	defer cancel()
+	return run(step)
 }
 
 func bounded(ctx context.Context) (context.Context, context.CancelFunc) {
