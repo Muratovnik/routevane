@@ -231,6 +231,12 @@
     )
   );
 
+  /* The standing height of the one surface that says the registry is empty and
+     then takes the first connection's parameters: a heading, one line of
+     standing text or one field, and the row of controls that ends it. A floor,
+     so pressing "add" changes what the surface says rather than its size. */
+  --rv-connections-compose-height: 15.5rem;
+
   /* The narrowest a field may be drawn in a multi-column form. A standalone
      field takes a full reading width; two of them side by side do not fit one
      each, and a two-column form is what makes a connection's parameters

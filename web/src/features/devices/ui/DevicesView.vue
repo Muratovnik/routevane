@@ -437,10 +437,15 @@ const submit = async (): Promise<void> => {
   container: connections / inline-size;
 }
 
+/* Each column stands at its own height. Stretching them to a common one made
+   the registered list borrow its height from whatever was open beside it, so
+   asking to register a connection — a form shorter than a connection's
+   parameters — pulled the list of connections down with it, and the operator
+   watched the thing they were reading shrink for pressing "add" next to it. */
 .devices__workspace {
   display: grid;
   gap: var(--rv-space-6);
-  align-items: stretch;
+  align-items: start;
   min-width: 0;
   width: 100%;
 }
@@ -455,14 +460,11 @@ const submit = async (): Promise<void> => {
   align-content: start;
   min-width: 0;
   width: 100%;
+  min-height: var(--rv-connections-compose-height);
   padding: var(--rv-space-6);
   background: var(--rv-color-surface);
   border: var(--rv-border-hair) solid var(--rv-color-rule);
   border-radius: var(--rv-radius-lg);
-}
-
-.devices__editor--standalone {
-  max-width: var(--rv-measure-form);
 }
 
 .devices__nothing {
@@ -475,6 +477,18 @@ const submit = async (): Promise<void> => {
   background: var(--rv-color-surface);
   border: var(--rv-border-hair) solid var(--rv-color-rule);
   border-radius: var(--rv-radius-lg);
+}
+
+/* An empty registry and the form that fills it are one surface that changes
+   what it says, not two panels of different sizes taking each other's place:
+   the operator pressed "add", and a box that jumps from the page's full width
+   to a third of it reads as having been replaced rather than answered. The
+   floor is a floor — enlarged text or a longer language grows past it. */
+.devices__nothing,
+.devices__editor--standalone {
+  width: min(100%, var(--rv-measure-form));
+  min-height: var(--rv-connections-compose-height);
+  align-content: start;
 }
 
 .devices__lead {
