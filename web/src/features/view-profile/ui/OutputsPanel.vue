@@ -29,7 +29,6 @@ const props = defineProps<{
   outputs: OutputCard[]
   schedule: Schedule | null
   scheduleSaving?: boolean
-  selectedId: string
   targetGroups: { kind: string; targets: TargetOption[] }[]
   // What to call a format here. The catalog owns the words and the page owns
   // the reader's language, so the panel is told rather than deciding.
@@ -39,7 +38,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   bind: [targetID: string]
   bindDevice: [outputID: string, deviceID: string]
-  select: [outputID: string]
   setSchedule: [interval: RefreshInterval]
 }>()
 
@@ -153,24 +151,17 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
         </tr>
       </thead>
       <tbody>
-        <tr
-          v-for="output in props.outputs"
-          :key="output.id"
-          :class="{
-            'outputs__row--selected': output.id === props.selectedId,
-          }"
-        >
+        <tr v-for="output in props.outputs" :key="output.id">
           <td class="outputs__cell-target">
             <span class="outputs__name">
-              <button
-                class="outputs__select"
-                :aria-pressed="output.id === props.selectedId"
-                type="button"
-                @click="emit('select', output.id)"
-              >
+              <!-- The format names its own row and nothing else: reading this
+                   table is not a choice, so no row is marked as the chosen
+                   one. What one file contains is asked for where that file is
+                   read, on its own tab. -->
+              <span class="outputs__format">
                 <RvIcon :name="targetIcon(output.targetID)" />
                 {{ outputTitle(output) }}
-              </button>
+              </span>
               <span v-if="output.targetKind !== ''" class="outputs__kind">
                 {{ t(`kind.${output.targetKind}.one`) }}
               </span>
@@ -379,10 +370,6 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
   --rv-table-cell-padding: var(--rv-space-3);
 }
 
-.outputs__row--selected td {
-  background: var(--rv-color-surface-selected);
-}
-
 .outputs__cell-target {
   overflow-wrap: anywhere;
 }
@@ -396,28 +383,12 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
   align-items: flex-start;
 }
 
-.outputs__select {
+.outputs__format {
   display: inline-flex;
   align-items: center;
   gap: var(--rv-space-2);
-  text-align: start;
   min-height: var(--rv-control-compact);
-  padding: 0;
-  color: var(--rv-color-ink);
-  font: inherit;
   font-weight: 600;
-  background: none;
-  border: 0;
-  cursor: pointer;
-}
-
-.outputs__select:focus-visible {
-  outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: 0.125rem;
-}
-
-.outputs__select:hover {
-  color: var(--rv-color-accent-ink);
 }
 
 .outputs__kind {

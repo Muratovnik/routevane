@@ -7,16 +7,24 @@ import { useProfileView } from '@/features/view-profile/model/useProfileView'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { ExportFormat } from '@/shared/api/exports'
 import { legacyImportedOrdinal } from '@/shared/lib/legacyProfile'
+import { targetIcon } from '@/shared/lib/targetIcon'
 import { profilePageHash, parseProfilePageHash } from '@/shared/lib/profileHash'
 import { useSurfacePreferences } from '@/shared/model/useSurfacePreferences'
 import type { ProfileComposition } from '@/shared/api/profiles'
-import type { Fact, MenuItem, StatusTone, TabItem } from '@/shared/ui/types'
+import type {
+  ChoiceOption,
+  Fact,
+  MenuItem,
+  StatusTone,
+  TabItem,
+} from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvCodeBlock from '@/shared/ui/RvCodeBlock.vue'
 import RvCopyButton from '@/shared/ui/RvCopyButton.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvMenu from '@/shared/ui/RvMenu.vue'
+import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import RvStatus from '@/shared/ui/RvStatus.vue'
 import RvTabs from '@/shared/ui/RvTabs.vue'
@@ -34,6 +42,14 @@ const { expert } = useSurfacePreferences()
 const route = useRoute()
 const router = useRouter()
 const view = useProfileView(() => props.profileId)
+// Whether the operator arrived here from somewhere else in the interface.
+// Moving the keyboard to the title belongs to that arrival: a row was pressed
+// and the content under their hands was replaced, so the keyboard follows it.
+// A document that opened on this address moved nobody — its focus already
+// starts at the top — and taking it there only draws a ring around the title
+// for a press nobody made. Read once, in setup, because the flag is false by
+// the time the profile has been read.
+const arrived = useNuxtApp().isHydrating !== true
 const pageLocation = computed(() => parseProfilePageHash(route.hash))
 const titleID = computed(() => `profile-title-${props.profileId}`)
 const heading = ref<HTMLElement | null>(null)
@@ -215,6 +231,23 @@ const selectedTitle = computed(() => {
   const output = view.selectedOutput.value
   return output === null ? '' : view.outputTitle(output)
 })
+
+// A profile publishes the same composition in several formats, and the file and
+// the diagnostics belong to exactly one of them. That choice is offered on the
+// tab that reads the file rather than left as a marked row on the tab that
+// lists the connections — a row painted as chosen on a screen where choosing
+// changes nothing visible states a consequence that is not there.
+const outputChoices = computed<ChoiceOption[]>(() =>
+  view.outputs.value.map((output) => ({
+    icon: targetIcon(output.targetID),
+    label: view.outputTitle(output),
+    value: output.id,
+  })),
+)
+const outputScope = computed<string>({
+  get: () => view.selectedOutputID.value,
+  set: (value) => view.selectOutput(value),
+})
 const setupTargetTitle = computed(() =>
   view.targetTitle(pageLocation.value.setup),
 )
@@ -286,7 +319,7 @@ onMounted(async () => {
     }
     await router.replace({ hash: profilePageHash({ tab: tab.value }) })
   }
-  heading.value?.focus()
+  if (arrived) heading.value?.focus()
 })
 
 const formatTime = (value: string): string => {
@@ -618,12 +651,10 @@ const onProfileMenu = async (key: string): Promise<void> => {
               :outputs="view.outputs.value"
               :schedule="view.schedule.value"
               :schedule-saving="view.scheduleState.value === 'saving'"
-              :selected-id="view.selectedOutputID.value"
               :target-groups="view.targetGroups.value"
               :target-title="view.targetTitle"
               @bind="onBind"
               @bind-device="view.bindDevice"
-              @select="view.selectOutput"
               @set-schedule="view.setSchedule"
             />
             <RvStateNotice
@@ -644,12 +675,23 @@ const onProfileMenu = async (key: string): Promise<void> => {
 
         <template #file>
           <div class="profile__panel">
-            <p
+            <div
               v-if="view.outputs.value.length > 1"
               class="profile__panel-scope"
             >
-              {{ t('profile.panel.scope', { target: selectedTitle }) }}
-            </p>
+              <label
+                class="profile__panel-scope-label"
+                for="profile-file-scope"
+              >
+                {{ t('profile.panel.scope') }}
+              </label>
+              <RvSelect
+                v-model="outputScope"
+                input-id="profile-file-scope"
+                :options="outputChoices"
+                :placeholder="t('outputs.column.target')"
+              />
+            </div>
             <RvStateNotice
               v-if="view.latest.value === null"
               :title="t('profile.diagnostics.none')"
@@ -695,12 +737,23 @@ const onProfileMenu = async (key: string): Promise<void> => {
 
         <template #diagnostics>
           <div class="profile__panel">
-            <p
+            <div
               v-if="view.outputs.value.length > 1"
               class="profile__panel-scope"
             >
-              {{ t('profile.panel.scope', { target: selectedTitle }) }}
-            </p>
+              <label
+                class="profile__panel-scope-label"
+                for="profile-diagnostics-scope"
+              >
+                {{ t('profile.panel.scope') }}
+              </label>
+              <RvSelect
+                v-model="outputScope"
+                input-id="profile-diagnostics-scope"
+                :options="outputChoices"
+                :placeholder="t('outputs.column.target')"
+              />
+            </div>
             <RvStateNotice
               v-if="view.snapshotID.value === ''"
               :title="t('profile.diagnostics.none')"
@@ -1034,11 +1087,17 @@ const onProfileMenu = async (key: string): Promise<void> => {
   }
 }
 
-/* A panel that describes one output says which one, but only when the profile
-   feeds more than one. */
+/* A panel that reads one published file asks which one, but only when the
+   profile publishes more than one. */
 .profile__panel-scope {
-  margin-bottom: var(--rv-space-3);
-  color: var(--rv-color-ink-muted);
+  display: grid;
+  gap: var(--rv-space-2);
+  width: min(100%, var(--rv-measure-field));
+  margin-bottom: var(--rv-space-4);
+}
+
+.profile__panel-scope-label {
+  font-weight: 600;
   font-size: var(--rv-text-dense);
 }
 

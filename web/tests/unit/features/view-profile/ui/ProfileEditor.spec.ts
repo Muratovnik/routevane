@@ -8,7 +8,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import ProfileEditor from '@/features/view-profile/ui/ProfileEditor.vue'
 
 const SAVE = 'Save and rebuild'
-const CANCEL = 'Cancel'
+const CANCEL = 'Discard changes'
 const OVERFLOW = 'Limited fixture: ≈ 6 of 1 — will not fit'
 
 // A row inside the composition has a priority handle that states its list and

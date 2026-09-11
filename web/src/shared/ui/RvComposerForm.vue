@@ -35,19 +35,29 @@ defineProps<{ compact?: boolean }>()
   min-width: 0;
 }
 
+/* Docked, the form is a band across the top of the workspace rather than a
+   rail beside it. Its fields stand side by side and take the whole band, each
+   one no narrower than a field may be drawn, so the band reads as a row of
+   named things rather than as a column squeezed sideways. */
 .rv-composer-form--compact {
-  gap: var(--rv-space-3);
+  gap: var(--rv-space-5);
 }
 
 .rv-composer-form--compact .rv-composer-form__fields {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--rv-space-4);
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(min(100%, var(--rv-form-column-min)), 1fr)
+  );
+  gap: var(--rv-space-4) var(--rv-space-6);
 }
 
+/* The acts that end the edit stand together at the band's end, on one line and
+   in the order they are taken: leave the draft, then commit it. */
 .rv-composer-form--compact .rv-composer-form__actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
+  gap: var(--rv-space-3);
 }
 </style>

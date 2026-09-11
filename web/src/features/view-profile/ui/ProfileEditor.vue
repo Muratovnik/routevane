@@ -236,6 +236,19 @@ const reset = (): void => {
             </div>
           </template>
           <template #actions>
+            <!-- Leaving the draft comes before committing it, in the order the
+                 eye and the keyboard both travel, so the act that ends this
+                 edit sits last and at the row's end. Its name says what it
+                 undoes: "cancel" alone, next to a save, reads as though it
+                 might cancel the save that is running. -->
+            <RvButton
+              v-if="dirty"
+              :disabled="props.busy"
+              variant="quiet"
+              @click="reset"
+            >
+              {{ t('profile.edit.discard') }}
+            </RvButton>
             <!-- What saving does is attached to the control that does it,
                  rather than standing above it as a sentence that repeats the
                  control's own words. -->
@@ -256,14 +269,6 @@ const reset = (): void => {
                 :text="t('profile.edit.note')"
               />
             </div>
-            <RvButton
-              v-if="dirty"
-              :disabled="props.busy"
-              variant="quiet"
-              @click="reset"
-            >
-              {{ t('action.cancel') }}
-            </RvButton>
           </template>
         </RvComposerForm>
       </template>

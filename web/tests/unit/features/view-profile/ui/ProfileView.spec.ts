@@ -143,6 +143,10 @@ beforeEach(() => {
   invalidateCatalogCache()
   usePublishedProfile().clear()
   useLocale().setLocale('en')
+  // The screen asks whether this render is the document's first one, because
+  // it only moves the keyboard to the title when the operator arrived here
+  // from somewhere else. A mounted component is that later arrival.
+  vi.stubGlobal('useNuxtApp', () => ({ isHydrating: false }))
   vi.stubGlobal('useRoute', () => ({ hash: '' }))
   vi.stubGlobal('useRouter', () => ({
     replace: vi.fn(async () => {}),
