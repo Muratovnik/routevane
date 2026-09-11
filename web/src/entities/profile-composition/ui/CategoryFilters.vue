@@ -104,7 +104,10 @@ const toggle = (id: string): void => {
         :disabled="disabled"
         @click="toggle(option.value)"
       >
-        {{ option.label }}<small>{{ formatNumber(option.count) }}</small>
+        {{ option.label
+        }}<span class="catalog-filters__count">{{
+          formatNumber(option.count)
+        }}</span>
       </button>
       <RvSearchSelect
         :model-value="modelValue"
@@ -225,15 +228,10 @@ const toggle = (id: string): void => {
   background: var(--rv-color-accent-quiet);
 }
 
-.catalog-filters__chip small {
-  padding-inline: var(--rv-space-1);
-  background: var(--rv-color-surface-muted);
-  border-radius: var(--rv-radius-sm);
-}
-
 /* How many lists a category holds belongs to that category's name, so it reads
    as one label at the size the name is set in — not as a footnote pushed to the
-   far edge of the panel, where the eye has to travel to pair the two. */
+   far edge of the panel, where the eye has to travel to pair the two. The chip
+   and the option state the same fact, so they state it the same way. */
 .catalog-filters__count {
   flex: none;
   padding-inline: var(--rv-space-1);
@@ -241,6 +239,13 @@ const toggle = (id: string): void => {
   font-variant-numeric: tabular-nums;
   background: var(--rv-color-surface-muted);
   border-radius: var(--rv-radius-sm);
+}
+
+/* In the option list a category's name is followed straight by its count, so
+   the separation a table row needs between adjacent category labels is not
+   wanted here: it is the last thing still holding the number away. */
+.rv-search-select__option .category-label {
+  margin-inline-end: 0;
 }
 
 .catalog-filters__action {
