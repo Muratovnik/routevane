@@ -15,6 +15,13 @@ const props = defineProps<{
   lists: ListDetail[]
   disabled?: boolean
   actionLabel?: string
+  /**
+   * Whether the action beside the filters is unavailable while the filters
+   * themselves still work. Reading a retained catalog is not writing to it, so
+   * a library that cannot be written to keeps its filters and withdraws the
+   * one control that would write.
+   */
+  actionDisabled?: boolean
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: string[]]
@@ -127,7 +134,7 @@ const toggle = (id: string): void => {
           class="catalog-filters__chip catalog-filters__action"
           type="button"
           :aria-label="actionLabel"
-          :disabled="disabled"
+          :disabled="disabled || actionDisabled"
           @click="emit('action')"
         >
           <RvIcon name="plus" />
@@ -204,6 +211,13 @@ const toggle = (id: string): void => {
   border: var(--rv-border-hair) solid var(--rv-color-rule);
   border-radius: var(--rv-radius-md);
   cursor: pointer;
+}
+
+/* A chip that cannot be pressed says so, rather than accepting a press that
+   provably changes nothing. */
+.catalog-filters__chip:disabled {
+  opacity: var(--rv-disabled-opacity);
+  cursor: not-allowed;
 }
 
 .catalog-filters__chip[aria-pressed='true'] {

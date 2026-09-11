@@ -662,6 +662,7 @@ const submitPriority = async (): Promise<void> => {
         :categories="library.categories.value"
         :lists="library.lists.value"
         :disabled="library.busy.value"
+        :action-disabled="library.stale.value"
         :action-label="t('lists.addCategory')"
         @action="startCreateCategory"
       />

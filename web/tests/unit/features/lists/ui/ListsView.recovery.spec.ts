@@ -73,6 +73,15 @@ describe('recovering an interrupted library write', () => {
     await expect
       .element(screen.getByText(created.title))
       .not.toBeInTheDocument()
+    // A library that cannot be written to withdraws the one control that would
+    // write, rather than accepting a press that provably changes nothing. Its
+    // filters keep working, because reading a retained copy is not writing.
+    await expect
+      .element(screen.getByRole('button', { name: NEW_CATEGORY }))
+      .toBeDisabled()
+    await expect
+      .element(screen.getByRole('button', { name: ALL_CATEGORIES }))
+      .toBeEnabled()
 
     // Recovery is only GET. Once it confirms the category, the saved identity
     // completes selection; no second POST is sent.
