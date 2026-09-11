@@ -218,14 +218,16 @@ Sections, addressable by URL:
    redirects here). One section answers «куда»: registered devices and
    applications first, as two surfaces of the same level — the registered
    connections on the left, the selected connection or the creation form on
-   the right. The work area is always present: the first saved connection is
-   selected on arrival, or, when none exist, the catalog-backed creation form
-   is the whole work area at a single-column form width, with no list column
-   and no cancel because there is nothing to return to. «Добавить подключение»
-   belongs to the collection, so it sits in the list's own header beside the
-   number of registered connections and stays there, disabled, while the form
-   is open. The form's «Отменить» discards the draft and reopens the connection
-   it replaced, so the list and a connection are on screen again; choosing a
+   the right. The first saved connection is selected on arrival. An empty
+   registry states across the whole work area that it holds nothing and offers
+   «Добавить подключение» beside that statement, rather than putting a form in
+   front of someone who has not asked for one; the form that action opens takes
+   the work area at a single-column form width, with no list column. With saved
+   connections «Добавить подключение» belongs to the collection, so it sits in
+   the list's own header beside their number and stays there, disabled, while
+   the form is open. The form's «Отменить» discards the draft and reopens
+   whatever it replaced — the connection, the first saved one, or the empty
+   registry's statement — so the work area is never left empty; choosing a
    connection from the list instead keeps the draft for the next «Добавить
    подключение». Saving selects the server-returned connection ID; forgetting
    the selection opens the next connection or the form. A row states the

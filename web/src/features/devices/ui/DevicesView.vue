@@ -12,6 +12,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import { targetIcon } from '@/shared/lib/targetIcon'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvField from '@/shared/ui/RvField.vue'
+import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
@@ -48,23 +49,45 @@ const selectedID = ref('')
 // returns there rather than to an arbitrary row.
 const returnTo = ref('')
 const createHeadingID = useId()
+const emptyHeadingID = useId()
 const createHeading = ref<HTMLElement | null>(null)
+const emptyHeading = ref<HTMLElement | null>(null)
 const detail = ref<InstanceType<typeof ConnectionDetail> | null>(null)
+// Whether the operator asked to register one. An empty registry is not the
+// same state as registering: it states that it holds nothing and offers the
+// act, rather than putting a form in front of someone who has not asked.
+const composing = ref(false)
 
 const selectedDevice = computed(
   () =>
     devices.devices.value.find((device) => device.id === selectedID.value) ??
     null,
 )
-const creating = computed(() => selectedDevice.value === null)
+// The form is open, as opposed to nothing being selected: an empty registry
+// selects nothing either, and its own action must stay available.
+const creating = computed(
+  () => composing.value && selectedDevice.value === null,
+)
+const empty = computed(
+  () => devices.devices.value.length === 0 && !composing.value,
+)
 
-const openEditor = async (id = ''): Promise<void> => {
+const openConnection = async (id: string): Promise<void> => {
   if (devices.busy.value) return
-  if (id === '' && selectedID.value !== '') returnTo.value = selectedID.value
+  composing.value = false
   selectedID.value = id
   await nextTick()
-  if (id === '') createHeading.value?.focus()
+  if (id === '') emptyHeading.value?.focus()
   else detail.value?.focusHeading()
+}
+
+const startComposing = async (): Promise<void> => {
+  if (devices.busy.value) return
+  if (selectedID.value !== '') returnTo.value = selectedID.value
+  composing.value = true
+  selectedID.value = ''
+  await nextTick()
+  createHeading.value?.focus()
 }
 
 // Reconcile only an authoritative registry. A failed read keeps the selection
@@ -72,7 +95,7 @@ const openEditor = async (id = ''): Promise<void> => {
 watch([devices.state, devices.busy, devices.devices], () => {
   if (devices.state.value !== 'ready' || devices.busy.value) return
   if (selectedID.value !== '' && selectedDevice.value === null)
-    void openEditor(devices.devices.value[0]?.id ?? '')
+    void openConnection(devices.devices.value[0]?.id ?? '')
 })
 
 const selectedRequirements = computed(
@@ -142,17 +165,17 @@ const clearDraft = (): void => {
   reveal.value = false
 }
 
-// Cancel is the form's own exit: it discards the draft and puts the connection
-// it replaced back into the work area. Choosing a connection from the list is a
-// different act and keeps the draft for the next visit to the form. With no
-// saved connection there is nothing to return to, and the form has no cancel.
+// Cancel is the form's own exit: it discards the draft and puts back whatever
+// the form took the work area from — the connection it replaced, the first
+// saved one, or the empty registry's own statement. Choosing a connection from
+// the list is a different act and keeps the draft for the next visit.
 const cancelCreation = async (): Promise<void> => {
   if (devices.busy.value) return
   clearDraft()
   const known = devices.devices.value.some(
     (device) => device.id === returnTo.value,
   )
-  await openEditor(
+  await openConnection(
     known ? returnTo.value : (devices.devices.value[0]?.id ?? ''),
   )
 }
@@ -182,7 +205,7 @@ const submit = async (): Promise<void> => {
       ? 'devices.registered.router'
       : 'devices.registered.other'
   if (manualOnly) messageKey = 'devices.registered.manual'
-  await openEditor(devices.registeredID.value)
+  await openConnection(devices.registeredID.value)
   confirmation.value = t(messageKey)
   clearDraft()
 }
@@ -229,7 +252,33 @@ const submit = async (): Promise<void> => {
         </template>
       </RvStateNotice>
 
+      <section
+        v-if="empty"
+        :aria-labelledby="emptyHeadingID"
+        class="devices__nothing"
+      >
+        <h2
+          :id="emptyHeadingID"
+          ref="emptyHeading"
+          class="devices__title"
+          tabindex="-1"
+        >
+          {{ t('devices.empty') }}
+        </h2>
+        <p class="devices__lead">{{ t('devices.empty.body') }}</p>
+        <div>
+          <RvButton
+            :disabled="addDisabled"
+            variant="primary"
+            @click="startComposing"
+          >
+            <RvIcon name="plus" />{{ t('devices.add') }}
+          </RvButton>
+        </div>
+      </section>
+
       <div
+        v-else
         class="devices__workspace"
         :class="{
           'devices__workspace--editing': devices.devices.value.length > 0,
@@ -242,8 +291,8 @@ const submit = async (): Promise<void> => {
           :connections="devices.devices.value"
           :selected-id="selectedID"
           :title-of="titleOf"
-          @add="openEditor()"
-          @select="openEditor"
+          @add="startComposing"
+          @select="openConnection"
         />
 
         <ConnectionDetail
@@ -362,12 +411,9 @@ const submit = async (): Promise<void> => {
           </RvStateNotice>
 
           <div class="devices__actions">
-            <RvButton
-              v-if="devices.devices.value.length > 0"
-              :disabled="devices.busy.value"
-              @click="cancelCreation"
-              >{{ t('action.cancel') }}</RvButton
-            >
+            <RvButton :disabled="devices.busy.value" @click="cancelCreation">{{
+              t('action.cancel')
+            }}</RvButton>
             <RvButton
               :disabled="!canRegister"
               form="device-create"
@@ -417,6 +463,23 @@ const submit = async (): Promise<void> => {
 
 .devices__editor--standalone {
   max-width: var(--rv-measure-form);
+}
+
+.devices__nothing {
+  display: grid;
+  gap: var(--rv-space-4);
+  justify-items: start;
+  width: 100%;
+  min-width: 0;
+  padding: var(--rv-space-8) var(--rv-space-6);
+  background: var(--rv-color-surface);
+  border: var(--rv-border-hair) solid var(--rv-color-rule);
+  border-radius: var(--rv-radius-lg);
+}
+
+.devices__lead {
+  max-width: var(--rv-measure-prose);
+  color: var(--rv-color-ink-muted);
 }
 
 .devices__title {

@@ -83,6 +83,11 @@ test('graphite settings and inline connection choices preserve readable alignmen
     .getByRole('navigation', { name: 'Разделы' })
     .getByRole('link', { name: 'Подключения' })
     .click()
+  // An empty registry states that it holds nothing; the form is what its own
+  // action opens.
+  await page
+    .getByRole('button', { name: 'Добавить подключение', exact: true })
+    .click()
   await expect(
     page.getByRole('region', { name: 'Добавить подключение', exact: true }),
   ).toBeVisible()
@@ -131,10 +136,15 @@ test('graphite settings and inline connection choices preserve readable alignmen
   expect(await auditWidths(page, 'graphite-connection-form-text-200')).toEqual(
     [],
   )
-  // With nothing saved yet the form is the whole work area: there is no
-  // cancel, because there is nothing it could return to.
+  // The form leaves through its own cancel, and what it replaced comes back:
+  // with nothing saved that is the registry's own statement, not an empty
+  // work area.
+  await page.getByRole('button', { name: 'Отменить', exact: true }).click()
   await expect(
-    page.getByRole('button', { name: 'Отменить', exact: true }),
+    page.getByRole('heading', { name: 'Подключений пока нет' }),
+  ).toBeFocused()
+  await expect(
+    page.getByRole('region', { name: 'Добавить подключение', exact: true }),
   ).toHaveCount(0)
 })
 

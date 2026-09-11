@@ -25,7 +25,8 @@ This file starts at the first published version, 0.1.0.
   left, each stating what Routevane does with it, and the selected connection
   or the creation form on the right. Adding a connection belongs to the list's
   own header, and forgetting one moved into the connection's action menu and is
-  confirmed before it runs.
+  confirmed before it runs. With nothing registered the section states that and
+  offers to add the first connection instead of opening a form unasked.
 - Keenetic DNS builds use output-scoped, collision-checked group names and an
   optional per-output prefix. Delivery changes only groups with persisted exact
   ownership. Existing files remain immutable; unowned name conflicts require

@@ -180,22 +180,35 @@ describe('DevicesView prerequisite audit', () => {
     })
     const screen = await render(DevicesView)
 
+    // An empty registry states that it holds nothing and offers the one act
+    // that changes it, instead of opening a form nobody asked for.
+    const add = screen.getByRole('button', {
+      name: 'Add a connection',
+      exact: true,
+    })
+    await expect
+      .element(screen.getByRole('heading', { name: 'No connections yet' }))
+      .toBeVisible()
+    await expect
+      .element(
+        screen.getByRole('region', { name: 'Add a connection', exact: true }),
+      )
+      .not.toBeInTheDocument()
+
+    await add.click()
     await expect
       .element(
         screen.getByRole('region', { name: 'Add a connection', exact: true }),
       )
       .toBeVisible()
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
-    // With nothing saved the form is the whole work area: no header action
-    // opens it, and there is nothing a cancel could return to.
+    // The form leaves through its own cancel, and what it replaced is back.
+    await screen.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect
-      .element(
-        screen.getByRole('button', { name: 'Add a connection', exact: true }),
-      )
-      .not.toBeInTheDocument()
-    await expect
-      .element(screen.getByRole('button', { name: 'Cancel', exact: true }))
-      .not.toBeInTheDocument()
+      .element(screen.getByRole('heading', { name: 'No connections yet' }))
+      .toHaveFocus()
+
+    await add.click()
     await screen.getByLabelText('Device or application').click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
     await screen.getByLabelText('Connection name').fill('Manual router')
@@ -358,6 +371,14 @@ it('marks a saved device change stale and retries only the read while preserving
   await expect
     .element(screen.getByText('Connections could not be refreshed'))
     .not.toBeInTheDocument()
+  // Forgetting the last connection leaves the registry stating that it holds
+  // nothing, and the draft is still there for the next visit to the form.
+  await expect
+    .element(screen.getByRole('heading', { name: 'No connections yet' }))
+    .toBeVisible()
+  await screen
+    .getByRole('button', { name: 'Add a connection', exact: true })
+    .click()
   await expect
     .element(screen.getByLabelText('Connection name'))
     .toHaveValue('Unsaved connection')
@@ -658,9 +679,7 @@ it('confirms forgetting a connection and writes nothing when that confirmation i
     .getByRole('button', { name: 'Forget this connection', exact: true })
     .click()
   await expect
-    .element(
-      screen.getByRole('region', { name: 'Add a connection', exact: true }),
-    )
+    .element(screen.getByRole('heading', { name: 'No connections yet' }))
     .toBeVisible()
   expect(callsTo(fetchMock, FORGET)).toHaveLength(1)
   vi.unstubAllGlobals()

@@ -159,6 +159,17 @@ test('the device form asks only for fields the selected target needs', async ({
   await expect(
     page.getByRole('heading', { level: 1, name: 'Connections' }),
   ).toBeVisible()
+  // An empty registry states that it holds nothing and offers the one act that
+  // changes it; the form is what that act opens.
+  await expect(
+    page.getByRole('heading', { name: 'No connections yet' }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('region', { name: 'Add a connection', exact: true }),
+  ).toHaveCount(0)
+  await page
+    .getByRole('button', { name: 'Add a connection', exact: true })
+    .click()
   // Every field is addressed by the caption the chosen target's own
   // requirements give it, which is the same fact the label assertions used to
   // state separately.
@@ -166,14 +177,6 @@ test('the device form asks only for fields the selected target needs', async ({
     page.getByRole('region', { name: 'Add a connection', exact: true }),
   ).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  // With nothing saved the form is the whole work area: no header action
-  // opens it and there is nothing a cancel could return to.
-  await expect(
-    page.getByRole('button', { name: 'Add a connection', exact: true }),
-  ).toHaveCount(0)
-  await expect(
-    page.getByRole('button', { name: 'Cancel', exact: true }),
-  ).toHaveCount(0)
   const target = deviceField(page, 'devices.field.target')
   await expect(target).toBeEnabled()
   for (const absent of [
@@ -325,9 +328,14 @@ test('the device form asks only for fields the selected target needs', async ({
     .getByRole('button', { name: 'Forget this connection', exact: true })
     .click()
   await expect(renamed).toHaveCount(0)
+  // Forgetting the last connection returns the registry to stating that it
+  // holds nothing, with the act that changes that beside it.
   await expect(
-    page.getByRole('region', { name: 'Add a connection', exact: true }),
+    page.getByRole('heading', { name: 'No connections yet' }),
   ).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'Add a connection', exact: true }),
+  ).toBeEnabled()
   await expect(
     page.getByRole('button', { name: /^Configure connection / }),
   ).toHaveCount(0)
