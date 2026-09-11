@@ -166,10 +166,14 @@ func TestSchemaWorkIsBoundedOneStepAtATime(t *testing.T) {
 			}
 			return seen
 		}
-		started := time.Now()
+		before := time.Now()
 		first := deadline()
-		if budget := first.Sub(started); budget <= 0 || budget > operationTimeout {
-			t.Fatalf("first step budget = %s, want a positive budget of at most %s", budget, operationTimeout)
+		after := time.Now()
+		// The step is bounded from the moment it starts, which is somewhere
+		// between these two readings, so its budget is one operation's worth
+		// measured from inside that interval and never more.
+		if !first.After(before) || first.After(after.Add(operationTimeout)) {
+			t.Fatalf("first step deadline = %s, want within (%s, %s]", first, before, after.Add(operationTimeout))
 		}
 		time.Sleep(10 * time.Millisecond)
 		if second := deadline(); !second.After(first) {
