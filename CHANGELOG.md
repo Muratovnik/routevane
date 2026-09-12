@@ -11,11 +11,11 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
-## [0.2.2](https://github.com/Muratovnik/routevane/compare/v0.2.0...v0.2.2) (2026-09-11)
+## [0.2.3](https://github.com/Muratovnik/routevane/compare/v0.2.0...v0.2.3) (2026-09-12)
 
 ### Bug Fixes
 
-- **storage:** ([273923f](https://github.com/Muratovnik/routevane/commit/273923fc377ab0f0aa208d5909e4ccb016e2fb17), [e26bdde](https://github.com/Muratovnik/routevane/commit/e26bdde598afc6487e59317e8c64ab6d794d8d74)) Finish a first run on a slow or busy machine instead of reporting an unavailable database. Bringing a database to the current schema is startup work that grows with the schema, and each step of it is now measured on its own and against what schema work costs rather than against the budget a query gets.
+- **storage:** ([273923f](https://github.com/Muratovnik/routevane/commit/273923fc377ab0f0aa208d5909e4ccb016e2fb17), [e26bdde](https://github.com/Muratovnik/routevane/commit/e26bdde598afc6487e59317e8c64ab6d794d8d74), [d8d0b33](https://github.com/Muratovnik/routevane/commit/d8d0b330a09e94a6c7859498961f00c0eb8694bf)) Open a database on a slow or busy machine instead of reporting it unavailable or incompatible. Building the current schema, and importing a pre-release database into it, are startup work whose size follows the data; both are now measured by what that work costs rather than by the budget a single query gets, and a check that cannot read the database says so instead of declaring the schema wrong.
 
 ## [0.2.0](https://github.com/Muratovnik/routevane/compare/v0.1.7...v0.2.0) (2026-09-11)
 
