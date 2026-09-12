@@ -281,5 +281,15 @@ jobs:
           if ($Published.isDraft -or -not $Published.isImmutable) {
             throw 'published release is not immutable; enable release immutability before releasing'
           }
-          gh release verify $env:VERSION
-          if ($LASTEXITCODE -ne 0) { throw 'immutable release attestation verification failed' }
+          # GitHub signs an immutable release after the draft is lifted, not
+          # with it. Asking for the signature in the same second reported a
+          # release that had in fact published as a failed one, so the check
+          # waits for the attestation it verifies. A release that never
+          # produces one still fails, and nothing here republishes.
+          $Deadline = (Get-Date).AddMinutes(5)
+          while ($true) {
+            gh release verify $env:VERSION
+            if ($LASTEXITCODE -eq 0) { break }
+            if ((Get-Date) -ge $Deadline) { throw 'immutable release attestation verification failed' }
+            Start-Sleep -Seconds 10
+          }
