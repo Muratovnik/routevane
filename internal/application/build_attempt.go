@@ -7,6 +7,8 @@ const (
 	BuildFailurePartialCoverage     = "partial_coverage"
 	BuildFailureTargetChanged       = "target_changed"
 	BuildFailureProfileArchived     = "list_archived"
+	BuildFailureProfileChanged      = "profile_changed"
+	BuildFailureSuperseded          = "build_superseded"
 	BuildFailureSourceUnavailable   = "source_unavailable"
 	BuildFailureFormatMismatch      = "profile_mismatch"
 	BuildFailurePreflight           = "preflight_failed"
@@ -36,6 +38,10 @@ func ClassifyBuildFailure(err error) BuildFailureDetails {
 		return BuildFailureDetails{Code: BuildFailureTargetChanged}
 	case errors.Is(err, ErrProfileArchived):
 		return BuildFailureDetails{Code: BuildFailureProfileArchived}
+	case errors.Is(err, ErrProfileChanged):
+		return BuildFailureDetails{Code: BuildFailureProfileChanged}
+	case errors.Is(err, ErrBuildSuperseded):
+		return BuildFailureDetails{Code: BuildFailureSuperseded}
 	case errors.Is(err, ErrSourceFailed), errors.Is(err, ErrSourceDegraded):
 		return BuildFailureDetails{Code: BuildFailureSourceUnavailable}
 	case errors.Is(err, ErrFormatMismatch):

@@ -118,6 +118,8 @@ func (s *PublicationService) RemoveCategory(ctx context.Context, id string, prof
 		return fmt.Errorf("clock returned zero time")
 	}
 	removal := LibraryRemoval{Kind: RemovalCategory, ID: id, Lists: held, RemovedAt: now}
+	s.publicationMu.Lock()
+	defer s.publicationMu.Unlock()
 	if err := s.config.Store.RemoveFromLibrary(ctx, removal); err != nil {
 		return err
 	}
@@ -125,6 +127,7 @@ func (s *PublicationService) RemoveCategory(ctx context.Context, id string, prof
 	for _, listID := range held {
 		s.forgetList(listID)
 	}
+	s.publicationGeneration++
 	return nil
 }
 
@@ -153,10 +156,13 @@ func (s *PublicationService) RemoveList(ctx context.Context, id string) error {
 	if now.IsZero() {
 		return fmt.Errorf("clock returned zero time")
 	}
+	s.publicationMu.Lock()
+	defer s.publicationMu.Unlock()
 	if err := s.config.Store.RemoveFromLibrary(ctx, LibraryRemoval{Kind: RemovalList, ID: id, RemovedAt: now}); err != nil {
 		return err
 	}
 	s.forgetList(id)
+	s.publicationGeneration++
 	return nil
 }
 

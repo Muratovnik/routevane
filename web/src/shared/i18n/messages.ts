@@ -184,6 +184,8 @@ const ru: Dictionary = {
   'shell.skip': 'Перейти к содержимому',
 
   'profiles.title': 'Профили',
+  'profiles.loadMore': 'Загрузить ещё',
+  'profiles.loadMore.failed': 'Не удалось загрузить ещё профили.',
   'profiles.new': 'Собрать профиль',
   'profiles.loading': 'Загружаем профили…',
   'profiles.failed': 'Профили недоступны',
@@ -764,6 +766,12 @@ const ru: Dictionary = {
   'send.status.applying': 'Применяем',
   'send.status.applied': 'Применено',
   'send.status.failed': 'Не применено',
+  'send.status.outcome_unknown': 'Результат неизвестен',
+  'send.outcomeUnknown.title': 'Результат отправки пока неизвестен',
+  'send.outcomeUnknown.body':
+    'Ответ не получен. Правила могли примениться. Проверьте результат этой отправки, прежде чем отправлять файл снова.',
+  'send.outcomeUnknown.check': 'Проверить результат',
+  'send.outcomeUnknown.checking': 'Проверяем результат…',
   'send.loading': 'Проверяем способы отправки…',
   'send.targets.failed': 'Способы отправки недоступны',
   'send.targets.failed.body': 'Локальный сервис не ответил.',
@@ -1140,6 +1148,8 @@ const en: Dictionary = {
   'shell.skip': 'Skip to content',
 
   'profiles.title': 'Profiles',
+  'profiles.loadMore': 'Load more',
+  'profiles.loadMore.failed': 'Could not load more profiles.',
   'profiles.new': 'Build a profile',
   'profiles.loading': 'Loading profiles…',
   'profiles.failed': 'Profiles are unavailable',
@@ -1694,6 +1704,12 @@ const en: Dictionary = {
   'send.status.applying': 'Applying',
   'send.status.applied': 'Applied',
   'send.status.failed': 'Not applied',
+  'send.status.outcome_unknown': 'Outcome unknown',
+  'send.outcomeUnknown.title': 'The delivery outcome is not yet known',
+  'send.outcomeUnknown.body':
+    'No response was received. The rules may have been applied. Check this delivery’s result before sending the file again.',
+  'send.outcomeUnknown.check': 'Check result',
+  'send.outcomeUnknown.checking': 'Checking result…',
   'send.loading': 'Checking delivery options…',
   'send.targets.failed': 'Delivery options unavailable',
   'send.targets.failed.body': 'The local service did not answer.',

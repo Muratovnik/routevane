@@ -319,7 +319,9 @@ func (s *PublicationService) CreateCategory(ctx context.Context, title string, l
 			continue
 		}
 		memberships := membershipRows(category.ID, members, nil, now)
+		s.publicationMu.Lock()
 		if err := s.config.Store.CreateCustomCategory(ctx, category, memberships); err != nil {
+			s.publicationMu.Unlock()
 			if errors.Is(err, ErrIdentityCollision) {
 				continue
 			}
@@ -329,6 +331,8 @@ func (s *PublicationService) CreateCategory(ctx context.Context, title string, l
 		s.overlay.custom[category.ID] = category
 		s.overlay.membership[category.ID] = membershipIndex(memberships)
 		s.overlay.mu.Unlock()
+		s.publicationGeneration++
+		s.publicationMu.Unlock()
 		detail, _ := s.mergedCategory(category.ID)
 		return detail, nil
 	}
@@ -371,6 +375,8 @@ func (s *PublicationService) UpdateCategory(ctx context.Context, id string, upda
 		write.Memberships = membershipRows(id, desired, s.config.Categories[id].Lists, now)
 		write.ReplaceMemberships = true
 	}
+	s.publicationMu.Lock()
+	defer s.publicationMu.Unlock()
 	if err := s.config.Store.UpdateCategory(ctx, write); err != nil {
 		return CategoryDetail{}, err
 	}
@@ -383,6 +389,7 @@ func (s *PublicationService) UpdateCategory(ctx context.Context, id string, upda
 		s.overlay.membership[id] = membershipIndex(write.Memberships)
 	}
 	s.overlay.mu.Unlock()
+	s.publicationGeneration++
 	detail, _ := s.mergedCategory(id)
 	return detail, nil
 }

@@ -48,12 +48,19 @@ func (h *handler) previewComposition(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) listProfiles(w http.ResponseWriter, r *http.Request) {
-	cards, err := h.backend.ProfileCards(r.Context())
+	h.listProfilePage(w, r, "")
+}
+
+// listProfilePage keeps every list read bounded. The cursor is returned by the
+// preceding page in the path rather than a query string, because API requests
+// with query parameters are rejected before routing.
+func (h *handler) listProfilePage(w http.ResponseWriter, r *http.Request, afterID string) {
+	page, err := h.backend.ProfileCardsPage(r.Context(), afterID)
 	if err != nil {
 		h.backendError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"profiles": cards})
+	writeJSON(w, http.StatusOK, page)
 }
 
 func (h *handler) getProfile(w http.ResponseWriter, r *http.Request, id string) {

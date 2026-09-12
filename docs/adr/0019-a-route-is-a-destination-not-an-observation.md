@@ -69,6 +69,12 @@ published as reason-coded, provenance-carrying, perfectly auditable rules.
   of the internet a service may legitimately own. It is the line past which a
   single rule stops being a route and becomes a default gateway.
 
+- **A prefix is checked over its entire range.** Its first address being allowed
+  is insufficient: `172.0.0.0/10`, for example, also covers the private
+  `172.16.0.0/12`. Any overlap with a forbidden destination range rejects the
+  whole candidate. Address and prefix checks use the same range classification;
+  documentation and benchmarking destinations retain their existing allowances.
+
 - **A name covers the addresses reported with it.** The exclusion that drops
   addresses a name already covers now consults coverage accepted during the same
   pass, not a snapshot taken before the observations were read. Names are read

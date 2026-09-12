@@ -54,6 +54,37 @@ beforeEach(() => {
 })
 
 describe('useDevices degraded dependencies', () => {
+  it('keeps an explicitly cleared account from a confirmed write when rereading fails', async () => {
+    let written = false
+    fetchMock.mockImplementation((input: FetchInput) => {
+      const url = String(input)
+      if (url === '/v1/devices/device-1/update') {
+        written = true
+        return Promise.resolve(
+          json({ device: { ...devicePayload.devices[0], account: '' } }),
+        )
+      }
+      if (url === '/v1/devices')
+        return written
+          ? Promise.reject(new TypeError('unavailable'))
+          : Promise.resolve(json(devicePayload))
+      if (url === '/v1/lists') return Promise.resolve(json(listsPayload))
+      if (url === '/v1/targets') return Promise.resolve(json(targetsPayload))
+      if (url === '/v1/deployments/targets')
+        return Promise.resolve(json({ targets: [] }))
+      return Promise.reject(new Error(`unexpected request ${url}`))
+    })
+    const devices = useDevices()
+    await devices.initialize()
+
+    await expect(
+      devices.update('device-1', 'Home router', 'http://192.168.1.1', '', ''),
+    ).resolves.toBe(true)
+
+    expect(devices.state.value).toBe('stale')
+    expect(devices.devices.value[0]?.account).toBe('')
+  })
+
   it('keeps registered devices and the catalog when deployer requirements fail', async () => {
     fetchMock.mockImplementation((input: FetchInput) => {
       const url = String(input)

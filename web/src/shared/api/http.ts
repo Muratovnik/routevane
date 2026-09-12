@@ -30,9 +30,8 @@ export const mutationHeaders = {
 /**
  * The one place this surface reaches the network, so one place can tell whether
  * the service is answering at all. Any reply is proof that it is — a refusal
- * included, because a refusal is an answer. A transport failure is the browser
- * saying the request never got there, which no single screen can distinguish
- * from its own endpoint being unhappy.
+ * included, because a refusal is an answer. A transport failure means no reply
+ * was received; a write may already have reached the service and taken effect.
  *
  * The failure travels on exactly as it arrived. Each endpoint below turns what
  * it catches into the message it owns, and this is a report to the surface, not

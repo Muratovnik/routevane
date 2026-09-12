@@ -339,6 +339,16 @@ func (s *publicationFakeStore) CreateProfile(_ context.Context, profile Profile)
 func (s *publicationFakeStore) Profile(context.Context, string) (Profile, error) {
 	return s.profile, nil
 }
+func (s *publicationFakeStore) ProfilePage(ctx context.Context, afterID string) (ProfilePage, error) {
+	profiles, err := s.Profiles(ctx)
+	if err != nil {
+		return ProfilePage{}, err
+	}
+	if afterID != "" {
+		return ProfilePage{Profiles: []Profile{}}, nil
+	}
+	return ProfilePage{Profiles: profiles}, nil
+}
 func (s *publicationFakeStore) Profiles(context.Context) ([]Profile, error) {
 	if len(s.profiles) > 0 {
 		return append([]Profile(nil), s.profiles...), nil

@@ -22,11 +22,12 @@
     "lint:styles": "stylelint \"**/*.{css,vue}\"",
     "postinstall": "nuxt prepare",
     "preview": "nuxt preview",
+    "security": "npm audit --package-lock-only --include=dev --include=optional --include=peer --audit-level=high",
     "test:browser": "playwright test",
     "test:dev": "playwright test --config playwright.dev.config.ts",
     "test:unit": "vitest run",
     "typecheck": "nuxt typecheck",
-    "check": "npm run typecheck && npm run lint && npm run lint:styles && npm run lint:format && npm run test:unit && npm run build"
+    "check": "npm run security && npm run typecheck && npm run lint && npm run lint:styles && npm run lint:format && npm run test:unit && npm run build"
   },
   "dependencies": {
     "@nuxt/ui": "4.11.1",

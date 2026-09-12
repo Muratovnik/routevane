@@ -94,7 +94,9 @@ func (s *PublicationService) CreateCustomList(ctx context.Context, title string,
 		if _, taken := s.config.Definitions[list.ID]; taken {
 			continue
 		}
+		s.publicationMu.Lock()
 		if err := s.config.Store.CreateCustomList(ctx, list); err != nil {
+			s.publicationMu.Unlock()
 			if errors.Is(err, ErrIdentityCollision) {
 				continue
 			}
@@ -103,6 +105,8 @@ func (s *PublicationService) CreateCustomList(ctx context.Context, title string,
 		s.custom.mu.Lock()
 		s.custom.lists[list.ID] = list
 		s.custom.mu.Unlock()
+		s.publicationGeneration++
+		s.publicationMu.Unlock()
 		return list, nil
 	}
 	return CustomList{}, ErrIdentityCollision
@@ -128,12 +132,15 @@ func (s *PublicationService) UpdateCustomList(ctx context.Context, id, title str
 		return CustomList{}, fmt.Errorf("clock returned zero time")
 	}
 	updated := CustomList{ID: current.ID, Title: cleanTitle, Domains: cleanDomains, CreatedAt: current.CreatedAt, UpdatedAt: now}
+	s.publicationMu.Lock()
+	defer s.publicationMu.Unlock()
 	if err := s.config.Store.UpdateCustomList(ctx, updated); err != nil {
 		return CustomList{}, err
 	}
 	s.custom.mu.Lock()
 	s.custom.lists[updated.ID] = updated
 	s.custom.mu.Unlock()
+	s.publicationGeneration++
 	return updated, nil
 }
 

@@ -151,6 +151,9 @@ var routes = map[string]routeSpec{
 	"artifacts.deploy": {path: "/v1/artifacts/{id}/deploy", methods: writeMethods, timeout: deployRequestTimeout, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.deploy(w, r, r.PathValue("id"))
 	}},
+	"deployments.attempt": {path: "/v1/deployment-attempts/{id}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.deploymentAttempt(w, r, r.PathValue("id"))
+	}},
 	"artifacts.get": {path: "/v1/artifacts/{id}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.artifact(w, r, r.PathValue("id"))
 	}},
@@ -182,6 +185,9 @@ var routes = map[string]routeSpec{
 			return
 		}
 		h.listProfiles(w, r)
+	}},
+	"profiles.page": {path: "/v1/profile-pages/{cursor}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.listProfilePage(w, r, r.PathValue("cursor"))
 	}},
 	// The forecast is a POST because it carries a composition in its body, not
 	// because it changes anything: it creates no profile, output, attempt, or

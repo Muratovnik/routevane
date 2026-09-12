@@ -11,6 +11,12 @@ commands. Do not add a second runner whose result can drift.
   `nilness` checks nil paths and `govulncheck` scans known Go vulnerabilities.
 - Tool modules are pinned in `go.mod` with Go's `tool` directive. Do not replace
   them with unversioned global installs.
+- Web and desktop checks run `npm audit` against their lockfiles, including
+  development, optional and peer dependencies: Electron ships with the product
+  even though npm classifies it as a development dependency. High and critical
+  findings block the gate; lower severities remain visible for triage. Registry
+  errors fail the check. Review dependency paths and compatible fixes; never use
+  an automatic forced major upgrade to make the gate green.
 - Frontend checks are typecheck, ESLint, Stylelint, Prettier, unit tests, and a
   production build. Unit component specs render in the pinned Chromium through
   Vitest Browser Mode, so `check` requires the browser `tools/dev.ps1

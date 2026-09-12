@@ -560,6 +560,8 @@ func (s *PublicationService) ApplyConfigTransfer(ctx context.Context, previewDig
 	if err != nil {
 		return ConfigTransferCounts{}, err
 	}
+	s.publicationMu.Lock()
+	defer s.publicationMu.Unlock()
 	if err := repo.ApplyConfigTransfer(ctx, apply); err != nil {
 		var te TransferError
 		if errors.As(err, &te) {
@@ -571,6 +573,7 @@ func (s *PublicationService) ApplyConfigTransfer(ctx context.Context, previewDig
 	// the SQLite transaction. This swap cannot fail after commit, so a caller
 	// never receives a failure for a configuration that became durable.
 	s.installTransferRegistries(registries)
+	s.publicationGeneration++
 	return transferCounts(doc), nil
 }
 

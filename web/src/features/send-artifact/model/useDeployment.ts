@@ -2,6 +2,8 @@ import { computed, ref, watch } from 'vue'
 
 import {
   applyDeployment,
+  createDeploymentAttemptID,
+  loadDeploymentAttempt,
   loadDeployableTargets,
   planDeployment,
   type ConnectionRequirements,
@@ -13,7 +15,13 @@ import { RoutevaneAPIError } from '@/shared/api/http'
 import { validAddress } from '@/shared/lib/deviceAddress'
 
 export type DeploymentState =
-  'idle' | 'planning' | 'planned' | 'applying' | 'applied' | 'failed'
+  | 'idle'
+  | 'planning'
+  | 'planned'
+  | 'applying'
+  | 'applied'
+  | 'failed'
+  | 'outcome_unknown'
 
 export type TargetsState = 'loading' | 'ready' | 'unsupported' | 'failed'
 
@@ -40,6 +48,8 @@ export const useDeployment = (
   const plan = ref<DeployPlan | null>(null)
   const outcome = ref<DeployOutcome | null>(null)
   const errorKey = ref<string | null>(null)
+  const checkingOutcome = ref(false)
+  const currentAttemptID = ref(readRememberedAttempt(artifactID()))
   const addressTouched = ref(false)
 
   const device = ref(readRemembered('device'))
@@ -77,7 +87,13 @@ export const useDeployment = (
   )
   const canSubmit = computed(() => {
     const needed = requirements.value
-    if (needed === null || busy.value || !addressValid.value) return false
+    if (
+      needed === null ||
+      busy.value ||
+      state.value === 'outcome_unknown' ||
+      !addressValid.value
+    )
+      return false
     if (needed.needsCredential) {
       if (username.value.trim() === '' || password.value === '') return false
     }
@@ -90,6 +106,7 @@ export const useDeployment = (
     try {
       targets.value = await loadDeployableTargets()
       targetsState.value = target.value === null ? 'unsupported' : 'ready'
+      if (targetsState.value === 'ready') await recoverOutcome()
     } catch {
       targetsState.value = 'failed'
     }
@@ -127,18 +144,94 @@ export const useDeployment = (
     if (state.value !== 'planned' || !canSubmit.value) return
     state.value = 'applying'
     errorKey.value = null
+    const submittedArtifactID = artifactID()
+    const attemptID = createDeploymentAttemptID()
+    currentAttemptID.value = attemptID
+    rememberAttempt(submittedArtifactID, attemptID)
     try {
-      const result = await applyDeployment(artifactID(), connection())
-      outcome.value = result
-      state.value = result.applied ? 'applied' : 'failed'
-      errorKey.value = result.applied ? null : outcomeKey(result)
+      consumeOutcome(
+        await applyDeployment(submittedArtifactID, connection(), attemptID),
+        attemptID,
+      )
     } catch (error) {
-      state.value = 'failed'
-      errorKey.value = messageKey(error)
+      if (
+        artifactID() !== submittedArtifactID ||
+        currentAttemptID.value !== attemptID
+      )
+        return
+      if (
+        error instanceof RoutevaneAPIError &&
+        ['attempt_id_invalid', 'attempt_mismatch'].includes(error.message)
+      ) {
+        state.value = 'failed'
+        errorKey.value = messageKey(error)
+      } else {
+        state.value = 'outcome_unknown'
+        await checkOutcome()
+      }
     } finally {
       // The attempt is over, so the password has no reason to still exist.
-      password.value = ''
+      if (
+        artifactID() === submittedArtifactID &&
+        currentAttemptID.value === attemptID
+      )
+        password.value = ''
     }
+  }
+
+  const consumeOutcome = (
+    result: DeployOutcome,
+    expectedAttemptID: string,
+  ): void => {
+    if (currentAttemptID.value !== expectedAttemptID) return
+    if (
+      result.attemptID !== expectedAttemptID ||
+      result.artifactID !== artifactID() ||
+      result.status === 'outcome_unknown'
+    ) {
+      state.value = 'outcome_unknown'
+      outcome.value = null
+      errorKey.value = null
+      return
+    }
+    outcome.value = result
+    state.value = result.status === 'succeeded' ? 'applied' : 'failed'
+    errorKey.value = result.status === 'succeeded' ? null : outcomeKey(result)
+  }
+
+  const checkOutcome = async (): Promise<void> => {
+    const attemptID =
+      currentAttemptID.value || readRememberedAttempt(artifactID())
+    if (attemptID === '') return
+    const expectedArtifactID = artifactID()
+    currentAttemptID.value = attemptID
+    checkingOutcome.value = true
+    try {
+      const result = await loadDeploymentAttempt(attemptID)
+      if (artifactID() !== expectedArtifactID) return
+      consumeOutcome(result, attemptID)
+    } catch {
+      if (
+        artifactID() !== expectedArtifactID ||
+        currentAttemptID.value !== attemptID
+      )
+        return
+      state.value = 'outcome_unknown'
+      errorKey.value = null
+    } finally {
+      if (
+        artifactID() === expectedArtifactID &&
+        currentAttemptID.value === attemptID
+      )
+        checkingOutcome.value = false
+    }
+  }
+
+  const recoverOutcome = async (): Promise<void> => {
+    currentAttemptID.value = readRememberedAttempt(artifactID())
+    if (currentAttemptID.value === '') return
+    state.value = 'outcome_unknown'
+    await checkOutcome()
   }
 
   const reset = (): void => {
@@ -146,6 +239,8 @@ export const useDeployment = (
     plan.value = null
     outcome.value = null
     errorKey.value = null
+    checkingOutcome.value = false
+    currentAttemptID.value = readRememberedAttempt(artifactID())
     password.value = ''
   }
 
@@ -155,6 +250,8 @@ export const useDeployment = (
     apply,
     busy,
     canSubmit,
+    checkOutcome,
+    checkingOutcome,
     device,
     errorKey,
     initialize,
@@ -163,6 +260,7 @@ export const useDeployment = (
     password,
     plan,
     requirements,
+    recoverOutcome,
     reset,
     review,
     state,
@@ -202,6 +300,7 @@ const outcomeKey = (result: DeployOutcome): string =>
     : 'error.deploy_failed'
 
 const STORAGE_PREFIX = 'rv.deploy.'
+const ATTEMPT_STORAGE_PREFIX = `${STORAGE_PREFIX}attempt.`
 
 const readRemembered = (field: string): string => {
   try {
@@ -216,5 +315,27 @@ const remember = (field: string, value: string): void => {
     window.sessionStorage.setItem(`${STORAGE_PREFIX}${field}`, value)
   } catch {
     // Convenience only: the operator can always type it again.
+  }
+}
+
+const readRememberedAttempt = (artifactID: string): string => {
+  try {
+    return (
+      window.sessionStorage.getItem(`${ATTEMPT_STORAGE_PREFIX}${artifactID}`) ??
+      ''
+    )
+  } catch {
+    return ''
+  }
+}
+
+const rememberAttempt = (artifactID: string, attemptID: string): void => {
+  try {
+    window.sessionStorage.setItem(
+      `${ATTEMPT_STORAGE_PREFIX}${artifactID}`,
+      attemptID,
+    )
+  } catch {
+    // Recovery survives a response loss when session storage is available.
   }
 }

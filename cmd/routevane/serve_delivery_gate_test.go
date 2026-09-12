@@ -10,6 +10,7 @@ import (
 
 	"github.com/Muratovnik/routevane/internal/application"
 	"github.com/Muratovnik/routevane/internal/domain"
+	"github.com/Muratovnik/routevane/internal/infrastructure/sqlite"
 )
 
 const (
@@ -193,7 +194,7 @@ func TestServeBackendSerializesEveryDeliveryThroughOneGate(t *testing.T) {
 			startOwner: func(_ *testing.T, backend serveBackend, _ *application.DeliveryGate, ownerURL string) <-chan error {
 				done := make(chan error, 1)
 				go func() {
-					_, err := backend.Deploy(context.Background(), deliveryGateCommand(ownerURL))
+					_, err := backend.DeployAttempt(context.Background(), strings.Repeat("d", 32), deliveryGateCommand(ownerURL))
 					done <- err
 				}()
 				return done
@@ -254,7 +255,19 @@ func TestServeBackendSerializesEveryDeliveryThroughOneGate(t *testing.T) {
 				t.Fatal(err)
 			}
 			gate := application.NewDeliveryGate()
-			backend := serveBackend{deployments: deploymentService, deliveryGate: gate}
+			journal, err := sqlite.Open(context.Background(), t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = journal.Close() })
+			attempts, err := application.NewDeploymentAttemptService(application.DeploymentAttemptConfig{
+				Deployments: deploymentService, Journal: journal,
+				Clock: application.ClockFunc(func() time.Time { return time.Date(2026, 9, 4, 9, 0, 0, 0, time.UTC) }),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			backend := serveBackend{deployments: deploymentService, deploymentAttempts: attempts, deliveryGate: gate}
 			ownerDone := test.startOwner(t, backend, gate, test.ownerURL)
 
 			select {
@@ -270,7 +283,7 @@ func TestServeBackendSerializesEveryDeliveryThroughOneGate(t *testing.T) {
 			waiterCtx := &observedDoneContext{Context: waiterBase, observed: make(chan struct{})}
 			waiterDone := make(chan error, 1)
 			go func() {
-				_, err := backend.Deploy(waiterCtx, deliveryGateCommand("http://manual-waiter"))
+				_, err := backend.DeployAttempt(waiterCtx, strings.Repeat("e", 32), deliveryGateCommand("http://manual-waiter"))
 				waiterDone <- err
 			}()
 

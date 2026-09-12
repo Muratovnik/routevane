@@ -55,6 +55,9 @@ export type DeployEvent = {
 }
 
 export type DeployOutcome = {
+  status: DeploymentAttemptStatus
+  attemptID: string
+  artifactID: string
   applied: boolean
   rolledBack: boolean
   deployerID: string
@@ -65,6 +68,8 @@ export type DeployOutcome = {
   events: DeployEvent[]
   error: string
 }
+
+export type DeploymentAttemptStatus = 'succeeded' | 'failed' | 'outcome_unknown'
 
 export const loadDeployableTargets = (): Promise<DeployableTarget[]> =>
   getJSON('/v1/deployments/targets', parseDeployableTargets)
@@ -89,17 +94,29 @@ export const planDeployment = (
 export const applyDeployment = async (
   artifactID: string,
   connection: DeployConnection,
+  attemptID: string,
 ): Promise<DeployOutcome> =>
   requestDescribed(
     `/v1/artifacts/${artifactID}/deploy`,
     {
       method: 'POST',
       headers: mutationHeaders,
-      body: JSON.stringify(deployBody(connection, true)),
+      body: JSON.stringify({
+        ...deployBody(connection, true),
+        attempt_id: attemptID,
+      }),
     },
     parseDeployOutcome,
     'Применение не выполнено.',
   )
+
+export const loadDeploymentAttempt = (
+  attemptID: string,
+): Promise<DeployOutcome> =>
+  getJSON(`/v1/deployment-attempts/${attemptID}`, parseDeployOutcome)
+
+export const createDeploymentAttemptID = (): string =>
+  globalThis.crypto.randomUUID().replaceAll('-', '')
 
 const deployBody = (
   connection: DeployConnection,
@@ -202,6 +219,9 @@ const deployEventsSchema = v.optional(
 
 const deployOutcomeSchema = v.pipe(
   fields({
+    attempt_id: text,
+    artifact_id: text,
+    status: v.picklist(['succeeded', 'failed', 'outcome_unknown']),
     result: fields({
       applied: v.boolean(),
       rolled_back: v.boolean(),
@@ -226,6 +246,9 @@ const deployOutcomeSchema = v.pipe(
     error: optionalText,
   }),
   v.transform((payload): DeployOutcome => ({
+    status: payload.status,
+    attemptID: payload.attempt_id,
+    artifactID: payload.artifact_id,
     applied: payload.result.applied,
     rolledBack: payload.result.rolled_back,
     deployerID: payload.result.device.deployer_id,

@@ -105,7 +105,8 @@ results. Device doubles and parser tests do not prove physical-device acceptance
   interface dictionary, the catalog keys and the stored schema now say `list`
   for a set of rules and `profile` for the composition that publishes it; the
   configuration transfer format states it at `config-transfer-v1.4` and the
-  schema at version 14 (including exact FQDN ownership and output prefixes).
+  schema at version 15 (including exact FQDN ownership, output prefixes, and
+  durable manual-deployment outcome recovery).
   The CLI names a list `--list` and `--list-id` and logs
   it under a `list` field. The target's rendering profile is a format
   everywhere it is named, including the API field `format_key`. The retired

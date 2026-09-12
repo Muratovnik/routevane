@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -130,6 +131,7 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 	if err := profile.writable(); err != nil {
 		return PublishedBuild{}, err
 	}
+	publicationGeneration := s.publicationInputGeneration()
 	target, renderer, err := s.verifyTarget(output)
 	if err != nil {
 		return PublishedBuild{}, err
@@ -171,12 +173,16 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 		return PublishedBuild{}, fmt.Errorf("project published rule count: %w", err)
 	}
 	candidate := PublicationCandidate{
-		Snapshot: PlanSnapshotRecord{ID: snapshotID, OutputID: id, RoutingPlanHash: prepared.Plan.SemanticHash, RoutingPlanJSON: snapshotJSON, PolicyVersion: prepared.Plan.PolicyVersion, CatalogRevision: prepared.Plan.CatalogRevision, ObservationCutoff: cutoff, CreatedAt: now, Status: "valid"},
-		Artifact: ArtifactBuildRecord{ID: artifactID, OutputID: id, PlanSnapshotID: snapshotID, RendererID: renderer.ID(), RendererVersion: renderer.Version(), ArtifactHash: file.Hash, ArtifactPath: file.RelativePath, SizeBytes: file.Size, ContentType: renderer.Descriptor().ContentType, ContentCreatedAt: now, ValidationStatus: "valid", Status: "published"},
-		Attempt:  OutputAttempt{OutputID: id, Status: "success", ProjectedRules: projectedRules, MaximumRules: target.Constraints.MaxRules, ArtifactID: artifactID, CompletedAt: now},
+		Snapshot:        PlanSnapshotRecord{ID: snapshotID, OutputID: id, RoutingPlanHash: prepared.Plan.SemanticHash, RoutingPlanJSON: snapshotJSON, PolicyVersion: prepared.Plan.PolicyVersion, CatalogRevision: prepared.Plan.CatalogRevision, ObservationCutoff: cutoff, CreatedAt: now, Status: "valid"},
+		Artifact:        ArtifactBuildRecord{ID: artifactID, OutputID: id, PlanSnapshotID: snapshotID, RendererID: renderer.ID(), RendererVersion: renderer.Version(), ArtifactHash: file.Hash, ArtifactPath: file.RelativePath, SizeBytes: file.Size, ContentType: renderer.Descriptor().ContentType, ContentCreatedAt: now, ValidationStatus: "valid", Status: "published"},
+		Attempt:         OutputAttempt{OutputID: id, Status: "success", ProjectedRules: projectedRules, MaximumRules: target.Constraints.MaxRules, ArtifactID: artifactID, CompletedAt: now},
+		ProfileRevision: ProfilePublicationRevision(profile),
 	}
-	output, snapshot, artifact, err := s.config.Store.Publish(ctx, candidate)
+	publishedOutput, snapshot, artifact, err := s.publishCurrent(ctx, publicationGeneration, candidate)
 	if err != nil {
+		if errors.Is(err, ErrProfileArchived) || errors.Is(err, ErrProfileChanged) || errors.Is(err, ErrBuildSuperseded) {
+			return PublishedBuild{}, err
+		}
 		return PublishedBuild{}, fmt.Errorf("%w: commit publication: %w", ErrPublicationStorage, err)
 	}
 	partialCoverageCount := 0
@@ -187,7 +193,7 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 	}
 	degradedSources := degradedSourceNames(prepared.Plan)
 	return PublishedBuild{
-		Output:   output,
+		Output:   publishedOutput,
 		Snapshot: snapshot,
 		Artifact: artifact,
 		Summary: PublishedBuildSummary{

@@ -13,7 +13,8 @@
   },
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.mjs && node --check src/preload.cjs && node --test tests/*.test.mjs",
+    "check": "npm run security && node --check src/main.mjs && node --check src/preload.cjs && node --test tests/*.test.mjs",
+    "security": "npm audit --package-lock-only --include=dev --include=optional --include=peer --audit-level=high",
     "package": "node package.mjs"
   },
   "devDependencies": {

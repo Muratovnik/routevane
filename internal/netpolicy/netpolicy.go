@@ -15,6 +15,33 @@ var (
 	ErrUnsafeDestination = errors.New("destination is not a public unicast address")
 )
 
+// These ranges are excluded from both network access and routing. Keep the
+// classification in one place so a prefix cannot hide a forbidden subnetwork.
+var excludedDestinations = []netip.Prefix{
+	netip.MustParsePrefix("0.0.0.0/8"),
+	netip.MustParsePrefix("10.0.0.0/8"),
+	netip.MustParsePrefix("100.64.0.0/10"),
+	netip.MustParsePrefix("127.0.0.0/8"),
+	netip.MustParsePrefix("169.254.0.0/16"),
+	netip.MustParsePrefix("172.16.0.0/12"),
+	netip.MustParsePrefix("192.0.0.0/24"),
+	netip.MustParsePrefix("192.168.0.0/16"),
+	netip.MustParsePrefix("224.0.0.0/4"),
+	netip.MustParsePrefix("255.255.255.255/32"),
+	netip.MustParsePrefix("::/128"),
+	netip.MustParsePrefix("::1/128"),
+	// Retain the existing conservative NAT64-family boundary, including
+	// 64:ff9b:1::/48, as well as Teredo and 6to4 transition destinations.
+	netip.MustParsePrefix("64:ff9b::/32"),
+	netip.MustParsePrefix("2001::/32"),
+	netip.MustParsePrefix("2002::/16"),
+	netip.MustParsePrefix("fc00::/7"),
+	netip.MustParsePrefix("fe80::/10"),
+	netip.MustParsePrefix("ff00::/8"),
+}
+
+var benchmarking = netip.MustParsePrefix("198.18.0.0/15")
+
 // PublicUnicast reports whether one resolved address may be contacted.
 //
 // An IPv4-mapped IPv6 address is unmapped first and then judged as the IPv4
@@ -25,51 +52,7 @@ var (
 // boundary, and tests need an address class that is neither local nor a real
 // internet host.
 func PublicUnicast(address netip.Addr) bool {
-	address = address.Unmap()
-	if !address.IsValid() {
-		return false
-	}
-	if !address.IsGlobalUnicast() || address.IsPrivate() || address.IsLoopback() ||
-		address.IsUnspecified() || address.IsMulticast() ||
-		address.IsLinkLocalUnicast() || address.IsLinkLocalMulticast() ||
-		address.IsInterfaceLocalMulticast() {
-		return false
-	}
-	if address.Is4() {
-		octets := address.As4()
-		switch {
-		case octets[0] == 0, octets[0] == 127:
-			return false
-		case octets[0] == 100 && octets[1] >= 64 && octets[1] <= 127:
-			// RFC 6598 carrier-grade NAT space.
-			return false
-		case octets[0] == 169 && octets[1] == 254:
-			// Link-local, including the 169.254.169.254 metadata address.
-			return false
-		case octets[0] == 192 && octets[1] == 0 && octets[2] == 0:
-			// RFC 6890 IETF protocol assignments.
-			return false
-		case octets[0] == 198 && (octets[1] == 18 || octets[1] == 19):
-			// RFC 2544 benchmarking space.
-			return false
-		}
-		return true
-	}
-	// Reject IPv6 transition ranges that embed an IPv4 destination the policy
-	// above would otherwise never see.
-	bytes := address.As16()
-	switch {
-	case bytes[0] == 0x20 && bytes[1] == 0x02:
-		// 2002::/16 6to4.
-		return false
-	case bytes[0] == 0x20 && bytes[1] == 0x01 && bytes[2] == 0x00 && bytes[3] == 0x00:
-		// 2001::/32 Teredo.
-		return false
-	case bytes[0] == 0x00 && bytes[1] == 0x64 && bytes[2] == 0xff && bytes[3] == 0x9b:
-		// 64:ff9b::/96 NAT64.
-		return false
-	}
-	return true
+	return RoutableDestination(address) && !benchmarking.Contains(address.WithZone("").Unmap())
 }
 
 // RoutableDestination reports whether one address may appear in a routing plan
@@ -86,17 +69,36 @@ func PublicUnicast(address netip.Addr) bool {
 // refused by both, and by the same classification: the two questions share this
 // package precisely so their common answer cannot drift apart.
 func RoutableDestination(address netip.Addr) bool {
-	address = address.Unmap()
-	if PublicUnicast(address) {
-		return true
+	address = address.WithZone("").Unmap()
+	if !address.IsValid() {
+		return false
 	}
-	if address.Is4() {
-		octets := address.As4()
-		// 198.18.0.0/15 is refused above only for being benchmarking space, so
-		// no other reason to refuse it is being waived here.
-		return octets[0] == 198 && (octets[1] == 18 || octets[1] == 19)
+	for _, excluded := range excludedDestinations {
+		if excluded.Contains(address) {
+			return false
+		}
 	}
-	return false
+	return true
+}
+
+// RoutablePrefix reports whether every address covered by a prefix can be a
+// routing destination. Documentation and benchmarking ranges remain allowed.
+func RoutablePrefix(prefix netip.Prefix) bool {
+	if !prefix.IsValid() {
+		return false
+	}
+	if prefix.Addr().Is4In6() {
+		if prefix.Bits() < 96 {
+			return false
+		}
+		prefix = netip.PrefixFrom(prefix.Addr().Unmap(), prefix.Bits()-96)
+	}
+	for _, excluded := range excludedDestinations {
+		if prefix.Overlaps(excluded) {
+			return false
+		}
+	}
+	return true
 }
 
 // AllPublicUnicast reports whether every candidate address may be contacted.

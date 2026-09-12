@@ -13,6 +13,7 @@ import {
   registerDevice,
   updateDevice,
   type DeviceCard,
+  type DeviceWrite,
 } from '@/shared/api/devices'
 
 export type DevicesState = 'loading' | 'ready' | 'stale' | 'failed'
@@ -121,11 +122,52 @@ export const useDevices = () => {
     }
   }
 
-  const run = async (action: () => Promise<unknown>): Promise<boolean> => {
+  const applyWrite = (
+    saved: DeviceWrite,
+    fallback: Partial<DeviceCard>,
+  ): void => {
+    const previous = devices.value.find((device) => device.id === saved.id)
+    const targetID =
+      saved.targetID ?? fallback.targetID ?? previous?.targetID ?? ''
+    const target = catalog.value?.targets.find(
+      (candidate) => candidate.id === targetID,
+    )
+    const next: DeviceCard = {
+      id: saved.id,
+      targetID,
+      targetTitle: previous?.targetTitle ?? target?.title ?? targetID,
+      name: saved.name ?? fallback.name ?? previous?.name ?? '',
+      address: saved.address ?? fallback.address ?? previous?.address ?? '',
+      account: saved.account ?? fallback.account ?? previous?.account ?? '',
+      interfaceName:
+        saved.interfaceName ??
+        fallback.interfaceName ??
+        previous?.interfaceName ??
+        '',
+      autoDeliver: saved.autoDeliver ?? previous?.autoDeliver ?? false,
+      deployable:
+        previous?.deployable ??
+        deployableTargets.value.some(
+          (candidate) => candidate.targetID === targetID,
+        ),
+    }
+    const index = devices.value.findIndex((device) => device.id === saved.id)
+    if (index === -1) devices.value = [...devices.value, next]
+    else devices.value[index] = next
+  }
+
+  const run = async <T>(
+    action: () => Promise<T>,
+    onSuccess?: (result: T) => void,
+  ): Promise<boolean> => {
     if (busy.value || state.value === 'stale') return false
     work.value = 'working'
     try {
-      await action()
+      const result = await action()
+      onSuccess?.(result)
+      // The write response is authoritative for the submitted device even if
+      // the follow-up registry read is stale. `state` keeps that read failure
+      // visible and retryable, while the operation itself remains confirmed.
       await initialize()
       work.value = 'idle'
       return true
@@ -143,15 +185,13 @@ export const useDevices = () => {
     interfaceName: string,
   ): Promise<boolean> => {
     if (requirementsState.value !== 'ready') return Promise.resolve(false)
-    return run(async () => {
-      registeredID.value = await registerDevice(
-        targetID,
-        name,
-        address,
-        account,
-        interfaceName,
-      )
-    })
+    return run(
+      () => registerDevice(targetID, name, address, account, interfaceName),
+      (saved) => {
+        registeredID.value = saved.id
+        applyWrite(saved, { targetID, name, address, account, interfaceName })
+      },
+    )
   }
 
   /**
@@ -168,7 +208,17 @@ export const useDevices = () => {
     interfaceName: string,
   ): Promise<boolean> => {
     if (requirementsState.value !== 'ready') return Promise.resolve(false)
-    return run(() => updateDevice(id, name, address, account, interfaceName))
+    return run(
+      () => updateDevice(id, name, address, account, interfaceName),
+      (result) =>
+        applyWrite(result, {
+          targetID: devices.value.find((device) => device.id === id)?.targetID,
+          name,
+          address,
+          account,
+          interfaceName,
+        }),
+    )
   }
 
   const forget = (id: string): Promise<boolean> => run(() => forgetDevice(id))

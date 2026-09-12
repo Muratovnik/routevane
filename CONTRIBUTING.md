@@ -59,6 +59,13 @@ A deprecated transitive npm package warning is not an instruction to install a
 different version or approve scripts. Investigate an audit failure; the security
 gate must remain green.
 
+Both npm `check` scripts audit their lockfiles, including development dependencies
+and the shipped Electron runtime. High and critical findings fail the check;
+lower severities remain in the report. `tools/dev.ps1 security` runs the Go and
+npm security checks without rebuilding. Registry failures are errors, not clean
+reports. Use `npm explain <package>` in the affected package directory to trace a
+finding and review a compatible update; do not use `npm audit fix --force`.
+
 ## Run and build
 
 ### Desktop application

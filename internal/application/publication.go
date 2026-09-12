@@ -3,7 +3,9 @@ package application
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +26,8 @@ var (
 	ErrOutputExists        = errors.New("output already exists for this target")
 	ErrSubscriptionExists  = errors.New("output subscription already exists")
 	ErrProfileArchived     = errors.New("profile is archived")
+	ErrProfileChanged      = errors.New("profile changed during build")
+	ErrBuildSuperseded     = errors.New("newer build already published")
 )
 
 // Profile is the unit of storage and of output. Composition is stored as what the
@@ -140,9 +144,48 @@ type OutputAttempt struct {
 	CompletedAt    time.Time `json:"completed_at"`
 }
 type PublicationCandidate struct {
-	Snapshot PlanSnapshotRecord
-	Artifact ArtifactBuildRecord
-	Attempt  OutputAttempt
+	Snapshot        PlanSnapshotRecord
+	Artifact        ArtifactBuildRecord
+	Attempt         OutputAttempt
+	ProfileRevision [32]byte
+}
+
+// ProfilePublicationRevision identifies exactly the profile state that can
+// affect publication. The store checks it again in the same transaction that
+// advances an output's artifact pointers, so a build prepared from an older
+// composition cannot become current after an edit. Archival is included as an
+// eligibility input; names and scheduling metadata do not affect rendered
+// bytes and therefore do not invalidate a prepared candidate.
+func ProfilePublicationRevision(profile Profile) [32]byte {
+	unordered := func(values []string) []string {
+		return domain.StableStrings(values)
+	}
+	ordered := func(values []string) []string {
+		return append([]string{}, values...)
+	}
+	listDomains := make(map[string][]string, len(profile.ListDomains))
+	for listID, domains := range profile.ListDomains {
+		listDomains[listID] = unordered(domains)
+	}
+	payload, err := json.Marshal(struct {
+		ID          string
+		Lists       []string
+		Categories  []string
+		Exclusions  []string
+		ListDomains map[string][]string
+		Priority    []string
+		Archived    bool
+	}{
+		ID: profile.ID, Lists: unordered(profile.Lists), Categories: unordered(profile.Categories),
+		Exclusions: unordered(profile.Exclusions), ListDomains: listDomains,
+		Priority: ordered(profile.Priority), Archived: profile.Archived(),
+	})
+	if err != nil {
+		// Every field above has a total JSON encoding. Keep the signature free of
+		// a spurious error that no caller could act on if that invariant changes.
+		panic(fmt.Sprintf("encode profile publication revision: %v", err))
+	}
+	return sha256.Sum256(payload)
 }
 
 type PublicationRepository interface {
@@ -157,6 +200,11 @@ type PublicationRepository interface {
 	RecordProfileRefreshResult(ctx context.Context, profileID string, lastRefreshedAt time.Time, failed bool) error
 	CreateProfile(context.Context, Profile) error
 	Profile(context.Context, string) (Profile, error)
+	// ProfilePage returns one bounded, stable page of stored profiles. afterID is
+	// empty for the newest page and otherwise comes from the preceding page's
+	// NextCursor; callers must not invent an offset because inserts may happen
+	// between reads.
+	ProfilePage(context.Context, string) (ProfilePage, error)
 	// Profiles returns stored profiles newest first. The repository owns the bound
 	// because this transport has no pagination parameters.
 	Profiles(context.Context) ([]Profile, error)
@@ -317,6 +365,26 @@ type PublicationService struct {
 	// registryMu makes a transferred custom library, tuning overlay, and
 	// category overlay appear as one generation to planner readers.
 	registryMu sync.RWMutex
+	// publicationMu orders registry mutations against only the short durable
+	// publication commit. Planning, rendering, file writes, and observation
+	// refreshes do not hold it.
+	publicationMu         sync.RWMutex
+	publicationGeneration uint64
+}
+
+func (s *PublicationService) publicationInputGeneration() uint64 {
+	s.publicationMu.RLock()
+	defer s.publicationMu.RUnlock()
+	return s.publicationGeneration
+}
+
+func (s *PublicationService) publishCurrent(ctx context.Context, generation uint64, candidate PublicationCandidate) (Output, PlanSnapshotRecord, ArtifactBuildRecord, error) {
+	s.publicationMu.RLock()
+	defer s.publicationMu.RUnlock()
+	if generation != s.publicationGeneration {
+		return Output{}, PlanSnapshotRecord{}, ArtifactBuildRecord{}, ErrProfileChanged
+	}
+	return s.config.Store.Publish(ctx, candidate)
 }
 
 func NewPublicationService(config PublicationConfig) (*PublicationService, error) {

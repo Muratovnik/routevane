@@ -12,6 +12,7 @@ import { vi } from 'vitest'
 export const profileID = 'a'.repeat(32)
 export const outputID = 'f'.repeat(32)
 export const artifactID = 'b'.repeat(32)
+export const deploymentAttemptID = 'e'.repeat(32)
 export const snapshotID = 'c'.repeat(32)
 export const CUSTOM_CATEGORY_ID = 'custom-1234567890abcdef'
 export const subscription = `${window.location.origin}/v1/subscriptions/rv1.${'c'.repeat(32)}.${'d'.repeat(43)}`
@@ -141,6 +142,9 @@ export const requirementsPayload = (
 })
 
 export const outcomePayload = (result: Record<string, unknown>): unknown => ({
+  attempt_id: deploymentAttemptID,
+  artifact_id: artifactID,
+  status: 'succeeded',
   result: {
     applied: true,
     rolled_back: false,

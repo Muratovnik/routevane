@@ -103,6 +103,40 @@ func TestCommandMissingSecondListStateCreatesNoFile(t *testing.T) {
 	}
 }
 
+func TestCommandBuildExcludesPrefixesContainingLocalSubnets(t *testing.T) {
+	catalogRoot := writeAlphaBetaCatalog(t)
+	listPath := filepath.Join(catalogRoot, "builtin", "alpha.yaml")
+	list, err := os.ReadFile(listPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seeds := ""
+	for _, value := range []string{"172.0.0.0/10", "100.0.0.0/9", "169.0.0.0/8", "198.18.0.0/15"} {
+		seeds += "  - kind: prefix4\n    value: " + value + "\n    component: web\n    source: manual\n"
+	}
+	list = []byte(strings.Replace(string(list), "sources:\n", seeds+"sources:\n", 1))
+	if err := os.WriteFile(listPath, list, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	dataRoot := filepath.Join(t.TempDir(), "data")
+	deps := runtimeDeps{Resolver: &alphaBetaResolver{}, Now: func() time.Time { return time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC) }}
+	runCommand(t, deps, []string{"refresh", "--list", "alpha", "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
+	result := runCommand(t, deps, []string{"build", "--target", "keenetic", "--list", "alpha", "--output", filepath.Join(dataRoot, "exports"), "--catalog-dir", catalogRoot, "--data-dir", dataRoot}, 0)
+	payload, err := os.ReadFile(strings.TrimSpace(result.stdout))
+	if err != nil {
+		t.Fatal(err)
+	}
+	routes, err := keenetic.Parse(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The real exported router file keeps both the documentation address and
+	// the allowed synthetic benchmark network, but none of the mixed prefixes.
+	if len(routes) != 2 || routes[0].Prefix.String() != "192.0.2.10/32" || routes[1].Prefix.String() != "198.18.0.0/15" {
+		t.Fatalf("exported routes = %#v", routes)
+	}
+}
+
 func TestParseBuildCanonicalizesRepeatedListsAndPreservesRawCompatibility(t *testing.T) {
 	options, ok := parseBuild([]string{"--target", "keenetic", "--list", "beta", "--list", "alpha", "--list", "beta"})
 	if !ok || strings.Join(options.ListIDs, ",") != "alpha,beta" {

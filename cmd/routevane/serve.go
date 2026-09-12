@@ -21,6 +21,8 @@ import (
 	"github.com/Muratovnik/routevane/internal/sources/httpfeed"
 )
 
+const shutdownRecoveryBudget = 135 * time.Second
+
 func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps runtimeDeps) int {
 	started := time.Now().UTC()
 	catalog, err := catalogyaml.Load(deps.Context, options.CatalogDir)
@@ -128,6 +130,13 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
 		return 1
 	}
+	deploymentAttempts, err := application.NewDeploymentAttemptService(application.DeploymentAttemptConfig{
+		Deployments: deployments, Journal: store, Clock: application.ClockFunc(deps.Now),
+	})
+	if err != nil {
+		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
+		return 1
+	}
 	// The registry is composed here rather than inside publication: what an
 	// operator installed is a fact about their network, and the credential it
 	// may hold belongs to the operating system rather than to this database.
@@ -168,14 +177,13 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		return 1
 	}
 	origin := "http://" + listener.Addr().String()
-	server, err := httpapi.New(origin, serveBackend{PublicationService: publication, deployments: deployments, devices: devices, deliveryGate: deliveryGate}, logger)
+	server, err := httpapi.New(origin, serveBackend{PublicationService: publication, deployments: deployments, deploymentAttempts: deploymentAttempts, devices: devices, deliveryGate: deliveryGate}, logger)
 	if err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
 		return 1
 	}
 	if options.DesktopToken != "" {
 		server.RequireDesktopToken(options.DesktopToken)
-		server.CancelRequestsWith(deps.Context)
 	}
 	if _, err := fmt.Fprintln(stdout, origin); err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "output_failed")
@@ -194,6 +202,10 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	}
 	ctx, cancel := deps.SignalContext(deps.Context)
 	defer cancel()
+	// Every served request belongs to the process lifecycle. On either a CLI
+	// signal or a desktop lease/signal, a deployment receives cancellation and
+	// starts its detached rollback before Shutdown waits for the handler.
+	server.CancelRequestsWith(ctx)
 	// The timer lives inside the process that serves the files, because a
 	// separate worker would need its own copy of the same decisions. It starts
 	// unconditionally and does nothing until a list says it should: the default
@@ -226,13 +238,10 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		}
 		return 0
 	case <-ctx.Done():
-		shutdownBudget := 5 * time.Second
-		if options.DesktopToken != "" {
-			// Cancellation must leave time for the existing two-minute device
-			// recovery budget before closing the store it records ownership in.
-			shutdownBudget = 135 * time.Second
-		}
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownBudget)
+		// The server does not close the store until all handlers finish. A
+		// canceled device deployment uses a detached two-minute rollback budget,
+		// so every serve mode needs time for recovery plus a small drain margin.
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownRecoveryBudget)
 		defer shutdownCancel()
 		if err := server.Shutdown(shutdownCtx); err != nil {
 			logResult(logger, "serve", "", "", "failed", 0, started, "shutdown_failed")
@@ -309,9 +318,10 @@ func startScheduler(ctx context.Context, list *application.PublicationService, d
 // request while they read, change and replace device ownership state.
 type serveBackend struct {
 	*application.PublicationService
-	deployments  *application.DeploymentService
-	devices      *application.DeviceService
-	deliveryGate *application.DeliveryGate
+	deployments        *application.DeploymentService
+	deploymentAttempts *application.DeploymentAttemptService
+	devices            *application.DeviceService
+	deliveryGate       *application.DeliveryGate
 }
 
 func (b serveBackend) ExportConfigTransfer(ctx context.Context) ([]byte, error) {
@@ -402,11 +412,15 @@ func (b serveBackend) DeployPlan(ctx context.Context, command application.Deploy
 	return b.deployments.Plan(ctx, command)
 }
 
-func (b serveBackend) Deploy(ctx context.Context, command application.DeployCommand) (application.DeployResult, error) {
+func (b serveBackend) DeployAttempt(ctx context.Context, id string, command application.DeployCommand) (application.DeploymentAttempt, error) {
 	release, err := b.deliveryGate.Acquire(ctx)
 	if err != nil {
-		return application.DeployResult{}, err
+		return application.DeploymentAttempt{}, err
 	}
 	defer release()
-	return b.deployments.Deploy(ctx, command)
+	return b.deploymentAttempts.Deploy(ctx, id, command)
+}
+
+func (b serveBackend) DeploymentAttempt(ctx context.Context, id string) (application.DeploymentAttempt, error) {
+	return b.deploymentAttempts.Attempt(ctx, id)
 }

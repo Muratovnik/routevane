@@ -103,7 +103,7 @@ type Backend interface {
 	SetDefaultRefreshInterval(context.Context, application.RefreshInterval) error
 	SetProfileRefreshInterval(context.Context, string, application.RefreshInterval) (application.Profile, error)
 	ProfileSchedule(context.Context, application.Profile) (application.Schedule, error)
-	ProfileCards(context.Context) ([]application.ProfileCard, error)
+	ProfileCardsPage(context.Context, string) (application.ProfileCardPage, error)
 	AddOutput(context.Context, string, string) (application.CreatedOutput, error)
 	SetOutputDevice(context.Context, string, string) (application.Output, error)
 	SetOutputFQDNPrefix(context.Context, string, string) (application.Output, error)
@@ -129,7 +129,8 @@ type Backend interface {
 	DisableAutoDelivery(context.Context, string) (application.Device, error)
 	DeployableTargets() []application.DeployableTarget
 	DeployPlan(context.Context, application.DeployCommand) (application.DeployPlan, error)
-	Deploy(context.Context, application.DeployCommand) (application.DeployResult, error)
+	DeployAttempt(context.Context, string, application.DeployCommand) (application.DeploymentAttempt, error)
+	DeploymentAttempt(context.Context, string) (application.DeploymentAttempt, error)
 }
 
 type Server struct {
@@ -178,7 +179,7 @@ func (s *Server) RequireDesktopToken(token string) {
 	s.handler.(*handler).desktopToken = token
 }
 
-// CancelRequestsWith binds desktop requests to the owning process's lifetime.
+// CancelRequestsWith binds requests to the owning process's lifetime.
 // Device recovery already detaches from request cancellation with its own budget.
 func (s *Server) CancelRequestsWith(ctx context.Context) {
 	s.server.BaseContext = func(net.Listener) context.Context { return ctx }

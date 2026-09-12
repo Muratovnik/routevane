@@ -33,6 +33,7 @@ type fakeBackend struct {
 	deployCommands []application.DeployCommand
 	deployResult   application.DeployResult
 	deployErr      error
+	deployAttempts map[string]application.DeploymentAttempt
 
 	defaultInterval    application.RefreshInterval
 	defaultPriority    []string
@@ -63,6 +64,8 @@ type fakeBackend struct {
 	transferPayload []byte
 	transferDigest  string
 	transferErr     error
+	profileCursor   string
+	profileNext     string
 }
 
 func (f *fakeBackend) ExportConfigTransfer(context.Context) ([]byte, error) {
@@ -334,18 +337,22 @@ func (f *fakeBackend) RestoreProfile(context.Context, string) (application.Profi
 	f.archived = false
 	return application.Profile{ID: strings.Repeat("a", 32)}, nil
 }
-func (f *fakeBackend) ProfileCards(context.Context) ([]application.ProfileCard, error) {
-	return []application.ProfileCard{{
-		ID: strings.Repeat("a", 32), Name: "Example list", Lists: []string{"example"},
-		Outputs: []application.OutputCard{{
-			ID: strings.Repeat("a", 32), TargetID: "keenetic", TargetTitle: "Keenetic",
-			TargetKind: "router", FileExtension: "bat",
-			Latest: &application.OutputArtifact{
-				ID: strings.Repeat("b", 32), SnapshotID: strings.Repeat("c", 32),
-				SizeBytes: 42, ContentType: "application/octet-stream",
-			},
+func (f *fakeBackend) ProfileCardsPage(_ context.Context, cursor string) (application.ProfileCardPage, error) {
+	f.profileCursor = cursor
+	return application.ProfileCardPage{
+		Profiles: []application.ProfileCard{{
+			ID: strings.Repeat("a", 32), Name: "Example list", Lists: []string{"example"},
+			Outputs: []application.OutputCard{{
+				ID: strings.Repeat("a", 32), TargetID: "keenetic", TargetTitle: "Keenetic",
+				TargetKind: "router", FileExtension: "bat",
+				Latest: &application.OutputArtifact{
+					ID: strings.Repeat("b", 32), SnapshotID: strings.Repeat("c", 32),
+					SizeBytes: 42, ContentType: "application/octet-stream",
+				},
+			}},
 		}},
-	}}, nil
+		NextCursor: f.profileNext,
+	}, nil
 }
 func (f *fakeBackend) AddOutput(context.Context, string, string) (application.CreatedOutput, error) {
 	return application.CreatedOutput{Output: application.Output{ID: strings.Repeat("a", 32)}}, nil
@@ -434,12 +441,32 @@ func (f *fakeBackend) DeployPlan(_ context.Context, command application.DeployCo
 	return application.DeployPlan{ArtifactID: command.ArtifactID, TargetID: "keenetic", Title: "Keenetic", DeployerID: "keenetic-route-bat"}, nil
 }
 
-func (f *fakeBackend) Deploy(_ context.Context, command application.DeployCommand) (application.DeployResult, error) {
+func (f *fakeBackend) DeployAttempt(_ context.Context, id string, command application.DeployCommand) (application.DeploymentAttempt, error) {
 	f.deployCommands = append(f.deployCommands, command)
+	status := application.DeploymentAttemptSucceeded
 	if f.deployErr != nil {
-		return f.deployResult, f.deployErr
+		status = application.DeploymentAttemptFailed
 	}
-	return f.deployResult, nil
+	attempt := application.DeploymentAttempt{
+		ID: id, ArtifactID: command.ArtifactID, Status: status,
+		Result: f.deployResult, Error: application.DeploymentFailureCode(f.deployErr),
+	}
+	if f.deployAttempts == nil {
+		f.deployAttempts = map[string]application.DeploymentAttempt{}
+	}
+	f.deployAttempts[id] = attempt
+	return attempt, f.deployErr
+}
+
+func (f *fakeBackend) DeploymentAttempt(_ context.Context, id string) (application.DeploymentAttempt, error) {
+	attempt, ok := f.deployAttempts[id]
+	if !ok {
+		return application.DeploymentAttempt{}, application.ErrNotFound
+	}
+	if attempt.Status == application.DeploymentAttemptPending {
+		return attempt, application.ErrDeploymentOutcomeUnknown
+	}
+	return attempt, nil
 }
 
 func TestLoopbackAuthorityAndMutationGuards(t *testing.T) {
@@ -1241,7 +1268,7 @@ func TestDeployTakesTheCredentialAndNeverReturnsOrLogsIt(t *testing.T) {
 	}
 	const secret = "SuperSecret123"
 	path := "/v1/artifacts/" + strings.Repeat("c", 32) + "/deploy"
-	body := `{"device":"http://192.168.1.1","username":"admin","password":"` + secret + `","interface":"Wireguard0","confirm":true}`
+	body := `{"attempt_id":"` + strings.Repeat("e", 32) + `","device":"http://192.168.1.1","username":"admin","password":"` + secret + `","interface":"Wireguard0","confirm":true}`
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, mutationRequest(t, path, body))
 	if response.Code != http.StatusOK {
@@ -1294,7 +1321,7 @@ func TestDeployWithoutConfirmationReportsThePlanAndChangesNothing(t *testing.T) 
 
 func TestDeployRefusesUnguardedAndMalformedRequests(t *testing.T) {
 	path := "/v1/artifacts/" + strings.Repeat("c", 32) + "/deploy"
-	body := `{"device":"http://192.168.1.1","username":"admin","password":"x","interface":"Wireguard0","confirm":true}`
+	body := `{"attempt_id":"` + strings.Repeat("e", 32) + `","device":"http://192.168.1.1","username":"admin","password":"x","interface":"Wireguard0","confirm":true}`
 
 	// A cross-origin page must not be able to change a device, and neither must
 	// a request that omits the mutation marker.
@@ -1356,7 +1383,7 @@ func TestDeployReportsAFailureWithItsAuditTrail(t *testing.T) {
 	}
 	path := "/v1/artifacts/" + strings.Repeat("c", 32) + "/deploy"
 	response := httptest.NewRecorder()
-	server.Handler().ServeHTTP(response, mutationRequest(t, path, `{"device":"http://192.168.1.1","username":"admin","password":"x","interface":"Wireguard0","confirm":true}`))
+	server.Handler().ServeHTTP(response, mutationRequest(t, path, `{"attempt_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","device":"http://192.168.1.1","username":"admin","password":"x","interface":"Wireguard0","confirm":true}`))
 	if response.Code != http.StatusConflict {
 		t.Fatalf("code=%d body=%s", response.Code, response.Body.String())
 	}
@@ -1394,6 +1421,31 @@ func TestProfileListingServesTheLibraryRows(t *testing.T) {
 	server.Handler().ServeHTTP(refused, other)
 	if refused.Code != http.StatusMethodNotAllowed || refused.Header().Get("Allow") != "GET, POST" {
 		t.Fatalf("code=%d allow=%q", refused.Code, refused.Header().Get("Allow"))
+	}
+}
+
+func TestProfileListingContinuesWithTheReturnedPathCursor(t *testing.T) {
+	backend := testBackend()
+	backend.profileNext = strings.Repeat("b", 32)
+	server, err := New("http://127.0.0.1:8765", backend, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	get := func(path string) *httptest.ResponseRecorder {
+		t.Helper()
+		request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765"+path, nil)
+		request.RemoteAddr = "127.0.0.1:54321"
+		response := httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, request)
+		return response
+	}
+	first := get("/v1/profiles")
+	if first.Code != http.StatusOK || !strings.Contains(first.Body.String(), `"next":"`+backend.profileNext+`"`) {
+		t.Fatalf("first page code=%d body=%s", first.Code, first.Body.String())
+	}
+	second := get("/v1/profile-pages/" + backend.profileNext)
+	if second.Code != http.StatusOK || backend.profileCursor != backend.profileNext {
+		t.Fatalf("continued page code=%d cursor=%q", second.Code, backend.profileCursor)
 	}
 }
 
@@ -1518,9 +1570,11 @@ var everyAPIPath = []struct {
 	{"/v1/targets", "targets"},
 	{"/v1/export-formats", "export-formats"},
 	{"/v1/deployments/targets", "deployments.targets"},
+	{"/v1/deployment-attempts/" + testID, "deployments.attempt"},
 	{"/v1/settings", "settings.get"},
 	{"/v1/settings/update", "settings.update"},
 	{"/v1/profiles", "profiles.collection"},
+	{"/v1/profile-pages/" + testID, "profiles.page"},
 	{"/v1/profiles/preview", "profiles.preview"},
 	{"/v1/profiles/" + testID + "", "profiles.get"},
 	{"/v1/profiles/" + testID + "/update", "profiles.update"},

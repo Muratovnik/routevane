@@ -9,6 +9,7 @@ import {
 import { loadExportFormats, requestProfileExport } from '@/shared/api/exports'
 import {
   createProfile,
+  loadProfilePage,
   loadProfiles,
   previewComposition,
 } from '@/shared/api/profiles'
@@ -343,6 +344,30 @@ describe('Routevane local API decoders', () => {
       }),
     )
     await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
+  })
+
+  it('continues profile pages with the server cursor in a path segment', async () => {
+    const next = 'e'.repeat(32)
+    fetchMock.mockResolvedValueOnce(json({ profiles: [], next }))
+    await expect(loadProfilePage()).resolves.toEqual({
+      profiles: [],
+      nextCursor: next,
+    })
+    expect(fetchMock).toHaveBeenLastCalledWith('/v1/profiles', {
+      method: 'GET',
+    })
+
+    fetchMock.mockResolvedValueOnce(json({ profiles: [], next: '' }))
+    await expect(loadProfilePage(next)).resolves.toEqual({
+      profiles: [],
+      nextCursor: '',
+    })
+    expect(fetchMock).toHaveBeenLastCalledWith(`/v1/profile-pages/${next}`, {
+      method: 'GET',
+    })
+
+    fetchMock.mockResolvedValueOnce(json({ profiles: [], next: 42 }))
+    await expect(loadProfilePage()).rejects.toBeInstanceOf(RoutevaneAPIError)
   })
 
   it('lists independent export formats and downloads one without an output id', async () => {

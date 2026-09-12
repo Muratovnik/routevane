@@ -20,6 +20,11 @@ const profileLimit = 200
 // profileColumns is written once so the row scanner and every read stay in step.
 const profileColumns = `SELECT id,name,refresh_interval,last_refreshed_at_ns,last_refresh_failed,archived_at_ns,created_at_ns,updated_at_ns`
 
+type profileQueryer interface {
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
 // validSlugSet checks one stored part of a composition. A part may be empty --
 // a profile built only from categories names no list of its own -- but the
 // whole composition may not be, which the caller checks.
@@ -202,21 +207,37 @@ func (s *Store) Profile(ctx context.Context, id string) (application.Profile, er
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	profile, err := scanProfile(s.db.QueryRowContext(ctx, profileColumns+` FROM profiles WHERE id=?`, id))
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return application.Profile{}, fmt.Errorf("begin profile read: %w", err)
+	}
+	profile, err := readProfile(ctx, tx, id)
+	if err != nil {
+		_ = tx.Rollback()
+		return application.Profile{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return application.Profile{}, fmt.Errorf("commit profile read: %w", err)
+	}
+	return profile, nil
+}
+
+func readProfile(ctx context.Context, queryer profileQueryer, id string) (application.Profile, error) {
+	profile, err := scanProfile(queryer.QueryRowContext(ctx, profileColumns+` FROM profiles WHERE id=?`, id))
 	if err != nil {
 		return application.Profile{}, err
 	}
-	if err := s.readComposition(ctx, &profile); err != nil {
+	if err := readComposition(ctx, queryer, &profile); err != nil {
 		return application.Profile{}, err
 	}
-	if err := s.readListDomains(ctx, &profile); err != nil {
+	if err := readListDomains(ctx, queryer, &profile); err != nil {
 		return application.Profile{}, err
 	}
 	return profile, nil
 }
 
-func (s *Store) readListDomains(ctx context.Context, profile *application.Profile) error {
-	rows, err := s.db.QueryContext(ctx, `SELECT list_id,domains_json FROM profile_list_domains WHERE profile_id=? ORDER BY list_id ASC LIMIT 128`, profile.ID)
+func readListDomains(ctx context.Context, queryer profileQueryer, profile *application.Profile) error {
+	rows, err := queryer.QueryContext(ctx, `SELECT list_id,domains_json FROM profile_list_domains WHERE profile_id=? ORDER BY list_id ASC LIMIT 128`, profile.ID)
 	if err != nil {
 		return fmt.Errorf("read profile list domains: %w", err)
 	}
@@ -251,7 +272,7 @@ func (s *Store) readListDomains(ctx context.Context, profile *application.Profil
 // readComposition fills the three stored parts of one profile. Each is a separate
 // query rather than a join because a profile may legitimately have none of one
 // kind, and a join would have to distinguish that from a missing profile.
-func (s *Store) readComposition(ctx context.Context, profile *application.Profile) error {
+func readComposition(ctx context.Context, queryer profileQueryer, profile *application.Profile) error {
 	reads := []struct {
 		query string
 		into  *[]string
@@ -261,13 +282,13 @@ func (s *Store) readComposition(ctx context.Context, profile *application.Profil
 		{`SELECT list_id FROM profile_exclusions WHERE profile_id=? ORDER BY list_id ASC LIMIT 128`, &profile.Exclusions},
 	}
 	for _, read := range reads {
-		values, err := s.compositionPart(ctx, read.query, profile.ID)
+		values, err := compositionPart(ctx, queryer, read.query, profile.ID)
 		if err != nil {
 			return err
 		}
 		*read.into = values
 	}
-	priority, err := s.compositionPart(ctx, `SELECT list_id FROM profile_list_priorities WHERE profile_id=? ORDER BY position ASC LIMIT 128`, profile.ID)
+	priority, err := compositionPart(ctx, queryer, `SELECT list_id FROM profile_list_priorities WHERE profile_id=? ORDER BY position ASC LIMIT 128`, profile.ID)
 	if err != nil {
 		return err
 	}
@@ -275,8 +296,8 @@ func (s *Store) readComposition(ctx context.Context, profile *application.Profil
 	return nil
 }
 
-func (s *Store) compositionPart(ctx context.Context, query, profileID string) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, query, profileID)
+func compositionPart(ctx context.Context, queryer profileQueryer, query, profileID string) ([]string, error) {
+	rows, err := queryer.QueryContext(ctx, query, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("read profile composition: %w", err)
 	}
@@ -316,38 +337,49 @@ func (s *Store) ProfilesForScheduling(ctx context.Context) ([]application.Profil
 }
 
 func (s *Store) readProfiles(ctx context.Context, query string, includeComposition bool, args ...any) ([]application.Profile, error) {
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
-		return nil, fmt.Errorf("list profiles: %w", err)
+		return nil, fmt.Errorf("begin profiles read: %w", err)
+	}
+	fail := func(cause error) ([]application.Profile, error) {
+		_ = tx.Rollback()
+		return nil, cause
+	}
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return fail(fmt.Errorf("list profiles: %w", err))
 	}
 	profiles := make([]application.Profile, 0)
 	for rows.Next() {
 		profile, err := scanProfile(rows)
 		if err != nil {
 			_ = rows.Close()
-			return nil, err
+			return fail(err)
 		}
 		profiles = append(profiles, profile)
 	}
 	if err := rows.Err(); err != nil {
 		_ = rows.Close()
-		return nil, fmt.Errorf("list profiles: %w", err)
+		return fail(fmt.Errorf("list profiles: %w", err))
 	}
 	if err := rows.Close(); err != nil {
-		return nil, fmt.Errorf("list profiles: %w", err)
+		return fail(fmt.Errorf("list profiles: %w", err))
 	}
-	if !includeComposition {
-		return profiles, nil
+	if includeComposition {
+		// Composition reads run after the cursor is closed. They remain in this
+		// read transaction so every profile row and its normalized parts belong
+		// to one coherent database snapshot.
+		for i := range profiles {
+			if err := readComposition(ctx, tx, &profiles[i]); err != nil {
+				return fail(err)
+			}
+			if err := readListDomains(ctx, tx, &profiles[i]); err != nil {
+				return fail(err)
+			}
+		}
 	}
-	// Composition reads run after the cursor is closed: this store holds a
-	// single connection, so a nested query would deadlock against it.
-	for i := range profiles {
-		if err := s.readComposition(ctx, &profiles[i]); err != nil {
-			return nil, err
-		}
-		if err := s.readListDomains(ctx, &profiles[i]); err != nil {
-			return nil, err
-		}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit profiles read: %w", err)
 	}
 	return profiles, nil
 }

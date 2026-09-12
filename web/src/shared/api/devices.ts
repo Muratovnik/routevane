@@ -27,6 +27,18 @@ export type DeviceCard = {
   deployable: boolean
 }
 
+// Writes answer with the stored device, while catalog-derived card fields are
+// only present on the registry read.
+export type DeviceWrite = {
+  id: string
+  targetID?: string
+  name?: string
+  address?: string
+  account?: string
+  interfaceName?: string
+  autoDeliver?: boolean
+}
+
 type DeviceRegistry = {
   devices: DeviceCard[]
   secretStoreAvailable: boolean
@@ -41,11 +53,11 @@ export const registerDevice = (
   address: string,
   account: string,
   interfaceName: string,
-): Promise<string> =>
+): Promise<DeviceWrite> =>
   postJSON(
     '/v1/devices',
     { target_id: targetID, name, address, account, interface: interfaceName },
-    parseDeviceID,
+    parseDeviceWrite,
   )
 
 // The target is identity and is not part of this call. Changing the address,
@@ -58,11 +70,11 @@ export const updateDevice = (
   address: string,
   account: string,
   interfaceName: string,
-): Promise<string> =>
+): Promise<DeviceWrite> =>
   postJSON(
     `/v1/devices/${id}/update`,
     { name, address, account, interface: interfaceName },
-    parseDeviceID,
+    parseDeviceWrite,
   )
 
 export const forgetDevice = (id: string): Promise<true> =>
@@ -127,12 +139,30 @@ const devicesSchema = v.pipe(
 )
 
 const parseDevices: Decoder<DeviceRegistry> = decode(devicesSchema)
-// Registration and a parameter change both answer with the device they wrote,
-// and both are read for the same one fact: which device this reply is about.
-const parseDeviceID: Decoder<string> = decode(
+// Keep absent fields distinct from explicit empty values. The model can fill
+// absent fields from the submitted operation without undoing intentional clears.
+const parseDeviceWrite: Decoder<DeviceWrite> = decode(
   v.pipe(
-    fields({ device: fields({ id: text }) }),
-    v.transform(({ device }) => device.id),
+    fields({
+      device: fields({
+        id: text,
+        target_id: v.optional(optionalText),
+        name: v.optional(optionalText),
+        address: v.optional(optionalText),
+        account: v.optional(optionalText),
+        interface: v.optional(optionalText),
+        auto_deliver: v.optional(optionalFlag),
+      }),
+    }),
+    v.transform(({ device }): DeviceWrite => ({
+      id: device.id,
+      targetID: device.target_id,
+      name: device.name,
+      address: device.address,
+      account: device.account,
+      interfaceName: device.interface,
+      autoDeliver: device.auto_deliver,
+    })),
   ),
 )
 const parseAcknowledgement: Decoder<true> = decode(acknowledged)

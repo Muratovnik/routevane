@@ -633,6 +633,8 @@ try {
         'check-web' { Invoke-WebCheck | Out-Null }
         'security' {
             Invoke-GoSecurity
+            Invoke-Checked 'npm' @('--prefix', (Join-Path $RepositoryRoot 'web'), 'run', 'security')
+            Invoke-DesktopCommand @('run', 'security')
         }
         'build' { Invoke-ProductBuild | Out-Null }
         'dev' {

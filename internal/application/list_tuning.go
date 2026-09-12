@@ -235,6 +235,8 @@ func (s *PublicationService) SetListSourceEnabled(ctx context.Context, listID, s
 	if !s.sourceKnown(base, sourceID) {
 		return ErrNotFound
 	}
+	s.publicationMu.Lock()
+	defer s.publicationMu.Unlock()
 	if err := s.config.Store.SetSourceDisabled(ctx, listID, sourceID, !enabled); err != nil {
 		return err
 	}
@@ -253,6 +255,7 @@ func (s *PublicationService) SetListSourceEnabled(ctx context.Context, listID, s
 	tuning.DisabledSources = kept
 	s.storeTuningLocked(listID, tuning)
 	s.tuning.mu.Unlock()
+	s.publicationGeneration++
 	return nil
 }
 
@@ -294,7 +297,9 @@ func (s *PublicationService) AddListSource(ctx context.Context, listID, url stri
 			return CustomSource{}, fmt.Errorf("generate feed identity: %w", err)
 		}
 		feed := CustomSource{ID: customSourceIDPrefix + suffix, ListID: listID, URL: url, Format: format, CreatedAt: now, UpdatedAt: now}
+		s.publicationMu.Lock()
 		if err := s.config.Store.CreateCustomSource(ctx, feed); err != nil {
+			s.publicationMu.Unlock()
 			if errors.Is(err, ErrIdentityCollision) {
 				continue
 			}
@@ -306,6 +311,8 @@ func (s *PublicationService) AddListSource(ctx context.Context, listID, url stri
 		slices.SortFunc(tuning.CustomSources, func(a, b CustomSource) int { return cmp.Compare(a.ID, b.ID) })
 		s.storeTuningLocked(listID, tuning)
 		s.tuning.mu.Unlock()
+		s.publicationGeneration++
+		s.publicationMu.Unlock()
 		return feed, nil
 	}
 	return CustomSource{}, ErrIdentityCollision
@@ -329,6 +336,8 @@ func (s *PublicationService) RemoveListSource(ctx context.Context, listID, sourc
 	if !owned {
 		return ErrNotFound
 	}
+	s.publicationMu.Lock()
+	defer s.publicationMu.Unlock()
 	if err := s.config.Store.RemoveCustomSource(ctx, sourceID); err != nil {
 		return err
 	}
@@ -350,6 +359,7 @@ func (s *PublicationService) RemoveListSource(ctx context.Context, listID, sourc
 	tuning.DisabledSources = disabled
 	s.storeTuningLocked(listID, tuning)
 	s.tuning.mu.Unlock()
+	s.publicationGeneration++
 	return nil
 }
 
@@ -396,6 +406,8 @@ func (s *PublicationService) SetListValues(ctx context.Context, listID string, v
 			return fmt.Errorf("destination verdict limit reached")
 		}
 	}
+	s.publicationMu.Lock()
+	defer s.publicationMu.Unlock()
 	if err := s.config.Store.SetDomainVerdicts(ctx, listID, normalized, verdict); err != nil {
 		return err
 	}
@@ -415,6 +427,7 @@ func (s *PublicationService) SetListValues(ctx context.Context, listID string, v
 	}
 	s.storeTuningLocked(listID, tuning)
 	s.tuning.mu.Unlock()
+	s.publicationGeneration++
 	return nil
 }
 

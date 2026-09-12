@@ -388,9 +388,14 @@ and the readable evidence document is written under the data root.
 
 ## Applying an artifact to a device
 
-The local screen can do this for you — see the [user guide](../README.md). Everything below is
-the command-line equivalent, which reads the password from an environment
-variable instead of a form.
+The local screen can do this for you — see the [user guide](../README.md). If its
+delivery response is lost, **Outcome unknown** offers **Check result** for the
+same attempt. It does not send the file again. A completed result survives a
+service restart; if the service crashed before recording the result, the outcome
+stays unknown and the device must be inspected before another delivery.
+
+The command-line equivalent below reads the password from an environment variable
+instead of a form.
 
 Automatic deployment is opt-in and never needed: the manual download continues to
 work unchanged. When you do want it, the device password comes from an

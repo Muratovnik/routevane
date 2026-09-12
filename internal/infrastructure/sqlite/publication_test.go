@@ -162,7 +162,7 @@ func TestPublicationRowsAreImmutableAndPointersAdvanceAtomically(t *testing.T) {
 	if _, err := store.OutputBySubscription(context.Background(), "22222222222222222222222222222222", sha256.Sum256([]byte("wrong"))); !errors.Is(err, application.ErrNotFound) {
 		t.Fatalf("wrong secret err=%v", err)
 	}
-	a := publicationCandidate(output.ID, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", []byte(`{"cutoff":1}`), "a", now)
+	a := publicationCandidate(profile, output.ID, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", []byte(`{"cutoff":1}`), "a", now)
 	result, firstSnapshot, firstArtifact, err := store.Publish(context.Background(), a)
 	if err != nil {
 		t.Fatal(err)
@@ -170,7 +170,7 @@ func TestPublicationRowsAreImmutableAndPointersAdvanceAtomically(t *testing.T) {
 	if result.LatestArtifactID != firstArtifact.ID || result.PreviousArtifactID != "" {
 		t.Fatalf("output=%#v", result)
 	}
-	b := publicationCandidate(output.ID, "cccccccccccccccccccccccccccccccc", "dddddddddddddddddddddddddddddddd", []byte(`{"cutoff":2}`), "b", now.Add(time.Hour))
+	b := publicationCandidate(profile, output.ID, "cccccccccccccccccccccccccccccccc", "dddddddddddddddddddddddddddddddd", []byte(`{"cutoff":2}`), "b", now.Add(time.Hour))
 	// Same semantic hash, distinct exact snapshot JSON and artifact.
 	b.Snapshot.RoutingPlanHash = a.Snapshot.RoutingPlanHash
 	result, secondSnapshot, secondArtifact, err := store.Publish(context.Background(), b)
@@ -206,12 +206,12 @@ func TestSamePayloadRetainsEarliestContentCreationTime(t *testing.T) {
 	if err := store.CreateOutput(context.Background(), application.NewOutput{Output: output, TokenID: "22222222222222222222222222222222", TokenHash: h}); err != nil {
 		t.Fatal(err)
 	}
-	first := publicationCandidate(output.ID, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", []byte(`{"cutoff":1}`), "a", now)
+	first := publicationCandidate(profile, output.ID, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", []byte(`{"cutoff":1}`), "a", now)
 	_, _, a, err := store.Publish(context.Background(), first)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second := publicationCandidate(output.ID, "cccccccccccccccccccccccccccccccc", "dddddddddddddddddddddddddddddddd", []byte(`{"cutoff":2}`), "a", now.Add(time.Hour))
+	second := publicationCandidate(profile, output.ID, "cccccccccccccccccccccccccccccccc", "dddddddddddddddddddddddddddddddd", []byte(`{"cutoff":2}`), "a", now.Add(time.Hour))
 	_, _, b, err := store.Publish(context.Background(), second)
 	if err != nil {
 		t.Fatal(err)
@@ -236,7 +236,7 @@ func TestPointerFaultRollsBackSnapshotBuildAndLatest(t *testing.T) {
 	if err := store.CreateOutput(context.Background(), application.NewOutput{Output: output, TokenID: strings.Repeat("2", 32), TokenHash: token}); err != nil {
 		t.Fatal(err)
 	}
-	a := publicationCandidate(output.ID, strings.Repeat("a", 32), strings.Repeat("b", 32), []byte(`{"cutoff":1}`), "a", now)
+	a := publicationCandidate(profile, output.ID, strings.Repeat("a", 32), strings.Repeat("b", 32), []byte(`{"cutoff":1}`), "a", now)
 	result, _, artifact, err := store.Publish(context.Background(), a)
 	if err != nil {
 		t.Fatal(err)
@@ -244,7 +244,7 @@ func TestPointerFaultRollsBackSnapshotBuildAndLatest(t *testing.T) {
 	if _, err := store.db.Exec(`CREATE TEMP TRIGGER reject_pointer BEFORE UPDATE OF latest_artifact_id ON outputs BEGIN SELECT RAISE(ABORT,'injected pointer fault'); END`); err != nil {
 		t.Fatal(err)
 	}
-	b := publicationCandidate(output.ID, strings.Repeat("c", 32), strings.Repeat("d", 32), []byte(`{"cutoff":2}`), "b", now.Add(time.Hour))
+	b := publicationCandidate(profile, output.ID, strings.Repeat("c", 32), strings.Repeat("d", 32), []byte(`{"cutoff":2}`), "b", now.Add(time.Hour))
 	if _, _, _, err := store.Publish(context.Background(), b); err == nil {
 		t.Fatal("injected pointer fault did not fail publication")
 	}
@@ -285,13 +285,13 @@ func TestPublicationHardeningFailureHappensBeforeTransaction(t *testing.T) {
 	if err := store.CreateOutput(context.Background(), application.NewOutput{Output: output, TokenID: strings.Repeat("2", 32), TokenHash: token}); err != nil {
 		t.Fatal(err)
 	}
-	a := publicationCandidate(output.ID, strings.Repeat("a", 32), strings.Repeat("b", 32), []byte(`{"cutoff":1}`), "a", now)
+	a := publicationCandidate(profile, output.ID, strings.Repeat("a", 32), strings.Repeat("b", 32), []byte(`{"cutoff":1}`), "a", now)
 	result, _, artifact, err := store.Publish(context.Background(), a)
 	if err != nil {
 		t.Fatal(err)
 	}
 	store.publicationPreflight = func() error { return injected }
-	b := publicationCandidate(output.ID, strings.Repeat("c", 32), strings.Repeat("d", 32), []byte(`{"cutoff":2}`), "b", now.Add(time.Hour))
+	b := publicationCandidate(profile, output.ID, strings.Repeat("c", 32), strings.Repeat("d", 32), []byte(`{"cutoff":2}`), "b", now.Add(time.Hour))
 	if _, _, _, err := store.Publish(context.Background(), b); !errors.Is(err, injected) {
 		t.Fatalf("publish preflight err=%v", err)
 	}
@@ -391,6 +391,32 @@ func TestSchedulerAndReferenceQueriesSeeProfilesBeyondTheShelfLimit(t *testing.T
 			t.Fatal("shelf fixture did not place the oldest profile beyond its limit")
 		}
 	}
+	if err := store.SetProfileArchived(context.Background(), oldestID, now.Add(2*time.Hour), now.Add(2*time.Hour)); err != nil {
+		t.Fatalf("archive oldest profile: %v", err)
+	}
+	firstPage, err := store.ProfilePage(context.Background(), "")
+	if err != nil || len(firstPage.Profiles) != profileLimit || firstPage.NextCursor == "" {
+		t.Fatalf("first page profiles=%d next=%q err=%v", len(firstPage.Profiles), firstPage.NextCursor, err)
+	}
+	secondPage, err := store.ProfilePage(context.Background(), firstPage.NextCursor)
+	if err != nil || len(secondPage.Profiles) != 1 || secondPage.NextCursor != "" {
+		t.Fatalf("second page profiles=%#v next=%q err=%v", secondPage.Profiles, secondPage.NextCursor, err)
+	}
+	if secondPage.Profiles[0].ID != oldestID || !secondPage.Profiles[0].Archived() {
+		t.Fatalf("oldest archived profile was not reachable on its page: %#v", secondPage.Profiles[0])
+	}
+	seen := make(map[string]struct{}, profileLimit+1)
+	for _, page := range [][]application.Profile{firstPage.Profiles, secondPage.Profiles} {
+		for _, profile := range page {
+			if _, duplicate := seen[profile.ID]; duplicate {
+				t.Fatalf("page repeated profile %q", profile.ID)
+			}
+			seen[profile.ID] = struct{}{}
+		}
+	}
+	if len(seen) != profileLimit+1 {
+		t.Fatalf("pages listed %d profiles, want %d", len(seen), profileLimit+1)
+	}
 	scheduled, err := store.ProfilesForScheduling(context.Background())
 	if err != nil || len(scheduled) != profileLimit+1 {
 		t.Fatalf("scheduler count = %d, err = %v", len(scheduled), err)
@@ -430,11 +456,11 @@ func publicationProfileAndOutput(profileID, outputID string, now time.Time) (app
 	output := application.Output{ID: outputID, ProfileID: profileID, TargetID: "keenetic", FormatKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat", RendererVersion: "keenetic-bat-ipv4-v1", TargetRevision: string(make([]byte, 64)), CreatedAt: now}
 	return profile, output
 }
-func publicationCandidate(outputID, snapshot, artifact string, jsonBytes []byte, payloadMarker string, now time.Time) application.PublicationCandidate {
+func publicationCandidate(profile application.Profile, outputID, snapshot, artifact string, jsonBytes []byte, payloadMarker string, now time.Time) application.PublicationCandidate {
 	planHash := sha256.Sum256([]byte("plan"))
 	artifactHash := sha256.Sum256([]byte(payloadMarker))
 	hash := hex.EncodeToString(artifactHash[:])
-	return application.PublicationCandidate{Snapshot: application.PlanSnapshotRecord{ID: snapshot, OutputID: outputID, RoutingPlanHash: hex.EncodeToString(planHash[:]), RoutingPlanJSON: jsonBytes, PolicyVersion: "auto-v1", CatalogRevision: string(make([]byte, 64)), ObservationCutoff: now, CreatedAt: now, Status: "valid"}, Artifact: application.ArtifactBuildRecord{ID: artifact, OutputID: outputID, PlanSnapshotID: snapshot, RendererID: "keenetic-route-bat", RendererVersion: "keenetic-bat-ipv4-v1", ArtifactHash: hash, ArtifactPath: "artifacts/published/keenetic-route-bat/" + hash + ".bat", SizeBytes: 1, ContentType: "application/x-bat", ContentCreatedAt: now, ValidationStatus: "valid", Status: "published"}, Attempt: application.OutputAttempt{OutputID: outputID, Status: "success", ProjectedRules: 1, MaximumRules: 1024, ArtifactID: artifact, CompletedAt: now}}
+	return application.PublicationCandidate{Snapshot: application.PlanSnapshotRecord{ID: snapshot, OutputID: outputID, RoutingPlanHash: hex.EncodeToString(planHash[:]), RoutingPlanJSON: jsonBytes, PolicyVersion: "auto-v1", CatalogRevision: string(make([]byte, 64)), ObservationCutoff: now, CreatedAt: now, Status: "valid"}, Artifact: application.ArtifactBuildRecord{ID: artifact, OutputID: outputID, PlanSnapshotID: snapshot, RendererID: "keenetic-route-bat", RendererVersion: "keenetic-bat-ipv4-v1", ArtifactHash: hash, ArtifactPath: "artifacts/published/keenetic-route-bat/" + hash + ".bat", SizeBytes: 1, ContentType: "application/x-bat", ContentCreatedAt: now, ValidationStatus: "valid", Status: "published"}, Attempt: application.OutputAttempt{OutputID: outputID, Status: "success", ProjectedRules: 1, MaximumRules: 1024, ArtifactID: artifact, CompletedAt: now}, ProfileRevision: application.ProfilePublicationRevision(profile)}
 }
 
 // The schedule is stored apart from the composition, so a timer writing when a

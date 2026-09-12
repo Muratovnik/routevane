@@ -455,7 +455,8 @@ it('selects the created identity after a failed reread recovers without repeatin
   const created = {
     ...DEVICE_PAYLOAD.devices[0],
     id: 'created-id',
-    name: 'Home router',
+    name: 'Saved router',
+    address: 'http://192.168.1.9',
   }
   const fetchMock = installFetch(async (input, init) => {
     if (input === DEVICES && init?.method === 'POST') {
@@ -494,21 +495,33 @@ it('selects the created identity after a failed reread recovers without repeatin
     .element(screen.getByText('Connections could not be refreshed'))
     .toBeVisible()
   await expect
+    .element(screen.getByRole('heading', { name: 'Saved router' }))
+    .toBeVisible()
+  await expect
+    .element(screen.getByLabelText('Device address'))
+    .toHaveValue('http://192.168.1.9')
+  await expect
     .element(screen.getByRole('button', { name: 'Save', exact: true }))
     .toBeDisabled()
   await screen.getByRole('button', { name: 'Retry', exact: true }).click()
-  const connections = screen.getByRole('button', {
-    name: 'Configure connection Home router',
-    exact: true,
-  })
   await expect
-    .element(connections.nth(0))
+    .element(
+      screen.getByRole('button', {
+        name: 'Configure connection Home router',
+        exact: true,
+      }),
+    )
     .toHaveAttribute('aria-pressed', 'false')
   await expect
-    .element(connections.nth(1))
+    .element(
+      screen.getByRole('button', {
+        name: 'Configure connection Saved router',
+        exact: true,
+      }),
+    )
     .toHaveAttribute('aria-pressed', 'true')
   await expect
-    .element(screen.getByRole('region', { name: 'Home router', exact: true }))
+    .element(screen.getByRole('region', { name: 'Saved router', exact: true }))
     .toBeVisible()
   expect(
     fetchMock.mock.calls.filter(
@@ -583,6 +596,56 @@ it('saves a renamed connection through the update endpoint and says nothing abou
     interface: 'Wireguard0',
     name: 'Study router',
   })
+  vi.unstubAllGlobals()
+})
+
+it('keeps an updated same-device card through a failed reread and retry', async () => {
+  const saved = {
+    ...AUTO_DEVICE,
+    name: 'Study router',
+    address: 'http://192.168.1.9',
+  }
+  const fetchMock = installFetch(async (input, init) => {
+    if (input === UPDATE) return json({ device: saved })
+    if (input === DEVICES) {
+      const reads = callsTo(fetchMock, DEVICES).length
+      if (reads === 2) return json({ error: 'unavailable' }, 503)
+      return json({
+        devices: [reads === 1 ? AUTO_DEVICE : saved],
+        secret_store_available: true,
+      })
+    }
+    if (input === LISTS) return json(CATALOG_PAYLOAD)
+    if (input === TARGETS) return json(TARGETS_PAYLOAD)
+    if (input === REQUIREMENTS) return json(REQUIREMENTS_PAYLOAD)
+    throw new Error(`unexpected request ${input} ${init?.method}`)
+  })
+  const screen = await render(DevicesView)
+  await screen.getByLabelText('Connection name').fill('Study router')
+  await screen.getByLabelText('Device address').fill('http://192.168.1.9')
+  await screen.getByLabelText('Router login').fill('admin')
+  await screen.getByLabelText('Interface for routes').fill('Wireguard0')
+  await screen.getByRole('button', { name: 'Save', exact: true }).click()
+
+  await expect
+    .element(screen.getByText('Connections could not be refreshed'))
+    .toBeVisible()
+  await expect
+    .element(screen.getByRole('heading', { name: 'Study router' }))
+    .toBeVisible()
+  await expect
+    .element(screen.getByLabelText('Device address'))
+    .toHaveValue('http://192.168.1.9')
+  await expect
+    .element(screen.getByRole('button', { name: 'Save', exact: true }))
+    .toBeDisabled()
+
+  await screen.getByRole('button', { name: 'Retry', exact: true }).click()
+  await expect
+    .element(screen.getByRole('heading', { name: 'Study router' }))
+    .toBeVisible()
+  expect(callsTo(fetchMock, UPDATE)).toHaveLength(1)
+  expect(callsTo(fetchMock, DEVICES)).toHaveLength(3)
   vi.unstubAllGlobals()
 })
 

@@ -247,6 +247,27 @@ onMounted(() => {
       </form>
 
       <RvStateNotice
+        v-if="deployment.state.value === 'outcome_unknown'"
+        :body="t('send.outcomeUnknown.body')"
+        live
+        :title="t('send.outcomeUnknown.title')"
+        tone="waiting"
+      >
+        <template #action>
+          <RvButton
+            :disabled="deployment.checkingOutcome.value"
+            @click="deployment.checkOutcome"
+          >
+            {{
+              deployment.checkingOutcome.value
+                ? t('send.outcomeUnknown.checking')
+                : t('send.outcomeUnknown.check')
+            }}
+          </RvButton>
+        </template>
+      </RvStateNotice>
+
+      <RvStateNotice
         v-if="deployment.errorKey.value !== null"
         :body="
           deployment.outcome.value?.rolledBack === true
@@ -260,7 +281,8 @@ onMounted(() => {
 
       <section
         v-if="
-          deployment.plan.value !== null && deployment.state.value !== 'applied'
+          deployment.plan.value !== null &&
+          ['planned', 'applying'].includes(deployment.state.value)
         "
         aria-labelledby="send-plan-title"
         class="send__plan"

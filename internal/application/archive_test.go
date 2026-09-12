@@ -168,3 +168,42 @@ func TestArchivingAnUnknownProfileIsNotFound(t *testing.T) {
 		t.Fatal("a refused request still wrote to the store")
 	}
 }
+
+func TestProfilePublicationRevisionTracksBuildInputsOnly(t *testing.T) {
+	base := Profile{
+		ID: strings.Repeat("a", 32), Name: "profile", Lists: []string{"alpha"},
+		Categories: []string{"group"}, Exclusions: []string{"excluded"},
+		ListDomains: map[string][]string{"alpha": {"example.com"}}, Priority: []string{"alpha"},
+		CreatedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(2, 0).UTC(),
+	}
+	revision := ProfilePublicationRevision(base)
+
+	metadataOnly := base
+	metadataOnly.Name = "renamed"
+	metadataOnly.RefreshInterval = RefreshDaily
+	metadataOnly.LastRefreshedAt = time.Unix(3, 0).UTC()
+	metadataOnly.LastRefreshFailed = true
+	metadataOnly.UpdatedAt = time.Unix(4, 0).UTC()
+	if got := ProfilePublicationRevision(metadataOnly); got != revision {
+		t.Fatal("name and scheduling metadata invalidated a prepared publication")
+	}
+
+	changes := map[string]func(*Profile){
+		"list":          func(profile *Profile) { profile.Lists = []string{"beta"} },
+		"category":      func(profile *Profile) { profile.Categories = []string{"other"} },
+		"exclusion":     func(profile *Profile) { profile.Exclusions = []string{"other"} },
+		"domain":        func(profile *Profile) { profile.ListDomains = map[string][]string{"alpha": {"other.example"}} },
+		"priority":      func(profile *Profile) { profile.Priority = []string{"beta", "alpha"} },
+		"archival":      func(profile *Profile) { profile.ArchivedAt = time.Unix(5, 0).UTC() },
+		"profile owner": func(profile *Profile) { profile.ID = strings.Repeat("b", 32) },
+	}
+	for name, change := range changes {
+		t.Run(name, func(t *testing.T) {
+			changed := base
+			change(&changed)
+			if got := ProfilePublicationRevision(changed); got == revision {
+				t.Fatal("publication input change retained the old revision")
+			}
+		})
+	}
+}

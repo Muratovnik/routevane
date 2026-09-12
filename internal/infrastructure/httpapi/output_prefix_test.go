@@ -96,7 +96,7 @@ func TestDeploymentHTTPReportsUnrecoveredVerificationWithItsAuditTrail(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	body, err := json.Marshal(map[string]any{"device": "http://192.168.1.1", "interface": "Wireguard0", "confirm": true})
+	body, err := json.Marshal(map[string]any{"attempt_id": strings.Repeat("e", 32), "device": "http://192.168.1.1", "interface": "Wireguard0", "confirm": true})
 	if err != nil {
 		t.Fatal(err)
 	}

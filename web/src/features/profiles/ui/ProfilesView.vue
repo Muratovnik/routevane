@@ -324,6 +324,24 @@ const onMenu = (card: ProfileCard, key: string): void => {
         </li>
       </ul>
     </RvDisclosure>
+
+    <div
+      v-if="library.state.value === 'ready' && library.nextCursor.value !== ''"
+      class="profiles__pagination"
+    >
+      <p v-if="library.moreFailed.value" role="status">
+        {{ t('profiles.loadMore.failed') }}
+      </p>
+      <RvButton
+        :loading="library.loadingMore.value"
+        :loading-label="t('profiles.loading')"
+        @click="library.loadMore"
+      >
+        {{
+          library.moreFailed.value ? t('action.retry') : t('profiles.loadMore')
+        }}
+      </RvButton>
+    </div>
   </section>
 </template>
 
@@ -469,6 +487,18 @@ const onMenu = (card: ProfileCard, key: string): void => {
   flex: 1 1 auto;
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
+}
+
+.profiles__pagination {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-3);
+  align-items: center;
+}
+
+.profiles__pagination p {
+  margin: 0;
+  color: var(--rv-color-status-failed);
 }
 
 @container routes (width <= 40rem) {

@@ -16,7 +16,7 @@ import {
 import {
   archiveProfile,
   isArchived,
-  loadProfiles,
+  loadProfilePage,
   restoreProfile,
   type ProfileCard,
 } from '@/shared/api/profiles'
@@ -45,6 +45,12 @@ export const useProfiles = () => {
   const exportFormats = ref<ExportFormat[]>([])
   const exporting = ref('')
   const exportFailedID = ref('')
+  const nextCursor = ref('')
+  const loadingMore = ref(false)
+  const moreFailed = ref(false)
+  // Each initial read or archival change supersedes a pending continuation.
+  // A response that no longer describes this library must not append itself.
+  let readGeneration = 0
 
   // The shelf and the archive are one server read split here. An archived profile
   // leaves the main view without leaving the library: its file and its
@@ -54,14 +60,19 @@ export const useProfiles = () => {
   const archived = computed(() => cards.value.filter(isArchived))
 
   const initialize = async (): Promise<void> => {
+    const generation = ++readGeneration
     state.value = 'loading'
+    nextCursor.value = ''
+    loadingMore.value = false
+    moreFailed.value = false
     const [profiles, loadedCatalog, deployables, formats] =
       await Promise.allSettled([
-        loadProfiles(),
+        loadProfilePage(),
         loadCatalogCached(),
         loadDeployableTargets(),
         loadExportFormats(),
       ])
+    if (generation !== readGeneration) return
     if (loadedCatalog.status === 'fulfilled') {
       catalog.value = loadedCatalog.value
     }
@@ -75,8 +86,33 @@ export const useProfiles = () => {
       state.value = 'failed'
       return
     }
-    cards.value = profiles.value
-    state.value = profiles.value.length === 0 ? 'empty' : 'ready'
+    cards.value = profiles.value.profiles
+    nextCursor.value = profiles.value.nextCursor
+    state.value = profiles.value.profiles.length === 0 ? 'empty' : 'ready'
+  }
+
+  // A failed continuation preserves already confirmed rows and its cursor, so
+  // retry asks for exactly the page that did not arrive instead of sending the
+  // operator back to the start of a long library.
+  const loadMore = async (): Promise<boolean> => {
+    if (nextCursor.value === '' || loadingMore.value) return false
+    const generation = readGeneration
+    const cursor = nextCursor.value
+    loadingMore.value = true
+    moreFailed.value = false
+    try {
+      const page = await loadProfilePage(cursor)
+      if (generation !== readGeneration || nextCursor.value !== cursor)
+        return false
+      cards.value = [...cards.value, ...page.profiles]
+      nextCursor.value = page.nextCursor
+      return true
+    } catch {
+      if (generation === readGeneration) moreFailed.value = true
+      return false
+    } finally {
+      if (generation === readGeneration) loadingMore.value = false
+    }
   }
 
   const listTitle = (id: string): string =>
@@ -121,9 +157,24 @@ export const useProfiles = () => {
   ): Promise<boolean> => {
     if (shelving.value !== '') return false
     shelving.value = card.id
+    // The archive response changes the page split, so a continuation begun
+    // before this action no longer belongs beside the confirmed shelf.
+    readGeneration += 1
+    loadingMore.value = false
+    moreFailed.value = false
     try {
-      await (next ? archiveProfile(card.id) : restoreProfile(card.id))
-      await initialize()
+      const profile = await (next
+        ? archiveProfile(card.id)
+        : restoreProfile(card.id))
+      cards.value = cards.value.map((current) =>
+        current.id === card.id
+          ? {
+              ...current,
+              archivedAt: profile.archivedAt,
+              updatedAt: profile.updatedAt,
+            }
+          : current,
+      )
       return true
     } catch {
       return false
@@ -198,6 +249,10 @@ export const useProfiles = () => {
     rows,
     sendable,
     listTitle,
+    loadMore,
+    loadingMore,
+    moreFailed,
+    nextCursor,
     setArchived,
     shelving,
     state,

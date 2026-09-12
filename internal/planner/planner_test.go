@@ -415,6 +415,10 @@ func TestBuildPlanRefusesSpecialUseAndOverWideDestinations(t *testing.T) {
 	}{
 		{"the operator's own private network", "10.0.0.0/8", ReasonSpecialUseDestination},
 		{"a home LAN range", "192.168.1.0/24", ReasonSpecialUseDestination},
+		{"private subnet inside public-starting prefix", "172.0.0.0/10", ReasonSpecialUseDestination},
+		{"CGNAT inside public-starting prefix", "100.0.0.0/9", ReasonSpecialUseDestination},
+		{"metadata inside public-starting prefix", "169.0.0.0/8", ReasonSpecialUseDestination},
+		{"Teredo inside public-starting prefix", "2001::/16", ReasonSpecialUseDestination},
 		{"loopback", "127.0.0.1", ReasonSpecialUseDestination},
 		{"the cloud metadata address", "169.254.169.254", ReasonSpecialUseDestination},
 		{"carrier-grade NAT space", "100.64.0.1", ReasonSpecialUseDestination},

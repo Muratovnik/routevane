@@ -28,9 +28,35 @@ func (s *Store) Publish(ctx context.Context, candidate application.PublicationCa
 		_ = tx.Rollback()
 		return application.Output{}, application.PlanSnapshotRecord{}, application.ArtifactBuildRecord{}, cause
 	}
-	var exists int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM outputs WHERE id=?`, candidate.Snapshot.OutputID).Scan(&exists); err != nil || exists != 1 {
+	var profileID string
+	err = tx.QueryRowContext(ctx, `SELECT profile_id FROM outputs WHERE id=?`, candidate.Snapshot.OutputID).Scan(&profileID)
+	if errors.Is(err, sql.ErrNoRows) {
 		return fail(application.ErrNotFound)
+	}
+	if err != nil {
+		return fail(fmt.Errorf("read publication profile: %w", err))
+	}
+	profile, err := readProfile(ctx, tx, profileID)
+	if err != nil {
+		return fail(err)
+	}
+	if profile.Archived() {
+		return fail(application.ErrProfileArchived)
+	}
+	if application.ProfilePublicationRevision(profile) != candidate.ProfileRevision {
+		return fail(application.ErrProfileChanged)
+	}
+	var latestCutoff int64
+	err = tx.QueryRowContext(ctx, `SELECT snapshots.observation_cutoff_ns
+		FROM outputs
+		JOIN artifact_builds AS artifacts ON artifacts.id=outputs.latest_artifact_id
+		JOIN plan_snapshots AS snapshots ON snapshots.id=artifacts.plan_snapshot_id
+		WHERE outputs.id=?`, candidate.Snapshot.OutputID).Scan(&latestCutoff)
+	if err == nil && latestCutoff > candidate.Snapshot.ObservationCutoff.UTC().UnixNano() {
+		return fail(application.ErrBuildSuperseded)
+	}
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return fail(fmt.Errorf("read latest publication cutoff: %w", err))
 	}
 
 	snapshot := candidate.Snapshot

@@ -94,15 +94,16 @@ shows command-line help instead of opening the interface. See
 
 Routevane works with four things. A **list** is a named set of destinations:
 domains, addresses, networks. A **category** groups lists. A **profile** combines
-lists and categories. A **connection** publishes a profile in one format,
-optionally to one device, and owns that format's subscription link.
+lists and categories and publishes them in one or more formats, each with its
+own file and subscription link. A **connection** saves a device and the profile
+format used to deliver rules to it.
 
 1. Open **Lists** to see the supplied library.
 2. Open **Profiles** and choose **Build a profile**. Select lists or whole
    categories and pick the format of your router or application. The forecast
    beside each format shows how many rules it would build.
 3. After the first successful build, save the subscription link while it is
-   shown, or download the file from **Connections**.
+   shown, or download the file from the profile's format card in **Profiles**.
 
 > [!WARNING]
 > The secret in a subscription link is shown once and cannot be displayed again.

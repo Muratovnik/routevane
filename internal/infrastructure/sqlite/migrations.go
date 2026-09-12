@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 14
+const CurrentSchemaVersion = 15
 
 type migration struct {
 	version int
@@ -654,9 +654,33 @@ CREATE TABLE managed_fqdn_groups (
  state_json TEXT NOT NULL,
  PRIMARY KEY(endpoint,name)
 ) STRICT;
+`}, {version: 15, sql: `
+CREATE TABLE deployment_attempts (
+ id TEXT PRIMARY KEY,
+ artifact_id TEXT NOT NULL,
+ request_hash TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('pending','succeeded','failed')),
+ started_at_ns INTEGER NOT NULL,
+ completed_at_ns INTEGER,
+ result_json TEXT NOT NULL,
+ error_code TEXT NOT NULL,
+ CHECK((status='pending' AND completed_at_ns IS NULL AND result_json='' AND error_code='') OR
+       (status='succeeded' AND completed_at_ns IS NOT NULL AND result_json<>'' AND error_code='') OR
+       (status='failed' AND completed_at_ns IS NOT NULL AND result_json<>'' AND error_code<>''))
+) STRICT;
+CREATE TRIGGER deployment_attempts_identity_immutable BEFORE UPDATE OF id,artifact_id,request_hash,started_at_ns ON deployment_attempts BEGIN
+ SELECT RAISE(ABORT, 'immutable deployment attempt identity');
+END;
+CREATE TRIGGER deployment_attempts_terminal_immutable BEFORE UPDATE OF status,completed_at_ns,result_json,error_code ON deployment_attempts WHEN OLD.status<>'pending' OR NEW.status='pending' BEGIN
+ SELECT RAISE(ABORT, 'immutable deployment attempt outcome');
+END;
+CREATE TRIGGER deployment_attempts_no_delete BEFORE DELETE ON deployment_attempts BEGIN
+ SELECT RAISE(ABORT, 'immutable deployment attempt');
+END;
 `}}
 
 var requiredTables = []string{
+	"deployment_attempts",
 	"managed_fqdn_groups",
 	"settings",
 	"devices",
@@ -691,6 +715,7 @@ var requiredTables = []string{
 }
 
 var requiredColumns = map[string][]string{
+	"deployment_attempts":     {"id", "artifact_id", "request_hash", "status", "started_at_ns", "completed_at_ns", "result_json", "error_code"},
 	"managed_fqdn_groups":     {"endpoint", "output_id", "name", "interface", "state_json"},
 	"schema_migrations":       {"version", "applied_at_ns"},
 	"resources":               {"id", "kind", "normalized_value", "ip_version", "created_at_ns"},
@@ -750,6 +775,9 @@ var requiredTriggers = []string{
 	"custom_categories_identity_immutable",
 	"custom_lists_identity_immutable",
 	"custom_sources_identity_immutable",
+	"deployment_attempts_identity_immutable",
+	"deployment_attempts_no_delete",
+	"deployment_attempts_terminal_immutable",
 	"outputs_identity_immutable",
 	"outputs_no_delete",
 	"outputs_pointer_integrity_insert",

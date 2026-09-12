@@ -65,6 +65,13 @@ export type ProfileCard = ProfileRecord & {
   outputs: OutputCard[]
 }
 
+// One bounded page of the profile library. nextCursor is empty after the final
+// page; it is returned by the service and used only as the next path segment.
+export type ProfileCardPage = {
+  profiles: ProfileCard[]
+  nextCursor: string
+}
+
 // How a profile is refreshed right now, and where that rule came from. The server
 // resolves it: a screen that combined the default with the profile's own value
 // would have to repeat the precedence rule and could disagree with the timer.
@@ -225,6 +232,12 @@ export const loadProfile = (profileID: string): Promise<ListDetail> =>
 export const loadProfiles = (): Promise<ProfileCard[]> =>
   getJSON('/v1/profiles', parseProfileCards)
 
+export const loadProfilePage = (afterID = ''): Promise<ProfileCardPage> =>
+  getJSON(
+    afterID === '' ? '/v1/profiles' : `/v1/profile-pages/${afterID}`,
+    parseProfileCardPage,
+  )
+
 export const saveProfileRefreshInterval = (
   profileID: string,
   interval: RefreshInterval,
@@ -363,6 +376,17 @@ const profileCardsSchema = v.pipe(
   v.transform((library): ProfileCard[] => library.profiles),
 )
 
+const profileCardPageSchema = v.pipe(
+  fields({
+    profiles: v.array(profileCardSchema),
+    next: v.string(),
+  }),
+  v.transform((page): ProfileCardPage => ({
+    profiles: page.profiles,
+    nextCursor: page.next,
+  })),
+)
+
 const forecastListSchema = v.pipe(
   fields({ list_id: text, rules: count }),
   v.transform((entry): ForecastList => ({
@@ -499,5 +523,8 @@ const parseProfileEnvelope: Decoder<ProfileRecord> = decode(
 const parseScheduleEnvelope: Decoder<Schedule> = decode(scheduleEnvelopeSchema)
 const parseProfileDetail: Decoder<ListDetail> = decode(listDetailSchema)
 const parseProfileCards: Decoder<ProfileCard[]> = decode(profileCardsSchema)
+const parseProfileCardPage: Decoder<ProfileCardPage> = decode(
+  profileCardPageSchema,
+)
 const parseForecasts: Decoder<TargetForecast[]> = decode(forecastsSchema)
 const parseRefresh: Decoder<true> = decode(refreshSchema)

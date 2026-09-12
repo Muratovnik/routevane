@@ -96,6 +96,9 @@ func routableValue(rule domain.RouteRule) (string, bool) {
 		if prefix.Bits() < minimum {
 			return ReasonPrefixTooWide, false
 		}
+		if !netpolicy.RoutablePrefix(prefix) {
+			return ReasonSpecialUseDestination, false
+		}
 	}
 	return "", true
 }

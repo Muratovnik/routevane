@@ -142,6 +142,21 @@ type ProfileCard struct {
 	Outputs           []OutputCard `json:"outputs"`
 }
 
+// ProfilePage is one stable, bounded slice of the profile library. NextCursor is
+// empty only after the final page; it is an internal profile identity rather than
+// an offset so rows created while a page is being read cannot shift later rows.
+type ProfilePage struct {
+	Profiles   []Profile `json:"-"`
+	NextCursor string    `json:"-"`
+}
+
+// ProfileCardPage is the browser-safe representation of one ProfilePage.
+// The cursor deliberately names no time or storage implementation detail.
+type ProfileCardPage struct {
+	Profiles   []ProfileCard `json:"profiles"`
+	NextCursor string        `json:"next"`
+}
+
 // Lists names every list the library currently holds. A list the operator
 // removed is absent, decided by the same accessor a build resolves an id with,
 // so the picker and the plan can never disagree about what exists (ADR 0029).
@@ -244,40 +259,47 @@ func (s *PublicationService) Targets() []TargetOption {
 	return options
 }
 
-// ProfileCards lists every stored list with the outputs it feeds. A latest
-// artifact that cannot be read is omitted from its output rather than failing
-// the listing: the profile still exists and says so.
+// ProfileCards keeps the original first-page read for application consumers
+// that do not yet page. Browser-facing consumers use ProfileCardsPage so a
+// profile can never become invisible merely because it is older than the page.
 func (s *PublicationService) ProfileCards(ctx context.Context) ([]ProfileCard, error) {
-	profiles, err := s.config.Store.Profiles(ctx)
+	page, err := s.ProfileCardsPage(ctx, "")
 	if err != nil {
 		return nil, err
 	}
-	outputs, err := s.config.Store.Outputs(ctx)
+	return page.Profiles, nil
+}
+
+// ProfileCardsPage lists one profile page with the outputs each row owns. A
+// latest artifact that cannot be read is omitted from its output rather than
+// failing the listing: the profile still exists and says so.
+func (s *PublicationService) ProfileCardsPage(ctx context.Context, afterID string) (ProfileCardPage, error) {
+	page, err := s.config.Store.ProfilePage(ctx, afterID)
 	if err != nil {
-		return nil, err
+		return ProfileCardPage{}, err
 	}
-	// The store returns outputs newest first so a bound drops the oldest; a
-	// profile states its own outputs oldest first, the order it acquired them.
-	byProfile := make(map[string][]Output, len(profiles))
-	for i := len(outputs) - 1; i >= 0; i-- {
-		byProfile[outputs[i].ProfileID] = append(byProfile[outputs[i].ProfileID], outputs[i])
-	}
-	cards := make([]ProfileCard, 0, len(profiles))
-	for _, profile := range profiles {
+	cards := make([]ProfileCard, 0, len(page.Profiles))
+	for _, profile := range page.Profiles {
+		// Reading by profile keeps every row's actions intact even where a
+		// library page contains more outputs than the old global shelf bound.
+		outputs, err := s.config.Store.OutputsByProfile(ctx, profile.ID)
+		if err != nil {
+			return ProfileCardPage{}, err
+		}
 		card := ProfileCard{
 			ID: profile.ID, Name: profile.Name,
 			Lists: profile.Lists, Categories: profile.Categories, Exclusions: profile.Exclusions, ListDomains: profile.ListDomains, Priority: profile.Priority,
 			Resolved: s.ResolvedLists(profile), MissingCategories: s.MissingCategories(profile),
 			ArchivedAt: profile.ArchivedAt,
 			CreatedAt:  profile.CreatedAt, UpdatedAt: profile.UpdatedAt,
-			Outputs: make([]OutputCard, 0, len(byProfile[profile.ID])),
+			Outputs: make([]OutputCard, 0, len(outputs)),
 		}
-		for _, output := range byProfile[profile.ID] {
+		for _, output := range outputs {
 			card.Outputs = append(card.Outputs, s.outputCard(ctx, output))
 		}
 		cards = append(cards, card)
 	}
-	return cards, nil
+	return ProfileCardPage{Profiles: cards, NextCursor: page.NextCursor}, nil
 }
 
 // OutputCards describes one profile's outputs for the profile screen.

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import {
   applyDeployment,
+  loadDeploymentAttempt,
   loadDeployableTargets,
   planDeployment,
 } from '@/shared/api/deploy'
@@ -12,6 +13,8 @@ import {
   answer,
   artifactID,
   connection,
+  deploymentAttemptID,
+  fetchMock,
   outcomePayload,
   requirementsPayload,
   stubFetch,
@@ -73,6 +76,9 @@ describe('a refused deployment still describes itself', () => {
   it('reads the audit trail out of a non-2xx reply', async () => {
     answer(
       {
+        attempt_id: deploymentAttemptID,
+        artifact_id: artifactID,
+        status: 'failed',
         result: {
           applied: false,
           rolled_back: true,
@@ -87,7 +93,12 @@ describe('a refused deployment still describes itself', () => {
       },
       502,
     )
-    await expect(applyDeployment(artifactID, connection)).resolves.toEqual({
+    await expect(
+      applyDeployment(artifactID, connection, deploymentAttemptID),
+    ).resolves.toEqual({
+      status: 'failed',
+      attemptID: deploymentAttemptID,
+      artifactID,
       applied: false,
       rolledBack: true,
       deployerID: 'keenetic-telnet',
@@ -101,18 +112,40 @@ describe('a refused deployment still describes itself', () => {
       ],
       error: 'device refused the change',
     })
+    const request = fetchMock.mock.calls[0]
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+      attempt_id: deploymentAttemptID,
+      confirm: true,
+    })
+  })
+
+  it('reads an unresolved durable attempt without inventing a failure', async () => {
+    answer({
+      attempt_id: deploymentAttemptID,
+      artifact_id: artifactID,
+      status: 'outcome_unknown',
+      result: { applied: false, rolled_back: false, device: {} },
+    })
+    await expect(
+      loadDeploymentAttempt(deploymentAttemptID),
+    ).resolves.toMatchObject({
+      attemptID: deploymentAttemptID,
+      artifactID,
+      status: 'outcome_unknown',
+      applied: false,
+    })
   })
 
   it('reports the server words when the reply is not an outcome', async () => {
     answer({ error: 'artifact unavailable' }, 503)
-    await expect(applyDeployment(artifactID, connection)).rejects.toThrow(
-      'artifact unavailable',
-    )
+    await expect(
+      applyDeployment(artifactID, connection, deploymentAttemptID),
+    ).rejects.toThrow('artifact unavailable')
 
     answer({ result: {} }, 200)
-    await expect(applyDeployment(artifactID, connection)).rejects.toThrow(
-      'Применение не выполнено.',
-    )
+    await expect(
+      applyDeployment(artifactID, connection, deploymentAttemptID),
+    ).rejects.toThrow('Применение не выполнено.')
   })
 
   // A deployment refused before it started took no step, and that is not a
@@ -120,22 +153,22 @@ describe('a refused deployment still describes itself', () => {
   it('reads no steps as none and a nameless step as malformed', async () => {
     answer(outcomePayload({}))
     await expect(
-      applyDeployment(artifactID, connection),
+      applyDeployment(artifactID, connection, deploymentAttemptID),
     ).resolves.toMatchObject({ events: [], backupHash: '' })
 
     answer(outcomePayload({ events: 'none' }))
     await expect(
-      applyDeployment(artifactID, connection),
+      applyDeployment(artifactID, connection, deploymentAttemptID),
     ).resolves.toMatchObject({ events: [] })
 
     answer(outcomePayload({ events: [{ step: 'connect' }] }))
-    await expect(applyDeployment(artifactID, connection)).rejects.toThrow(
-      'Применение не выполнено.',
-    )
+    await expect(
+      applyDeployment(artifactID, connection, deploymentAttemptID),
+    ).rejects.toThrow('Применение не выполнено.')
 
     answer(outcomePayload({ backup: 'gone' }))
     await expect(
-      applyDeployment(artifactID, connection),
+      applyDeployment(artifactID, connection, deploymentAttemptID),
     ).resolves.toMatchObject({ backupHash: '' })
   })
 })

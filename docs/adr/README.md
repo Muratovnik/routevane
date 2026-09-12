@@ -21,7 +21,8 @@ Important chains: 0004 → 0013/0023 (objects and issuance), 0013 → 0016 → 0
 0028 → 0039 (the deferred identifiers, and the executable that carries them),
 0027 → 0041 (one interface word per object),
 0024 → 0025 → 0029 (editing),
-0012 → 0014 → 0031 (credentials and unattended delivery), 0008 → 0032 → 0034
+0012 → 0014 → 0031 (credentials and unattended delivery), 0008 → 0020 → 0042
+(deployment recovery), 0008 → 0032 → 0034
 (Keenetic route ownership and descriptions), and 0002 → 0030 (Go).
 Later clauses replace only the scope they name, not every invariant in an earlier ADR.
 
@@ -68,3 +69,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0039: one product vocabulary across the executable, API, and storage](./0039-one-product-vocabulary-across-binary-api-and-storage.md) | adopted |
 | [ADR 0040: exact FQDN ownership belongs to a router and output](./0040-exact-fqdn-output-ownership.md) | adopted |
 | [ADR 0041: one interface word per object — format and connection](./0041-one-interface-word-per-object.md) | adopted |
+| [ADR 0042: identify a manual deployment before device effects](./0042-identify-manual-deployment-before-device-effects.md) | adopted |
