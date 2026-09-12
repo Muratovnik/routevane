@@ -274,28 +274,58 @@ type queryer interface {
 	QueryRowContext(context.Context, string, ...any) *sql.Row
 }
 
+// countIn answers one question about the schema. A query that fails is a
+// failure to read the database and never an answer about its shape: reported
+// as an incompatible schema, a timeout on a busy machine told an operator that
+// the database this product had just written itself was wrong, and refused to
+// open a database that was in fact sound.
+func countIn(ctx context.Context, q queryer, query string, args ...any) (int, error) {
+	var count int
+	if err := q.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
+		return 0, fmt.Errorf("inspect schema: %w", err)
+	}
+	return count, nil
+}
+
 func verifySchema(ctx context.Context, q queryer) error {
-	var version int
-	if err := q.QueryRowContext(ctx, "PRAGMA user_version").Scan(&version); err != nil || version != CurrentSchemaVersion {
+	version, err := countIn(ctx, q, "PRAGMA user_version")
+	if err != nil {
+		return err
+	}
+	if version != CurrentSchemaVersion {
 		return fmt.Errorf("%w: schema version", ErrIncompatibleSchema)
 	}
 	for _, table := range requiredTables {
-		var count int
-		if err := q.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&count); err != nil || count != 1 {
+		count, err := countIn(ctx, q, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", table)
+		if err != nil {
+			return err
+		}
+		if count != 1 {
 			return fmt.Errorf("%w: required table %s", ErrIncompatibleSchema, table)
 		}
-		if err := q.QueryRowContext(ctx, "SELECT count(*) FROM pragma_table_info(?)", table).Scan(&count); err != nil || count != len(requiredColumns[table]) {
+		count, err = countIn(ctx, q, "SELECT count(*) FROM pragma_table_info(?)", table)
+		if err != nil {
+			return err
+		}
+		if count != len(requiredColumns[table]) {
 			return fmt.Errorf("%w: table shape %s", ErrIncompatibleSchema, table)
 		}
 		for _, column := range requiredColumns[table] {
-			if err := q.QueryRowContext(ctx, "SELECT count(*) FROM pragma_table_info(?) WHERE name=?", table, column).Scan(&count); err != nil || count != 1 {
+			count, err := countIn(ctx, q, "SELECT count(*) FROM pragma_table_info(?) WHERE name=?", table, column)
+			if err != nil {
+				return err
+			}
+			if count != 1 {
 				return fmt.Errorf("%w: required column %s.%s", ErrIncompatibleSchema, table, column)
 			}
 		}
 	}
 	for _, trigger := range requiredTriggers {
-		var count int
-		if err := q.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name=?", trigger).Scan(&count); err != nil || count != 1 {
+		count, err := countIn(ctx, q, "SELECT count(*) FROM sqlite_master WHERE type='trigger' AND name=?", trigger)
+		if err != nil {
+			return err
+		}
+		if count != 1 {
 			return fmt.Errorf("%w: required trigger %s", ErrIncompatibleSchema, trigger)
 		}
 	}
@@ -305,17 +335,27 @@ func verifySchema(ctx context.Context, q queryer) error {
 	// exists, so the target is verified rather than assumed.
 	for child, parents := range requiredForeignKeys {
 		for _, parent := range parents {
-			var count int
-			if err := q.QueryRowContext(ctx, "SELECT count(*) FROM pragma_foreign_key_list(?) WHERE \"table\"=?", child, parent).Scan(&count); err != nil || count < 1 {
+			count, err := countIn(ctx, q, "SELECT count(*) FROM pragma_foreign_key_list(?) WHERE \"table\"=?", child, parent)
+			if err != nil {
+				return err
+			}
+			if count < 1 {
 				return fmt.Errorf("%w: %s must reference %s", ErrIncompatibleSchema, child, parent)
 			}
 		}
 	}
-	var applied int
-	if err := q.QueryRowContext(ctx, "SELECT count(*) FROM schema_migrations WHERE version=?", CurrentSchemaVersion).Scan(&applied); err != nil || applied != 1 {
+	applied, err := countIn(ctx, q, "SELECT count(*) FROM schema_migrations WHERE version=?", CurrentSchemaVersion)
+	if err != nil {
+		return err
+	}
+	if applied != 1 {
 		return fmt.Errorf("%w: migration metadata", ErrIncompatibleSchema)
 	}
-	if err := q.QueryRowContext(ctx, "SELECT count(*) FROM schema_migrations").Scan(&applied); err != nil || applied != CurrentSchemaVersion {
+	applied, err = countIn(ctx, q, "SELECT count(*) FROM schema_migrations")
+	if err != nil {
+		return err
+	}
+	if applied != CurrentSchemaVersion {
 		return fmt.Errorf("%w: migration history", ErrIncompatibleSchema)
 	}
 	return nil

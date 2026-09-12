@@ -43,7 +43,12 @@ func migrateLegacyV3(ctx context.Context, root, path string) (bool, error) {
 		_ = legacy.Close()
 		return false, nil
 	}
-	ctx, cancel := bounded(ctx)
+	// What follows is a checkpoint, an integrity check, a copy of the whole
+	// database, a fresh schema built from every migration and a bulk import of
+	// the operator's rows. That is startup work whose size follows the data,
+	// not a query, and measuring it against a query's budget reported a
+	// database this product had written itself as incompatible.
+	ctx, cancel := boundedBy(ctx, schemaStepTimeout)
 	defer cancel()
 	if _, err := legacy.ExecContext(ctx, "PRAGMA busy_timeout = 5000"); err != nil {
 		_ = legacy.Close()

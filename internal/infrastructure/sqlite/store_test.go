@@ -99,6 +99,36 @@ func TestMigrationFailureRollsBackAndNewerSchemaFailsClosed(t *testing.T) {
 	})
 }
 
+// A schema question that cannot be asked has no answer. Every check read the
+// database and treated a failed read as a bad shape, so a release build whose
+// deadline ran out while it was verifying an imported database reported a
+// missing trigger: the database this product had just written itself was
+// declared incompatible, and opening it refused.
+func TestAFailedSchemaReadIsNotAVerdictOnTheSchema(t *testing.T) {
+	root := newDataRoot(t)
+	store, err := Open(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	stopped, cancel := context.WithCancel(context.Background())
+	cancel()
+	err = verifySchema(stopped, store.db)
+	if err == nil {
+		t.Fatal("a schema read that could not run reported a sound schema")
+	}
+	if errors.Is(err, ErrIncompatibleSchema) {
+		t.Fatalf("a failed read was reported as a verdict on the schema: %v", err)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want it to carry %v", err, context.Canceled)
+	}
+	// The same database answers for itself when the question can be asked.
+	if err := verifySchema(context.Background(), store.db); err != nil {
+		t.Fatalf("a sound schema was refused: %v", err)
+	}
+}
+
 // A first run has to apply every migration before the product can be used.
 // Neither the length of that sequence nor the size of one migration in it is
 // what a query budget describes: a build measured one migration past five
