@@ -322,6 +322,28 @@ describe('ProfileEditor', () => {
     ])
   })
 
+  it('returns to a clean draft when the same list is removed and restored', async () => {
+    stubPreview()
+    const screen = await renderEditor()
+    await settle()
+    const stored = composition(screen)
+
+    await screen
+      .getByRole('checkbox', { name: 'Remove Discord from the profile' })
+      .click()
+    await screen
+      .getByRole('checkbox', { name: 'Add Discord to the profile' })
+      .click()
+
+    expect(composition(screen)).toEqual(stored)
+    await expect
+      .element(screen.getByRole('button', { name: CANCEL }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: SAVE }))
+      .toBeDisabled()
+  })
+
   // Save is offered when the stored profile and the draft say different things.
   // The stored profile arrives in the server's order and the draft is kept in a
   // normalised one, so comparing them as written offered a save for a profile

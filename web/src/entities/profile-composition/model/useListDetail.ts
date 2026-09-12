@@ -240,13 +240,15 @@ export const useListDetail = (
     })}`
   })
 
-  // What the membership switch is called. It says the same thing whichever way
-  // the switch is thrown, because a label that changes under the hand that is
-  // still on the control reads as a second, unannounced effect of the press —
-  // and a label that changes length moves the card while it is being read. The
-  // switch states on or off by its own position, and the route is named by the
-  // page this card was opened from.
-  const membershipLabel = computed(() => t('listCard.membership.in'))
+  // The short label is an orientation aid: it states the list's resulting
+  // membership without repeating the profile scope or narrating the save flow.
+  const membershipLabel = computed(() =>
+    t(
+      props.included === true
+        ? 'listCard.membership.active'
+        : 'listCard.membership.inactive',
+    ),
+  )
 
   // Declared above the watch that starts it, because that watch runs immediately:
   // the first read of a card begins while this setup is still evaluating. The

@@ -612,20 +612,12 @@ describe('ListPicker', () => {
     await screen
       .getByRole('button', { name: 'Open the contents of list Discord' })
       .click()
-    await screen.getByRole('switch', { name: 'In this profile' }).click()
+    await screen.getByRole('switch', { name: 'Inactive' }).click()
 
     expect(lastModel(screen)).toMatchObject({ lists: ['discord'] })
   })
 
-  /**
-   * The one act the composing card owns is a standing state, so pressing it
-   * changes that state and nothing else. The words around the switch say the
-   * same thing at either position and take the same room, because a caption
-   * that appears or a name that arrives on the press reads as a second,
-   * unannounced effect — and either one moves the card under the hand that is
-   * still on the control.
-   */
-  it('says the same thing at either position of the membership switch', async () => {
+  it('labels membership as active or inactive without a save caption', async () => {
     stubAPI({ 'GET /v1/lists/discord/contents': () => contentsResponse() })
     const screen = await renderPicker({})
 
@@ -633,35 +625,31 @@ describe('ListPicker', () => {
       .getByRole('button', { name: 'Open the contents of list Discord' })
       .click()
 
-    const membership = screen.getByRole('switch', { name: 'In this profile' })
-    const band = () =>
+    const inactive = screen.getByRole('switch', { name: 'Inactive' })
+    const band = (membership: typeof inactive) =>
       (
         membership.element().closest('.list-card__membership') as HTMLElement
       ).getBoundingClientRect().height
 
-    await expect.element(membership).toHaveAttribute('aria-checked', 'false')
-    // No caption explains the reach of an edit, because no surface has two.
+    await expect.element(inactive).toHaveAttribute('aria-checked', 'false')
     await expect
       .element(screen.getByText('Edits here apply to every profile.'))
       .not.toBeInTheDocument()
     await expect
       .element(screen.getByText('applies when the profile is saved'))
-      .toBeVisible()
-    const before = band()
+      .not.toBeInTheDocument()
+    const before = band(inactive)
 
-    await membership.click()
+    await inactive.click()
     // The picker reports membership rather than storing it, so the case plays
     // the composer's part and hands the reported composition back.
     await screen.rerender({ modelValue: lastModel(screen) })
 
-    await expect.element(membership).toHaveAttribute('aria-checked', 'true')
-    // Same name, same caption, same room taken: only the switch moved.
-    await expect
-      .element(screen.getByRole('switch', { name: 'In this profile' }))
-      .toBeVisible()
+    const active = screen.getByRole('switch', { name: 'Active' })
+    await expect.element(active).toHaveAttribute('aria-checked', 'true')
     await expect
       .element(screen.getByText('applies when the profile is saved'))
-      .toBeVisible()
-    expect(band()).toBe(before)
+      .not.toBeInTheDocument()
+    expect(band(active)).toBe(before)
   })
 })

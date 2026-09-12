@@ -52,6 +52,13 @@ const storedComposition = (): ProfileComposition =>
 
 const draftName = ref(props.name)
 const draftComposition = ref<ProfileComposition>(storedComposition())
+// Membership may temporarily take a list out of the draft, but that gesture
+// does not say to move it. Remember the order independently of the normalized
+// draft, whose priority can contain included lists only, so putting the same
+// list back also puts it back in the same place.
+const preferredPriority = ref(
+  resolvedComposition(draftComposition.value, props.categories),
+)
 
 const resolved = computed(() =>
   resolvedComposition(draftComposition.value, props.categories),
@@ -129,12 +136,31 @@ const canSave = computed(
     !props.busy && draftName.value.trim() !== '' && resolved.value.length > 0,
 )
 
+const setComposition = (composition: ProfileComposition): void => {
+  const next = normalizeComposition(composition, props.categories)
+  const remembered = new Set(preferredPriority.value)
+  const newlySelected = (next.priority ?? []).filter(
+    (id) => !remembered.has(id),
+  )
+  preferredPriority.value = [...preferredPriority.value, ...newlySelected]
+  const included = new Set(resolvedComposition(next, props.categories))
+  draftComposition.value = normalizeComposition(
+    {
+      ...next,
+      priority: preferredPriority.value.filter((id) => included.has(id)),
+    },
+    props.categories,
+  )
+}
+
 const setPriority = (ids: string[]): void => {
   if (props.busy) return
-  draftComposition.value = normalizeComposition(
+  const next = normalizeComposition(
     { ...cloneComposition(draftComposition.value), priority: ids },
     props.categories,
   )
+  preferredPriority.value = [...(next.priority ?? [])]
+  draftComposition.value = next
 }
 
 const retryForecast = (): void => {
@@ -152,6 +178,10 @@ const submit = (): void => {
 const reset = (): void => {
   draftName.value = props.name
   draftComposition.value = storedComposition()
+  preferredPriority.value = resolvedComposition(
+    draftComposition.value,
+    props.categories,
+  )
 }
 </script>
 
@@ -164,7 +194,6 @@ const reset = (): void => {
         </h2>
         <div class="editor__composition-body">
           <ListPicker
-            v-model="draftComposition"
             fill
             :categories="props.categories"
             :disabled="props.busy"
@@ -179,7 +208,9 @@ const reset = (): void => {
             :forecast-pending="forecast.pending.value"
             :refreshing="forecast.observing.value"
             :lists="props.lists"
+            :model-value="draftComposition"
             :retryable="forecastTargets.length > 0"
+            @update:model-value="setComposition"
             @reorder="setPriority"
             @refresh="
               forecast.refresh(draftComposition, resolved, forecastTargets)

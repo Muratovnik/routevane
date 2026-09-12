@@ -513,15 +513,7 @@ test('a tab that outgrows the window keeps the page inset under its last row', a
   }
 })
 
-/**
- * Membership is one standing state, and pressing it may change that state and
- * nothing else. On a stored profile the card used to name the profile until the
- * first press, then rename itself and grow a caption — two further changes the
- * operator never asked for, the second of which moved the card while their hand
- * was still on the control. Both ends and the reading between them are checked
- * here, on a saved profile, because that is where the rename happened.
- */
-test('the membership switch says the same thing at either position', async ({
+test('the membership switch states its result without a save caption', async ({
   page,
   origin,
 }) => {
@@ -535,11 +527,13 @@ test('the membership switch says the same thing at either position', async ({
   await expect(membership).toBeVisible()
 
   const caption = card.getByText('applies when the profile is saved')
-  await expect(caption).toBeVisible()
-  // What the switch stands above. If the band grows or shrinks, this moves.
+  await expect(caption).toHaveCount(0)
   const contents = card.getByRole('heading', { name: 'List contents' })
   const before = (await contents.boundingBox())!.y
   const checkedBefore = await membership.getAttribute('aria-checked')
+  await expect(membership).toHaveAccessibleName(
+    checkedBefore === 'true' ? 'Active' : 'Inactive',
+  )
 
   await membership.click()
 
@@ -547,10 +541,10 @@ test('the membership switch says the same thing at either position', async ({
     'aria-checked',
     checkedBefore === 'true' ? 'false' : 'true',
   )
-  // The same control, under the same name, saying the same thing and taking the
-  // same room: only its position moved.
-  await expect(cardMembership(card, englishCopy)).toBeVisible()
-  await expect(caption).toBeVisible()
+  await expect(cardMembership(card, englishCopy)).toHaveAccessibleName(
+    checkedBefore === 'true' ? 'Inactive' : 'Active',
+  )
+  await expect(caption).toHaveCount(0)
   expect((await contents.boundingBox())!.y).toBe(before)
 })
 

@@ -210,16 +210,11 @@ watch(contentsState, async (state) => {
       <!-- Whether this route carries this list is a standing state, not an act
            with a result to report, so it is a switch and it sits where the card
            starts: the first thing the composer wants to know about a list it
-           opened is whether the route already has it. The switch's own position
-           states that, which is why nothing beside it repeats it in words.
-
-           Both lines stand whichever way the switch is thrown. Composing is
-           always a draft — every position of this switch waits for the same
-           save — so stating that only once the operator has touched it would
-           make the card grow under the hand that is still on the control. -->
+           opened is whether the route already has it. Its short label is only
+           an orientation aid; the profile editor already owns the save action
+           and needs no second explanation here. -->
       <div v-if="composing" class="list-card__membership">
         <RvSwitch
-          :description="t('listCard.pending')"
           :disabled="interactionBusy"
           :label="membershipLabel"
           :model-value="included === true"

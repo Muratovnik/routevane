@@ -136,7 +136,7 @@ const entrySwitch = (screen: RenderResult<unknown>, value: string) =>
 // Whether the route being composed carries this list. One switch says it and
 // sets it, so a case reads the state from the same control it presses.
 const membership = (screen: RenderResult<unknown>) =>
-  screen.getByRole('switch', { name: 'In this profile' })
+  screen.getByRole('switch', { name: 'Inactive' })
 
 const isChecked = (box: { element: () => Element }): boolean =>
   (box.element() as HTMLInputElement).checked

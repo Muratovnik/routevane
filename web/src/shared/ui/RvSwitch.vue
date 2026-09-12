@@ -33,6 +33,7 @@ const id = useId()
       :id="id"
       v-model="checked"
       :aria-describedby="description === undefined ? undefined : `${id}-note`"
+      :aria-label="label"
       class="rv-switch__control"
       :disabled="disabled"
     >
