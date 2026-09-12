@@ -45,7 +45,8 @@ first_version = "0.1.0"
 repository = "Muratovnik/routevane"
 remote = "origin"
 workflow = ".github/workflows/release.yml"
-required_jobs = ["build", "native-smoke (ubuntu-24.04, linux-amd64)", "native-smoke (ubuntu-24.04-arm, linux-arm64)", "native-smoke (windows-latest, windows-amd64)", "native-smoke (windows-11-arm, windows-arm64)", "native-smoke (macos-15, darwin-arm64)", "desktop", "publish"]
+required_jobs = ["publish"]
+candidate_jobs = ["build", "native-smoke (ubuntu-24.04, linux-amd64)", "native-smoke (ubuntu-24.04-arm, linux-arm64)", "native-smoke (windows-latest, windows-amd64)", "native-smoke (windows-11-arm, windows-arm64)", "native-smoke (macos-15, darwin-arm64)", "desktop", "candidate"]
 # The first numbered changelog entry is the prepared version. The tag remains
 # the binary's version source; there is no second product version file to sync.
 version_file = "CHANGELOG.md"

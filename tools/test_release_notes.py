@@ -106,19 +106,13 @@ class ReleaseNotesContracts(unittest.TestCase):
         # This is the exact command contract used in the two publication boundaries,
         # not a second implementation of release-kit's Markdown parser.
         workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
-        block = (
-            'python tools/release_gate.py --version "$env:VERSION" '
-            '--expected-sha "$env:EXPECTED_SHA"\n'
-            "          if ($LASTEXITCODE -ne 0) { throw 'release identity check failed' }\n"
-            '          python .github/relkit.pyz notes "$env:VERSION" --output '
-            "(Join-Path $env:RUNNER_TEMP 'release-notes.md')\n"
-            "          if ($LASTEXITCODE -ne 0) { throw 'curated release notes check failed' }"
-        )
-        positions = [match.start() for match in re.finditer(re.escape(block), workflow)]
-        self.assertEqual(len(positions), 2)
-        self.assertLess(positions[0], workflow.index("./tools/dev.ps1 release"))
-        self.assertLess(workflow.index("  publish:"), positions[1])
-        self.assertLess(positions[1], workflow.index("gh release create"))
+        build = workflow.split("  build:\n", 1)[1].split("  native-smoke:", 1)[0]
+        publisher = workflow.split("  publish:\n", 1)[1]
+        self.assertIn('release_gate.py --candidate', build)
+        self.assertLess(build.index('relkit.pyz notes'), build.index('./tools/dev.ps1 release'))
+        self.assertIn('release_gate.py --version', publisher)
+        self.assertNotIn('release_gate.py --candidate', publisher)
+        self.assertLess(publisher.index('relkit.pyz notes'), publisher.index('gh release create'))
 
     def test_template_uses_a_supported_breaking_field_parser(self):
         config = tomllib.loads((ROOT / "cliff.toml").read_text(encoding="utf-8"))["git"]

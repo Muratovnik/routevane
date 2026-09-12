@@ -4,8 +4,8 @@ status: adopted
 
 # Releasing Routevane
 
-A release is an annotated `vX.Y.Z` tag, and pushing that tag is what builds and
-publishes the archives. Versions follow
+A release is an annotated `vX.Y.Z` tag. A tagless CI run builds and tests the
+candidate first; pushing the tag publishes the exact prepared files. Versions follow
 [Semantic Versioning](https://semver.org/); while Routevane is `0.y.z` a
 breaking change raises the minor and everything else raises the patch.
 
@@ -14,14 +14,16 @@ CLI flags, and the layout of the release archive. Package boundaries, the
 database schema, and the generated UI internals are not part of it and may
 change in any release.
 
-The tagged source is the release identity. `tools/dev.ps1 release` derives it from
-`git describe` and stamps it into the binary, so the tag is the single source
-and `routevane version` reports it back.
+The tagged source is the final release identity. Preparation passes an explicit
+`-Version vX.Y.Z` to the build before a tag exists. The candidate manifest binds
+that version and every file digest to the source commit; the eventual annotated
+tag must point to the same commit and candidate. `routevane version` reports the
+embedded version.
 
 ## Managed release
 
-The vendored release-kit provides `release plan`, `release run` and
-`release resume`. This integration is experimental until a separately approved
+The vendored release-kit provides `release next`, `release prepare`, `release plan`,
+`release run`, `release resume` and `release verify`. This integration is experimental until a separately approved
 new tag completes the whole publication flow. Existing releases without a
 coordinator receipt cannot be adopted as unfinished runs or republished.
 
@@ -38,8 +40,12 @@ published tag):
 1. For the repository's first release, enable **Release immutability** in
    GitHub's repository settings. The workflow refuses to accept a published
    release that GitHub does not report as immutable.
-2. Agree the version and intended changes. `relkit.toml` binds preparation to the
-   first numbered changelog entry; the build continues to stamp the Git tag.
+2. Select the version with `python .github/relkit.pyz release next --bump patch`
+   (use `minor` for a breaking change). The number follows the last published
+   stable release; a failed tag is reported as an occupied name and does not
+   silently advance it. `relkit.toml` binds preparation to the first numbered
+   changelog entry. Curate all changes since the published predecessor, including
+   any skipped candidates; do not use an unpublished tag as the notes boundary.
 3. Render the entry, then curate it by hand — a short Highlights paragraph for
    a minor, and prose for anything breaking. Paste the result into
    `CHANGELOG.md` below `## [Unreleased]` and above the previous release:
@@ -59,10 +65,23 @@ published tag):
 
 4. Commit as `chore(release): vX.Y.Z` after the staged audit. The history audit
    requires a clean worktree, including the curated changelog.
-5. Review `python .github/relkit.pyz release plan vX.Y.Z`: exact commit, previous
-   tag, notes, assets, workflow/jobs and plan SHA-256. Only the new tag is configured
+5. Push the reviewed source branch separately when authorized, then dispatch the
+   release workflow on that branch with the explicit version. The workflow must
+   already be present on GitHub's default branch:
+
+   ```powershell
+   gh workflow run release.yml --ref BRANCH -f version=vX.Y.Z
+   # After the full candidate run finishes:
+   python .github/relkit.pyz release prepare vX.Y.Z --ci-run RUN_ID
+   ```
+
+   Preparation checks the exact commit, all required CI jobs, full asset set,
+   checksums, local gates and application smoke. It creates no tag. Failed
+   preparation may retry the same version; each attempt keeps its own receipt.
+   Review `python .github/relkit.pyz release plan vX.Y.Z`: exact commit, published
+   predecessor, candidate identity, notes, assets, workflow/jobs and plan SHA-256. Only the new tag is configured
    for push; no branch or other refs are pushed. The tag still exposes every commit
-   reachable from it. Local and remote tags must agree: reconcile drift explicitly,
+   reachable from it. Local and remote published tags must agree: reconcile drift explicitly,
    never rewrite a tag or guess the predecessor from generator output.
 6. After explicit authorization of that exact publication, run:
 
@@ -75,13 +94,15 @@ published tag):
    and pushing its exact ref. Existing Git hooks still run. No automatic commit,
    stash, force-push, hook bypass or repository-setting change is performed.
 
-   The release workflow binds the annotated stable SemVer tag to
-   the event SHA, validates and exports the same curated entry before building
-   and again before publication, reruns the canonical, race, browser, history
-   and commit gates, builds and structurally verifies all five archives, and
-   executes each archive on a native GitHub runner. It then signs provenance and SBOM attestations,
-   verifies them, uploads a draft, compares every uploaded digest, and publishes
-   the complete immutable release.
+   The tagless workflow runs the canonical, race, browser, history and commit
+   gates, builds all archives and the desktop installer, and executes the native
+   smoke matrix. The tag workflow retrieves that exact candidate, signs promotion
+   provenance for the tag, verifies the candidate's SBOM attestation against the
+   same source commit, creates a draft and runs the shared full-draft verifier
+   before publication. The branch SBOM retains its original branch provenance.
+   CI remains the sole publisher. Candidate artifacts are retained for 14 days;
+   prepare and publish while they remain available. Release signatures are still
+   checked after publication, when GitHub produces them.
 7. The coordinator observes the tag's exact successful workflow run and configured
    jobs, then downloads the exact nine assets. It checks notes, sizes, digests, the
    checksum manifest, immutable-release signatures and provenance bound to the

@@ -32,12 +32,17 @@ def run_git(arguments: Sequence[str]) -> str:
     return result.stdout.strip()
 
 
-def validate_release(version: str, expected_sha: str, git: Git = run_git) -> None:
+def validate_release(version: str, expected_sha: str, git: Git = run_git, *, candidate: bool = False) -> None:
     if not STABLE_VERSION.fullmatch(version):
         raise ValueError("release version must be a stable SemVer tag such as v0.1.0")
     if not OBJECT_ID.fullmatch(expected_sha):
         raise ValueError("release event SHA must be a full Git object ID")
 
+    if candidate:
+        checkout_commit = git(("rev-parse", "HEAD"))
+        if checkout_commit.lower() != expected_sha.lower():
+            raise ValueError(f"checked-out HEAD is {checkout_commit}, not candidate SHA {expected_sha}")
+        return
     tag_ref = f"refs/tags/{version}"
     if git(("cat-file", "-t", tag_ref)) != "tag":
         raise ValueError(f"{version} must be an annotated tag")
@@ -64,6 +69,13 @@ def self_test() -> None:
         return values[tuple(arguments)]
 
     validate_release(version, sha, fake_git)
+    validate_release(version, sha, lambda args: sha if tuple(args) == ("rev-parse", "HEAD") else (_ for _ in ()).throw(AssertionError(args)), candidate=True)
+    try:
+        validate_release(version, sha, lambda _: "2" * 40, candidate=True)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("candidate with wrong source SHA was accepted")
     for rejected in ("0.1.0", "v01.1.0", "v0.1.0-rc.1", "v';Get-Date;'x"):
         try:
             validate_release(rejected, sha, fake_git)
@@ -101,6 +113,7 @@ def self_test() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument("--candidate", action="store_true", help="Validate an explicit version and SHA before a tag exists")
     parser.add_argument("--version")
     parser.add_argument("--expected-sha")
     args = parser.parse_args()
@@ -110,7 +123,7 @@ def main() -> int:
         return 0
     if not args.version or not args.expected_sha:
         parser.error("--version and --expected-sha are required")
-    validate_release(args.version, args.expected_sha)
+    validate_release(args.version, args.expected_sha, candidate=args.candidate)
     print(f"release gate: {args.version} -> {args.expected_sha.lower()}")
     return 0
 

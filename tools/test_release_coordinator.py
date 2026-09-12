@@ -52,9 +52,17 @@ class ManagedReleaseContracts(unittest.TestCase):
         jobs = workflow[re.search(r"^jobs:$", workflow, re.MULTILINE).end() :]
         declared = set(re.findall(r"^  ([A-Za-z0-9_-]+):$", jobs, re.MULTILINE))
         self.assertIn("desktop", declared)
+        self.assertEqual(["publish"], self.settings["required_jobs"])
+        self.assertIn("workflow_dispatch:", workflow)
+        publisher = workflow.split("  publish:\n", 1)[1]
+        self.assertIn("if: github.event_name == 'push'", publisher)
+        self.assertLess(publisher.index("release promote"), publisher.index("gh release create"))
+        self.assertLess(publisher.index("release draft"), publisher.index("gh release edit"))
+        self.assertNotIn("dev.ps1 release", publisher)
+        self.assertNotIn("dev.ps1 installer", publisher)
         # A matrix job is observed under its expanded "name (values)" label. No
         # job may be silently optional: a release waits for the whole pipeline.
-        self.assertEqual(declared, {job.split(" (")[0] for job in self.settings["required_jobs"]})
+        self.assertEqual(declared, {job.split(" (")[0] for job in self.settings["required_jobs"] + self.settings["candidate_jobs"]})
 
     def test_publication_carries_one_manifest_attested_after_the_archive_sbom(self):
         workflow = (ROOT / self.settings["workflow"]).read_text(encoding="utf-8")

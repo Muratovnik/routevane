@@ -1,9 +1,16 @@
 name: release
 
-# A pushed annotated tag is the only publication trigger. The same source
-# commit must pass every gate, build every archive, and survive native smoke
-# tests before the workflow receives publication permissions.
+# Dispatch prepares the complete release and runs every native smoke before a
+# stable tag exists. Tag publication consumes only the candidate recorded in that
+# annotation. Candidate SBOM provenance retains its branch ref; promotion signs
+# the final asset set under the stable tag without claiming a tagless build used it.
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable version to prepare (vX.Y.Z)
+        required: true
+        type: string
   push:
     tags:
       - "v*"
@@ -16,11 +23,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  VERSION: ${{ github.ref_name }}
+  VERSION: ${{ inputs.version || github.ref_name }}
   EXPECTED_SHA: ${{ github.sha }}
 
 jobs:
   build:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -33,7 +41,7 @@ jobs:
       - name: Bind the release identity and validate curated notes
         shell: pwsh
         run: |
-          python tools/release_gate.py --version "$env:VERSION" --expected-sha "$env:EXPECTED_SHA"
+          python tools/release_gate.py --candidate --version "$env:VERSION" --expected-sha "$env:EXPECTED_SHA"
           if ($LASTEXITCODE -ne 0) { throw 'release identity check failed' }
           python .github/relkit.pyz notes "$env:VERSION" --output (Join-Path $env:RUNNER_TEMP 'release-notes.md')
           if ($LASTEXITCODE -ne 0) { throw 'curated release notes check failed' }
@@ -164,11 +172,11 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  publish:
+  candidate:
     needs: [native-smoke, desktop]
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: read
       id-token: write
       attestations: write
       artifact-metadata: write
@@ -188,7 +196,7 @@ jobs:
       - name: Revalidate the publication identity and notes
         shell: pwsh
         run: |
-          python tools/release_gate.py --version "$env:VERSION" --expected-sha "$env:EXPECTED_SHA"
+          python tools/release_gate.py --candidate --version "$env:VERSION" --expected-sha "$env:EXPECTED_SHA"
           if ($LASTEXITCODE -ne 0) { throw 'release identity check failed' }
           python .github/relkit.pyz notes "$env:VERSION" --output (Join-Path $env:RUNNER_TEMP 'release-notes.md')
           if ($LASTEXITCODE -ne 0) { throw 'curated release notes check failed' }
@@ -223,29 +231,67 @@ jobs:
           if ($Names.Count -ne ($Names | Sort-Object -Unique).Count) { throw 'duplicate checksum entry' }
           Set-Content -LiteralPath '.cache/release/SHA256SUMS' -Value ($Archives + $Desktop) -Encoding ascii
           Remove-Item -LiteralPath '.cache/desktop-release/DESKTOP-SHA256SUMS'
+      - name: Assemble the exact candidate publication set
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path '.cache/candidate' -ErrorAction Stop | Out-Null
+          Copy-Item -Path '.cache/release/*.zip' -Destination '.cache/candidate'
+          Copy-Item -LiteralPath '.cache/release/SHA256SUMS' -Destination '.cache/candidate'
+          Copy-Item -Path '.cache/desktop-release/*' -Destination '.cache/candidate'
+          python .github/relkit.pyz release bundle $env:VERSION --assets .cache/candidate
+          if ($LASTEXITCODE -ne 0) { throw 'candidate inventory validation failed' }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-candidate
+          path: .cache/candidate
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Retrieve the exact candidate recorded in the tag
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python tools/release_gate.py --version "$env:VERSION" --expected-sha "$env:EXPECTED_SHA"
+          if ($LASTEXITCODE -ne 0) { throw 'release identity check failed' }
+          python .github/relkit.pyz release promote $env:VERSION --assets .cache/promoted
+          if ($LASTEXITCODE -ne 0) { throw 'candidate promotion verification failed' }
+          python .github/relkit.pyz notes $env:VERSION --output (Join-Path $env:RUNNER_TEMP 'release-notes.md')
+          if ($LASTEXITCODE -ne 0) { throw 'curated release notes check failed' }
       - name: Attest release provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: |
-            .cache/release/*.zip
-            .cache/release/SHA256SUMS
-            .cache/desktop-release/*
+          subject-path: .cache/promoted/*
       - name: Verify provenance and SBOM attestations before publication
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $Signer = "$env:GITHUB_REPOSITORY/.github/workflows/release.yml"
-          $Archives = @(Get-ChildItem -LiteralPath '.cache/release' -Filter '*.zip' -File)
+          $Archives = @(Get-ChildItem -LiteralPath '.cache/promoted' -Filter '*.zip' -File)
           foreach ($Archive in $Archives) {
             gh attestation verify $Archive.FullName --repo $env:GITHUB_REPOSITORY --signer-workflow $Signer --source-digest $env:EXPECTED_SHA --source-ref $env:GITHUB_REF
             if ($LASTEXITCODE -ne 0) { throw "provenance verification failed: $($Archive.Name)" }
-            gh attestation verify $Archive.FullName --repo $env:GITHUB_REPOSITORY --signer-workflow $Signer --source-digest $env:EXPECTED_SHA --source-ref $env:GITHUB_REF --predicate-type 'https://spdx.dev/Document/v2.3'
+            gh attestation verify $Archive.FullName --repo $env:GITHUB_REPOSITORY --signer-workflow $Signer --source-digest $env:EXPECTED_SHA --predicate-type 'https://spdx.dev/Document/v2.3'
             if ($LASTEXITCODE -ne 0) { throw "SBOM verification failed: $($Archive.Name)" }
           }
-          gh attestation verify '.cache/release/SHA256SUMS' --repo $env:GITHUB_REPOSITORY --signer-workflow $Signer --source-digest $env:EXPECTED_SHA --source-ref $env:GITHUB_REF
+          gh attestation verify '.cache/promoted/SHA256SUMS' --repo $env:GITHUB_REPOSITORY --signer-workflow $Signer --source-digest $env:EXPECTED_SHA --source-ref $env:GITHUB_REF
           if ($LASTEXITCODE -ne 0) { throw 'checksum provenance verification failed' }
-          foreach ($Asset in Get-ChildItem -LiteralPath '.cache/desktop-release' -File) {
+          foreach ($Asset in Get-ChildItem -LiteralPath '.cache/promoted' -File | Where-Object { $_.Extension -ne '.zip' -and $_.Name -ne 'SHA256SUMS' }) {
             gh attestation verify $Asset.FullName --repo $env:GITHUB_REPOSITORY --signer-workflow $Signer --source-digest $env:EXPECTED_SHA --source-ref $env:GITHUB_REF
             if ($LASTEXITCODE -ne 0) { throw "desktop provenance verification failed: $($Asset.Name)" }
           }
@@ -254,9 +300,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $Assets = @(Get-ChildItem -LiteralPath '.cache/release' -Filter '*.zip' -File | Sort-Object Name | ForEach-Object FullName)
-          $Assets += (Resolve-Path -LiteralPath '.cache/release/SHA256SUMS').Path
-          $Assets += @(Get-ChildItem -LiteralPath '.cache/desktop-release' -File | ForEach-Object FullName)
+          $Assets = @(Get-ChildItem -LiteralPath '.cache/promoted' -File | Sort-Object Name | ForEach-Object FullName)
           gh release create $env:VERSION --verify-tag --draft --title $env:VERSION --notes-file (Join-Path $env:RUNNER_TEMP 'release-notes.md') @Assets
           if ($LASTEXITCODE -ne 0) { throw 'draft release creation failed' }
       - name: Verify uploaded asset digests and publish the draft
@@ -264,17 +308,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $View = gh release view $env:VERSION --json assets,isDraft,tagName | ConvertFrom-Json
-          if (-not $View.isDraft -or $View.tagName -ne $env:VERSION) { throw 'release is not the expected draft' }
-          $LocalAssets = @(Get-ChildItem -LiteralPath '.cache/release' -Filter '*.zip' -File)
-          $LocalAssets += Get-Item -LiteralPath '.cache/release/SHA256SUMS'
-          $LocalAssets += @(Get-ChildItem -LiteralPath '.cache/desktop-release' -File)
-          if ($View.assets.Count -ne $LocalAssets.Count) { throw 'draft asset inventory mismatch' }
-          foreach ($Local in $LocalAssets) {
-            $Remote = @($View.assets | Where-Object name -eq $Local.Name)
-            $Digest = 'sha256:' + (Get-FileHash -LiteralPath $Local.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            if ($Remote.Count -ne 1 -or $Remote[0].digest -ne $Digest) { throw "draft asset digest mismatch: $($Local.Name)" }
-          }
+          python .github/relkit.pyz release draft $env:VERSION --assets .cache/promoted
+          if ($LASTEXITCODE -ne 0) { throw 'draft verification failed' }
           gh release edit $env:VERSION --draft=false
           if ($LASTEXITCODE -ne 0) { throw 'draft publication failed' }
           $Published = gh release view $env:VERSION --json isDraft,isImmutable,tagName | ConvertFrom-Json
