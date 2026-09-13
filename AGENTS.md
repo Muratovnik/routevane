@@ -131,8 +131,12 @@ facts belong in a validator.
 
 Each maintained document has one audience and a distinct question it answers.
 Public documentation serves users, contributors, maintainers, or extension authors.
-Internal task briefs, execution plans, and audit reports belong in ignored
-`.private/`, not anywhere in the published source tree. Retention, accuracy, or
+Internal task briefs, execution plans, and audit reports belong in the private
+document directory selected by repository-local `releasekit.privateRoot` when
+configured; otherwise use ignored `.private/`. Resolve the setting locally without
+copying its value into tracked files. Never include private location mappings,
+owner planning references or private diagnostics in public source, commits, PRs,
+release notes or artifacts. Raw evidence remains ignored. Retention, accuracy, or
 `superseded` status alone does not justify publication. Public ADRs explain
 technical decisions; they are not a store for task transcripts or work reports.
 The current-tree gate rejects the known withdrawn working documents at their
