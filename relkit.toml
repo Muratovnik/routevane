@@ -38,7 +38,7 @@ forbid_machine_observations = true
 betterleaks_config = ".betterleaks.toml"
 
 [changelog]
-profile = "vue-like"
+profile = "conventional-changelog"
 first_version = "0.1.0"
 
 [release]
