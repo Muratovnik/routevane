@@ -242,9 +242,89 @@ func TestLoadPageRefusesAnUnconfiguredBrowser(t *testing.T) {
 	if _, err := LoadPage(context.Background(), target, BrowserOptions{}); !errors.Is(err, ErrBrowserUnavailable) {
 		t.Fatalf("err = %v, want ErrBrowserUnavailable", err)
 	}
-	missing := BrowserOptions{ExecPath: filepath.Join(t.TempDir(), "no-such-browser")}
-	if _, err := LoadPage(context.Background(), target, missing); !errors.Is(err, ErrBrowserUnavailable) {
-		t.Fatalf("err = %v, want ErrBrowserUnavailable", err)
+	for _, execPath := range unusableBrowserPaths(t) {
+		profiles := t.TempDir()
+		_, err := LoadPage(context.Background(), target, BrowserOptions{ExecPath: execPath, UserDataParent: profiles})
+		assertBrowserRefused(t, err, execPath, profiles)
+	}
+}
+
+func TestDefaultBrowserPathReportsTheVariableWithoutCheckingIt(t *testing.T) {
+	existingDirectory := t.TempDir()
+	missing := filepath.Join(t.TempDir(), "no-such-browser")
+	cases := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{"empty", "", ""},
+		// Neither path names a runnable file. Refusing them is the consumers'
+		// job, so here they come back unchanged instead of as "not configured".
+		{"missing file", missing, missing},
+		{"directory", existingDirectory, existingDirectory},
+		{"redundant elements", "dir/./x/../browser", filepath.FromSlash("dir/browser")},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Setenv("ROUTEVANE_BROWSER", testCase.value)
+			if got := DefaultBrowserPath(); got != testCase.want {
+				t.Fatalf("DefaultBrowserPath() = %q, want %q", got, testCase.want)
+			}
+		})
+	}
+	t.Run("unset", func(t *testing.T) {
+		// Setenv first so the original value is restored after the unset.
+		t.Setenv("ROUTEVANE_BROWSER", "")
+		if err := os.Unsetenv("ROUTEVANE_BROWSER"); err != nil {
+			t.Fatal(err)
+		}
+		if got := DefaultBrowserPath(); got != "" {
+			t.Fatalf("DefaultBrowserPath() = %q, want empty", got)
+		}
+	})
+}
+
+// A variable that names nothing runnable reaches the page load as that path, so
+// the operator learns which value is wrong instead of being told that none is
+// set.
+func TestLoadPageRefusesAMisconfiguredBrowserVariableByItsPath(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "no-such-browser")
+	t.Setenv("ROUTEVANE_BROWSER", missing)
+	target, err := NormalizeTarget("https://page.test/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profiles := t.TempDir()
+	_, err = LoadPage(context.Background(), target, BrowserOptions{ExecPath: DefaultBrowserPath(), UserDataParent: profiles})
+	assertBrowserRefused(t, err, missing, profiles)
+}
+
+// unusableBrowserPaths returns executable paths no browser can start from: one
+// that does not exist and one that names a directory. They live outside any
+// profile parent a test passes, so that parent stays empty on refusal.
+func unusableBrowserPaths(t *testing.T) []string {
+	t.Helper()
+	directory := t.TempDir()
+	return []string{filepath.Join(directory, "no-such-browser"), directory}
+}
+
+// assertBrowserRefused checks the contract both consumers of an executable path
+// share: a path that names nothing runnable is refused as ErrBrowserUnavailable,
+// the refusal names that path, and no profile was created for it.
+func assertBrowserRefused(t *testing.T, err error, execPath, profiles string) {
+	t.Helper()
+	if !errors.Is(err, ErrBrowserUnavailable) {
+		t.Fatalf("%s: err = %v, want ErrBrowserUnavailable", execPath, err)
+	}
+	if !strings.Contains(err.Error(), execPath) {
+		t.Fatalf("err = %q does not name the refused path %q", err, execPath)
+	}
+	entries, readErr := os.ReadDir(profiles)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("refusing %s left %d profile entries behind", execPath, len(entries))
 	}
 }
 

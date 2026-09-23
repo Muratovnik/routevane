@@ -200,19 +200,20 @@ func (options BrowserOptions) withDefaults() BrowserOptions {
 }
 
 // DefaultBrowserPath reports the Chromium-family executable a local setup
-// already owns, or an empty string when none is configured. It reads only the
-// explicit environment variable: a discovery run must never pick up an
-// arbitrary browser from the search path.
+// names in ROUTEVANE_BROWSER, or an empty string when the variable is unset or
+// empty. It reads only that explicit variable: a discovery run must never pick
+// up an arbitrary browser from the search path.
+//
+// The value is cleaned but not checked here. LoadPage and RunScenario refuse a
+// missing or non-regular executable before a profile exists and name the path
+// they refused, so a misconfigured variable is reported with its path rather
+// than treated as if it were unset.
 func DefaultBrowserPath() string {
 	path := os.Getenv("ROUTEVANE_BROWSER")
 	if path == "" {
 		return ""
 	}
-	cleaned := filepath.Clean(path)
-	if info, err := os.Stat(cleaned); err != nil || !info.Mode().IsRegular() {
-		return ""
-	}
-	return cleaned
+	return filepath.Clean(path)
 }
 
 // newBrowserAllocator prepares the isolated profile before Chromium can start.

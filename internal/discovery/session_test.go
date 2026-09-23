@@ -154,8 +154,19 @@ func TestRunScenarioRemovesItsProfileAndRefusesUnsafeScenarios(t *testing.T) {
 	if _, err := RunScenario(context.Background(), local, options); !errors.Is(err, ErrInvalidScenario) {
 		t.Fatalf("err = %v, want ErrInvalidScenario", err)
 	}
+}
+
+func TestRunScenarioRefusesAnUnconfiguredBrowser(t *testing.T) {
+	scenario := Scenario{Target: "https://page.test/", Steps: []Step{
+		{ID: "open", Component: domain.ComponentCore, URL: "https://page.test/", SettleSeconds: 1},
+	}}
 	if _, err := RunScenario(context.Background(), scenario, BrowserOptions{}); !errors.Is(err, ErrBrowserUnavailable) {
 		t.Fatalf("err = %v, want ErrBrowserUnavailable", err)
+	}
+	for _, execPath := range unusableBrowserPaths(t) {
+		profiles := t.TempDir()
+		_, err := RunScenario(context.Background(), scenario, BrowserOptions{ExecPath: execPath, UserDataParent: profiles})
+		assertBrowserRefused(t, err, execPath, profiles)
 	}
 }
 
