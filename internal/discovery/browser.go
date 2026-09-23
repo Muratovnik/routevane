@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -14,7 +15,7 @@ import (
 )
 
 var (
-	ErrBrowserUnavailable = errors.New("discovery browser executable is not configured")
+	ErrBrowserUnavailable = errors.New("discovery browser executable is unavailable")
 	ErrPageLoadFailed     = errors.New("discovery page load failed")
 )
 
@@ -59,7 +60,9 @@ func removeProfileDir(dir string) error {
 // zero value is invalid: an explicit executable path keeps the browser an owned
 // dependency rather than something discovered from the environment.
 type BrowserOptions struct {
-	// ExecPath is the Chromium-family executable to run.
+	// ExecPath is the Chromium-family executable to run. A relative path,
+	// including a bare name, is resolved against the working directory and never
+	// looked up on the search path.
 	ExecPath string
 	// UserDataParent is where the isolated temporary profile is created. Empty
 	// uses the operating system temporary directory.
@@ -114,12 +117,11 @@ func LoadPage(ctx context.Context, target Target, options BrowserOptions) (resul
 	if ctx == nil || target.URL == "" {
 		return PageLoad{}, ErrInvalidTarget
 	}
-	if options.ExecPath == "" {
-		return PageLoad{}, ErrBrowserUnavailable
+	execPath, err := resolveBrowserExecutable(options.ExecPath)
+	if err != nil {
+		return PageLoad{}, err
 	}
-	if info, err := os.Stat(options.ExecPath); err != nil || !info.Mode().IsRegular() {
-		return PageLoad{}, fmt.Errorf("%w: %s", ErrBrowserUnavailable, options.ExecPath)
-	}
+	options.ExecPath = execPath
 	options = options.withDefaults()
 
 	profileDir, err := os.MkdirTemp(options.UserDataParent, "routevane-discovery-")
@@ -204,16 +206,57 @@ func (options BrowserOptions) withDefaults() BrowserOptions {
 // empty. It reads only that explicit variable: a discovery run must never pick
 // up an arbitrary browser from the search path.
 //
-// The value is cleaned but not checked here. LoadPage and RunScenario refuse a
-// missing or non-regular executable before a profile exists and name the path
-// they refused, so a misconfigured variable is reported with its path rather
-// than treated as if it were unset.
+// The value is cleaned but not checked here. LoadPage and RunScenario resolve
+// it against the working directory, refuse it before a profile exists unless it
+// names an executable file, and name the path they refused, so a misconfigured
+// variable is reported with its path rather than treated as if it were unset.
 func DefaultBrowserPath() string {
 	path := os.Getenv("ROUTEVANE_BROWSER")
 	if path == "" {
 		return ""
 	}
 	return filepath.Clean(path)
+}
+
+// resolveBrowserExecutable turns a configured executable path into the exact
+// file a session starts. The launcher looks a bare name up on the search path,
+// so checking the value as given could approve one file while another starts.
+// Every relative value, including a bare name, is therefore resolved against the
+// working directory, and the caller launches the absolute path returned here.
+//
+// The launcher also applies the platform's executable rules to that path: Unix
+// requires an execute bit, and Windows adds an executable extension to a name
+// that lacks one, which would start a sibling file instead of the checked one.
+// For a path with separators exec.LookPath applies the same rules without
+// consulting the search path, so a path it does not return unchanged is refused.
+//
+// An empty, missing, unreadable, non-regular, or non-executable path is refused
+// as ErrBrowserUnavailable, before the caller creates a profile or a proxy.
+func resolveBrowserExecutable(execPath string) (string, error) {
+	if execPath == "" {
+		return "", fmt.Errorf("%w: no path was given", ErrBrowserUnavailable)
+	}
+	absolute, err := filepath.Abs(execPath)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s cannot be resolved against the working directory: %v", ErrBrowserUnavailable, execPath, err)
+	}
+	// A refusal names the file that was checked, and the value as given when
+	// resolving changed it, so the setting at fault can be found.
+	named := absolute
+	if absolute != execPath {
+		named = fmt.Sprintf(`%s (given as "%s")`, absolute, execPath)
+	}
+	info, err := os.Stat(absolute)
+	if err != nil {
+		return "", fmt.Errorf("%w: %s does not exist or cannot be read", ErrBrowserUnavailable, named)
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("%w: %s is not a regular file", ErrBrowserUnavailable, named)
+	}
+	if launched, err := exec.LookPath(absolute); err != nil || launched != absolute {
+		return "", fmt.Errorf("%w: %s is not an executable file", ErrBrowserUnavailable, named)
+	}
+	return absolute, nil
 }
 
 // newBrowserAllocator prepares the isolated profile before Chromium can start.

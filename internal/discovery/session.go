@@ -29,12 +29,11 @@ func RunScenario(ctx context.Context, scenario Scenario, options BrowserOptions)
 	if err != nil {
 		return SessionEvidence{}, err
 	}
-	if options.ExecPath == "" {
-		return SessionEvidence{}, ErrBrowserUnavailable
+	execPath, err := resolveBrowserExecutable(options.ExecPath)
+	if err != nil {
+		return SessionEvidence{}, err
 	}
-	if info, statErr := os.Stat(options.ExecPath); statErr != nil || !info.Mode().IsRegular() {
-		return SessionEvidence{}, fmt.Errorf("%w: %s", ErrBrowserUnavailable, options.ExecPath)
-	}
+	options.ExecPath = execPath
 	options = options.withDefaults()
 	if options.Timeout < scenario.minimumTimeout() {
 		options.Timeout = scenario.minimumTimeout()

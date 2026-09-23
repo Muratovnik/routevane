@@ -18,10 +18,14 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Muratovnik/routevane/internal/domain"
 )
 
 // The discovery browser is an owned external dependency, exactly like the
@@ -239,13 +243,139 @@ func TestLoadPageRefusesAnUnconfiguredBrowser(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadPage(context.Background(), target, BrowserOptions{}); !errors.Is(err, ErrBrowserUnavailable) {
-		t.Fatalf("err = %v, want ErrBrowserUnavailable", err)
-	}
-	for _, execPath := range unusableBrowserPaths(t) {
+	for _, unusable := range unusableBrowserPaths(t) {
 		profiles := t.TempDir()
-		_, err := LoadPage(context.Background(), target, BrowserOptions{ExecPath: execPath, UserDataParent: profiles})
-		assertBrowserRefused(t, err, execPath, profiles)
+		_, err := LoadPage(context.Background(), target, BrowserOptions{ExecPath: unusable.path, UserDataParent: profiles})
+		assertBrowserRefused(t, err, unusable, profiles)
+	}
+}
+
+// Each refusal says why it happened, so an operator can tell a path that was
+// never given from a wrong one, a missing file from a directory, and either
+// from a file the platform will not start as it is. A path that was given is
+// never reported as not configured.
+func TestResolveBrowserExecutableExplainsEachRefusal(t *testing.T) {
+	unusable := unusableBrowserPaths(t)
+	for _, want := range unusable {
+		_, err := resolveBrowserExecutable(want.path)
+		assertRefusal(t, err, want)
+		message := err.Error()
+		for _, other := range unusable {
+			if other.detail != want.detail && strings.Contains(message, other.detail) {
+				t.Fatalf("refusing %q = %q also claims %q", want.path, message, other.detail)
+			}
+		}
+		if want.path != "" && strings.Contains(message, "not configured") {
+			t.Fatalf("the given path %q is reported as not configured: %q", want.path, message)
+		}
+	}
+}
+
+// The launcher looks a bare name up on the search path, so checking the name
+// in the working directory could approve one file while another starts. The
+// working directory and the search path here both hold an executable file of
+// the same name; only the working-directory file may come back, as an absolute
+// path.
+func TestResolveBrowserExecutableUsesTheWorkingDirectoryNotTheSearchPath(t *testing.T) {
+	name := browserStubName("fake-browser")
+	onlyOnSearchPath := browserStubName("search-path-browser")
+	workDir, searchDir := t.TempDir(), t.TempDir()
+	// Every copy is executable, so only the resolution decides which one comes
+	// back, and a search-path lookup would choose the ones in searchDir.
+	writeBrowserStub(t, filepath.Join(workDir, name), 0o700)
+	writeBrowserStub(t, filepath.Join(workDir, "bin", name), 0o700)
+	writeBrowserStub(t, filepath.Join(searchDir, name), 0o700)
+	writeBrowserStub(t, filepath.Join(searchDir, onlyOnSearchPath), 0o700)
+	t.Chdir(workDir)
+	t.Setenv("PATH", searchDir)
+	// The decoy is real: a search-path lookup finds it.
+	if found, err := exec.LookPath(onlyOnSearchPath); err != nil || filepath.Dir(found) != searchDir {
+		t.Fatalf("lookup of the search-path decoy = %q, %v; want a file in %s", found, err, searchDir)
+	}
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct{ given, want string }{
+		{name, filepath.Join(workingDirectory, name)},
+		{"." + string(filepath.Separator) + name, filepath.Join(workingDirectory, name)},
+		{filepath.Join("bin", name), filepath.Join(workingDirectory, "bin", name)},
+	}
+	for _, testCase := range cases {
+		got, err := resolveBrowserExecutable(testCase.given)
+		if err != nil || got != testCase.want {
+			t.Fatalf("resolveBrowserExecutable(%q) = %q, %v; want %q", testCase.given, got, err, testCase.want)
+		}
+	}
+
+	_, err = resolveBrowserExecutable(onlyOnSearchPath)
+	if !errors.Is(err, ErrBrowserUnavailable) {
+		t.Fatalf("a name found only on the search path: err = %v, want ErrBrowserUnavailable", err)
+	}
+	message := err.Error()
+	if !strings.Contains(message, filepath.Join(workingDirectory, onlyOnSearchPath)) || !strings.Contains(message, `"`+onlyOnSearchPath+`"`) {
+		t.Fatalf("refusal %q does not name the checked path and the value as given", message)
+	}
+	if strings.Contains(message, searchDir) {
+		t.Fatalf("refusal %q names the search path", message)
+	}
+}
+
+// LoadPage and RunScenario start the file they checked. The working directory
+// holds an executable stub that is not a real program, so it passes the check,
+// and the search path offers a different stub of the same name. Starting either
+// fails, and the failure names the file that was actually started: only the
+// absolute working-directory path is acceptable, and the profile is still
+// removed.
+func TestBrowserSessionsStartTheFileTheyChecked(t *testing.T) {
+	name := browserStubName("fake-browser")
+	workDir, searchDir := t.TempDir(), t.TempDir()
+	writeBrowserStub(t, filepath.Join(workDir, name), 0o700)
+	writeBrowserStub(t, filepath.Join(searchDir, name), 0o700)
+	t.Chdir(workDir)
+	t.Setenv("PATH", searchDir)
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	checked := filepath.Join(workingDirectory, name)
+	target, err := NormalizeTarget("https://page.test/")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, mode := range []string{"page", "scenario"} {
+		t.Run(mode, func(t *testing.T) {
+			profiles := t.TempDir()
+			options := BrowserOptions{ExecPath: name, UserDataParent: profiles, Timeout: 30 * time.Second}
+			var runErr error
+			var cleanupError string
+			if mode == "page" {
+				page, loadErr := LoadPage(t.Context(), target, options)
+				runErr, cleanupError = loadErr, page.CleanupError
+			} else {
+				scenario := Scenario{Target: target.URL, Steps: []Step{{ID: "open", Component: domain.ComponentCore, URL: target.URL, SettleSeconds: 1}}}
+				evidence, scenarioErr := RunScenario(t.Context(), scenario, options)
+				runErr, cleanupError = scenarioErr, evidence.CleanupError
+			}
+			if !errors.Is(runErr, ErrPageLoadFailed) {
+				t.Fatalf("err = %v, want ErrPageLoadFailed from starting the stub", runErr)
+			}
+			if !strings.Contains(runErr.Error(), checked) || strings.Contains(runErr.Error(), searchDir) {
+				t.Fatalf("launch failure %q does not name the checked file %s", runErr, checked)
+			}
+			if cleanupError != "" {
+				t.Fatalf("cleanup error = %q", cleanupError)
+			}
+			entries, readErr := os.ReadDir(profiles)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if len(entries) != 0 {
+				t.Fatalf("a failed launch left %d profile entries behind", len(entries))
+			}
+		})
 	}
 }
 
@@ -296,35 +426,93 @@ func TestLoadPageRefusesAMisconfiguredBrowserVariableByItsPath(t *testing.T) {
 	}
 	profiles := t.TempDir()
 	_, err = LoadPage(context.Background(), target, BrowserOptions{ExecPath: DefaultBrowserPath(), UserDataParent: profiles})
-	assertBrowserRefused(t, err, missing, profiles)
+	assertBrowserRefused(t, err, unusableBrowser{path: missing, detail: "does not exist or cannot be read"}, profiles)
 }
 
-// unusableBrowserPaths returns executable paths no browser can start from: one
-// that does not exist and one that names a directory. They live outside any
-// profile parent a test passes, so that parent stays empty on refusal.
-func unusableBrowserPaths(t *testing.T) []string {
+// unusableBrowser is an executable path no browser can start from, with the
+// detail its refusal gives. Decoy, when set, is a file a launcher could start
+// in its place, which the refusal must never name.
+type unusableBrowser struct {
+	path   string
+	detail string
+	decoy  string
+}
+
+// unusableBrowserPaths returns one unusable path of each refusal kind: none at
+// all, one that does not exist, one that names a directory, and a regular file
+// the platform will not start as it is. The paths are absolute, so a refusal
+// names them unchanged, and they live outside any profile parent a test passes,
+// so that parent stays empty on refusal.
+func unusableBrowserPaths(t *testing.T) []unusableBrowser {
 	t.Helper()
 	directory := t.TempDir()
-	return []string{filepath.Join(directory, "no-such-browser"), directory}
+	// Unix starts only a file with an execute bit. Windows starts only a name
+	// with an executable extension and completes a name that lacks one, so the
+	// sibling that has it would start instead of the file that was checked.
+	notExecutable := unusableBrowser{path: filepath.Join(directory, "stub"), detail: "is not an executable file"}
+	writeBrowserStub(t, notExecutable.path, 0o600)
+	if runtime.GOOS == "windows" {
+		notExecutable.decoy = notExecutable.path + ".exe"
+		writeBrowserStub(t, notExecutable.decoy, 0o700)
+	}
+	return []unusableBrowser{
+		{path: "", detail: "no path was given"},
+		{path: filepath.Join(directory, "no-such-browser"), detail: "does not exist or cannot be read"},
+		{path: directory, detail: "is not a regular file"},
+		notExecutable,
+	}
+}
+
+// assertRefusal checks what every refusal of an unusable path carries: the
+// ErrBrowserUnavailable identity, the refused path, the reason, and never the
+// name of a file that was not checked.
+func assertRefusal(t *testing.T, err error, want unusableBrowser) {
+	t.Helper()
+	if !errors.Is(err, ErrBrowserUnavailable) {
+		t.Fatalf("%q: err = %v, want ErrBrowserUnavailable", want.path, err)
+	}
+	message := err.Error()
+	if !strings.Contains(message, want.path) || !strings.Contains(message, want.detail) {
+		t.Fatalf("err = %q does not name the refused path %q with %q", message, want.path, want.detail)
+	}
+	if want.decoy != "" && strings.Contains(message, want.decoy) {
+		t.Fatalf("err = %q names %s, which was never checked", message, want.decoy)
+	}
 }
 
 // assertBrowserRefused checks the contract both consumers of an executable path
 // share: a path that names nothing runnable is refused as ErrBrowserUnavailable,
-// the refusal names that path, and no profile was created for it.
-func assertBrowserRefused(t *testing.T, err error, execPath, profiles string) {
+// the refusal names that path and says why, and no profile was created for it.
+func assertBrowserRefused(t *testing.T, err error, want unusableBrowser, profiles string) {
 	t.Helper()
-	if !errors.Is(err, ErrBrowserUnavailable) {
-		t.Fatalf("%s: err = %v, want ErrBrowserUnavailable", execPath, err)
-	}
-	if !strings.Contains(err.Error(), execPath) {
-		t.Fatalf("err = %q does not name the refused path %q", err, execPath)
-	}
+	assertRefusal(t, err, want)
 	entries, readErr := os.ReadDir(profiles)
 	if readErr != nil {
 		t.Fatal(readErr)
 	}
 	if len(entries) != 0 {
-		t.Fatalf("refusing %s left %d profile entries behind", execPath, len(entries))
+		t.Fatalf("refusing %q left %d profile entries behind", want.path, len(entries))
+	}
+}
+
+// browserStubName returns base as a name the platform can start as a program:
+// Windows starts only a name with an executable extension.
+func browserStubName(base string) string {
+	if runtime.GOOS == "windows" {
+		return base + ".exe"
+	}
+	return base
+}
+
+// writeBrowserStub writes a regular file whose content no system runs as a
+// program. Mode decides whether Unix treats it as executable.
+func writeBrowserStub(t *testing.T, path string, mode os.FileMode) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte("not a browser\n"), mode); err != nil {
+		t.Fatal(err)
 	}
 }
 

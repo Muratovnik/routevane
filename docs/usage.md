@@ -357,8 +357,9 @@ in the local database. The boundary is recorded in
 
 Discovery needs a Chromium-family browser you already own; replace the example
 Windows path with its actual executable on your OS. `--browser PATH` or
-`ROUTEVANE_BROWSER` names it, and nothing is taken from the search path. Node.js
-and Playwright are not runtime requirements.
+`ROUTEVANE_BROWSER` names it; a relative path or bare name is resolved against
+the current directory, and nothing is taken from the search path. Node.js and
+Playwright are not runtime requirements.
 
 ## Learning a list from an exploration
 
