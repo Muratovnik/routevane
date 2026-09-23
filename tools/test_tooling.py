@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 
 from check_repository import (
-    documentation_problems, publication_path_problems, scanner_problems, supported,
+    documentation_problems, publication_path_problems, scanner_problems, supported, version_problems,
 )
 from ci_browser_sandbox import sandbox_profile
 from release_archive import pack
@@ -49,6 +49,36 @@ class RepositoryContracts(unittest.TestCase):
             self.assertTrue(supported(version, ">=24.19.0 <25"))
         for version in ("22.12.0", "24.18.9", "25.0.0", "24.19"):
             self.assertFalse(supported(version, ">=24.19.0 <25"))
+
+    def test_node_typings_follow_the_pinned_runtime_line(self):
+        for pin, line, matching, newer in (
+            ("24.21.0", 24, "24.13.6", "26.6.2"),
+            ("v26.1.0", 26, "^26.6.2", "~27.0.1"),
+        ):
+            with self.subTest(pin=pin), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "web").mkdir()
+                engines = {"node": f">=0.0.0 <{line + 1}", "npm": ">=11.17.0 <12"}
+                (root / "web/package-lock.json").write_text(
+                    json.dumps({"packages": {"": {"engines": engines}}}), encoding="utf-8",
+                )
+                (root / ".node-version").write_text(pin + "\n", encoding="utf-8")
+
+                def problems(**sections):
+                    package = {"engines": engines, "packageManager": "npm@11.19.0", **sections}
+                    (root / "web/package.json").write_text(json.dumps(package), encoding="utf-8")
+                    return version_problems(root)
+
+                for absent in ({}, {"devDependencies": {"sortablejs": "1.15.7"}}):
+                    self.assertEqual(problems(**absent), [])
+                for section in ("dependencies", "devDependencies"):
+                    self.assertEqual(problems(**{section: {"@types/node": matching}}), [])
+                    for declared in (newer, "22.19.0", ">=0.0.0", "latest"):
+                        with self.subTest(section=section, declared=declared):
+                            self.assertEqual(problems(**{section: {"@types/node": declared}}), [
+                                f"web/package.json {section} @types/node {declared} must follow "
+                                f"the Node.js {line} line pinned in .node-version"
+                            ])
 
     def test_links_require_a_real_reachable_target(self):
         with tempfile.TemporaryDirectory() as directory:

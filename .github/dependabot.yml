@@ -16,6 +16,11 @@ updates:
       web-toolchain:
         patterns:
           - '*'
+    ignore:
+      # Follows the Node.js line in .node-version; tools/check_repository.py enforces it.
+      - dependency-name: '@types/node'
+        update-types:
+          - 'version-update:semver-major'
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -133,6 +133,19 @@ def version_problems(root: Path) -> list[str]:
     manager = package["packageManager"].removeprefix("npm@")
     if not supported(manager, engines["npm"]):
         failures.append("packageManager is outside the declared npm range")
+    # Node typings from another line than the runtime let type-checking accept APIs the
+    # runtime lacks, or reject ones it has.
+    runtime = re.match(r"v?([0-9]+)\.", pin)
+    for section in ("dependencies", "devDependencies"):
+        declared = package.get(section, {}).get("@types/node")
+        if declared is None or not runtime:
+            continue
+        typed = re.fullmatch(r"[~^]?([0-9]+)\.[0-9]+\.[0-9]+", declared)
+        if not typed or int(typed.group(1)) != int(runtime.group(1)):
+            failures.append(
+                f"web/package.json {section} @types/node {declared} must follow "
+                f"the Node.js {runtime.group(1)} line pinned in .node-version"
+            )
     return failures
 
 
