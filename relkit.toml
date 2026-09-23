@@ -25,12 +25,10 @@ required_ignores = [
   ".playwright-mcp/report.md",
   "private.key",
 ]
-# The configured dependency updater publishes branches signed by GitHub.
-allowed_identities = [
-  "Nikolai Muratov <el.muratovnik@gmail.com>",
-  "dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com>",
-  "GitHub <noreply@github.com>",
-]
+# The owner's own commits must not credit an AI; a contributor's pull request,
+# a dependency update, and the test merge the host builds for either carry
+# their own attribution.
+owner_identities = ["Nikolai Muratov <el.muratovnik@gmail.com>"]
 allowed_users = ["...", "name"]
 forbid_ai_attribution = true
 forbid_internal_planning = true
