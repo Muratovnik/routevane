@@ -15,6 +15,7 @@ import { dictionaries } from '../../src/shared/i18n/messages'
 
 import { englishCopy } from './support/copy'
 import { openLibraryCategory } from './support/flows'
+import { CONTROL_DEFAULT } from './support/geometry'
 import {
   cardContents,
   cardMembership,
@@ -70,9 +71,11 @@ test('the list card takes domains, addresses and networks, typed or imported', a
     // that would set membership is not offered at all.
     await expect(cardMembership(card, englishCopy)).toHaveCount(0)
 
-    // The filter and the control beside it share one line: the field's frame
-    // owns its height, so the input inside it stands a hairline border shorter
-    // than the control it sits next to, and both are centred on the same line.
+    // The filter and the control beside it share one line and one height: the
+    // standard field and the standard button both stand at
+    // `--rv-control-default` (docs/UI.md, Components), and the field draws its
+    // edge inside that box rather than around it, so the two are equal and
+    // centred on the same line.
     const filterBox = await card
       .getByRole('searchbox', { name: 'Search the contents' })
       .boundingBox()
@@ -81,9 +84,10 @@ test('the list card takes domains, addresses and networks, typed or imported', a
       .boundingBox()
     expect(filterBox).not.toBeNull()
     expect(addBox).not.toBeNull()
-    expect(
-      Math.round((addBox?.height ?? 0) - (filterBox?.height ?? 0)),
-    ).toBeLessThanOrEqual(2)
+    expect(Math.round(filterBox?.height ?? 0)).toBe(CONTROL_DEFAULT)
+    expect(Math.round(addBox?.height ?? 0)).toBe(
+      Math.round(filterBox?.height ?? -1),
+    )
     expect(
       Math.abs(
         (filterBox?.y ?? 0) +

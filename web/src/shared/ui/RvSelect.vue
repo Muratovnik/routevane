@@ -169,7 +169,7 @@ const empty = computed(() =>
   justify-content: space-between;
   width: 100%;
   min-width: 0;
-  min-height: var(--rv-control-touch);
+  min-height: var(--rv-control-default);
   padding: 0 var(--rv-space-3);
   color: var(--rv-color-ink);
   font: inherit;

@@ -113,7 +113,7 @@ const {
   updated: (detail) => emit('updated', detail),
 })
 
-const filterInput = ref<HTMLInputElement | null>(null)
+const filterInput = ref<InstanceType<typeof RvTextInput> | null>(null)
 
 // USlideover moves focus as soon as the sheet mounts. During the first source
 // read the filter is disabled, so move focus once it is ready only when
@@ -124,7 +124,7 @@ watch(contentsState, async (state) => {
   const focused = document.activeElement
   await nextTick()
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-  const input = filterInput.value
+  const input = filterInput.value?.element() ?? null
   if (input === null || request !== activeRequest()) return
   const panel = input.closest('[role=dialog]')
   if (document.activeElement !== focused || !panel?.contains(focused)) return
@@ -185,7 +185,7 @@ watch(contentsState, async (state) => {
             :disabled="saving"
             input-id="list-domains"
             :invalid="invalid"
-            :rows="6"
+            mono
           />
         </template>
       </RvField>
@@ -412,20 +412,15 @@ watch(contentsState, async (state) => {
         </div>
 
         <div class="list-card__toolbar">
-          <label class="list-card__filter">
-            <RvIcon name="search" />
-            <span class="list-card__visually-hidden">
-              {{ t('listCard.filter') }}
-            </span>
-            <input
-              ref="filterInput"
-              v-model="filter"
-              :disabled="contentsState !== 'ready'"
-              class="list-card__filter-input"
-              :placeholder="t('listCard.filter')"
-              type="search"
-            />
-          </label>
+          <RvTextInput
+            ref="filterInput"
+            v-model="filter"
+            :aria-label="t('listCard.filter')"
+            class="list-card__filter"
+            :disabled="contentsState !== 'ready'"
+            :placeholder="t('listCard.filter')"
+            type="search"
+          />
           <RvButton
             v-if="curating"
             :disabled="interactionBusy"
@@ -582,7 +577,7 @@ watch(contentsState, async (state) => {
             :disabled="interactionBusy"
             input-id="list-add-entries"
             :invalid="invalid"
-            :rows="6"
+            mono
           />
         </template>
       </RvField>
@@ -725,6 +720,7 @@ watch(contentsState, async (state) => {
               :disabled="interactionBusy"
               input-id="list-feed-url"
               :invalid="invalid"
+              mono
               placeholder="https://example.com/list.txt"
             />
           </template>
@@ -962,42 +958,7 @@ watch(contentsState, async (state) => {
 }
 
 .list-card__filter {
-  display: flex;
   flex: 1;
-  gap: var(--rv-space-2);
-  align-items: center;
-  min-width: 0;
-  min-height: var(--rv-control-touch);
-  padding: 0 var(--rv-space-3);
-  color: var(--rv-color-ink-tertiary);
-  background: var(--rv-color-canvas);
-  border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
-  border-radius: var(--rv-radius-sm);
-}
-
-.list-card__filter:focus-within {
-  outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: var(--rv-border-hair);
-}
-
-.list-card__filter-input {
-  flex: 1;
-  min-width: 0;
-
-  /* The wrapper owns the height; a minimum here would add the wrapper's
-     border on top of it and leave the field two pixels taller than the
-     controls beside it. */
-  align-self: stretch;
-  padding: 0;
-  color: var(--rv-color-ink);
-  font: inherit;
-  background: transparent;
-  border: 0;
-  outline: 0;
-}
-
-.list-card__filter-input::placeholder {
-  color: var(--rv-color-ink-tertiary);
 }
 
 /* The table keeps its own scroll so the heading above it and the actions below

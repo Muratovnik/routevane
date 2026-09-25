@@ -8,8 +8,14 @@
  * utility classes into feature code. */
 :root {
   --ui-primary: var(--rv-color-accent);
-  --ui-radius: var(--rv-radius-md);
+  --ui-error: var(--rv-color-status-failed);
+
+  /* The library's control radius is its `rounded-md`, which it computes as
+     one and a half of this base, so the base is the step below the one a
+     Routevane control is drawn with. */
+  --ui-radius: var(--rv-radius-sm);
   --ui-text: var(--rv-color-ink);
+  --ui-text-highlighted: var(--rv-color-ink);
   --ui-text-muted: var(--rv-color-ink-muted);
   --ui-text-dimmed: var(--rv-color-ink-tertiary);
   --ui-bg: var(--rv-color-canvas);

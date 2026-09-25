@@ -604,6 +604,7 @@ const submitPriority = async (): Promise<void> => {
            what a plus means everywhere else on this screen. -->
       <RvButton
         :disabled="library.state.value !== 'ready' || library.busy.value"
+        size="touch"
         @click="categoriesOpen = true"
         >{{ t('lists.manageCategories') }}</RvButton
       >
@@ -613,6 +614,7 @@ const submitPriority = async (): Promise<void> => {
           library.busy.value ||
           library.stale.value
         "
+        size="touch"
         variant="primary"
         @click="startCreateList"
         ><RvIcon name="plus" />{{ t('lists.addList') }}</RvButton

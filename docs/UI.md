@@ -530,11 +530,13 @@ Compact controls are at least 36px high, ordinary controls 40px and larger
 hit-area choices 44px; check and radio marks are 18px. Choose density for the
 task through shared component variants. The `--rv-control-touch` token names
 the existing larger size; it does not require every desktop control to use it.
-Tight groups use 8–12px, ordinary component interiors 16–20px, and distinct page
-sections 32–48px. Anything
-compared character by character — links, identifiers, addresses, file contents,
-interface names — takes the mono role. No component declares a literal colour,
-size, space, radius or duration.
+Gaps between controls in a tight group use 8–12px, ordinary component interiors
+16–20px, and distinct page sections 32–48px; the space between a field's own
+caption and its control is the field component's and is not a group gap.
+Anything compared character by character — links, identifiers, addresses, file
+contents, interface names — takes the mono role; a text field asks for it with
+its `mono` variant, which applies the named `rv-mono` role class. No component
+declares a literal colour, size, space, radius or duration.
 
 ## Components
 
@@ -542,19 +544,28 @@ size, space, radius or duration.
 `RvFacts`, `RvField`, `RvTextInput`, `RvTextarea`, `RvSegmented`, `RvTabs`,
 `RvDialog`, `RvSelect`, `RvCombobox`, `RvSearchSelect`, `RvMenu`, `RvInfoTip`, `RvIcon`,
 `RvDisclosure`, `RvTable`, `RvFilePicker`, `RvCopyButton`, `RvCodeBlock`. Nuxt UI supplies
-the styled interaction mechanics behind `RvButton` and the full-height sheet
-variant of `RvDialog`; remaining overlays use headless Reka UI primitives.
-Both libraries are wrapped once here and themed with Routevane tokens: a
+the styled mechanics behind `RvButton`, the text fields — `RvTextInput` is
+`UInput`, `RvTextarea` is `UTextarea`, `RvField` is `UFormField` — and the
+full-height sheet variant of `RvDialog`. The choices `RvSelect`,
+`RvSearchSelect` and `RvCombobox` and the remaining overlays use headless Reka
+UI primitives. Both libraries are wrapped once here and themed with Routevane
+tokens through the `--ui-*` bridge in `nuxt-ui.css`, not through classes: a
 feature never imports `U*` or Reka components directly, and no native
 `<select>` or `<dialog>` remains. Every control that
-sits in a row with a text field shares that row's chosen control height. Current
-standard fields use `--rv-control-touch`; a compact row must use a consistent
-shared variant for the field and its adjacent controls. In either case,
-a field drawn as a bordered wrapper around an input — the combobox, a search
-box — lets the wrapper own that height rather than the input inside it, or it
-stands a border taller than the control beside it. A field — text, select or
+sits in a row with a text field shares that row's chosen control height.
+Standard fields, choice triggers and buttons use `--rv-control-default`; a page
+header's principal action uses `--rv-control-touch`, and a compact row must use
+a consistent shared variant for the field and its adjacent controls. In either
+case, a field drawn as a bordered wrapper around an input — the combobox — lets
+the wrapper own that height rather than the input inside it, or it stands a
+border taller than the control beside it. A field — text, select or
 combobox — has no hover state: a `<label for>` forwards
-`:hover` to its control, so a hovered field would light up from its label. A
+`:hover` to its control, so a hovered field would light up from its label.
+`RvField` names its control by the caller's id whether or not the control is a
+library input. Its hint is the library's help text under the control, and while
+the control has an error the error takes the hint's place; the control is
+described only by the text actually shown. A disabled text field takes the
+library's disabled look, reduced opacity, rather than a colour of its own. A
 panel opened from a field is aligned to its leading edge and never narrower
 than it; a single choice or name field is `--rv-measure-field` wide; a stack of
 dialogs dims the page once.

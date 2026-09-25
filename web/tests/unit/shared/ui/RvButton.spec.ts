@@ -73,6 +73,28 @@ describe('RvButton', () => {
     expect(painted(screen, 'Cancel').borderTopColor).not.toBe(TRANSPARENT)
   })
 
+  // A button shares the standard field height with the field beside it; only
+  // a page header's principal action asks for the larger target, and a row or
+  // a filter for the compact one (docs/UI.md, Tokens and State and honesty).
+  it('stands at the field height unless it asks for another size', async () => {
+    const screen = await render(RvButton, { slots: { default: 'Add' } })
+    await render(RvButton, {
+      props: { size: 'touch' },
+      slots: { default: 'New list' },
+    })
+    await render(RvButton, {
+      props: { size: 'compact' },
+      slots: { default: 'Retry' },
+    })
+
+    const height = (name: string): number =>
+      screen.getByRole('button', { name }).element().getBoundingClientRect()
+        .height
+    expect(height('Add')).toBe(40)
+    expect(height('New list')).toBe(44)
+    expect(height('Retry')).toBe(36)
+  })
+
   it('forwards an href as an external native-link request', async () => {
     const screen = await render(RvButton, {
       props: { disabled: false, href: '/artifact' },

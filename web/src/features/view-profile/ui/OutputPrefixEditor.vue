@@ -33,6 +33,7 @@ const editor = useOutputPrefix(
             :input-id="`output-prefix-${outputId}`"
             :described-by="describedBy"
             :invalid="invalid"
+            mono
             :disabled="disabled || editor.state.value === 'saving'"
             placeholder="routevane"
           />

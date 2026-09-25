@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { audit, auditWidths, reviewRoot } from './support/audits'
 import { localConfigAddress } from './support/environment'
 import { pressSegment } from './support/flows'
+import { CONTROL_TOUCH } from './support/geometry'
 import { libraryRow, libraryRowName, listRow } from './support/queries'
 import { test } from './support/served-product'
 
@@ -303,7 +304,7 @@ test('page actions, category context and composition controls share consistent g
   const connectionAction = await page
     .getByRole('button', { name: 'Add a connection', exact: true })
     .boundingBox()
-  expect(profileAction?.height).toBe(44)
+  expect(profileAction?.height).toBe(CONTROL_TOUCH)
   expect(listAction?.height).toBe(profileAction?.height)
   expect(connectionAction?.height).toBe(profileAction?.height)
   expect(await audit(page, 'connections-collection')).toEqual([])

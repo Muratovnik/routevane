@@ -155,7 +155,7 @@ const submit = (): void => {
               :disabled="busy"
               input-id="library-list-domains"
               :invalid="invalid"
-              :rows="6"
+              mono
             />
           </template>
         </RvField>

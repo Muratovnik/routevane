@@ -183,6 +183,7 @@ onMounted(() => {
               :described-by="describedBy"
               :disabled="deployment.busy.value"
               input-id="send-device"
+              mono
               :invalid="invalid"
               :placeholder="deployment.requirements.value?.addressExample"
               @blur="deployment.addressTouched.value = true"
@@ -199,6 +200,7 @@ onMounted(() => {
                 :described-by="describedBy"
                 :disabled="deployment.busy.value"
                 input-id="send-user"
+                mono
               />
             </template>
           </RvField>
@@ -227,6 +229,7 @@ onMounted(() => {
               :described-by="describedBy"
               :disabled="deployment.busy.value"
               input-id="send-interface"
+              mono
             />
           </template>
         </RvField>

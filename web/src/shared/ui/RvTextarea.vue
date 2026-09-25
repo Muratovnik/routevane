@@ -1,9 +1,18 @@
 <script setup lang="ts">
+/**
+ * A multi-line text control, drawn by Nuxt UI at the standard field size.
+ *
+ * Its standing height is a number of rows rather than a length: nine rows of
+ * the field's own line are the working area an entry editor had as a minimum
+ * height, so pasting a list does not start in a slot. `mono` is for contents
+ * compared character by character — domains, addresses, a list's entries.
+ */
 defineProps<{
   describedBy?: string
   disabled?: boolean
   inputId: string
   invalid?: boolean
+  mono?: boolean
   rows?: number
 }>()
 
@@ -11,41 +20,28 @@ const model = defineModel<string>({ required: true })
 </script>
 
 <template>
-  <textarea
+  <UTextarea
     :id="inputId"
     v-model="model"
     class="rv-textarea"
-    :class="{ 'rv-textarea--invalid': invalid === true }"
+    :class="{ 'rv-mono': mono === true }"
     :aria-describedby="describedBy"
     :aria-invalid="invalid === true ? 'true' : undefined"
+    :color="invalid === true ? 'error' : 'primary'"
     :disabled="disabled === true"
-    :rows="rows ?? 10"
+    :highlight="invalid === true"
+    :rows="rows ?? 9"
+    size="xl"
     spellcheck="false"
+    variant="outline"
   />
 </template>
 
+<!-- Layout of the root only: the library's root is an inline box, and the
+     editor fills the column it is given. -->
 <style scoped>
 .rv-textarea {
-  width: 100%;
+  display: flex;
   min-width: 0;
-  min-height: var(--rv-editor-min-height);
-  padding: var(--rv-space-3);
-  color: var(--rv-color-ink);
-  font-size: var(--rv-text-dense);
-  font-family: var(--rv-font-mono);
-  line-height: var(--rv-leading-normal);
-  resize: vertical;
-  background: var(--rv-color-field);
-  border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
-  border-radius: var(--rv-radius-md);
-}
-
-.rv-textarea:disabled {
-  color: var(--rv-color-ink-tertiary);
-  cursor: not-allowed;
-}
-
-.rv-textarea--invalid {
-  border-color: var(--rv-color-status-failed);
 }
 </style>

@@ -120,6 +120,7 @@ const addressError = computed(() => {
           :input-id="`${idPrefix}-address`"
           :invalid="invalid"
           maxlength="512"
+          mono
           :placeholder="addressPlaceholder"
           @blur="visited.address = true"
         />
@@ -139,6 +140,7 @@ const addressError = computed(() => {
           :disabled="disabled"
           :input-id="`${idPrefix}-account`"
           :invalid="invalid"
+          mono
           maxlength="120"
           @blur="visited.account = true"
         />
@@ -159,6 +161,7 @@ const addressError = computed(() => {
           :disabled="disabled"
           :input-id="`${idPrefix}-interface`"
           :invalid="invalid"
+          mono
           maxlength="120"
           @blur="visited.interfaceName = true"
         />

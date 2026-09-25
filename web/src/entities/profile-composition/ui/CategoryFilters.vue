@@ -6,6 +6,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvTooltip from '@/shared/ui/RvTooltip.vue'
 import RvSearchSelect from '@/shared/ui/RvSearchSelect.vue'
+import RvTextInput from '@/shared/ui/RvTextInput.vue'
 import CategoryLabel from './CategoryLabel.vue'
 
 const props = defineProps<{
@@ -144,16 +145,14 @@ const toggle = (id: string): void => {
         </button>
       </RvTooltip>
     </div>
-    <label class="catalog-filters__search">
-      <RvIcon name="search" />
-      <input
-        v-model="search"
-        :aria-label="t('create.search')"
-        :placeholder="t('create.search')"
-        :disabled="disabled"
-        type="search"
-      />
-    </label>
+    <RvTextInput
+      v-model="search"
+      :aria-label="t('create.search')"
+      class="catalog-filters__search"
+      :disabled="disabled"
+      :placeholder="t('create.search')"
+      type="search"
+    />
   </div>
 </template>
 
@@ -165,30 +164,7 @@ const toggle = (id: string): void => {
 }
 
 .catalog-filters__search {
-  display: flex;
-  align-items: center;
-  gap: var(--rv-space-2);
   width: min(100%, var(--rv-measure-field));
-  min-height: var(--rv-control-default);
-  padding: 0 var(--rv-space-3);
-  color: var(--rv-color-ink-muted);
-  background: var(--rv-color-field);
-  border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
-  border-radius: var(--rv-radius-md);
-}
-
-.catalog-filters__search:focus-within {
-  outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: var(--rv-border-hair);
-}
-
-.catalog-filters__search input {
-  width: 100%;
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
 }
 
 .catalog-filters__categories {

@@ -7,7 +7,11 @@ const props = defineProps<{
   href?: string
   loading?: boolean
   loadingLabel?: string
-  size?: 'compact' | 'default'
+  /**
+   * `default` is the standard control height a field shares with its row;
+   * `touch` is the larger target a page header's principal action stands at.
+   */
+  size?: 'compact' | 'default' | 'touch'
   to?: string
   type?: 'button' | 'submit'
   variant?: 'primary' | 'secondary' | 'quiet'
@@ -67,7 +71,7 @@ const unavailable = computed(
   gap: var(--rv-space-2);
   align-items: center;
   justify-content: center;
-  min-height: var(--rv-control-touch);
+  min-height: var(--rv-control-default);
   padding: 0 var(--rv-space-4);
   color: var(--rv-color-ink);
   font-weight: 600;
@@ -98,6 +102,10 @@ const unavailable = computed(
   min-height: var(--rv-control-compact);
   padding: 0 var(--rv-space-3);
   font-size: var(--rv-text-dense);
+}
+
+.rv-button--touch {
+  min-height: var(--rv-control-touch);
 }
 
 .rv-button--block {

@@ -55,7 +55,12 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
       <!-- The collection's principal action stands the same height here as on
            the profiles shelf and in the library; the row wraps under the title
            where a language needs more width, rather than shrinking it. -->
-      <RvButton :disabled="addDisabled" variant="primary" @click="emit('add')">
+      <RvButton
+        :disabled="addDisabled"
+        size="touch"
+        variant="primary"
+        @click="emit('add')"
+      >
         <RvIcon name="plus" />{{ t('devices.add') }}
       </RvButton>
     </header>

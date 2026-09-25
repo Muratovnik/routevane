@@ -175,7 +175,7 @@ const onMenu = (card: ProfileCard, key: string): void => {
   <section aria-labelledby="profiles-title" class="profiles">
     <RvPageHeader title-id="profiles-title" :title="t('profiles.title')">
       <p class="profiles__copy-message" role="status">{{ copyMessage }}</p>
-      <RvButton to="/profiles/new" variant="primary">
+      <RvButton size="touch" to="/profiles/new" variant="primary">
         <RvIcon name="plus" />
         {{ t('profiles.new') }}
       </RvButton>

@@ -10,7 +10,9 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import type { ChoiceGroup } from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvCombobox from '@/shared/ui/RvCombobox.vue'
+import RvField from '@/shared/ui/RvField.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
+import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
 const emit = defineEmits<{
   created: [profileID: string, targetID: string]
@@ -194,26 +196,28 @@ const submit = async (): Promise<void> => {
           :compact="compact"
           @submit.prevent="submit"
         >
-          <div class="create__name">
-            <label class="create__name-label" for="create-name">
-              {{ t('create.name') }}
-            </label>
-            <input
-              id="create-name"
-              class="create__name-input"
+          <RvField
+            class="create__name"
+            input-id="create-name"
+            :label="t('create.name')"
+          >
+            <RvTextInput
               :disabled="setup.busy.value"
+              input-id="create-name"
               maxlength="120"
+              :model-value="setup.name.value"
               :placeholder="t('create.name.placeholder')"
-              type="text"
-              :value="setup.name.value"
-              @input="setup.setName(($event.target as HTMLInputElement).value)"
+              @update:model-value="setup.setName"
             />
-          </div>
+          </RvField>
 
-          <div class="create__target">
-            <label class="create__target-label" for="create-target">
-              {{ t('create.target') }}
-            </label>
+          <!-- The same field as the name beside it, so the two captions and
+               the two controls stand on the same lines. -->
+          <RvField
+            class="create__target"
+            input-id="create-target"
+            :label="t('create.target')"
+          >
             <template v-if="setup.targets.value.length > 0">
               <RvCombobox
                 v-model="chosenTarget"
@@ -234,7 +238,7 @@ const submit = async (): Promise<void> => {
               :title="t('create.target.empty')"
               tone="warning"
             />
-          </div>
+          </RvField>
 
           <template #actions>
             <RvStateNotice
@@ -342,52 +346,20 @@ const submit = async (): Promise<void> => {
   min-width: 0;
 }
 
+.create__name,
 .create__target {
-  display: grid;
-  gap: var(--rv-space-2);
   min-width: 0;
   max-width: var(--rv-measure-field);
-}
-
-.create__target-label {
-  font-weight: 600;
-  font-size: var(--rv-text-dense);
 }
 
 /* The projected size sits under the field in the same register as the rest of
    the small print: it is a fact about the chosen format, not an alert. The
    refusal beside the create button is what carries the warning colour. */
 .create__forecast {
+  padding-top: var(--rv-space-2);
   color: var(--rv-color-ink-tertiary);
   font-size: var(--rv-text-meta);
   font-variant-numeric: tabular-nums;
-}
-
-.create__name {
-  display: grid;
-  gap: var(--rv-space-2);
-  min-width: 0;
-  max-width: var(--rv-measure-field);
-}
-
-.create__name-label {
-  font-weight: 600;
-  font-size: var(--rv-text-dense);
-}
-
-.create__name-input {
-  min-height: var(--rv-control-touch);
-  padding: 0 var(--rv-space-4);
-  color: var(--rv-color-ink);
-  font: inherit;
-  background: var(--rv-color-field);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-md);
-}
-
-.create__name-input:focus-visible {
-  outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: var(--rv-focus-offset);
 }
 
 .create__submit {

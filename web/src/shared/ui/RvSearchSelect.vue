@@ -351,7 +351,7 @@ const completeSingleSelection = (option: ChoiceOption): void => {
 .rv-search-select__trigger--field {
   background: var(--rv-color-field);
   width: 100%;
-  min-height: var(--rv-control-touch);
+  min-height: var(--rv-control-default);
 }
 
 .rv-search-select__trigger[aria-invalid='true'] {

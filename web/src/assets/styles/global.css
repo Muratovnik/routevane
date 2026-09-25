@@ -20,12 +20,23 @@ body {
   caret-color: var(--rv-color-accent);
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-  color: inherit;
+/* A base default rather than an override: the library's field components set
+ * their own type size, and a rule outside a layer would outrank those. */
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+/* The mono role for a value compared character by character — an address, an
+ * identifier, an interface name, the contents of a list. A field inherits it
+ * from the control root that carries this class. */
+.rv-mono {
+  font-family: var(--rv-font-mono);
 }
 
 h1,

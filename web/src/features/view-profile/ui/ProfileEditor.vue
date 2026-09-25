@@ -17,6 +17,8 @@ import { targetIcon } from '@/shared/lib/targetIcon'
 import type { CategoryDetail, ListDetail } from '@/shared/api/catalog'
 import type { ProfileComposition } from '@/shared/api/profiles'
 import RvButton from '@/shared/ui/RvButton.vue'
+import RvField from '@/shared/ui/RvField.vue'
+import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
 const props = defineProps<{
   busy: boolean
@@ -226,24 +228,23 @@ const reset = (): void => {
           :compact="compact"
           @submit.prevent="submit"
         >
-          <div class="editor__field">
-            <label class="editor__label" for="editor-name">
-              {{ t('profile.edit.name') }}
-            </label>
-            <input
-              id="editor-name"
+          <RvField
+            class="editor__field"
+            input-id="editor-name"
+            :label="t('profile.edit.name')"
+          >
+            <RvTextInput
               v-model="draftName"
-              class="editor__input"
               :disabled="props.busy"
+              input-id="editor-name"
               maxlength="120"
-              type="text"
             />
-          </div>
+          </RvField>
 
           <!-- What this profile already publishes, stated one connection per
                line with the glyph of the format it is delivered in. It is a
                fact about the stored profile, not a choice this form offers. -->
-          <div v-if="outputs.length" class="editor__field">
+          <div v-if="outputs.length" class="editor__facts">
             <span class="editor__label">{{
               t('profile.edit.connections')
             }}</span>
@@ -308,31 +309,23 @@ const reset = (): void => {
 }
 
 .editor__field {
+  min-width: 0;
+  max-width: var(--rv-measure-field);
+}
+
+/* The published connections stand beside the name field and read as a field
+   of their own: the caption keeps the field label's weight, size and the gap
+   the field draws under it. */
+.editor__facts {
   display: grid;
-  gap: var(--rv-space-2);
+  gap: var(--rv-space-1);
   min-width: 0;
   max-width: var(--rv-measure-field);
 }
 
 .editor__label {
-  padding: 0;
-  font-weight: 600;
+  font-weight: 500;
   font-size: var(--rv-text-dense);
-}
-
-.editor__input {
-  min-height: var(--rv-control-touch);
-  padding: 0 var(--rv-space-4);
-  color: var(--rv-color-ink);
-  font: inherit;
-  background: var(--rv-color-field);
-  border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
-  border-radius: var(--rv-radius-md);
-}
-
-.editor__input:focus-visible {
-  outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: var(--rv-border-hair);
 }
 
 .editor__composition {
@@ -378,7 +371,7 @@ const reset = (): void => {
   display: grid;
   gap: var(--rv-space-1);
   align-content: center;
-  min-height: var(--rv-control-touch);
+  min-height: var(--rv-control-default);
   min-width: 0;
 }
 

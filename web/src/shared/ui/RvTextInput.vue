@@ -1,62 +1,76 @@
 <script setup lang="ts">
+import { h, useTemplateRef, type FunctionalComponent } from 'vue'
+
+import RvIcon from '@/shared/ui/RvIcon.vue'
+
 /**
- * A text control with the product's metrics. Values an operator copies from a
- * device — addresses, interface names — are mono, because that is what makes a
- * character-by-character comparison possible.
+ * A single-line text control. Nuxt UI draws the field — its ground, edge,
+ * placeholder, disabled look and focus ring — at the standard field size; this
+ * facade chooses that size and the states Routevane asks of a field.
+ *
+ * `mono` is for a value an operator compares character by character — an
+ * address, an interface name, an identifier. A name or a search is read as
+ * prose and keeps the interface face.
+ *
+ * `inputId` is what a field label points at. A search box has no visible
+ * label and is named by an `aria-label` passed through instead.
  */
-defineProps<{
+const props = defineProps<{
   autocomplete?: string
   describedBy?: string
   disabled?: boolean
-  inputId: string
+  inputId?: string
   invalid?: boolean
+  mono?: boolean
   placeholder?: string
-  type?: 'text' | 'password'
+  type?: 'text' | 'password' | 'search'
 }>()
 
 const model = defineModel<string>({ required: true })
+
+// The library draws a leading icon in its own place and colour when it is
+// handed one; a component rather than an icon-set name keeps it this
+// product's glyph and keeps the library from fetching or injecting a set.
+const searchGlyph: FunctionalComponent = () => h(RvIcon, { name: 'search' })
+
+const field = useTemplateRef<{ inputRef: HTMLInputElement | null }>('field')
+
+defineExpose({
+  /** The input itself, for a host that moves focus into the field. */
+  element: (): HTMLInputElement | null => field.value?.inputRef ?? null,
+})
 </script>
 
 <template>
-  <input
-    :id="inputId"
+  <!-- An invalid value asks the library for its error ring, the same state a
+       library form field would set: the colour at rest and on focus. -->
+  <UInput
+    :id="props.inputId"
+    ref="field"
     v-model="model"
-    class="rv-input"
-    :class="{ 'rv-input--invalid': invalid === true }"
+    class="rv-text-input"
+    :class="{ 'rv-mono': mono === true }"
     :aria-describedby="describedBy"
     :aria-invalid="invalid === true ? 'true' : undefined"
     :autocomplete="autocomplete ?? 'off'"
+    :color="invalid === true ? 'error' : 'primary'"
     :disabled="disabled === true"
+    :highlight="invalid === true"
     :placeholder="placeholder"
+    size="xl"
     spellcheck="false"
     :type="type ?? 'text'"
+    variant="outline"
+    :leading-icon="type === 'search' ? searchGlyph : undefined"
   />
 </template>
 
+<!-- Layout of the root only. The library's root is an inline box, which would
+     shrink a field to its text; a field fills the column it is given, and a
+     host that wants it narrower sets a width on its own class. -->
 <style scoped>
-.rv-input {
-  width: 100%;
+.rv-text-input {
+  display: flex;
   min-width: 0;
-  min-height: var(--rv-control-touch);
-  padding: 0 var(--rv-space-3);
-  color: var(--rv-color-ink);
-  font-size: var(--rv-text-emphasis);
-  font-family: var(--rv-font-mono);
-  background: var(--rv-color-field);
-  border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
-  border-radius: var(--rv-radius-sm);
-}
-
-.rv-input::placeholder {
-  color: var(--rv-color-ink-tertiary);
-}
-
-.rv-input:disabled {
-  color: var(--rv-color-ink-tertiary);
-  cursor: not-allowed;
-}
-
-.rv-input--invalid {
-  border-color: var(--rv-color-status-failed);
 }
 </style>
