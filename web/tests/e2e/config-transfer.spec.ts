@@ -3,8 +3,9 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test } from '@playwright/test'
+import { expect } from '@playwright/test'
 
+import { test } from './support/content-policy'
 import {
   assertPortBindable,
   delay,

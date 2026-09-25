@@ -10,10 +10,11 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
 
 import { dictionaries } from '../../src/shared/i18n/messages'
 
+import { test } from './support/content-policy'
 import {
   assertPortBindable,
   reserveLoopbackPort,

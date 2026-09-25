@@ -19,8 +19,7 @@ import { access, readFile, readdir, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { test as base } from '@playwright/test'
-
+import { test as base } from './content-policy'
 import {
   assertPortBindable,
   delay,
