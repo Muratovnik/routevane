@@ -70,6 +70,50 @@ const idOrClassQuery = [
   `CallExpression[callee.name=/^(${NODE_QUERY_METHODS})$/][arguments.0.value=/^[#.]/]`,
 ].join(', ')
 
+// `shared/ui` owns every control a screen draws: its height, field ground,
+// focus ring, disabled look and label binding (docs/UI.md, Components). A
+// native control anywhere else is a second copy of one of those, so each
+// element names the wrapper that replaces it.
+const NATIVE_CONTROL_WRAPPERS = [
+  {
+    element: 'button',
+    message:
+      'Use RvButton from shared/ui (RvCopyButton for a copy action, RvMenuItem inside RvMenu) instead of a native <button>.',
+  },
+  {
+    element: 'input',
+    message:
+      'Use RvTextInput inside RvField from shared/ui for text and search, RvSwitch for an on/off setting, RvSegmented for one of a few options or RvFilePicker for a file instead of a native <input>.',
+  },
+  {
+    element: 'select',
+    message:
+      'Use RvSelect from shared/ui for a short choice, or RvSearchSelect for a searchable one, instead of a native <select>.',
+  },
+  {
+    element: 'textarea',
+    message:
+      'Use RvTextarea inside RvField from shared/ui instead of a native <textarea>.',
+  },
+]
+
+// The components that still draw a native control of their own. A file leaves
+// this list in the change that moves its family of controls onto the shared
+// wrappers, and nothing joins it: `tests/unit/eslint-config.spec.ts` fails for
+// a listed file that no longer draws one.
+const NATIVE_CONTROL_EXCEPTIONS = [
+  'src/entities/profile-composition/ui/CategoryFilters.vue',
+  'src/entities/profile-composition/ui/CompositionPriorityList.vue',
+  'src/entities/profile-composition/ui/ListDetailDialog.vue',
+  'src/entities/profile-composition/ui/ListPicker.vue',
+  'src/features/create-profile/ui/CreateProfile.vue',
+  'src/features/devices/ui/ConnectionList.vue',
+  'src/features/lists/ui/ListsView.vue',
+  'src/features/targets-overview/ui/TargetsView.vue',
+  'src/features/view-profile/ui/ProfileEditor.vue',
+  'src/widgets/app-shell/ui/AppShell.vue',
+]
+
 /** @param {import('eslint').Linter.RuleEntry} entry */
 const toErrorSeverity = (entry) => {
   if (Array.isArray(entry)) {
@@ -412,6 +456,54 @@ export default withNuxt(
                 "An entity's ui presents what its model hands it. Read the API in the slice's model/useX.ts and pass the result in.",
             },
           ],
+        },
+      ],
+    },
+  },
+  {
+    // A screen draws its controls through `shared/ui`, which is the one place
+    // a native control is written. A gate, not advice.
+    name: 'routevane/shared-controls',
+    files: ['src/**/*.vue'],
+    ignores: ['src/shared/ui/**', ...NATIVE_CONTROL_EXCEPTIONS],
+    rules: {
+      'vue/no-restricted-html-elements': ['error', ...NATIVE_CONTROL_WRAPPERS],
+    },
+  },
+  {
+    // Nuxt UI and Reka UI are wrapped once in `shared/ui` and themed there
+    // (ADR 0035). Nuxt registers every `U*` component globally, so nothing but
+    // the tag marks one in a screen's template; Reka's, and any module of
+    // either package, arrive through an import. `app.vue` is outside these
+    // layers because it mounts `UApp`.
+    name: 'routevane/wrapped-component-libraries',
+    files: ['src/{pages,widgets,features,entities}/**/*.{ts,mts,vue}'],
+    rules: {
+      'vue/no-restricted-syntax': [
+        'error',
+        {
+          selector: 'VElement[rawName=/^(U[A-Z]|u-)/]',
+          message:
+            'Nuxt UI components are wrapped once in shared/ui. Use the Rv* wrapper, or add the variant to it, instead of a U* component.',
+        },
+      ],
+      // `no-restricted-syntax` is replaced rather than merged, so the
+      // application rule above is restated alongside the import one.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: lowercaseModuleLiteralConstant,
+          message: 'Module-level literal constants are UPPER_CASE.',
+        },
+        {
+          // esquery ends a regular expression at its first slash, so `.`
+          // stands for the one in `@nuxt/ui`.
+          selector: [
+            'ImportDeclaration[source.value=/^(reka-ui|@nuxt.ui)/]',
+            'ImportDeclaration[source.value="#components"] > ImportSpecifier[imported.name=/^(Lazy)?U[A-Z]/]',
+          ].join(', '),
+          message:
+            'Nuxt UI and Reka UI are wrapped once in shared/ui. Import the Rv* wrapper instead.',
         },
       ],
     },
