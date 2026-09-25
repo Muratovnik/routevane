@@ -37,8 +37,8 @@ export const openFormats = async (
   copy: Copy = englishCopy,
 ): Promise<Locator> => {
   await deliveryField(page, copy).click()
-  await expect(formatList(page)).toBeVisible()
-  return formatList(page)
+  await expect(formatList(page, copy)).toBeVisible()
+  return formatList(page, copy)
 }
 
 export const chooseFormat = async (
@@ -188,13 +188,37 @@ export const assertPainted = async (
   await expect(panel).toBeVisible()
   const painted = await panel.evaluate((element) => {
     const style = getComputedStyle(element)
-    return { edge: style.borderTopWidth, ground: style.backgroundColor }
+    // An edge is a border or, as the library draws its panels, a ring: a
+    // box-shadow layer with no offset or blur and a spread of its own.
+    const ring = / 0px 0px 0px [1-9]/.test(style.boxShadow)
+    return {
+      edge: style.borderTopWidth !== '0px' || ring,
+      ground: style.backgroundColor,
+    }
   })
   expect(painted.ground, `${name} panel has no ground`).not.toBe(
     'rgba(0, 0, 0, 0)',
   )
-  expect(painted.edge, `${name} panel has no edge`).not.toBe('0px')
+  expect(painted.edge, `${name} panel has no edge`).toBe(true)
 }
+
+/**
+ * Waits until every finite animation on the page has finished, so a panel is
+ * measured at the size it settles at rather than part-way through its
+ * entrance.
+ */
+export const settleAnimations = (page: Page): Promise<void> =>
+  page.evaluate(async () => {
+    await Promise.all(
+      document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.effect?.getComputedTiming().iterations !== Infinity,
+        )
+        .map((animation) => animation.finished.catch(() => undefined)),
+    )
+  })
 
 /**
  * Whether a mutation is part of a flow these tests state.

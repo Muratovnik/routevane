@@ -9,7 +9,7 @@ import {
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import AxeBuilder from '@axe-core/playwright'
+import { analyze, axeFor } from './support/axe'
 import { expect, type Locator, type Page } from '@playwright/test'
 
 import { dictionaries } from '../../src/shared/i18n/messages'
@@ -383,15 +383,16 @@ for (const language of ['en', 'ru'] as const) {
           ).toBe(true)
           expect(
             (
-              await new AxeBuilder({ page })
-                .withTags([
+              await analyze(
+                page,
+                axeFor(page).withTags([
                   'wcag2a',
                   'wcag2aa',
                   'wcag21a',
                   'wcag21aa',
                   'wcag22aa',
-                ])
-                .analyze()
+                ]),
+              )
             ).violations,
           ).toEqual([])
         }
@@ -729,7 +730,7 @@ for (const language of ['en', 'ru'] as const) {
         .click()
       await expect(prefix).toHaveValue('')
       expect(new URL(page.url()).pathname).toBe(`/profiles/${profileId}`)
-      expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+      expect((await analyze(page)).violations).toEqual([])
     })
   })
 }

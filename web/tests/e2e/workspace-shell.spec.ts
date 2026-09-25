@@ -184,9 +184,12 @@ test('workspace pages share geometry and the category panel supports keyboard se
   await more.click()
   const search = page.getByRole('textbox', { name: 'Find a category' })
   await expect(search).toBeFocused()
-  const panel = choicePanel(page, englishCopy('listPicker.collections'))
-  await expect(panel).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
-  await expect(panel).toHaveCSS('border-top-width', '1px')
+  // The library draws the panel's edge as a ring rather than a border; either
+  // way the panel keeps its own ground and edge once it is portalled.
+  await assertPainted(
+    choicePanel(page, englishCopy('listPicker.collections')),
+    'category',
+  )
   await search.fill('no category matches this')
   await expect(page.getByText('No matching categories')).toBeVisible()
   await search.fill('Video')

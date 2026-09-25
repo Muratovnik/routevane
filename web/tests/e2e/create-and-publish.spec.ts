@@ -15,6 +15,7 @@ import {
   openFormats,
   profileFlow,
   profileIDFromURL,
+  settleAnimations,
 } from './support/flows'
 import {
   addConnectionField,
@@ -22,6 +23,7 @@ import {
   cardMembership,
   cardRow,
   cardRows,
+  choicePanel,
   deliveryField,
   dragGhost,
   escapeRegExp,
@@ -240,11 +242,12 @@ test('the library starts empty and shelves the profile the composer creates and 
   // The list opens against the field it belongs to: the same left edge, and
   // never narrower than it. A panel centred under a field reads as a menu that
   // happens to be near it rather than as that field's own list.
+  // The panel is named for the choice it offers, and it grows in on opening,
+  // so it is measured once it has settled.
   const targetField = deliveryField(page)
-  const targetPanel = page.getByRole('dialog', {
-    name: englishCopy('create.target.toggle'),
-  })
+  const targetPanel = choicePanel(page, englishCopy('create.target.toggle'))
   await expect(targetPanel).toBeVisible()
+  await settleAnimations(page)
   const fieldBox = await targetField.boundingBox()
   const panelBox = await targetPanel.boundingBox()
   expect(fieldBox).not.toBeNull()

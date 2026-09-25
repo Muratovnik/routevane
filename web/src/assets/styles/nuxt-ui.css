@@ -20,10 +20,18 @@
   --ui-text-dimmed: var(--rv-color-ink-tertiary);
   --ui-bg: var(--rv-color-canvas);
   --ui-bg-muted: var(--rv-color-surface-muted);
-  --ui-bg-elevated: var(--rv-color-surface);
+
+  /* The library highlights a choice row with half of this ground over its
+     panel. The strong rule is the role that keeps a highlighted row at least as
+     distinct from the panel as the Reka rows were in both themes. */
+  --ui-bg-elevated: var(--rv-color-rule-strong);
   --ui-bg-accented: var(--rv-color-surface-hover);
   --ui-border: var(--rv-color-rule);
   --ui-border-muted: var(--rv-color-rule);
   --ui-border-accented: var(--rv-color-rule-strong);
+
+  /* The neutral button the category filter opens from draws its focus ring
+     in the inverted edge; the ink is that edge on either ground. */
+  --ui-border-inverted: var(--rv-color-ink);
 }
 /* stylelint-enable import-notation, custom-property-pattern */

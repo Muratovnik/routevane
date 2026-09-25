@@ -8,7 +8,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import AxeBuilder from '@axe-core/playwright'
+import { analyze } from './support/axe'
 import { expect } from '@playwright/test'
 
 import { dictionaries } from '../../src/shared/i18n/messages'
@@ -623,7 +623,7 @@ test('source skips are visible without changing profiles, and clear after a clea
           () => document.documentElement.scrollWidth <= innerWidth,
         ),
       ).toBe(true)
-      const accessibility = await new AxeBuilder({ page }).analyze()
+      const accessibility = await analyze(page)
       expect(
         accessibility.violations.filter(
           (item) => item.impact === 'serious' || item.impact === 'critical',

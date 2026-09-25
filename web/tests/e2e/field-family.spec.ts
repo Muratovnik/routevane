@@ -2,10 +2,10 @@
  * The text field family as the built product draws it. The unit suite renders
  * the facades over doubles of the library's components; this suite is where
  * the library itself is shown to keep the contract the facades promise: a
- * label that names its control, a hint that gives way to the error in its
- * place, the standard field height, no hover, a visible focus ring, the mono
+ * label that names its control, a hint above the control that stays beside
+ * the error, the standard field height, no hover, a visible focus ring, the mono
  * role only where a value is compared character by character, and the same
- * behaviour for a choice drawn on Reka inside the same field.
+ * behaviour for a library choice inside the same field.
  */
 
 import { expect, type Locator, type Page } from '@playwright/test'
@@ -67,10 +67,13 @@ for (const colorScheme of ['dark', 'light'] as const) {
       .getByRole('button', { name: 'Add a connection', exact: true })
       .click()
 
-    // A choice drawn on Reka sits in the same field as a library input, and
-    // its label names it just the same.
+    // A choice sits in the same field as a text input, and its label names it
+    // just the same: the field's caption is the trigger's accessible name.
     const target = deviceField(page, 'devices.field.target')
     await expect(target).toHaveAttribute('id', 'device-target')
+    await expect(target).toHaveAccessibleName(
+      englishCopy('devices.field.target'),
+    )
     expect((await paint(target)).height).toBe(CONTROL_DEFAULT)
     await target.click()
     await page.getByRole('option', { name: 'Keenetic' }).click()
@@ -129,13 +132,17 @@ for (const colorScheme of ['dark', 'light'] as const) {
       .poll(async () => (await paint(routes)).outlineColor)
       .toBe(focusColor)
 
-    // Leaving the field empty states the omission in the hint's place, and
-    // the description follows what is on the screen.
+    // Leaving the field empty states the omission under the control while the
+    // hint above it stays: the hint is the field's description (docs/UI.md,
+    // Components), and a refused value is when its format matters most. The
+    // description names both, and only what is on the screen.
     await page.keyboard.press('Shift+Tab')
     const required = englishCopy('devices.validation.required')
     await expect(routes).toHaveAttribute('aria-invalid', 'true')
-    expect(await described(routes)).toEqual([required])
-    await expect(page.getByText(hint, { exact: true })).toHaveCount(0)
+    expect((await described(routes)).toSorted()).toEqual(
+      [hint, required].toSorted(),
+    )
+    await expect(page.getByText(hint, { exact: true })).toBeVisible()
 
     await routes.fill('Wireguard0')
     await expect(routes).not.toHaveAttribute('aria-invalid')

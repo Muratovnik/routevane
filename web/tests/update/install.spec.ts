@@ -1,5 +1,5 @@
 import { _electron as electron, chromium, expect, test } from '@playwright/test'
-import AxeBuilder from '@axe-core/playwright'
+import { analyze, axeFor } from '../e2e/support/axe'
 import { createServer, type Server } from 'node:http'
 import { createReadStream } from 'node:fs'
 import {
@@ -265,9 +265,8 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
     // which is how a reader hears it as the trigger's description; the panel
     // that is actually drawn carries the hook instead.
     await expect(page.getByTestId('rv-tooltip')).toContainText('0.0.3')
-    const violations = (
-      await new AxeBuilder({ page }).setLegacyMode().analyze()
-    ).violations
+    const violations = (await analyze(page, axeFor(page).setLegacyMode()))
+      .violations
     expect(
       violations.filter((item) =>
         ['critical', 'serious'].includes(item.impact ?? ''),

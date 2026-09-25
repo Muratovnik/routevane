@@ -12,7 +12,7 @@
 import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import AxeBuilder from '@axe-core/playwright'
+import { analyze, axeFor } from './axe'
 import { expect, test, type Page } from '@playwright/test'
 
 import { pressableTargets } from './queries'
@@ -50,9 +50,16 @@ export const audit = async (
         .map((animation) => animation.finished.catch(() => {})),
     )
   })
-  const result = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-    .analyze()
+  const result = await analyze(
+    page,
+    axeFor(page).withTags([
+      'wcag2a',
+      'wcag2aa',
+      'wcag21a',
+      'wcag21aa',
+      'wcag22aa',
+    ]),
+  )
   return result.violations.map((violation) => ({
     detail:
       violation.nodes[0]?.failureSummary?.replaceAll(/\s+/g, ' ').trim() ?? '',

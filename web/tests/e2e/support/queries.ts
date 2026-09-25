@@ -229,8 +229,15 @@ export const addConnectionField = (
   copy: Copy = englishCopy,
 ): Locator => scope.getByLabel(copy('outputs.add'), { exact: true })
 
-/** The list of connection formats a choice offers. */
-export const formatList = (page: Page): Locator => page.getByRole('listbox')
+/**
+ * The list of connection formats a choice offers, inside the panel named for
+ * that choice. Another list can still be on the page while its own panel
+ * animates out, so the role alone does not identify it.
+ */
+export const formatList = (page: Page, copy: Copy = englishCopy): Locator =>
+  page
+    .getByRole('dialog', { name: copy('create.target.toggle') })
+    .getByRole('listbox')
 
 /**
  * The list card's own title field. The section that holds it is announced by

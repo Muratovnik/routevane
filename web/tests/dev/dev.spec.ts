@@ -4,7 +4,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { ownedFiles } from './owned-files'
 
-import AxeBuilder from '@axe-core/playwright'
+import { analyze } from '../e2e/support/axe'
 import {
   expect,
   test as base,
@@ -225,7 +225,7 @@ const draft = ref('')
   for (const width of [320, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 900 })
     await page.screenshot({ path: testInfo.outputPath(`dev-${width}.png`) })
-    const audit = await new AxeBuilder({ page }).analyze()
+    const audit = await analyze(page)
     expect(
       audit.violations.filter(({ impact }) =>
         ['serious', 'critical'].includes(impact ?? ''),

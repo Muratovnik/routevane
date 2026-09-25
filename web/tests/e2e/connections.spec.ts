@@ -190,6 +190,9 @@ test('the device form asks only for fields the selected target needs', async ({
 
   await target.click()
   await page.getByRole('option', { name: 'Keenetic' }).click()
+  // The library's panel animates out after a choice; the next field is used
+  // once it has gone, as an operator's next act follows the closed list.
+  await expect(page.getByRole('listbox')).toHaveCount(0)
   const keeneticAddress = deviceField(page, 'deploy.field.address.keenetic')
   await expect(keeneticAddress).toBeVisible()
   await expect(keeneticAddress).toHaveAttribute(
@@ -219,6 +222,7 @@ test('the device form asks only for fields the selected target needs', async ({
 
   await target.click()
   await page.getByRole('option', { name: 'sing-box' }).click()
+  await expect(page.getByRole('listbox')).toHaveCount(0)
   const singBoxAddress = deviceField(page, 'deploy.field.address.singbox')
   await expect(singBoxAddress).toBeVisible()
   await expect(singBoxAddress).toHaveAttribute(

@@ -55,20 +55,24 @@ describe('RvField', () => {
     expect(describedTexts(field.element())).toEqual(['An address and a port.'])
   })
 
-  // The hint is the library's help text, and help gives way to the error in
-  // the same place under the control. The description must follow what is on
-  // the screen, never an id that is not rendered.
-  it('replaces the hint with the error and points at the error alone', async () => {
+  // The hint is the library's description, drawn between the label and the
+  // control, so it stays on screen while an error is shown under the control:
+  // the format is what a refused value needs most. The description follows
+  // what is on the screen, never an id that is not rendered.
+  it('keeps the hint beside an error and points at both', async () => {
     const screen = await render(TextField, {
       props: { error: 'Enter the address.', hint: 'An address and a port.' },
     })
 
     const field = screen.getByLabelText('Address', { exact: true })
     await expect.element(field).toHaveAttribute('aria-invalid', 'true')
-    expect(describedTexts(field.element())).toEqual(['Enter the address.'])
+    expect(describedTexts(field.element()).toSorted()).toEqual([
+      'An address and a port.',
+      'Enter the address.',
+    ])
     await expect
       .element(screen.getByText('An address and a port.'))
-      .not.toBeInTheDocument()
+      .toBeVisible()
 
     await screen.rerender({ error: undefined })
     await expect.element(field).not.toHaveAttribute('aria-invalid')

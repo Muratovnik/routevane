@@ -1,5 +1,5 @@
 import { _electron as electron, expect, test } from '@playwright/test'
-import AxeBuilder from '@axe-core/playwright'
+import { analyze, axeFor } from '../e2e/support/axe'
 import { spawn } from 'node:child_process'
 import { mkdtemp, mkdir, readFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
@@ -115,9 +115,7 @@ test('packaged app persists data, hides to tray, reuses its instance and quits c
     ).toBeVisible()
     // Electron cannot create axe's helper target. This application has no
     // cross-origin frames; legacy mode runs the same rules in its actual window.
-    const accessibility = await new AxeBuilder({ page })
-      .setLegacyMode()
-      .analyze()
+    const accessibility = await analyze(page, axeFor(page).setLegacyMode())
     expect(
       accessibility.violations.filter((item) =>
         ['serious', 'critical'].includes(item.impact ?? ''),

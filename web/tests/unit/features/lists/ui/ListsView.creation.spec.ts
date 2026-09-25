@@ -1,6 +1,5 @@
 /** Creating a category or a list, and what belongs to which of them. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
 
 import {
   activeCategory,
@@ -89,8 +88,7 @@ describe('creating categories and lists', () => {
     await sheet.getByText('Existing list').click()
     await sheet.getByRole('button', { name: 'Choose a list' }).click()
     await screen.getByLabelText('Search').fill('Steam')
-    await userEvent.keyboard('{ArrowDown}')
-    await userEvent.keyboard('{Enter}')
+    await screen.getByRole('option', { name: /^Steam/ }).click()
     await sheet.getByRole('button', { name: 'Add' }).click()
 
     await vi.waitFor(() => {

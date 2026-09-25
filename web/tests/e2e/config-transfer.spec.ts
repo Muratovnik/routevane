@@ -2,7 +2,7 @@ import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import AxeBuilder from '@axe-core/playwright'
+import { analyze } from './support/axe'
 import { expect } from '@playwright/test'
 
 import { test } from './support/content-policy'
@@ -256,7 +256,7 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
           document.documentElement.clientWidth,
       ),
     ).toBe(true)
-    const accessibility = await new AxeBuilder({ page }).analyze()
+    const accessibility = await analyze(page)
     expect(
       accessibility.violations.filter(
         (violation) =>

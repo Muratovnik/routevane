@@ -70,3 +70,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0040: exact FQDN ownership belongs to a router and output](./0040-exact-fqdn-output-ownership.md) | adopted |
 | [ADR 0041: one interface word per object — format and connection](./0041-one-interface-word-per-object.md) | adopted |
 | [ADR 0042: identify a manual deployment before device effects](./0042-identify-manual-deployment-before-device-effects.md) | adopted |
+| [ADR 0043: accept two command palette accessibility findings](./0043-accept-two-command-palette-findings.md) | adopted |

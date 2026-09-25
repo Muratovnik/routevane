@@ -7,7 +7,7 @@
  */
 import { join } from 'node:path'
 
-import AxeBuilder from '@axe-core/playwright'
+import { analyze } from './support/axe'
 import { expect } from '@playwright/test'
 
 import { reviewRoot } from './support/audits'
@@ -131,7 +131,7 @@ test('the forecast explains overlaps in create and edit without rewriting the li
         () => document.documentElement.scrollWidth <= innerWidth,
       ),
     ).toBe(true)
-    const axe = await new AxeBuilder({ page }).analyze()
+    const axe = await analyze(page)
     expect(
       axe.violations.filter(
         (item) => item.impact === 'serious' || item.impact === 'critical',

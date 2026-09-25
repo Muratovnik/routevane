@@ -113,4 +113,34 @@ describe('RvSelect', () => {
     await screen.getByRole('option', { name: /^sing-box/ }).click()
     expect(screen.emitted('update:modelValue')).toEqual([['singbox']])
   })
+
+  // A choice's own glyph is drawn beside its name in the list and, once it is
+  // chosen, in the field; decoration only, so it is found by its test hook.
+  it('draws the glyph a choice carries, in the list and in the field', async () => {
+    const screen = await renderSelect({
+      modelValue: '',
+      options: [
+        { icon: 'keenetic', label: 'Keenetic', value: 'keenetic' },
+        { label: 'Plain', value: 'plain' },
+      ],
+    })
+
+    const trigger = screen.getByRole('combobox')
+    await expect.element(trigger.getByTestId('rv-icon')).not.toBeInTheDocument()
+    trigger.element().focus()
+    await userEvent.keyboard('{Enter}')
+    await expect
+      .element(
+        screen.getByRole('option', { name: 'Keenetic' }).getByTestId('rv-icon'),
+      )
+      .toBeVisible()
+    await expect
+      .element(
+        screen.getByRole('option', { name: 'Plain' }).getByTestId('rv-icon'),
+      )
+      .not.toBeInTheDocument()
+
+    await screen.rerender({ modelValue: 'keenetic' })
+    await expect.element(trigger.getByTestId('rv-icon')).toBeInTheDocument()
+  })
 })

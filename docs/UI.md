@@ -355,8 +355,8 @@ Keep a concise explanation visible when it is needed to choose safely, understan
 an empty state, or recover from failure.
 Disclosures are for long secondary content, not for hints. A label or a heading
 never gets a sentence under it that restates the label, the placeholder or the
-obvious next step; a hint under a field states an input format or a
-consequence, or it does not exist. Keep edits on the surface that owns their
+obvious next step; a hint at a field, above its control, states an input
+format or a consequence, or it does not exist. Keep edits on the surface that owns their
 scope: composing a profile writes only that profile; the library writes the
 library (ADR 0029). Explain shared effects beside an action when they affect
 the operator's decision, such as a library edit used by several profiles. A
@@ -503,8 +503,9 @@ current control or reading position. Reserve space for predictable inline status
 changes; a background load never blanks or re-creates what it is refreshing. An
 explicit disclosure, validation message or user-requested layout change may
 reflow content while preserving focus and keeping the next action reachable. Long
-values wrap or scroll inside their own box; wide tables scroll inside their own
-container, never the page. Menus are viewport overlays: they collision-position
+values wrap or scroll inside their own box, except an option's name in a
+choice panel, which the library shortens with an ellipsis; wide tables scroll
+inside their own container, never the page. Menus are viewport overlays: they collision-position
 above or below their trigger and never extend a table's scroll area. A screen
 that unexpectedly jumps during a background update fails this contract.
 On the profile page the composition panel holds a standing height, so a notice
@@ -546,9 +547,14 @@ declares a literal colour, size, space, radius or duration.
 `RvDisclosure`, `RvTable`, `RvFilePicker`, `RvCopyButton`, `RvCodeBlock`. Nuxt UI supplies
 the styled mechanics behind `RvButton`, the text fields — `RvTextInput` is
 `UInput`, `RvTextarea` is `UTextarea`, `RvField` is `UFormField` — and the
-full-height sheet variant of `RvDialog`. The choices `RvSelect`,
-`RvSearchSelect` and `RvCombobox` and the remaining overlays use headless Reka
-UI primitives. Both libraries are wrapped once here and themed with Routevane
+full-height sheet variant of `RvDialog`. It also draws the choices: `RvSelect`
+is `USelect`, and `RvSearchSelect` — with `RvCombobox` through it — is a
+`UCommandPalette` in a `UPopover`. At field size its trigger is drawn as a
+field and its panel is as wide as the field; the compact category filter's
+panel keeps the panel measure instead of a chip's width. A choice opened inside
+a dialog is portalled into that dialog and kept within its bounds. The
+remaining overlays use headless Reka UI primitives. Both libraries are wrapped
+once here and themed with Routevane
 tokens through the `--ui-*` bridge in `nuxt-ui.css`, not through classes: a
 feature never imports `U*` or Reka components directly, and no native
 `<select>` or `<dialog>` remains. Every control that
@@ -556,15 +562,15 @@ sits in a row with a text field shares that row's chosen control height.
 Standard fields, choice triggers and buttons use `--rv-control-default`; a page
 header's principal action uses `--rv-control-touch`, and a compact row must use
 a consistent shared variant for the field and its adjacent controls. In either
-case, a field drawn as a bordered wrapper around an input — the combobox — lets
-the wrapper own that height rather than the input inside it, or it stands a
-border taller than the control beside it. A field — text, select or
-combobox — has no hover state: a `<label for>` forwards
-`:hover` to its control, so a hovered field would light up from its label.
+case, a field drawn as a bordered wrapper around an input lets the wrapper own
+that height rather than the input inside it, or it stands a border taller than
+the control beside it. A text field has no hover state: a `<label for>` forwards
+`:hover` to its control, so a hovered field would light up from its label. A
+choice trigger takes the library's hover.
 `RvField` names its control by the caller's id whether or not the control is a
-library input. Its hint is the library's help text under the control, and while
-the control has an error the error takes the hint's place; the control is
-described only by the text actually shown. A disabled text field takes the
+library input. Its hint is the library's description between the label and
+the control, and it stays on screen while an error is shown under the control;
+the control is described by the hint and the error that are actually shown. A disabled text field takes the
 library's disabled look, reduced opacity, rather than a colour of its own. A
 panel opened from a field is aligned to its leading edge and never narrower
 than it; a single choice or name field is `--rv-measure-field` wide; a stack of

@@ -1,20 +1,24 @@
 <script setup lang="ts" generic="T extends string | string[]">
-import {
-  ListboxContent,
-  ListboxFilter,
-  ListboxGroup,
-  ListboxGroupLabel,
-  ListboxItem,
-  ListboxRoot,
-  PopoverContent,
-  PopoverPortal,
-  PopoverRoot,
-  PopoverTrigger,
-} from 'reka-ui'
-import { computed, ref, watch } from 'vue'
-import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/types'
+import type { CommandPaletteGroup } from '@nuxt/ui'
+import { portalTargetInjectionKey } from '@nuxt/ui/composables/usePortal'
+import { computed, h, inject, ref, watch, type FunctionalComponent } from 'vue'
+
+import type { ChoiceGroup, ChoiceOption, IconName } from '@/shared/ui/types'
 import { useLocale } from '@/shared/i18n/useLocale'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+
+/**
+ * A choice with a search field above its list.
+ *
+ * Nuxt UI draws it as a command palette in a popover: a labelled trigger, a
+ * portalled panel with the search at its top, named runs and a bounded
+ * scrolling list. The palette keeps its search outside the list it drives,
+ * which is what the accessibility audit asks of a listbox. At field size the
+ * trigger is drawn as a field and the panel is as wide as it; at compact size
+ * the trigger stands among filter chips and the panel takes the panel measure,
+ * because a panel as narrow as a chip would cut the choices it lists. The
+ * matching, what may be chosen and when the panel closes are decided here.
+ */
 const props = defineProps<{
   modelValue: T
   options?: ChoiceOption[]
@@ -35,16 +39,54 @@ const props = defineProps<{
   disabled?: boolean
 }>()
 const emit = defineEmits<{ 'update:modelValue': [value: T] }>()
+defineSlots<{ option?: (props: { option: ChoiceOption }) => unknown }>()
 const { t } = useLocale()
+
+// The library draws its icons in its own places and colours when it is handed
+// components; this product's glyphs keep it from fetching or injecting a set.
+// The attributes the library hands its icon — its size, colour and slot
+// name — are passed on to the glyph.
+const glyph =
+  (name: IconName): FunctionalComponent =>
+  (_props, { attrs }) =>
+    h(RvIcon, { ...attrs, name })
+const chevronGlyph = glyph('chevron')
+const checkGlyph = glyph('check')
+const searchGlyph = glyph('search')
+const workingGlyph = glyph('refresh')
+
+// The palette's own search is not used — the groups it is handed are already
+// the matches — but it still caps each group, so the cap is lifted.
+const paletteFuse = { resultLimit: Number.POSITIVE_INFINITY }
+
 const multiple = computed(() => Array.isArray(props.modelValue))
+const field = computed(() => props.size === 'default')
 const open = ref(false)
 const query = ref('')
-watch(
-  () => props.disabled || props.loading,
-  (unavailable) => {
-    if (unavailable) open.value = false
-  },
-)
+const unavailable = computed(() => props.disabled === true || props.loading)
+watch(unavailable, (value) => {
+  if (value) open.value = false
+})
+// A closed panel forgets what was typed into it, so it reopens on everything.
+watch(open, (value) => {
+  query.value = ''
+  measureRoom(value)
+})
+
+// A panel opened inside a dialog is portalled into it (RvDialog), and the
+// dialog clips what reaches past its edge. The positioner is told the dialog
+// is the room it has, so the panel flips or shortens instead of being cut.
+const portalTarget = inject(portalTargetInjectionKey, undefined)
+const boundary = ref<Element | null>(null)
+const measureRoom = (open: boolean): void => {
+  if (!open) return
+  const target = portalTarget?.value
+  boundary.value =
+    typeof target === 'string' && target !== 'body'
+      ? document.querySelector(target)
+      : null
+}
+
 const runs = computed(
   () => props.groups ?? [{ key: '', label: '', options: props.options ?? [] }],
 )
@@ -55,350 +97,230 @@ const selected = computed(() =>
 const heading = computed(
   () => props.label ?? props.toggleLabel ?? props.placeholder,
 )
-const matches = computed(() =>
-  runs.value
+const search = computed(() => props.searchLabel ?? t('choice.search'))
+const empty = computed(() => props.emptyLabel ?? t('choice.empty'))
+const shown = computed(
+  () => props.triggerLabel ?? selected.value?.label ?? props.placeholder,
+)
+
+// Matching is by name, by the compared fact and by the run's own name, the
+// same way in both sizes; the library is told not to filter again.
+const matches = computed(() => {
+  const needle = query.value.trim().toLocaleLowerCase()
+  return runs.value
     .map((group) => ({
       ...group,
       options: group.options.filter((option) =>
         [option.label, option.value, option.mono ?? '', group.label]
           .join(' ')
           .toLocaleLowerCase()
-          .includes(query.value.trim().toLocaleLowerCase()),
+          .includes(needle),
       ),
     }))
-    .filter((group) => group.options.length > 0),
+    .filter((group) => group.options.length > 0)
+})
+
+// One choice as the library lists it, with the facts the slots draw.
+type Entry = {
+  description?: string
+  disabled?: boolean
+  glyph?: IconName
+  label: string
+  mono?: string
+  note?: string
+  option?: ChoiceOption
+  value?: string
+  warning?: string
+}
+
+const item = (option: ChoiceOption): Entry => ({
+  description: option.note,
+  disabled: option.disabled === true,
+  glyph: option.icon,
+  label: option.label,
+  mono: option.mono,
+  note: option.note,
+  option,
+  value: option.value,
+  warning: option.warning,
+})
+const paletteGroups = computed<CommandPaletteGroup[]>(() =>
+  matches.value.map((group) => ({
+    id: group.key === '' ? 'choices' : group.key,
+    ignoreFilter: true,
+    items: group.options.map(item),
+    label: group.label === '' ? undefined : group.label,
+  })),
 )
+
 const choose = (value: unknown): void => {
-  const valid = (item: unknown): item is string =>
-    typeof item === 'string' &&
-    choices.value.some((choice) => choice.value === item && !choice.disabled)
+  const valid = (entry: unknown): entry is string =>
+    typeof entry === 'string' &&
+    choices.value.some((choice) => choice.value === entry && !choice.disabled)
+  if (unavailable.value) return
   if (multiple.value) {
-    if (
-      !props.disabled &&
-      !props.loading &&
-      Array.isArray(value) &&
-      value.every(valid)
-    )
+    if (Array.isArray(value) && value.every(valid))
       emit('update:modelValue', value as T)
     return
   }
-  if (
-    typeof value !== 'string' ||
-    props.disabled ||
-    props.loading ||
-    !choices.value.some((choice) => choice.value === value && !choice.disabled)
-  )
-    return
-  emit('update:modelValue', value as T)
+  if (valid(value)) emit('update:modelValue', value as T)
 }
 
-const completeSingleSelection = (option: ChoiceOption): void => {
-  if (
-    multiple.value ||
-    props.disabled ||
-    props.loading ||
-    option.disabled === true
-  )
-    return
-  open.value = false
+// The panel's own attributes. It is named for what it chooses. The library
+// also points the panel at the id it gives its trigger; a field's trigger
+// carries the caller's id instead, which the field's label needs, so that
+// reference finds nothing and the panel's name is this one. The mark tells the
+// accessibility audit which list is the palette's own
+// (docs/adr/0043-accept-two-command-palette-findings.md).
+const panelContent = computed(() => ({
+  align: 'start' as const,
+  'aria-label': heading.value,
+  collisionBoundary: boundary.value ?? undefined,
+  'data-rv-choice-panel': 'palette',
+}))
+
+// The trigger takes the caller's id only when there is one: an absent id must
+// not replace the one the library gives a trigger nobody labels.
+const triggerId = computed(() =>
+  props.inputId === undefined ? {} : { id: props.inputId },
+)
+const paletteInput = computed(() => ({
+  'aria-label': search.value,
+  autocomplete: 'off',
+}))
+
+// The field's trigger takes its name from the field's label; a trigger with
+// no label names the choice and what it shows, and a busy one says so.
+const triggerName = computed(() => {
+  if (props.loading === true) return props.loadingLabel ?? props.placeholder
+  if (props.inputId !== undefined || props.labelledBy !== undefined)
+    return undefined
+  return `${heading.value}: ${shown.value}`
+})
+const selectedGlyph = computed(() =>
+  selected.value?.icon === undefined ? undefined : glyph(selected.value.icon),
+)
+
+// The palette lists and reports its entries themselves; they are compared by
+// their value, and a report is turned back into the values this surface keeps.
+const paletteChosen = computed<Entry | Entry[] | undefined>(() => {
+  const entries = choices.value
+    .filter((option) =>
+      Array.isArray(props.modelValue)
+        ? props.modelValue.includes(option.value)
+        : option.value === props.modelValue,
+    )
+    .map(item)
+  return multiple.value ? entries : entries[0]
+})
+const choosePalette = (value: unknown): void => {
+  const valueOf = (entry: unknown) => (entry as Entry | undefined)?.value
+  choose(Array.isArray(value) ? value.map(valueOf) : valueOf(value))
+  // A single choice is made once; a filter stays open for the next one.
+  if (!multiple.value) open.value = false
 }
 </script>
+
 <template>
-  <PopoverRoot v-model:open="open" @update:open="query = ''">
-    <PopoverTrigger as-child>
-      <button
-        :id="inputId"
-        type="button"
-        class="rv-search-select__trigger"
-        :class="{ 'rv-search-select__trigger--field': size === 'default' }"
-        :disabled="disabled || loading || choices.length === 0"
-        :aria-label="
-          inputId
-            ? undefined
-            : `${heading}: ${triggerLabel ?? selected?.label ?? placeholder}`
-        "
-        :aria-describedby="describedBy"
-        :aria-labelledby="labelledBy"
-        :aria-invalid="invalid || undefined"
-        :aria-busy="loading || undefined"
+  <UPopover v-model:open="open" :content="panelContent">
+    <!-- The field's trigger is drawn as a field: its ground and edge, the value
+         at the leading edge and the chevron at the end, at the field height.
+         The compact trigger stands among the filter chips at their size, on the
+         same outlined ground, which is the library variant nearest to them. -->
+    <UButton
+      v-bind="triggerId"
+      :class="field ? 'rv-search-select' : 'rv-search-select__trigger'"
+      :aria-busy="loading === true ? 'true' : undefined"
+      :aria-describedby="describedBy"
+      :aria-invalid="invalid === true ? 'true' : undefined"
+      :aria-label="triggerName"
+      :aria-labelledby="labelledBy"
+      :block="field"
+      :color="invalid === true ? 'error' : 'neutral'"
+      :disabled="unavailable || choices.length === 0"
+      :leading-icon="loading === true ? undefined : selectedGlyph"
+      :loading="loading === true"
+      :loading-icon="workingGlyph"
+      :size="field ? 'xl' : 'lg'"
+      :trailing-icon="chevronGlyph"
+      variant="outline"
+    >
+      {{ loading === true ? (loadingLabel ?? placeholder) : shown }}
+    </UButton>
+    <template #content>
+      <UCommandPalette
+        v-model:search-term="query"
+        class="rv-search-select__palette"
+        :class="{ 'rv-search-select__palette--field': field }"
+        by="value"
+        :fuse="paletteFuse"
+        :groups="paletteGroups"
+        :icon="searchGlyph"
+        :input="paletteInput"
+        :model-value="paletteChosen"
+        :multiple="multiple"
+        :placeholder="search"
+        :selected-icon="checkGlyph"
+        :selection-behavior="multiple ? 'toggle' : 'replace'"
+        @update:model-value="choosePalette"
       >
-        <RvIcon v-if="selected?.icon && !loading" :name="selected.icon" />
-        <span class="rv-search-select__value">{{
-          loading
-            ? (loadingLabel ?? placeholder)
-            : (triggerLabel ?? selected?.label ?? placeholder)
-        }}</span
-        ><RvIcon name="chevron" />
-      </button>
-    </PopoverTrigger>
-    <PopoverPortal>
-      <PopoverContent
-        class="rv-search-select__panel"
-        :class="{ 'rv-search-select__panel--field': size === 'default' }"
-        align="start"
-        :side-offset="4"
-        :collision-padding="8"
-        :aria-label="heading"
-      >
-        <p class="rv-search-select__title">{{ heading }}</p>
-        <ListboxRoot
-          :model-value="modelValue"
-          :multiple="multiple"
-          :disabled="disabled || loading"
-          :selection-behavior="multiple ? 'toggle' : 'replace'"
-          @update:model-value="choose"
-        >
-          <div class="rv-search-select__search">
-            <RvIcon name="search" />
-            <ListboxFilter
-              v-model="query"
-              :aria-label="searchLabel ?? t('choice.search')"
-              :placeholder="searchLabel ?? t('choice.search')"
-              auto-focus
-            />
-          </div>
-          <ListboxContent
-            class="rv-search-select__options"
-            :aria-label="heading"
-            :aria-disabled="disabled || loading || undefined"
-          >
-            <ListboxGroup
-              v-for="group in matches"
-              :key="group.key"
-              class="rv-search-select__group"
-            >
-              <ListboxGroupLabel
-                v-if="group.label"
-                class="rv-search-select__group-label"
-                >{{ group.label }}</ListboxGroupLabel
-              >
-              <ListboxItem
-                v-for="option in group.options"
-                :key="option.value"
-                :value="option.value"
-                :disabled="option.disabled"
-                :aria-disabled="
-                  disabled || loading || option.disabled || undefined
-                "
-                class="rv-search-select__option"
-                @select="completeSingleSelection(option)"
-              >
-                <RvIcon
-                  name="check"
-                  class="rv-search-select__check"
-                  :class="{
-                    'rv-search-select__check--selected': Array.isArray(
-                      modelValue,
-                    )
-                      ? modelValue.includes(option.value)
-                      : option.value === modelValue,
-                  }"
-                />
-                <slot name="option" :option="option">
-                  <RvIcon v-if="option.icon" :name="option.icon" />
-                  <span class="rv-search-select__copy"
-                    ><span
-                      >{{ option.label }}
-                      <span v-if="option.mono" class="rv-search-select__mono">{{
-                        option.mono
-                      }}</span></span
-                    >
-                    <small v-if="option.note" class="rv-search-select__note">{{
-                      option.note
-                    }}</small>
-                    <small
-                      v-if="option.warning"
-                      class="rv-search-select__warning"
-                      >{{ option.warning }}</small
-                    >
-                  </span>
-                </slot>
-              </ListboxItem>
-            </ListboxGroup>
-          </ListboxContent>
-          <p
-            v-if="matches.length === 0"
-            class="rv-search-select__empty"
-            role="status"
-          >
-            {{ emptyLabel ?? t('choice.empty') }}
-          </p>
-        </ListboxRoot>
-      </PopoverContent>
-    </PopoverPortal>
-  </PopoverRoot>
+        <template #item-leading="{ item: entry }">
+          <RvIcon v-if="entry.glyph" :name="entry.glyph" />
+        </template>
+        <template #item-label="{ item: entry }">
+          <slot name="option" :option="(entry as Entry).option!">
+            {{ entry.label }}
+            <span v-if="entry.mono" class="rv-mono">{{ entry.mono }}</span>
+          </slot>
+        </template>
+        <!-- A stated limit of the choice stays whole at the row's end, in words
+             beside its mark, rather than in the note the library shortens. -->
+        <template #item-trailing="{ item: entry }">
+          <template v-if="entry.warning">
+            <RvIcon name="warning" /><span>{{ entry.warning }}</span>
+          </template>
+        </template>
+        <template #empty>{{ empty }}</template>
+      </UCommandPalette>
+    </template>
+  </UPopover>
 </template>
-<!-- The portalled Reka content does not retain the caller scope attribute. -->
+
+<!-- Layout of the roots only. The field's trigger fills its column, like a
+     field; the compact trigger stands at the chips' compact height, which the
+     library's line box for its size falls a fraction of a pixel short of. The
+     triggers and the palette are the library's own elements, and the palette
+     is portalled, so this file's scope attribute reaches none of them and the
+     rules are written against the facade's unique classes.
+
+     The compact panel takes the panel measure rather than the chip's width, so
+     no category is cut to a chip; the field's panel is exactly as wide as its
+     field. Either is never narrower than its trigger. Its list holds as much as
+     the Reka list did — the overlay height, below the search row — and never
+     more than the room the positioner reports. -->
 <style>
-.rv-search-select__trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--rv-space-2);
-  min-height: var(--rv-control-compact);
+.rv-search-select {
+  width: 100%;
   min-width: 0;
-  max-width: 100%;
-  padding: var(--rv-space-1) var(--rv-space-3);
-  font: inherit;
-  font-size: var(--rv-text-dense);
-  color: var(--rv-color-ink-muted);
-  background: var(--rv-color-surface);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-md);
-  cursor: pointer;
 }
 
-.rv-search-select__trigger > span {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+.rv-search-select__trigger {
+  min-height: var(--rv-control-compact);
 }
 
-.rv-search-select__trigger:disabled {
-  opacity: var(--rv-disabled-opacity);
-  cursor: not-allowed;
-}
-
-.rv-search-select__panel {
-  z-index: 30;
+.rv-search-select__palette {
   width: var(--rv-panel-width);
-  /* stylelint-disable-next-line custom-property-pattern -- Reka measures the trigger. */
+  /* stylelint-disable custom-property-pattern -- Reka measures the trigger and the room. */
   min-width: var(--reka-popover-trigger-width);
   max-width: calc(100vw - var(--rv-space-4));
-  /* stylelint-disable-next-line custom-property-pattern -- Reka owns the measured room for this overlay. */
-  max-height: var(--reka-popover-content-available-height);
-  overflow: auto;
-  color: var(--rv-color-ink);
-  background: var(--rv-color-surface);
-  border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
-  border-radius: var(--rv-radius-md);
-  box-shadow: var(--rv-shadow-raised);
+  max-height: min(
+    calc(var(--rv-overlay-height) + var(--rv-space-12)),
+    var(--reka-popover-content-available-height, var(--rv-overlay-height))
+  );
 }
 
-.rv-search-select__title {
-  padding: var(--rv-space-3);
-  font-weight: 600;
-  font-size: var(--rv-text-dense);
-}
-
-.rv-search-select__search {
-  display: flex;
-  align-items: center;
-  gap: var(--rv-space-2);
-  margin: 0 var(--rv-space-2) var(--rv-space-2);
-  padding: var(--rv-space-2);
-  border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
-  border-radius: var(--rv-radius-sm);
-}
-
-.rv-search-select__search:focus-within {
-  outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: var(--rv-border-hair);
-}
-
-.rv-search-select__search input {
-  width: 100%;
-  min-width: 0;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  outline: 0;
-}
-
-.rv-search-select__options {
-  position: relative;
-  max-height: var(--rv-overlay-height);
-  padding: var(--rv-space-1);
-  overflow-y: auto;
-}
-
-.rv-search-select__option {
-  display: flex;
-  align-items: center;
-  gap: var(--rv-space-2);
-  min-height: var(--rv-control-compact);
-  padding: var(--rv-space-2);
-  font-size: var(--rv-text-dense);
-  border-radius: var(--rv-radius-sm);
-  cursor: pointer;
-}
-
-.rv-search-select__option[data-highlighted] {
-  background: var(--rv-color-surface-hover);
-  outline: none;
-}
-
-.rv-search-select__option[data-state='checked'] {
-  color: var(--rv-color-accent-ink);
-}
-
-.rv-search-select__check {
-  visibility: hidden;
-  flex: none;
-  order: 1;
-  margin-inline-start: auto;
-}
-
-.rv-search-select__check--selected {
-  visibility: visible;
-}
-
-.rv-search-select__empty {
-  padding: var(--rv-space-3);
-  color: var(--rv-color-ink-muted);
-}
-
-.rv-search-select__trigger--field {
-  background: var(--rv-color-field);
-  width: 100%;
-  min-height: var(--rv-control-default);
-}
-
-.rv-search-select__trigger[aria-invalid='true'] {
-  border-color: var(--rv-color-status-failed);
-}
-
-.rv-search-select__group-label {
-  padding: var(--rv-space-2);
-  color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-meta);
-}
-
-.rv-search-select__value {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  text-align: start;
-}
-
-.rv-search-select__copy {
-  display: grid;
-  gap: var(--rv-space-1);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.rv-search-select__mono {
-  font-family: var(--rv-font-mono);
-}
-
-.rv-search-select__note {
-  color: var(--rv-color-ink-muted);
-}
-
-.rv-search-select__warning {
-  color: var(--rv-color-status-warning);
-}
-
-.rv-search-select__option[data-disabled] {
-  opacity: var(--rv-disabled-opacity);
-  cursor: not-allowed;
-}
-</style>
-
-<style>
-.rv-search-select__panel--field {
-  /* stylelint-disable-next-line custom-property-pattern -- Reka measures the field. */
-  width: var(--reka-popover-trigger-width, var(--rv-panel-width));
+.rv-search-select__palette--field {
+  width: var(--reka-popover-trigger-width);
+  /* stylelint-enable custom-property-pattern */
 }
 </style>

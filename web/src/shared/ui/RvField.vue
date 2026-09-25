@@ -34,11 +34,12 @@ const FieldBinding = defineComponent({
 
 <script setup lang="ts">
 /**
- * One form field: label, control, and under the control either its hint or,
- * while there is one, the error the control caused. Nuxt UI draws the field;
- * the hint is the library's help text, which gives way to the error in the
- * same place. The slot receives the ids to point `aria-describedby` at, so the
- * wiring cannot drift from what is rendered.
+ * One form field: label, the hint that states its format between the label and
+ * the control, the control, and — while there is one — the error the control
+ * caused, under it. Nuxt UI draws the field; the hint is the library's
+ * description and stays on screen beside the error. The slot receives the ids
+ * to point `aria-describedby` at, so the wiring cannot drift from what is
+ * rendered.
  */
 const props = defineProps<{
   error?: string
@@ -50,13 +51,11 @@ const props = defineProps<{
 const failure = computed(() =>
   props.error === undefined || props.error === '' ? undefined : props.error,
 )
-const help = computed(() =>
-  failure.value !== undefined || props.hint === '' ? undefined : props.hint,
-)
+const description = computed(() => (props.hint === '' ? undefined : props.hint))
 </script>
 
 <template>
-  <UFormField :error="failure" :help="help" :label="label">
+  <UFormField :description="description" :error="failure" :label="label">
     <!-- A new id is a new registration, so the binding is keyed by it. -->
     <FieldBinding :key="inputId" v-slot="binding" :input-id="inputId">
       <slot :described-by="binding.describedBy" :invalid="binding.invalid" />

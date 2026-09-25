@@ -3,7 +3,7 @@ import { join } from 'node:path'
 
 import { audit, auditWidths, reviewRoot } from './support/audits'
 import { localConfigAddress } from './support/environment'
-import { pressSegment } from './support/flows'
+import { pressSegment, settleAnimations } from './support/flows'
 import { CONTROL_TOUCH } from './support/geometry'
 import { libraryRow, libraryRowName, listRow } from './support/queries'
 import { test } from './support/served-product'
@@ -96,6 +96,9 @@ test('graphite settings and inline connection choices preserve readable alignmen
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.getByLabel('Что подключаем', { exact: true }).click()
   const option = page.getByRole('option', { name: 'Keenetic', exact: true })
+  // The panel grows in as it opens; its rows are measured once it settles.
+  await expect(option).toBeVisible()
+  await settleAnimations(page)
   const labelLeft = await option.evaluate((element) => {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
     let node = walker.nextNode()
@@ -112,12 +115,25 @@ test('graphite settings and inline connection choices preserve readable alignmen
   const optionBox = await option.boundingBox()
   expect(iconBox).not.toBeNull()
   expect(optionBox).not.toBeNull()
-  const inset = iconBox!.x - optionBox!.x
-  expect(inset).toBeGreaterThanOrEqual(8)
-  expect(inset).toBeLessThanOrEqual(16)
-  const gap = labelLeft - (iconBox!.x + iconBox!.width)
-  expect(gap).toBeGreaterThanOrEqual(8)
-  expect(gap).toBeLessThanOrEqual(16)
+  // The row's geometry is the library's (docs/UI.md, Components): the glyph
+  // stands at the row's own leading inset and the name follows it by the row's
+  // own gap, the same spacing every choice panel draws, so glyph and name line
+  // up the same way in each of them.
+  const spacing = await option.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return {
+      gap: Number.parseFloat(style.columnGap),
+      inset: Number.parseFloat(style.paddingInlineStart),
+    }
+  })
+  expect(spacing.inset).toBeGreaterThan(0)
+  expect(spacing.gap).toBeGreaterThan(0)
+  expect(
+    Math.abs(iconBox!.x - optionBox!.x - spacing.inset),
+  ).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(labelLeft - (iconBox!.x + iconBox!.width) - spacing.gap),
+  ).toBeLessThanOrEqual(1)
   expect(await audit(page, 'graphite-connection-choice')).toEqual([])
   await page.screenshot({
     path: join(reviewRoot, 'connection-choice-graphite.png'),

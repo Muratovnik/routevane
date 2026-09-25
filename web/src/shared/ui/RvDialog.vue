@@ -8,7 +8,17 @@ import {
   DialogRoot,
   DialogTitle,
 } from 'reka-ui'
-import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
+import { portalTargetInjectionKey } from '@nuxt/ui/composables/usePortal'
+import {
+  computed,
+  defineComponent,
+  inject,
+  onBeforeUnmount,
+  provide,
+  ref,
+  useId,
+  watch,
+} from 'vue'
 
 import { workspacePane } from '@/shared/model/useWorkspacePane'
 import RvIcon from '@/shared/ui/RvIcon.vue'
@@ -80,6 +90,11 @@ onBeforeUnmount(() => {
 })
 
 const canDismiss = computed(() => props.dismissible !== false)
+
+// The panel's own element, found by an id of its own, is where the library's
+// overlays opened from inside it are portalled (see `PortalScope` below).
+const panelId = useId()
+const panelTarget = `[id="${panelId}"]`
 
 // Where the keyboard was before this panel took it. The primitive returns focus
 // to a trigger element, and this dialog is opened by state rather than by one,
@@ -166,6 +181,7 @@ const updateOpen = (open: boolean): void => {
 }
 
 const sheetContentProps = computed(() => ({
+  id: panelId,
   onCloseAutoFocus,
   onOpenAutoFocus,
   onEscapeKeyDown: (event: Event) => {
@@ -204,6 +220,29 @@ const sheetUI = computed(() => ({
  * that every import of the module the two share stays at the top of it.
  */
 const openDialogs = ref(0)
+
+/**
+ * Hands the panel to the Nuxt UI overlays opened from inside it as the place
+ * they portal to, through the library's own portal injection.
+ *
+ * Portalled to the document body, a choice opened from a field in the panel
+ * would stand behind the panel, which is raised above the page. Portalled into
+ * the panel, it is part of the panel's layer, stacking and focus scope, and
+ * the positioner keeps it inside the panel's bounds. Only the content is
+ * wrapped: the panel's own sheet, and a panel opened from inside this one,
+ * still portal to the body.
+ */
+const PortalScope = defineComponent({
+  name: 'RvDialogPortalScope',
+  props: { target: { type: String, required: true } },
+  setup(props, { slots }) {
+    provide(
+      portalTargetInjectionKey,
+      computed(() => props.target),
+    )
+    return () => slots.default?.()
+  },
+})
 </script>
 
 <template>
@@ -212,7 +251,7 @@ const openDialogs = ref(0)
     :open="open"
     :modal="!docked"
     :overlay="!docked"
-    :portal="docked && workspace ? workspace.target : true"
+    :portal="docked && workspace ? workspace.target : 'body'"
     :title="title"
     :description="description"
     :dismissible="canDismiss"
@@ -236,10 +275,10 @@ const openDialogs = ref(0)
       </button>
     </template>
     <template #body>
-      <slot />
+      <PortalScope :target="panelTarget"><slot /></PortalScope>
     </template>
     <template v-if="$slots.footer" #footer>
-      <slot name="footer" />
+      <PortalScope :target="panelTarget"><slot name="footer" /></PortalScope>
     </template>
   </USlideover>
 
@@ -253,6 +292,7 @@ const openDialogs = ref(0)
         data-testid="rv-dialog-scrim"
       />
       <DialogContent
+        :id="panelId"
         class="rv-dialog rv-dialog--panel"
         v-bind="describedBy"
         @close-auto-focus="onCloseAutoFocus"
@@ -279,11 +319,13 @@ const openDialogs = ref(0)
         </header>
 
         <div class="rv-dialog__body" :class="{ 'rv-dialog__body--fill': fill }">
-          <slot />
+          <PortalScope :target="panelTarget"><slot /></PortalScope>
         </div>
 
         <footer v-if="$slots.footer" class="rv-dialog__footer">
-          <slot name="footer" />
+          <PortalScope :target="panelTarget"
+            ><slot name="footer"
+          /></PortalScope>
         </footer>
       </DialogContent>
     </DialogPortal>
