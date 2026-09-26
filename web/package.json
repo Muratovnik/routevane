@@ -31,10 +31,10 @@
   },
   "dependencies": {
     "@nuxt/ui": "4.11.2",
-    "@vueuse/core": "14.4.0",
-    "@vueuse/integrations": "14.4.0",
+    "@vueuse/core": "15.0.0",
+    "@vueuse/integrations": "15.0.0",
     "nuxt": "4.5.2",
-    "reka-ui": "2.10.4",
+    "reka-ui": "2.10.5",
     "sortablejs": "1.15.7",
     "valibot": "1.5.0",
     "vue": "3.5.43",
@@ -63,7 +63,7 @@
     "stylelint": "17.15.0",
     "stylelint-config-standard": "40.0.0",
     "stylelint-config-standard-vue": "2.0.0",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vitest": "5.0.1",
     "vitest-browser-vue": "3.1.0",
     "vue-tsc": "3.3.11"
