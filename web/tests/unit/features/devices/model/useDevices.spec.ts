@@ -54,6 +54,50 @@ beforeEach(() => {
 })
 
 describe('useDevices degraded dependencies', () => {
+  it('clears the registered identity after confirmed removal even when the registry reread fails', async () => {
+    const register = vi.fn(() => json({ device: devicePayload.devices[0] }))
+    const forget = vi.fn(() => json({ forgotten: 'device-1' }))
+    fetchMock.mockImplementation(
+      async (input: FetchInput, init?: RequestInit) => {
+        const url = String(input)
+        if (url === '/v1/devices' && init?.method === 'POST') return register()
+        if (url === '/v1/devices/device-1/forget') return forget()
+        if (url === '/v1/devices') {
+          if (forget.mock.calls.length > 0) throw new TypeError('unavailable')
+          return json({
+            ...devicePayload,
+            devices:
+              register.mock.calls.length > 0 ? devicePayload.devices : [],
+          })
+        }
+        if (url === '/v1/lists') return json(listsPayload)
+        if (url === '/v1/targets') return json(targetsPayload)
+        if (url === '/v1/deployments/targets') return json({ targets: [] })
+        if (url === '/health') return json({ status: 'ok', version: 'dev' })
+        throw new Error(`unexpected request ${url}`)
+      },
+    )
+    const devices = useDevices()
+    await devices.initialize()
+    await expect(
+      devices.register(
+        'keenetic',
+        'Home router',
+        'http://192.168.1.1',
+        'admin',
+        '',
+      ),
+    ).resolves.toBe(true)
+    expect(devices.registeredID.value).toBe('device-1')
+
+    await expect(devices.forget('device-1')).resolves.toBe(true)
+
+    expect(devices.registeredID.value).toBe('')
+    expect(devices.devices.value).toEqual([])
+    expect(devices.state.value).toBe('stale')
+    expect(forget).toHaveBeenCalledTimes(1)
+  })
+
   it('keeps an explicitly cleared account from a confirmed write when rereading fails', async () => {
     let written = false
     fetchMock.mockImplementation((input: FetchInput) => {

@@ -279,6 +279,10 @@ Sections, addressable by URL:
    retry refreshes the list without repeating the change.
    «Забыть подключение» is the connection's only secondary action, in the
    action menu of its detail header, and it is confirmed before it runs.
+   A confirmed removal leaves the list immediately, even when the following
+   registry read fails. Selection moves to a remaining connection or the empty
+   registry; the read failure keeps a page-level retry available in either
+   case. A refused or unanswered removal keeps the last confirmed card.
    After registration the screen says
    what remains before unattended delivery, and after opt-in it points to
    choosing that connection in a profile; it never states that a connection is

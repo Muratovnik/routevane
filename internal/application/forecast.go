@@ -182,6 +182,7 @@ func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile
 	if err != nil {
 		return CompositionForecast{}, fmt.Errorf("invalid forecast target")
 	}
+	renderer = rendererWithContext(ctx, renderer)
 	unbounded := target
 	unbounded.Constraints.MaxRules = 0
 	prepared, _, err := s.prepareProfileAt(ctx, profile, unbounded, renderer, cutoff)
@@ -213,7 +214,10 @@ func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile
 		return CompositionForecast{}, err
 	}
 	projected, err := renderer.ProjectedRuleCount(cloneRoutingPlan(prepared.Plan))
-	if err != nil || projected < 0 {
+	if err != nil {
+		return CompositionForecast{}, fmt.Errorf("%w: invalid renderer projection: %w", ErrPreflight, err)
+	}
+	if projected < 0 {
 		return CompositionForecast{}, fmt.Errorf("%w: invalid renderer projection", ErrPreflight)
 	}
 	// A zero contribution is useful inside a larger plan. An entirely empty

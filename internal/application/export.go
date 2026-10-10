@@ -124,6 +124,7 @@ func (s *PublicationService) Export(ctx context.Context, profileID, formatID str
 	if err != nil {
 		return ExportPayload{}, ErrNotFound
 	}
+	renderer = rendererWithContext(ctx, renderer)
 	prepared, _, err := s.prepareProfile(ctx, profile, target, renderer)
 	if err != nil {
 		return ExportPayload{}, err

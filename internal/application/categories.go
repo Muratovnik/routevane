@@ -293,13 +293,15 @@ func (s *PublicationService) CreateCategory(ctx context.Context, title string, l
 	if !ok {
 		return CategoryDetail{}, fmt.Errorf("invalid category title")
 	}
-	members, err := s.validCategoryMembers(lists)
-	if err != nil {
-		return CategoryDetail{}, err
-	}
 	now := s.config.Clock.Now().UTC()
 	if now.IsZero() {
 		return CategoryDetail{}, fmt.Errorf("clock returned zero time")
+	}
+	s.publicationMu.Lock()
+	defer s.publicationMu.Unlock()
+	members, err := s.validCategoryMembers(lists)
+	if err != nil {
+		return CategoryDetail{}, err
 	}
 	s.overlay.mu.RLock()
 	total := len(s.overlay.custom)
@@ -319,9 +321,7 @@ func (s *PublicationService) CreateCategory(ctx context.Context, title string, l
 			continue
 		}
 		memberships := membershipRows(category.ID, members, nil, now)
-		s.publicationMu.Lock()
 		if err := s.config.Store.CreateCustomCategory(ctx, category, memberships); err != nil {
-			s.publicationMu.Unlock()
 			if errors.Is(err, ErrIdentityCollision) {
 				continue
 			}
@@ -332,7 +332,6 @@ func (s *PublicationService) CreateCategory(ctx context.Context, title string, l
 		s.overlay.membership[category.ID] = membershipIndex(memberships)
 		s.overlay.mu.Unlock()
 		s.publicationGeneration++
-		s.publicationMu.Unlock()
 		detail, _ := s.mergedCategory(category.ID)
 		return detail, nil
 	}
@@ -344,13 +343,15 @@ func (s *PublicationService) CreateCategory(ctx context.Context, title string, l
 // a client that computed it would have to hold a copy of the catalog, and a
 // stale copy would store a verdict the operator never gave.
 func (s *PublicationService) UpdateCategory(ctx context.Context, id string, update CategoryUpdate) (CategoryDetail, error) {
-	current, ok := s.mergedCategory(id)
-	if !ok {
-		return CategoryDetail{}, ErrNotFound
-	}
 	now := s.config.Clock.Now().UTC()
 	if now.IsZero() {
 		return CategoryDetail{}, fmt.Errorf("clock returned zero time")
+	}
+	s.publicationMu.Lock()
+	defer s.publicationMu.Unlock()
+	current, ok := s.mergedCategory(id)
+	if !ok {
+		return CategoryDetail{}, ErrNotFound
 	}
 	write := CategoryWrite{CategoryID: id, UpdatedAt: now}
 	title := current.Title
@@ -375,8 +376,6 @@ func (s *PublicationService) UpdateCategory(ctx context.Context, id string, upda
 		write.Memberships = membershipRows(id, desired, s.config.Categories[id].Lists, now)
 		write.ReplaceMemberships = true
 	}
-	s.publicationMu.Lock()
-	defer s.publicationMu.Unlock()
 	if err := s.config.Store.UpdateCategory(ctx, write); err != nil {
 		return CategoryDetail{}, err
 	}

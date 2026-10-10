@@ -221,7 +221,14 @@ export const useDevices = () => {
     )
   }
 
-  const forget = (id: string): Promise<boolean> => run(() => forgetDevice(id))
+  const forget = (id: string): Promise<boolean> =>
+    run(
+      () => forgetDevice(id),
+      () => {
+        devices.value = devices.value.filter((device) => device.id !== id)
+        if (registeredID.value === id) registeredID.value = ''
+      },
+    )
 
   /**
    * Turning delivery on carries the password once, to the server, which hands

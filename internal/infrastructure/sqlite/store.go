@@ -107,7 +107,7 @@ func open(ctx context.Context, dataRoot string, allowCreate bool) (*Store, error
 	if _, err := migrateLegacyV3(ctx, root, path); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", sqliteDSN(path))
 	if err != nil {
 		return nil, fmt.Errorf("open SQLite: %w", err)
 	}
@@ -262,18 +262,8 @@ func configureConnection(ctx context.Context, db *sql.DB, setWAL bool) error {
 			return fmt.Errorf("configure SQLite WAL")
 		}
 	}
-	for _, statement := range []string{
-		"PRAGMA foreign_keys = ON",
-		"PRAGMA busy_timeout = 5000",
-		"PRAGMA synchronous = FULL",
-		"PRAGMA trusted_schema = OFF",
-		// A rename migration depends on SQLite following a renamed table or
-		// column into every foreign key, trigger and index that names it,
-		// which it stops doing in legacy mode. Refusing the connection here
-		// keeps a half-renamed schema from ever being committed.
-		"PRAGMA legacy_alter_table = OFF",
-	} {
-		if _, err := db.ExecContext(ctx, statement); err != nil {
+	for _, pragma := range connectionPragmas {
+		if _, err := db.ExecContext(ctx, "PRAGMA "+pragma); err != nil {
 			return fmt.Errorf("configure SQLite connection: %w", err)
 		}
 	}

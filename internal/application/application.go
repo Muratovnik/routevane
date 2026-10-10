@@ -193,6 +193,21 @@ type Renderer interface {
 	Validate([]byte) error
 }
 
+// ContextualRenderer optionally binds an I/O renderer to one application
+// operation. WithContext must return an independent binding without changing
+// the shared registry instance, and preserve any optional renderer interfaces.
+// Pure in-process renderers need not implement this interface.
+type ContextualRenderer interface {
+	WithContext(context.Context) Renderer
+}
+
+func rendererWithContext(ctx context.Context, renderer Renderer) Renderer {
+	if contextual, ok := renderer.(ContextualRenderer); ok {
+		return contextual.WithContext(ctx)
+	}
+	return renderer
+}
+
 // OutputRenderer optionally gives a renderer the stable output identity needed
 // by formats whose names must remain distinct across outputs. Generic previews
 // and forecasts continue to use Renderer.Render because no stored output exists.
@@ -271,6 +286,7 @@ func prepareLists(ctx context.Context, definitions []domain.ListDefinition, acti
 	if ctx == nil || store == nil || renderer == nil || len(definitions) == 0 || target.ID == "" || target.FormatKey == "" || target.RendererID == "" || len(target.RendererOptions) != 0 || cutoff.IsZero() {
 		return PreparedPlan{}, fmt.Errorf("invalid prepare composition")
 	}
+	renderer = rendererWithContext(ctx, renderer)
 	ordered := append([]domain.ListDefinition(nil), definitions...)
 	slices.SortFunc(ordered, func(a, b domain.ListDefinition) int { return cmp.Compare(a.ID, b.ID) })
 	for i, definition := range ordered {
@@ -462,6 +478,7 @@ func BuildList(ctx context.Context, definition domain.ListDefinition, activeRevi
 	if ctx == nil || store == nil || renderer == nil || artifacts == nil || clock == nil || definition.ID == "" || definition.CatalogRevision == "" {
 		return BuildResult{}, fmt.Errorf("invalid build composition")
 	}
+	renderer = rendererWithContext(ctx, renderer)
 	cutoff := clock.Now().UTC()
 	if cutoff.IsZero() {
 		return BuildResult{}, fmt.Errorf("clock returned zero time")
@@ -514,6 +531,7 @@ func BuildLists(ctx context.Context, definitions []domain.ListDefinition, active
 	if ctx == nil || store == nil || renderer == nil || output == nil || clock == nil || len(definitions) == 0 || target.ID == "" || target.FormatKey == "" || target.RendererID == "" || len(target.RendererOptions) != 0 {
 		return BuildResult{}, fmt.Errorf("invalid multi-list build composition")
 	}
+	renderer = rendererWithContext(ctx, renderer)
 	ordered := append([]domain.ListDefinition(nil), definitions...)
 	slices.SortFunc(ordered, func(a, b domain.ListDefinition) int { return cmp.Compare(a.ID, b.ID) })
 	for i, definition := range ordered {

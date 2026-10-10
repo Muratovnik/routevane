@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -13,12 +14,23 @@ import (
 )
 
 func TestOpenBacksUpAndImportsLegacyV3(t *testing.T) {
-	root, err := filesystem.EnsureDataRoot(filepath.Join(t.TempDir(), "data"))
+	name := "data # & % space"
+	if runtime.GOOS != "windows" {
+		name += " ?literal"
+	}
+	for _, rootName := range []string{"data", name} {
+		t.Run(rootName, func(t *testing.T) { testOpenBacksUpAndImportsLegacyV3(t, rootName) })
+	}
+}
+
+func testOpenBacksUpAndImportsLegacyV3(t *testing.T, rootName string) {
+	t.Helper()
+	root, err := filesystem.EnsureDataRoot(filepath.Join(t.TempDir(), rootName))
 	if err != nil {
 		t.Fatal(err)
 	}
 	path := filepath.Join(root, DatabaseName)
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", sqliteFileURI(path))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -33,6 +33,7 @@ type Renderer struct {
 	client   *Client
 	manifest wire.RendererManifest
 	kinds    []domain.RuleKind
+	ctx      context.Context
 }
 
 // NewRenderer adapts a started renderer plugin.
@@ -59,7 +60,28 @@ func NewRenderer(client *Client) (*Renderer, error) {
 	if !descriptor.IsValid() {
 		return nil, fmt.Errorf("%w: renderer descriptor is not usable", ErrManifestInvalid)
 	}
-	return &Renderer{client: client, manifest: *manifest.Renderer, kinds: kinds}, nil
+	return &Renderer{client: client, manifest: *manifest.Renderer, kinds: kinds, ctx: context.Background()}, nil
+}
+
+// WithContext binds plugin I/O to one operation without mutating the registry's
+// shared renderer. An admitted call uses the host's existing cancellation
+// policy: terminate the plugin to protect framing. Other calls on that client
+// can then fail as unavailable; cancellation while queued leaves it running.
+func (r *Renderer) WithContext(ctx context.Context) application.Renderer {
+	bound := *r
+	bound.ctx = ctx
+	return &bound
+}
+
+func (r *Renderer) call(request wire.Envelope) (wire.Result, error) {
+	if err := r.ctx.Err(); err != nil {
+		return wire.Result{}, err
+	}
+	result, err := r.client.Call(r.ctx, request)
+	if cause := r.ctx.Err(); cause != nil {
+		return wire.Result{}, errors.Join(err, cause)
+	}
+	return result, err
 }
 
 func knownRuleKind(kind domain.RuleKind) bool {
@@ -91,7 +113,7 @@ func (r *Renderer) ProjectedRuleCount(plan domain.RoutingPlan) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("encode plan for plugin: %w", err)
 	}
-	result, err := r.client.Call(context.Background(), wire.Envelope{
+	result, err := r.call(wire.Envelope{
 		Type: wire.MessageProjectedRuleCount, Render: &wire.RenderCall{PlanJSON: encoded, Projection: true},
 	})
 	if err != nil {
@@ -114,7 +136,7 @@ func (r *Renderer) Render(plan domain.RoutingPlan) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("encode plan for plugin: %w", err)
 	}
-	result, err := r.client.Call(context.Background(), wire.Envelope{
+	result, err := r.call(wire.Envelope{
 		Type: wire.MessageRender, Render: &wire.RenderCall{PlanJSON: encoded},
 	})
 	if err != nil {
@@ -124,7 +146,7 @@ func (r *Renderer) Render(plan domain.RoutingPlan) ([]byte, error) {
 		return nil, fmt.Errorf("%w: empty artifact", ErrPluginOutput)
 	}
 	if err := r.Validate(result.Payload); err != nil {
-		return nil, fmt.Errorf("%w: the plugin cannot validate its own artifact: %v", ErrPluginOutput, err)
+		return nil, fmt.Errorf("%w: the plugin cannot validate its own artifact: %w", ErrPluginOutput, err)
 	}
 	return result.Payload, nil
 }
@@ -134,7 +156,7 @@ func (r *Renderer) Validate(payload []byte) error {
 	if len(payload) == 0 {
 		return fmt.Errorf("%w: empty artifact", ErrPluginOutput)
 	}
-	_, err := r.client.Call(context.Background(), wire.Envelope{
+	_, err := r.call(wire.Envelope{
 		Type: wire.MessageValidate, Validate: &wire.ValidateCall{Payload: payload},
 	})
 	return err

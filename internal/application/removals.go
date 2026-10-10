@@ -98,6 +98,12 @@ func (s *PublicationService) RemoveCategory(ctx context.Context, id string, prof
 	if profiles != CategoryListsDetach && profiles != CategoryListsDelete {
 		return fmt.Errorf("invalid category list disposition")
 	}
+	now := s.config.Clock.Now().UTC()
+	if now.IsZero() {
+		return fmt.Errorf("clock returned zero time")
+	}
+	s.publicationMu.Lock()
+	defer s.publicationMu.Unlock()
 	current, ok := s.mergedCategory(id)
 	if !ok {
 		return ErrNotFound
@@ -113,13 +119,7 @@ func (s *PublicationService) RemoveCategory(ctx context.Context, id string, prof
 	if len(references) > 0 {
 		return CategoryInUseError{CategoryID: id, Profiles: references}
 	}
-	now := s.config.Clock.Now().UTC()
-	if now.IsZero() {
-		return fmt.Errorf("clock returned zero time")
-	}
 	removal := LibraryRemoval{Kind: RemovalCategory, ID: id, Lists: held, RemovedAt: now}
-	s.publicationMu.Lock()
-	defer s.publicationMu.Unlock()
 	if err := s.config.Store.RemoveFromLibrary(ctx, removal); err != nil {
 		return err
 	}
@@ -142,6 +142,12 @@ func (s *PublicationService) RemoveCategory(ctx context.Context, id string, prof
 // by a deletion, and the override is read only for lists the composition
 // still resolves to, so it is dead weight rather than a wrong answer.
 func (s *PublicationService) RemoveList(ctx context.Context, id string) error {
+	now := s.config.Clock.Now().UTC()
+	if now.IsZero() {
+		return fmt.Errorf("clock returned zero time")
+	}
+	s.publicationMu.Lock()
+	defer s.publicationMu.Unlock()
 	if !s.knownList(id) {
 		return ErrNotFound
 	}
@@ -152,12 +158,6 @@ func (s *PublicationService) RemoveList(ctx context.Context, id string) error {
 	if len(references) > 0 {
 		return ListInUseError{ListID: id, Profiles: references}
 	}
-	now := s.config.Clock.Now().UTC()
-	if now.IsZero() {
-		return fmt.Errorf("clock returned zero time")
-	}
-	s.publicationMu.Lock()
-	defer s.publicationMu.Unlock()
 	if err := s.config.Store.RemoveFromLibrary(ctx, LibraryRemoval{Kind: RemovalList, ID: id, RemovedAt: now}); err != nil {
 		return err
 	}

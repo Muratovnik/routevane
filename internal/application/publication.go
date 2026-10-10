@@ -366,7 +366,8 @@ type PublicationService struct {
 	// registryMu makes a transferred custom library, tuning overlay, and
 	// category overlay appear as one generation to planner readers.
 	registryMu sync.RWMutex
-	// publicationMu orders registry mutations against only the short durable
+	// publicationMu keeps reference validation and its durable write together
+	// against library changes, and orders those changes against the short
 	// publication commit. Planning, rendering, file writes, and observation
 	// refreshes do not hold it.
 	publicationMu         sync.RWMutex
@@ -838,6 +839,8 @@ func (s *PublicationService) CreateProfile(ctx context.Context, name string, req
 	if !ok {
 		return Profile{}, fmt.Errorf("invalid profile name")
 	}
+	s.publicationMu.RLock()
+	defer s.publicationMu.RUnlock()
 	composition, err := s.validCompositionWithDefaultPriority(ctx, requested)
 	if err != nil {
 		return Profile{}, err
@@ -874,6 +877,8 @@ func (s *PublicationService) Profile(ctx context.Context, id string) (Profile, e
 // caller decides whether the edit is followed by a build, because a rebuild
 // reaches the network and a rename does not.
 func (s *PublicationService) UpdateProfile(ctx context.Context, id, name string, requested ProfileComposition) (Profile, error) {
+	s.publicationMu.RLock()
+	defer s.publicationMu.RUnlock()
 	current, err := s.Profile(ctx, id)
 	if err != nil {
 		return Profile{}, err
