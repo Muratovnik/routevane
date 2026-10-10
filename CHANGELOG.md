@@ -11,6 +11,46 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/Muratovnik/routevane/compare/v0.2.3...v0.3.0) (2026-10-10)
+
+### Highlights
+
+Routevane 0.3.0 makes publication and manual device delivery recoverable after
+an interrupted response. It adds saved-connection selection for manual delivery,
+steadier profile and list state, and consistent text fields and choice controls.
+
+### BREAKING CHANGES
+
+Confirmed `POST /v1/artifacts/{id}/deploy` requests now require a client-generated
+`attempt_id`: 128 random bits encoded as 32 lowercase hexadecimal characters.
+Older HTTP clients must add this field; a request without it is rejected before
+deployment with `attempt_id_required`. Read-only planning and the CLI deployment
+command keep their existing contract.
+
+Keep the same attempt ID when recovering the same request. Use
+`GET /v1/deployment-attempts/{id}` to recover its result after a lost response;
+reusing the ID for the same destination returns the recorded outcome without
+replaying device effects. A different request cannot reuse that ID. An
+`outcome_unknown` result requires an explicit status check and must not trigger
+another apply automatically. See [ADR 0042](https://github.com/Muratovnik/routevane/blob/v0.3.0/docs/adr/0042-identify-manual-deployment-before-device-effects.md)
+for the complete request and recovery contract.
+
+### Features
+
+- **delivery:** ([8b02949](https://github.com/Muratovnik/routevane/commit/8b02949559f63d75d0f43a37bf0a03208d867bc3)) Choose a saved compatible connection for manual delivery, confirm its exact destination, and recover a completed attempt after a dropped response or restart without sending it again.
+
+### Bug Fixes
+
+- **publication:** ([8b02949](https://github.com/Muratovnik/routevane/commit/8b02949559f63d75d0f43a37bf0a03208d867bc3), [db68e8d](https://github.com/Muratovnik/routevane/commit/db68e8d90d759ad4f8e1b12a8deef3bf253bb1cd)) Keep the previous valid artifact available when a candidate fails, and keep publication, archived profiles, list changes and delivery records consistent during recovery.
+- **runtime:** ([db68e8d](https://github.com/Muratovnik/routevane/commit/db68e8d90d759ad4f8e1b12a8deef3bf253bb1cd)) Stop owned listeners, child processes and browser proxy work when cancelled; enforce one CLI database writer and reject unsafe output paths before replacing configuration.
+- **discovery:** ([f019362](https://github.com/Muratovnik/routevane/commit/f019362411ac0864cce3966238d3ce55ddfef721), [db68e8d](https://github.com/Muratovnik/routevane/commit/db68e8d90d759ad4f8e1b12a8deef3bf253bb1cd)) Launch the browser executable that was checked and keep browser cleanup bounded when a discovery session is cancelled.
+- **ui:** ([a596649](https://github.com/Muratovnik/routevane/commit/a596649c97c942d7815996ff96b00912f64b675e), [1075049](https://github.com/Muratovnik/routevane/commit/1075049e502c1ae39b062a35146e9962b2c0e2c4), [63c2fc4](https://github.com/Muratovnik/routevane/commit/63c2fc453fb7ff6f6e35e24822b70e77c0ba2993)) Restore list membership without stale selection and use consistent keyboard, focus and busy states for text fields and choice controls.
+- **dependencies:** ([e48cc03](https://github.com/Muratovnik/routevane/commit/e48cc03fddf9deac8c691d2b6e7fac86d21713d0), [db68e8d](https://github.com/Muratovnik/routevane/commit/db68e8d90d759ad4f8e1b12a8deef3bf253bb1cd)) Update bundled runtimes and dependencies, and use explicitly maintained derivatives for braces depth handling and node-forge RSA input validation while preserving vulnerability checks.
+
+### Performance Improvements
+
+- **storage:** ([db68e8d](https://github.com/Muratovnik/routevane/commit/db68e8d90d759ad4f8e1b12a8deef3bf253bb1cd)) Initialize an empty database without rebuilding its schema repeatedly and load profile details in batches instead of one query per profile.
+
 ## [0.2.3](https://github.com/Muratovnik/routevane/compare/v0.2.0...v0.2.3) (2026-09-12)
 
 ### Bug Fixes

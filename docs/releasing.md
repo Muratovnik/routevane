@@ -128,8 +128,8 @@ is not live publication acceptance and grants no permission to push.
 ## Changelog contract
 
 `cliff.toml` prepares a draft; `[changelog]` in `relkit.toml` enables release-kit's
-`vue-like` validation of the final edited entry. Only the requested version is
-checked. Empty `Unreleased` sections and older entries do not block adoption.
+`conventional-changelog` validation of the final edited entry. Only the requested
+version is checked. Empty `Unreleased` sections and older entries do not block adoption.
 
 Use a version/date heading with a comparison link. The explicitly declared first
 version, `0.1.0`, may instead link to its release. Ordinary sections (`Features`,
