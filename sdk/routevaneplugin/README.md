@@ -60,6 +60,12 @@ manifest fields must equal `Manifest()`. A renderer also needs a matching
 catalog target, and a source needs a list naming its exact type/revision.
 With `ROUTEVANE_PLUGINS_DIR` unset, Routevane starts no external plugin host.
 
+On Linux, the host must be allowed to trace its own child, read `/proc`, and set
+the child's resource limits. A host policy that denies these operations causes
+plugin startup to fail before plugin code runs; Routevane does not retry without
+containment. See the [Linux launch decision](../../docs/adr/0046-apply-linux-plugin-limits-at-the-exec-stop.md)
+for the limits and startup boundary.
+
 ## Protocol version
 
 This SDK speaks version 1. The host offers every version it can speak and your

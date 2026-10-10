@@ -19,6 +19,8 @@ const (
 )
 
 func runContainedExecutable(executable, directory string) int {
+	unlockThread := holdPluginRunnerThread()
+	defer unlockThread()
 	if unix.Getpgrp() != os.Getpid() {
 		fmt.Fprintln(os.Stderr, "plugin-runner does not own its process group")
 		return 126
@@ -27,21 +29,9 @@ func runContainedExecutable(executable, directory string) int {
 		fmt.Fprintf(os.Stderr, "plugin-runner working directory: %v\n", err)
 		return 126
 	}
-	limits := []struct {
-		resource int
-		value    uint64
-	}{
-		{unix.RLIMIT_AS, pluginAddressSpaceLimit},
-		{unix.RLIMIT_CPU, pluginCPUSecondsLimit},
-		{unix.RLIMIT_NOFILE, pluginOpenFilesLimit},
-		{unix.RLIMIT_CORE, 0},
-	}
-	for _, limit := range limits {
-		value := unix.Rlimit{Cur: limit.value, Max: limit.value}
-		if err := unix.Setrlimit(limit.resource, &value); err != nil {
-			fmt.Fprintf(os.Stderr, "plugin-runner resource limit: %v\n", err)
-			return 126
-		}
+	if err := preparePluginRunnerLimits(); err != nil {
+		fmt.Fprintf(os.Stderr, "plugin-runner resource limit: %v\n", err)
+		return 126
 	}
 	// Keep the trusted runner alive as group leader while plugin code runs.
 	// Its identity remains owned until all of its descendants are terminated.
@@ -54,7 +44,7 @@ func runContainedExecutable(executable, directory string) int {
 	command.Dir = directory
 	command.Env = minimalEnvironment()
 	command.Stdin, command.Stdout, command.Stderr = os.Stdin, os.Stdout, os.Stderr
-	if err := command.Start(); err != nil {
+	if err := startLimitedPlugin(command, termination); err != nil {
 		fmt.Fprintf(os.Stderr, "plugin-runner execute: %v\n", err)
 		return 126
 	}
@@ -74,4 +64,19 @@ func runContainedExecutable(executable, directory string) int {
 		return 126
 	}
 	return 0
+}
+
+func pluginResourceLimits() []struct {
+	resource int
+	value    uint64
+} {
+	return []struct {
+		resource int
+		value    uint64
+	}{
+		{unix.RLIMIT_AS, pluginAddressSpaceLimit},
+		{unix.RLIMIT_CPU, pluginCPUSecondsLimit},
+		{unix.RLIMIT_NOFILE, pluginOpenFilesLimit},
+		{unix.RLIMIT_CORE, 0},
+	}
 }

@@ -19,6 +19,11 @@ Routevane 0.3.0 makes publication and manual device delivery recoverable after
 an interrupted response. It adds saved-connection selection for manual delivery,
 steadier profile and list state, and consistent text fields and choice controls.
 
+Linux installations using external plugins must permit tracing their own child
+processes, reading `/proc`, and setting child resource limits. Plugin startup is
+refused if containment cannot be installed. Running without external plugins
+remains available.
+
 ### BREAKING CHANGES
 
 Confirmed `POST /v1/artifacts/{id}/deploy` requests now require a client-generated

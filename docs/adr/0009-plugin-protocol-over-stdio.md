@@ -70,8 +70,10 @@ at `sdk/routevaneplugin`.
   hung plugin is terminated, and a crashed plugin fails its own call only. A
   private runner waits until containment is installed before it executes plugin
   bytes. On Windows a Job Object caps the process tree, memory, and CPU time and
-  kills the tree when closed. On Linux and macOS the runner applies address
-  space, CPU, open-file, and core-dump limits before starting the plugin. It
+  kills the tree when closed. On macOS the runner applies inherited address
+  space, CPU, open-file, and core-dump limits before starting the plugin. On Linux
+  it sets and verifies those limits on the stopped child before plugin code runs
+  ([ADR 0046](./0046-apply-linux-plugin-limits-at-the-exec-stop.md)). It
   remains the trusted leader of a separate process group and terminates that
   group after either normal plugin exit or a host termination request. Helpers
   therefore stop on graceful shutdown too. Keeping the leader alive until group
