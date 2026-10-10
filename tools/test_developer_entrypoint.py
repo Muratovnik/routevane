@@ -1,5 +1,6 @@
 """Exercise the real developer helpers against isolated Git and tool paths."""
 
+import json
 import os
 import shutil
 import subprocess
@@ -81,6 +82,37 @@ class DeveloperEntrypointTests(unittest.TestCase):
 
     def assert_ok(self, result):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_doctor_receives_only_the_first_go_application_on_path(self):
+        tools = self.root / "tools"
+        tools.mkdir()
+        entrypoint = tools / "dev.ps1"
+        shutil.copyfile(ROOT / "tools/dev.ps1", entrypoint)
+        (tools / "doctor.py").write_text(
+            "import json, subprocess, sys\n"
+            "result = subprocess.run([sys.argv[2], 'version'], check=True, "
+            "capture_output=True, text=True)\n"
+            "print(json.dumps({'arguments': sys.argv[1:], "
+            "'identity': result.stdout.strip()}))\n", encoding="utf-8")
+        applications = []
+        for identity in ("first-go", "second-go"):
+            directory = self.root / identity
+            directory.mkdir()
+            executable = directory / ("go.cmd" if os.name == "nt" else "go")
+            executable.write_text(
+                f"@echo off\n@echo {identity}\n" if os.name == "nt"
+                else f"#!/bin/sh\nprintf '%s\\n' '{identity}'\n", encoding="utf-8")
+            executable.chmod(0o755)
+            applications.append(executable)
+        self.env["PATH"] = os.pathsep.join(
+            [str(application.parent) for application in applications] + [self.env["PATH"]])
+        result = subprocess.run(
+            [PWSH, "-NoLogo", "-NoProfile", "-File", str(entrypoint), "doctor"],
+            cwd=self.root, env=self.env, capture_output=True, text=True, timeout=20)
+        self.assert_ok(result)
+        observed = json.loads(result.stdout)
+        self.assertEqual(observed["arguments"], ["--go", str(applications[0])])
+        self.assertEqual(observed["identity"], "first-go")
 
     @unittest.skipUnless(GO, "Go is required for the real formatter check")
     def test_formatting_check_handles_long_checkout_paths_and_nested_files(self):

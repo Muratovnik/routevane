@@ -23,7 +23,7 @@ if (-not $env:PLAYWRIGHT_BROWSERS_PATH) {
 # the packaged application as plain Node, which rejects the launcher's Chromium
 # switches, so the desktop commands below would fail without an explanation.
 Remove-Item Env:\ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
-$GoCommand = Get-Command go -CommandType Application -ErrorAction SilentlyContinue
+$GoCommand = Get-Command go -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($null -eq $GoCommand) {
     $GoFallback = 'C:\Program Files\Go\bin\go.exe'
     if (-not (Test-Path -LiteralPath $GoFallback -PathType Leaf)) {
