@@ -392,6 +392,22 @@ test('the list card stays whole over a scrolled page and gives the scroll back',
       .evaluate((element) => Math.round(element.scrollTop)),
   ).toBe(scrolled)
 
+  // A hidden sheet can leave closing snapshots over the opener. Reopening
+  // before they finish lets Playwright auto-scroll against transient geometry.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.documentElement.dataset.rvWorkspaceTransition === undefined,
+      ),
+    )
+    .toBe(true)
+  expect(
+    await page
+      .getByRole('main')
+      .evaluate((element) => Math.round(element.scrollTop)),
+  ).toBe(scrolled)
+
   // Reduced motion keeps the same final geometry but collapses the animation
   // to the global near-zero duration.
   await page.emulateMedia({ reducedMotion: 'reduce' })
