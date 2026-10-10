@@ -17,7 +17,7 @@ func TestFQDNOwnershipSurvivesRestartAndCannotTransferAnotherOutputsName(t *test
 	}
 	a, b := strings.Repeat("1", 32), strings.Repeat("2", 32)
 	insertManagedRouteOutputs(t, store, a, b)
-	first := application.ManagedFQDNOwnership{Endpoint: "http://192.168.1.1", OutputID: a, Groups: []application.ManagedFQDNGroup{{Name: "routevane-a", Entries: []string{"a.example"}, Interface: "Wireguard0", Auto: true}}}
+	first := application.ManagedFQDNOwnership{Endpoint: "http://192.168.1.1", OutputID: a, Groups: []application.ManagedFQDNGroup{{Name: "routevane-a", Entries: []string{"a.example"}, Description: "Claude", Interface: "Wireguard0", Auto: true}}}
 	second := application.ManagedFQDNOwnership{Endpoint: first.Endpoint, OutputID: b, Groups: []application.ManagedFQDNGroup{{Name: "routevane-b", Entries: []string{"b.example"}, Interface: "Wireguard1", Auto: true}}}
 	if err := store.ReplaceManagedFQDNOwnership(ctx, first); err != nil {
 		t.Fatal(err)

@@ -95,6 +95,8 @@ type PageLoad struct {
 	Blocked  map[string]string
 	Requests int
 	Bytes    int64
+	// OmittedRefusals has the same bounded-diagnostics meaning as SessionEvidence.
+	OmittedRefusals int64
 	// ProfileDir is the temporary profile that was used and removed. It is
 	// reported so a caller can assert that nothing was left behind.
 	ProfileDir string
@@ -166,12 +168,13 @@ func LoadPage(ctx context.Context, target Target, options BrowserOptions) (resul
 	)
 	hosts, blocked := proxy.observed()
 	result = PageLoad{
-		FinalURL:   finalURL,
-		Hosts:      hosts,
-		Blocked:    blocked,
-		Requests:   int(proxy.requests.Load()),
-		Bytes:      proxy.bytes.Load(),
-		ProfileDir: profileDir,
+		FinalURL:        finalURL,
+		Hosts:           hosts,
+		Blocked:         blocked,
+		Requests:        int(proxy.requests.Load()),
+		Bytes:           proxy.bytes.Load(),
+		OmittedRefusals: proxy.omittedRefusals.Load(),
+		ProfileDir:      profileDir,
 	}
 	if runErr != nil {
 		return result, fmt.Errorf("%w: %v", ErrPageLoadFailed, runErr)

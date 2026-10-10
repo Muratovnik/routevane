@@ -19,6 +19,9 @@ var (
 	ErrOwnershipPersist    = errors.New("managed route ownership could not be persisted")
 	ErrDeployerUnavailable = errors.New("no deployer registered for the target")
 	ErrConnectionInvalid   = errors.New("connection is not usable by this deployer")
+	// ErrDeviceUnchanged marks a refusal before the deployer submitted any
+	// mutation. Restoring a backup then could erase a concurrent external edit.
+	ErrDeviceUnchanged = errors.New("deployment left the device unchanged")
 )
 
 // Connection is how to reach one device. It carries a credential, so it is
@@ -132,6 +135,14 @@ type Deployer interface {
 	Deploy(context.Context, DeviceInfo, Connection, DeployArtifact) error
 	Verify(context.Context, DeviceInfo, Connection, DeployArtifact) error
 	Rollback(context.Context, DeviceInfo, Connection, BackupPayload) error
+}
+
+// MutationAwareDeployer distinguishes a verified no-op from an operation that
+// may have changed the device. False is permitted only when no mutation was
+// submitted; a failed or ambiguous submission must report true. Other deployers
+// keep the conservative recovery behavior of the ordinary Deployer contract.
+type MutationAwareDeployer interface {
+	DeployWithMutation(context.Context, DeviceInfo, Connection, DeployArtifact) (mutationSubmitted bool, err error)
 }
 
 // BackupPayload is a device backup in memory plus the reference to its stored
@@ -331,23 +342,33 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 
 	started = clock.Now()
 	var deployErr error
+	deviceMayHaveChanged := true
 	if manageRoutes {
+		deviceMayHaveChanged = false
 		var current []ManagedRouteSpec
 		current, deployErr = managedDeployer.CurrentManagedRoutes(ctx, device, request.Connection)
 		if deployErr == nil {
 			mutation, nextOwnership, deployErr = reconcileManagedRoutes(priorOwnership, request.OutputID, desiredRoutes, current)
 		}
 		if deployErr == nil {
-			deployErr = managedDeployer.ApplyManagedRoutes(ctx, device, request.Connection, mutation)
+			if len(mutation.Upsert)+len(mutation.Remove) > 0 {
+				deviceMayHaveChanged = true
+				deployErr = managedDeployer.ApplyManagedRoutes(ctx, device, request.Connection, mutation)
+			}
+		} else {
+			// Device observation and reconciliation are read-only. A failed read
+			// must not restore a snapshot over another writer's later changes.
+			deployErr = errors.Join(ErrDeviceUnchanged, deployErr)
 		}
+	} else if reporting, ok := deployer.(MutationAwareDeployer); ok {
+		deviceMayHaveChanged, deployErr = reporting.DeployWithMutation(ctx, device, request.Connection, request.Artifact)
 	} else {
 		deployErr = deployer.Deploy(ctx, device, request.Connection, request.Artifact)
 	}
 	record(StepDeploy, started, deployErr, request.Artifact.ArtifactHash)
-	// The second device read can discover a new foreign collision after the
-	// preview. No mutation occurred, so restoring a full backup would itself
-	// overwrite the external change we just refused to adopt.
-	if errors.Is(deployErr, ErrFQDNOwnershipConflict) {
+	// A fresh device read can refuse a collision, unsupported policy or a
+	// capacity change. Recovery is unnecessary until a mutation was submitted.
+	if errors.Is(deployErr, ErrDeviceUnchanged) || errors.Is(deployErr, ErrFQDNOwnershipConflict) {
 		return result, deployErr
 	}
 	if deployErr == nil {
@@ -393,7 +414,13 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 		}
 	}
 
-	// A failed deploy or verify always rolls back from the backup taken above.
+	// A no-op can still fail read-back or ownership persistence. It cannot
+	// justify restoring an earlier configuration over another writer's work.
+	if !deviceMayHaveChanged {
+		return result, deployErr
+	}
+
+	// A failed deployment that may have written rolls back from its backup.
 	//
 	// The rollback runs on a context detached from the caller's, with its own
 	// budget. The cancellation that failed a deployment must not also disarm the

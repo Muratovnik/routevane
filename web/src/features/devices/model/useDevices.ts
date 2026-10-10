@@ -239,11 +239,17 @@ export const useDevices = () => {
       )
     )
       return Promise.resolve(false)
-    return run(() => enableAutoDelivery(id, credential))
+    return run(
+      () => enableAutoDelivery(id, credential),
+      (saved) => applyWrite(saved, {}),
+    )
   }
 
   const disable = (id: string): Promise<boolean> =>
-    run(() => disableAutoDelivery(id))
+    run(
+      () => disableAutoDelivery(id),
+      (saved) => applyWrite(saved, {}),
+    )
 
   return {
     busy,

@@ -93,6 +93,7 @@ type learnReport struct {
 	Dependencies      []discovery.Candidate `json:"dependencies,omitempty"`
 	Relations         int                   `json:"relations,omitempty"`
 	Requests          int                   `json:"requests,omitempty"`
+	OmittedRefusals   int64                 `json:"omitted_refusals,omitempty"`
 	Sightings         int                   `json:"sightings,omitempty"`
 	DraftPath         string                `json:"draft_path,omitempty"`
 	EvidencePath      string                `json:"evidence_path,omitempty"`
@@ -177,6 +178,7 @@ func runLearn(ctx context.Context, stdout io.Writer, logger *slog.Logger, option
 	report.SeedDomains = draft.SeedDomains
 	report.Dependencies = draft.Candidates
 	report.Requests = evidence.Requests
+	report.OmittedRefusals = evidence.OmittedRefusals
 	for _, component := range draft.Definition.Components {
 		report.Components = append(report.Components, component.ID)
 	}

@@ -22,7 +22,12 @@ Installed desktop builds place an available application update above the sidebar
 collapse control. The action remains reachable with the menu collapsed and explains
 the version and restart on hover/focus. One click downloads, installs and restarts;
 progress replaces the label, errors offer retry. Idle/offline checks and browser/dev
-sessions add no sidebar item. Application updates are independent of source refresh.
+sessions add no update item. Application updates are independent of source refresh.
+The footer below the collapse control shows the running service's version after
+one bounded read. A development build reports `dev`; an unavailable version is
+left unstated rather than inferred from the interface package. The collapsed
+menu shows the version without its caption, while assistive software still
+receives the complete label.
 
 The unit of the product is the **profile** (ADR 0013, named by ADR 0028): a
 stored, server-owned composition of **lists** and **categories** with no
@@ -252,8 +257,10 @@ Sections, addressable by URL:
    saved connection does not send anything.
    A saved connection's editable parameters — name, address, account and route
    interface — are edited in place under «Параметры», in the same two-column
-   grid the creation form uses. The format is the connection's identity and is
-   never editable: a registered Keenetic does not become an OpenWrt. Save waits
+   grid the creation form uses. Adjacent fields share caption and control rows,
+   so differing help lengths do not stagger the inputs. The format is the
+   connection's identity and is never editable: a registered Keenetic does not
+   become an OpenWrt. Save waits
    for a draft that differs from what is stored and has every required field
    filled; «Отменить» and opening another connection both return the stored
    values. Because consent names one exact destination and account, changing
@@ -267,6 +274,9 @@ Sections, addressable by URL:
    parameters, and it is one control rather than a switch and a button: while
    it is on, the screen says so and offers to turn it off, and it never shows a
    password field or a masked stand-in for a credential it cannot read back.
+   A successful change immediately adopts the returned delivery state. If the
+   following registry read fails, that confirmed state stays visible while a
+   retry refreshes the list without repeating the change.
    «Забыть подключение» is the connection's only secondary action, in the
    action menu of its detail header, and it is confirmed before it runs.
    After registration the screen says
@@ -291,7 +301,9 @@ Sections, addressable by URL:
    whitespace distinguish sections without horizontal separators. Interface
    fields place labels above their controls; export and import stack in the
    same content column. The source-refresh explanation belongs beside its
-   schedule. The server's address is the final, secondary section.
+   schedule. The server's address is the final, secondary section. It identifies
+   the serving origin, including the local backend address in the desktop app,
+   rather than the application window's internal hostname.
    Export and import are separate actions. Preferences live here,
    not in the chrome. Import starts with a product-styled file
    surface backed by the labelled native file chooser, supports dropping a file,

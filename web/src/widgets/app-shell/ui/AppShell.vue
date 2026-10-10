@@ -15,6 +15,7 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import ApplicationUpdate from '@/features/application-update/ui/ApplicationUpdate.vue'
+import ApplicationVersion from '@/features/application-version/ui/ApplicationVersion.vue'
 
 /**
  * The chrome: the product's name and its sections. Sections mirror the object
@@ -173,6 +174,7 @@ const retry = async (): Promise<void> => {
               }}</span>
             </button>
           </RvTooltip>
+          <ApplicationVersion :collapsed="collapsed" class="shell__version" />
         </div>
       </header>
 
@@ -258,9 +260,7 @@ const retry = async (): Promise<void> => {
   gap: var(--rv-space-8);
   height: 100dvh;
 
-  /* The band closes under its last control rather than against the window
-     edge, so the collapse toggle reads as the end of the column instead of
-     something the frame cut off. */
+  /* Leave the footer's closing inset beneath its version and controls. */
   padding: var(--rv-space-8) var(--rv-space-5) var(--rv-space-5);
   color: var(--rv-color-ink);
   background: var(--rv-color-chrome);
@@ -517,6 +517,11 @@ const retry = async (): Promise<void> => {
   gap: var(--rv-space-1);
   margin-top: auto;
   flex: none;
+}
+
+.shell--collapsed .shell__version {
+  padding-inline: 0;
+  text-align: center;
 }
 
 .shell__collapse > .rv-icon {

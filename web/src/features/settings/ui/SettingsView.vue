@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import { useSettings } from '@/features/settings/model/useSettings'
 import ConfigTransferPanel from '@/features/settings/ui/ConfigTransferPanel.vue'
+import { servingOrigin } from '@/shared/api/desktop'
 import type { RefreshInterval } from '@/shared/api/profiles'
 import { useLocale } from '@/shared/i18n/useLocale'
 import { localeNames, type Locale } from '@/shared/i18n/messages'
@@ -42,7 +43,7 @@ const modeOptions = computed(() => [
 ])
 
 const origin = computed(() =>
-  typeof window === 'undefined' ? '127.0.0.1' : window.location.host,
+  typeof window === 'undefined' ? '' : servingOrigin(),
 )
 
 const refreshOptions = computed(() => [
@@ -213,6 +214,7 @@ const onConfigTransferApplied = (): void => {
 .settings__runtime {
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-interface);
+  overflow-wrap: anywhere;
 }
 
 .settings__feedback {

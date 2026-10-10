@@ -163,7 +163,7 @@ func newServer(origin string, backend Backend, logger *slog.Logger, assets stati
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
-	h := &handler{origin: origin, host: parsed.Host, backend: backend, logger: logger, slots: make(chan struct{}, 32), requestTimeout: requestTimeout, assets: assets}
+	h := &handler{origin: origin, host: parsed.Host, backend: backend, logger: logger, slots: make(chan struct{}, 32), requestTimeout: requestTimeout, assets: assets, version: "dev"}
 	h.mux = newRouteMux(func(route string) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { h.enter(route, w, r) })
 	})
@@ -172,6 +172,11 @@ func newServer(origin string, backend Backend, logger *slog.Logger, assets stati
 }
 
 func (s *Server) Handler() http.Handler { return s.handler }
+
+// SetVersion supplies the running binary's build identity. Call before Serve.
+func (s *Server) SetVersion(version string) {
+	s.handler.(*handler).version = version
+}
 
 // RequireDesktopToken confines UI/API access to the owning desktop process.
 // Call before Serve. Subscription URLs retain their separate bearer contract.
@@ -215,6 +220,7 @@ type handler struct {
 	assets         staticAssets
 	mux            *http.ServeMux
 	desktopToken   string
+	version        string
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {

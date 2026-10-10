@@ -76,6 +76,7 @@ type discoverReport struct {
 	SeedDomains       []string              `json:"seed_domains,omitempty"`
 	Candidates        []discovery.Candidate `json:"candidates,omitempty"`
 	Requests          int                   `json:"requests,omitempty"`
+	OmittedRefusals   int64                 `json:"omitted_refusals,omitempty"`
 	Sightings         int                   `json:"sightings,omitempty"`
 	Relations         int                   `json:"relations,omitempty"`
 	DraftPath         string                `json:"draft_path,omitempty"`
@@ -158,6 +159,7 @@ func runDiscover(ctx context.Context, stdout io.Writer, logger *slog.Logger, opt
 		SeedDomains:       result.Draft.SeedDomains,
 		Candidates:        result.Draft.Candidates,
 		Requests:          result.Page.Requests,
+		OmittedRefusals:   result.Page.OmittedRefusals,
 		Sightings:         result.Observed.Sightings,
 		Relations:         len(result.Draft.Relations),
 		DraftPath:         result.Path,

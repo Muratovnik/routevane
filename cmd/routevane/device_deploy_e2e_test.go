@@ -784,6 +784,15 @@ func TestDesktopSignalCancelsDeploymentBeforeShutdownAndWaitsForRollback(t *test
 }
 
 func TestCLISignalWaitsPastFiveSecondsForDeploymentRollback(t *testing.T) {
+	testServeWaitsForDeploymentRollback(t, false)
+}
+
+func TestListenerFailureCancelsDeploymentAndWaitsForRollback(t *testing.T) {
+	testServeWaitsForDeploymentRollback(t, true)
+}
+
+func testServeWaitsForDeploymentRollback(t *testing.T, failListener bool) {
+	t.Helper()
 	catalog := filepath.Join("..", "..", "testdata", "expiry", "catalog")
 	data := filepath.Join(t.TempDir(), "data")
 	now := time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC)
@@ -855,6 +864,13 @@ func TestCLISignalWaitsPastFiveSecondsForDeploymentRollback(t *testing.T) {
 	}
 
 	device.cancelApply = signalCancel
+	wantExit := 0
+	recoveryWait := 6 * time.Second
+	if failListener {
+		device.cancelApply = func() { _ = listener.Close() }
+		wantExit = 1
+		recoveryWait = 100 * time.Millisecond
+	}
 	payload, err := json.Marshal(map[string]any{
 		"attempt_id": strings.Repeat("f", 32),
 		"device":     "http://192.168.1.1", "username": deviceUser, "password": devicePassword,
@@ -881,7 +897,7 @@ func TestCLISignalWaitsPastFiveSecondsForDeploymentRollback(t *testing.T) {
 	select {
 	case <-device.callerCancelled:
 	case <-time.After(3 * time.Second):
-		t.Fatal("CLI signal did not cancel the active device request")
+		t.Fatal("server termination did not cancel the active device request")
 	}
 	select {
 	case <-device.rollbackStarted:
@@ -891,12 +907,12 @@ func TestCLISignalWaitsPastFiveSecondsForDeploymentRollback(t *testing.T) {
 	select {
 	case code := <-done:
 		t.Fatalf("CLI closed resources before rollback finished: code=%d stderr=%s", code, processStderr.String())
-	case <-time.After(6 * time.Second):
+	case <-time.After(recoveryWait):
 	}
 	close(releaseRollback)
 	select {
 	case code := <-done:
-		if code != 0 {
+		if code != wantExit {
 			t.Fatalf("CLI shutdown=%d stderr=%s", code, processStderr.String())
 		}
 	case <-processCtx.Done():

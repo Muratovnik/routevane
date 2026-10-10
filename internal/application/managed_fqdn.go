@@ -13,10 +13,11 @@ var ErrFQDNOwnershipConflict = errors.New("FQDN group ownership requires manual 
 // ManagedFQDNGroup is an exact group and attachment created by one output.
 // An observed name, even with identical content, does not establish ownership.
 type ManagedFQDNGroup struct {
-	Name      string   `json:"name"`
-	Entries   []string `json:"entries"`
-	Interface string   `json:"interface"`
-	Auto      bool     `json:"auto"`
+	Name        string   `json:"name"`
+	Entries     []string `json:"entries"`
+	Description string   `json:"description,omitempty"`
+	Interface   string   `json:"interface"`
+	Auto        bool     `json:"auto"`
 }
 
 type ManagedFQDNOwnership struct {
@@ -32,7 +33,7 @@ func (s ManagedFQDNOwnership) Validate() error {
 	}
 	seen := map[string]bool{}
 	for _, g := range s.Groups {
-		if g.Name == "" || len(g.Name) > 64 || seen[g.Name] || g.Interface == "" || len(g.Entries) == 0 || len(g.Entries) > 300 {
+		if g.Name == "" || len(g.Name) > 64 || seen[g.Name] || g.Interface == "" || len(g.Entries) == 0 || len(g.Entries) > 300 || !validManagedDescription(g.Description) {
 			return fmt.Errorf("invalid owned FQDN group")
 		}
 		for _, c := range g.Name {

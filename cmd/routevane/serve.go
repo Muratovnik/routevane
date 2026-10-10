@@ -185,6 +185,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	if options.DesktopToken != "" {
 		server.RequireDesktopToken(options.DesktopToken)
 	}
+	server.SetVersion(version)
 	if _, err := fmt.Fprintln(stdout, origin); err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "output_failed")
 		return 1
@@ -200,8 +201,9 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 			"detail", "the API is available and the browser page is not",
 			"remedy", "pwsh -NoLogo -NoProfile -File tools/dev.ps1 up")
 	}
-	ctx, cancel := deps.SignalContext(deps.Context)
-	defer cancel()
+	signalCtx, stopSignals := deps.SignalContext(deps.Context)
+	defer stopSignals()
+	ctx, cancel := context.WithCancel(signalCtx)
 	// Every served request belongs to the process lifecycle. On either a CLI
 	// signal or a desktop lease/signal, a deployment receives cancellation and
 	// starts its detached rollback before Shutdown waits for the handler.
@@ -212,7 +214,10 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	// rule is off, so nothing reaches the network on a timer until an operator
 	// says so.
 	scheduler := startScheduler(ctx, publication, automaticDelivery, logger, deps)
-	defer scheduler()
+	defer func() {
+		cancel()
+		scheduler()
+	}()
 	served := make(chan error, 1)
 	go func() { served <- server.Serve(listener) }()
 	browserCtx, stopBrowser := context.WithCancel(ctx)
@@ -230,29 +235,31 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 			}
 		}()
 	}
+	var serveErr error
+	serverStopped := false
 	select {
-	case err := <-served:
-		if err != nil {
-			logResult(logger, "serve", "", "", "failed", 0, started, "serve_failed")
-			return 1
-		}
-		return 0
+	case serveErr = <-served:
+		serverStopped = true
 	case <-ctx.Done():
-		// The server does not close the store until all handlers finish. A
-		// canceled device deployment uses a detached two-minute rollback budget,
-		// so every serve mode needs time for recovery plus a small drain margin.
-		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownRecoveryBudget)
-		defer shutdownCancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			logResult(logger, "serve", "", "", "failed", 0, started, "shutdown_failed")
-			return 1
-		}
-		if err := <-served; err != nil {
-			logResult(logger, "serve", "", "", "failed", 0, started, "serve_failed")
-			return 1
-		}
-		return 0
 	}
+	// A failed listener also ends the process lifecycle. Cancel before joining
+	// the scheduler, and drain active requests before closing their store: a
+	// deployment may need its detached two-minute rollback plus a drain margin.
+	cancel()
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownRecoveryBudget)
+	defer shutdownCancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		logResult(logger, "serve", "", "", "failed", 0, started, "shutdown_failed")
+		return 1
+	}
+	if !serverStopped {
+		serveErr = <-served
+	}
+	if serveErr != nil {
+		logResult(logger, "serve", "", "", "failed", 0, started, "serve_failed")
+		return 1
+	}
+	return 0
 }
 
 // schedulerTick is how often the process asks what is due. It is not the

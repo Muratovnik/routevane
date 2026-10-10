@@ -60,8 +60,9 @@ type guardedProxy struct {
 	maxHosts    int
 	maxBytes    int64
 
-	bytes    atomic.Int64
-	requests atomic.Int64
+	bytes           atomic.Int64
+	requests        atomic.Int64
+	omittedRefusals atomic.Int64
 
 	mu    sync.Mutex
 	hosts map[string]int
@@ -231,7 +232,7 @@ func (p *guardedProxy) attempt(host string) string {
 	defer p.mu.Unlock()
 	if _, known := p.hosts[host]; !known {
 		if p.pending[host] == 0 && len(p.hosts)+len(p.pending) >= p.maxHosts {
-			p.blocked[host] = RefusedHostLimit
+			p.refuseLocked(host, RefusedHostLimit)
 			return RefusedHostLimit
 		}
 		p.pending[host]++
@@ -295,11 +296,12 @@ func (p *guardedProxy) evidence(target Target) SessionEvidence {
 	}
 	slices.SortFunc(hosts, func(a, b HostEvidence) int { return cmp.Compare(a.Host, b.Host) })
 	return SessionEvidence{
-		Target:   target,
-		Steps:    slices.Sorted(maps.Keys(steps)),
-		Hosts:    hosts,
-		Requests: int(p.requests.Load()),
-		Bytes:    p.bytes.Load(),
+		Target:          target,
+		Steps:           slices.Sorted(maps.Keys(steps)),
+		Hosts:           hosts,
+		Requests:        int(p.requests.Load()),
+		Bytes:           p.bytes.Load(),
+		OmittedRefusals: p.omittedRefusals.Load(),
 	}
 }
 
@@ -354,14 +356,30 @@ func (p *guardedProxy) resolveAllowed(ctx context.Context, host, port string) (s
 }
 
 func (p *guardedProxy) refuse(host, reason string) {
-	if host == "" {
-		return
-	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if _, recorded := p.blocked[host]; !recorded {
-		p.blocked[host] = reason
+	p.refuseLocked(host, reason)
+}
+
+// Refusal diagnostics need their own bound: a peer may keep sending new hosts
+// after the network admission budget is spent. Retain at most maxRequests
+// identities, each no longer than a DNS name, and count omitted events without
+// retaining the hostile input. The count is not a distinct-host estimate.
+func (p *guardedProxy) refuseLocked(host, reason string) {
+	const maxRefusedHostLength = 253
+	if host == "" || len(host) > maxRefusedHostLength {
+		p.omittedRefusals.Add(1)
+		return
 	}
+	if _, recorded := p.blocked[host]; recorded {
+		return
+	}
+	if len(p.blocked) >= p.maxRequests {
+		p.omittedRefusals.Add(1)
+		return
+	}
+	// A short Hostname slice must not retain a much larger raw request header.
+	p.blocked[strings.Clone(host)] = reason
 }
 
 // observed returns the hosts the browser actually contacted and the hosts the

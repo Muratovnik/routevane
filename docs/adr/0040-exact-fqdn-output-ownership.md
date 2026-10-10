@@ -34,8 +34,28 @@ of mathematical uniqueness: an observed unowned name still blocks mutation.
 Published artifact bytes remain immutable. Changing the prefix affects the next
 build and removes only the old names recorded for that same output on that device.
 
+The human list title is carried by the native `object-group fqdn description`
+command, documented since KeeneticOS 4.03 in section 3.131.1 of the
+[KeeneticOS 5.0 CLI reference](https://storage.googleapis.com/docs.help.keenetic.com/cli/5.0/en/cli_manual_kn-1910.pdf).
+A title such as `Claude` therefore remains readable without changing the
+internal object identity. Multiple shards add `(1/2)`, `(2/2)` to that title.
+Descriptions are bounded UTF-8 literal strings; quote delimiters and control
+characters in titles are normalized before rendering. A new build updates the
+description of the exact owned object and verifies it before committing the
+ledger. Existing include-only artifacts stay valid and do not clear a newer
+description. Unowned legacy groups are never renamed or adopted by this update.
+
 Load ownership before backup and mutation; verify entries, interface, automatic
-and non-exclusive policy before replacing the ledger in one SQLite transaction.
+and non-exclusive policy, absence of exclusions or a gateway, and the requested
+description before replacing the ledger in one SQLite transaction. Detach an
+owned route while replacing its group's entries, then attach the completed
+group. Refuse unsupported observations before submitting a command. A refusal
+proven to occur before the first mutation does not restore a backup over changes
+made by another writer after that backup. The same rule applies when an unchanged
+deployment submits no commands and later fails read-back or ledger persistence.
+The FQDN deployer reports whether it submitted a mutation; an ambiguous submission
+still requires recovery. Other deployers retain conservative recovery unless
+the application can prove their mutation is empty.
 A save or ledger failure invokes bounded recovery. Recovery saves the restored
 configuration and reads it back; only CRLF/LF differences are ignored. Unknown
 differences are failures. There is no distributed transaction: interruption

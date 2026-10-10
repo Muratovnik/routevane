@@ -45,6 +45,7 @@ const ru: Dictionary = {
     'Приоритет списка {list}: сначала добавьте его в профиль',
   'shell.collapse': 'Свернуть меню',
   'shell.expand': 'Развернуть меню',
+  'shell.version': 'Версия {version}',
   'update.available': 'Обновить',
   'update.downloading': 'Загрузка · {percent}%',
   'update.installing': 'Перезапуск…',
@@ -808,9 +809,9 @@ const ru: Dictionary = {
   'deploy.field.address.keenetic-dns': 'Адрес устройства',
   'deploy.field.address.singbox': 'Путь к конфигурации sing-box',
   'deploy.field.address.keenetic.hint':
-    'Явный http- или https-адрес с IP роутера в локальной сети, например http://192.168.1.1. Имя хоста не подойдёт: сохранённый адрес должен быть однозначным без обращения к DNS.',
+    'HTTP- или HTTPS-адрес с IP роутера в локальной сети. Имена хостов не поддерживаются.',
   'deploy.field.address.keenetic-dns.hint':
-    'Явный http- или https-адрес с IP роутера в локальной сети, например http://192.168.1.1. Имя хоста не подойдёт: сохранённый адрес должен быть однозначным без обращения к DNS.',
+    'HTTP- или HTTPS-адрес с IP роутера в локальной сети. Имена хостов не поддерживаются.',
   'deploy.field.address.singbox.hint':
     'Путь к файлу в виде file-адреса, например file:///C:/sing-box/config.json.',
   'deploy.field.account.keenetic': 'Логин роутера',
@@ -1035,6 +1036,7 @@ const en: Dictionary = {
     'Priority of {list}: add it to the profile first',
   'shell.collapse': 'Collapse sidebar',
   'shell.expand': 'Expand sidebar',
+  'shell.version': 'Version {version}',
   'update.available': 'Update',
   'update.downloading': 'Downloading · {percent}%',
   'update.installing': 'Restarting…',
@@ -1773,9 +1775,9 @@ const en: Dictionary = {
   'deploy.field.address.keenetic-dns': 'Device address',
   'deploy.field.address.singbox': 'Path to the sing-box configuration',
   'deploy.field.address.keenetic.hint':
-    'An explicit http or https address with the router’s IP on the local network, such as http://192.168.1.1. A host name will not do: a stored address has to be unambiguous without asking DNS.',
+    'An explicit http or https address with the router’s local IP. Host names are not supported.',
   'deploy.field.address.keenetic-dns.hint':
-    'An explicit http or https address with the router’s IP on the local network, such as http://192.168.1.1. A host name will not do: a stored address has to be unambiguous without asking DNS.',
+    'An explicit http or https address with the router’s local IP. Host names are not supported.',
   'deploy.field.address.singbox.hint':
     'The path to the file as a file address, such as file:///C:/sing-box/config.json.',
   'deploy.field.account.keenetic': 'Router login',

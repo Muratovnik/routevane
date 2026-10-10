@@ -51,6 +51,16 @@ catalog file must not widen.
 Several targets may share one renderer. The target catalog and the renderer
 registry are separate maps for exactly that reason.
 
+The built-in Keenetic FQDN renderer currently fixes its group bounds at 300
+entries and 128 groups, with a 256 KiB artifact bound. A target alias using
+`keenetic-fqdn-group` must declare those same `max_entries_per_list` and
+`max_lists` values; a mismatching target is unavailable. An alias may set
+stricter total rule and artifact byte limits, which the application enforces.
+Changing the YAML alone does not change the renderer or the deployment budget.
+These are Routevane's supported bounds, not a measurement of every firmware.
+Configurable group budgets would require a coordinated renderer, publication
+and deployment contract before the format guard can be widened.
+
 ## 4. Test it
 
 - A golden file for the canonical document, regenerated with

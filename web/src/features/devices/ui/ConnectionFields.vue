@@ -89,6 +89,7 @@ const addressError = computed(() => {
 <template>
   <div class="connection-fields">
     <RvField
+      aligned
       :error="error(name, visited.name)"
       :input-id="`${idPrefix}-name`"
       :label="t('devices.field.name')"
@@ -107,6 +108,7 @@ const addressError = computed(() => {
     </RvField>
 
     <RvField
+      aligned
       :error="addressError"
       :hint="addressHint"
       :input-id="`${idPrefix}-address`"
@@ -129,6 +131,7 @@ const addressError = computed(() => {
 
     <RvField
       v-if="needsAccount"
+      aligned
       :error="error(account, visited.account)"
       :input-id="`${idPrefix}-account`"
       :label="accountLabel"
@@ -149,6 +152,7 @@ const addressError = computed(() => {
 
     <RvField
       v-if="needsInterface"
+      aligned
       :error="error(interfaceName, visited.interfaceName)"
       :hint="interfaceHint"
       :input-id="`${idPrefix}-interface`"

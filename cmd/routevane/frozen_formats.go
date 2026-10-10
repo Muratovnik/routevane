@@ -45,6 +45,12 @@ func catalogTargets(catalog catalogyaml.Catalog, registry application.RendererRe
 // cannot express. Without this a target could promise domain routing to a
 // renderer that only emits IPv4 routes.
 func renderableTarget(target domain.TargetDefinition, renderer application.Renderer) bool {
+	// Aliases share the built-in renderer and deployer, including their group
+	// budgets. A different target ID must not advertise sharding or capacity
+	// that those implementations cannot enforce.
+	if renderer.ID() == keeneticdns.ID && (target.Constraints.MaxEntriesPerList != keeneticdns.MaxEntriesPerGroup || target.Constraints.MaxLists != keeneticdns.MaxGroups) {
+		return false
+	}
 	supported := make(map[domain.RuleKind]struct{}, 6)
 	for _, kind := range renderer.SupportedRuleKinds() {
 		supported[kind] = struct{}{}

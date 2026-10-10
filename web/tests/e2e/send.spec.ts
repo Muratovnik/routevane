@@ -658,6 +658,47 @@ test('the send screen builds its form from the deployer and applies the file loc
   expect(Object.keys(stored.session)).not.toContain('rv.deploy.password')
   expect(JSON.stringify(stored)).not.toContain('rv1.')
   await expect(address).toHaveValue(fileURL(configPath))
+
+  const identitiesBefore = await page.request.get(`${origin}/v1/profiles`)
+  const before = (await identitiesBefore.json()) as {
+    profiles: Array<{ id: string }>
+  }
+  const identityWrites: string[] = []
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname
+    if (
+      request.method() === 'POST' &&
+      (path === '/v1/profiles' || /^\/v1\/profiles\/[^/]+\/outputs$/.test(path))
+    )
+      identityWrites.push(path)
+  })
+  await page
+    .getByRole('link', { name: message('en', 'send.back'), exact: true })
+    .click()
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: 'Actions for profile YouTube', exact: true })
+    .click()
+  await menuPanel(page)
+    .getByRole('menuitem', { name: 'Send to sing-box' })
+    .click()
+  await page.waitForURL(`${profileURL}/send/${outputId}`)
+  await expect(address).toHaveValue(fileURL(configPath))
+  await review.click()
+  await page.getByRole('button', { name: 'Apply', exact: true }).click()
+  await expect(page.getByText('Applied', { exact: true })).toBeVisible()
+  expect(await readFile(ruleSetPath, 'utf8')).toBe(deployed)
+  expect(identityWrites).toEqual([])
+  const identitiesAfter = await page.request.get(`${origin}/v1/profiles`)
+  const after = (await identitiesAfter.json()) as {
+    profiles: Array<{ id: string }>
+  }
+  expect(after.profiles.map((profile) => profile.id).sort()).toEqual(
+    before.profiles.map((profile) => profile.id).sort(),
+  )
+  const detail = await page.request.get(`${origin}/v1/profiles/${profileId}`)
+  const profile = (await detail.json()) as { outputs: Array<{ id: string }> }
+  expect(profile.outputs.map((output) => output.id)).toEqual([outputId])
 })
 
 for (const language of ['en', 'ru'] as const) {

@@ -266,7 +266,11 @@ describe('useDevices degraded dependencies', () => {
         url === '/v1/devices/device-1/auto-delivery' &&
         init?.method === 'POST'
       )
-        return Promise.resolve(json({}))
+        return Promise.resolve(
+          json({
+            device: { ...devicePayload.devices[0], auto_deliver: false },
+          }),
+        )
       if (url === '/v1/devices')
         return Promise.resolve(
           json({

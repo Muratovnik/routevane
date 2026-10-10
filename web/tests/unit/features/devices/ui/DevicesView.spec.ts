@@ -548,6 +548,76 @@ const AUTO_DEVICE = {
 const UPDATE = `${DEVICES}/device-1/update`
 const FORGET = `${DEVICES}/device-1/forget`
 
+describe('confirmed automatic-delivery changes', () => {
+  beforeEach(() => {
+    useLocale().setLocale('en')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it.each([
+    { enabled: true, passwordAfterWrite: null },
+    { enabled: false, passwordAfterWrite: '' },
+  ])(
+    'keeps the confirmed enabled=$enabled state when the registry reread fails',
+    async ({ enabled, passwordAfterWrite }) => {
+      const endpoint = `${DEVICES}/device-1/auto-delivery`
+      const saved = { ...AUTO_DEVICE, auto_deliver: enabled }
+      const fetchMock = installFetch(async (input, init) => {
+        if (input === endpoint) return json({ device: saved })
+        if (input === DEVICES) {
+          const reads = callsTo(fetchMock, DEVICES).length
+          if (reads === 2) return json({ error: 'unavailable' }, 503)
+          return json({
+            devices: [
+              reads === 1 ? { ...saved, auto_deliver: !enabled } : saved,
+            ],
+            secret_store_available: true,
+          })
+        }
+        if (input === LISTS) return json(CATALOG_PAYLOAD)
+        if (input === TARGETS) return json(TARGETS_PAYLOAD)
+        if (input === REQUIREMENTS) return json(REQUIREMENTS_PAYLOAD)
+        throw new Error(`unexpected request ${input} ${init?.method}`)
+      })
+      const screen = await render(DevicesView)
+      const password = screen.getByLabelText('Password', { exact: true })
+      if (enabled) await password.fill('router-password')
+      await screen
+        .getByRole('button', {
+          name: enabled
+            ? 'Turn on automatic delivery'
+            : 'Turn off automatic delivery',
+        })
+        .click()
+
+      await expect
+        .element(screen.getByText('Connections could not be refreshed'))
+        .toBeVisible()
+      const nextAction = screen.getByRole('button', {
+        name: enabled
+          ? 'Turn off automatic delivery'
+          : 'Turn on automatic delivery',
+      })
+      await expect.element(nextAction).toBeDisabled()
+      const remainingPassword = password.query() as HTMLInputElement | null
+      expect(remainingPassword?.value ?? null).toBe(passwordAfterWrite)
+
+      await screen.getByRole('button', { name: 'Retry', exact: true }).click()
+      const availableControl = enabled ? nextAction : password
+      await expect.element(availableControl).toBeEnabled()
+      const written = callsTo(fetchMock, endpoint)
+      expect(written).toHaveLength(1)
+      expect(JSON.parse(String((written[0]?.[1] as RequestInit).body))).toEqual(
+        enabled ? { enabled, credential: 'router-password' } : { enabled },
+      )
+      expect(callsTo(fetchMock, DEVICES)).toHaveLength(3)
+    },
+  )
+})
+
 it('saves a renamed connection through the update endpoint and says nothing about consent', async () => {
   useLocale().setLocale('en')
   const fetchMock = installFetch(async (input, init) => {

@@ -269,6 +269,11 @@ test('page inspection preserves primary actions and full-height geometry in ever
   await create.click()
   await page.waitForURL(/\/profiles\/[a-f0-9]{32}/)
   expect((await firstOutput).ok()).toBe(true)
+  // The format exists before its first build finishes. Leave only after the
+  // published link appears, so navigation cannot cancel the file preparation.
+  await expect(
+    page.getByRole('heading', { name: 'Subscription link · sing-box' }),
+  ).toBeVisible()
   const id = profileIDFromURL(page.url())
   await page.goto(`${origin}/profiles/${id}`)
   await nameField(page).fill('Inspection workflow saved')
@@ -295,6 +300,12 @@ test('page inspection preserves primary actions and full-height geometry in ever
       exact: true,
     }),
   ).toBeVisible()
+  // Saving the name precedes rebuilding the format; the editor unlocks when
+  // the whole operation finishes, which is when a reload is safe.
+  await expect(nameField(page)).toBeEnabled()
+  await expect(
+    page.getByText(englishCopy('profile.notice.build.failed'), { exact: true }),
+  ).toBeHidden()
   await page.reload()
   await expect(nameField(page)).toHaveValue('Inspection workflow saved')
   await page.goto(`${origin}/lists`)
@@ -455,13 +466,15 @@ test('docked inspection transitions the form and table together on opening and c
   check(await transitionFrames('.rv-dialog__close'))
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(openList(page, 'Discord')).toBeFocused()
-  // The chrome band ends under its last control rather than against the window
-  // edge, so the toggle stands one closing inset above the bottom.
-  const collapse = await page
-    .getByRole('button', { name: englishCopy('shell.collapse'), exact: true })
-    .boundingBox()
+  // The version paragraph is the last footer item. Its layout box includes
+  // the line's leading, which the inline label's font box excludes.
+  const version = page
+    .getByRole('paragraph')
+    .filter({ hasText: /^Version .+$/ })
+  await expect(version).toBeVisible()
+  const footer = await version.boundingBox()
   expect(
-    Math.abs(collapse!.y + collapse!.height - (960 - CHROME_FOOT_INSET)),
+    Math.abs(footer!.y + footer!.height - (960 - CHROME_FOOT_INSET)),
   ).toBeLessThanOrEqual(1)
   // The same operation stays usable when animation is disabled or unavailable.
   // Each opening is dismissed once the card holds the keyboard, which is what
