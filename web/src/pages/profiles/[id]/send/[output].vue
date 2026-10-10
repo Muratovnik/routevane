@@ -112,7 +112,9 @@ onMounted(reload)
     </section>
     <SendPanel
       v-else-if="output !== null && output.latest !== null"
+      :key="`${profileId}:${output.id}:${output.targetID}:${output.latest.id}`"
       :artifact-id="output.latest.id"
+      :preferred-device-id="output.deviceID"
       :profile-id="profileId"
       :profile-name="view.profile.value?.name ?? ''"
       :target="target"

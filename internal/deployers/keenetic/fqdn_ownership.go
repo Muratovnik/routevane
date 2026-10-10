@@ -125,6 +125,7 @@ func (d *FQDNDeployer) PreviewFQDNGroups(ctx context.Context, device application
 	if err != nil {
 		return nil, err
 	}
+	defer session.close()
 	existing, routes, err := session.observedGroups(ctx)
 	if err != nil {
 		return nil, err

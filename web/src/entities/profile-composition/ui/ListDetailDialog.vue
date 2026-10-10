@@ -565,6 +565,7 @@ watch(contentsState, async (state) => {
       @submit.prevent="onAddValues"
     >
       <RvField
+        announce-error
         :error="addError"
         :hint="t('listCard.domains.hint')"
         input-id="list-add-entries"

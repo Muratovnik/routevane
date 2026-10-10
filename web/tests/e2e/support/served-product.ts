@@ -14,23 +14,19 @@
  * inheriting another suite's state.
  */
 import { createHash } from 'node:crypto'
-import { existsSync } from 'node:fs'
 import { access, readFile, readdir, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { test as base } from './content-policy'
 import {
-  assertPortBindable,
-  delay,
+  createOwnedProductData,
   reserveLoopbackPort,
   spawnProduct,
-  stopOwnedProduct,
+  stopOwnedProductData,
+  waitForAuthenticatedRoot,
   type SpawnedProduct,
 } from './product'
-
-/** How long the interface has to answer with its own identity before the boot fails. */
-const READY_TIMEOUT_MILLISECONDS = 10000
 
 const supportDirectory = dirname(fileURLToPath(import.meta.url))
 export const repositoryRoot = resolve(supportDirectory, '..', '..', '..', '..')
@@ -77,62 +73,69 @@ interface ProductFixtures {
 }
 
 const startProduct = async (
-  dataRoot: string,
+  dataPrefix: string,
   catalog: string,
-): Promise<{ product: ServedProduct; spawned: SpawnedProduct }> => {
+): Promise<{
+  product: ServedProduct
+  spawned: SpawnedProduct
+  dataRoot: string
+}> => {
   await access(binary)
   const expectedUIDigest = await embeddedUIDigest()
   const port = await reserveLoopbackPort()
   const origin = `http://127.0.0.1:${port}`
-  await rm(dataRoot, { force: true, recursive: true })
-  const spawned = spawnProduct(
-    binary,
-    [
-      'serve',
-      '--port',
-      String(port),
-      '--catalog-dir',
-      catalog,
-      '--data-dir',
-      dataRoot,
-    ],
-    { cwd: repositoryRoot, stdio: 'pipe', windowsHide: true },
+  const dataRoot = await createOwnedProductData(
+    join(repositoryRoot, '.cache', 'browser-data'),
+    dataPrefix,
   )
+  let spawned: SpawnedProduct
+  try {
+    spawned = spawnProduct(
+      binary,
+      [
+        'serve',
+        '--port',
+        String(port),
+        '--catalog-dir',
+        catalog,
+        '--data-dir',
+        dataRoot,
+      ],
+      { cwd: repositoryRoot, stdio: 'pipe', windowsHide: true },
+    )
+  } catch (error) {
+    // No child was returned; this newly allocated directory has no owner.
+    try {
+      await rm(dataRoot, { force: true, recursive: true })
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        'Routevane spawn failed and cleanup was incomplete',
+        { cause: cleanupError },
+      )
+    }
+    throw error
+  }
   const product: ServedProduct = {
     assertAlive: () => spawned.assertAlive(),
     expectedUIDigest,
     origin,
     port,
   }
-  await waitForAuthenticatedRoot(product)
-  return { product, spawned }
-}
-
-/**
- * Stops the product and takes its data with it, answering with the first
- * failure rather than throwing it: a suite reports a leaked process, a held
- * port and undeleted data as one teardown result.
- */
-const stopProduct = async (
-  spawned: SpawnedProduct,
-  product: ServedProduct,
-  dataRoot: string,
-): Promise<unknown> => {
-  let cleanupError: unknown
   try {
-    await stopOwnedProduct(spawned.process)
-    await assertPortBindable(product.port)
+    await waitForAuthenticatedRoot(product)
+    return { product, spawned, dataRoot }
   } catch (error) {
-    cleanupError = error
+    const cleanupError = await stopOwnedProductData(spawned, port, dataRoot)
+    if (cleanupError !== undefined) {
+      throw new AggregateError(
+        [error, cleanupError],
+        'Routevane startup failed and cleanup was incomplete',
+        { cause: error },
+      )
+    }
+    throw error
   }
-  try {
-    await rm(dataRoot, { force: true, recursive: true })
-    if (existsSync(dataRoot))
-      throw new Error('browser data cleanup did not complete')
-  } catch (error) {
-    cleanupError ??= error
-  }
-  return cleanupError
 }
 
 export const test = base.extend<
@@ -150,21 +153,33 @@ export const test = base.extend<
         throw new Error(
           "a browser suite names its own data directory: test.use({ productData: 'suite' })",
         )
-      // The suite names the directory and the worker slot makes it its own.
-      // One suite normally holds one worker, but a repeated or sharded run
-      // spreads the same suite over several, and two products cannot share a
-      // data directory: the second finds the lock taken. A parallel index is
-      // never held by two workers at once, which is exactly the guarantee the
-      // directory needs.
-      const dataRoot = join(
-        repositoryRoot,
-        '.cache',
-        'browser-data',
+      // The prefix identifies the suite and worker; mkdtemp gives every start
+      // its own directory, including a retry whose earlier child is still live.
+      const { product, spawned, dataRoot } = await startProduct(
         `${productData}-${workerInfo.parallelIndex}`,
+        productCatalog,
       )
-      const { product, spawned } = await startProduct(dataRoot, productCatalog)
-      await use(product)
-      const cleanupError = await stopProduct(spawned, product, dataRoot)
+      let useFailed = false
+      let useError: unknown
+      try {
+        await use(product)
+        product.assertAlive()
+      } catch (error) {
+        useFailed = true
+        useError = error
+      }
+      const cleanupError = await stopOwnedProductData(
+        spawned,
+        product.port,
+        dataRoot,
+      )
+      if (useFailed && cleanupError !== undefined)
+        throw new AggregateError(
+          [useError, cleanupError],
+          'Routevane browser scenario failed and cleanup was incomplete',
+          { cause: useError },
+        )
+      if (useFailed) throw useError
       if (cleanupError !== undefined) throw cleanupError
     },
     { scope: 'worker' },
@@ -179,48 +194,6 @@ export const test = base.extend<
     await use(() => product.assertAlive())
   },
 })
-
-const waitForAuthenticatedRoot = async (
-  product: ServedProduct,
-): Promise<void> => {
-  const deadline = Date.now() + READY_TIMEOUT_MILLISECONDS
-  let lastFailure = 'listener did not accept a request'
-  while (Date.now() < deadline) {
-    product.assertAlive()
-    try {
-      const response = await fetch(`${product.origin}/`)
-      if (response.status === 200) {
-        const digest = response.headers.get('x-routevane-ui-digest')
-        if (digest !== product.expectedUIDigest) {
-          throw new Error(
-            `listener identity mismatch: got ${digest ?? 'missing'}, want ${product.expectedUIDigest}`,
-          )
-        }
-        // Nuxt UI adds its isolation class to the application root. The root
-        // identity is the id; optional framework-owned attributes are not part
-        // of Routevane's server handshake.
-        if (!/<div\s+id="__nuxt"(?:\s|>)/.test(await response.text())) {
-          throw new Error('listener did not return the generated Routevane UI')
-        }
-        return
-      }
-      lastFailure = `root returned ${response.status}`
-    } catch (error) {
-      if (
-        error instanceof Error &&
-        error.message.startsWith('listener identity')
-      ) {
-        throw error
-      }
-      lastFailure = error instanceof Error ? error.message : String(error)
-    }
-    await delay(25)
-  }
-  product.assertAlive()
-  throw new Error(
-    `Routevane browser server did not become ready: ${lastFailure}`,
-  )
-}
 
 const embeddedUIDigest = async (): Promise<string> => {
   const files = await embeddedFiles(embeddedUIRoot)

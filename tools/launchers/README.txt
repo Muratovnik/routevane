@@ -21,6 +21,10 @@ Open Profiles and choose Build a profile to select lists and a connection format
 Copy a subscription link when first shown: its secret cannot be recovered.
 The server is local-only; a router cannot fetch this computer's loopback URL.
 Device delivery changes a device only after your explicit setup/consent.
+Automatic delivery to a router that needs a password is currently Windows-only.
+On Linux/macOS, enter the password for each manual send; it is not saved.
+Local sing-box automatic delivery needs no password and works on all three CLI
+platforms.
 
 FILES
 start-routevane.*       The launcher.
@@ -37,6 +41,16 @@ Stop Routevane before copying data. Back up data/ and any catalog changes.
 Verify and extract the new archive into a different writable folder.
 Copy data/ to the new folder, and review/merge catalog changes.
 Keep the old folder and stopped-state backup until the new version works.
+Device passwords live in Windows Credential Manager, outside data/. Updating
+under the same Windows installation/account can reuse existing stored passwords.
+After moving data/ to another computer, fresh Windows installation or account,
+open Connections for each device that needs a password: turn automatic delivery
+off, enter the password again, review consent and enable it again. Check that a
+subsequent delivery succeeds. On Linux/macOS, turn router automatic delivery off
+and enter its password for each manual send.
+Settings / Configuration transfer creates a portable file without passwords,
+published files or subscription tokens; imported connections have automatic
+delivery off. Rebuild imported profiles to publish new files and links.
 Rollback uses the old binary AND its pre-update backup, not a migrated database.
 
 REMOVE

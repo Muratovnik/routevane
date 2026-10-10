@@ -2,18 +2,20 @@
 import { computed, onMounted, watch } from 'vue'
 
 import { useDeployment } from '@/features/send-artifact/model/useDeployment'
+import { MANUAL_CONNECTION } from '@/features/send-artifact/model/useDeploymentConnections'
 import { useLocale } from '@/shared/i18n/useLocale'
 import {
   localizedTargetHint,
   localizedTargetTitle,
   type TargetOption,
 } from '@/shared/api/catalog'
-import type { Fact, StatusTone } from '@/shared/ui/types'
+import type { ChoiceOption, Fact, StatusTone } from '@/shared/ui/types'
 import RvCodeBlock from '@/shared/ui/RvCodeBlock.vue'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import RvStatus from '@/shared/ui/RvStatus.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
@@ -24,13 +26,26 @@ const props = defineProps<{
   profileId: string
   target: TargetOption | null
   targetId: string
+  preferredDeviceId?: string
 }>()
 
 const { formatBytes, locale, t, tor } = useLocale()
 const deployment = useDeployment(
   () => props.artifactId,
   () => props.targetId,
+  () => props.preferredDeviceId ?? '',
 )
+
+const connectionOptions = computed<ChoiceOption[]>(() => [
+  ...deployment.connections.compatible.value.map((connection) => ({
+    value: connection.id,
+    label: connection.name,
+    note: [connection.address, connection.account, connection.interfaceName]
+      .filter((value) => value !== '')
+      .join(' · '),
+  })),
+  { value: MANUAL_CONNECTION, label: t('send.connection.manual') },
+])
 
 // The catalog names the destination and says where its file belongs. Both are
 // catalog content, so both follow the reader's language only where the catalog
@@ -58,6 +73,36 @@ const interfaceLabel = computed(() =>
   ),
 )
 
+const connectionFacts = computed<Fact[]>(() => {
+  const selected = deployment.connections.selected.value
+  if (selected === null) return []
+  const facts: Fact[] = [
+    {
+      key: 'address',
+      label: addressLabel.value,
+      value: selected.address,
+      mono: true,
+    },
+  ]
+  if (deployment.requirements.value?.needsCredential) {
+    facts.push({
+      key: 'account',
+      label: t('send.field.account'),
+      value: selected.account,
+      mono: true,
+    })
+  }
+  if (deployment.requirements.value?.needsInterface) {
+    facts.push({
+      key: 'interface',
+      label: interfaceLabel.value,
+      value: selected.interfaceName,
+      mono: true,
+    })
+  }
+  return facts
+})
+
 const statusTone = computed<StatusTone>(() => {
   const state = deployment.state.value
   if (state === 'applied') return 'ready'
@@ -76,6 +121,39 @@ const planFacts = computed<Fact[]>(() => {
       value: formatBytes(plan.sizeBytes),
     },
   ]
+})
+
+const attemptVisible = computed(
+  () =>
+    deployment.outcome.value !== null ||
+    ['applying', 'outcome_unknown'].includes(deployment.state.value),
+)
+const recipientFacts = computed<Fact[]>(() => {
+  const recipient = deployment.attemptRecipient.value
+  if (recipient === null) return []
+  const facts: Fact[] = [
+    {
+      key: 'address',
+      label: addressLabel.value,
+      value: recipient.device,
+      mono: true,
+    },
+  ]
+  if (recipient.username !== '')
+    facts.push({
+      key: 'account',
+      label: t('send.field.account'),
+      value: recipient.username,
+      mono: true,
+    })
+  if (recipient.interfaceName !== '')
+    facts.push({
+      key: 'interface',
+      label: interfaceLabel.value,
+      value: recipient.interfaceName,
+      mono: true,
+    })
+  return facts
 })
 
 const outcomeFacts = computed<Fact[]>(() => {
@@ -166,7 +244,64 @@ onMounted(() => {
 
     <template v-if="deployment.targetsState.value === 'ready'">
       <form class="send__form" @submit.prevent="deployment.review">
+        <RvStateNotice
+          v-if="deployment.connections.state.value === 'failed'"
+          :body="t('send.connection.failed.body')"
+          live
+          :title="t('send.connection.failed')"
+          tone="failed"
+        >
+          <template #action>
+            <RvButton @click="deployment.connections.initialize">
+              {{ t('action.retry') }}
+            </RvButton>
+          </template>
+        </RvStateNotice>
+        <RvField input-id="send-connection" :label="t('send.connection.label')">
+          <template #default="{ describedBy }">
+            <RvSelect
+              v-model="deployment.connections.selectedID.value"
+              :described-by="describedBy"
+              :disabled="deployment.busy.value"
+              input-id="send-connection"
+              :loading="deployment.connections.state.value === 'loading'"
+              :loading-label="t('send.connection.loading')"
+              :options="connectionOptions"
+              :placeholder="t('send.connection.choose')"
+            />
+          </template>
+        </RvField>
+        <p
+          v-if="
+            deployment.connections.preferredUnavailable.value ||
+            (!deployment.connections.manual.value &&
+              deployment.connections.selected.value === null)
+          "
+          class="send__note"
+        >
+          {{ t('send.connection.unavailable') }}
+        </p>
+        <p
+          v-else-if="
+            deployment.connections.state.value === 'ready' &&
+            deployment.connections.compatible.value.length === 0
+          "
+          class="send__note"
+        >
+          {{ t('send.connection.empty') }}
+        </p>
+        <section
+          v-if="deployment.connections.selected.value !== null"
+          aria-labelledby="send-connection-title"
+          class="send__connection"
+        >
+          <h2 id="send-connection-title" class="send__section-title">
+            {{ t('send.connection.selected') }}
+          </h2>
+          <RvFacts :items="connectionFacts" />
+        </section>
         <RvField
+          v-if="deployment.connections.manual.value"
           :error="
             deployment.addressError.value === null
               ? undefined
@@ -192,7 +327,11 @@ onMounted(() => {
         </RvField>
 
         <template v-if="deployment.requirements.value?.needsCredential">
-          <RvField input-id="send-user" :label="t('send.field.account')">
+          <RvField
+            v-if="deployment.connections.manual.value"
+            input-id="send-user"
+            :label="t('send.field.account')"
+          >
             <template #default="{ describedBy }">
               <RvTextInput
                 v-model="deployment.username.value"
@@ -204,7 +343,15 @@ onMounted(() => {
               />
             </template>
           </RvField>
-          <RvField input-id="send-password" :label="t('send.field.password')">
+          <RvField
+            :hint="
+              deployment.connections.storedCredential.value
+                ? t('send.password.stored')
+                : t('send.password.once')
+            "
+            input-id="send-password"
+            :label="t('send.field.password')"
+          >
             <template #default="{ describedBy }">
               <RvTextInput
                 v-model="deployment.password.value"
@@ -219,7 +366,10 @@ onMounted(() => {
         </template>
 
         <RvField
-          v-if="deployment.requirements.value?.needsInterface"
+          v-if="
+            deployment.connections.manual.value &&
+            deployment.requirements.value?.needsInterface
+          "
           input-id="send-interface"
           :label="interfaceLabel"
         >
@@ -250,33 +400,7 @@ onMounted(() => {
       </form>
 
       <RvStateNotice
-        v-if="deployment.state.value === 'outcome_unknown'"
-        :body="t('send.outcomeUnknown.body')"
-        live
-        :title="t('send.outcomeUnknown.title')"
-        tone="waiting"
-      >
-        <template #action>
-          <RvButton
-            :disabled="deployment.checkingOutcome.value"
-            @click="deployment.checkOutcome"
-          >
-            {{
-              deployment.checkingOutcome.value
-                ? t('send.outcomeUnknown.checking')
-                : t('send.outcomeUnknown.check')
-            }}
-          </RvButton>
-        </template>
-      </RvStateNotice>
-
-      <RvStateNotice
-        v-if="deployment.errorKey.value !== null"
-        :body="
-          deployment.outcome.value?.rolledBack === true
-            ? t('send.rolledBack')
-            : undefined
-        "
+        v-if="deployment.errorKey.value !== null && !attemptVisible"
         live
         :title="t(deployment.errorKey.value)"
         tone="failed"
@@ -317,46 +441,94 @@ onMounted(() => {
         </RvButton>
       </section>
 
-      <RvStateNotice
-        v-if="deployment.state.value === 'applied'"
-        :body="t('send.applied.body')"
-        live
-        :title="t('send.applied')"
-        tone="ready"
-      />
-
-      <RvFacts v-if="outcomeFacts.length > 0" :items="outcomeFacts" />
-
       <section
-        v-if="deployment.outcome.value !== null"
-        aria-labelledby="send-steps-title"
-        class="send__audit"
+        v-if="attemptVisible"
+        aria-labelledby="send-attempt-title"
+        class="send__attempt"
       >
-        <h2 id="send-steps-title" class="send__section-title">
-          {{ t('send.steps') }}
+        <h2 id="send-attempt-title" class="send__section-title">
+          {{ t('send.attempt.title') }}
         </h2>
-        <ol class="send__steps">
-          <li
-            v-for="event in deployment.outcome.value.events"
-            :key="event.step"
-            class="send__step"
-          >
-            <span>{{
-              tor(`send.step.${event.step}`, t('send.step.other'))
-            }}</span>
-            <strong
-              :class="{
-                'send__step-outcome--failed': event.outcome !== 'success',
-              }"
+        <template v-if="deployment.attemptRecipient.value !== null">
+          <p class="send__note">{{ t('send.attempt.recipient') }}</p>
+          <RvFacts :items="recipientFacts" />
+        </template>
+        <p v-else class="send__note">
+          {{ t('send.attempt.recipientUnknown') }}
+        </p>
+
+        <RvStateNotice
+          v-if="deployment.state.value === 'outcome_unknown'"
+          :body="t('send.outcomeUnknown.body')"
+          live
+          :title="t('send.outcomeUnknown.title')"
+          tone="waiting"
+        >
+          <template #action>
+            <RvButton
+              :disabled="deployment.checkingOutcome.value"
+              @click="deployment.checkOutcome"
             >
               {{
-                event.outcome === 'success'
-                  ? t('send.step.success')
-                  : t('send.step.failed')
+                deployment.checkingOutcome.value
+                  ? t('send.outcomeUnknown.checking')
+                  : t('send.outcomeUnknown.check')
               }}
-            </strong>
-          </li>
-        </ol>
+            </RvButton>
+          </template>
+        </RvStateNotice>
+        <RvStateNotice
+          v-if="deployment.errorKey.value !== null"
+          :body="
+            deployment.outcome.value?.rolledBack === true
+              ? t('send.rolledBack')
+              : undefined
+          "
+          live
+          :title="t(deployment.errorKey.value)"
+          tone="failed"
+        />
+        <RvStateNotice
+          v-if="deployment.state.value === 'applied'"
+          :body="t('send.applied.body')"
+          live
+          :title="t('send.applied')"
+          tone="ready"
+        />
+
+        <RvFacts v-if="outcomeFacts.length > 0" :items="outcomeFacts" />
+
+        <section
+          v-if="deployment.outcome.value !== null"
+          aria-labelledby="send-steps-title"
+          class="send__audit"
+        >
+          <h3 id="send-steps-title" class="send__section-title">
+            {{ t('send.steps') }}
+          </h3>
+          <ol class="send__steps">
+            <li
+              v-for="event in deployment.outcome.value.events"
+              :key="event.step"
+              class="send__step"
+            >
+              <span>{{
+                tor(`send.step.${event.step}`, t('send.step.other'))
+              }}</span>
+              <strong
+                :class="{
+                  'send__step-outcome--failed': event.outcome !== 'success',
+                }"
+              >
+                {{
+                  event.outcome === 'success'
+                    ? t('send.step.success')
+                    : t('send.step.failed')
+                }}
+              </strong>
+            </li>
+          </ol>
+        </section>
       </section>
     </template>
 
@@ -435,6 +607,11 @@ onMounted(() => {
   align-items: center;
 }
 
+.send__connection {
+  display: grid;
+  gap: var(--rv-space-3);
+}
+
 .send__plan {
   display: grid;
   gap: var(--rv-space-4);
@@ -452,6 +629,7 @@ onMounted(() => {
   font-size: var(--rv-text-dense);
 }
 
+.send__attempt,
 .send__audit {
   display: grid;
   gap: var(--rv-space-3);

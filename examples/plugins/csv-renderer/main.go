@@ -11,6 +11,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -68,13 +70,17 @@ func (handler) Render(document []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	return renderRows(rows), nil
+}
+
+func renderRows(rows []string) []byte {
 	var builder strings.Builder
 	builder.WriteString(header)
 	for _, row := range rows {
 		builder.WriteString(row)
 		builder.WriteString("\n")
 	}
-	return []byte(builder.String()), nil
+	return []byte(builder.String())
 }
 
 func (handler) ProjectedRuleCount(document []byte) (int, error) {
@@ -87,34 +93,23 @@ func (handler) ProjectedRuleCount(document []byte) (int, error) {
 
 // Validate reads the document back independently and re-renders it. Byte
 // equality is what makes a non-canonical file impossible to publish.
-func (h handler) Validate(payload []byte) error {
+func (handler) Validate(payload []byte) error {
 	text := string(payload)
 	if !strings.HasPrefix(text, header) {
 		return fmt.Errorf("missing header")
 	}
-	body := strings.TrimSuffix(strings.TrimPrefix(text, header), "\n")
-	if body == "" {
-		return fmt.Errorf("no rows")
+	reader := csv.NewReader(strings.NewReader(strings.TrimPrefix(text, header)))
+	reader.FieldsPerRecord = 4
+	records, err := reader.ReadAll()
+	if err != nil {
+		return fmt.Errorf("invalid CSV: %w", err)
 	}
-	rows := strings.Split(body, "\n")
-	seen := map[string]struct{}{}
-	for index, row := range rows {
-		fields := strings.Split(row, ",")
-		if len(fields) != 4 {
-			return fmt.Errorf("row %d has %d fields", index, len(fields))
-		}
-		for _, field := range fields {
-			if field == "" || strings.TrimSpace(field) != field {
-				return fmt.Errorf("row %d has an empty or padded field", index)
-			}
-		}
-		if _, duplicate := seen[row]; duplicate {
-			return fmt.Errorf("row %d is a duplicate", index)
-		}
-		seen[row] = struct{}{}
-		if index > 0 && rows[index-1] >= row {
-			return fmt.Errorf("row %d is out of canonical order", index)
-		}
+	rows, err := canonicalRows(records)
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(payload, renderRows(rows)) {
+		return fmt.Errorf("CSV is not canonical")
 	}
 	return nil
 }
@@ -127,13 +122,43 @@ func rowsOf(document []byte) ([]string, error) {
 	if len(decoded.Rules) == 0 {
 		return nil, fmt.Errorf("plan has no rules")
 	}
-	rows := make([]string, 0, len(decoded.Rules))
-	seen := map[string]struct{}{}
+	records := make([][]string, 0, len(decoded.Rules))
 	for _, rule := range decoded.Rules {
-		if rule.Kind == "" || rule.Value == "" || rule.List == "" || rule.Component == "" {
-			return nil, fmt.Errorf("plan rule is incomplete")
+		records = append(records, []string{rule.Kind, rule.Value, rule.List, rule.Component})
+	}
+	return canonicalRows(records)
+}
+
+func canonicalRows(records [][]string) ([]string, error) {
+	if len(records) == 0 {
+		return nil, fmt.Errorf("no rows")
+	}
+	rows := make([]string, 0, len(records))
+	seen := map[string]struct{}{}
+	for index, fields := range records {
+		if len(fields) != 4 {
+			return nil, fmt.Errorf("row %d has %d fields", index, len(fields))
 		}
-		row := strings.Join([]string{rule.Kind, rule.Value, rule.List, rule.Component}, ",")
+		for _, field := range fields {
+			if field == "" || strings.TrimSpace(field) != field {
+				return nil, fmt.Errorf("row %d has an empty or padded field", index)
+			}
+			// Keep one physical line per rule. In particular, do not let the
+			// CSV reader's CRLF normalization change a field's value.
+			if strings.ContainsAny(field, "\r\n") {
+				return nil, fmt.Errorf("row %d has a line break in a field", index)
+			}
+		}
+		var builder strings.Builder
+		writer := csv.NewWriter(&builder)
+		if err := writer.Write(fields); err != nil {
+			return nil, fmt.Errorf("write row %d: %w", index, err)
+		}
+		writer.Flush()
+		if err := writer.Error(); err != nil {
+			return nil, fmt.Errorf("write row %d: %w", index, err)
+		}
+		row := strings.TrimSuffix(builder.String(), "\n")
 		if _, duplicate := seen[row]; duplicate {
 			continue
 		}

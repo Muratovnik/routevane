@@ -1,0 +1,76 @@
+{
+  "name": "@routevane/node-forge",
+  "version": "1.4.0-routevane.1",
+  "description": "Routevane-maintained derivative of node-forge 1.4.0 with the CVE-2026-85393 nested DigestAlgorithm validation patch.",
+  "homepage": "https://github.com/digitalbazaar/forge",
+  "author": {
+    "name": "Digital Bazaar, Inc.",
+    "email": "support@digitalbazaar.com",
+    "url": "http://digitalbazaar.com/"
+  },
+  "contributors": [
+    "Dave Longley <dlongley@digitalbazaar.com>",
+    "David I. Lehn <dlehn@digitalbazaar.com>",
+    "Stefan Siegl <stesie@brokenpipe.de>",
+    "Christoph Dorn <christoph@christophdorn.com>"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/digitalbazaar/forge"
+  },
+  "bugs": {
+    "url": "https://github.com/digitalbazaar/forge/issues",
+    "email": "support@digitalbazaar.com"
+  },
+  "license": "(BSD-3-Clause OR GPL-2.0)",
+  "main": "lib/index.js",
+  "files": [
+    "lib/*.js",
+    "LICENSE",
+    "PROVENANCE.json",
+    "PROVENANCE.md",
+    "rsa-digestalgorithm.patch",
+    "test/**"
+  ],
+  "engines": {
+    "node": ">= 6.13.0"
+  },
+  "keywords": [
+    "aes",
+    "asn",
+    "asn.1",
+    "cbc",
+    "crypto",
+    "cryptography",
+    "csr",
+    "des",
+    "gcm",
+    "hmac",
+    "http",
+    "https",
+    "md5",
+    "network",
+    "pkcs",
+    "pki",
+    "prng",
+    "rc2",
+    "rsa",
+    "sha1",
+    "sha256",
+    "sha384",
+    "sha512",
+    "ssh",
+    "tls",
+    "x.509",
+    "x509"
+  ],
+  "scripts": {
+    "test": "node --test test/security.cjs"
+  },
+  "browser": {
+    "buffer": false,
+    "crypto": false,
+    "process": false
+  },
+  "private": true
+}

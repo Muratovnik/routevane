@@ -15,6 +15,7 @@ const LOADING = 'Loading the profile…'
  * module scope, so no case can be read as the setup for the next one.
  */
 type Scenario = {
+  boundDevice: boolean
   diagnosticsStatus: number
   failedRebuild: boolean
   fileStatus: number
@@ -25,6 +26,7 @@ type Scenario = {
 }
 
 const defaultScenario = (): Scenario => ({
+  boundDevice: false,
   diagnosticsStatus: 200,
   failedRebuild: false,
   fileStatus: 200,
@@ -55,6 +57,8 @@ const routePayload = (scenario: Scenario) => ({
       id: 'output-1',
       target_id: 'keenetic',
       target_title: 'Keenetic',
+      target_kind: 'router',
+      device_id: scenario.boundDevice ? 'device-1' : '',
       created_at: TIMESTAMP,
       latest: scenario.published
         ? {
@@ -103,12 +107,47 @@ const installFetch = (overrides: Partial<Scenario> = {}) => {
       case '/v1/lists':
         return json({ lists: [], list_details: [], categories: [] })
       case '/v1/targets':
-      case '/v1/deployments/targets':
         return json({ targets: [] })
+      case '/v1/deployments/targets':
+        return json({
+          targets: scenario.boundDevice
+            ? [
+                {
+                  target_id: 'keenetic',
+                  title: 'Keenetic',
+                  deployer_id: 'keenetic',
+                  requirements: {
+                    address_label: 'Device address',
+                    address_example: 'http://192.0.2.1',
+                    needs_credential: true,
+                    needs_interface: true,
+                    interface_label: 'Interface for routes',
+                  },
+                },
+              ]
+            : [],
+        })
       case '/v1/export-formats':
         return json({ formats: [] })
       case '/v1/devices':
-        return json({ devices: [], secret_store_available: false })
+        return json({
+          devices: scenario.boundDevice
+            ? [
+                {
+                  id: 'device-1',
+                  target_id: 'keenetic',
+                  target_title: 'Keenetic',
+                  name: 'Home router',
+                  address: 'http://192.0.2.1',
+                  account: 'admin',
+                  interface: 'Wireguard0',
+                  auto_deliver: false,
+                  deployable: true,
+                },
+              ]
+            : [],
+          secret_store_available: false,
+        })
       case '/v1/artifacts/artifact-1':
         return new Response('verified bytes', { status: scenario.fileStatus })
       case '/v1/snapshots/snapshot-1':
@@ -157,6 +196,32 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('profile screen read boundaries', () => {
+  it('carries the unavailable secret store through to Publishing without removing manual send', async () => {
+    installFetch({ boundDevice: true })
+    const screen = await renderRoute(true)
+
+    await screen.getByRole('tab', { name: 'Publishing' }).click()
+    const publishing = screen.getByRole('tabpanel', { name: 'Publishing' })
+    await expect
+      .element(publishing.getByLabelText('Connection for Keenetic'))
+      .toHaveTextContent('Home router · manual send only')
+    await expect
+      .element(
+        publishing.getByText(
+          'Automatic delivery is unavailable on this system. Use Send with a password for each delivery.',
+        ),
+      )
+      .toBeVisible()
+    await expect
+      .element(publishing.getByRole('link', { name: 'Send', exact: true }))
+      .toHaveAttribute('href', '/profiles/profile-1/send/output-1')
+    await expect
+      .element(
+        publishing.getByText('Turn on automatic delivery in Connections'),
+      )
+      .not.toBeInTheDocument()
+  })
+
   it('shows loading, then a failed read with retry, then the recovered profile', async () => {
     const held = Promise.withResolvers<undefined>()
     const { scenario } = installFetch({

@@ -1,0 +1,281 @@
+{
+  "name": "@routevane/node-forge",
+  "version": "1.4.0-routevane.1",
+  "upstream": {
+    "package": "node-forge",
+    "version": "1.4.0",
+    "repository": "https://github.com/digitalbazaar/forge",
+    "revision": "fa385f92440879601240020f158bed68e444e83a",
+    "tarball": "https://registry.npmjs.org/node-forge/-/node-forge-1.4.0.tgz",
+    "integrity": "sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==",
+    "sha1": "1c7b7d8bdc2d078739f58287d589d903a11b2fc2"
+  },
+  "patch": {
+    "source": "https://github.com/digitalbazaar/forge/pull/1152",
+    "revision": "ceba34402e329f0365134f23fe19898756527d65",
+    "author": "Cristhian Hernandez",
+    "scope": "lib/rsa.js nested DigestAlgorithm child-count validation only",
+    "sourcePatchSha256": "46d60200ce97cd8b8e06f3d0beec6a7dc8aed290056472815d0c357520b99454",
+    "runtimePatchSha256": "6ccdae367a2532797a57f57337d380112114d11faf53849e6922ee5530ffa6e0"
+  },
+  "license": {
+    "expression": "(BSD-3-Clause OR GPL-2.0)",
+    "file": "LICENSE",
+    "sha256": "f63ff0e4e239244aa79280da2dd4811a0469e5e201caf5cbc0d97c3a1dff8e82",
+    "additionalNotices": [
+      "Tom Wu notice embedded verbatim in lib/jsbn.js"
+    ]
+  },
+  "runtime": {
+    "lib/aes.js": {
+      "upstreamSha256": "be13b617cfff1d583f616c0ce97147cebd9bf101cf893f027cc18c3a54bd3a2f",
+      "sha256": "be13b617cfff1d583f616c0ce97147cebd9bf101cf893f027cc18c3a54bd3a2f"
+    },
+    "lib/aesCipherSuites.js": {
+      "upstreamSha256": "bdc5762c0d6edee74e469a59e0157555463d7abeadf34c4377121673dacc2360",
+      "sha256": "bdc5762c0d6edee74e469a59e0157555463d7abeadf34c4377121673dacc2360"
+    },
+    "lib/asn1-validator.js": {
+      "upstreamSha256": "6f206656ab557712c2a09f3b8bba69004dd41b2b37cee0cb836d44ea8034004b",
+      "sha256": "6f206656ab557712c2a09f3b8bba69004dd41b2b37cee0cb836d44ea8034004b"
+    },
+    "lib/asn1.js": {
+      "upstreamSha256": "271047be6eab614060ef361cce2c8a92abf066c40fb329f44cfac3269214b912",
+      "sha256": "271047be6eab614060ef361cce2c8a92abf066c40fb329f44cfac3269214b912"
+    },
+    "lib/baseN.js": {
+      "upstreamSha256": "08175e677127132340002bdb63dd19ba41c0baae546936032c7d6a6335e219b6",
+      "sha256": "08175e677127132340002bdb63dd19ba41c0baae546936032c7d6a6335e219b6"
+    },
+    "lib/cipher.js": {
+      "upstreamSha256": "67e3547ac39aaa8862d9519f55571dc0deef6e1d3d6a48ea6d6b653fb7a35a3f",
+      "sha256": "67e3547ac39aaa8862d9519f55571dc0deef6e1d3d6a48ea6d6b653fb7a35a3f"
+    },
+    "lib/cipherModes.js": {
+      "upstreamSha256": "79d74191887706cd5e14bbbcd1ff49472aa1f2baa9154e45f7578c17c3ffefbb",
+      "sha256": "79d74191887706cd5e14bbbcd1ff49472aa1f2baa9154e45f7578c17c3ffefbb"
+    },
+    "lib/des.js": {
+      "upstreamSha256": "cb0ae63c8477e61be95c3948bf52f1b7ed02d8522791d9ed1704b6b8b8517734",
+      "sha256": "cb0ae63c8477e61be95c3948bf52f1b7ed02d8522791d9ed1704b6b8b8517734"
+    },
+    "lib/ed25519.js": {
+      "upstreamSha256": "b0d15f1e11168a3a6de9914cdff9bf1be0c5c2fc313499e44dfeb164f5202849",
+      "sha256": "b0d15f1e11168a3a6de9914cdff9bf1be0c5c2fc313499e44dfeb164f5202849"
+    },
+    "lib/forge.js": {
+      "upstreamSha256": "4300955cc75f3cb5b71287b0fa37ec07d3a6bb721a9f6f8b7db19328801046bf",
+      "sha256": "4300955cc75f3cb5b71287b0fa37ec07d3a6bb721a9f6f8b7db19328801046bf"
+    },
+    "lib/form.js": {
+      "upstreamSha256": "a2f6e0fbab87d5acb02e08c8f92ea8269445f9f35ee1706fb82246ba8f5aba12",
+      "sha256": "a2f6e0fbab87d5acb02e08c8f92ea8269445f9f35ee1706fb82246ba8f5aba12"
+    },
+    "lib/hmac.js": {
+      "upstreamSha256": "bab6d0f322458186f6d123cfdd208ab1298a64ab6925b478968a0dfb446a8fa9",
+      "sha256": "bab6d0f322458186f6d123cfdd208ab1298a64ab6925b478968a0dfb446a8fa9"
+    },
+    "lib/http.js": {
+      "upstreamSha256": "3ad8ec7eb451c173b5980265f30f7b3d84268a1cc9b3e0e86337bc55facbc658",
+      "sha256": "3ad8ec7eb451c173b5980265f30f7b3d84268a1cc9b3e0e86337bc55facbc658"
+    },
+    "lib/index.all.js": {
+      "upstreamSha256": "48fa7454923f3baa3dd5a5bf9475892aa5f272c4cc8b5a0ec4f3d6c2370ac631",
+      "sha256": "48fa7454923f3baa3dd5a5bf9475892aa5f272c4cc8b5a0ec4f3d6c2370ac631"
+    },
+    "lib/index.js": {
+      "upstreamSha256": "c231851a9d065df1fae045d6e6fb17cf5688b260f9ee0db4965fe1ef3c0607ab",
+      "sha256": "c231851a9d065df1fae045d6e6fb17cf5688b260f9ee0db4965fe1ef3c0607ab"
+    },
+    "lib/jsbn.js": {
+      "upstreamSha256": "9d2cd4ad90eadf84b0110d9e1fc02512fc89e7ad64d0fee2d578fa51af28e48d",
+      "sha256": "9d2cd4ad90eadf84b0110d9e1fc02512fc89e7ad64d0fee2d578fa51af28e48d"
+    },
+    "lib/kem.js": {
+      "upstreamSha256": "6552b048e05b92278f70b2810317e1505d521ee9e2ec5496047d927f5f7d1f70",
+      "sha256": "6552b048e05b92278f70b2810317e1505d521ee9e2ec5496047d927f5f7d1f70"
+    },
+    "lib/log.js": {
+      "upstreamSha256": "9453eeba574a617225c8f54cfd2c11f1bade2e6a39f73d6e1a9da142db1afaeb",
+      "sha256": "9453eeba574a617225c8f54cfd2c11f1bade2e6a39f73d6e1a9da142db1afaeb"
+    },
+    "lib/md.all.js": {
+      "upstreamSha256": "6a10918cc8f727cc8cec20fee5e13f55c11e30b3f03b8800108cabb299211d4d",
+      "sha256": "6a10918cc8f727cc8cec20fee5e13f55c11e30b3f03b8800108cabb299211d4d"
+    },
+    "lib/md.js": {
+      "upstreamSha256": "ebfc33ed52d3c8cf2d584310fe0f45b23d911f532deef8044844bf2271b04402",
+      "sha256": "ebfc33ed52d3c8cf2d584310fe0f45b23d911f532deef8044844bf2271b04402"
+    },
+    "lib/md5.js": {
+      "upstreamSha256": "ed58ce89d124a276a083280bd7003b09c294c4063e6925d83fe422664a51f810",
+      "sha256": "ed58ce89d124a276a083280bd7003b09c294c4063e6925d83fe422664a51f810"
+    },
+    "lib/mgf.js": {
+      "upstreamSha256": "2d6d851d6791d0cc1697342edf275993e745fd8c33ef13ad7201026d8a0eea54",
+      "sha256": "2d6d851d6791d0cc1697342edf275993e745fd8c33ef13ad7201026d8a0eea54"
+    },
+    "lib/mgf1.js": {
+      "upstreamSha256": "9a4acd26ee423034995a811c357e69a6c2368480664b62862982f5c404cfcc0e",
+      "sha256": "9a4acd26ee423034995a811c357e69a6c2368480664b62862982f5c404cfcc0e"
+    },
+    "lib/oids.js": {
+      "upstreamSha256": "13e31fe08ccb431fefe44f9d2285891b846e65b17b24329bf14eed04de584015",
+      "sha256": "13e31fe08ccb431fefe44f9d2285891b846e65b17b24329bf14eed04de584015"
+    },
+    "lib/pbe.js": {
+      "upstreamSha256": "2b5c931e1549f5b98478a5b7b014fd3b62260a20db0704f72612dbe64540e25c",
+      "sha256": "2b5c931e1549f5b98478a5b7b014fd3b62260a20db0704f72612dbe64540e25c"
+    },
+    "lib/pbkdf2.js": {
+      "upstreamSha256": "1cd2f133c60cf860f23d05313a39a5dc060389adcca8423c2143ee904db9f627",
+      "sha256": "1cd2f133c60cf860f23d05313a39a5dc060389adcca8423c2143ee904db9f627"
+    },
+    "lib/pem.js": {
+      "upstreamSha256": "c6509f3aae5ad5e9286da727ea4cbf3b748ad7deff407e76b226f7a6a3b6a120",
+      "sha256": "c6509f3aae5ad5e9286da727ea4cbf3b748ad7deff407e76b226f7a6a3b6a120"
+    },
+    "lib/pkcs1.js": {
+      "upstreamSha256": "c43cf348520a3f6adc4769a3c3410cde502a6bc7a768d5a71a575fa72d19acc7",
+      "sha256": "c43cf348520a3f6adc4769a3c3410cde502a6bc7a768d5a71a575fa72d19acc7"
+    },
+    "lib/pkcs12.js": {
+      "upstreamSha256": "d0f9693ff8b6e755031566139f0e23a762c9a7af6a1b08a27d522810019906d3",
+      "sha256": "d0f9693ff8b6e755031566139f0e23a762c9a7af6a1b08a27d522810019906d3"
+    },
+    "lib/pkcs7.js": {
+      "upstreamSha256": "f5cc5a89b093262cdcf8f7e01615dddcdb87907228a1c56b5fe73db8cc4160a2",
+      "sha256": "f5cc5a89b093262cdcf8f7e01615dddcdb87907228a1c56b5fe73db8cc4160a2"
+    },
+    "lib/pkcs7asn1.js": {
+      "upstreamSha256": "9a00faef7bff964e3c983eb4a435e8218bdd631b0f0217807b1b2bff895ab76a",
+      "sha256": "9a00faef7bff964e3c983eb4a435e8218bdd631b0f0217807b1b2bff895ab76a"
+    },
+    "lib/pki.js": {
+      "upstreamSha256": "43f1b98dbd39a0c8277b7c0d44325a851712ce5434146ca2a2587a2a7ae1bb1e",
+      "sha256": "43f1b98dbd39a0c8277b7c0d44325a851712ce5434146ca2a2587a2a7ae1bb1e"
+    },
+    "lib/prime.js": {
+      "upstreamSha256": "5c63550c13aa4351c210b0766a8ad4a1f23101e1968c6244be7aad8f008e4073",
+      "sha256": "5c63550c13aa4351c210b0766a8ad4a1f23101e1968c6244be7aad8f008e4073"
+    },
+    "lib/prime.worker.js": {
+      "upstreamSha256": "c2fc7777c7a07c7bc3909d400f9f65dabd6c484a11840e1ef71b2b67236ffd9d",
+      "sha256": "c2fc7777c7a07c7bc3909d400f9f65dabd6c484a11840e1ef71b2b67236ffd9d"
+    },
+    "lib/prng.js": {
+      "upstreamSha256": "fc70051ea878498be4d7473ba6b0982f3e2522962e3deee558b393ac4fb18cf9",
+      "sha256": "fc70051ea878498be4d7473ba6b0982f3e2522962e3deee558b393ac4fb18cf9"
+    },
+    "lib/pss.js": {
+      "upstreamSha256": "c9e83c50451bd90735030cf3fe3d2a68403f678853a6d300cfa3e59b813e7f9b",
+      "sha256": "c9e83c50451bd90735030cf3fe3d2a68403f678853a6d300cfa3e59b813e7f9b"
+    },
+    "lib/random.js": {
+      "upstreamSha256": "13daf47db350648ebb98cc0d694f246ae7be508aa03a0d7b9c9f2dbdf127add0",
+      "sha256": "13daf47db350648ebb98cc0d694f246ae7be508aa03a0d7b9c9f2dbdf127add0"
+    },
+    "lib/rc2.js": {
+      "upstreamSha256": "d2eb78b77441d9784f5edfced1ad2f49cb35c2a956687ce9d754cf40bbd1b3c3",
+      "sha256": "d2eb78b77441d9784f5edfced1ad2f49cb35c2a956687ce9d754cf40bbd1b3c3"
+    },
+    "lib/rsa.js": {
+      "upstreamSha256": "fd4740238145ec26470eb3f06a627c72039538ce1307dbdce40521f94dfd0a50",
+      "sha256": "acc22e5d36e27832c34e02dd3933aad7977d45b047eead5016520735efedc9c5"
+    },
+    "lib/sha1.js": {
+      "upstreamSha256": "0792cc13fa342fd9d8c213c4ffd0d697fc019144258e383dd0ac985bd717564c",
+      "sha256": "0792cc13fa342fd9d8c213c4ffd0d697fc019144258e383dd0ac985bd717564c"
+    },
+    "lib/sha256.js": {
+      "upstreamSha256": "54b2f4c0ee9d4a561b6d18b1713fddeb815ea1c9d50537f7cbb4fc4474ab732d",
+      "sha256": "54b2f4c0ee9d4a561b6d18b1713fddeb815ea1c9d50537f7cbb4fc4474ab732d"
+    },
+    "lib/sha512.js": {
+      "upstreamSha256": "d600f189d7bd22630b9301a5dea0fd49bb0ac3687f2c8feb7ecdcccd3d21c092",
+      "sha256": "d600f189d7bd22630b9301a5dea0fd49bb0ac3687f2c8feb7ecdcccd3d21c092"
+    },
+    "lib/socket.js": {
+      "upstreamSha256": "689715cdeeba3274d6763ab92716a8a3dc1d24a684ea88fee9e2aca72e2dade0",
+      "sha256": "689715cdeeba3274d6763ab92716a8a3dc1d24a684ea88fee9e2aca72e2dade0"
+    },
+    "lib/ssh.js": {
+      "upstreamSha256": "6f27454e3fc028c8a6b1c02ae98969aace558ee0c1b6784e8fb12d4419e46d24",
+      "sha256": "6f27454e3fc028c8a6b1c02ae98969aace558ee0c1b6784e8fb12d4419e46d24"
+    },
+    "lib/tls.js": {
+      "upstreamSha256": "ceee226d32c623bbae290d76b5950be0c06880310ec26dc289f66bd631de4916",
+      "sha256": "ceee226d32c623bbae290d76b5950be0c06880310ec26dc289f66bd631de4916"
+    },
+    "lib/tlssocket.js": {
+      "upstreamSha256": "99728e72301548ee5233c16bc0417f07892022d24fd178dfb9c0a40aff541a47",
+      "sha256": "99728e72301548ee5233c16bc0417f07892022d24fd178dfb9c0a40aff541a47"
+    },
+    "lib/util.js": {
+      "upstreamSha256": "a05620c922303dd687e9447754ebde42878f37e51c390a9a3aedb592434795bc",
+      "sha256": "a05620c922303dd687e9447754ebde42878f37e51c390a9a3aedb592434795bc"
+    },
+    "lib/x509.js": {
+      "upstreamSha256": "cce5b00838c8c08486964c1f62cb8ae3491365509b26a27cfe1917f73dee3be9",
+      "sha256": "cce5b00838c8c08486964c1f62cb8ae3491365509b26a27cfe1917f73dee3be9"
+    },
+    "lib/xhr.js": {
+      "upstreamSha256": "d9abf523180b6d03b2cc99909eef3488a6b4bc1f822d7fb9d1e945abf555cb42",
+      "sha256": "d9abf523180b6d03b2cc99909eef3488a6b4bc1f822d7fb9d1e945abf555cb42"
+    }
+  },
+  "patch_commit": "ceba34402e329f0365134f23fe19898756527d65",
+  "runtime_files": {
+    "lib/aes.js": "be13b617cfff1d583f616c0ce97147cebd9bf101cf893f027cc18c3a54bd3a2f",
+    "lib/aesCipherSuites.js": "bdc5762c0d6edee74e469a59e0157555463d7abeadf34c4377121673dacc2360",
+    "lib/asn1-validator.js": "6f206656ab557712c2a09f3b8bba69004dd41b2b37cee0cb836d44ea8034004b",
+    "lib/asn1.js": "271047be6eab614060ef361cce2c8a92abf066c40fb329f44cfac3269214b912",
+    "lib/baseN.js": "08175e677127132340002bdb63dd19ba41c0baae546936032c7d6a6335e219b6",
+    "lib/cipher.js": "67e3547ac39aaa8862d9519f55571dc0deef6e1d3d6a48ea6d6b653fb7a35a3f",
+    "lib/cipherModes.js": "79d74191887706cd5e14bbbcd1ff49472aa1f2baa9154e45f7578c17c3ffefbb",
+    "lib/des.js": "cb0ae63c8477e61be95c3948bf52f1b7ed02d8522791d9ed1704b6b8b8517734",
+    "lib/ed25519.js": "b0d15f1e11168a3a6de9914cdff9bf1be0c5c2fc313499e44dfeb164f5202849",
+    "lib/forge.js": "4300955cc75f3cb5b71287b0fa37ec07d3a6bb721a9f6f8b7db19328801046bf",
+    "lib/form.js": "a2f6e0fbab87d5acb02e08c8f92ea8269445f9f35ee1706fb82246ba8f5aba12",
+    "lib/hmac.js": "bab6d0f322458186f6d123cfdd208ab1298a64ab6925b478968a0dfb446a8fa9",
+    "lib/http.js": "3ad8ec7eb451c173b5980265f30f7b3d84268a1cc9b3e0e86337bc55facbc658",
+    "lib/index.all.js": "48fa7454923f3baa3dd5a5bf9475892aa5f272c4cc8b5a0ec4f3d6c2370ac631",
+    "lib/index.js": "c231851a9d065df1fae045d6e6fb17cf5688b260f9ee0db4965fe1ef3c0607ab",
+    "lib/jsbn.js": "9d2cd4ad90eadf84b0110d9e1fc02512fc89e7ad64d0fee2d578fa51af28e48d",
+    "lib/kem.js": "6552b048e05b92278f70b2810317e1505d521ee9e2ec5496047d927f5f7d1f70",
+    "lib/log.js": "9453eeba574a617225c8f54cfd2c11f1bade2e6a39f73d6e1a9da142db1afaeb",
+    "lib/md.all.js": "6a10918cc8f727cc8cec20fee5e13f55c11e30b3f03b8800108cabb299211d4d",
+    "lib/md.js": "ebfc33ed52d3c8cf2d584310fe0f45b23d911f532deef8044844bf2271b04402",
+    "lib/md5.js": "ed58ce89d124a276a083280bd7003b09c294c4063e6925d83fe422664a51f810",
+    "lib/mgf.js": "2d6d851d6791d0cc1697342edf275993e745fd8c33ef13ad7201026d8a0eea54",
+    "lib/mgf1.js": "9a4acd26ee423034995a811c357e69a6c2368480664b62862982f5c404cfcc0e",
+    "lib/oids.js": "13e31fe08ccb431fefe44f9d2285891b846e65b17b24329bf14eed04de584015",
+    "lib/pbe.js": "2b5c931e1549f5b98478a5b7b014fd3b62260a20db0704f72612dbe64540e25c",
+    "lib/pbkdf2.js": "1cd2f133c60cf860f23d05313a39a5dc060389adcca8423c2143ee904db9f627",
+    "lib/pem.js": "c6509f3aae5ad5e9286da727ea4cbf3b748ad7deff407e76b226f7a6a3b6a120",
+    "lib/pkcs1.js": "c43cf348520a3f6adc4769a3c3410cde502a6bc7a768d5a71a575fa72d19acc7",
+    "lib/pkcs12.js": "d0f9693ff8b6e755031566139f0e23a762c9a7af6a1b08a27d522810019906d3",
+    "lib/pkcs7.js": "f5cc5a89b093262cdcf8f7e01615dddcdb87907228a1c56b5fe73db8cc4160a2",
+    "lib/pkcs7asn1.js": "9a00faef7bff964e3c983eb4a435e8218bdd631b0f0217807b1b2bff895ab76a",
+    "lib/pki.js": "43f1b98dbd39a0c8277b7c0d44325a851712ce5434146ca2a2587a2a7ae1bb1e",
+    "lib/prime.js": "5c63550c13aa4351c210b0766a8ad4a1f23101e1968c6244be7aad8f008e4073",
+    "lib/prime.worker.js": "c2fc7777c7a07c7bc3909d400f9f65dabd6c484a11840e1ef71b2b67236ffd9d",
+    "lib/prng.js": "fc70051ea878498be4d7473ba6b0982f3e2522962e3deee558b393ac4fb18cf9",
+    "lib/pss.js": "c9e83c50451bd90735030cf3fe3d2a68403f678853a6d300cfa3e59b813e7f9b",
+    "lib/random.js": "13daf47db350648ebb98cc0d694f246ae7be508aa03a0d7b9c9f2dbdf127add0",
+    "lib/rc2.js": "d2eb78b77441d9784f5edfced1ad2f49cb35c2a956687ce9d754cf40bbd1b3c3",
+    "lib/rsa.js": "acc22e5d36e27832c34e02dd3933aad7977d45b047eead5016520735efedc9c5",
+    "lib/sha1.js": "0792cc13fa342fd9d8c213c4ffd0d697fc019144258e383dd0ac985bd717564c",
+    "lib/sha256.js": "54b2f4c0ee9d4a561b6d18b1713fddeb815ea1c9d50537f7cbb4fc4474ab732d",
+    "lib/sha512.js": "d600f189d7bd22630b9301a5dea0fd49bb0ac3687f2c8feb7ecdcccd3d21c092",
+    "lib/socket.js": "689715cdeeba3274d6763ab92716a8a3dc1d24a684ea88fee9e2aca72e2dade0",
+    "lib/ssh.js": "6f27454e3fc028c8a6b1c02ae98969aace558ee0c1b6784e8fb12d4419e46d24",
+    "lib/tls.js": "ceee226d32c623bbae290d76b5950be0c06880310ec26dc289f66bd631de4916",
+    "lib/tlssocket.js": "99728e72301548ee5233c16bc0417f07892022d24fd178dfb9c0a40aff541a47",
+    "lib/util.js": "a05620c922303dd687e9447754ebde42878f37e51c390a9a3aedb592434795bc",
+    "lib/x509.js": "cce5b00838c8c08486964c1f62cb8ae3491365509b26a27cfe1917f73dee3be9",
+    "lib/xhr.js": "d9abf523180b6d03b2cc99909eef3488a6b4bc1f822d7fb9d1e945abf555cb42",
+    "package.json": "b3acec74ffd735f5f2cb9f563f72a13d7a742b11d0fef8d37beb3d212d0e01ec",
+    "LICENSE": "f63ff0e4e239244aa79280da2dd4811a0469e5e201caf5cbc0d97c3a1dff8e82"
+  }
+}

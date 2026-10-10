@@ -3,6 +3,7 @@ import RvTable from '@/shared/ui/RvTable.vue'
 import { targetIcon } from '@/shared/lib/targetIcon'
 import { computed, ref } from 'vue'
 import OutputPrefixEditor from '@/features/view-profile/ui/OutputPrefixEditor.vue'
+import type { AutomaticDeliveryCapability } from '@/features/view-profile/model/useProfileView'
 
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { TargetOption } from '@/shared/api/catalog'
@@ -22,6 +23,7 @@ const props = defineProps<{
   // what it no longer accepts is a new one. The form is withdrawn rather than
   // disabled, because a disabled control still promises the action exists here.
   archived: boolean
+  automaticDelivery: (device: DeviceCard) => AutomaticDeliveryCapability
   busy: boolean
   deployable: (output: OutputCard) => boolean
   devices: DeviceCard[]
@@ -58,6 +60,14 @@ const add = (): void => {
 const outputTitle = (output: OutputCard): string =>
   props.targetTitle(output.targetID, output.targetTitle)
 
+const deviceDeliveryState = (
+  device: DeviceCard,
+): 'ready' | 'disabled' | 'unavailable' | 'unknown' => {
+  const capability = props.automaticDelivery(device)
+  if (capability !== 'available') return capability
+  return device.autoDeliver ? 'ready' : 'disabled'
+}
+
 const deviceChoices = (output: OutputCard): ChoiceOption[] =>
   props.devices
     .filter(
@@ -65,11 +75,14 @@ const deviceChoices = (output: OutputCard): ChoiceOption[] =>
         device.targetID === output.targetID &&
         (device.deployable || device.id === output.deviceID),
     )
-    .map((device) => ({
-      disabled: !device.deployable,
-      label: `${device.name} · ${t(device.autoDeliver ? 'outputs.device.ready' : 'outputs.device.disabled')}`,
-      value: device.id,
-    }))
+    .map((device) => {
+      const state = t(`outputs.device.${deviceDeliveryState(device)}`)
+      return {
+        disabled: !device.deployable,
+        label: `${device.name} · ${state}`,
+        value: device.id,
+      }
+    })
 
 const FOLLOW_SETTINGS = 'default'
 const scheduleOptions = computed<ChoiceOption[]>(() => [
@@ -94,12 +107,17 @@ const scheduleValue = computed<string>({
 
 const readiness = (
   output: OutputCard,
-): 'choose' | 'auto' | 'refresh' | 'ready' => {
+): 'choose' | 'auto' | 'refresh' | 'ready' | 'unavailable' | 'unknown' => {
   if (output.deviceID === '') return 'choose'
   const device = props.devices.find(
-    (candidate) => candidate.id === output.deviceID,
+    (candidate) =>
+      candidate.id === output.deviceID &&
+      candidate.targetID === output.targetID,
   )
-  if (device?.autoDeliver !== true) return 'auto'
+  if (device === undefined) return 'choose'
+  const delivery = deviceDeliveryState(device)
+  if (delivery === 'unavailable' || delivery === 'unknown') return delivery
+  if (delivery === 'disabled') return 'auto'
   if ((props.schedule?.effective ?? 'off') === 'off') return 'refresh'
   return 'ready'
 }

@@ -266,7 +266,7 @@ const UFormFieldDouble = defineComponent({
     return () => {
       const error =
         typeof props.error === 'string' && props.error !== ''
-          ? h('div', { id: `${ariaId}-error` }, props.error)
+          ? h('div', { id: `${ariaId}-error` }, slots.error?.() ?? props.error)
           : undefined
       return h(
         'div',

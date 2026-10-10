@@ -22,6 +22,8 @@ it.each([
     setLocale(language)
     let previews = 0
     const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      if (String(input) === '/v1/devices')
+        return json({ devices: [], secret_store_available: false })
       if (String(input) === '/v1/deployments/targets')
         return json({
           targets: [
@@ -159,6 +161,8 @@ it.each(['dropped', 'mismatched'] as const)(
       },
     })
     const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
+      if (String(input) === '/v1/devices')
+        return json({ devices: [], secret_store_available: false })
       if (String(input) === '/v1/deployments/targets')
         return json({
           targets: [

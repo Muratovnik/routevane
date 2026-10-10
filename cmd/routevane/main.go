@@ -143,6 +143,15 @@ func runWithDeps(stdout, stderr io.Writer, args []string, deps runtimeDeps) int 
 		writeUsage(stderr)
 		return 2
 	}
+	// Keep the process alive while a cancelled one-shot operation releases its
+	// browser, files, or device rollback. The long-lived commands own their
+	// signal context for the whole server/scheduler lifetime separately.
+	switch args[0] {
+	case "refresh", "build", "discover", "learn", "deploy":
+		ctx, stop := deps.SignalContext(deps.Context)
+		defer stop()
+		deps.Context = ctx
+	}
 	switch args[0] {
 	case "desktop":
 		return runDesktop(stdout, logger, args[1:], deps)

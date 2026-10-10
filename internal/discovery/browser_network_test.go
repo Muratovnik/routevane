@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -149,30 +150,101 @@ func TestDiscoveryBrowserCleansUpAfterActiveCancellationAndDeadline(t *testing.T
 			t.Run(mode+"/"+stop, func(t *testing.T) {
 				browserPath(t)
 				started := make(chan struct{}, 1)
+				stopServer := make(chan struct{})
 				certificate, pin := selfSignedCertificate(t)
 				server := httptest.NewUnstartedServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 					select {
 					case started <- struct{}{}:
 					default:
 					}
-					<-r.Context().Done()
+					select {
+					case <-r.Context().Done():
+					case <-stopServer:
+					}
 				}))
 				server.TLS = &tls.Config{Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12}
 				server.StartTLS()
-				t.Cleanup(server.Close)
+				t.Cleanup(func() {
+					close(stopServer)
+					server.CloseClientConnections()
+					server.Close()
+				})
 				fixture := &pageFixture{server: server, pin: pin, hosts: map[string][]netip.Addr{"page.test": {netip.MustParseAddr("203.0.113.10")}}}
 				options := fixture.options(t)
+				// t.TempDir must not remove a live worker's profile after t.Fatal.
+				// This parent belongs to this case and is removed only after join.
+				profilesParent, err := filepath.Abs(filepath.Join("..", "..", "tmp"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Mkdir(profilesParent, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+					t.Fatal(err)
+				}
+				if info, err := os.Lstat(profilesParent); err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+					t.Fatalf("browser fixture parent must be a real directory: %s (%v)", profilesParent, err)
+				}
+				profiles, err := os.MkdirTemp(profilesParent, "discovery-cancellation-")
+				if err != nil {
+					t.Fatal(err)
+				}
+				options.UserDataParent = profiles
 				ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 				defer cancel()
-				done := make(chan error, 1)
+				type browserOutcome struct {
+					err          error
+					cleanupError string
+				}
+				done := make(chan browserOutcome, 1)
+				var outcome browserOutcome
+				joined := false
+				join := func() bool {
+					if joined {
+						return true
+					}
+					timer := time.NewTimer(10 * time.Second)
+					defer timer.Stop()
+					select {
+					case outcome = <-done:
+						joined = true
+						return true
+					case <-timer.C:
+						return false
+					}
+				}
+				t.Cleanup(func() {
+					cancel()
+					if !join() {
+						t.Errorf("browser worker did not confirm exit within cleanup deadline; profiles preserved at %s", profiles)
+						return
+					}
+					t.Logf("browser worker joined: error=%v cleanup_error=%q", outcome.err, outcome.cleanupError)
+					if outcome.cleanupError != "" {
+						t.Errorf("browser cleanup failed; profiles preserved at %s: %s", profiles, outcome.cleanupError)
+						return
+					}
+					if err := os.RemoveAll(profiles); err != nil {
+						t.Errorf("remove joined browser fixture %s: %v", profiles, err)
+						return
+					}
+					// Verify absence before reporting successful fixture cleanup.
+					if _, err := os.Lstat(profiles); !errors.Is(err, os.ErrNotExist) {
+						reason := "path still exists"
+						if err != nil {
+							reason = err.Error()
+						}
+						t.Errorf("browser fixture absence unconfirmed after removal; retained for inspection at %s: %s", profiles, reason)
+						return
+					}
+					t.Logf("removed joined browser fixture %s", profiles)
+				})
 				go func() {
 					if mode == "page" {
 						target, _ := NormalizeTarget("https://page.test/")
-						_, err := LoadPage(ctx, target, options)
-						done <- err
+						page, err := LoadPage(ctx, target, options)
+						done <- browserOutcome{err: err, cleanupError: page.CleanupError}
 					} else {
-						_, err := RunScenario(ctx, Scenario{Target: "https://page.test/", Steps: []Step{{ID: "open", Component: domain.ComponentCore, URL: "https://page.test/", SettleSeconds: 1}}}, options)
-						done <- err
+						evidence, err := RunScenario(ctx, Scenario{Target: "https://page.test/", Steps: []Step{{ID: "open", Component: domain.ComponentCore, URL: "https://page.test/", SettleSeconds: 1}}}, options)
+						done <- browserOutcome{err: err, cleanupError: evidence.CleanupError}
 					}
 				}()
 				select {
@@ -183,13 +255,11 @@ func TestDiscoveryBrowserCleansUpAfterActiveCancellationAndDeadline(t *testing.T
 				if stop == "cancel" {
 					cancel()
 				}
-				select {
-				case err := <-done:
-					if err == nil {
-						t.Fatal("interrupted navigation must fail")
-					}
-				case <-time.After(10 * time.Second):
+				if !join() {
 					t.Fatal("interrupted browser did not stop")
+				}
+				if outcome.err == nil {
+					t.Fatal("interrupted navigation must fail")
 				}
 				entries, err := os.ReadDir(options.UserDataParent)
 				if err != nil || len(entries) != 0 {

@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
@@ -18,6 +17,7 @@ import {
   reserveLoopbackPort,
   resolvesWithin,
   spawnProduct,
+  stopOwnedProduct,
   type SpawnedProduct,
 } from '../e2e/support/product'
 
@@ -30,14 +30,43 @@ const processIsRunning = (pid: number): boolean => {
   try {
     process.kill(pid, 0)
     return true
-  } catch {
-    return false
+  } catch (error) {
+    // Permission errors and unknown replies cannot prove that a PID is gone.
+    return (error as NodeJS.ErrnoException).code !== 'ESRCH'
   }
 }
 
 /** The servers a supervisor announced by process id as it started them. */
-const reportedPids = (output: string): number[] =>
-  [...output.matchAll(/PID (\d+)/g)].map((match) => Number(match[1]))
+const reportedPids = (output: string): number[] => [
+  ...new Set(
+    [
+      ...output.matchAll(
+        /^\[dev\] Backend ready: http:\/\/127\.0\.0\.1:\d+ \(PID (\d+), build \d+\)\r?$/gm,
+      ),
+      ...output.matchAll(
+        /^\[dev\] Starting Nuxt HMR \(PID (\d+)\)\.\.\.\r?$/gm,
+      ),
+    ].map((match) => Number(match[1])),
+  ),
+]
+
+/** Every exit wait releases its listeners, including after a failed signal. */
+const waitForOwnerExit = async (
+  owner: SpawnedProduct,
+  requestExit: () => void,
+  timeoutMilliseconds = EXIT_TIMEOUT_MILLISECONDS,
+): Promise<boolean> => {
+  owner.assertAlive()
+  const waiting = new AbortController()
+  const exited = once(owner.process, 'exit', { signal: waiting.signal })
+  void exited.catch(() => {})
+  try {
+    requestExit()
+    return await resolvesWithin(exited, timeoutMilliseconds)
+  } finally {
+    waiting.abort()
+  }
+}
 
 /**
  * Stands between the development client and its server, so a test can take that
@@ -75,12 +104,11 @@ interface DevSession {
  * What a dev test owns: the supervisor it starts, and the probe files it plants
  * in the working tree for the watcher to pick up.
  *
- * Teardown stops whatever is still running, reclaims the servers the supervisor
- * printed, keeps its output beside the test's other artifacts and removes the
- * probes. It runs whether the test passed or failed, which is what keeps the
- * session's own claims — that closing stdin stops it, that it exits cleanly and
- * that its ports come back — in the test body instead of in a `finally` block
- * that would report a cleanup failure in place of the real one.
+ * Teardown awaits each owned supervisor and keeps its diagnostics even when a
+ * different owner fails to stop. Announced PIDs are absence checks, never
+ * authority to signal an arbitrary process. Probes remain if an owner or child
+ * might still be using them. The session's normal stdin/exit/port claims stay
+ * in the test body, and cleanup errors retain any original fixture failure.
  */
 const test = base.extend<{ session: DevSession }>({
   // Playwright reads a fixture's own dependencies off this parameter, and this
@@ -88,37 +116,91 @@ const test = base.extend<{ session: DevSession }>({
   session: async ({}, use, testInfo) => {
     const started: SpawnedProduct[] = []
     const planted = ownedFiles()
-    await use({
-      plant: planted.create,
-      start: (args) => {
-        const owner = spawnProduct('python', args, {
-          cwd: ROOT,
-          stdio: 'pipe',
-          windowsHide: true,
-        })
-        started.push(owner)
-        return owner
-      },
-    })
+    const errors: unknown[] = []
     try {
-      for (const owner of started) {
-        if (owner.isAlive()) {
-          const exited = once(owner.process, 'exit')
-          owner.process.stdin?.end()
-          if (!(await resolvesWithin(exited, EXIT_TIMEOUT_MILLISECONDS)))
-            owner.process.kill()
-        }
-        for (const pid of reportedPids(owner.output()).filter(processIsRunning))
-          spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], {
-            stdio: 'ignore',
+      await use({
+        plant: planted.create,
+        start: (args) => {
+          const owner = spawnProduct('python', args, {
+            cwd: ROOT,
+            stdio: 'pipe',
             windowsHide: true,
           })
-        await mkdir(testInfo.outputDir, { recursive: true })
-        await writeFile(testInfo.outputPath('dev-session.log'), owner.output())
-      }
-    } finally {
-      await planted.cleanup()
+          started.push(owner)
+          return owner
+        },
+      })
+    } catch (error) {
+      errors.push(error)
     }
+    let preserveProbes = false
+    for (const [index, owner] of started.entries()) {
+      if (owner.isAlive()) {
+        try {
+          await waitForOwnerExit(owner, () => {
+            owner.process.stdin?.end()
+          })
+        } catch (error) {
+          errors.push(error)
+        }
+      }
+      if (owner.isAlive()) {
+        try {
+          await stopOwnedProduct(owner.process)
+        } catch (error) {
+          errors.push(error)
+        }
+      }
+      try {
+        const remainingPids = reportedPids(owner.output()).filter(
+          processIsRunning,
+        )
+        // An abnormal Unix exit cannot confirm Session.close stopped an
+        // unannounced Go build or descendant groups. Windows owns them in a Job.
+        const unconfirmedUnixChildren =
+          process.platform !== 'win32' &&
+          owner.process.pid !== undefined &&
+          (owner.process.exitCode !== 0 || owner.process.signalCode !== null)
+        if (
+          owner.isAlive() ||
+          remainingPids.length > 0 ||
+          unconfirmedUnixChildren
+        ) {
+          preserveProbes = true
+          errors.push(
+            new Error(
+              `dev session exit is unconfirmed; probes preserved (supervisor alive: ${owner.isAlive()}, remaining or inaccessible PIDs: ${remainingPids.join(', ') || 'none'}, supervisor exit: ${owner.process.exitCode ?? 'none'}, supervisor signal: ${owner.process.signalCode ?? 'none'})`,
+            ),
+          )
+        }
+      } catch (error) {
+        preserveProbes = true
+        errors.push(error)
+      }
+      try {
+        await mkdir(testInfo.outputDir, { recursive: true })
+        const name =
+          index === 0 ? 'dev-session.log' : `dev-session-${index}.log`
+        await writeFile(testInfo.outputPath(name), owner.output())
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (preserveProbes) {
+      errors.push(
+        new Error(
+          `dev probe cleanup withheld; retained owned paths: ${JSON.stringify(planted.paths())}`,
+        ),
+      )
+    } else {
+      try {
+        await planted.cleanup()
+      } catch (error) {
+        errors.push(error)
+      }
+    }
+    if (errors.length > 0)
+      throw new AggregateError(errors, 'development session or cleanup failed')
   },
 })
 
@@ -295,10 +377,10 @@ const draft = ref('')
   // Owned cleanup is this session's last claim, and it is asserted here rather
   // than in teardown: closing stdin stops the supervisor, it reports a clean
   // exit, and both ports it held are bindable again.
-  const exited = once(owner.process, 'exit')
-  owner.process.stdin?.end()
   expect(
-    await resolvesWithin(exited, EXIT_TIMEOUT_MILLISECONDS),
+    await waitForOwnerExit(owner, () => {
+      owner.process.stdin?.end()
+    }),
     owner.output(),
   ).toBe(true)
   expect(owner.process.exitCode, owner.output()).toBe(0)
@@ -340,11 +422,18 @@ test('abrupt Windows supervisor termination releases its servers', async ({
   expect(childPids).toHaveLength(2)
   expect(childPids.every(processIsRunning)).toBe(true)
 
-  const exited = once(owner.process, 'exit')
   // On Windows ChildProcess.kill calls TerminateProcess for this PID; it does
   // not ask the supervisor to perform its normal stdin/CTRL_BREAK cleanup.
-  expect(owner.process.kill()).toBe(true)
-  expect(await resolvesWithin(exited, 10_000), owner.output()).toBe(true)
+  expect(
+    await waitForOwnerExit(
+      owner,
+      () => {
+        expect(owner.process.kill()).toBe(true)
+      },
+      10_000,
+    ),
+    owner.output(),
+  ).toBe(true)
   await expect
     .poll(() => childPids.every((pid) => !processIsRunning(pid)))
     .toBe(true)

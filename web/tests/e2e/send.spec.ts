@@ -2,6 +2,7 @@ import {
   access,
   copyFile,
   mkdir,
+  mkdtemp,
   readFile,
   rm,
   writeFile,
@@ -10,33 +11,34 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { analyze, axeFor } from './support/axe'
-import { expect, type Locator, type Page } from '@playwright/test'
+import {
+  expect,
+  type APIRequestContext,
+  type Locator,
+  type Page,
+} from '@playwright/test'
 
 import { dictionaries } from '../../src/shared/i18n/messages'
 
 import { test } from './support/content-policy'
 import {
-  assertPortBindable,
+  createOwnedProductData,
+  delay,
   reserveLoopbackPort,
   spawnProduct,
-  stopOwnedProduct,
+  stopOwnedProductData,
   type SpawnedProduct,
 } from './support/product'
 import { listMembership, menuPanel } from './support/queries'
 
 const testDirectory = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(testDirectory, '..', '..', '..')
-const dataRoot = join(repositoryRoot, '.cache', 'deploy-browser-data')
-const singBoxRoot = join(repositoryRoot, '.cache', 'deploy-browser-singbox')
-const catalogRoot = join(repositoryRoot, '.cache', 'deploy-browser-catalog')
 const sourceCatalog = join(
   repositoryRoot,
   'testdata',
   'expiry',
   'browser-catalog',
 )
-const configPath = join(singBoxRoot, 'config.json')
-const ruleSetPath = join(singBoxRoot, 'routevane.json')
 const binary = join(
   repositoryRoot,
   '.cache',
@@ -46,6 +48,10 @@ const binary = join(
 
 let origin = ''
 let port = 0
+let runRoot: string | undefined
+let singBoxRoot = ''
+let configPath = ''
+let ruleSetPath = ''
 let managedProduct: SpawnedProduct | undefined
 
 // The surface picks its language from the browser. English is the product's
@@ -56,6 +62,84 @@ test.use({ locale: 'en-US' })
 // viewport every page here starts at. A sweep states the width it leaves the
 // window at rather than restoring whichever one it happened to find.
 const DESKTOP_VIEWPORT = { height: 720, width: 1280 }
+
+type SavedDestinations = {
+  chosenConfig: string
+  chosenRules: string
+  boundConfig: string
+  boundRules: string
+  devices: string[]
+}
+
+const savedTest = test.extend<{ savedDestinations: SavedDestinations }>({
+  savedDestinations: async ({ request }, use) => {
+    const root = await mkdtemp(join(singBoxRoot, 'saved-'))
+    const chosenConfig = join(root, 'chosen-config.json')
+    const chosenRules = join(root, 'chosen-rules.json')
+    const boundConfig = join(root, 'bound-config.json')
+    const boundRules = join(root, 'bound-rules.json')
+    const devices: string[] = []
+    try {
+      for (const [config, rules] of [
+        [chosenConfig, chosenRules],
+        [boundConfig, boundRules],
+      ] as const) {
+        await writeFile(
+          config,
+          JSON.stringify({
+            route: {
+              rule_set: [
+                {
+                  tag: 'routevane',
+                  type: 'local',
+                  format: 'source',
+                  path: rules,
+                },
+              ],
+            },
+          }),
+          'utf8',
+        )
+      }
+      await use({ chosenConfig, chosenRules, boundConfig, boundRules, devices })
+    } finally {
+      for (const id of devices) {
+        const removed = await request.post(
+          `${origin}/v1/devices/${id}/forget`,
+          { data: {}, headers: { 'X-Routevane-Request': '1' } },
+        )
+        expect(removed.ok()).toBe(true)
+      }
+      // Targets remain in this run's directory until the product has stopped,
+      // including when forgetting a saved destination fails.
+    }
+  },
+})
+
+const registerSavedDestination = async (
+  request: APIRequestContext,
+  owned: SavedDestinations,
+  targetID: string,
+  name: string,
+  address: string,
+  account = '',
+  interfaceName = '',
+): Promise<string> => {
+  const response = await request.post(`${origin}/v1/devices`, {
+    data: {
+      target_id: targetID,
+      name,
+      address,
+      account,
+      interface: interfaceName,
+    },
+    headers: { 'X-Routevane-Request': '1' },
+  })
+  expect(response.ok()).toBe(true)
+  const payload = (await response.json()) as { device: { id: string } }
+  owned.devices.push(payload.device.id)
+  return payload.device.id
+}
 
 // A file URL always uses forward slashes, including on Windows.
 const fileURL = (path: string): string => {
@@ -143,9 +227,15 @@ const sendAddress = (page: Page, language: 'en' | 'ru'): Locator =>
 
 test.beforeAll(async () => {
   await access(binary)
-  await rm(dataRoot, { force: true, recursive: true })
-  await rm(singBoxRoot, { force: true, recursive: true })
-  await rm(catalogRoot, { force: true, recursive: true })
+  runRoot = await createOwnedProductData(
+    join(repositoryRoot, 'tmp', 'browser-fixtures'),
+    'send',
+  )
+  const dataRoot = join(runRoot, 'data')
+  const catalogRoot = join(runRoot, 'catalog')
+  singBoxRoot = join(runRoot, 'singbox')
+  configPath = join(singBoxRoot, 'config.json')
+  ruleSetPath = join(singBoxRoot, 'routevane.json')
   await mkdir(singBoxRoot, { recursive: true })
   // The operator's own configuration decides where the rule set goes. This is a
   // real sing-box configuration shape, not a Routevane-specific file.
@@ -160,7 +250,7 @@ test.beforeAll(async () => {
               tag: 'routevane',
               type: 'local',
               format: 'source',
-              path: 'routevane.json',
+              path: ruleSetPath,
             },
           ],
         },
@@ -213,39 +303,247 @@ test.beforeAll(async () => {
     { cwd: repositoryRoot, stdio: 'pipe', windowsHide: true },
   )
   const deadline = Date.now() + 20_000
-  for (;;) {
+  while (Date.now() < deadline) {
     managedProduct.assertAlive()
     try {
-      const response = await fetch(`${origin}/health`)
-      if (response.ok) break
+      const response = await fetch(`${origin}/health`, {
+        signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+      })
+      try {
+        if (response.ok) return
+      } finally {
+        await response.body?.cancel().catch(() => {})
+      }
     } catch {
       // The listener is not up yet.
     }
-    if (Date.now() > deadline) {
-      throw new Error(`product did not start: ${managedProduct.output()}`)
-    }
-    await new Promise((done) => setTimeout(done, 100))
+    const remaining = deadline - Date.now()
+    if (remaining > 0) await delay(Math.min(100, remaining))
   }
+  throw new Error(`product did not start: ${managedProduct.output()}`)
 })
 
 test.afterAll(async () => {
-  let cleanupError: unknown
-  try {
-    if (managedProduct !== undefined)
-      await stopOwnedProduct(managedProduct.process)
-    if (port !== 0) await assertPortBindable(port)
-  } catch (error) {
-    cleanupError = error
+  if (runRoot === undefined) return
+  if (managedProduct === undefined) {
+    await rm(runRoot, { force: true, recursive: true })
+    return
   }
-  try {
-    await rm(dataRoot, { force: true, recursive: true })
-    await rm(singBoxRoot, { force: true, recursive: true })
-    await rm(catalogRoot, { force: true, recursive: true })
-  } catch (error) {
-    cleanupError ??= error
-  }
+  const cleanupError = await stopOwnedProductData(managedProduct, port, runRoot)
   if (cleanupError !== undefined) throw cleanupError
 })
+
+savedTest(
+  'sends to the selected saved access and recovers a lost answer without rebinding or repeating the write',
+  async ({ page, request, savedDestinations }) => {
+    savedTest.setTimeout(120000)
+    const { profileId, outputId } = await publishProfile(page, 'singbox')
+    const chosenID = await registerSavedDestination(
+      request,
+      savedDestinations,
+      'singbox',
+      'Chosen local rules',
+      fileURL(savedDestinations.chosenConfig),
+    )
+    const boundID = await registerSavedDestination(
+      request,
+      savedDestinations,
+      'singbox',
+      'Bound local rules',
+      fileURL(savedDestinations.boundConfig),
+    )
+    await registerSavedDestination(
+      request,
+      savedDestinations,
+      'keenetic',
+      'Other format router',
+      'http://192.168.1.1',
+      'admin',
+      'Wireguard0',
+    )
+    const binding = await request.post(
+      `${origin}/v1/outputs/${outputId}/device`,
+      {
+        data: { device_id: boundID },
+        headers: { 'X-Routevane-Request': '1' },
+      },
+    )
+    expect(binding.ok()).toBe(true)
+    const outputResponse = await request.get(`${origin}/v1/outputs/${outputId}`)
+    const output = (await outputResponse.json()) as {
+      latest_artifact_id: string
+    }
+    const artifact = await request.get(
+      `${origin}/v1/artifacts/${output.latest_artifact_id}`,
+    )
+    const artifactBytes = await artifact.text()
+    const endpoint = `${origin}/v1/artifacts/${output.latest_artifact_id}/deploy`
+    await page.goto(`${origin}/profiles/${profileId}/send/${outputId}`)
+    const sendPanel = page.getByRole('region', {
+      name: message('en', 'send.title'),
+      exact: true,
+    })
+    const connection = page.getByRole('combobox', {
+      name: message('en', 'send.connection.label'),
+    })
+    await expect(connection).toHaveText('Bound local rules')
+    await expect(
+      sendPanel.getByText(fileURL(savedDestinations.boundConfig), {
+        exact: true,
+      }),
+    ).toBeVisible()
+    await expect(
+      page.getByLabel(message('en', 'send.field.password')),
+    ).toHaveCount(0)
+    const review = page.getByRole('button', {
+      name: message('en', 'send.review'),
+      exact: true,
+    })
+    await review.click()
+    await expect(
+      page.getByRole('button', {
+        name: message('en', 'send.apply'),
+        exact: true,
+      }),
+    ).toBeVisible()
+    await expect(
+      readFile(savedDestinations.boundRules, 'utf8').then(
+        () => 'written',
+        () => 'absent',
+      ),
+    ).resolves.toBe('absent')
+    await connection.click()
+    await expect(
+      page.getByRole('option', { name: /Other format router/ }),
+    ).toHaveCount(0)
+    await page.getByRole('option', { name: /^Chosen local rules/ }).click()
+    await expect(
+      page.getByRole('button', {
+        name: message('en', 'send.apply'),
+        exact: true,
+      }),
+    ).toHaveCount(0)
+    await expect(
+      sendPanel.getByText(fileURL(savedDestinations.chosenConfig), {
+        exact: true,
+      }),
+    ).toBeVisible()
+    const previewResponse = page.waitForResponse(
+      (response) =>
+        response.url() === endpoint && response.request().method() === 'POST',
+    )
+    await review.click()
+    const preview = await previewResponse
+    expect(preview.ok()).toBe(true)
+    expect(preview.request().postDataJSON()).toEqual({
+      device_id: chosenID,
+      expected_connection: {
+        device: fileURL(savedDestinations.chosenConfig),
+        username: '',
+        interface: '',
+      },
+      password: '',
+      confirm: false,
+    })
+    const applies: Record<string, unknown>[] = []
+    // The real server completes the write, but the browser loses that response.
+    // Recovery must use the durable attempt lookup and cannot send another apply.
+    await page.route(endpoint, async (route) => {
+      applies.push(route.request().postDataJSON() as Record<string, unknown>)
+      const response = await route.fetch()
+      expect(response.ok()).toBe(true)
+      await route.abort('failed')
+    })
+    await page
+      .getByRole('button', { name: message('en', 'send.apply'), exact: true })
+      .click()
+    await expect(
+      page.getByText(message('en', 'send.applied'), { exact: true }),
+    ).toBeVisible()
+    const delivery = page.getByRole('region', {
+      name: message('en', 'send.attempt.title'),
+    })
+    await expect(
+      delivery.getByText(fileURL(savedDestinations.chosenConfig), {
+        exact: true,
+      }),
+    ).toBeVisible()
+    await expect(
+      delivery.getByText(fileURL(savedDestinations.boundConfig), {
+        exact: true,
+      }),
+    ).toHaveCount(0)
+    expect(applies).toHaveLength(1)
+    expect(applies[0]).toMatchObject({
+      device_id: chosenID,
+      expected_connection: {
+        device: fileURL(savedDestinations.chosenConfig),
+        username: '',
+        interface: '',
+      },
+      password: '',
+      confirm: true,
+      attempt_id: expect.stringMatching(/^[a-f0-9]{32}$/),
+    })
+    expect(await readFile(savedDestinations.chosenRules, 'utf8')).toBe(
+      artifactBytes,
+    )
+    await expect(
+      readFile(savedDestinations.boundRules, 'utf8').then(
+        () => 'written',
+        () => 'absent',
+      ),
+    ).resolves.toBe('absent')
+    const currentOutput = await request.get(`${origin}/v1/outputs/${outputId}`)
+    expect(await currentOutput.json()).toMatchObject({ device_id: boundID })
+    const registryResponse = await request.get(`${origin}/v1/devices`)
+    const registry = (await registryResponse.json()) as {
+      devices: Array<{ id: string; auto_deliver: boolean }>
+    }
+    expect(
+      registry.devices
+        .filter((device) => savedDestinations.devices.includes(device.id))
+        .map((device) => device.auto_deliver),
+    ).toEqual([false, false, false])
+    await page.reload()
+    await expect(
+      page.getByText(message('en', 'send.applied'), { exact: true }),
+    ).toBeVisible()
+    await expect(connection).toHaveText('Bound local rules')
+    await expect(
+      page
+        .getByRole('region', {
+          name: message('en', 'send.connection.selected'),
+        })
+        .getByText(fileURL(savedDestinations.boundConfig), { exact: true }),
+    ).toBeVisible()
+    await expect(
+      delivery.getByText(fileURL(savedDestinations.chosenConfig), {
+        exact: true,
+      }),
+    ).toBeVisible()
+    await expect(
+      delivery.getByText(fileURL(savedDestinations.boundConfig), {
+        exact: true,
+      }),
+    ).toHaveCount(0)
+    expect(applies).toHaveLength(1)
+    await connection.click()
+    await page
+      .getByRole('option', {
+        name: message('en', 'send.connection.manual'),
+        exact: true,
+      })
+      .click()
+    await expect(sendAddress(page, 'en')).toBeVisible()
+    await expect(
+      delivery.getByText(fileURL(savedDestinations.chosenConfig), {
+        exact: true,
+      }),
+    ).toBeVisible()
+    expect((await analyze(page)).violations).toEqual([])
+  },
+)
 
 // This is the whole point of the slice: the form is exactly what the deployer
 // declares — a local destination is asked only for its configuration path —
@@ -589,9 +887,7 @@ test('a destination the configuration cannot accept is refused before writing', 
   page,
 }) => {
   test.setTimeout(120000)
-  const foreignRoot = join(repositoryRoot, '.cache', 'deploy-browser-foreign')
-  await rm(foreignRoot, { force: true, recursive: true })
-  await mkdir(foreignRoot, { recursive: true })
+  const foreignRoot = await mkdtemp(join(singBoxRoot, 'foreign-'))
   const foreignConfig = join(foreignRoot, 'config.json')
   await writeFile(
     foreignConfig,
@@ -639,7 +935,6 @@ test('a destination the configuration cannot accept is refused before writing', 
       () => 'absent',
     ),
   ).resolves.toBe('absent')
-  await rm(foreignRoot, { force: true, recursive: true })
 })
 
 for (const language of ['en', 'ru'] as const) {

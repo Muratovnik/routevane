@@ -294,7 +294,7 @@ func (h *handler) dispatch(route string, w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if r.Method == http.MethodPost && !h.validMutation(r) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead && !h.validMutation(r) {
 		writeError(w, http.StatusForbidden, "request rejected")
 		return
 	}
@@ -434,7 +434,11 @@ func decodeEmpty(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 func decodeJSON(w http.ResponseWriter, r *http.Request, destination any) bool {
-	r.Body = http.MaxBytesReader(w, r.Body, maxJSONBytes)
+	return decodeJSONLimit(w, r, destination, maxJSONBytes)
+}
+
+func decodeJSONLimit(w http.ResponseWriter, r *http.Request, destination any, maximum int64) bool {
+	r.Body = http.MaxBytesReader(w, r.Body, maximum)
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(destination); err != nil {

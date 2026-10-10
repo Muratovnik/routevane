@@ -84,7 +84,7 @@ func TestRenderProducesTheGoldenScript(t *testing.T) {
 		t.Fatalf("golden script failed its own validator: %v", err)
 	}
 	// The script must replace what it owns, not add to it.
-	if strings.Count(string(payload), "remove [find list=") != 2 {
+	if strings.Count(string(payload), "remove [find list=") != 4 {
 		t.Fatalf("both sections must clear their own list first:\n%s", payload)
 	}
 	// A name belongs in both sections because each list resolves its own family.
@@ -237,6 +237,9 @@ func TestRenderRefusesARuleKindTheFormatCannotExpress(t *testing.T) {
 
 func FuzzParseNeverAcceptsANonCanonicalScript(f *testing.F) {
 	f.Add(validScript())
+	f.Add(strings.ReplaceAll(strings.ReplaceAll(validScript(),
+		"remove [find list="+ListIPv4+"]\n", "remove [find list="+ListIPv4+" !dynamic]\nremove [find list="+ListIPv4+"]\n"),
+		"remove [find list="+ListIPv6+"]\n", "remove [find list="+ListIPv6+" !dynamic]\nremove [find list="+ListIPv6+"]\n"))
 	f.Add(Header + "\n")
 	f.Add("")
 	f.Add(Header + "\n" + sectionIPv4 + "\nremove [find list=" + ListIPv4 + "]\nadd address=a.example.com list=" + ListIPv4 + "\n")

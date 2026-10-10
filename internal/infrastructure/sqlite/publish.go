@@ -28,8 +28,8 @@ func (s *Store) Publish(ctx context.Context, candidate application.PublicationCa
 		_ = tx.Rollback()
 		return application.Output{}, application.PlanSnapshotRecord{}, application.ArtifactBuildRecord{}, cause
 	}
-	var profileID string
-	err = tx.QueryRowContext(ctx, `SELECT profile_id FROM outputs WHERE id=?`, candidate.Snapshot.OutputID).Scan(&profileID)
+	var profileID, prefix string
+	err = tx.QueryRowContext(ctx, `SELECT profile_id,fqdn_group_prefix FROM outputs WHERE id=?`, candidate.Snapshot.OutputID).Scan(&profileID, &prefix)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fail(application.ErrNotFound)
 	}
@@ -43,7 +43,7 @@ func (s *Store) Publish(ctx context.Context, candidate application.PublicationCa
 	if profile.Archived() {
 		return fail(application.ErrProfileArchived)
 	}
-	if application.ProfilePublicationRevision(profile) != candidate.ProfileRevision {
+	if application.ProfilePublicationRevision(profile) != candidate.ProfileRevision || prefix != candidate.FQDNGroupPrefix {
 		return fail(application.ErrProfileChanged)
 	}
 	var latestCutoff int64

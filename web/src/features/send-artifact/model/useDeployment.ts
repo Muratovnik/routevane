@@ -1,17 +1,22 @@
-import { computed, ref, watch } from 'vue'
+import * as v from 'valibot'
+import { computed, onScopeDispose, ref, watch } from 'vue'
+
+import { useDeploymentConnections } from './useDeploymentConnections'
 
 import {
   applyDeployment,
   createDeploymentAttemptID,
+  deploymentNotStarted,
   loadDeploymentAttempt,
   loadDeployableTargets,
   planDeployment,
   type ConnectionRequirements,
   type DeployableTarget,
+  type DeployConnection,
   type DeployOutcome,
   type DeployPlan,
 } from '@/shared/api/deploy'
-import { RoutevaneAPIError } from '@/shared/api/http'
+import { decode, fields, RoutevaneAPIError, text } from '@/shared/api/http'
 import { validAddress } from '@/shared/lib/deviceAddress'
 
 export type DeploymentState =
@@ -24,6 +29,14 @@ export type DeploymentState =
   | 'outcome_unknown'
 
 export type TargetsState = 'loading' | 'ready' | 'unsupported' | 'failed'
+
+// The access used by one attempt, independent of the next connection selected
+// in the form. Only these non-secret fields may survive a reload.
+type DeploymentRecipient = Readonly<{
+  device: string
+  username: string
+  interfaceName: string
+}>
 
 /**
  * useDeployment applies one published artifact to one destination.
@@ -41,6 +54,7 @@ export type TargetsState = 'loading' | 'ready' | 'unsupported' | 'failed'
 export const useDeployment = (
   artifactID: () => string,
   targetID: () => string,
+  preferredDeviceID: () => string = () => '',
 ) => {
   const targets = ref<DeployableTarget[]>([])
   const targetsState = ref<TargetsState>('loading')
@@ -50,7 +64,13 @@ export const useDeployment = (
   const errorKey = ref<string | null>(null)
   const checkingOutcome = ref(false)
   const currentAttemptID = ref(readRememberedAttempt(artifactID()))
+  const attemptRecipient = ref<DeploymentRecipient | null>(
+    readRememberedRecipient(artifactID(), currentAttemptID.value),
+  )
   const addressTouched = ref(false)
+  const connections = useDeploymentConnections(targetID, preferredDeviceID)
+  let initializationRequest = 0
+  let reviewRequest = 0
 
   const device = ref(readRemembered('device'))
   const username = ref(readRemembered('username'))
@@ -62,10 +82,30 @@ export const useDeployment = (
   watch(interfaceName, (value) => remember('interface', value))
 
   watch(
-    [device, username, password, interfaceName],
+    [
+      connections.selectedID,
+      () => connections.selected.value?.address,
+      () => connections.selected.value?.account,
+      () => connections.selected.value?.interfaceName,
+    ],
     () => {
-      if (plan.value?.fqdnChanges === undefined || state.value !== 'planned')
-        return
+      password.value = ''
+      addressTouched.value = false
+    },
+    { flush: 'sync' },
+  )
+  watch(
+    [
+      device,
+      username,
+      password,
+      interfaceName,
+      connections.selectedID,
+      connections.selected,
+    ],
+    () => {
+      reviewRequest += 1
+      if (!['planned', 'planning'].includes(state.value)) return
       plan.value = null
       state.value = 'idle'
     },
@@ -87,13 +127,21 @@ export const useDeployment = (
   )
   const canSubmit = computed(() => {
     const needed = requirements.value
-    if (
-      needed === null ||
-      busy.value ||
-      state.value === 'outcome_unknown' ||
-      !addressValid.value
-    )
+    if (needed === null || busy.value || state.value === 'outcome_unknown')
       return false
+    if (!connections.manual.value) {
+      if (
+        connections.state.value !== 'ready' ||
+        connections.selected.value === null
+      )
+        return false
+      return (
+        !needed.needsCredential ||
+        connections.storedCredential.value ||
+        password.value !== ''
+      )
+    }
+    if (!addressValid.value) return false
     if (needed.needsCredential) {
       if (username.value.trim() === '' || password.value === '') return false
     }
@@ -102,17 +150,36 @@ export const useDeployment = (
   })
 
   const initialize = async (): Promise<void> => {
+    const request = ++initializationRequest
     targetsState.value = 'loading'
     try {
-      targets.value = await loadDeployableTargets()
+      const [loaded] = await Promise.all([
+        loadDeployableTargets(),
+        connections.initialize(),
+      ])
+      if (request !== initializationRequest) return
+      targets.value = loaded
       targetsState.value = target.value === null ? 'unsupported' : 'ready'
       if (targetsState.value === 'ready') await recoverOutcome()
     } catch {
+      if (request !== initializationRequest) return
       targetsState.value = 'failed'
     }
   }
 
-  const connection = () => {
+  const connection = (): DeployConnection => {
+    if (!connections.manual.value) {
+      const selected = connections.selected.value
+      return {
+        deviceID: connections.selectedID.value,
+        password: password.value,
+        expectedConnection: {
+          device: selected?.address ?? '',
+          username: selected?.account ?? '',
+          interfaceName: selected?.interfaceName ?? '',
+        },
+      }
+    }
     const needed = requirements.value
     return {
       device: device.value.trim(),
@@ -130,10 +197,21 @@ export const useDeployment = (
     state.value = 'planning'
     errorKey.value = null
     outcome.value = null
+    const request = ++reviewRequest
+    const submittedArtifactID = artifactID()
+    const submittedConnection = connection()
     try {
-      plan.value = await planDeployment(artifactID(), connection())
+      const result = await planDeployment(
+        submittedArtifactID,
+        submittedConnection,
+      )
+      if (request !== reviewRequest || artifactID() !== submittedArtifactID)
+        return
+      plan.value = result
       state.value = 'planned'
     } catch (error) {
+      if (request !== reviewRequest || artifactID() !== submittedArtifactID)
+        return
       state.value = 'failed'
       plan.value = null
       errorKey.value = messageKey(error)
@@ -145,12 +223,19 @@ export const useDeployment = (
     state.value = 'applying'
     errorKey.value = null
     const submittedArtifactID = artifactID()
+    const submittedConnection = connection()
+    const recipient = recipientSnapshot(submittedConnection)
     const attemptID = createDeploymentAttemptID()
     currentAttemptID.value = attemptID
-    rememberAttempt(submittedArtifactID, attemptID)
+    attemptRecipient.value = recipient
+    rememberAttempt(submittedArtifactID, attemptID, recipient)
     try {
       consumeOutcome(
-        await applyDeployment(submittedArtifactID, connection(), attemptID),
+        await applyDeployment(
+          submittedArtifactID,
+          submittedConnection,
+          attemptID,
+        ),
         attemptID,
       )
     } catch (error) {
@@ -159,10 +244,12 @@ export const useDeployment = (
         currentAttemptID.value !== attemptID
       )
         return
-      if (
-        error instanceof RoutevaneAPIError &&
-        ['attempt_id_invalid', 'attempt_mismatch'].includes(error.message)
-      ) {
+      if (deploymentNotStarted(error)) {
+        forgetAttempt(submittedArtifactID)
+        currentAttemptID.value = ''
+        attemptRecipient.value = null
+        password.value = ''
+        plan.value = null
         state.value = 'failed'
         errorKey.value = messageKey(error)
       } else {
@@ -204,6 +291,11 @@ export const useDeployment = (
       currentAttemptID.value || readRememberedAttempt(artifactID())
     if (attemptID === '') return
     const expectedArtifactID = artifactID()
+    if (currentAttemptID.value !== attemptID)
+      attemptRecipient.value = readRememberedRecipient(
+        expectedArtifactID,
+        attemptID,
+      )
     currentAttemptID.value = attemptID
     checkingOutcome.value = true
     try {
@@ -229,29 +321,47 @@ export const useDeployment = (
 
   const recoverOutcome = async (): Promise<void> => {
     currentAttemptID.value = readRememberedAttempt(artifactID())
+    attemptRecipient.value = readRememberedRecipient(
+      artifactID(),
+      currentAttemptID.value,
+    )
     if (currentAttemptID.value === '') return
     state.value = 'outcome_unknown'
     await checkOutcome()
   }
 
   const reset = (): void => {
+    initializationRequest += 1
+    reviewRequest += 1
     state.value = 'idle'
     plan.value = null
     outcome.value = null
     errorKey.value = null
     checkingOutcome.value = false
     currentAttemptID.value = readRememberedAttempt(artifactID())
+    attemptRecipient.value = readRememberedRecipient(
+      artifactID(),
+      currentAttemptID.value,
+    )
     password.value = ''
   }
+
+  onScopeDispose(() => {
+    initializationRequest += 1
+    reviewRequest += 1
+    password.value = ''
+  })
 
   return {
     addressError,
     addressTouched,
     apply,
+    attemptRecipient,
     busy,
     canSubmit,
     checkOutcome,
     checkingOutcome,
+    connections,
     device,
     errorKey,
     initialize,
@@ -301,6 +411,51 @@ const outcomeKey = (result: DeployOutcome): string =>
 
 const STORAGE_PREFIX = 'rv.deploy.'
 const ATTEMPT_STORAGE_PREFIX = `${STORAGE_PREFIX}attempt.`
+const RECIPIENT_STORAGE_PREFIX = `${STORAGE_PREFIX}recipient.`
+
+const recipientSnapshot = (
+  connection: DeployConnection,
+): DeploymentRecipient => {
+  const recipient =
+    'deviceID' in connection ? connection.expectedConnection : connection
+  return Object.freeze({
+    device: recipient.device,
+    username: recipient.username,
+    interfaceName: recipient.interfaceName,
+  })
+}
+
+const parseRememberedRecipient = decode(
+  fields({
+    attemptID: text,
+    device: text,
+    username: v.string(),
+    interfaceName: v.string(),
+  }),
+)
+
+const readRememberedRecipient = (
+  artifactID: string,
+  attemptID: string,
+): DeploymentRecipient | null => {
+  if (attemptID === '') return null
+  try {
+    const raw = window.sessionStorage.getItem(
+      `${RECIPIENT_STORAGE_PREFIX}${artifactID}`,
+    )
+    const stored = parseRememberedRecipient(JSON.parse(raw ?? 'null'))
+    if (stored === null || stored.attemptID !== attemptID) return null
+    return Object.freeze({
+      device: stored.device,
+      username: stored.username,
+      interfaceName: stored.interfaceName,
+    })
+  } catch {
+    // Older attempts and unavailable metadata have no known recipient. Never
+    // infer their destination from today's registry or the current form.
+    return null
+  }
+}
 
 const readRemembered = (field: string): string => {
   try {
@@ -329,13 +484,35 @@ const readRememberedAttempt = (artifactID: string): string => {
   }
 }
 
-const rememberAttempt = (artifactID: string, attemptID: string): void => {
+const rememberAttempt = (
+  artifactID: string,
+  attemptID: string,
+  recipient: DeploymentRecipient,
+): void => {
   try {
     window.sessionStorage.setItem(
       `${ATTEMPT_STORAGE_PREFIX}${artifactID}`,
       attemptID,
     )
+    window.sessionStorage.setItem(
+      `${RECIPIENT_STORAGE_PREFIX}${artifactID}`,
+      JSON.stringify({
+        attemptID,
+        device: recipient.device,
+        username: recipient.username,
+        interfaceName: recipient.interfaceName,
+      }),
+    )
   } catch {
     // Recovery survives a response loss when session storage is available.
+  }
+}
+
+const forgetAttempt = (artifactID: string): void => {
+  try {
+    window.sessionStorage.removeItem(`${ATTEMPT_STORAGE_PREFIX}${artifactID}`)
+    window.sessionStorage.removeItem(`${RECIPIENT_STORAGE_PREFIX}${artifactID}`)
+  } catch {
+    // The in-memory identity is still cleared after a proven refusal.
   }
 }

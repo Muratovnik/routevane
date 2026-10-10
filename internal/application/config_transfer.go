@@ -1519,6 +1519,13 @@ func findDevice(v []TransferDevice, ref string) (TransferDevice, bool) {
 }
 
 func (s *PublicationService) prepareApply(d ConfigTransferDocument) (ConfigTransferApply, error) {
+	// Persistence consumes the current vocabulary. Earlier wire versions that
+	// predate priority still use the canonical fallback; v1.3 carries a saved
+	// priority and must not lose it when its document is normalized.
+	if d.Version != ConfigTransferVersion && d.Version != configTransferPriorityVersion {
+		d.Settings.DefaultPriority = nil
+	}
+	d.Version = ConfigTransferVersion
 	now := s.config.Clock.Now().UTC()
 	if now.IsZero() {
 		return ConfigTransferApply{}, transferError("storage_failed", "clock")

@@ -409,16 +409,29 @@ func (b serveBackend) DeployableTargets() []application.DeployableTarget {
 }
 
 func (b serveBackend) DeployPlan(ctx context.Context, command application.DeployCommand) (application.DeployPlan, error) {
-	return b.deployments.Plan(ctx, command)
+	release, err := b.deliveryGate.Acquire(ctx)
+	if err != nil {
+		return application.DeployPlan{}, err
+	}
+	defer release()
+	resolved, err := b.deployments.ResolveDeviceConnection(ctx, command, b.devices)
+	if err != nil {
+		return application.DeployPlan{}, err
+	}
+	return b.deployments.Plan(ctx, resolved)
 }
 
 func (b serveBackend) DeployAttempt(ctx context.Context, id string, command application.DeployCommand) (application.DeploymentAttempt, error) {
 	release, err := b.deliveryGate.Acquire(ctx)
 	if err != nil {
-		return application.DeploymentAttempt{}, err
+		return application.DeploymentAttempt{}, fmt.Errorf("%w: %w", application.ErrDeploymentNotStarted, err)
 	}
 	defer release()
-	return b.deploymentAttempts.Deploy(ctx, id, command)
+	resolved, err := b.deployments.ResolveDeviceConnection(ctx, command, b.devices)
+	if err != nil {
+		return application.DeploymentAttempt{}, fmt.Errorf("%w: %w", application.ErrDeploymentNotStarted, err)
+	}
+	return b.deploymentAttempts.Deploy(ctx, id, resolved)
 }
 
 func (b serveBackend) DeploymentAttempt(ctx context.Context, id string) (application.DeploymentAttempt, error) {

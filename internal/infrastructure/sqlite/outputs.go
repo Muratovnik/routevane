@@ -30,6 +30,9 @@ func (s *Store) CreateOutput(ctx context.Context, create application.NewOutput) 
 		return fmt.Errorf("begin output creation: %w", err)
 	}
 	fail := func(cause error) error { _ = tx.Rollback(); return cause }
+	if err := requireWritableProfile(ctx, tx, o.ProfileID); err != nil {
+		return fail(err)
+	}
 	// A taken identifier is the one failure the caller retries. A second output
 	// for the same format is a different answer entirely, and the application
 	// layer's own check cannot see a request that arrived at the same moment.
@@ -79,10 +82,18 @@ func (s *Store) CreateSubscription(ctx context.Context, outputID, tokenID string
 		return fmt.Errorf("begin subscription creation: %w", err)
 	}
 	fail := func(cause error) error { _ = tx.Rollback(); return cause }
-	var exists int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM outputs WHERE id=?`, outputID).Scan(&exists); err != nil || exists != 1 {
+	var profileID string
+	err = tx.QueryRowContext(ctx, `SELECT profile_id FROM outputs WHERE id=?`, outputID).Scan(&profileID)
+	if errors.Is(err, sql.ErrNoRows) {
 		return fail(application.ErrNotFound)
 	}
+	if err != nil {
+		return fail(fmt.Errorf("read subscription profile: %w", err))
+	}
+	if err := requireWritableProfile(ctx, tx, profileID); err != nil {
+		return fail(err)
+	}
+	var exists int
 	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM subscriptions WHERE output_id=?`, outputID).Scan(&exists); err != nil {
 		return fail(fmt.Errorf("check output subscription: %w", err))
 	}
@@ -115,16 +126,35 @@ func (s *Store) UpdateOutputDevice(ctx context.Context, outputID, deviceID strin
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin output device update: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	var profileID string
+	err = tx.QueryRowContext(ctx, `SELECT profile_id FROM outputs WHERE id=?`, outputID).Scan(&profileID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return application.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("read output profile: %w", err)
+	}
+	if err := requireWritableProfile(ctx, tx, profileID); err != nil {
+		return err
+	}
 	var value any
 	if deviceID != "" {
 		value = deviceID
 	}
-	result, err := s.db.ExecContext(ctx, `UPDATE outputs SET device_id=? WHERE id=?`, value, outputID)
+	result, err := tx.ExecContext(ctx, `UPDATE outputs SET device_id=? WHERE id=?`, value, outputID)
 	if err != nil {
 		return fmt.Errorf("update output device: %w", err)
 	}
 	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
 		return application.ErrNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit output device update: %w", err)
 	}
 	return nil
 }

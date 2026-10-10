@@ -25,8 +25,34 @@ describe('list page hash', () => {
     expect(parseProfilePageHash('')).toEqual({ setup: '', tab: 'overview' })
   })
 
-  it('still reads the retired drawer address', () => {
-    expect(parseLegacyProfileHash('#profile=abc123')).toBe('abc123')
-    expect(parseLegacyProfileHash('#tab=outputs')).toBe('')
+  it.each(['profile', 'list'])(
+    'still reads the retired %s drawer address',
+    (key) => {
+      const id = 'a1'.repeat(16)
+      expect(parseLegacyProfileHash(`#${key}=${id}`)).toBe(id)
+    },
+  )
+
+  it.each([
+    '',
+    '#tab=outputs',
+    '#list=discord',
+    '#profile=abc123',
+    `#list=${'a'.repeat(31)}`,
+    `#profile=${'a'.repeat(33)}`,
+    `#profile=${'g'.repeat(32)}`,
+    `#list=${'A'.repeat(32)}`,
+    '#profile=..%2Fsettings',
+  ])('ignores a fragment that is not a canonical profile id: %s', (hash) => {
+    expect(parseLegacyProfileHash(hash)).toBe('')
+  })
+
+  it('gives the explicit profile parameter precedence over the legacy name', () => {
+    const profile = 'a'.repeat(32)
+    const list = 'b'.repeat(32)
+    expect(parseLegacyProfileHash(`#profile=${profile}&list=${list}`)).toBe(
+      profile,
+    )
+    expect(parseLegacyProfileHash(`#profile=invalid&list=${list}`)).toBe('')
   })
 })

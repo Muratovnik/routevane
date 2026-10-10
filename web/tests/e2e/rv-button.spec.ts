@@ -1,13 +1,25 @@
+import { once } from 'node:events'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { rm } from 'node:fs/promises'
+import {
+  access,
+  lstat,
+  mkdir,
+  realpath,
+  rm,
+  symlink,
+  unlink,
+  writeFile,
+} from 'node:fs/promises'
 
 import { expect, test } from '@playwright/test'
 
 import {
   assertPortBindable,
+  createOwnedProductData,
   delay,
   reserveLoopbackPort,
+  resolvesWithin,
   spawnProduct,
   stopOwnedProduct,
   type SpawnedProduct,
@@ -18,65 +30,115 @@ const webRoot = resolve(testDirectory, '..', '..')
 const repositoryRoot = resolve(webRoot, '..')
 const fixtureRoot = join(webRoot, 'tests', 'fixtures', 'rv-button-nuxt')
 const nuxtCLI = join(webRoot, 'node_modules', 'nuxt', 'bin', 'nuxt.mjs')
-const generatedRoots = [
-  join(fixtureRoot, '.nuxt'),
-  join(fixtureRoot, 'node_modules'),
-  join(
-    repositoryRoot,
-    'node_modules',
-    '.cache',
-    'vite',
-    'web',
-    'tests',
-    'fixtures',
-    'rv-button-nuxt',
-  ),
-]
 
+let runRoot: string | undefined
+let builder: SpawnedProduct | undefined
 let harness: SpawnedProduct | undefined
 let origin = ''
 let port = 0
+const MODULE_LINKS: string[] = []
 
-/** How long the whole cold start may take: compile, optimize, first render. */
+/** How long the whole cold start may take: build and first browser render. */
 const BOOT_TIMEOUT_MILLISECONDS = 180000
-/** How long the listener has to accept a request once Nuxt holds the port. */
+/** Finish the build before the hook deadline so teardown can stop a stuck child. */
+const BUILD_TIMEOUT_MILLISECONDS = 120000
+/** How long the built server has to accept a request. */
 const LISTENER_TIMEOUT_MILLISECONDS = 30000
-/** How long the first render may take, which is where a cold optimize lands. */
+/** How long the first browser render may take. */
 const RENDER_TIMEOUT_MILLISECONDS = 120000
 
 test.beforeAll(async ({ browser }) => {
-  // A cold fixture pays for its own start twice over: Nuxt compiles the app,
-  // and then Vite optimizes the dependencies the client entry pulls in and
-  // reloads the page in the middle of the very load that discovered them. An
-  // HTTP 200 proves only that the listener is up, so the test used to absorb
-  // that reload inside its own first assertion and lose it to the default
-  // expect timeout. This hook owns the cold start instead: its deadline covers
-  // the optimize, and it loads the app once in a page of its own, so the test
-  // below opens a server that has already served this app to a browser.
+  // Build the same Nuxt application in an owned directory and use its explicit
+  // production loopback host. The source layer keeps the existing relative
+  // component imports while generated files belong to this run.
   test.setTimeout(BOOT_TIMEOUT_MILLISECONDS)
-  port = await reserveLoopbackPort()
-  origin = `http://127.0.0.1:${port}`
-  harness = spawnProduct(
+  runRoot = await createOwnedProductData(
+    join(repositoryRoot, 'tmp', 'browser-fixtures'),
+    'rv-button',
+  )
+  const modulesRoot = join(runRoot, 'node_modules')
+  await mkdir(modulesRoot)
+  await mkdir(join(modulesRoot, '@nuxt'))
+  // The CLI resolves these packages before it reads modulesDir. Keep its
+  // package links narrow so node_modules caches also belong to this run.
+  for (const parts of [['nuxt'], ['@nuxt', 'kit']]) {
+    const target = await realpath(join(webRoot, 'node_modules', ...parts))
+    if (!(await lstat(target)).isDirectory())
+      throw new Error(`Nuxt fixture package is not a directory: ${target}`)
+    const link = join(modulesRoot, ...parts)
+    await symlink(
+      target,
+      link,
+      process.platform === 'win32' ? 'junction' : 'dir',
+    )
+    MODULE_LINKS.push(link)
+    if (!(await lstat(link)).isSymbolicLink())
+      throw new Error(`Nuxt fixture package link was not created: ${link}`)
+  }
+  await writeFile(
+    join(runRoot, 'nuxt.config.mjs'),
+    `export default ${JSON.stringify({
+      extends: [fixtureRoot],
+      rootDir: runRoot,
+      workspaceDir: runRoot,
+      srcDir: fixtureRoot,
+      modulesDir: [join(webRoot, 'node_modules')],
+      buildDir: join(runRoot, '.nuxt'),
+      vite: { cacheDir: join(runRoot, '.vite') },
+      nitro: {
+        output: {
+          dir: join(runRoot, '.output'),
+          serverDir: join(runRoot, '.output', 'server'),
+          publicDir: join(runRoot, '.output', 'public'),
+        },
+      },
+    })}\n`,
+    'utf8',
+  )
+  builder = spawnProduct(
     process.execPath,
-    [
-      nuxtCLI,
-      'dev',
-      fixtureRoot,
-      '--host',
-      '127.0.0.1',
-      '--port',
-      String(port),
-      '--no-fork',
-      '--logLevel',
-      'silent',
-    ],
+    [nuxtCLI, 'build', runRoot, '--logLevel', 'silent'],
     {
       cwd: webRoot,
-      env: { ...process.env, NUXT_TELEMETRY_DISABLED: '1' },
+      env: {
+        ...process.env,
+        NUXT_TELEMETRY_DISABLED: '1',
+        NITRO_PRESET: 'node-server',
+      },
       stdio: 'pipe',
       windowsHide: true,
     },
   )
+  const waiting = new AbortController()
+  const exited = once(builder.process, 'exit', { signal: waiting.signal })
+  void exited.catch(() => {})
+  try {
+    if (!(await resolvesWithin(exited, BUILD_TIMEOUT_MILLISECONDS)))
+      throw new Error(`Nuxt button build did not finish:\n${builder.output()}`)
+    if (builder.process.exitCode !== 0)
+      throw new Error(`Nuxt button build failed:\n${builder.output()}`)
+  } finally {
+    waiting.abort()
+  }
+
+  const serverEntry = join(runRoot, '.output', 'server', 'index.mjs')
+  await access(serverEntry)
+  port = await reserveLoopbackPort()
+  origin = `http://127.0.0.1:${port}`
+  harness = spawnProduct(process.execPath, [serverEntry], {
+    cwd: runRoot,
+    env: {
+      ...process.env,
+      NODE_ENV: 'production',
+      NITRO_HOST: '127.0.0.1',
+      NITRO_PORT: String(port),
+      NITRO_UNIX_SOCKET: '',
+      NITRO_SSL_CERT: '',
+      NITRO_SSL_KEY: '',
+    },
+    stdio: 'pipe',
+    windowsHide: true,
+  })
 
   await waitForListener()
   const warmup = await browser.newPage()
@@ -95,32 +157,65 @@ const waitForListener = async (): Promise<void> => {
   while (Date.now() < deadline) {
     harness?.assertAlive()
     try {
-      const response = await fetch(origin)
-      if (response.ok) return
+      const response = await fetch(origin, {
+        signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+      })
+      try {
+        if (response.ok) return
+      } finally {
+        await response.body?.cancel().catch(() => {})
+      }
     } catch {
-      // Nuxt has reserved the port but has not finished compiling the fixture.
+      // The owned server has not started accepting requests yet.
     }
-    await delay(100)
+    const remaining = deadline - Date.now()
+    if (remaining > 0) await delay(Math.min(100, remaining))
   }
   throw new Error(`Nuxt button harness did not start:\n${harness?.output()}`)
 }
 
 test.afterAll(async () => {
-  let cleanupError: unknown
-  try {
-    if (harness !== undefined) await stopOwnedProduct(harness.process)
-    if (port !== 0) await assertPortBindable(port)
-  } catch (error) {
-    cleanupError = error
-  }
-  for (const generatedRoot of generatedRoots) {
+  if (runRoot === undefined) return
+  const cleanupErrors: unknown[] = []
+  const children = [builder, harness]
+  for (const child of children) {
+    if (child === undefined || !child.isAlive()) continue
     try {
-      await rm(generatedRoot, { force: true, recursive: true })
+      await stopOwnedProduct(child.process)
     } catch (error) {
-      cleanupError ??= error
+      cleanupErrors.push(error)
     }
   }
-  if (cleanupError !== undefined) throw cleanupError
+  try {
+    if (port !== 0) await assertPortBindable(port)
+  } catch (error) {
+    cleanupErrors.push(error)
+  }
+  if (children.some((child) => child?.isAlive())) {
+    cleanupErrors.push(
+      new Error(
+        `Nuxt button child is still running; data preserved at ${runRoot}`,
+      ),
+    )
+  } else {
+    try {
+      // Remove only our directory links, before recursive cleanup can reach
+      // node_modules. The installed packages are never cleanup targets.
+      for (const link of MODULE_LINKS) {
+        if (!(await lstat(link)).isSymbolicLink())
+          throw new Error(`Nuxt fixture package link changed: ${link}`)
+        await unlink(link)
+      }
+      await rm(runRoot, { force: true, recursive: true })
+    } catch (error) {
+      cleanupErrors.push(error)
+    }
+  }
+  if (cleanupErrors.length > 0)
+    throw new AggregateError(
+      cleanupErrors,
+      'Nuxt button cleanup was incomplete',
+    )
 })
 
 test('real Nuxt UI blocks disabled native and router links', async ({

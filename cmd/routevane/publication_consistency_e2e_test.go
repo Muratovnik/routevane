@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"path/filepath"
@@ -14,6 +15,7 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 	"github.com/Muratovnik/routevane/internal/infrastructure/filesystem"
 	"github.com/Muratovnik/routevane/internal/infrastructure/sqlite"
+	"github.com/Muratovnik/routevane/internal/renderers/keeneticdns"
 	"github.com/Muratovnik/routevane/internal/renderers/rawjson"
 )
 
@@ -69,6 +71,25 @@ type publicationConsistencyFixture struct {
 
 func newPublicationConsistencyFixture(t *testing.T) publicationConsistencyFixture {
 	t.Helper()
+	return newPublicationConsistencyFixtureForTarget(t, domain.RawJSONTargetDefinition(), rawjson.Renderer{})
+}
+
+func newPrefixPublicationFixture(t *testing.T) publicationConsistencyFixture {
+	t.Helper()
+	target := domain.TargetDefinition{
+		ID: "keenetic-dns", FormatKey: keeneticdns.Version, RendererID: keeneticdns.ID,
+		Constraints: domain.TargetConstraints{
+			SupportsDomainSuffix: true, SupportsDynamicDNSSet: true,
+			SupportsIPv4: true, SupportsIPv6: true, SupportsPrefixes: true,
+			MaxRules: 38400, MaxArtifactSize: keeneticdns.MaxArtifactSize,
+			MaxEntriesPerList: 300, MaxLists: 128,
+		},
+	}
+	return newPublicationConsistencyFixtureForTarget(t, target, keeneticdns.Renderer{})
+}
+
+func newPublicationConsistencyFixtureForTarget(t *testing.T, target domain.TargetDefinition, renderer application.Renderer) publicationConsistencyFixture {
+	t.Helper()
 	dataRoot, err := filesystem.EnsureDataRoot(filepath.Join(t.TempDir(), "data"))
 	if err != nil {
 		t.Fatal(err)
@@ -94,13 +115,12 @@ func newPublicationConsistencyFixture(t *testing.T) publicationConsistencyFixtur
 			Seeds: []domain.Seed{{Kind: domain.RuleIPv4, Value: "198.51.100.2", ComponentID: "web", SourceID: "manual:beta", SourceClass: domain.SourceManual}},
 		},
 	}
-	target := domain.RawJSONTargetDefinition()
 	service, err := application.NewPublicationService(application.PublicationConfig{
 		Definitions: definitions, Targets: map[string]domain.TargetDefinition{target.ID: target},
 		Categories:     map[string]domain.CategoryDefinition{"group": {ID: "group", Title: "Group", Lists: []string{"alpha"}}},
 		TargetRevision: strings.Repeat("t", 64), Store: store,
 		Files:     filesystem.PublishedStore{DataRoot: dataRoot, Writer: filesystem.PublishedWriter{BeforeCommit: barrier.beforeCommit}},
-		Renderers: application.RendererRegistry{rawjson.ID: rawjson.Renderer{}},
+		Renderers: application.RendererRegistry{renderer.ID(): renderer},
 		Sources:   application.SourceRegistry{domain.SourceDNS: unusedPublicationSource{}},
 		Clock:     application.ClockFunc(clock.read),
 	})
@@ -147,6 +167,171 @@ func waitPublicationBuild(t *testing.T, done <-chan error) error {
 	case <-time.After(5 * time.Second):
 		t.Fatal("build did not finish after releasing the publication barrier")
 		return nil
+	}
+}
+
+func TestOutputPrefixChangeInvalidatesOnlyItsPendingPublication(t *testing.T) {
+	for _, sameOutput := range []bool{true, false} {
+		name := "other_output"
+		if sameOutput {
+			name = "same_output"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			fixture := newPrefixPublicationFixture(t)
+			if _, err := fixture.service.SetOutputFQDNPrefix(ctx, fixture.output.ID, "before"); err != nil {
+				t.Fatal(err)
+			}
+			changedOutputID := fixture.output.ID
+			if !sameOutput {
+				profile, err := fixture.service.CreateProfile(ctx, "other", application.ProfileComposition{Lists: []string{"alpha"}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				created, err := fixture.service.AddOutput(ctx, profile.ID, "keenetic-dns")
+				if err != nil {
+					t.Fatal(err)
+				}
+				changedOutputID = created.Output.ID
+			}
+			pending := fixture.startBlockedBuild()
+			released := false
+			defer func() {
+				if !released {
+					close(fixture.barrier.release)
+				}
+			}()
+			waitPublicationBarrier(t, fixture.barrier.reached)
+			if _, err := fixture.service.SetOutputFQDNPrefix(ctx, changedOutputID, "after"); err != nil {
+				t.Fatal(err)
+			}
+			close(fixture.barrier.release)
+			released = true
+			err := waitPublicationBuild(t, pending)
+			wantPrefix, wantRows := "before-", 1
+			if sameOutput {
+				if !errors.Is(err, application.ErrProfileChanged) {
+					t.Fatalf("old-prefix publication error=%v, want ErrProfileChanged", err)
+				}
+				wantPrefix, wantRows = "after-", 0
+			} else if err != nil {
+				t.Fatalf("a different output's prefix invalidated this publication: %v", err)
+			}
+			snapshots, artifacts, err := fixture.store.PublicationCounts(ctx)
+			if err != nil || snapshots != wantRows || artifacts != wantRows {
+				t.Fatalf("candidate rows: snapshots=%d artifacts=%d want=%d err=%v", snapshots, artifacts, wantRows, err)
+			}
+			output, err := fixture.store.Output(ctx, fixture.output.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if sameOutput {
+				if output.LatestArtifactID != "" || output.PreviousArtifactID != "" {
+					t.Fatalf("stale prefix advanced publication pointers: %#v", output)
+				}
+				built, err := fixture.service.Build(ctx, fixture.output.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				output = built.Output
+			}
+			artifact, err := fixture.service.Artifact(ctx, output.LatestArtifactID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			groups, err := keeneticdns.Parse(artifact.Payload)
+			if err != nil || len(groups) != 1 || !strings.HasPrefix(groups[0].Name, wantPrefix) {
+				t.Fatalf("published prefix groups=%#v want=%q err=%v", groups, wantPrefix, err)
+			}
+		})
+	}
+}
+
+func TestArchivedOutputRefusesOperatorEditsAndSubscriptionIssuance(t *testing.T) {
+	for _, existingSubscription := range []bool{false, true} {
+		name := "new subscription"
+		if existingSubscription {
+			name = "existing subscription remains readable"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			fixture := newPrefixPublicationFixture(t)
+			fixture.barrier.calls.Store(1)
+			if _, err := fixture.service.SetOutputFQDNPrefix(ctx, fixture.output.ID, "before"); err != nil {
+				t.Fatal(err)
+			}
+			device := application.Device{
+				ID: strings.Repeat("d", 32), TargetID: "keenetic-dns", Name: "Fixture",
+				Address: "http://192.168.1.1", Account: "admin", Interface: "Wireguard0",
+				CreatedAt: fixture.clock.read(), UpdatedAt: fixture.clock.read(),
+			}
+			if err := fixture.store.CreateDevice(ctx, device); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := fixture.service.SetOutputDevice(ctx, fixture.output.ID, &device); err != nil {
+				t.Fatal(err)
+			}
+			built, err := fixture.service.Build(ctx, fixture.output.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before, err := fixture.service.Artifact(ctx, built.Artifact.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var token string
+			if existingSubscription {
+				token, err = fixture.service.IssueSubscription(ctx, fixture.output.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := fixture.service.ArchiveProfile(ctx, fixture.profile.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := fixture.service.SetOutputFQDNPrefix(ctx, fixture.output.ID, "after"); !errors.Is(err, application.ErrProfileArchived) {
+				t.Fatalf("archived prefix error=%v", err)
+			}
+			if _, err := fixture.service.SetOutputDevice(ctx, fixture.output.ID, nil); !errors.Is(err, application.ErrProfileArchived) {
+				t.Fatalf("archived binding error=%v", err)
+			}
+			if _, err := fixture.service.IssueSubscription(ctx, fixture.output.ID); !errors.Is(err, application.ErrProfileArchived) {
+				t.Fatalf("archived subscription error=%v", err)
+			}
+			stored, err := fixture.store.Output(ctx, fixture.output.ID)
+			if err != nil || stored.FQDNGroupPrefix != "before" || stored.DeviceID != device.ID || stored.LatestArtifactID != built.Artifact.ID {
+				t.Fatalf("archived operator state changed: %#v err=%v", stored, err)
+			}
+			after, err := fixture.service.Artifact(ctx, built.Artifact.ID)
+			if err != nil || !bytes.Equal(after.Payload, before.Payload) {
+				t.Fatalf("archival changed readable artifact bytes: %v", err)
+			}
+			if existingSubscription {
+				payload, err := fixture.service.Subscription(ctx, token)
+				if err != nil || !bytes.Equal(payload.Payload, before.Payload) {
+					t.Fatalf("archival changed an existing subscription: %v", err)
+				}
+			}
+			if _, err := fixture.service.RestoreProfile(ctx, fixture.profile.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := fixture.service.SetOutputFQDNPrefix(ctx, fixture.output.ID, "after"); err != nil {
+				t.Fatalf("restored prefix remained frozen: %v", err)
+			}
+			if _, err := fixture.service.SetOutputDevice(ctx, fixture.output.ID, nil); err != nil {
+				t.Fatalf("restored binding remained frozen: %v", err)
+			}
+			if !existingSubscription {
+				token, err = fixture.service.IssueSubscription(ctx, fixture.output.ID)
+				if err != nil {
+					t.Fatalf("restored subscription issuance failed: %v", err)
+				}
+			}
+			payload, err := fixture.service.Subscription(ctx, token)
+			if err != nil || !bytes.Equal(payload.Payload, before.Payload) {
+				t.Fatalf("restoring changed immutable published bytes: %v", err)
+			}
+		})
 	}
 }
 

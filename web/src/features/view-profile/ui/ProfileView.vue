@@ -644,6 +644,7 @@ const onProfileMenu = async (key: string): Promise<void> => {
           <div class="profile__panel">
             <OutputsPanel
               :archived="view.archived.value"
+              :automatic-delivery="view.automaticDelivery"
               :busy="view.busy.value"
               :deployable="view.deployable"
               :devices="view.devices.value"

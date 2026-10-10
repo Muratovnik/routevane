@@ -258,8 +258,12 @@ the embedded asset set. There is no Node/Nitro runtime, proxy, CORS layer, or
 external UI asset at product runtime. The embedding and CSP decision is recorded
 in [`docs/adr/0005-embedded-generated-ui.md`](adr/0005-embedded-generated-ui.md).
 
-`serve` and `run` are mutually exclusive long-lived data-root owners. The
-product remains loopback-only and does not add remote authentication, channels,
+`serve`, `run`, and writing one-shot commands share exclusive ownership of the
+data root. `refresh`, `build`, and confirmed `deploy`, `discover`, and `learn`
+refuse to run while another writer owns it. Preview and commands awaiting
+confirmation remain available. CLI signals cancel the operation; the process
+keeps the data lock until device rollback or browser cleanup has finished.
+The product remains loopback-only and does not add remote authentication, channels,
 or artifact garbage collection. The storage and security decision is recorded in
 [`docs/adr/0004-immutable-local-publication.md`](adr/0004-immutable-local-publication.md),
 and the first-success subscription lifecycle in
@@ -321,9 +325,12 @@ preferences. A preview warning tells you when custom sources were omitted; add
 them again after transfer. Local catalog discoveries are also excluded because
 another installation may not have the same files.
 
-After import, enter each device password again, publish every output to create a
-new artifact and subscription, and then enable automatic delivery where wanted.
-Imported devices always start with automatic delivery off. Preview and apply
+After import, publish every output to create a new artifact and subscription.
+Imported devices always start with automatic delivery off. Set up
+[delivery](#applying-an-artifact-to-a-device) again where wanted: storing a router
+password for automatic delivery requires Windows and a newly entered password;
+local sing-box delivery requires no password. On Linux or macOS, enter the router
+password for each manual send instead. Preview and apply
 validate the same file digest; editing or replacing the file requires a new
 preview. A file exported by an earlier version still imports: the fields ADR 0039
 renamed are read under their retired names for one minor version. A file
@@ -456,13 +463,29 @@ retiring the local ledger does not authorize automatic adoption. Interruption
 before the ownership commit can require the same manual review. See
 [ADR 0040](adr/0040-exact-fqdn-output-ownership.md).
 
+For a manual send, open **Send to device** and choose a compatible saved
+connection. If the output is already bound to a device, that connection is
+selected initially. You can choose another connection for this send without
+changing the output's binding or automatic-delivery setting. The manual-entry
+option remains available for a destination you do not want to save. Review the
+selected address and preview before applying; changing the destination requires
+a new preview. A saved router password is reused only while that connection has
+automatic delivery enabled. Otherwise enter a password for this send; it is not
+saved. After a lost response, check the existing attempt's outcome before trying
+another send. Its result identifies the destination of that attempt separately
+from the currently selected connection.
+
+Automatic delivery to a router that needs a password is currently available
+only on Windows. Routevane keeps that password in the Windows credential store.
+On Linux or macOS, use manual delivery and enter the password for each send; it
+is not saved. A local target such as sing-box needs no password, so its automatic
+delivery is available on all three CLI platforms without a credential entry.
+
 For unattended delivery, register the device under **Connections** with every
 non-secret connection field its deployer requests (Keenetic includes the route
-interface), then turn on automatic delivery. A router password is stored only in
-the operating system credential store; a local target such as sing-box needs no
-password and creates no credential entry. On the profile's **Connection** tab,
-bind the matching output to that explicit device and set the profile to daily or
-weekly refresh. The scheduler then:
+interface), then turn on automatic delivery. On the profile's **Publishing**
+tab, bind the matching output to that explicit device and set the profile to
+daily or weekly refresh. The scheduler then:
 
 1. refreshes the profile and rebuilds each output independently;
 2. considers only an artifact successfully published by that same run;
@@ -500,11 +523,19 @@ The destination is the file your own configuration declares:
 {
   "route": {
     "rule_set": [
-      { "tag": "routevane", "type": "local", "format": "source", "path": "routevane.json" }
+      { "tag": "routevane", "type": "local", "format": "source", "path": "C:/sing-box/routevane.json" }
     ]
   }
 }
 ```
+
+Set `path` to the absolute destination on your machine, such as
+`C:/sing-box/routevane.json` on Windows or `/etc/sing-box/routevane.json` on Linux.
+Relative paths are refused: sing-box resolves them against its runtime working
+directory or file manager, which can differ from the configuration directory.
+Routevane cannot establish that runtime directory from the configuration file.
+Use a concrete filename. Paths containing `{tag}` are also refused because
+substitution depends on the installed sing-box version.
 
 ```powershell
 ./routevane deploy --artifact ID --target singbox --device file:///C:/sing-box/config.json
@@ -520,4 +551,5 @@ restores exactly what was there.
 A configuration that declares no local source rule set is refused before any file
 is touched. Verification proves the file on disk is the published artifact and
 still passes the sing-box validator; it does **not** prove a running sing-box
-reloaded it. Restart or reload sing-box after a deployment.
+reloaded it. Confirm the new rules in the running instance; restart or reload
+sing-box if its local-file watcher has not applied the change.

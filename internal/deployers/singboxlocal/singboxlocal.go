@@ -10,10 +10,9 @@
 //
 //   - It proves the file on disk is byte-identical to the published artifact and
 //     that the artifact still satisfies the sing-box source rule-set validator.
-//   - It does not prove a running sing-box reloaded the file. sing-box reads a
-//     local rule-set when its configuration is loaded, so the operator restarts
-//     or reloads the process. Claiming otherwise would need a control API this
-//     package deliberately does not speak.
+//   - It does not prove a running sing-box reloaded the file. Local-file watching
+//     is the runtime's responsibility, and this package has no runtime reload
+//     acknowledgement with which to verify that step.
 package singboxlocal
 
 import (
@@ -28,6 +27,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/Muratovnik/routevane/internal/application"
 	"github.com/Muratovnik/routevane/internal/renderers/singbox"
@@ -160,12 +160,15 @@ type wireConfig struct {
 // source is what accepts the bytes this product publishes. A configuration that
 // declares anything else reports an empty format key, which is what stops the
 // deployment before a file is touched.
-func (*Deployer) Probe(_ context.Context, connection application.Connection) (application.DeviceInfo, error) {
+func (*Deployer) Probe(ctx context.Context, connection application.Connection) (application.DeviceInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return application.DeviceInfo{}, err
+	}
 	path, err := configPath(connection.URL)
 	if err != nil {
 		return application.DeviceInfo{}, err
 	}
-	payload, err := readBounded(path, MaxConfigBytes)
+	payload, err := readBounded(ctx, path, MaxConfigBytes)
 	if err != nil {
 		return application.DeviceInfo{}, fmt.Errorf("%w: %v", ErrConfigUnusable, err)
 	}
@@ -180,9 +183,15 @@ func (*Deployer) Probe(_ context.Context, connection application.Connection) (ap
 		}
 		resolved := entry.Path
 		if !filepath.IsAbs(resolved) {
-			// A relative rule-set path is resolved against the configuration, as
-			// sing-box itself does.
-			resolved = filepath.Join(filepath.Dir(path), resolved)
+			// sing-box resolves this against its runtime working directory (or
+			// file manager), which a configuration path cannot establish.
+			return application.DeviceInfo{}, fmt.Errorf("%w: set the local source rule-set path to the absolute file path used by sing-box", ErrConfigUnusable)
+		}
+		if strings.Contains(resolved, "{tag}") {
+			// Newer sing-box versions substitute the rule-set tag here; older
+			// versions use the literal filename. The configuration alone does
+			// not identify which destination the installed runtime will use.
+			return application.DeviceInfo{}, fmt.Errorf("%w: use a concrete local source rule-set path without {tag} substitution", ErrConfigUnusable)
 		}
 		resolved = filepath.Clean(resolved)
 		if info.Interface != "" && info.Interface != resolved {
@@ -209,13 +218,16 @@ type backupEnvelope struct {
 }
 
 // Backup captures the rule-set file the deployment will replace.
-func (*Deployer) Backup(_ context.Context, device application.DeviceInfo, _ application.Connection) (application.BackupPayload, error) {
+func (*Deployer) Backup(ctx context.Context, device application.DeviceInfo, _ application.Connection) (application.BackupPayload, error) {
+	if err := ctx.Err(); err != nil {
+		return application.BackupPayload{}, err
+	}
 	path := device.Interface
 	if path == "" {
 		return application.BackupPayload{}, ErrRuleSetMissing
 	}
 	envelope := backupEnvelope{Path: path}
-	payload, err := readBounded(path, MaxRuleSetBytes)
+	payload, err := readBounded(ctx, path, MaxRuleSetBytes)
 	switch {
 	case err == nil:
 		digest := sha256.Sum256(payload)
@@ -238,7 +250,10 @@ func (*Deployer) Backup(_ context.Context, device application.DeviceInfo, _ appl
 
 // Deploy writes the artifact atomically so a crash cannot leave a partial file
 // where sing-box expects a complete rule set.
-func (*Deployer) Deploy(_ context.Context, device application.DeviceInfo, _ application.Connection, artifact application.DeployArtifact) error {
+func (*Deployer) Deploy(ctx context.Context, device application.DeviceInfo, _ application.Connection, artifact application.DeployArtifact) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if artifact.RendererID != DeployerID {
 		return fmt.Errorf("%w: renderer %q", ErrArtifactMismatch, artifact.RendererID)
 	}
@@ -252,12 +267,12 @@ func (*Deployer) Deploy(_ context.Context, device application.DeviceInfo, _ appl
 	if path == "" {
 		return ErrRuleSetMissing
 	}
-	return writeAtomic(path, artifact.Payload)
+	return writeAtomic(ctx, path, artifact.Payload)
 }
 
 // Verify reads the file back and proves it is the artifact, byte for byte.
-func (*Deployer) Verify(_ context.Context, device application.DeviceInfo, _ application.Connection, artifact application.DeployArtifact) error {
-	payload, err := readBounded(device.Interface, MaxRuleSetBytes)
+func (*Deployer) Verify(ctx context.Context, device application.DeviceInfo, _ application.Connection, artifact application.DeployArtifact) error {
+	payload, err := readBounded(ctx, device.Interface, MaxRuleSetBytes)
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrVerifyMismatch, err)
 	}
@@ -276,7 +291,10 @@ func (*Deployer) Verify(_ context.Context, device application.DeviceInfo, _ appl
 }
 
 // Rollback restores exactly what Backup captured, including an absent file.
-func (*Deployer) Rollback(_ context.Context, device application.DeviceInfo, _ application.Connection, backup application.BackupPayload) error {
+func (*Deployer) Rollback(ctx context.Context, device application.DeviceInfo, _ application.Connection, backup application.BackupPayload) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	var envelope backupEnvelope
 	if err := json.Unmarshal(backup.Payload, &envelope); err != nil {
 		return fmt.Errorf("%w: %v", ErrBackupUnusable, err)
@@ -285,6 +303,9 @@ func (*Deployer) Rollback(_ context.Context, device application.DeviceInfo, _ ap
 		return fmt.Errorf("%w: the backup describes a different file", ErrBackupUnusable)
 	}
 	if !envelope.Present {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := os.Remove(envelope.Path); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("%w: %v", ErrBackupUnusable, err)
 		}
@@ -294,13 +315,16 @@ func (*Deployer) Rollback(_ context.Context, device application.DeviceInfo, _ ap
 	if hex.EncodeToString(digest[:]) != envelope.SHA256 {
 		return fmt.Errorf("%w: the stored bytes do not match their digest", ErrBackupUnusable)
 	}
-	return writeAtomic(envelope.Path, envelope.Payload)
+	return writeAtomic(ctx, envelope.Path, envelope.Payload)
 }
 
 // readBounded reads a file through a root scoped to its own directory and
 // refuses anything past the bound, so neither a symlink nor a large file can
 // pull this deployer somewhere it was not pointed.
-func readBounded(path string, limit int) ([]byte, error) {
+func readBounded(ctx context.Context, path string, limit int) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if path == "" || !filepath.IsAbs(path) {
 		return nil, fmt.Errorf("a bounded read needs an absolute path")
 	}
@@ -309,7 +333,9 @@ func readBounded(path string, limit int) ([]byte, error) {
 		return nil, err
 	}
 	defer root.Close()
-	file, err := root.Open(filepath.Base(path))
+	// Open without waiting for a FIFO peer so the descriptor's type can be
+	// checked even if the entry is replaced between inspection and open.
+	file, err := root.OpenFile(filepath.Base(path), os.O_RDONLY|syscall.O_NONBLOCK, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -328,6 +354,9 @@ func readBounded(path string, limit int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if len(payload) > limit {
 		return nil, fmt.Errorf("%s is larger than the %d byte bound", path, limit)
 	}
@@ -336,23 +365,28 @@ func readBounded(path string, limit int) ([]byte, error) {
 
 // writeAtomic writes through a temporary file in the destination directory and
 // renames it into place, so a reader never observes a partial rule set.
-func writeAtomic(path string, payload []byte) error {
+func writeAtomic(ctx context.Context, path string, payload []byte) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	directory := filepath.Dir(path)
 	file, err := os.CreateTemp(directory, filepath.Base(path)+".routevane-*")
 	if err != nil {
 		return err
 	}
 	temporary := file.Name()
+	defer os.Remove(temporary)
 	written, writeErr := file.Write(payload)
 	chmodErr := file.Chmod(0o600)
 	syncErr := file.Sync()
 	closeErr := file.Close()
 	if writeErr != nil || chmodErr != nil || syncErr != nil || closeErr != nil || written != len(payload) {
-		_ = os.Remove(temporary)
 		return errors.Join(writeErr, chmodErr, syncErr, closeErr)
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if err := os.Rename(temporary, path); err != nil {
-		_ = os.Remove(temporary)
 		return err
 	}
 	return nil

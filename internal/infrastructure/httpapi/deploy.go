@@ -12,27 +12,35 @@ import (
 
 // deploy applies one published artifact to one destination.
 //
-// The credential crosses this boundary and stops here: it is read from the
-// request body, handed to the deployer for this one call, and never stored,
-// logged, or returned. The request log records the route and method only, and
-// the audit record this returns carries identities and outcomes.
+// A one-use credential is handed to the deployer without being stored, logged,
+// or returned. A registered selection may resolve a consented saved credential
+// under the delivery gate. The request log records the route and method only,
+// and the audit record this returns carries identities and outcomes.
 //
 // Without confirm the handler answers with the plan, including read-only device
 // inspection when required. Only the confirmed step can mutate the device.
 func (h *handler) deploy(w http.ResponseWriter, r *http.Request, id string) {
 	var request struct {
-		AttemptID string `json:"attempt_id"`
-		Device    string `json:"device"`
-		Username  string `json:"username"`
-		Password  string `json:"password"`
-		Interface string `json:"interface"`
-		Confirm   bool   `json:"confirm"`
+		AttemptID          string                                `json:"attempt_id"`
+		DeviceID           string                                `json:"device_id"`
+		ExpectedConnection *application.DeviceConnectionSnapshot `json:"expected_connection"`
+		Device             string                                `json:"device"`
+		Username           string                                `json:"username"`
+		Password           string                                `json:"password"`
+		Interface          string                                `json:"interface"`
+		Confirm            bool                                  `json:"confirm"`
 	}
 	if !decodeJSON(w, r, &request) {
 		return
 	}
+	if request.DeviceID != "" && (request.ExpectedConnection == nil || request.Device != "" || request.Username != "" || request.Interface != "") || request.DeviceID == "" && request.ExpectedConnection != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "connection_invalid", "attempt_started": false})
+		return
+	}
 	command := application.DeployCommand{
-		ArtifactID: id,
+		ArtifactID:         id,
+		DeviceID:           request.DeviceID,
+		ExpectedConnection: request.ExpectedConnection,
 		Connection: application.Connection{
 			URL: request.Device, Username: request.Username,
 			Password: request.Password, Interface: request.Interface,
@@ -53,16 +61,20 @@ func (h *handler) deploy(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	if request.AttemptID == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "attempt_id_required"})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "attempt_id_required", "attempt_started": false})
 		return
 	}
 	attempt, err := h.backend.DeployAttempt(r.Context(), request.AttemptID, command)
+	if errors.Is(err, application.ErrDeploymentNotStarted) {
+		h.deployNotStarted(w, err)
+		return
+	}
 	if errors.Is(err, application.ErrDeploymentAttemptInvalid) {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "attempt_id_invalid"})
+		writeJSON(w, http.StatusBadRequest, map[string]any{"error": "attempt_id_invalid", "attempt_started": false})
 		return
 	}
 	if errors.Is(err, application.ErrDeploymentAttemptMismatch) {
-		writeJSON(w, http.StatusConflict, map[string]string{"error": "attempt_mismatch"})
+		writeJSON(w, http.StatusConflict, map[string]any{"error": "attempt_mismatch", "attempt_started": false})
 		return
 	}
 	if errors.Is(err, application.ErrDeploymentOutcomeUnknown) {
@@ -71,6 +83,10 @@ func (h *handler) deploy(w http.ResponseWriter, r *http.Request, id string) {
 	}
 	if attempt.ID == "" {
 		if err != nil {
+			if errors.Is(err, application.ErrConnectionInvalid) || errors.Is(err, application.ErrDeviceIncompatible) || errors.Is(err, application.ErrDeployerUnavailable) {
+				writeJSON(w, deployStatus(err), map[string]string{"error": deployFailure(err)})
+				return
+			}
 			h.backendError(w, err)
 			return
 		}
@@ -85,6 +101,26 @@ func (h *handler) deploy(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 	writeJSON(w, http.StatusOK, body)
+}
+
+// deployNotStarted is used only when the backend explicitly proves that this
+// request stopped before claiming an attempt. Journal/transport ambiguity must
+// retain recovery semantics even when no attempt record was returned.
+func (h *handler) deployNotStarted(w http.ResponseWriter, err error) {
+	status, code := deployStatus(err), deployFailure(err)
+	switch {
+	case errors.Is(err, application.ErrNotFound):
+		code = "not found"
+	case errors.Is(err, application.ErrArtifactUnavailable):
+		status, code = http.StatusServiceUnavailable, "artifact unavailable"
+	case errors.Is(err, application.ErrTargetChanged):
+		status, code = http.StatusConflict, "output target changed"
+	case errors.Is(err, application.ErrConnectionInvalid), errors.Is(err, application.ErrDeviceIncompatible), errors.Is(err, application.ErrDeployerUnavailable):
+	default:
+		status, code = http.StatusUnprocessableEntity, "operation failed"
+		h.logger.Warn("deployment refused before starting an attempt", "error", err.Error())
+	}
+	writeJSON(w, status, map[string]any{"error": code, "attempt_started": false})
 }
 
 func (h *handler) deploymentAttempt(w http.ResponseWriter, r *http.Request, id string) {

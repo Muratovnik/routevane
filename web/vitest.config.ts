@@ -28,7 +28,8 @@ const NODE_SPECS = [
   // The model composables that never reach `shared/api`, which resolves the
   // service origin through `window.location`.
   'tests/unit/entities/profile-composition/model/composition.spec.ts',
-  'tests/unit/features/{devices,lists,send-artifact,settings}/model/*.spec.ts',
+  'tests/unit/features/{devices,lists,settings}/model/*.spec.ts',
+  'tests/unit/features/send-artifact/model/useDeployment.spec.ts',
 ]
 
 export default defineConfig({

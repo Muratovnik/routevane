@@ -15,6 +15,7 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 	"github.com/Muratovnik/routevane/internal/infrastructure/catalogyaml"
 	"github.com/Muratovnik/routevane/internal/infrastructure/filesystem"
+	"github.com/Muratovnik/routevane/internal/infrastructure/processlock"
 	"github.com/Muratovnik/routevane/internal/infrastructure/sqlite"
 	"github.com/Muratovnik/routevane/internal/renderers/rawjson"
 )
@@ -180,6 +181,17 @@ func runRefresh(ctx context.Context, stdout io.Writer, logger *slog.Logger, opti
 		logResult(logger, "refresh", options.ListID, "", "failed", 0, started, "catalog_invalid")
 		return 2
 	}
+	root, err := filesystem.EnsureDataRoot(options.DataDir)
+	if err != nil {
+		logResult(logger, "refresh", options.ListID, "", "failed", 0, started, "data_root_invalid")
+		return 2
+	}
+	lock, err := processlock.Acquire(root)
+	if err != nil {
+		logResult(logger, "refresh", options.ListID, "", "failed", 0, started, "data_lock_unavailable")
+		return 1
+	}
+	defer lock.Close()
 	return refreshLoaded(ctx, stdout, logger, options, catalog, definition, deps, started)
 }
 
@@ -238,6 +250,17 @@ func runBuild(ctx context.Context, stdout io.Writer, logger *slog.Logger, option
 		logResult(logger, "build", buildListLogID(options.ListIDs), "", "failed", 0, started, "catalog_invalid")
 		return 2
 	}
+	root, err := filesystem.ResolvePrivateDataRoot(options.DataDir)
+	if err != nil {
+		logResult(logger, "build", buildListLogID(options.ListIDs), "", "failed", 0, started, "data_root_unavailable")
+		return 1
+	}
+	lock, err := processlock.Acquire(root)
+	if err != nil {
+		logResult(logger, "build", buildListLogID(options.ListIDs), "", "failed", 0, started, "data_lock_unavailable")
+		return 1
+	}
+	defer lock.Close()
 	return buildLoaded(ctx, stdout, logger, options, catalog, definitions, deps, started)
 }
 

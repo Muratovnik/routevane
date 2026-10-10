@@ -53,6 +53,7 @@ func (d *FQDNDeployer) Probe(ctx context.Context, connection application.Connect
 	if err != nil {
 		return application.DeviceInfo{}, err
 	}
+	defer session.close()
 	info, err := session.identity(ctx, connection, FQDNDeployerID)
 	if err != nil {
 		return info, err
@@ -110,6 +111,7 @@ func (d *FQDNDeployer) Deploy(ctx context.Context, device application.DeviceInfo
 	if err != nil {
 		return err
 	}
+	defer session.close()
 	existing, routes, err := session.observedGroups(ctx)
 	if err != nil {
 		return err
@@ -139,6 +141,7 @@ func (d *FQDNDeployer) Verify(ctx context.Context, device application.DeviceInfo
 	if err != nil {
 		return err
 	}
+	defer session.close()
 	existing, routes, err := session.observedGroups(ctx)
 	if err != nil {
 		return err

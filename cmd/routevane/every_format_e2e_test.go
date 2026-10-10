@@ -114,8 +114,10 @@ func TestPublishesEveryBuiltInFormatFromOneProfile(t *testing.T) {
 		t.Fatalf("a suffix must not be carried as an address-list entry:\n%s", script.payload)
 	}
 	// The script replaces what it owns rather than adding to it.
-	if !strings.Contains(string(script.payload), "remove [find list=routevane4]") {
-		t.Fatalf("script = %s", script.payload)
+	for _, list := range []string{"routevane4", "routevane6"} {
+		if !strings.Contains(string(script.payload), "remove [find list="+list+" !dynamic]\nremove [find list="+list+"]\n") {
+			t.Fatalf("script did not safely replace both families: %s", script.payload)
+		}
 	}
 
 	// The client resolves each site itself, so its profile carries the observed

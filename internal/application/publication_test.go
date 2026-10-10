@@ -630,7 +630,9 @@ func TestOutputTokenIsIssuedOnlyAfterSuccessfulBuild(t *testing.T) {
 
 func TestAnOutputBindsOnlyADeviceOfItsOwnTargetAndCanDetachIt(t *testing.T) {
 	const outputID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	store := &publicationFakeStore{output: Output{ID: outputID, TargetID: "keenetic"}}
+	profile, output := testProfileAndOutput()
+	output.ID = outputID
+	store := &publicationFakeStore{profile: profile, output: output}
 	publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{1}, 64)))
 	device := Device{ID: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", TargetID: "keenetic"}
 	bound, err := publication.SetOutputDevice(context.Background(), outputID, &device)

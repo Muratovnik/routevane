@@ -8,10 +8,12 @@ import { expect } from '@playwright/test'
 import { test } from './support/content-policy'
 import {
   assertPortBindable,
+  createOwnedProductData,
   delay,
   reserveLoopbackPort,
   spawnProduct,
   stopOwnedProduct,
+  stopOwnedProductData,
   type SpawnedProduct,
 } from './support/product'
 
@@ -23,19 +25,14 @@ const binary = join(
   'build',
   process.platform === 'win32' ? 'routevane.exe' : 'routevane',
 )
-const sourceDataRoot = join(repositoryRoot, '.cache', 'transfer-source-data')
-const destinationDataRoot = join(
-  repositoryRoot,
-  '.cache',
-  'transfer-destination-data',
-)
-const downloadRoot = join(repositoryRoot, 'tmp', 'test-artifacts', 'transfer')
-const transferPath = join(downloadRoot, 'routevane-config.json')
-const invalidUTF8Path = join(downloadRoot, 'invalid-utf8.json')
-const bomPath = join(downloadRoot, 'utf8-bom.json')
-const topDuplicatePath = join(downloadRoot, 'duplicate-top.json')
-const nestedDuplicatePath = join(downloadRoot, 'duplicate-nested.json')
-
+let runRoot: string | undefined
+let sourceDataRoot = ''
+let destinationDataRoot = ''
+let transferPath = ''
+let invalidUTF8Path = ''
+let bomPath = ''
+let topDuplicatePath = ''
+let nestedDuplicatePath = ''
 let sourceOrigin = ''
 let destinationOrigin = ''
 let sourcePort = 0
@@ -52,9 +49,18 @@ const DESKTOP_VIEWPORT = { height: 720, width: 1280 }
 
 test.beforeAll(async () => {
   await access(binary)
-  await rm(sourceDataRoot, { force: true, recursive: true })
-  await rm(destinationDataRoot, { force: true, recursive: true })
-  await rm(downloadRoot, { force: true, recursive: true })
+  runRoot = await createOwnedProductData(
+    join(repositoryRoot, 'tmp', 'browser-fixtures'),
+    'config-transfer',
+  )
+  sourceDataRoot = join(runRoot, 'source')
+  destinationDataRoot = join(runRoot, 'destination')
+  const downloadRoot = join(runRoot, 'downloads')
+  transferPath = join(downloadRoot, 'routevane-config.json')
+  invalidUTF8Path = join(downloadRoot, 'invalid-utf8.json')
+  bomPath = join(downloadRoot, 'utf8-bom.json')
+  topDuplicatePath = join(downloadRoot, 'duplicate-top.json')
+  nestedDuplicatePath = join(downloadRoot, 'duplicate-nested.json')
   await mkdir(downloadRoot, { recursive: true })
 
   sourcePort = await reserveLoopbackPort()
@@ -72,31 +78,46 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
+  if (runRoot === undefined) return
   const cleanupErrors: unknown[] = []
-  for (const product of [sourceProduct, destinationProduct]) {
-    if (product === undefined) continue
+  const installations = [
+    { product: sourceProduct, port: sourcePort, dataRoot: sourceDataRoot },
+    {
+      product: destinationProduct,
+      port: destinationPort,
+      dataRoot: destinationDataRoot,
+    },
+  ]
+  for (const { product, port, dataRoot } of installations) {
     try {
-      await stopOwnedProduct(product.process)
+      if (product === undefined) {
+        if (port !== 0) await assertPortBindable(port)
+        continue
+      }
+      const cleanupError = await stopOwnedProductData(product, port, dataRoot)
+      if (cleanupError !== undefined) cleanupErrors.push(cleanupError)
     } catch (error) {
       cleanupErrors.push(error)
     }
   }
-  for (const port of [sourcePort, destinationPort]) {
-    if (port === 0) continue
+  if (installations.some(({ product }) => product?.isAlive())) {
+    cleanupErrors.push(
+      new Error(
+        `configuration transfer child is still running; data preserved at ${runRoot}`,
+      ),
+    )
+  } else {
     try {
-      await assertPortBindable(port)
+      await rm(runRoot, { force: true, recursive: true })
     } catch (error) {
       cleanupErrors.push(error)
     }
   }
-  for (const path of [sourceDataRoot, destinationDataRoot, downloadRoot]) {
-    try {
-      await rm(path, { force: true, recursive: true })
-    } catch (error) {
-      cleanupErrors.push(error)
-    }
-  }
-  if (cleanupErrors.length > 0) throw cleanupErrors[0]
+  if (cleanupErrors.length > 0)
+    throw new AggregateError(
+      cleanupErrors,
+      'configuration transfer cleanup was incomplete',
+    )
 })
 
 test('configuration transfer moves a reviewed profile into a fresh installation', async ({
@@ -361,12 +382,19 @@ const waitForHealth = async (
   while (Date.now() < deadline) {
     product.assertAlive()
     try {
-      const response = await fetch(`${origin}/health`)
-      if (response.ok) return
+      const response = await fetch(`${origin}/health`, {
+        signal: AbortSignal.timeout(Math.max(1, deadline - Date.now())),
+      })
+      try {
+        if (response.ok) return
+      } finally {
+        await response.body?.cancel().catch(() => {})
+      }
     } catch {
       // The listener is not ready yet.
     }
-    await delay(50)
+    const remaining = deadline - Date.now()
+    if (remaining > 0) await delay(Math.min(50, remaining))
   }
   throw new Error(`Routevane did not become ready: ${product.output()}`)
 }

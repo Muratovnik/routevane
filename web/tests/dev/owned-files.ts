@@ -4,6 +4,7 @@ import { open, rm } from 'node:fs/promises'
 export const ownedFiles = () => {
   const paths: string[] = []
   return {
+    paths: (): readonly string[] => [...paths],
     async create(path: string, contents: string): Promise<void> {
       const file = await open(path, 'wx')
       paths.push(path)

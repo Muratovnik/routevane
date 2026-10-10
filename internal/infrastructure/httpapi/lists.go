@@ -127,19 +127,19 @@ func (h *handler) removeListSource(w http.ResponseWriter, r *http.Request, listI
 	h.listContents(w, r, listID)
 }
 
-// setListValues records one verdict over a batch of destinations — domains,
-// addresses, networks. The batch exists because an operator states a routes
-// file in one action; the application bounds it at 1024 values, and the body
-// bound this package applies to every route (maxJSONBytes, 64 KiB) carries a
-// full batch of ordinary destinations with room to spare. A larger body is
-// refused as too large by decodeJSON rather than silently truncated, so the
-// route needs no bound of its own.
+// A full batch of 1024 names may use 253 bytes per name before JSON framing.
+// This import needs its own bound; ordinary mutations retain maxJSONBytes.
+const maxListValuesJSONBytes = 512 << 10
+
+// setListValues records one verdict over a batch of destinations. The
+// application still owns the 1024-value limit and validates the whole batch
+// before any write; this route bounds its encoded transport separately.
 func (h *handler) setListValues(w http.ResponseWriter, r *http.Request, listID string) {
 	var request struct {
 		Values  []string `json:"values"`
 		Verdict string   `json:"verdict"`
 	}
-	if !decodeJSON(w, r, &request) {
+	if !decodeJSONLimit(w, r, &request, maxListValuesJSONBytes) {
 		return
 	}
 	if len(request.Values) == 0 {

@@ -148,6 +148,7 @@ type PublicationCandidate struct {
 	Artifact        ArtifactBuildRecord
 	Attempt         OutputAttempt
 	ProfileRevision [32]byte
+	FQDNGroupPrefix string
 }
 
 // ProfilePublicationRevision identifies exactly the profile state that can
@@ -283,7 +284,7 @@ type LibraryPriorityRepository interface {
 // when device is nil. A target mismatch is refused before storage: format and
 // device kind are an invariant of the connection, not a deploy-time guess.
 func (s *PublicationService) SetOutputDevice(ctx context.Context, outputID string, device *Device) (Output, error) {
-	output, err := s.Output(ctx, outputID)
+	output, err := s.writableOutput(ctx, outputID)
 	if err != nil {
 		return Output{}, err
 	}
@@ -953,7 +954,7 @@ func (s *PublicationService) AddOutput(ctx context.Context, profileID, targetID 
 // IssueSubscription creates the bearer credential only for a published
 // output. Existing credentials are immutable and never read back.
 func (s *PublicationService) IssueSubscription(ctx context.Context, outputID string) (string, error) {
-	output, err := s.Output(ctx, outputID)
+	output, err := s.writableOutput(ctx, outputID)
 	if err != nil {
 		return "", err
 	}
@@ -1001,6 +1002,21 @@ func (s *PublicationService) Output(ctx context.Context, id string) (Output, err
 		return Output{}, ErrNotFound
 	}
 	return s.config.Store.Output(ctx, id)
+}
+
+func (s *PublicationService) writableOutput(ctx context.Context, id string) (Output, error) {
+	output, err := s.Output(ctx, id)
+	if err != nil {
+		return Output{}, err
+	}
+	profile, err := s.Profile(ctx, output.ProfileID)
+	if err != nil {
+		return Output{}, err
+	}
+	if err := profile.writable(); err != nil {
+		return Output{}, err
+	}
+	return output, nil
 }
 
 func (s *PublicationService) Outputs(ctx context.Context, profileID string) ([]Output, error) {

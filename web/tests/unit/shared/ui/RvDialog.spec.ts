@@ -128,6 +128,37 @@ describe('RvDialog', () => {
     document.body.style.minHeight = ''
   })
 
+  it('binds only a rendered description and removes the binding when it disappears', async () => {
+    const screen = await render(RvDialog, {
+      props: {
+        closeLabel: 'Close',
+        open: true,
+        title: 'Settings',
+        variant: 'panel',
+      },
+    })
+    const panel = screen.getByRole('dialog', { name: 'Settings' })
+    await expect.element(panel).not.toHaveAttribute('aria-describedby')
+
+    await screen.rerender({ description: 'Changes apply to this connection.' })
+    await expect
+      .element(panel)
+      .toHaveAccessibleDescription('Changes apply to this connection.')
+    const describedBy = panel.element().getAttribute('aria-describedby')
+    expect(describedBy).not.toBeNull()
+    expect(
+      document.getElementById(describedBy ?? '')?.textContent?.trim(),
+    ).toBe('Changes apply to this connection.')
+
+    await screen.rerender({ description: 'Changes apply after confirmation.' })
+    await expect
+      .element(panel)
+      .toHaveAccessibleDescription('Changes apply after confirmation.')
+    await screen.rerender({ description: undefined })
+    await expect.element(panel).not.toHaveAttribute('aria-describedby')
+    await expect.element(panel).toHaveAccessibleName('Settings')
+  })
+
   it('delegates the complete sheet transition to Nuxt UI', async () => {
     const screen = await render(RvDialog, {
       props: { closeLabel: 'Close', open: true, title: 'Google AI' },

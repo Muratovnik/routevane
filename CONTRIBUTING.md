@@ -5,7 +5,7 @@ application, use the [user guide](README.md).
 
 ## Prerequisites
 
-- Go 1.27.x, as declared in [go.mod](go.mod).
+- Go 1.27.2 or a newer patch in the 1.27 line, as declared in [go.mod](go.mod).
 - Node.js 24.19+ within the 24.x line. [.node-version](.node-version) pins the
   version used by CI; [web/package.json](web/package.json) declares the minimum.
 - npm 11.17+ within the 11.x line.
@@ -32,8 +32,8 @@ Run from the repository root:
 ```powershell
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 setup
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 install-hooks
-pwsh -NoLogo -NoProfile -File tools/dev.ps1 check
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 setup-browser
+pwsh -NoLogo -NoProfile -File tools/dev.ps1 check
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 test-browser
 ```
 

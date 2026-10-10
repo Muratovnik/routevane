@@ -24,7 +24,7 @@ type outputPrefixStore interface {
 }
 
 func (s *PublicationService) SetOutputFQDNPrefix(ctx context.Context, outputID, prefix string) (Output, error) {
-	output, err := s.Output(ctx, outputID)
+	output, err := s.writableOutput(ctx, outputID)
 	if err != nil {
 		return Output{}, err
 	}

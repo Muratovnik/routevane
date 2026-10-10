@@ -71,3 +71,5 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0041: one interface word per object — format and connection](./0041-one-interface-word-per-object.md) | adopted |
 | [ADR 0042: identify a manual deployment before device effects](./0042-identify-manual-deployment-before-device-effects.md) | adopted |
 | [ADR 0043: accept two command palette accessibility findings](./0043-accept-two-command-palette-findings.md) | adopted |
+| [ADR 0044: bootstrap empty SQLite databases at a fixed schema version](./0044-bootstrap-empty-sqlite-at-a-fixed-schema-version.md) | adopted |
+| [ADR 0045: reviewed security repairs for web dependencies](./0045-reviewed-web-dependency-security-repairs.md) | adopted |

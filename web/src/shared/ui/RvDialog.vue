@@ -146,11 +146,11 @@ watch(
 
 onBeforeUnmount(leave)
 
-// A panel with no description states that it has none, which is the escape the
-// primitive documents. Passing the attribute as `undefined` would instead strip
-// the wiring the primitive puts there when a description does exist.
-const describedBy = computed<{ 'aria-describedby'?: string }>(() =>
-  props.description === undefined ? { 'aria-describedby': 'undefined' } : {},
+// Override the primitive's default id only when there is no description.
+// An actual undefined value removes the attribute; the string names a missing
+// element. Leave the primitive's real description binding intact otherwise.
+const describedBy = computed(() =>
+  props.description === undefined ? { 'aria-describedby': undefined } : {},
 )
 
 const onCloseAutoFocus = (event: Event): void => {

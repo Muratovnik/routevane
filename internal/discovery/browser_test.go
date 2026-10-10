@@ -30,8 +30,8 @@ import (
 
 // The discovery browser is an owned external dependency, exactly like the
 // Playwright browsers the web gate uses. These tests run in the browser gate,
-// which sets ROUTEVANE_BROWSER, and skip elsewhere so the default gate needs no
-// browser binary.
+// which sets ROUTEVANE_BROWSER, and skip in Go-only checks where it is unset.
+// The web unit gate separately requires its pinned browser.
 func browserPath(t *testing.T) string {
 	t.Helper()
 	path := DefaultBrowserPath()

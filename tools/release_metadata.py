@@ -160,6 +160,21 @@ def npm_components() -> list[Component]:
             license_id = "MIT"
             notice = Path(__file__).with_name("licenses") / "vaul-vue-0.4.1.LICENSE"
             texts = (("LICENSE (upstream release source)", notice.read_text(encoding="utf-8")),)
+        # zigpty's 0.2.1 tarball carries its complete MIT LICENSE but omits the
+        # JSON declaration. Accept only this reviewed tarball and those exact
+        # shipped license bytes; missing or changed evidence still fails below.
+        if not license_id and (name, version, metadata.get("integrity")) == (
+            "zigpty", "0.2.1",
+            "sha512-MR9JqJx2wf5f4wz8zpx050AlqrmWeIW+1h0SO5iEyhG3HFRjY5luC3szS2ux2EGuPjE5OU9ZAuiCBeMWBTrqZw==",
+        ):
+            notice = directory / "LICENSE"
+            if (
+                notice.is_file()
+                and not notice.is_symlink()
+                and hashlib.sha256(notice.read_bytes()).hexdigest()
+                == "46231df5a7733c3f52f11b71f3df61813007745b62b09031acfb45fb42d75082"
+            ):
+                license_id = "MIT"
         if not name or not version or not license_id:
             raise ValueError(f"npm production dependency has incomplete license identity: {lock_path}")
         key = (name, version)

@@ -116,8 +116,10 @@ func DegradedSources(health []SourceRunState, activeRevisions map[string]string,
 		if state.SourceID == "" || state.LastSuccessAt.IsZero() || !state.LastRunFailed() {
 			continue
 		}
-		if want, ok := activeRevisions[state.SourceID]; ok && want != state.SourceRevision {
-			continue
+		if activeRevisions != nil {
+			if want, ok := activeRevisions[state.SourceID]; !ok || want != state.SourceRevision {
+				continue
+			}
 		}
 		graceUntil := state.LastSuccessAt.UTC().Add(SourceGracePeriod)
 		if !graceUntil.After(cutoff.UTC()) {

@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 
 import {
   addListSource,
@@ -52,6 +52,7 @@ export type ListDetailReport = {
 // The batch endpoint takes at most this many values in one request, so a long
 // import is sent in several rather than refused.
 const BATCH_LIMIT = 1024
+const IMPORT_BYTE_LIMIT = 1024 * 1024
 
 /**
  * Everything one list card reads and writes: its contents, its sources, the
@@ -114,6 +115,12 @@ export const useListDetail = (
   // The card reads the sources for the operator, but a card left open is not a
   // polling client: one automatic read per opening.
   let autoObserved = false
+
+  // Unmounting does not change props, but it must invalidate pending reads just
+  // like closing the card does. A late answer must not start a source refresh.
+  onScopeDispose(() => {
+    contentsRequest += 1
+  })
 
   const rows = computed<ListContentsRow[]>(() => contents.value?.rows ?? [])
 
@@ -524,6 +531,7 @@ export const useListDetail = (
     const request = contentsRequest
     let latest: ListContents | null = null
     for (let index = 0; index < values.length; index += BATCH_LIMIT) {
+      if (request !== contentsRequest) return
       latest = await setListValues(
         listID,
         values.slice(index, index + BATCH_LIMIT),
@@ -555,16 +563,19 @@ export const useListDetail = (
     }
     addError.value = ''
     importStatus.value = ''
+    const request = contentsRequest
     saving.value = true
     try {
       await includeValues(list.id, parsed.values)
+      if (request !== contentsRequest) return
       addValuesDraft.value = ''
       addError.value = ''
       addValuesOpen.value = false
     } catch {
-      addError.value = t('listCard.action.failed')
+      if (request === contentsRequest)
+        addError.value = t('listCard.action.failed')
     } finally {
-      saving.value = false
+      if (request === contentsRequest) saving.value = false
     }
   }
 
@@ -589,23 +600,32 @@ export const useListDetail = (
     if (list === null || interactionBusy.value) return
     addError.value = ''
     importStatus.value = ''
+    if (file.size > IMPORT_BYTE_LIMIT) {
+      addError.value = t('listCard.import.tooLarge')
+      return
+    }
+    const request = contentsRequest
     saving.value = true
     try {
-      const parsed = parseDestinationList(await file.text())
+      const text = await file.text()
+      if (request !== contentsRequest) return
+      const parsed = parseDestinationList(text)
       if (parsed.values.length === 0) {
         addError.value = t('listCard.import.empty')
         return
       }
       await includeValues(list.id, parsed.values)
+      if (request !== contentsRequest) return
       // What the file could not be read for is reported on the card, beside the
       // rows the file did land in.
       if (parsed.skipped > 0)
         importStatus.value = tc('listCard.import.skipped', parsed.skipped)
       addValuesOpen.value = false
     } catch {
-      addError.value = t('listCard.action.failed')
+      if (request === contentsRequest)
+        addError.value = t('listCard.action.failed')
     } finally {
-      saving.value = false
+      if (request === contentsRequest) saving.value = false
     }
   }
 
@@ -621,14 +641,17 @@ export const useListDetail = (
     feedError.value = ''
     try {
       await addListSource(list.id, feedURL.value.trim(), feedFormat.value)
+      if (request !== contentsRequest) return
       const loaded = await loadListContents(list.id)
+      if (request !== contentsRequest) return
       applyContents(request, loaded)
       feedURL.value = ''
       feedOpen.value = false
     } catch {
-      feedError.value = t('listCard.feed.failed')
+      if (request === contentsRequest)
+        feedError.value = t('listCard.feed.failed')
     } finally {
-      saving.value = false
+      if (request === contentsRequest) saving.value = false
     }
   }
 
@@ -640,6 +663,7 @@ export const useListDetail = (
       titleError.value = t('listCard.title.invalid')
       return
     }
+    const request = contentsRequest
     saving.value = true
     titleError.value = ''
     try {
@@ -648,11 +672,12 @@ export const useListDetail = (
         title,
         (list.domains ?? []).map((domain) => domain.value),
       )
-      report.updated(asListDetail(record))
+      if (request === contentsRequest) report.updated(asListDetail(record))
     } catch {
-      titleError.value = t('listCard.save.failed')
+      if (request === contentsRequest)
+        titleError.value = t('listCard.save.failed')
     } finally {
-      saving.value = false
+      if (request === contentsRequest) saving.value = false
     }
   }
 
@@ -672,15 +697,19 @@ export const useListDetail = (
       return
     }
     titleError.value = ''
+    const request = contentsRequest
     saving.value = true
     try {
       const record = await createCustomList(title, domains)
+      if (request !== contentsRequest) return
+      saving.value = false
       report.created(asListDetail(record))
       requestClose()
     } catch {
-      domainsError.value = t('listCard.save.failed')
+      if (request === contentsRequest)
+        domainsError.value = t('listCard.save.failed')
     } finally {
-      saving.value = false
+      if (request === contentsRequest) saving.value = false
     }
   }
 

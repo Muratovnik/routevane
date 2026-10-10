@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/Muratovnik/routevane/internal/application"
 	"github.com/Muratovnik/routevane/internal/domain"
+	"github.com/Muratovnik/routevane/internal/infrastructure/filesystem"
 	"github.com/Muratovnik/routevane/internal/infrastructure/sqlite"
 )
 
@@ -255,7 +257,11 @@ func TestServeBackendSerializesEveryDeliveryThroughOneGate(t *testing.T) {
 				t.Fatal(err)
 			}
 			gate := application.NewDeliveryGate()
-			journal, err := sqlite.Open(context.Background(), t.TempDir())
+			dataRoot, err := filesystem.EnsureDataRoot(filepath.Join(t.TempDir(), "data"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			journal, err := sqlite.Open(context.Background(), dataRoot)
 			if err != nil {
 				t.Fatal(err)
 			}

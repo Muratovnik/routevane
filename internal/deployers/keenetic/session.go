@@ -58,10 +58,13 @@ func (d *Deployer) connect(ctx context.Context, connection application.Connectio
 	client := &http.Client{Transport: transport, Jar: jar, CheckRedirect: refuseRedirect, Timeout: requestTimeout}
 	current := &session{client: client, baseURL: strings.TrimSuffix(parsed.String(), "/")}
 	if err := current.authenticate(ctx, connection.Username, connection.Password); err != nil {
+		current.close()
 		return nil, err
 	}
 	return current, nil
 }
+
+func (s *session) close() { s.client.CloseIdleConnections() }
 
 // authenticate performs the challenge exchange the device expects. The password
 // never leaves this function in cleartext and never appears in an error.

@@ -351,12 +351,13 @@ test('an output can be explicitly bound to and detached from a compatible device
   origin,
 }) => {
   const headers = { Origin: origin, 'X-Routevane-Request': '1' }
+  const deviceName = 'Prerelease Keenetic'
   const created = await page.request.post(`${origin}/v1/devices`, {
     data: {
       account: 'admin',
       address: 'http://192.168.1.1',
       interface: 'Wireguard0',
-      name: 'Prerelease Keenetic',
+      name: deviceName,
       target_id: 'keenetic',
     },
     headers,
@@ -364,41 +365,125 @@ test('an output can be explicitly bound to and detached from a compatible device
   expect(created.ok()).toBe(true)
   const deviceID = ((await created.json()) as { device: { id: string } }).device
     .id
-  const { outputId } = await buildProfile(page, origin)
+  // Read the running product's capability, rather than assuming the test
+  // host's OS can retain a router password. These reads grant no consent.
+  const [registryResponse, targetsResponse] = await Promise.all([
+    page.request.get(`${origin}/v1/devices`),
+    page.request.get(`${origin}/v1/deployments/targets`),
+  ])
+  expect(registryResponse.ok()).toBe(true)
+  expect(targetsResponse.ok()).toBe(true)
+  const registry = (await registryResponse.json()) as {
+    secret_store_available: boolean
+    devices: { id: string; auto_deliver: boolean; deployable: boolean }[]
+  }
+  const targets = (await targetsResponse.json()) as {
+    targets: {
+      target_id: string
+      requirements: { needs_credential: boolean }
+    }[]
+  }
+  expect(typeof registry.secret_store_available).toBe('boolean')
+  expect(
+    registry.devices.find((device) => device.id === deviceID),
+  ).toMatchObject({
+    auto_deliver: false,
+    deployable: true,
+  })
+  expect(
+    targets.targets.find((target) => target.target_id === 'keenetic'),
+  ).toMatchObject({ requirements: { needs_credential: true } })
+  const copyByStore = {
+    false: {
+      device: 'outputs.device.unavailable',
+      readiness: 'outputs.readiness.unavailable',
+      absent: 'outputs.readiness.auto',
+    },
+    true: {
+      device: 'outputs.device.disabled',
+      readiness: 'outputs.readiness.auto',
+      absent: 'outputs.readiness.unavailable',
+    },
+  } as const
+  const expectedCopy =
+    copyByStore[
+      String(registry.secret_store_available) as keyof typeof copyByStore
+    ]
+  const deviceLabel = `${deviceName} · ${englishCopy(expectedCopy.device)}`
+  const { profileId, outputId } = await buildProfile(page, origin)
 
-  await page
+  const publishingTab = page
     .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Publishing' })
-    .click()
+  await publishingTab.click()
+  const publishing = page.getByRole('tabpanel', { name: 'Publishing' })
   // The row's device choice is captioned with the connection it belongs to,
   // which is what identifies it whatever it currently holds.
-  const binding = page.getByLabel(
+  const binding = publishing.getByLabel(
     englishCopy('outputs.device.label').replace('{target}', 'Keenetic'),
+    { exact: true },
   )
   await expect(binding).toHaveText('No automatic delivery')
 
-  const bound = page.waitForRequest(
-    (request) =>
-      request.method() === 'POST' &&
-      new URL(request.url()).pathname === `/v1/outputs/${outputId}/device`,
-  )
   await binding.click()
-  await page
-    .getByRole('option', {
-      name: 'Prerelease Keenetic · turn on automatic delivery in Connections',
-    })
-    .click()
-  expect((await bound).postDataJSON()).toEqual({ device_id: deviceID })
-  await expect(binding).toContainText('Prerelease Keenetic')
+  const [boundResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === `/v1/outputs/${outputId}/device`,
+    ),
+    page
+      .getByRole('option', {
+        name: deviceLabel,
+        exact: true,
+      })
+      .click(),
+  ])
+  expect(boundResponse.ok()).toBe(true)
+  expect(boundResponse.request().postDataJSON()).toEqual({
+    device_id: deviceID,
+  })
+  await expect(binding).toHaveText(deviceLabel)
+  await page.reload()
+  await publishingTab.click()
+  await expect(binding).toHaveText(deviceLabel)
+  await expect(
+    publishing.getByText(englishCopy(expectedCopy.readiness), { exact: true }),
+  ).toBeVisible()
+  await expect(
+    publishing.getByText(englishCopy(expectedCopy.absent), { exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    publishing.getByText(englishCopy('outputs.readiness.ready.router'), {
+      exact: true,
+    }),
+  ).toHaveCount(0)
+  await expect(
+    publishing.getByRole('link', { name: 'Send', exact: true }),
+  ).toHaveAttribute('href', `/profiles/${profileId}/send/${outputId}`)
 
-  const detached = page.waitForRequest(
-    (request) =>
-      request.method() === 'POST' &&
-      new URL(request.url()).pathname === `/v1/outputs/${outputId}/device`,
-  )
-  await page.getByRole('button', { name: 'Detach' }).click()
-  expect((await detached).postDataJSON()).toEqual({ device_id: '' })
+  const [detachedResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === `/v1/outputs/${outputId}/device`,
+    ),
+    publishing.getByRole('button', { name: 'Detach', exact: true }).click(),
+  ])
+  expect(detachedResponse.ok()).toBe(true)
+  expect(detachedResponse.request().postDataJSON()).toEqual({ device_id: '' })
   await expect(binding).toHaveText('No automatic delivery')
+  await page.reload()
+  await publishingTab.click()
+  await expect(binding).toHaveText('No automatic delivery')
+  await expect(
+    publishing.getByRole('button', { name: 'Detach', exact: true }),
+  ).toHaveCount(0)
+  await expect(
+    publishing.getByText(englishCopy('outputs.readiness.choose'), {
+      exact: true,
+    }),
+  ).toBeVisible()
 
   const forgotten = await page.request.post(
     `${origin}/v1/devices/${deviceID}/forget`,

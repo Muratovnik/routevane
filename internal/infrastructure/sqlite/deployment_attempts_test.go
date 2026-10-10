@@ -3,13 +3,24 @@ package sqlite_test
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Muratovnik/routevane/internal/application"
+	"github.com/Muratovnik/routevane/internal/infrastructure/filesystem"
 	"github.com/Muratovnik/routevane/internal/infrastructure/sqlite"
 )
+
+func attemptDataRoot(t *testing.T) string {
+	t.Helper()
+	root, err := filesystem.EnsureDataRoot(filepath.Join(t.TempDir(), "data"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
 
 type attemptExecutor struct {
 	calls  int
@@ -47,7 +58,7 @@ func attemptCommand(device string) application.DeployCommand {
 }
 
 func TestDeploymentAttemptIsDurableAndNeverReplaysEffects(t *testing.T) {
-	root := t.TempDir()
+	root := attemptDataRoot(t)
 	store, err := sqlite.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +100,7 @@ func TestDeploymentAttemptIsDurableAndNeverReplaysEffects(t *testing.T) {
 }
 
 func TestCanceledRequestStillRecordsTheOutcomeAfterRecovery(t *testing.T) {
-	store, err := sqlite.Open(context.Background(), t.TempDir())
+	store, err := sqlite.Open(context.Background(), attemptDataRoot(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +124,7 @@ func TestCanceledRequestStillRecordsTheOutcomeAfterRecovery(t *testing.T) {
 }
 
 func TestPendingAttemptSurvivesRestartAsUnknown(t *testing.T) {
-	root := t.TempDir()
+	root := attemptDataRoot(t)
 	store, err := sqlite.Open(context.Background(), root)
 	if err != nil {
 		t.Fatal(err)

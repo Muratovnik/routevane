@@ -262,6 +262,21 @@ test('desktop composes and publishes, copies a usable subscription and downloads
       path: join(root, 'tmp/desktop-acceptance/published.png'),
     })
 
+    await page.getByRole('tab', { name: 'Publishing', exact: true }).click()
+    await expect(page).toHaveURL(/#tab=outputs$/)
+    const prefixURL = page.url()
+    await page
+      .getByLabel('FQDN group prefix', { exact: true })
+      .fill('desktop-home')
+    await page.getByRole('button', { name: 'Save prefix', exact: true }).click()
+    await expect(
+      page.getByText('Prefix saved for the next build', { exact: true }),
+    ).toBeVisible()
+    await page.reload()
+    await expect(
+      page.getByLabel('FQDN group prefix', { exact: true }),
+    ).toHaveValue('desktop-home')
+
     const saved = join(env.ROUTEVANE_DESKTOP_PROFILE, 'config.json')
     // Stand in for the operator accepting the native Save dialog; the UI still
     // initiates the real blob download through Electron's download manager.
@@ -291,6 +306,10 @@ test('desktop composes and publishes, copies a usable subscription and downloads
     const reopened = await start(env)
     try {
       expect(await (await fetch(subscription)).text()).toContain('example.com')
+      await reopened.page.goto(prefixURL)
+      await expect(
+        reopened.page.getByLabel('FQDN group prefix', { exact: true }),
+      ).toHaveValue('desktop-home')
     } finally {
       await reopened.app.close()
     }

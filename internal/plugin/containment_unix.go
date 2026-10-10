@@ -5,6 +5,7 @@ package plugin
 import (
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 	"syscall"
 
@@ -28,8 +29,10 @@ func (unixProcessContainment) terminate(command *exec.Cmd) error {
 	if command.Process == nil {
 		return nil
 	}
-	err := unix.Kill(-command.Process.Pid, unix.SIGKILL)
-	if errors.Is(err, unix.ESRCH) {
+	// The live trusted runner owns group termination. Process.Signal uses
+	// os.Process's wait/signal lifetime instead of a possibly recycled group ID.
+	err := command.Process.Signal(syscall.SIGTERM)
+	if errors.Is(err, os.ErrProcessDone) || errors.Is(err, unix.ESRCH) {
 		return nil
 	}
 	return err
@@ -37,5 +40,5 @@ func (unixProcessContainment) terminate(command *exec.Cmd) error {
 
 func (unixProcessContainment) close() error { return nil }
 
-// The Unix runner replaces itself with the plugin; command.Wait has reaped it.
+// The Unix runner terminates its owned group before command.Wait reaps it.
 func (unixProcessContainment) waitEmpty(context.Context) error { return nil }

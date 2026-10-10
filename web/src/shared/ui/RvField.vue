@@ -42,6 +42,8 @@ const FieldBinding = defineComponent({
  * rendered.
  */
 const props = defineProps<{
+  /** Announce an asynchronous error while focus remains on another control. */
+  announceError?: boolean
   error?: string
   hint?: string
   inputId: string
@@ -60,5 +62,8 @@ const description = computed(() => (props.hint === '' ? undefined : props.hint))
     <FieldBinding :key="inputId" v-slot="binding" :input-id="inputId">
       <slot :described-by="binding.describedBy" :invalid="binding.invalid" />
     </FieldBinding>
+    <template v-if="announceError === true && failure !== undefined" #error>
+      <span role="alert">{{ failure }}</span>
+    </template>
   </UFormField>
 </template>

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { page } from 'vitest/browser'
 import { render, type RenderResult } from 'vitest-browser-vue'
 import { nextTick } from 'vue'
 
@@ -151,6 +152,45 @@ describe('ListDetailDialog', () => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
   })
+
+  it.each(['en', 'ru'] as const)(
+    'announces a refused file and preserves the entry draft in %s',
+    async (language) => {
+      const { t, setLocale } = useLocale()
+      setLocale(language)
+      const api = stubAPI({
+        'GET /v1/lists/discord/contents': () => contentsResponse(),
+      })
+      const screen = await renderCard({ mode: 'library' })
+      await screen
+        .getByRole('button', { name: t('listCard.domains.add'), exact: true })
+        .click()
+      const draft = screen.getByRole('textbox', {
+        name: t('listCard.domains.field'),
+        exact: true,
+      })
+      await draft.fill('typed.example.test')
+      const choosers = screen
+        .getByLabelText(t('listCard.import'), { exact: true })
+        .elements()
+        .filter(
+          (element) =>
+            element instanceof HTMLInputElement && element.type === 'file',
+        )
+      expect(choosers).toHaveLength(1)
+      await page.elementLocator(choosers[0]!).upload(
+        new File(['x'.repeat(1024 * 1024 + 1)], 'large.txt', {
+          type: 'text/plain',
+        }),
+      )
+      await expect
+        .element(screen.getByRole('alert'))
+        .toHaveTextContent(t('listCard.import.tooLarge'))
+      await expect.element(draft).toHaveValue('typed.example.test')
+      await expect.element(draft).toBeEnabled()
+      expect(api.keys()).toEqual(['GET /v1/lists/discord/contents'])
+    },
+  )
 
   it('keeps the current card and its filter when a catalog reload replaces the same list object', async () => {
     const api = stubAPI({

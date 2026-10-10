@@ -12,6 +12,21 @@
     "esbuild@0.28.2": true,
     "unrs-resolver@1.12.2": true
   },
+  "overrides": {
+    "@modelcontextprotocol/client": "2.3.1",
+    "@nuxt/cli": "4.0.1",
+    "@nuxt/devtools": "4.0.0-beta.4",
+    "@nuxt/devtools-kit": "4.0.0-beta.4",
+    "esbuild": "0.28.2",
+    "handlebars": "4.7.10",
+    "playwright": "1.63.0",
+    "playwright-core": "1.63.0",
+    "serialize-javascript": "7.1.2",
+    "shell-quote": "1.12.0",
+    "source-map-js": "1.2.2",
+    "braces": "npm:@dieub/braces-depth-guard@3.0.3-pn.3",
+    "node-forge": "$node-forge"
+  },
   "scripts": {
     "build": "npm run typecheck && nuxt generate",
     "dev": "python ../tools/dev_server.py",
@@ -22,7 +37,7 @@
     "lint:styles": "stylelint \"**/*.{css,vue}\"",
     "postinstall": "nuxt prepare",
     "preview": "nuxt preview",
-    "security": "npm audit --package-lock-only --include=dev --include=optional --include=peer --audit-level=high",
+    "security": "python ../tools/check_web_derivatives.py && node --test ../tools/test_web_dependency_security.cjs ../third_party/node-forge/test/security.cjs && npm audit --package-lock-only --include=dev --include=optional --include=peer --audit-level=high",
     "test:browser": "playwright test",
     "test:dev": "playwright test --config playwright.dev.config.ts",
     "test:unit": "vitest run",
@@ -38,7 +53,8 @@
     "sortablejs": "1.15.7",
     "valibot": "1.5.0",
     "vue": "3.5.43",
-    "vue-router": "5.3.1"
+    "vue-router": "5.3.1",
+    "node-forge": "file:../third_party/node-forge"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
@@ -46,6 +62,7 @@
     "@playwright/test": "1.63.0",
     "@types/node": "24.13.6",
     "@types/sortablejs": "1.15.9",
+    "@vitejs/devtools-kit": "0.4.12",
     "@vitejs/plugin-vue": "6.0.9",
     "@vitest/browser-playwright": "5.0.1",
     "@vitest/eslint-plugin": "1.6.27",

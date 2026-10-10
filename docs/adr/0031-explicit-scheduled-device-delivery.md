@@ -58,8 +58,11 @@ secret at all.
   and forget operations. Delivery holds the gate through deployment and any
   rollback, so no authorization change can interleave between the final check
   and the first device side effect.
-- Manual delivery is unchanged: it still requires confirmation and carries a
-  credential for one attempt only.
+- Manual delivery still requires confirmation. It may use one registered
+  connection and its currently consented stored credential, or a credential
+  supplied for that attempt only. The displayed address, account, and interface
+  are revalidated under the same gate; manual delivery neither enables automatic
+  delivery nor changes an output binding. ADR 0042 defines the request contract.
 
 ## Consequences
 

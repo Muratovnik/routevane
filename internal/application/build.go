@@ -177,6 +177,7 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 		Artifact:        ArtifactBuildRecord{ID: artifactID, OutputID: id, PlanSnapshotID: snapshotID, RendererID: renderer.ID(), RendererVersion: renderer.Version(), ArtifactHash: file.Hash, ArtifactPath: file.RelativePath, SizeBytes: file.Size, ContentType: renderer.Descriptor().ContentType, ContentCreatedAt: now, ValidationStatus: "valid", Status: "published"},
 		Attempt:         OutputAttempt{OutputID: id, Status: "success", ProjectedRules: projectedRules, MaximumRules: target.Constraints.MaxRules, ArtifactID: artifactID, CompletedAt: now},
 		ProfileRevision: ProfilePublicationRevision(profile),
+		FQDNGroupPrefix: output.FQDNGroupPrefix,
 	}
 	publishedOutput, snapshot, artifact, err := s.publishCurrent(ctx, publicationGeneration, candidate)
 	if err != nil {

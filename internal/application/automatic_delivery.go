@@ -8,11 +8,6 @@ import (
 
 var ErrAutomaticDeliveryComposition = errors.New("invalid automatic delivery composition")
 
-type scheduledDeviceSource interface {
-	Device(context.Context, string) (Device, error)
-	DeviceCredential(context.Context, string) (string, error)
-}
-
 type scheduledDeploymentTarget interface {
 	Deploy(context.Context, DeployCommand) (DeployResult, error)
 }
@@ -22,7 +17,7 @@ type scheduledOutputSource interface {
 }
 
 type AutomaticDeliveryConfig struct {
-	Devices     scheduledDeviceSource
+	Devices     deploymentDeviceSource
 	Deployments scheduledDeploymentTarget
 	Outputs     scheduledOutputSource
 	Gate        *DeliveryGate

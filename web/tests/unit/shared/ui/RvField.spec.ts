@@ -11,6 +11,7 @@ import RvTextInput from '@/shared/ui/RvTextInput.vue'
 const TextField = defineComponent({
   components: { RvField, RvTextInput },
   props: {
+    announceError: Boolean,
     error: { type: String, default: undefined },
     hint: { type: String, default: undefined },
     inputId: { type: String, default: 'device-address' },
@@ -19,7 +20,7 @@ const TextField = defineComponent({
     return { value: ref('') }
   },
   template: `
-    <RvField :error="error" :hint="hint" :input-id="inputId" label="Address">
+    <RvField :announce-error="announceError" :error="error" :hint="hint" :input-id="inputId" label="Address">
       <template #default="{ describedBy, invalid }">
         <RvTextInput
           v-model="value"
@@ -38,6 +39,37 @@ const describedTexts = (element: Element): string[] =>
     .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
 
 describe('RvField', () => {
+  it('announces an opted-in error once and clears the live region when resolved', async () => {
+    const screen = await render(TextField, {
+      props: { announceError: true, error: '' },
+    })
+    await expect.element(screen.getByRole('alert')).not.toBeInTheDocument()
+    await screen.rerender({ error: 'The file could not be read.' })
+    await expect
+      .element(screen.getByRole('alert'))
+      .toHaveTextContent('The file could not be read.')
+    expect(
+      describedTexts(
+        screen.getByLabelText('Address', { exact: true }).element(),
+      ),
+    ).toEqual(['The file could not be read.'])
+    expect(
+      screen.getByText('The file could not be read.', { exact: true }).all(),
+    ).toHaveLength(1)
+    await screen.rerender({ error: '' })
+    await expect.element(screen.getByRole('alert')).not.toBeInTheDocument()
+    await expect
+      .element(screen.getByLabelText('Address', { exact: true }))
+      .not.toHaveAttribute('aria-describedby')
+  })
+
+  it('keeps ordinary inline errors out of a live region', async () => {
+    const screen = await render(TextField, {
+      props: { error: 'Enter the address.' },
+    })
+    await expect.element(screen.getByText('Enter the address.')).toBeVisible()
+    await expect.element(screen.getByRole('alert')).not.toBeInTheDocument()
+  })
   it('names its control by the id the caller gave it', async () => {
     const screen = await render(TextField)
 

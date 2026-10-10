@@ -1,6 +1,6 @@
 module github.com/Muratovnik/routevane
 
-go 1.27.0
+go 1.27.2
 
 tool (
 	github.com/securego/gosec/v2/cmd/gosec
@@ -13,7 +13,7 @@ require (
 	github.com/chromedp/chromedp v0.16.0
 	go.yaml.in/yaml/v3 v3.0.5
 	go4.org/netipx v0.0.0-20260823151212-3075585bcbeb
-	golang.org/x/net v0.59.0
+	golang.org/x/net v0.60.0
 	golang.org/x/sys v0.48.0
 	modernc.org/sqlite v1.59.0
 )

@@ -23,7 +23,7 @@ if (-not $env:PLAYWRIGHT_BROWSERS_PATH) {
 # the packaged application as plain Node, which rejects the launcher's Chromium
 # switches, so the desktop commands below would fail without an explanation.
 Remove-Item Env:\ELECTRON_RUN_AS_NODE -ErrorAction SilentlyContinue
-$GoCommand = Get-Command go -ErrorAction SilentlyContinue
+$GoCommand = Get-Command go -CommandType Application -ErrorAction SilentlyContinue
 if ($null -eq $GoCommand) {
     $GoFallback = 'C:\Program Files\Go\bin\go.exe'
     if (-not (Test-Path -LiteralPath $GoFallback -PathType Leaf)) {
@@ -32,10 +32,6 @@ if ($null -eq $GoCommand) {
     $GoExecutable = $GoFallback
 } else {
     $GoExecutable = $GoCommand.Source
-}
-$GoFmtExecutable = Join-Path (Split-Path -Parent $GoExecutable) 'gofmt.exe'
-if (-not (Test-Path -LiteralPath $GoFmtExecutable -PathType Leaf)) {
-    $GoFmtExecutable = 'gofmt'
 }
 
 function Invoke-Checked {
@@ -47,6 +43,47 @@ function Invoke-Checked {
     & $Executable @CommandArguments | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "Command failed with exit code ${LASTEXITCODE}: $Executable $($CommandArguments -join ' ')"
+    }
+}
+
+function Get-RoutevaneGoFormatter {
+    # Go may select a module toolchain or be launched through a shim. Its own
+    # GOROOT identifies the matching formatter; an unrelated PATH entry does not.
+    $StartInfo = [Diagnostics.ProcessStartInfo]::new()
+    $StartInfo.FileName = $GoExecutable
+    $StartInfo.WorkingDirectory = $RepositoryRoot
+    $StartInfo.UseShellExecute = $false
+    $StartInfo.RedirectStandardOutput = $true
+    $StartInfo.RedirectStandardError = $true
+    $StartInfo.ArgumentList.Add('env')
+    $StartInfo.ArgumentList.Add('GOROOT')
+    $Process = [Diagnostics.Process]::new()
+    $Process.StartInfo = $StartInfo
+    try {
+        if (-not $Process.Start()) { throw "unable to start selected Go: $GoExecutable" }
+        $Output = $Process.StandardOutput.ReadToEndAsync()
+        $Errors = $Process.StandardError.ReadToEndAsync()
+        if (-not $Process.WaitForExit(10000)) {
+            $Process.Kill($true)
+            $Process.WaitForExit(1000) | Out-Null
+            throw "selected Go did not report GOROOT within 10 seconds: $GoExecutable"
+        }
+        if (-not [Threading.Tasks.Task]::WaitAll([Threading.Tasks.Task[]]@($Output, $Errors), 1000)) {
+            throw "selected Go did not close its GOROOT output: $GoExecutable"
+        }
+        $GoRoot = $Output.GetAwaiter().GetResult().Trim()
+        $Diagnostic = $Errors.GetAwaiter().GetResult().Trim()
+        if ($Process.ExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($GoRoot)) {
+            throw "selected Go could not report GOROOT: $GoExecutable. $Diagnostic"
+        }
+        $Name = if ($IsWindows) { 'gofmt.exe' } else { 'gofmt' }
+        $Formatter = Join-Path (Join-Path $GoRoot 'bin') $Name
+        if (-not (Test-Path -LiteralPath $Formatter -PathType Leaf)) {
+            throw "selected Go formatter is missing: $Formatter"
+        }
+        return $Formatter
+    } finally {
+        $Process.Dispose()
     }
 }
 
@@ -103,13 +140,13 @@ function Invoke-GoSecurity {
 }
 
 function Invoke-GoCheck {
+    $GoFmtExecutable = Get-RoutevaneGoFormatter
     $GoRoots = @('cmd', 'sdk', 'examples', 'tools' | ForEach-Object { Join-Path $RepositoryRoot $_ })
     $InternalRoot = Join-Path $RepositoryRoot 'internal'
     if (Test-Path -LiteralPath $InternalRoot -PathType Container) {
         $GoRoots += $InternalRoot
     }
-    $GoFiles = Get-ChildItem -LiteralPath $GoRoots -Filter '*.go' -File -Recurse | ForEach-Object { $_.FullName }
-    $Unformatted = @(& $GoFmtExecutable -l @GoFiles)
+    $Unformatted = @(& $GoFmtExecutable -l @GoRoots)
     if ($LASTEXITCODE -ne 0) { throw 'gofmt failed' }
     if ($Unformatted.Count -gt 0) { throw "gofmt is required: $($Unformatted -join ', ')" }
 
@@ -259,9 +296,9 @@ function Invoke-WebGenerateAndSync {
 function Get-RoutevaneBrowserPath {
     Push-Location (Join-Path $RepositoryRoot 'web')
     try {
-        # playwright-core reports the exact browser revision this repository
-        # pinned, so the Go tests and the Playwright tests never disagree about
-        # which browser was exercised.
+        # playwright-core resolves full Chromium for the pinned revision.
+        # Playwright's default headless launch may use the matching
+        # headless-shell executable.
         $Path = & node '-e' 'console.log(require("playwright-core").chromium.executablePath())'
         if ($LASTEXITCODE -ne 0) { throw 'unable to resolve the Playwright Chromium path' }
     } finally {
@@ -504,24 +541,34 @@ function Invoke-ReleaseBuild {
     return $ReleaseRoot
 }
 
-function Get-RoutevaneGitCommonDirectory {
-    $GitDirectory = (& git -C $RepositoryRoot rev-parse --git-common-dir).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($GitDirectory)) {
-        throw 'Routevane is not a Git repository'
+function Get-RoutevaneHookDirectory {
+    # --git-path follows core.hooksPath and Git's shared worktree directory.
+    $HookDirectory = & git -C $RepositoryRoot rev-parse --path-format=absolute --git-path hooks
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($HookDirectory)) {
+        throw 'unable to resolve the active Git hook directory'
     }
-    if (-not [System.IO.Path]::IsPathRooted($GitDirectory)) {
-        $GitDirectory = Join-Path $RepositoryRoot $GitDirectory
-    }
-    return [System.IO.Path]::GetFullPath($GitDirectory)
+    return [IO.Path]::GetFullPath($HookDirectory.Trim())
 }
 
 function Assert-RoutevaneHooksCurrent {
-    $HookRoot = Join-Path (Get-RoutevaneGitCommonDirectory) 'hooks'
+    $HookRoot = Get-RoutevaneHookDirectory
     foreach ($HookName in @('pre-commit', 'commit-msg')) {
         $Tracked = Join-Path $RepositoryRoot ".githooks\$HookName"
         $Installed = Join-Path $HookRoot $HookName
         if (-not (Test-Path -LiteralPath $Installed -PathType Leaf)) {
             throw "Routevane hook copy is missing: $Installed. Run tools/dev.ps1 install-hooks."
+        }
+        if (-not $IsWindows) {
+            # Git discovers hooks with access(X_OK), using the real user/group.
+            # A mode bit for another user is not proof that this user can run it.
+            & python '-c' 'import os, sys; sys.exit(0 if os.access(sys.argv[1], os.X_OK) else 3)' $Installed
+            $AccessExitCode = $LASTEXITCODE
+            if ($AccessExitCode -eq 3) {
+                throw "Routevane hook is not executable: $Installed. Run tools/dev.ps1 install-hooks."
+            }
+            if ($AccessExitCode -ne 0) {
+                throw "Unable to check Routevane hook execution access: $Installed. Python exited with code $AccessExitCode."
+            }
         }
         $TrackedHash = (Get-FileHash -LiteralPath $Tracked -Algorithm SHA256).Hash
         $InstalledHash = (Get-FileHash -LiteralPath $Installed -Algorithm SHA256).Hash
@@ -533,10 +580,24 @@ function Assert-RoutevaneHooksCurrent {
 }
 
 function Install-Hooks {
-    $HookRoot = Join-Path (Get-RoutevaneGitCommonDirectory) 'hooks'
+    $HookRoot = Get-RoutevaneHookDirectory
     New-Item -ItemType Directory -Force -Path $HookRoot | Out-Null
-    Copy-Item -LiteralPath (Join-Path $RepositoryRoot '.githooks\pre-commit') -Destination (Join-Path $HookRoot 'pre-commit') -Force
-    Copy-Item -LiteralPath (Join-Path $RepositoryRoot '.githooks\commit-msg') -Destination (Join-Path $HookRoot 'commit-msg') -Force
+    foreach ($HookName in @('pre-commit', 'commit-msg')) {
+        $Tracked = Join-Path $RepositoryRoot ".githooks\$HookName"
+        $Installed = Join-Path $HookRoot $HookName
+        # core.hooksPath can point at .githooks itself, or at a linked copy.
+        # Matching contents need no copy; executable mode is still checked below.
+        $Current = (Test-Path -LiteralPath $Installed -PathType Leaf) -and
+            ((Get-FileHash -LiteralPath $Installed -Algorithm SHA256).Hash -eq
+             (Get-FileHash -LiteralPath $Tracked -Algorithm SHA256).Hash)
+        if (-not $Current) {
+            Copy-Item -LiteralPath $Tracked -Destination $Installed -Force
+        }
+        if (-not $IsWindows) {
+            $Mode = [IO.File]::GetUnixFileMode($Installed)
+            [IO.File]::SetUnixFileMode($Installed, $Mode -bor [IO.UnixFileMode]::UserExecute)
+        }
+    }
     Assert-RoutevaneHooksCurrent
     Write-Host "Installed Routevane hook entry points in $HookRoot"
 }
@@ -547,16 +608,16 @@ try {
         'setup' {
             # Preflight before downloads so an unsupported host fails without
             # leaving partial setup state.
-            Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'))
+            Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'), '--go', $GoExecutable)
             Invoke-Checked $GoExecutable @('mod', 'download')
             Push-Location (Join-Path $RepositoryRoot 'web')
             try { Invoke-Checked 'npm' @('ci') } finally { Pop-Location }
             Invoke-DesktopCommand @('ci')
             Invoke-Checked 'node' @((Join-Path $RepositoryRoot 'desktop/node_modules/electron/install.js'))
-            Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'))
+            Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'), '--go', $GoExecutable)
         }
         'setup-browser' {
-            Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools/doctor.py'))
+            Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools/doctor.py'), '--go', $GoExecutable)
             Push-Location (Join-Path $RepositoryRoot 'web')
             try {
                 if ($IsLinux) { Invoke-Checked 'npx' @('--no-install', 'playwright', 'install', '--with-deps', 'chromium') }
@@ -619,13 +680,13 @@ try {
             try { Invoke-Checked 'npx' @('--no-install', 'playwright', 'test', '--config', 'playwright.desktop.config.ts') } finally { Pop-Location }
         }
         'doctor' {
-            Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'))
+            Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'), '--go', $GoExecutable)
         }
         'format' {
+            $GoFmtExecutable = Get-RoutevaneGoFormatter
             $GoRoots = @('cmd', 'sdk', 'examples', 'tools' | ForEach-Object { Join-Path $RepositoryRoot $_ })
             if (Test-Path -LiteralPath (Join-Path $RepositoryRoot 'internal')) { $GoRoots += (Join-Path $RepositoryRoot 'internal') }
-            $GoFiles = Get-ChildItem -LiteralPath $GoRoots -Filter '*.go' -File -Recurse | ForEach-Object { $_.FullName }
-            Invoke-Checked $GoFmtExecutable (@('-w') + $GoFiles)
+            Invoke-Checked $GoFmtExecutable (@('-w') + $GoRoots)
             Push-Location (Join-Path $RepositoryRoot 'web')
             try { Invoke-Checked 'npm' @('run', 'format') } finally { Pop-Location }
         }
@@ -675,7 +736,7 @@ try {
         }
         'check' {
             Assert-RoutevaneHooksCurrent
-            Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'))
+            Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'), '--go', $GoExecutable)
             Invoke-WebCheck | Out-Null
             Invoke-DesktopCheck
             Invoke-GoCheck

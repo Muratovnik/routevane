@@ -30,10 +30,12 @@ test('only the internal app authority is navigable; external links exclude execu
   }
 })
 
-test('private transport preserves mutation guards and blocks foreign callers without a backend request', async (t) => {
+test('private transport forwards POST and PUT mutations and blocks foreign callers without a backend request', async (t) => {
   let calls = 0
+  const methods = []
   const server = http.createServer(async (req, res) => {
     calls++
+    methods.push(req.method)
     assert.equal(req.headers['x-routevane-desktop'], 'private-credential')
     assert.equal(req.headers['x-routevane-request'], '1')
     assert.equal(
@@ -57,20 +59,23 @@ test('private transport preserves mutation guards and blocks foreign callers wit
     `http://127.0.0.1:${server.address().port}`,
     'private-credential',
   )
-  const result = await transport(
-    new Request('routevane://app/v1/profiles', {
-      method: 'POST',
-      body: '{"name":"test"}',
-      headers: {
-        Origin: 'routevane://app',
-        'Content-Type': 'application/json',
-        'X-Routevane-Request': '1',
-        Cookie: 'untrusted',
-      },
-    }),
-  )
-  assert.equal(result.status, 201)
-  assert.deepEqual(await result.json(), { saved: true })
+  for (const method of ['POST', 'PUT']) {
+    const result = await transport(
+      new Request('routevane://app/v1/profiles', {
+        method,
+        body: '{"name":"test"}',
+        headers: {
+          Origin: 'routevane://app',
+          'Content-Type': 'application/json',
+          'X-Routevane-Request': '1',
+          Cookie: 'untrusted',
+        },
+      }),
+    )
+    assert.equal(result.status, 201, method)
+    assert.deepEqual(await result.json(), { saved: true })
+  }
+  assert.deepEqual(methods, ['POST', 'PUT'])
   for (const request of [
     new Request('https://evil.test/v1/profiles'),
     new Request('routevane://app/v1/profiles', {
@@ -79,5 +84,5 @@ test('private transport preserves mutation guards and blocks foreign callers wit
     new Request('routevane://app/v1/profiles', { method: 'DELETE' }),
   ])
     assert.equal((await transport(request)).status, 403)
-  assert.equal(calls, 1)
+  assert.equal(calls, 2)
 })

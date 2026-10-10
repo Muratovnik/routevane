@@ -31,12 +31,12 @@ store. The boundary matters more than the driver.
 - The browser executable is never discovered from the search path. It comes from
   an explicit flag or the `ROUTEVANE_BROWSER` variable, and a missing or
   non-regular path is refused before a profile is created.
-- Every byte the browser sends passes through an in-process HTTP CONNECT proxy.
+- Browser HTTP traffic passes through an in-process HTTP CONNECT proxy.
   The browser is started with `--proxy-server` pointing at it and
   `--proxy-bypass-list=<-loopback>`, which removes the implicit localhost
-  exception, so a request the proxy does not open cannot leave the process at
-  all. That single chokepoint, not a per-request interception callback, is what
-  makes "local network access is denied" checkable.
+  exception. The proxy enforces the HTTP destination boundary. The isolated
+  profile separately disables WebRTC's non-proxied UDP; browser tests exercise
+  both boundaries.
 - The proxy applies the same `netpolicy` destination policy as the feed source:
   a hostname that names this machine, and any answer containing a non-public
   unicast address, is refused. Plaintext requests are refused rather than
@@ -98,10 +98,11 @@ keeps the imported and the live path identical in meaning.
 ## Consequences
 
 Discovery needs a Chromium-family browser the operator supplies. `tools/dev.ps1
-test-browser` resolves the exact revision this repository pins through
-`playwright-core`, so the Go tests and the Playwright tests never disagree about
-which browser was exercised. The default gate stays browserless and the browser
-tests skip there.
+test-browser` resolves full Chromium for the revision this repository pins through
+`playwright-core`. Playwright's default headless launch may use the headless-shell
+executable from that same pinned revision. The Go-only gate does not configure
+`ROUTEVANE_BROWSER`; discovery browser tests skip when that variable is unset. The
+web unit gate separately requires its pinned browser.
 
 Refusing plaintext means a site that serves a subresource over HTTP contributes
 that host as a refused candidate rather than as evidence. That is visible in the

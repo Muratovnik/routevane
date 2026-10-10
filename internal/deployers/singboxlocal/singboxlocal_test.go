@@ -52,7 +52,7 @@ func newFixture(t *testing.T, ruleSetName string) fixture {
 		"route": map[string]any{
 			"rule_set": []map[string]any{
 				{"tag": "remote-thing", "type": "remote", "format": "binary", "url": "https://example.com/x.srs"},
-				{"tag": "routevane", "type": "local", "format": "source", "path": ruleSetName},
+				{"tag": "routevane", "type": "local", "format": "source", "path": filepath.Join(directory, ruleSetName)},
 			},
 		},
 	}
@@ -123,8 +123,8 @@ func TestProbeReportsTheDeclaredLocalRuleSet(t *testing.T) {
 	if device.Vendor != Vendor || device.FormatKey != singbox.Version {
 		t.Fatalf("device = %#v", device)
 	}
-	// A relative rule-set path is resolved against the configuration, and the
-	// remote rule set in the same configuration is ignored.
+	// The declared absolute rule-set path is used, and the remote rule set in
+	// the same configuration is ignored.
 	if device.Interface != base.ruleSetPath {
 		t.Fatalf("rule set path = %q, want %q", device.Interface, base.ruleSetPath)
 	}
@@ -140,7 +140,7 @@ func TestProbeRefusesAConfigurationThisDeployerCannotWrite(t *testing.T) {
 		"remote only":     {"route": map[string]any{"rule_set": []map[string]any{{"tag": "x", "type": "remote", "format": "binary", "url": "https://example.com/x"}}}},
 		"binary local":    {"route": map[string]any{"rule_set": []map[string]any{{"tag": "x", "type": "local", "format": "binary", "path": "x.srs"}}}},
 		"no path":         {"route": map[string]any{"rule_set": []map[string]any{{"tag": "x", "type": "local", "format": "source"}}}},
-		"two local sets":  {"route": map[string]any{"rule_set": []map[string]any{{"tag": "a", "type": "local", "format": "source", "path": "a.json"}, {"tag": "b", "type": "local", "format": "source", "path": "b.json"}}}},
+		"two local sets":  {"route": map[string]any{"rule_set": []map[string]any{{"tag": "a", "type": "local", "format": "source", "path": filepath.Join(t.TempDir(), "a.json")}, {"tag": "b", "type": "local", "format": "source", "path": filepath.Join(t.TempDir(), "b.json")}}}},
 		"not a route key": {"outbounds": []map[string]any{{"type": "direct"}}},
 	}
 	for name, config := range cases {

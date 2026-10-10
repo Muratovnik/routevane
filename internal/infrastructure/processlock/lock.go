@@ -1,5 +1,5 @@
-// Package processlock owns the one advisory scheduler lock. One-shot commands
-// rely on SQLite WAL and never acquire it.
+// Package processlock owns the advisory data-root lock shared by servers,
+// schedulers, and one-shot commands that change data or deploy an artifact.
 package processlock
 
 import (
@@ -18,7 +18,7 @@ const FileName = "routevane.run.lock"
 // interrupted upgrade from putting two writers on one data directory.
 const retiredFileName = "routing-agent.run.lock"
 
-var ErrLocked = errors.New("scheduler is already running")
+var ErrLocked = errors.New("another Routevane writer is already running")
 
 type Lock struct {
 	file *os.File

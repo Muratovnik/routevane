@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -23,6 +24,23 @@ const profileColumns = `SELECT id,name,refresh_interval,last_refreshed_at_ns,las
 type profileQueryer interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+// requireWritableProfile shares the mutation's transaction so an archival
+// cannot slip between an application check and the stored operator edit.
+func requireWritableProfile(ctx context.Context, tx *sql.Tx, profileID string) error {
+	var archivedAt int64
+	err := tx.QueryRowContext(ctx, `SELECT archived_at_ns FROM profiles WHERE id=?`, profileID).Scan(&archivedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return application.ErrNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("read profile archival: %w", err)
+	}
+	if archivedAt != 0 {
+		return application.ErrProfileArchived
+	}
+	return nil
 }
 
 // validSlugSet checks one stored part of a composition. A part may be empty --
@@ -316,6 +334,133 @@ func compositionPart(ctx context.Context, queryer profileQueryer, query, profile
 	return values, nil
 }
 
+// readProfileDetails loads the bounded shelf or page in five queries. Ranking
+// within each profile preserves the single-profile reader's limit and order;
+// the selected identities are data in one bound JSON value, never SQL text.
+// The caller keeps these reads in the same transaction as the profile rows.
+func readProfileDetails(ctx context.Context, queryer profileQueryer, profiles []application.Profile) error {
+	if len(profiles) == 0 {
+		return nil
+	}
+	if len(profiles) > profileLimit {
+		return fmt.Errorf("invalid profile detail query")
+	}
+	ids := make([]string, len(profiles))
+	byID := make(map[string]*application.Profile, len(profiles))
+	for i := range profiles {
+		profile := &profiles[i]
+		ids[i] = profile.ID
+		byID[profile.ID] = profile
+		profile.Lists = make([]string, 0)
+		profile.Categories = make([]string, 0)
+		profile.Exclusions = make([]string, 0)
+		profile.Priority = make([]string, 0)
+		profile.ListDomains = nil
+	}
+	selected, err := json.Marshal(ids)
+	if err != nil {
+		return fmt.Errorf("encode profile detail query: %w", err)
+	}
+	reads := []struct {
+		query string
+		into  func(*application.Profile) *[]string
+	}{
+		{`SELECT profile_id,value FROM (
+ SELECT profile_id,list_id AS value,row_number() OVER (PARTITION BY profile_id ORDER BY list_id ASC) AS ordinal
+ FROM profile_lists WHERE profile_id IN (SELECT value FROM json_each(?))
+) WHERE ordinal <= 128 ORDER BY profile_id ASC,ordinal ASC`, func(p *application.Profile) *[]string { return &p.Lists }},
+		{`SELECT profile_id,value FROM (
+ SELECT profile_id,category_id AS value,row_number() OVER (PARTITION BY profile_id ORDER BY category_id ASC) AS ordinal
+ FROM profile_categories WHERE profile_id IN (SELECT value FROM json_each(?))
+) WHERE ordinal <= 128 ORDER BY profile_id ASC,ordinal ASC`, func(p *application.Profile) *[]string { return &p.Categories }},
+		{`SELECT profile_id,value FROM (
+ SELECT profile_id,list_id AS value,row_number() OVER (PARTITION BY profile_id ORDER BY list_id ASC) AS ordinal
+ FROM profile_exclusions WHERE profile_id IN (SELECT value FROM json_each(?))
+) WHERE ordinal <= 128 ORDER BY profile_id ASC,ordinal ASC`, func(p *application.Profile) *[]string { return &p.Exclusions }},
+		{`SELECT profile_id,value FROM (
+ SELECT profile_id,list_id AS value,row_number() OVER (PARTITION BY profile_id ORDER BY position ASC) AS ordinal
+ FROM profile_list_priorities WHERE profile_id IN (SELECT value FROM json_each(?))
+) WHERE ordinal <= 128 ORDER BY profile_id ASC,ordinal ASC`, func(p *application.Profile) *[]string { return &p.Priority }},
+	}
+	for _, read := range reads {
+		if err := readProfileCompositionRows(ctx, queryer, string(selected), byID, read.query, read.into); err != nil {
+			return err
+		}
+	}
+	return readProfileDomainRows(ctx, queryer, string(selected), byID)
+}
+
+func readProfileCompositionRows(ctx context.Context, queryer profileQueryer, selected string, byID map[string]*application.Profile, query string, into func(*application.Profile) *[]string) error {
+	rows, err := queryer.QueryContext(ctx, query, selected)
+	if err != nil {
+		return fmt.Errorf("read profile composition: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var profileID, value string
+		if err := rows.Scan(&profileID, &value); err != nil {
+			return fmt.Errorf("read profile composition: %w", err)
+		}
+		profile, exists := byID[profileID]
+		if !exists {
+			return fmt.Errorf("read profile composition: unexpected profile")
+		}
+		values := into(profile)
+		*values = append(*values, value)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read profile composition: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("read profile composition: %w", err)
+	}
+	return nil
+}
+
+func readProfileDomainRows(ctx context.Context, queryer profileQueryer, selected string, byID map[string]*application.Profile) error {
+	rows, err := queryer.QueryContext(ctx, `SELECT profile_id,list_id,domains_json FROM (
+ SELECT profile_id,list_id,domains_json,row_number() OVER (PARTITION BY profile_id ORDER BY list_id ASC) AS ordinal
+ FROM profile_list_domains WHERE profile_id IN (SELECT value FROM json_each(?))
+) WHERE ordinal <= 128 ORDER BY profile_id ASC,ordinal ASC`, selected)
+	if err != nil {
+		return fmt.Errorf("read profile list domains: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var profileID, listID, payload string
+		if err := rows.Scan(&profileID, &listID, &payload); err != nil {
+			return fmt.Errorf("read profile list domains: %w", err)
+		}
+		profile, exists := byID[profileID]
+		if !exists {
+			return fmt.Errorf("read profile list domains: unexpected profile")
+		}
+		var domains []string
+		if err := json.Unmarshal([]byte(payload), &domains); err != nil {
+			return fmt.Errorf("decode profile list domains: %w", err)
+		}
+		if domains == nil {
+			domains = []string{}
+		}
+		if profile.ListDomains == nil {
+			profile.ListDomains = make(map[string][]string)
+		}
+		profile.ListDomains[listID] = domains
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read profile list domains: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("read profile list domains: %w", err)
+	}
+	for _, profile := range byID {
+		if !validListDomains(profile.ListDomains) {
+			return fmt.Errorf("invalid stored profile list domains")
+		}
+	}
+	return nil
+}
+
 func (s *Store) Profiles(ctx context.Context) ([]application.Profile, error) {
 	ctx, cancel := bounded(ctx)
 	defer cancel()
@@ -369,13 +514,8 @@ func (s *Store) readProfiles(ctx context.Context, query string, includeCompositi
 		// Composition reads run after the cursor is closed. They remain in this
 		// read transaction so every profile row and its normalized parts belong
 		// to one coherent database snapshot.
-		for i := range profiles {
-			if err := readComposition(ctx, tx, &profiles[i]); err != nil {
-				return fail(err)
-			}
-			if err := readListDomains(ctx, tx, &profiles[i]); err != nil {
-				return fail(err)
-			}
+		if err := readProfileDetails(ctx, tx, profiles); err != nil {
+			return fail(err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -450,6 +590,9 @@ func (s *Store) UpdateProfile(ctx context.Context, profile application.Profile) 
 		return fmt.Errorf("begin list update: %w", err)
 	}
 	fail := func(cause error) error { _ = tx.Rollback(); return cause }
+	if err := requireWritableProfile(ctx, tx, profile.ID); err != nil {
+		return fail(err)
+	}
 	result, err := tx.ExecContext(ctx, `UPDATE profiles SET name=?,updated_at_ns=? WHERE id=?`, profile.Name, profile.UpdatedAt.UTC().UnixNano(), profile.ID)
 	if err != nil {
 		return fail(fmt.Errorf("update list: %w", err))

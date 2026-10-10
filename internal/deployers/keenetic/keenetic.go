@@ -92,6 +92,7 @@ func (d *Deployer) Probe(ctx context.Context, connection application.Connection)
 	if err != nil {
 		return application.DeviceInfo{}, err
 	}
+	defer session.close()
 	info, err := session.identity(ctx, connection, DeployerID)
 	if err != nil {
 		return info, err
@@ -225,6 +226,7 @@ func (d *Deployer) Backup(ctx context.Context, device application.DeviceInfo, co
 	if err != nil {
 		return application.BackupPayload{}, err
 	}
+	defer session.close()
 	payload, err := session.raw(ctx, http.MethodGet, "/ci/startup-config", nil)
 	if err != nil {
 		return application.BackupPayload{}, err
@@ -293,6 +295,7 @@ func (d *Deployer) CurrentManagedRoutes(ctx context.Context, device application.
 	if err != nil {
 		return nil, err
 	}
+	defer session.close()
 	existing, err := session.ownedRoutes(ctx, device.Interface)
 	if err != nil {
 		return nil, err
@@ -332,6 +335,7 @@ func (d *Deployer) ApplyManagedRoutes(ctx context.Context, device application.De
 	if err != nil {
 		return err
 	}
+	defer session.close()
 	sortCommands(commands)
 	if err := session.batch(ctx, commands); err != nil {
 		return err
@@ -362,6 +366,7 @@ func (d *Deployer) Verify(ctx context.Context, device application.DeviceInfo, co
 	if err != nil {
 		return err
 	}
+	defer session.close()
 	existing, err := session.ownedRoutes(ctx, device.Interface)
 	if err != nil {
 		return err
@@ -388,6 +393,7 @@ func (d *Deployer) Rollback(ctx context.Context, device application.DeviceInfo, 
 	if err != nil {
 		return err
 	}
+	defer session.close()
 	answer, err := session.raw(ctx, http.MethodPost, "/ci/startup-config", backup.Payload)
 	if err != nil {
 		return err

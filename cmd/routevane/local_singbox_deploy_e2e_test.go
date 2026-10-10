@@ -34,18 +34,31 @@ func TestAppliesAPublishedRuleSetToALocalSingBox(t *testing.T) {
 	resolver.set(map[string][]string{"youtube.expiry.test": {"192.0.2.10"}})
 
 	origin, cancel, done, stderr := startServeServerWithHostResolver(t, catalog, data, resolver, func() time.Time { return now })
-	defer func() {
+	serverStopped := false
+	stopServer := func() {
+		if serverStopped {
+			return
+		}
+		serverStopped = true
 		cancel()
 		if code := <-done; code != 0 {
 			t.Fatalf("server code=%d stderr=%s", code, stderr.String())
 		}
-	}()
+	}
+	defer stopServer()
 
 	profileID, outputID, _ := createProfileOutput(t, origin, "YouTube", "singbox", "youtube")
 	build := refreshAndBuild(t, origin, profileID, outputID)
 	if build.Artifact.ID == "" {
 		t.Fatalf("build = %#v", build)
 	}
+	artifact := httpGet(t, origin+"/v1/artifacts/"+build.Artifact.ID, nil)
+	if artifact.status != 200 {
+		t.Fatalf("published artifact status=%d body=%s", artifact.status, artifact.body)
+	}
+	// Standalone delivery owns the data lock for its entire device lifecycle.
+	// Capture the published bytes, then release the setup server's ownership.
+	stopServer()
 
 	deps := runtimeDeps{Resolver: resolver, Now: func() time.Time { return now }, Context: context.Background()}
 	baseArgs := []string{
@@ -94,8 +107,7 @@ func TestAppliesAPublishedRuleSetToALocalSingBox(t *testing.T) {
 	if !strings.Contains(string(written), "youtube.com") {
 		t.Fatalf("deployed rule set = %s", written)
 	}
-	artifact := httpGet(t, origin+"/v1/artifacts/"+build.Artifact.ID, nil)
-	if artifact.status != 200 || string(written) != string(artifact.body) {
+	if string(written) != string(artifact.body) {
 		t.Fatalf("the deployed file is not the published artifact:\n%s\n%s", written, artifact.body)
 	}
 
@@ -129,6 +141,34 @@ func TestAppliesAPublishedRuleSetToALocalSingBox(t *testing.T) {
 	}
 	if len(entries) != 1 {
 		t.Fatalf("a refused deployment wrote into the configuration directory: %#v", entries)
+	}
+
+	// A relative rule-set path does not identify the running instance's
+	// destination. Refuse it at probe before backup or any file replacement.
+	relativeDir := t.TempDir()
+	relativeConfig := filepath.Join(relativeDir, "config.json")
+	writeJSONFile(t, relativeConfig, map[string]any{
+		"route": map[string]any{"rule_set": []map[string]string{
+			{"tag": "routevane", "type": "local", "format": "source", "path": "rules.json"},
+		}},
+	})
+	stdout, deployStderr = &syncBuffer{}, &syncBuffer{}
+	relativeArgs := []string{
+		"deploy", "--artifact", build.Artifact.ID, "--target", "singbox",
+		"--device", localFileURL(relativeConfig), "--catalog-dir", catalog, "--data-dir", data, "--confirm",
+	}
+	if code := runWithDeps(stdout, deployStderr, relativeArgs, deps); code == 0 {
+		t.Fatalf("a relative destination was accepted: %s", stdout.String())
+	}
+	var relative deployReport
+	if err := json.Unmarshal([]byte(stdout.String()), &relative); err != nil {
+		t.Fatalf("stdout=%s err=%v", stdout.String(), err)
+	}
+	if relative.Applied || relative.RolledBack || len(relative.Events) != 1 || relative.Events[0].Step != "probe" || relative.Events[0].Outcome != "failed" || !strings.Contains(relative.Error, "absolute") {
+		t.Fatalf("an ambiguous path proceeded past probe: %#v", relative)
+	}
+	if entries, err := os.ReadDir(relativeDir); err != nil || len(entries) != 1 {
+		t.Fatalf("an ambiguous path changed the configuration directory: entries=%d err=%v", len(entries), err)
 	}
 
 	// A destination that cannot be backed up stops the lifecycle at the backup
@@ -175,6 +215,9 @@ func TestAppliesAPublishedRuleSetToALocalSingBox(t *testing.T) {
 
 func writeLocalSingBoxConfig(t *testing.T, path, ruleSetPath string) {
 	t.Helper()
+	if !filepath.IsAbs(ruleSetPath) {
+		ruleSetPath = filepath.Join(filepath.Dir(path), ruleSetPath)
+	}
 	config := map[string]any{
 		"log": map[string]any{"level": "warn"},
 		"route": map[string]any{

@@ -114,7 +114,7 @@ func open(ctx context.Context, dataRoot string, allowCreate bool) (*Store, error
 	db.SetMaxOpenConns(1)
 	db.SetMaxIdleConns(1)
 	store := &Store{db: db, path: path}
-	if err := store.initialize(ctx, migrations); err != nil {
+	if err := store.initializeCurrent(ctx); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -132,17 +132,23 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// initialize brings a database to the current schema. Every part of that is a
-// separate database operation: a ping, two inspections, the connection
-// pragmas, one transaction for each pending migration and a closing
-// verification, and every migration commits with `synchronous = FULL`. Giving
+// initialize explicitly replays migrations, including on an empty database.
+func (s *Store) initialize(ctx context.Context, migrationSet []migration) error {
+	return s.initializeWithBootstrap(ctx, migrationSet, "")
+}
+
+// initializeWithBootstrap brings a database to the current schema. Every part
+// is a separate database operation: a ping, two inspections, the connection
+// pragmas, an optional empty-database checkpoint, one transaction for each
+// pending migration and a closing verification. Each transaction commits with
+// `synchronous = FULL`. Giving
 // the whole sequence the budget of a single operation made the time a first
 // run is allowed shrink with each migration the schema gains, so a slow or
 // busy disk reported an unavailable database instead of finishing an
 // initialization that was still making progress. Each step carries the budget
 // on its own; a caller that bounds the open keeps its own limit over all of
 // them.
-func (s *Store) initialize(ctx context.Context, migrationSet []migration) error {
+func (s *Store) initializeWithBootstrap(ctx context.Context, migrationSet []migration, bootstrapSQL string) error {
 	if err := schemaStep(ctx, s.db.PingContext); err != nil {
 		return fmt.Errorf("ping SQLite: %w", err)
 	}
@@ -158,7 +164,7 @@ func (s *Store) initialize(ctx context.Context, migrationSet []migration) error 
 	if version == 0 {
 		var count int
 		if err := schemaStep(ctx, func(ctx context.Context) error {
-			return s.db.QueryRowContext(ctx, "SELECT count(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").Scan(&count)
+			return s.db.QueryRowContext(ctx, "SELECT count(*) FROM main.sqlite_schema").Scan(&count)
 		}); err != nil {
 			return fmt.Errorf("inspect empty schema: %w", err)
 		}
@@ -170,6 +176,22 @@ func (s *Store) initialize(ctx context.Context, migrationSet []migration) error 
 		return configureConnection(ctx, s.db, true)
 	}); err != nil {
 		return err
+	}
+	if version == 0 && bootstrapSQL != "" {
+		if bootstrapSchemaVersion > CurrentSchemaVersion || len(migrationSet) < bootstrapSchemaVersion {
+			return fmt.Errorf("%w: bootstrap migration sequence", ErrIncompatibleSchema)
+		}
+		for index := range bootstrapSchemaVersion {
+			if migrationSet[index].version != index+1 {
+				return fmt.Errorf("%w: bootstrap migration sequence", ErrIncompatibleSchema)
+			}
+		}
+		if err := schemaStep(ctx, func(ctx context.Context) error {
+			return s.applyBootstrap(ctx, bootstrapSQL)
+		}); err != nil {
+			return err
+		}
+		version = bootstrapSchemaVersion
 	}
 	for _, item := range migrationSet {
 		if item.version <= version {
@@ -199,10 +221,18 @@ func (s *Store) initialize(ctx context.Context, migrationSet []migration) error 
 // applyMigration either commits one migration or leaves the database exactly
 // as it was. The transaction is the unit of work one bound covers.
 func (s *Store) applyMigration(ctx context.Context, item migration) error {
-	tx, err := s.db.BeginTx(ctx, nil)
+	conn, err := s.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire migration %d connection: %w", item.version, err)
+	}
+	// Join database/sql's cancellation rollback before the caller closes or
+	// reopens this database; a second Tx.Rollback alone does not wait for it.
+	defer func() { _ = conn.Close() }()
+	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin migration %d: %w", item.version, err)
 	}
+	defer func() { _ = tx.Rollback() }()
 	failed := func() error {
 		if _, err := tx.ExecContext(ctx, item.sql); err != nil {
 			return fmt.Errorf("execute migration %d: %w", item.version, err)
@@ -287,6 +317,39 @@ func countIn(ctx context.Context, q queryer, query string, args ...any) (int, er
 	return count, nil
 }
 
+// verifyColumns reads each table's metadata once while retaining the separate
+// count and name checks. Only the number of aggregate expressions varies;
+// table and column names remain query parameters.
+func verifyColumns(ctx context.Context, q queryer, table string) error {
+	columns := requiredColumns[table]
+	var statement strings.Builder
+	statement.WriteString("SELECT count(*)")
+	args := make([]any, 0, len(columns)+1)
+	var count int
+	counts := make([]int, len(columns))
+	values := make([]any, 1, len(columns)+1)
+	values[0] = &count
+	for index, column := range columns {
+		statement.WriteString(", count(CASE WHEN name=? THEN 1 END)")
+		args = append(args, column)
+		values = append(values, &counts[index])
+	}
+	statement.WriteString(" FROM pragma_table_info(?)")
+	args = append(args, table)
+	if err := q.QueryRowContext(ctx, statement.String(), args...).Scan(values...); err != nil {
+		return fmt.Errorf("inspect schema: %w", err)
+	}
+	if count != len(columns) {
+		return fmt.Errorf("%w: table shape %s", ErrIncompatibleSchema, table)
+	}
+	for index, column := range columns {
+		if counts[index] != 1 {
+			return fmt.Errorf("%w: required column %s.%s", ErrIncompatibleSchema, table, column)
+		}
+	}
+	return nil
+}
+
 func verifySchema(ctx context.Context, q queryer) error {
 	version, err := countIn(ctx, q, "PRAGMA user_version")
 	if err != nil {
@@ -303,21 +366,8 @@ func verifySchema(ctx context.Context, q queryer) error {
 		if count != 1 {
 			return fmt.Errorf("%w: required table %s", ErrIncompatibleSchema, table)
 		}
-		count, err = countIn(ctx, q, "SELECT count(*) FROM pragma_table_info(?)", table)
-		if err != nil {
+		if err := verifyColumns(ctx, q, table); err != nil {
 			return err
-		}
-		if count != len(requiredColumns[table]) {
-			return fmt.Errorf("%w: table shape %s", ErrIncompatibleSchema, table)
-		}
-		for _, column := range requiredColumns[table] {
-			count, err := countIn(ctx, q, "SELECT count(*) FROM pragma_table_info(?) WHERE name=?", table, column)
-			if err != nil {
-				return err
-			}
-			if count != 1 {
-				return fmt.Errorf("%w: required column %s.%s", ErrIncompatibleSchema, table, column)
-			}
 		}
 	}
 	for _, trigger := range requiredTriggers {

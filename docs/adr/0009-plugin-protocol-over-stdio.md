@@ -71,8 +71,12 @@ at `sdk/routevaneplugin`.
   private runner waits until containment is installed before it executes plugin
   bytes. On Windows a Job Object caps the process tree, memory, and CPU time and
   kills the tree when closed. On Linux and macOS the runner applies address
-  space, CPU, open-file, and core-dump limits before `exec`, and the host owns a
-  separate process group it can terminate. The plugin's standard error is read
+  space, CPU, open-file, and core-dump limits before starting the plugin. It
+  remains the trusted leader of a separate process group and terminates that
+  group after either normal plugin exit or a host termination request. Helpers
+  therefore stop on graceful shutdown too. Keeping the leader alive until group
+  termination preserves ownership of its numeric identity; the host signals the
+  owned runner process. The plugin's standard error is read
   line by line and re-emitted as the host's own structured records.
 - **A plugin never replaces a built-in.** Claiming an existing renderer id or
   source type is refused at startup, because the built-in is what the product's

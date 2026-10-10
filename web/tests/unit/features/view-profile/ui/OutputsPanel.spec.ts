@@ -43,6 +43,7 @@ const renderPanel = (overrides: Record<string, unknown> = {}) =>
   render(OutputsPanel, {
     props: {
       archived: false,
+      automaticDelivery: () => 'available' as const,
       busy: false,
       deployable: () => true,
       devices: [],
@@ -54,7 +55,11 @@ const renderPanel = (overrides: Record<string, unknown> = {}) =>
       targetTitle: (_id: string, fallback?: string) => fallback ?? 'Keenetic',
       ...overrides,
     },
-    global: { stubs: { NuxtLink: true } },
+    global: {
+      stubs: {
+        NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+      },
+    },
   })
 
 describe('OutputsPanel connection readiness', () => {
@@ -85,6 +90,104 @@ describe('OutputsPanel connection readiness', () => {
     await expect
       .element(screen.getByText('Turn on profile refresh', { exact: false }))
       .toBeVisible()
+  })
+
+  it.each([false, true])(
+    'offers a manual send when automatic delivery is unavailable, stored consent %s',
+    async (autoDeliver) => {
+      const screen = await renderPanel({
+        automaticDelivery: () => 'unavailable',
+        devices: [{ ...CONNECTED_DEVICE, autoDeliver }],
+        outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
+        schedule: { ...SCHEDULE, effective: 'daily' },
+      })
+
+      await expect
+        .element(screen.getByLabelText('Connection for Keenetic'))
+        .toHaveTextContent('Home router · manual send only')
+      await expect
+        .element(
+          screen.getByText(
+            'Automatic delivery is unavailable on this system. Use Send with a password for each delivery.',
+          ),
+        )
+        .toBeVisible()
+      await expect
+        .element(screen.getByRole('link', { name: 'Send', exact: true }))
+        .toHaveAttribute('href', '/profiles/profile-1/send/output-1')
+      await expect
+        .element(screen.getByText('Turn on automatic delivery in Connections'))
+        .not.toBeInTheDocument()
+      await expect
+        .element(screen.getByText('Ready: new versions', { exact: false }))
+        .not.toBeInTheDocument()
+    },
+  )
+
+  it('does not declare stored consent ready when requirements are unknown', async () => {
+    const screen = await renderPanel({
+      automaticDelivery: () => 'unknown',
+      devices: [CONNECTED_DEVICE],
+      outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
+      schedule: { ...SCHEDULE, effective: 'daily' },
+    })
+
+    await expect
+      .element(screen.getByLabelText('Connection for Keenetic'))
+      .toHaveTextContent('Home router · automatic delivery unconfirmed')
+    await expect
+      .element(
+        screen.getByText(
+          'Automatic delivery is unconfirmed. Check the connection in Connections.',
+        ),
+      )
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('Ready: new versions', { exact: false }))
+      .not.toBeInTheDocument()
+  })
+
+  it('offers consent when automatic delivery is available but still off', async () => {
+    const screen = await renderPanel({
+      devices: [{ ...CONNECTED_DEVICE, autoDeliver: false }],
+      outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
+    })
+
+    await expect
+      .element(screen.getByText('Turn on automatic delivery in Connections'))
+      .toBeVisible()
+  })
+
+  it('reports a configured password-free local target without a router promise', async () => {
+    const screen = await renderPanel({
+      devices: [
+        {
+          ...CONNECTED_DEVICE,
+          targetID: 'singbox',
+          targetTitle: 'sing-box',
+          address: '/data/routevane.json',
+          account: '',
+          interfaceName: '',
+        },
+      ],
+      outputs: [
+        {
+          ...OUTPUT,
+          deviceID: 'device-1',
+          targetID: 'singbox',
+          targetTitle: 'sing-box',
+          targetKind: 'app',
+        },
+      ],
+      schedule: { ...SCHEDULE, effective: 'daily' },
+    })
+
+    await expect
+      .element(screen.getByText('Automatic delivery configured'))
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('Ready: new versions', { exact: false }))
+      .not.toBeInTheDocument()
   })
 
   it('does not invent automatic readiness for a manual-only output', async () => {

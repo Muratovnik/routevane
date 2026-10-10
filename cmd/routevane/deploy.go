@@ -15,6 +15,7 @@ import (
 	deployersingboxlocal "github.com/Muratovnik/routevane/internal/deployers/singboxlocal"
 	"github.com/Muratovnik/routevane/internal/infrastructure/catalogyaml"
 	"github.com/Muratovnik/routevane/internal/infrastructure/filesystem"
+	"github.com/Muratovnik/routevane/internal/infrastructure/processlock"
 	"github.com/Muratovnik/routevane/internal/infrastructure/sqlite"
 )
 
@@ -112,6 +113,12 @@ func runDeploy(ctx context.Context, stdout io.Writer, logger *slog.Logger, optio
 		logResult(logger, "deploy", "", "", "failed", 0, started, "data_root_unavailable")
 		return 1
 	}
+	lock, err := processlock.Acquire(root)
+	if err != nil {
+		logResult(logger, "deploy", "", "", "failed", 0, started, "data_lock_unavailable")
+		return 1
+	}
+	defer lock.Close()
 	store, err := sqlite.OpenExisting(ctx, root)
 	if err != nil {
 		logResult(logger, "deploy", "", "", "failed", 0, started, "database_unavailable")

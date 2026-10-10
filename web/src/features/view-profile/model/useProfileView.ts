@@ -16,7 +16,10 @@ import {
   type TargetOption,
 } from '@/shared/api/catalog'
 import { useLocale } from '@/shared/i18n/useLocale'
-import { loadDeployableTargets } from '@/shared/api/deploy'
+import {
+  loadDeployableTargets,
+  type ConnectionRequirements,
+} from '@/shared/api/deploy'
 import { loadDevices, type DeviceCard } from '@/shared/api/devices'
 import {
   downloadProfileExport,
@@ -45,6 +48,8 @@ import {
 } from '@/shared/api/outputs'
 
 export type ProfileState = 'loading' | 'ready' | 'missing' | 'failed'
+export type AutomaticDeliveryCapability =
+  'available' | 'unavailable' | 'unknown'
 export type LoadState = 'idle' | 'loading' | 'ready' | 'failed'
 export type WorkState =
   | 'idle'
@@ -81,7 +86,10 @@ export const useProfileView = (profileID: () => string) => {
   const outputs = ref<OutputCard[]>([])
   const catalog = ref<Catalog | null>(null)
   const deployableIDs = ref<Set<string>>(new Set())
+  const connectionRequirements = ref(new Map<string, ConnectionRequirements>())
+  const secretStoreAvailable = ref<boolean | null>(null)
   const devices = ref<DeviceCard[]>([])
+  let initializeRequest = 0
   const selectedOutputID = ref('')
   const content = ref<ArtifactContent | null>(null)
   const contentState = ref<LoadState>('idle')
@@ -168,6 +176,19 @@ export const useProfileView = (profileID: () => string) => {
   const deployable = (output: OutputCard): boolean =>
     output.latest !== null && deployableIDs.value.has(output.targetID)
 
+  // Consent can survive a copied database while the operating system's stored
+  // password cannot. Check current requirements and platform support separately
+  // from that flag; neither condition limits a manual send with its own password.
+  const automaticDelivery = (
+    device: DeviceCard,
+  ): AutomaticDeliveryCapability => {
+    const requirements = connectionRequirements.value.get(device.targetID)
+    if (!device.deployable || requirements === undefined) return 'unknown'
+    if (!requirements.needsCredential) return 'available'
+    if (secretStoreAvailable.value === null) return 'unknown'
+    return secretStoreAvailable.value ? 'available' : 'unavailable'
+  }
+
   const targetOption = (targetID: string): TargetOption | null =>
     catalog.value?.targets.find((target) => target.id === targetID) ?? null
 
@@ -232,26 +253,37 @@ export const useProfileView = (profileID: () => string) => {
   })
 
   const initialize = async (): Promise<void> => {
+    const request = ++initializeRequest
+    const id = profileID()
     const revision = scheduleRevision
     state.value = 'loading'
     devices.value = []
+    connectionRequirements.value = new Map()
+    secretStoreAvailable.value = null
     const [detail, loadedCatalog, deployables, formats, registry] =
       await Promise.allSettled([
-        loadProfile(profileID()),
+        loadProfile(id),
         loadCatalogCached(),
         loadDeployableTargets(),
         loadExportFormats(),
         loadDevices(),
       ])
+    if (request !== initializeRequest || id !== profileID()) return
     if (loadedCatalog.status === 'fulfilled')
       catalog.value = loadedCatalog.value
     if (deployables.status === 'fulfilled') {
       deployableIDs.value = new Set(
         deployables.value.map((entry) => entry.targetID),
       )
+      connectionRequirements.value = new Map(
+        deployables.value.map((entry) => [entry.targetID, entry.requirements]),
+      )
     }
     if (formats.status === 'fulfilled') exportFormats.value = formats.value
-    if (registry.status === 'fulfilled') devices.value = registry.value.devices
+    if (registry.status === 'fulfilled') {
+      devices.value = registry.value.devices
+      secretStoreAvailable.value = registry.value.secretStoreAvailable
+    }
     if (detail.status === 'rejected') {
       // A profile the server has never heard of (404) is a different fact from a
       // profile the server cannot answer for right now: only the first is
@@ -549,6 +581,7 @@ export const useProfileView = (profileID: () => string) => {
   return {
     catalogRefresh,
     archived,
+    automaticDelivery,
     availableTargets,
     bind,
     bindDevice,

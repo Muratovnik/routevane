@@ -130,6 +130,7 @@ func TestRCIReadBoundsTheResponseBodyAfterHeadersArrive(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			defer session.close()
 			if session.client.Timeout != requestTimeout {
 				t.Fatal("production body timeout is absent")
 			}

@@ -166,7 +166,7 @@ func createImportedDatabase(ctx context.Context, tempPath, backupPath string) er
 		_ = db.Close()
 		return cause
 	}
-	if err := store.initialize(ctx, migrations); err != nil {
+	if err := store.initializeCurrent(ctx); err != nil {
 		return failed(fmt.Errorf("initialize imported SQLite: %w", err))
 	}
 	legacyURI := "file:" + filepath.ToSlash(backupPath) + "?mode=ro"
@@ -177,10 +177,18 @@ func createImportedDatabase(ctx context.Context, tempPath, backupPath string) er
 	if err != nil {
 		return failed(err)
 	}
-	tx, err := db.BeginTx(ctx, nil)
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return failed(fmt.Errorf("acquire legacy import connection: %w", err))
+	}
+	// Keep the import's connection until any cancellation rollback completes,
+	// including when failure closes the pool before removing the temporary DB.
+	defer func() { _ = conn.Close() }()
+	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
 		return failed(fmt.Errorf("begin legacy import: %w", err))
 	}
+	defer func() { _ = tx.Rollback() }()
 	rollback := func(cause error) error { _ = tx.Rollback(); return failed(cause) }
 	for _, statement := range []string{
 		`INSERT INTO resources SELECT * FROM legacy.resources`,
@@ -235,6 +243,10 @@ func createImportedDatabase(ctx context.Context, tempPath, backupPath string) er
 	}
 	if err := tx.Commit(); err != nil {
 		return failed(fmt.Errorf("commit legacy import: %w", err))
+	}
+	// Verification uses the pool, which deliberately permits one connection.
+	if err := conn.Close(); err != nil {
+		return failed(fmt.Errorf("release legacy import connection: %w", err))
 	}
 	if err := verifySchema(ctx, db); err != nil {
 		return failed(fmt.Errorf("verify imported SQLite: %w", err))

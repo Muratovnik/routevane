@@ -20,6 +20,7 @@ import (
 	"github.com/Muratovnik/routevane/internal/domain"
 	"github.com/Muratovnik/routevane/internal/infrastructure/catalogyaml"
 	"github.com/Muratovnik/routevane/internal/infrastructure/filesystem"
+	"github.com/Muratovnik/routevane/internal/infrastructure/processlock"
 	"github.com/Muratovnik/routevane/internal/infrastructure/sqlite"
 )
 
@@ -133,6 +134,18 @@ func runLearn(ctx context.Context, stdout io.Writer, logger *slog.Logger, option
 		return 0
 	}
 
+	root, err := filesystem.EnsureDataRoot(options.DataDir)
+	if err != nil {
+		logResult(logger, "learn", listID, "", "failed", 0, started, "data_root_invalid")
+		return 1
+	}
+	lock, err := processlock.Acquire(root)
+	if err != nil {
+		logResult(logger, "learn", listID, "", "failed", 0, started, "data_lock_unavailable")
+		return 1
+	}
+	defer lock.Close()
+
 	evidence, err := learnEvidence(ctx, options, scenario, target, deps)
 	if err != nil {
 		logger.Warn("learn failed", "operation", "learn", "error", err.Error())
@@ -176,11 +189,6 @@ func runLearn(ctx context.Context, stdout io.Writer, logger *slog.Logger, option
 	}
 	report.DraftPath = draftPath
 
-	root, err := filesystem.EnsureDataRoot(options.DataDir)
-	if err != nil {
-		logResult(logger, "learn", listID, "", "failed", 0, started, "data_root_invalid")
-		return 1
-	}
 	evidencePath, err := filesystem.WriteSessionEvidence(ctx, root, listID, deps.Now().UTC(), evidence)
 	if err != nil {
 		logger.Warn("learn failed", "operation", "learn", "error", err.Error())

@@ -34,7 +34,7 @@ export function createTransport(origin, token) {
   return async (request) => {
     if (
       !isAppURL(request.url) ||
-      !['GET', 'HEAD', 'POST'].includes(request.method)
+      !['GET', 'HEAD', 'POST', 'PUT'].includes(request.method)
     ) {
       return new Response(null, { status: 403 })
     }
@@ -55,7 +55,9 @@ export function createTransport(origin, token) {
       const response = await fetch(`${origin}${url.pathname}${url.search}`, {
         method: request.method,
         headers,
-        body: request.method === 'POST' ? request.body : undefined,
+        body: ['POST', 'PUT'].includes(request.method)
+          ? request.body
+          : undefined,
         duplex: 'half',
         redirect: 'manual',
         signal: AbortSignal.any([

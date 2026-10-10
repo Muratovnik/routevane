@@ -164,17 +164,26 @@ func (p *guardedProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer client.Close()
+	stopCancellation := context.AfterFunc(r.Context(), func() {
+		_ = client.Close()
+		_ = upstream.Close()
+	})
+	defer stopCancellation()
+	var input io.Reader = client
 	if buffered != nil {
 		if err := buffered.Flush(); err != nil {
 			return
 		}
+		// Hijack can return bytes already read beyond the CONNECT headers.
+		// They belong to the tunnel and must pass through its byte accounting.
+		input = buffered.Reader
 	}
-	p.tunnel(client, upstream)
+	p.tunnel(client, upstream, input)
 }
 
 // tunnel copies both directions and stops the whole session once the byte
 // budget is spent, so a discovery run cannot become an unbounded download.
-func (p *guardedProxy) tunnel(client, upstream net.Conn) {
+func (p *guardedProxy) tunnel(client, upstream net.Conn, input io.Reader) {
 	var group sync.WaitGroup
 	group.Add(2)
 	copyBounded := func(destination io.Writer, source io.Reader, closer net.Conn) {
@@ -199,7 +208,7 @@ func (p *guardedProxy) tunnel(client, upstream net.Conn) {
 			}
 		}
 	}
-	go copyBounded(upstream, client, upstream)
+	go copyBounded(upstream, input, upstream)
 	go copyBounded(client, upstream, client)
 	group.Wait()
 }
@@ -390,10 +399,25 @@ func (p *guardedProxy) listenLoopback(ctx context.Context) (string, func(), erro
 	if err != nil {
 		return "", nil, fmt.Errorf("start discovery proxy: %w", err)
 	}
+	sessionCtx, cancelSession := context.WithCancel(ctx)
+	var admission sync.Mutex
+	var active sync.WaitGroup
+	stopping := false
 	server := &http.Server{
-		Handler:           p,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			admission.Lock()
+			if stopping || sessionCtx.Err() != nil {
+				admission.Unlock()
+				http.Error(w, "discovery session stopped", http.StatusServiceUnavailable)
+				return
+			}
+			active.Add(1)
+			admission.Unlock()
+			defer active.Done()
+			p.ServeHTTP(w, r)
+		}),
 		ReadHeaderTimeout: 10 * time.Second,
-		BaseContext:       func(net.Listener) context.Context { return ctx },
+		BaseContext:       func(net.Listener) context.Context { return sessionCtx },
 	}
 	done := make(chan struct{})
 	go func() {
@@ -402,12 +426,30 @@ func (p *guardedProxy) listenLoopback(ctx context.Context) (string, func(), erro
 			return
 		}
 	}()
+	var stopOnce sync.Once
 	stop := func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
-		_ = server.Shutdown(shutdownCtx)
-		_ = listener.Close()
-		<-done
+		stopOnce.Do(func() {
+			// Seal admission before waiting: no later handler may increment a
+			// zero WaitGroup after shutdown starts waiting for it.
+			admission.Lock()
+			stopping = true
+			admission.Unlock()
+			cancelSession()
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			_ = server.Shutdown(shutdownCtx)
+			_ = server.Close()
+			<-done
+			finished := make(chan struct{})
+			go func() {
+				active.Wait()
+				close(finished)
+			}()
+			select {
+			case <-finished:
+			case <-shutdownCtx.Done():
+			}
+		})
 	}
 	return listener.Addr().String(), stop, nil
 }

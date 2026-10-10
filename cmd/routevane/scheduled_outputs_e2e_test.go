@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,10 +39,17 @@ func TestScheduledOutputsContinueAfterOneFormatFails(t *testing.T) {
 	catalog, bulkLists := writeScheduledOutputCatalog(t)
 	data := filepath.Join(t.TempDir(), "data")
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	var clockOffset atomic.Int64
 	ticks := make(chan time.Time, 1)
+	cycleFinished := make(chan struct{})
+	tickerCalls := 0
 	deps := runtimeDeps{
-		Now: func() time.Time { return now },
+		Now: func() time.Time { return now.Add(time.Duration(clockOffset.Load())) },
 		NewDelayTicker: func(time.Duration) delayTicker {
+			tickerCalls++
+			if tickerCalls == 2 {
+				close(cycleFinished)
+			}
 			return &testDelayTicker{ch: ticks}
 		},
 	}
@@ -55,11 +63,18 @@ func TestScheduledOutputsContinueAfterOneFormatFails(t *testing.T) {
 
 	profileID := createScheduledProfile(t, origin, []string{"small"})
 	keeneticID := addScheduledOutput(t, origin, profileID, "keenetic")
+	// The failed format must run first: stopping at its failure must prevent
+	// the sibling assertion from passing. Distinct creation times keep random
+	// output IDs from deciding the scheduler's order.
+	clockOffset.Store(int64(time.Second))
 	singboxID := addScheduledOutput(t, origin, profileID, "singbox")
 	postJSON(t, origin+"/v1/profiles/"+profileID+"/refresh", `{}`)
 	keeneticSubscription := buildScheduledOutput(t, origin, keeneticID)
 	singboxSubscription := buildScheduledOutput(t, origin, singboxID)
 	initial := scheduledProfileDetail(t, origin, profileID)
+	if len(initial.Outputs) != 2 || initial.Outputs[0].ID != keeneticID {
+		t.Fatalf("failed output must precede its sibling: %#v", initial.Outputs)
+	}
 	initialKeenetic := initial.output("keenetic")
 	initialSingbox := initial.output("singbox")
 	if initialKeenetic.Latest == nil || initialSingbox.Latest == nil {
@@ -75,21 +90,22 @@ func TestScheduledOutputsContinueAfterOneFormatFails(t *testing.T) {
 	postJSON(t, origin+"/v1/profiles/"+profileID+"/schedule", `{"refresh_interval":"daily"}`)
 	ticks <- now
 
-	var current scheduledDetail
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		current = scheduledProfileDetail(t, origin, profileID)
-		keenetic := current.output("keenetic")
-		singbox := current.output("singbox")
-		if current.Schedule.LastRefreshFailed &&
-			keenetic.LastAttempt.Code == application.BuildFailureRuleLimit &&
-			singbox.LastAttempt.Status == "success" && singbox.Latest != nil &&
-			singbox.Latest.ID != initialSingbox.Latest.ID {
-			break
-		}
-		time.Sleep(10 * time.Millisecond)
+	// The next delay begins after every output, the aggregate result and the
+	// scheduler logs are complete. Reading profile detail in a polling loop
+	// competes with that work for the store's single database connection and
+	// can mistake an unfinished cycle for a failed publication.
+	deadline := time.NewTimer(10 * time.Second)
+	defer deadline.Stop()
+	select {
+	case <-cycleFinished:
+	case <-deadline.C:
+		t.Fatalf("scheduled cycle did not finish: %s", stderr.String())
 	}
 
+	current := scheduledProfileDetail(t, origin, profileID)
+	if !current.Schedule.LastRefreshFailed {
+		t.Fatalf("partial scheduled run was not recorded as failed: %#v", current.Schedule)
+	}
 	keenetic := current.output("keenetic")
 	singbox := current.output("singbox")
 	if keenetic.Latest == nil || keenetic.Latest.ID != initialKeenetic.Latest.ID ||
@@ -109,14 +125,9 @@ func TestScheduledOutputsContinueAfterOneFormatFails(t *testing.T) {
 		t.Fatalf("successful sibling does not serve the refreshed file: %d %q", newAppFile.status, newAppFile.body)
 	}
 
-	deadline = time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if schedulerPartialLog(stderr.String(), profileID, keeneticID) {
-			return
-		}
-		time.Sleep(10 * time.Millisecond)
+	if !schedulerPartialLog(stderr.String(), profileID, keeneticID) {
+		t.Fatalf("scheduler did not report the affected output and aggregate status: %s", stderr.String())
 	}
-	t.Fatalf("scheduler did not report the affected output and aggregate status: %s", stderr.String())
 }
 
 type scheduledDetail struct {

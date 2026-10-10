@@ -10,6 +10,7 @@ import {
   optionalText,
   postJSON,
   requestDescribed,
+  RoutevaneAPIError,
   text,
 } from './http'
 
@@ -31,12 +32,22 @@ export type DeployableTarget = {
   requirements: ConnectionRequirements
 }
 
-export type DeployConnection = {
-  device: string
-  username: string
-  password: string
-  interfaceName: string
-}
+export type DeployConnection =
+  | {
+      device: string
+      username: string
+      password: string
+      interfaceName: string
+    }
+  | {
+      deviceID: string
+      password: string
+      expectedConnection: {
+        device: string
+        username: string
+        interfaceName: string
+      }
+    }
 
 export type DeployPlan = {
   artifactID: string
@@ -118,16 +129,37 @@ export const loadDeploymentAttempt = (
 export const createDeploymentAttemptID = (): string =>
   globalThis.crypto.randomUUID().replaceAll('-', '')
 
+// Only an explicit server guarantee permits a fresh write after a refusal.
+// A missing attempt or a failed transport can still hide an accepted write.
+export const deploymentNotStarted = (error: unknown): boolean =>
+  error instanceof RoutevaneAPIError &&
+  error.status >= 400 &&
+  parseNotStarted(error.payload) !== null
+
+const parseNotStarted = decode(fields({ attempt_started: v.literal(false) }))
+
 const deployBody = (
   connection: DeployConnection,
   confirm: boolean,
-): Record<string, unknown> => ({
-  device: connection.device,
-  username: connection.username,
-  password: connection.password,
-  interface: connection.interfaceName,
-  confirm,
-})
+): Record<string, unknown> =>
+  'deviceID' in connection
+    ? {
+        device_id: connection.deviceID,
+        expected_connection: {
+          device: connection.expectedConnection.device,
+          username: connection.expectedConnection.username,
+          interface: connection.expectedConnection.interfaceName,
+        },
+        password: connection.password,
+        confirm,
+      }
+    : {
+        device: connection.device,
+        username: connection.username,
+        password: connection.password,
+        interface: connection.interfaceName,
+        confirm,
+      }
 
 const requirementsSchema = v.pipe(
   fields({

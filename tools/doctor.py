@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import shutil
@@ -35,7 +36,7 @@ REQUIRED = (
 )
 
 
-def command_version(command: list[str]) -> str:
+def command_version(command: list[str], timeout: float = 10) -> str:
     result = subprocess.run(
         command,
         cwd=ROOT,
@@ -44,8 +45,30 @@ def command_version(command: list[str]) -> str:
         text=True,
         encoding="utf-8",
         errors="replace",
+        timeout=timeout,
     )
-    return (result.stdout or result.stderr).strip().splitlines()[0]
+    lines = (result.stdout or result.stderr).strip().splitlines()
+    if not lines:
+        raise ValueError(f"{command[0]} did not report a version")
+    return lines[0]
+
+
+def required_go_version(root: Path) -> tuple[int, int, int]:
+    match = re.search(
+        r"(?m)^go[ \t]+(\d+)\.(\d+)\.(\d+)[ \t]*(?://[^\n]*)?$",
+        (root / "go.mod").read_text(encoding="utf-8"),
+    )
+    if match is None:
+        raise ValueError("go.mod must declare the supported Go minor and minimum patch")
+    return tuple(map(int, match.groups()))
+
+
+def supported_go(version: str, minimum: tuple[int, int, int]) -> bool:
+    match = re.fullmatch(r"go version go(\d+)\.(\d+)\.(\d+) \S+", version)
+    if match is None:
+        return False
+    actual = tuple(map(int, match.groups()))
+    return actual[:2] == minimum[:2] and actual >= minimum
 
 
 def workflow_problems(root: Path, go: str) -> list[str]:
@@ -83,7 +106,10 @@ def workflow_problems(root: Path, go: str) -> list[str]:
     return failures
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--go", help="Go executable selected by the developer entrypoint")
+    options = parser.parse_args([] if argv is None else argv)
     failures: list[str] = []
     for relative in REQUIRED:
         if not (ROOT / relative).is_file():
@@ -128,20 +154,30 @@ def main() -> int:
         )
         if Path(git_root).resolve() != ROOT:
             failures.append(f"Git root mismatch: {git_root}")
-    except (OSError, subprocess.CalledProcessError) as error:
+    except (OSError, subprocess.SubprocessError, ValueError) as error:
         failures.append(f"Git repository unavailable: {error}")
 
-    go = shutil.which("go")
-    if go is None and (Path("C:/Program Files/Go/bin/go.exe")).is_file():
-        go = "C:/Program Files/Go/bin/go.exe"
+    go = options.go
+    if go is None:
+        go = shutil.which("go")
+        if go is None and (Path("C:/Program Files/Go/bin/go.exe")).is_file():
+            go = "C:/Program Files/Go/bin/go.exe"
     if go is None:
         failures.append("Go is not installed or discoverable")
     else:
-        version = command_version([go, "version"])
-        if not re.search(r"\bgo1\.27\.\d+\b", version):
-            failures.append(f"unsupported Go toolchain: {version}")
-        else:
-            print(f"go: {version}")
+        try:
+            minimum = required_go_version(ROOT)
+            version = command_version([go, "version"])
+            if not supported_go(version, minimum):
+                required = ".".join(map(str, minimum))
+                failures.append(
+                    f"unsupported Go toolchain: {version}; go.mod requires {required} "
+                    "or a newer patch in that minor release"
+                )
+            else:
+                print(f"go: {version}")
+        except (OSError, subprocess.SubprocessError, ValueError) as error:
+            failures.append(f"Go toolchain could not be inspected ({go}): {error}")
 
     engines = json.loads(package_path.read_text(encoding="utf-8"))["engines"]
     for name in ("node", "npm"):
@@ -149,7 +185,11 @@ def main() -> int:
         if executable is None:
             failures.append(f"{name} is not installed or discoverable")
             continue
-        version = command_version([executable, "--version"])
+        try:
+            version = command_version([executable, "--version"])
+        except (OSError, subprocess.SubprocessError, ValueError) as error:
+            failures.append(f"{name} version could not be inspected: {error}")
+            continue
         if not supported(version, engines[name]):
             failures.append(f"{name} {engines[name]} is required, found {version}")
         else:
@@ -183,4 +223,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(main(sys.argv[1:]))

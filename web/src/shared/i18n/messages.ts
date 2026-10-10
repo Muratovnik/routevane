@@ -512,6 +512,8 @@ const ru: Dictionary = {
   'listCard.import.hint':
     'Текстовый файл, JSON-массив или .bat с командами route.',
   'listCard.import.empty': 'В файле не нашлось ни одной записи.',
+  'listCard.import.tooLarge':
+    'Файл больше 1 МиБ. Разделите его на несколько файлов.',
   'listCard.import.skipped': {
     few: '{count} строки пропущено',
     many: '{count} строк пропущено',
@@ -733,11 +735,17 @@ const ru: Dictionary = {
   'outputs.device.none': 'Без автоотправки',
   'outputs.device.ready': 'автоотправка включена',
   'outputs.device.disabled': 'включите автоотправку в Подключениях',
+  'outputs.device.unavailable': 'только ручная отправка',
+  'outputs.device.unknown': 'автоотправка не подтверждена',
   'outputs.device.detach': 'Отвязать',
   'outputs.readiness.choose': 'Выберите подключение',
   'outputs.device.add': 'Добавить подключение',
   'outputs.device.manual': 'Скачивание вручную',
   'outputs.readiness.auto': 'Включите автоотправку в Подключениях',
+  'outputs.readiness.unavailable':
+    'На этой системе автоотправка недоступна. Нажмите «Отправить» и введите пароль для этой отправки.',
+  'outputs.readiness.unknown':
+    'Автоотправка не подтверждена. Проверьте подключение в разделе «Подключения».',
   'outputs.readiness.refresh': 'Включите обновление профиля',
   'outputs.readiness.ready': 'Автоотправка настроена',
   'outputs.readiness.ready.router':
@@ -759,6 +767,22 @@ const ru: Dictionary = {
   'send.profile.failed.body': 'Не удалось прочитать профиль. Повторите запрос.',
   'send.connection.missing': 'Формат не найден',
   'send.connection.missing.body': 'В этом профиле нет такого формата.',
+  'send.connection.label': 'Подключение',
+  'send.connection.choose': 'Выберите подключение',
+  'send.connection.manual': 'Ввести данные для этой отправки',
+  'send.connection.loading': 'Загружаем подключения…',
+  'send.connection.empty':
+    'Для этого формата нет сохранённых подключений. Введите данные ниже.',
+  'send.connection.failed': 'Не удалось загрузить подключения',
+  'send.connection.failed.body':
+    'Повторите загрузку или введите данные для этой отправки.',
+  'send.connection.unavailable':
+    'Подключение недоступно для этого формата. Выберите другое или введите данные.',
+  'send.connection.selected': 'Выбранное подключение',
+  'send.password.stored':
+    'Оставьте поле пустым, чтобы использовать пароль, сохранённый с разрешением на автоматическую отправку, или введите пароль для этой отправки.',
+  'send.password.once':
+    'Пароль используется только для этой отправки и не сохраняется.',
   'send.for': 'Профиль: {name}',
   'send.status.idle': 'Не применялось',
   'send.status.planning': 'Проверяем данные',
@@ -808,6 +832,10 @@ const ru: Dictionary = {
   'send.apply.busy': 'Применяем…',
   'send.applied': 'Файл применён и проверен',
   'send.applied.body': 'Проверьте, что выбранные списки работают.',
+  'send.attempt.title': 'Последняя отправка',
+  'send.attempt.recipient': 'Адресат на момент отправки:',
+  'send.attempt.recipientUnknown':
+    'Адресат этой отправки не сохранён. Выбранное сейчас подключение может отличаться.',
   'send.facts.device': 'Устройство',
   'send.facts.interface': 'Интерфейс',
   'send.facts.backup': 'Резервная копия',
@@ -1459,6 +1487,8 @@ const en: Dictionary = {
   'listCard.import.hint':
     'A plain text file, a JSON array, or a .bat of route commands.',
   'listCard.import.empty': 'The file contains no recognizable entries.',
+  'listCard.import.tooLarge':
+    'The file is larger than 1 MiB. Split it into smaller files.',
   'listCard.import.skipped': {
     one: '{count} line skipped',
     other: '{count} lines skipped',
@@ -1671,11 +1701,17 @@ const en: Dictionary = {
   'outputs.device.none': 'No automatic delivery',
   'outputs.device.ready': 'automatic delivery on',
   'outputs.device.disabled': 'turn on automatic delivery in Connections',
+  'outputs.device.unavailable': 'manual send only',
+  'outputs.device.unknown': 'automatic delivery unconfirmed',
   'outputs.device.detach': 'Detach',
   'outputs.readiness.choose': 'Choose a connection',
   'outputs.device.add': 'Add a connection',
   'outputs.device.manual': 'Manual download',
   'outputs.readiness.auto': 'Turn on automatic delivery in Connections',
+  'outputs.readiness.unavailable':
+    'Automatic delivery is unavailable on this system. Use Send with a password for each delivery.',
+  'outputs.readiness.unknown':
+    'Automatic delivery is unconfirmed. Check the connection in Connections.',
   'outputs.readiness.refresh': 'Turn on profile refresh',
   'outputs.readiness.ready': 'Automatic delivery configured',
   'outputs.readiness.ready.router':
@@ -1697,6 +1733,21 @@ const en: Dictionary = {
   'send.profile.failed.body': 'Could not load this profile. Retry the request.',
   'send.connection.missing': 'Format not found',
   'send.connection.missing.body': 'This profile does not have that format.',
+  'send.connection.label': 'Connection',
+  'send.connection.choose': 'Choose a connection',
+  'send.connection.manual': 'Enter details for this send',
+  'send.connection.loading': 'Loading connections…',
+  'send.connection.empty':
+    'No saved connections for this format. Enter the details below.',
+  'send.connection.failed': 'Connections could not be loaded',
+  'send.connection.failed.body':
+    'Try again or enter the details for this send.',
+  'send.connection.unavailable':
+    'This connection is unavailable for this format. Choose another or enter the details.',
+  'send.connection.selected': 'Selected connection',
+  'send.password.stored':
+    'Leave blank to use the password saved with automatic delivery consent, or enter a password for this send.',
+  'send.password.once': 'The password is used for this send and is not saved.',
   'send.for': 'Profile: {name}',
   'send.status.idle': 'Not applied',
   'send.status.planning': 'Checking the details',
@@ -1746,6 +1797,10 @@ const en: Dictionary = {
   'send.apply.busy': 'Applying…',
   'send.applied': 'The file is applied and verified',
   'send.applied.body': 'Confirm that the lists you picked work.',
+  'send.attempt.title': 'Last delivery',
+  'send.attempt.recipient': 'Recipient at the time of delivery:',
+  'send.attempt.recipientUnknown':
+    'The recipient of this delivery was not saved. The currently selected connection may be different.',
   'send.facts.device': 'Device',
   'send.facts.interface': 'Interface',
   'send.facts.backup': 'Backup',

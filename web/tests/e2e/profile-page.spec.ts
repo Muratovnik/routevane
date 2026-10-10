@@ -9,7 +9,12 @@
 import { expect, type Page } from '@playwright/test'
 
 import { englishCopy } from './support/copy'
-import { buildProfile, pressSegment, statesFlow } from './support/flows'
+import {
+  buildProfile,
+  pressSegment,
+  settleAnimations,
+  statesFlow,
+} from './support/flows'
 import {
   forceStaleCatalog,
   PAGE_INSET,
@@ -109,15 +114,23 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   await expect(scheduleTrigger).toBeVisible()
   const scheduleGround = async (): Promise<string> =>
     scheduleTrigger.evaluate((node) => getComputedStyle(node).backgroundColor)
+  const scheduleHeading = page.getByRole('heading', {
+    name: englishCopy('profile.schedule'),
+    exact: true,
+  })
+  await settleAnimations(page)
   const atRest = await scheduleGround()
-  await page
-    .getByRole('heading', {
-      name: englishCopy('profile.schedule'),
-      exact: true,
-    })
-    .hover()
+  // A heading leaves the field's ground alone. The choice itself takes the
+  // library's hover (docs/UI.md), then returns to the same resting ground.
+  // Read each settled state so an early transition frame cannot satisfy it.
+  await scheduleHeading.hover()
+  await settleAnimations(page)
   expect(await scheduleGround()).toBe(atRest)
   await scheduleTrigger.hover()
+  await settleAnimations(page)
+  expect(await scheduleGround()).not.toBe(atRest)
+  await scheduleHeading.hover()
+  await settleAnimations(page)
   expect(await scheduleGround()).toBe(atRest)
   const artifactPath = new URL(
     (await page

@@ -78,6 +78,9 @@ func (Renderer) Validate(payload []byte) error                  { return Validat
 type Script struct {
 	IPv4 []string
 	IPv6 []string
+	// Published v1 documents remain readable in their original byte form.
+	// Fresh projections always use the complete, two-step replacement below.
+	legacy bool
 }
 
 // Render projects already-decided rules into one canonical RouterOS script.
@@ -150,7 +153,9 @@ func Parse(payload []byte) (Script, error) {
 		return Script{}, fmt.Errorf("RouterOS script must begin with the routevane header line")
 	}
 	body := lines[1:]
-	if len(body) > MaxLines {
+	// MaxLines limits entries, not the two section headers and four removal
+	// commands needed to replace both families safely.
+	if len(body) > MaxLines+6 {
 		return Script{}, fmt.Errorf("RouterOS script exceeds the line bound")
 	}
 	script := Script{}
@@ -170,14 +175,15 @@ func Parse(payload []byte) (Script, error) {
 			}
 			current = line
 			expected := "remove [find list=" + listFor(current) + "]"
-			if index+1 >= len(body) || body[index+1] != expected {
+			staticFirst := "remove [find list=" + listFor(current) + " !dynamic]"
+			if index+1 >= len(body) || (body[index+1] != expected && body[index+1] != staticFirst) {
 				return Script{}, fmt.Errorf("RouterOS section %q must be followed by %q", line, expected)
 			}
 		case strings.HasPrefix(line, "remove "):
 			if current == "" {
 				return Script{}, fmt.Errorf("RouterOS script removes entries outside a section")
 			}
-			if line != "remove [find list="+listFor(current)+"]" {
+			if line != "remove [find list="+listFor(current)+"]" && line != "remove [find list="+listFor(current)+" !dynamic]" {
 				return Script{}, fmt.Errorf("RouterOS script line %q does not clear the routevane list", line)
 			}
 		case strings.HasPrefix(line, "add "):
@@ -202,6 +208,14 @@ func Parse(payload []byte) (Script, error) {
 		return Script{}, err
 	}
 	rendered, err := renderScript(canonical)
+	if err == nil && bytes.Equal(rendered, payload) {
+		return canonical, nil
+	}
+	// Immutable published v1 files used one removal and omitted an empty
+	// family. Require that exact historical form, never a mixture of forms.
+	// Try it even when the new commands would exceed the byte bound.
+	canonical.legacy = true
+	rendered, err = renderScript(canonical)
 	if err != nil {
 		return Script{}, err
 	}
@@ -256,11 +270,17 @@ func renderScript(input Script) ([]byte, error) {
 		{sectionIPv4, ListIPv4, script.IPv4},
 		{sectionIPv6, ListIPv6, script.IPv6},
 	} {
-		if len(section.entries) == 0 {
+		if script.legacy && len(section.entries) == 0 {
 			continue
 		}
 		output.WriteString(section.path)
 		output.WriteString("\n")
+		if !script.legacy {
+			// Removing a DNS name also removes its dynamic child addresses.
+			// Delete static parents before selecting the remaining dynamic rows
+			// so RouterOS does not try to remove an already deleted child ID.
+			output.WriteString("remove [find list=" + section.list + " !dynamic]\n")
+		}
 		output.WriteString("remove [find list=" + section.list + "]\n")
 		for _, entry := range section.entries {
 			line := "add address=" + entry + " list=" + section.list
@@ -306,7 +326,7 @@ func projectedScript(input Script) (Script, error) {
 	if err != nil {
 		return Script{}, err
 	}
-	return Script{IPv4: ipv4, IPv6: ipv6}, nil
+	return Script{IPv4: ipv4, IPv6: ipv6, legacy: input.legacy}, nil
 }
 
 // canonicalSection orders prefixes before names. Both are valid values of the

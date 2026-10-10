@@ -92,13 +92,14 @@ That folder does not contain device passwords. Routevane keeps them separately
 in the Windows credential store, whose entries are available only to the Windows
 user that created them. After restoring onto a fresh Windows installation or
 under another account, open **Connections** for every credential-backed device:
-turn off automatic delivery, enter the password, turn it on again, review the
-consent text, and confirm a subsequent delivery succeeds. Do not add passwords
+turn off automatic delivery, enter the password, review the consent text, and
+turn it on again. Confirm a subsequent delivery succeeds. Do not add passwords
 to a portable configuration export; exports intentionally exclude them.
 
 Data from the CLI package is not imported automatically. To move profiles from a
 CLI installation, use [configuration transfer](usage.md#moving-configuration-to-another-computer),
-enter device passwords again, and publish each connection anew.
+enter device passwords again, and rebuild the imported profiles to publish fresh
+files and subscription links.
 
 ### Remove
 
@@ -156,6 +157,13 @@ another computer cannot fetch a `127.0.0.1` subscription URL from it. Use file
 export or an available delivery integration for those devices; do not expose
 the local service to the network as a workaround.
 
+Automatic delivery to a router that needs a password is currently supported
+only on Windows, which stores it in Windows Credential Manager. On Linux or
+macOS, enter the router password for each manual send; it is not saved.
+Automatic delivery to a local sing-box needs no password and is available on
+all three CLI platforms. See [device delivery](usage.md#applying-an-artifact-to-a-device)
+for setup.
+
 ### Update and back up
 
 Routevane creates `data/` beside the launcher. It contains your database,
@@ -168,6 +176,19 @@ publication history, and generated files. Keep it private; it is not a cache.
    overwriting the new catalog with the old one.
 5. Start the new version and check your profiles. Keep the old folder and the
    stopped-state backup until you are satisfied it works.
+
+Device passwords are outside `data/`, in Windows Credential Manager. An update
+on the same Windows installation and account can reuse its existing stored
+passwords. After copying `data/` to another computer, a fresh Windows
+installation, or another account, open **Connections** for each device that
+needs a password: turn off automatic delivery, enter the password again, review
+the consent text, and enable it again. Confirm a subsequent delivery succeeds.
+On Linux or macOS, turn off router automatic delivery and enter its password
+for each manual send.
+
+For a portable settings transfer, use [configuration transfer](usage.md#moving-configuration-to-another-computer).
+Its file excludes passwords, and imported connections start with automatic
+delivery off; it does not restore published files or subscription links.
 
 To roll back, use the old version with the backup taken before the update. Do
 not open a database migrated by a newer version with an older binary.
@@ -201,9 +222,9 @@ It does **not** undo routes already applied to a device.
 - **An update fails to download:** the current version keeps running. Click
   **Update** again later, or install the new version manually from the
   release page.
-- **Lost subscription link:** its secret cannot be recovered. Creating another
-  connection produces a new link after publication but does not revoke the old
-  one. Token rotation and revocation are not currently implemented.
+- **Lost subscription link:** its secret cannot be recovered. Create a new profile
+  with the required lists and build its format to obtain a new link. The old link
+  remains valid; token rotation and revocation are not currently implemented.
 
 For a bug report, include the version, operating system, distribution (desktop
 application or CLI package), and the relevant error. Do not post your database,

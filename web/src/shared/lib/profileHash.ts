@@ -33,5 +33,9 @@ export const parseProfilePageHash = (hash: string): ProfilePageLocation => {
 
 // parseLegacyProfileHash reads the retired drawer address `/#list={id}`, so an
 // old bookmark still resolves to the profile's page instead of an empty shelf.
-export const parseLegacyProfileHash = (hash: string): string =>
-  new URLSearchParams(hash.replace(/^#/, '')).get('profile') ?? ''
+// Library list slugs and malformed values must never become profile routes.
+export const parseLegacyProfileHash = (hash: string): string => {
+  const values = new URLSearchParams(hash.replace(/^#/, ''))
+  const id = values.get('profile') ?? values.get('list') ?? ''
+  return /^[a-f0-9]{32}$/.test(id) ? id : ''
+}

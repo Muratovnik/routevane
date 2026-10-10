@@ -266,7 +266,26 @@ test('an operator category carries its lists into a profile and is kept while a 
   await page
     .getByRole('menuitem', { name: 'Select new lists manually' })
     .click()
-  await page.getByRole('button', { name: 'Save and rebuild' }).click()
+  // Saving reloads the stored profile and remounts its editor. Wait for that
+  // read instead of accepting the menu's optimistic, still-unsaved value.
+  const [savedProfile] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname === `/v1${new URL(routeURL).pathname}`,
+    ),
+    page.getByRole('button', { name: 'Save and rebuild', exact: true }).click(),
+  ])
+  expect(savedProfile.ok()).toBe(true)
+  const saved = (await savedProfile.json()) as {
+    profile: { categories: string[] }
+  }
+  expect(saved.profile.categories).toEqual([])
+  await expect(
+    page.getByRole('button', { name: 'Save and rebuild', exact: true }),
+  ).toBeDisabled()
+  await routeEditorFilter.click()
+  await page.getByRole('option', { name: 'Домашние' }).click()
   await expect(
     page.getByRole('button', { name: 'Follow “Домашние”' }),
   ).toContainText('New lists: manual')
@@ -277,6 +296,9 @@ test('an operator category carries its lists into a profile and is kept while a 
   await expect(
     selectedListRows(page).filter({ hasText: 'YouTube' }),
   ).toHaveCount(1)
+  await expect(
+    selectedListRows(page).filter({ hasText: 'Discord' }),
+  ).toHaveCount(0)
 
   // Nothing names it now, so it goes — and the list it held keeps the category
   // it already belonged to.

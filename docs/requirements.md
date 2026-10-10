@@ -92,6 +92,10 @@ results. Device doubles and parser tests do not prove physical-device acceptance
   acceptance is recorded per OS; Windows evidence does not establish macOS/Linux
   tray or installer behavior.
 
+- The operating-system credential store is currently implemented only on
+  Windows. Automatic delivery to a router that requires a password is unavailable
+  in the Linux/macOS CLI. Manual delivery with a password supplied for each send
+  and automatic delivery to a credential-free local sing-box remain available.
 - Physical Keenetic, OpenWrt, MikroTik, and Amnezia acceptance, including device
   interruption/recovery where relevant, remains unverified. Local sing-box
   delivery proves file validity, not live runtime reload.

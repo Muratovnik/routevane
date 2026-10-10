@@ -36,13 +36,8 @@ func (s *Store) ProfilePage(ctx context.Context, afterID string) (application.Pr
 		nextCursor = profiles[profileLimit-1].ID
 		profiles = profiles[:profileLimit]
 	}
-	for i := range profiles {
-		if err := readComposition(ctx, tx, &profiles[i]); err != nil {
-			return fail(err)
-		}
-		if err := readListDomains(ctx, tx, &profiles[i]); err != nil {
-			return fail(err)
-		}
+	if err := readProfileDetails(ctx, tx, profiles); err != nil {
+		return fail(err)
 	}
 	if err := tx.Commit(); err != nil {
 		return application.ProfilePage{}, fmt.Errorf("commit profile page read: %w", err)

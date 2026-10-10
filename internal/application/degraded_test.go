@@ -21,6 +21,8 @@ func TestDegradedSourcesSelectsOnlyFailingSourcesInsideTheGraceWindow(t *testing
 		{SourceID: "never", SourceRevision: "r1", LastFailureAt: now.Add(-time.Minute)},
 		// Failing inside the window but under a superseded revision.
 		{SourceID: "stalerevision", SourceRevision: "old", LastSuccessAt: now.Add(-time.Hour), LastFailureAt: now.Add(-time.Minute)},
+		// A disabled source still has persisted health, but is no longer active.
+		{SourceID: "disabled", SourceRevision: "r1", LastSuccessAt: now.Add(-time.Hour), LastFailureAt: now.Add(-time.Minute)},
 	}
 	active := map[string]string{"inside": "r1", "expired": "r1", "healthy": "r1", "never": "r1", "stalerevision": "r1"}
 	degraded := DegradedSources(health, active, now)
@@ -29,6 +31,17 @@ func TestDegradedSourcesSelectsOnlyFailingSourcesInsideTheGraceWindow(t *testing
 	}
 	if !degraded[0].GraceUntil.Equal(now.Add(-2 * time.Hour).Add(SourceGracePeriod)) {
 		t.Fatalf("grace window = %v", degraded[0].GraceUntil)
+	}
+}
+
+func TestDegradedSourcesAnEmptyActiveSetExcludesStoredHealth(t *testing.T) {
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	health := []SourceRunState{{SourceID: "disabled", SourceRevision: "r1", LastSuccessAt: now.Add(-time.Hour), LastFailureAt: now}}
+	if got := DegradedSources(health, map[string]string{}, now); len(got) != 0 {
+		t.Fatalf("an empty active set retained disabled sources: %#v", got)
+	}
+	if got := DegradedSources(health, nil, now); len(got) != 1 {
+		t.Fatalf("an unspecified active set lost historical aggregation: %#v", got)
 	}
 }
 

@@ -255,12 +255,18 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 	defer deviceServer.Close()
 
 	origin, cancel, done, stderr := startServeServerWithHostResolver(t, catalog, data, resolver, func() time.Time { return now })
-	defer func() {
+	serverStopped := false
+	stopServer := func() {
+		if serverStopped {
+			return
+		}
+		serverStopped = true
 		cancel()
 		if code := <-done; code != 0 {
 			t.Fatalf("server code=%d stderr=%s", code, stderr.String())
 		}
-	}()
+	}
+	defer stopServer()
 
 	profileID, outputID, _ := createProfileOutput(t, origin, "Видео и общение", "keenetic", "youtube", "discord")
 	build := refreshAndBuild(t, origin, profileID, outputID)
@@ -268,6 +274,7 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 	if artifactID == "" {
 		t.Fatalf("build = %#v", build)
 	}
+	stopServer()
 
 	deps := runtimeDeps{
 		Resolver:     resolver,
@@ -486,16 +493,23 @@ func TestManagedRouteClaimsPreserveForeignRoutesAndShareCreatedPrefixes(t *testi
 	defer deviceServer.Close()
 
 	origin, stop, done, stderr := startServeServerWithHostResolver(t, catalog, data, resolver, func() time.Time { return now })
-	defer func() {
+	serverStopped := false
+	stopServer := func() {
+		if serverStopped {
+			return
+		}
+		serverStopped = true
 		stop()
 		if code := <-done; code != 0 {
 			t.Errorf("serve=%d %s", code, stderr.String())
 		}
-	}()
+	}
+	defer stopServer()
 	profileA, outputA, _ := createProfileOutput(t, origin, "A", "keenetic", "youtube", "discord")
 	profileB, outputB, _ := createProfileOutput(t, origin, "B", "keenetic", "youtube")
 	artifactA := refreshAndBuild(t, origin, profileA, outputA).Artifact.ID
 	artifactB := refreshAndBuild(t, origin, profileB, outputB).Artifact.ID
+	stopServer()
 	deps := runtimeDeps{Resolver: resolver, DeviceDialer: redirectDialer{target: deviceServer.Listener.Addr().String()}, Now: func() time.Time { return now }, Context: context.Background()}
 	args := func(artifact string) []string {
 		return []string{"deploy", "--artifact", artifact, "--target", "keenetic", "--device", "http://192.168.1.1", "--user", deviceUser, "--interface", deviceInterfaceName, "--catalog-dir", catalog, "--data-dir", data, "--confirm"}
@@ -514,15 +528,21 @@ func TestManagedRouteClaimsPreserveForeignRoutesAndShareCreatedPrefixes(t *testi
 		t.Fatalf("route descriptions: shared=%q discord=%q foreign=%q", sharedDescription, discordDescription, foreignDescription)
 	}
 
+	origin, stop, done, stderr = startServeServerWithHostResolver(t, catalog, data, resolver, func() time.Time { return now })
+	serverStopped = false
 	postJSON(t, origin+"/v1/profiles/"+profileA+"/update", `{"name":"A","lists":["discord"]}`)
 	artifactA = refreshAndBuild(t, origin, profileA, outputA).Artifact.ID
+	stopServer()
 	deployViaCLI(t, deps, args(artifactA), devicePassword)
 	if !fakeDeviceHasRoutes(device, foreign, shared, discord) {
 		t.Fatalf("the first claimant removed a shared route: %#v", device.routes)
 	}
 
+	origin, stop, done, stderr = startServeServerWithHostResolver(t, catalog, data, resolver, func() time.Time { return now })
+	serverStopped = false
 	postJSON(t, origin+"/v1/profiles/"+profileB+"/update", `{"name":"B","lists":["discord"]}`)
 	artifactB = refreshAndBuild(t, origin, profileB, outputB).Artifact.ID
+	stopServer()
 	deployViaCLI(t, deps, args(artifactB), devicePassword)
 	device.mu.Lock()
 	_, sharedPresent := device.routes[shared]
@@ -571,15 +591,22 @@ func TestPartialDeviceWriteRestoresTheExactBeforeStateEvenAfterCancellation(t *t
 			resolver := &hostAddressResolver{}
 			resolver.set(map[string][]string{"youtube.expiry.test": {"192.0.2.10"}, "discord.expiry.test": {"198.51.100.20"}})
 			origin, stop, done, stderr := startServeServerWithHostResolver(t, catalog, data, resolver, func() time.Time { return now })
-			defer func() {
+			serverStopped := false
+			stopServer := func() {
+				if serverStopped {
+					return
+				}
+				serverStopped = true
 				stop()
 				if code := <-done; code != 0 {
 					t.Errorf("serve=%d %s", code, stderr.String())
 				}
-			}()
+			}
+			defer stopServer()
 			profileID, outputID, _ := createProfileOutput(t, origin, "Recovery", "keenetic", "youtube", "discord")
 			build := refreshAndBuild(t, origin, profileID, outputID)
 			beforeArtifact := downloadArtifact(t, origin, build.Artifact.ID)
+			stopServer()
 			device := newFakeKeeneticDevice()
 			before := map[string]string{"192.0.2.99/255.255.255.255": deviceInterfaceName, "203.0.113.7/255.255.255.255": "ISP"}
 			device.routes = maps.Clone(before)
@@ -617,6 +644,8 @@ func TestPartialDeviceWriteRestoresTheExactBeforeStateEvenAfterCancellation(t *t
 			if cancelCaller && ctx.Err() == nil {
 				t.Fatal("the caller never cancelled")
 			}
+			origin, stop, done, stderr = startServeServerWithHostResolver(t, catalog, data, resolver, func() time.Time { return now })
+			serverStopped = false
 			if afterArtifact := downloadArtifact(t, origin, build.Artifact.ID); !slices.Equal(beforeArtifact.body, afterArtifact.body) {
 				t.Fatal("device failure changed the publication")
 			}

@@ -65,7 +65,15 @@ func (s *Store) UpdateProfileRefreshInterval(ctx context.Context, profileID stri
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	result, err := s.db.ExecContext(ctx,
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin profile schedule update: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := requireWritableProfile(ctx, tx, profileID); err != nil {
+		return err
+	}
+	result, err := tx.ExecContext(ctx,
 		`UPDATE profiles SET refresh_interval=?, updated_at_ns=? WHERE id=?`,
 		string(interval), updatedAt.UTC().UnixNano(), profileID)
 	if err != nil {
@@ -73,6 +81,9 @@ func (s *Store) UpdateProfileRefreshInterval(ctx context.Context, profileID stri
 	}
 	if affected, err := result.RowsAffected(); err != nil || affected != 1 {
 		return application.ErrNotFound
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit profile schedule update: %w", err)
 	}
 	return nil
 }

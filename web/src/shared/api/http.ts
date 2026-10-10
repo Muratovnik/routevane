@@ -188,7 +188,13 @@ export const requestDescribed = async <T>(
   const payload = await readPayload(response)
   const decoded = decoder(payload)
   if (decoded === null) {
-    throw new RoutevaneAPIError(readError(payload) ?? refused, response.status)
+    throw new RoutevaneAPIError(
+      readError(payload) ?? refused,
+      response.status,
+      '',
+      {},
+      payload,
+    )
   }
   return decoded
 }

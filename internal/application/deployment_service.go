@@ -15,6 +15,10 @@ var (
 	// ErrConfirmationRequired is returned by a plan. It is not a failure: it is
 	// the deliberate stop between deciding what would happen and doing it.
 	ErrConfirmationRequired = errors.New("deployment requires confirmation")
+	// ErrDeploymentNotStarted identifies a refusal before the attempt journal
+	// or a device was reached. An empty attempt alone cannot establish this:
+	// a journal error may occur after its claim was persisted.
+	ErrDeploymentNotStarted = errors.New("deployment was refused before starting an attempt")
 )
 
 // ArtifactSource is what a deployment needs from publication: the exact bytes
@@ -118,8 +122,79 @@ func (s *DeploymentService) ValidateStoredConnection(targetID string, connection
 // and stops.
 type DeployCommand struct {
 	ArtifactID string
-	Connection Connection
-	Confirm    bool
+	// DeviceID selects registered metadata. ResolveDeviceConnection consumes it
+	// under the delivery gate before a plan or a durable attempt is created.
+	DeviceID           string
+	ExpectedConnection *DeviceConnectionSnapshot
+	Connection         Connection
+	Confirm            bool
+}
+
+// DeviceConnectionSnapshot is the non-secret access the operator selected.
+// It refuses a stale registration before any credential is read or device used.
+type DeviceConnectionSnapshot struct {
+	Address   string `json:"device"`
+	Account   string `json:"username"`
+	Interface string `json:"interface"`
+}
+
+type deploymentDeviceSource interface {
+	Device(context.Context, string) (Device, error)
+	DeviceCredential(context.Context, string) (string, error)
+}
+
+// ResolveDeviceConnection turns one registered access into the canonical
+// connection used for this request. The caller holds the delivery gate through
+// resolution and deployment so an address edit or consent revocation cannot
+// separate the credential check from its use. It does not change a binding or
+// persist the optional one-use password.
+func (s *DeploymentService) ResolveDeviceConnection(ctx context.Context, command DeployCommand, devices deploymentDeviceSource) (DeployCommand, error) {
+	if command.DeviceID == "" {
+		if command.ExpectedConnection != nil {
+			return DeployCommand{}, ErrConnectionInvalid
+		}
+		return command, nil
+	}
+	if devices == nil || command.ExpectedConnection == nil || command.Connection.URL != "" || command.Connection.Username != "" || command.Connection.Interface != "" {
+		return DeployCommand{}, ErrConnectionInvalid
+	}
+	device, err := devices.Device(ctx, command.DeviceID)
+	if err != nil {
+		return DeployCommand{}, err
+	}
+	current := DeviceConnectionSnapshot{Address: device.Address, Account: device.Account, Interface: device.Interface}
+	if *command.ExpectedConnection != current {
+		return DeployCommand{}, ErrConnectionInvalid
+	}
+	_, target, err := s.artifactTarget(ctx, command.ArtifactID)
+	if err != nil {
+		return DeployCommand{}, err
+	}
+	if device.TargetID != target.ID {
+		return DeployCommand{}, ErrDeviceIncompatible
+	}
+	deployer, registered := s.config.Deployers[target.RendererID]
+	if !registered || deployer == nil {
+		return DeployCommand{}, ErrDeployerUnavailable
+	}
+	connection := Connection{URL: device.Address, Username: device.Account, Interface: device.Interface, Password: command.Connection.Password}
+	if connection.Password == "" && deployer.Requirements().NeedsCredential {
+		if !device.AutoDeliver {
+			return DeployCommand{}, ErrConnectionInvalid
+		}
+		credential, credentialErr := devices.DeviceCredential(ctx, device.ID)
+		if credentialErr != nil || credential == "" {
+			return DeployCommand{}, fmt.Errorf("%w: stored credential is unavailable", ErrConnectionInvalid)
+		}
+		connection.Password = credential
+	}
+	if err := deployer.ValidateConnection(connection); err != nil {
+		return DeployCommand{}, fmt.Errorf("%w: %v", ErrConnectionInvalid, err)
+	}
+	command.DeviceID = ""
+	command.ExpectedConnection = nil
+	command.Connection = connection
+	return command, nil
 }
 
 // DeployPlan is what a deployment would do. It carries identities only, so it
@@ -259,22 +334,12 @@ func (s *DeploymentService) RetireManagedRoutes(ctx context.Context, targetID st
 // An artifact built for another target is refused here rather than being sent to
 // a deployer that would install the wrong bytes.
 func (s *DeploymentService) resolve(ctx context.Context, command DeployCommand) (ArtifactPayload, domain.TargetDefinition, Deployer, error) {
-	payload, err := s.config.Artifacts.Artifact(ctx, command.ArtifactID)
+	if command.DeviceID != "" || command.ExpectedConnection != nil {
+		return ArtifactPayload{}, domain.TargetDefinition{}, nil, ErrConnectionInvalid
+	}
+	payload, target, err := s.artifactTarget(ctx, command.ArtifactID)
 	if err != nil {
 		return ArtifactPayload{}, domain.TargetDefinition{}, nil, err
-	}
-	// The target comes from the output the artifact belongs to, so a caller
-	// cannot name a different one and have its bytes installed.
-	output, err := s.config.Artifacts.Output(ctx, payload.Artifact.OutputID)
-	if err != nil {
-		return ArtifactPayload{}, domain.TargetDefinition{}, nil, err
-	}
-	target, err := s.config.Artifacts.TargetDefinition(output.TargetID)
-	if err != nil {
-		return ArtifactPayload{}, domain.TargetDefinition{}, nil, err
-	}
-	if payload.Artifact.RendererID != target.RendererID {
-		return ArtifactPayload{}, domain.TargetDefinition{}, nil, fmt.Errorf("%w: artifact was built by %q, target expects %q", ErrDeployComposition, payload.Artifact.RendererID, target.RendererID)
 	}
 	deployer, registered := s.config.Deployers[target.RendererID]
 	if !registered || deployer == nil {
@@ -284,4 +349,25 @@ func (s *DeploymentService) resolve(ctx context.Context, command DeployCommand) 
 		return ArtifactPayload{}, domain.TargetDefinition{}, nil, fmt.Errorf("%w: %v", ErrConnectionInvalid, err)
 	}
 	return payload, target, deployer, nil
+}
+
+func (s *DeploymentService) artifactTarget(ctx context.Context, artifactID string) (ArtifactPayload, domain.TargetDefinition, error) {
+	payload, err := s.config.Artifacts.Artifact(ctx, artifactID)
+	if err != nil {
+		return ArtifactPayload{}, domain.TargetDefinition{}, err
+	}
+	// The target comes from the output the artifact belongs to, so a caller
+	// cannot name a different one and have its bytes installed.
+	output, err := s.config.Artifacts.Output(ctx, payload.Artifact.OutputID)
+	if err != nil {
+		return ArtifactPayload{}, domain.TargetDefinition{}, err
+	}
+	target, err := s.config.Artifacts.TargetDefinition(output.TargetID)
+	if err != nil {
+		return ArtifactPayload{}, domain.TargetDefinition{}, err
+	}
+	if payload.Artifact.RendererID != target.RendererID {
+		return ArtifactPayload{}, domain.TargetDefinition{}, fmt.Errorf("%w: artifact was built by %q, target expects %q", ErrDeployComposition, payload.Artifact.RendererID, target.RendererID)
+	}
+	return payload, target, nil
 }
