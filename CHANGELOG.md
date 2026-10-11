@@ -11,46 +11,19 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
-### Changed
+## [0.3.3](https://github.com/Muratovnik/routevane/compare/v0.3.2...v0.3.3) (2026-10-11)
 
-- The running version is shown in Settings, in the Service section below the
-  service address, instead of at the bottom of the navigation menu.
+### Bug Fixes
 
-### Fixed
-
-- Building a desktop installer now verifies that the bundled core reports the
-  installer's own version and refuses the build otherwise, and the update
-  acceptance test checks the version the application shows after each install
-  and after an in-app update.
-- Installing or updating the desktop application re-points existing Start
-  menu and desktop shortcuts at the installed application. Previously an update
-  kept a shortcut that opened another `Routevane.exe`, such as a development
-  build, which then reported itself as `dev`. A shortcut that was deleted stays
-  deleted.
-- Excluding a value in a list's contents now keeps it out of builds and
-  forecasts even when a feed or DNS observation supplied it; the plan records
-  it as rejected with `operator_excluded`. Previously only catalog values were
-  removed.
-- While a feed or DNS source is failing inside its grace window, builds keep
-  only what its last successful read reported. Previously they could bring back
-  a value that read had already withdrawn, such as a range removed from a feed
-  or an address rotated out of a DNS answer.
-- Refreshing a profile with many lists no longer fails at the 20-second screen
-  budget; the route has its own five-minute budget.
-- Plans are deterministic when two source classes produce the same address or
-  network, and `lossless_collapsed` is recorded only on networks that actually
-  merged. Affected plans get a new hash on their next build.
-- The profile page keeps unsaved edits and the open tab when it reloads after a
-  rebuild, save, archive or device change; a failed reload keeps the page and
-  offers a retry.
-- Importing a configuration refreshes the list library in the open session.
-- A refused archive or restore on the profile shelf is now reported, and the
-  status line shows the latest copy or download outcome.
-- Creating a profile can no longer submit twice before the page changes.
-- The pre-commit hook audits the index Git is about to commit, including for
-  `git commit -a` and `git commit <paths>`, and routes deletions to their
-  checks. The release workflow installs and uninstalls the built Windows
-  installer before publishing it.
+- **desktop:** ([80bbc7a](https://github.com/Muratovnik/routevane/commit/80bbc7a87d0a8ef91334b45ae1299da4bdb4e542)) Installing or updating the desktop application re-points existing Start menu and desktop shortcuts at the installed application. Previously an update kept a shortcut that opened another `Routevane.exe`, such as a development build, which then reported its version as `dev`. A shortcut that was deleted stays deleted.
+- **desktop:** ([565ba9a](https://github.com/Muratovnik/routevane/commit/565ba9a5b006de9e51efa2657788871047450c77)) Building a desktop installer verifies that the bundled core reports the installer's own version and refuses the build otherwise.
+- **web:** ([c21a994](https://github.com/Muratovnik/routevane/commit/c21a994be4aec965208ef26c7c6755af83492f23)) The running version is shown in Settings, in the Service section below the service address, instead of at the bottom of the navigation menu.
+- **planner:** ([b4935ff](https://github.com/Muratovnik/routevane/commit/b4935ff46e39ea4cd91bec6ab46c04b76eb6b94b)) Excluding a value in a list's contents keeps it out of builds and forecasts even when a feed or DNS observation supplied it; the plan records it as rejected with `operator_excluded`. Previously only catalog values were removed.
+- **planner:** ([446cea4](https://github.com/Muratovnik/routevane/commit/446cea4de979012651a187cd951f52ca81251f7a)) While a feed or DNS source is failing inside its grace window, builds keep only what its last successful read reported. Previously they could bring back a value that read had already withdrawn, such as a range removed from a feed or an address rotated out of a DNS answer.
+- **planner:** ([b4935ff](https://github.com/Muratovnik/routevane/commit/b4935ff46e39ea4cd91bec6ab46c04b76eb6b94b)) Plans are deterministic when two source classes produce the same address or network, and `lossless_collapsed` is recorded only on networks that actually merged. Affected plans get a new hash on their next build.
+- **api:** ([b4935ff](https://github.com/Muratovnik/routevane/commit/b4935ff46e39ea4cd91bec6ab46c04b76eb6b94b)) Refreshing a profile with many lists no longer fails at the 20-second screen budget; the route has its own five-minute budget.
+- **web:** ([c21a994](https://github.com/Muratovnik/routevane/commit/c21a994be4aec965208ef26c7c6755af83492f23)) The profile page keeps unsaved edits and the open tab when it reloads after a rebuild, save, archive or device change; a failed reload keeps the page and offers a retry.
+- **web:** ([c21a994](https://github.com/Muratovnik/routevane/commit/c21a994be4aec965208ef26c7c6755af83492f23)) Importing a configuration refreshes the list library in the open session, a refused archive or restore on the profile shelf is reported, and creating a profile can no longer submit twice before the page changes.
 
 ## [0.3.2](https://github.com/Muratovnik/routevane/compare/v0.3.1...v0.3.2) (2026-10-11)
 
