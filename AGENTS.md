@@ -74,17 +74,19 @@ repository requires no such skill and works from a clean clone without one.
 
 ## Verification
 
-Run from the repository root:
+Run from the repository root. `relkit` is the release-kit dispatcher; it runs
+the project's pinned `.github/relkit.pyz`. Without the dispatcher, pass the same
+arguments to `python .github/relkit.pyz`.
 
 ```powershell
-python .github/relkit.pyz audit
+relkit audit
 pwsh -NoLogo -NoProfile -File tools/dev.ps1 check
 ```
 
 Before a tag or first public push, run the history and owner-policy gate:
 
 ```powershell
-python .github/relkit.pyz audit --history --owner
+relkit audit --history --owner
 ```
 
 For browser-facing work also run:
@@ -111,7 +113,7 @@ ignored `tmp/`; never place them beside tests or product assets.
 
 After required gates pass, commit each coherent task-owned green increment by
 default. Preserve unrelated work and pre-existing staged changes. Stage only
-exact task-owned paths, run `python .github/relkit.pyz audit --staged`, inspect
+exact task-owned paths, run `relkit audit --staged`, inspect
 the staged diff, and commit in one uninterrupted sequence; never leave a staged
 handoff. Never push unless the user explicitly requests it.
 

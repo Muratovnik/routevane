@@ -33,6 +33,9 @@ and the maintainer's private owner policy. The active tag workflow must publish
 immutable releases with provenance for all five archives, the Windows desktop
 installer, its blockmap, `latest.yml` and `SHA256SUMS`.
 The host must have a shipped native archive (macOS requires ARM64).
+The commands below use `relkit`, the release-kit dispatcher, which runs this
+checkout's pinned `.github/relkit.pyz`; without it, pass the same arguments to
+`python .github/relkit.pyz`.
 
 Cutting a release (replace `vX.Y.Z` below with an agreed new version; never reuse a
 published tag):
@@ -40,7 +43,7 @@ published tag):
 1. For the repository's first release, enable **Release immutability** in
    GitHub's repository settings. The workflow refuses to accept a published
    release that GitHub does not report as immutable.
-2. Select the version with `python .github/relkit.pyz release next --bump patch`
+2. Select the version with `relkit release next --bump patch`
    (use `minor` for a breaking change). The number follows the last published
    stable release; a failed tag is reported as an occupied name and does not
    silently advance it. `relkit.toml` binds preparation to the first numbered
@@ -58,7 +61,7 @@ published tag):
 
    ```powershell
    New-Item -ItemType Directory -Force tmp | Out-Null
-   python .github/relkit.pyz notes vX.Y.Z --output tmp/release-notes.md
+   relkit notes vX.Y.Z --output tmp/release-notes.md
    ```
 
    A nonzero exit blocks the release. `audit` alone does not check release notes.
@@ -72,13 +75,13 @@ published tag):
    ```powershell
    gh workflow run release.yml --ref BRANCH -f version=vX.Y.Z
    # After the full candidate run finishes:
-   python .github/relkit.pyz release prepare vX.Y.Z --ci-run RUN_ID
+   relkit release prepare vX.Y.Z --ci-run RUN_ID
    ```
 
    Preparation checks the exact commit, all required CI jobs, full asset set,
    checksums, local gates and application smoke. It creates no tag. Failed
    preparation may retry the same version; each attempt keeps its own receipt.
-   Review `python .github/relkit.pyz release plan vX.Y.Z`: exact commit, published
+   Review `relkit release plan vX.Y.Z`: exact commit, published
    predecessor, candidate identity, notes, assets, workflow/jobs and plan SHA-256. Only the new tag is configured
    for push; no branch or other refs are pushed. The tag still exposes every commit
    reachable from it. Local and remote published tags must agree: reconcile drift explicitly,
@@ -86,7 +89,7 @@ published tag):
 6. After explicit authorization of that exact publication, run:
 
    ```powershell
-   python .github/relkit.pyz release run vX.Y.Z --publish --plan-hash REVIEWED_SHA256
+   relkit release run vX.Y.Z --publish --plan-hash REVIEWED_SHA256
    ```
 
    The command runs `tools/dev.ps1 check`, `tools/dev.ps1 test-browser`, worktree
@@ -112,7 +115,7 @@ published tag):
    the other native platforms.
 
 After an interruption, inspect the diagnostics and continue with
-`python .github/relkit.pyz release resume vX.Y.Z --publish`. Use the same checkout
+`relkit release resume vX.Y.Z --publish`. Use the same checkout
 and release-kit version. Resume reconciles the server first; it does not recreate
 releases, repair drafts or rerun CI. A manually reviewed newer CI attempt requires
 `--accept-ci-attempt N`. New local edits after the push remain separate and untouched.
@@ -152,7 +155,7 @@ link, stop and check the checkout's tags and repository ownership. Render again
 from a clean clone owned by the current user if necessary; do not simply change
 the heading to make incorrect release boundaries pass validation.
 
-When upgrading `.github/relkit.pyz`, first use `python .github/relkit.pyz update
+When upgrading `.github/relkit.pyz`, first use `relkit update
 --dry-run`, review the artifact and owned-guard digests, then repeat with `--yes`
 only after approving those changes. A reviewed local development artifact uses
 `--artifact PATH --sha256 EXPECTED_SHA256` in both commands. The updater retains
