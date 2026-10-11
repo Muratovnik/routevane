@@ -237,18 +237,19 @@ test('desktop publishes and transfers a reviewed configuration to a fresh instal
     ).toBeVisible()
     const copy = page.getByRole('button', { name: 'Copy', exact: true }).first()
     await expect(copy).toBeVisible()
-    await copy.click()
-    await expect
-      .poll(() => app.evaluate(({ clipboard }) => clipboard.readText()))
-      .toContain('/v1/subscriptions/rv1.')
-    const subscription = await app.evaluate(({ clipboard }) =>
-      clipboard.readText(),
-    )
     const origin = await page.evaluate(
       () => window.routevaneDesktop!.backendOrigin!,
     )
-    expect(subscription).toMatch(
-      new RegExp(`^${origin.replaceAll('.', '\\.')}/v1/subscriptions/rv1\\.`),
+    await copy.click()
+    // The system clipboard can still hold an address from an earlier run, so
+    // wait for this backend's address rather than any subscription address.
+    await expect
+      .poll(() => app.evaluate(({ clipboard }) => clipboard.readText()))
+      .toMatch(
+        new RegExp(`^${origin.replaceAll('.', '\\.')}/v1/subscriptions/rv1\\.`),
+      )
+    const subscription = await app.evaluate(({ clipboard }) =>
+      clipboard.readText(),
     )
     expect(await (await fetch(subscription)).text()).toContain('example.com')
     expect(
