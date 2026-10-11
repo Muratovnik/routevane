@@ -11,6 +11,17 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
+## [0.3.1](https://github.com/Muratovnik/routevane/compare/v0.3.0...v0.3.1) (2026-10-11)
+
+### Bug Fixes
+
+- **keenetic:** ([ae74cbd](https://github.com/Muratovnik/routevane/commit/ae74cbd5719456f6af4ef53af89d5e6ab3105728)) Add readable list and category descriptions to FQDN groups while preserving their stable ownership. Build and send a new artifact to receive the descriptions; already published artifacts stay unchanged.
+- **delivery:** ([ae74cbd](https://github.com/Muratovnik/routevane/commit/ae74cbd5719456f6af4ef53af89d5e6ab3105728)) Avoid restoring an old device backup after a confirmed failure before writing or after a verified no-op. Validate device commands and complete payloads before applying them, while keeping conservative recovery for partial or ambiguous writes.
+- **connections:** ([540975d](https://github.com/Muratovnik/routevane/commit/540975ddc5a59f2c0caffa4cca58d8da08523182), [ae74cbd](https://github.com/Muratovnik/routevane/commit/ae74cbd5719456f6af4ef53af89d5e6ab3105728)) Clear password input when switching connections and preserve confirmed deletion and automatic-delivery changes when a refresh fails. Align connection fields in both languages and narrow windows.
+- **desktop:** ([ae74cbd](https://github.com/Muratovnik/routevane/commit/ae74cbd5719456f6af4ef53af89d5e6ab3105728), [540975d](https://github.com/Muratovnik/routevane/commit/540975ddc5a59f2c0caffa4cca58d8da08523182)) Repair configuration transfer, show the running version and actual service address, and keep dismissed submenus closed until a new interaction.
+- **storage:** ([540975d](https://github.com/Muratovnik/routevane/commit/540975ddc5a59f2c0caffa4cca58d8da08523182), [ae74cbd](https://github.com/Muratovnik/routevane/commit/ae74cbd5719456f6af4ef53af89d5e6ab3105728)) Preserve profile references during concurrent library edits, keep replacement database connections configured safely after cancellation, and drain service work before closing storage.
+- **inputs:** ([ae74cbd](https://github.com/Muratovnik/routevane/commit/ae74cbd5719456f6af4ef53af89d5e6ab3105728), [66ffda6](https://github.com/Muratovnik/routevane/commit/66ffda611ae58aa4aead2bf2360cb79c53211b00)) Reject unsafe imported files and network destinations, including deprecated ORCHID addresses in `2001:10::/28`. Current ORCHIDv2 and DET destinations remain accepted.
+
 ## [0.3.0](https://github.com/Muratovnik/routevane/compare/v0.2.3...v0.3.0) (2026-10-10)
 
 ### Highlights
