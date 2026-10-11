@@ -29,9 +29,11 @@ subscription tokens, published artifacts and renderer preferences remain intact.
 After consent, start the same Go executable with a one-shot recovery intent.
 It still tries the saved address first. Only if that bind fails does it ask the
 OS for a free loopback port. Under the existing data lock, flush and replace
-the saved port before announcing readiness. Refuse replacement if the saved
-value changed. If saving fails, close the candidate listener and retain the
-previous port. Later ordinary starts reuse the recovered port.
+the saved port after the server is composed and immediately before announcing
+readiness, so a composition failure keeps the previous port. Refuse
+replacement if the saved value changed. If saving fails, close the candidate
+listener and retain the previous port. Later ordinary starts reuse the
+recovered port.
 
 Never terminate or adopt a foreign listener, change Windows reservations, add
 a second server, or change independent `serve` behavior. Use the existing Go
@@ -50,7 +52,8 @@ Choosing a fixed range instead is a separate decision.
 
 `cmd/routevane/desktop_test.go` covers ordinary refusal, explicit recovery with
 the same subscription content and token, persistence on restart, preservation
-of a foreign listener, and failed file replacement with no ready endpoint.
+of a foreign listener, and failed composition or file replacement with no
+ready endpoint.
 Filesystem tests protect expected-value replacement and corrupt-state refusal.
 Desktop bridge tests distinguish the port failure from other startup failures
 and forward recovery only when explicitly requested.

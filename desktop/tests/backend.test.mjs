@@ -1,8 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { pathToFileURL } from 'node:url'
 import { startBackend } from '../src/backend.mjs'
 
@@ -90,3 +91,71 @@ test('unrecognized startup output cannot request port recovery', async () => {
     await rm(scratch, { recursive: true, force: true })
   }
 })
+
+test('stop finishes when a descendant keeps the output pipes open', async () => {
+  const scratch = await mkdtemp(join(tmpdir(), 'routevane-handshake-'))
+  const entry = join(scratch, 'entry.mjs')
+  const pidFile = join(scratch, 'descendant.pid')
+  const previous = process.env.NODE_OPTIONS
+  await writeFile(
+    entry,
+    `
+    import { spawn } from 'node:child_process';
+    import { writeFileSync } from 'node:fs';
+    import { createInterface } from 'node:readline';
+    const input = createInterface({ input: process.stdin });
+    input.once('line', () => {
+      const descendant = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], {
+        detached: true,
+        env: { ...process.env, NODE_OPTIONS: '' },
+        stdio: ['ignore', 'inherit', 'ignore'],
+        windowsHide: true,
+      });
+      descendant.unref();
+      writeFileSync(${JSON.stringify(pidFile)}, String(descendant.pid));
+      process.stdout.write('http://127.0.0.1:43212\\n');
+      input.once('close', () => process.exit(0));
+    });
+    await new Promise(() => {});
+  `,
+  )
+  process.env.NODE_OPTIONS = `--import=${JSON.stringify(pathToFileURL(entry).href)}`
+  let descendant
+  try {
+    const backend = startBackend({
+      binary: process.execPath,
+      catalog: scratch,
+      data: scratch,
+    })
+    assert.equal(await backend.ready, 'http://127.0.0.1:43212')
+    descendant = Number(await readFile(pidFile, 'utf8'))
+    assert.ok(alive(descendant), 'descendant must hold the pipes during stop')
+    let timer
+    const stopped = await Promise.race([
+      backend.stop().then(() => true),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(false), 10000)
+      }),
+    ])
+    clearTimeout(timer)
+    assert.ok(stopped, 'stop waited for pipes held by a descendant')
+    assert.equal(backend.child.exitCode, 0)
+  } finally {
+    if (previous === undefined) delete process.env.NODE_OPTIONS
+    else process.env.NODE_OPTIONS = previous
+    if (descendant && alive(descendant)) process.kill(descendant)
+    for (let wait = 0; descendant && alive(descendant) && wait < 50; wait++)
+      await delay(100)
+    assert.ok(!descendant || !alive(descendant), 'descendant survived cleanup')
+    await rm(scratch, { recursive: true, force: true })
+  }
+})
+
+function alive(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}

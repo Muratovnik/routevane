@@ -20,18 +20,20 @@ export function startBackend({ binary, catalog, data, recoverPort = false }) {
       windowsHide: true,
     },
   )
-  let settled = false
   let startupError
+  // 'close' also waits for every holder of the output pipes, so a descendant
+  // that inherited them can outlive the process. Shutdown waits for the
+  // process itself; consumers of `exited` keep reading all of its output.
+  const gone = new Promise((resolve) => {
+    child.once('error', resolve)
+    child.once('exit', resolve)
+  })
   const exited = new Promise((resolve) => {
     child.once('error', (error) => {
       startupError = error
-      settled = true
       resolve()
     })
-    child.once('close', () => {
-      settled = true
-      resolve()
-    })
+    child.once('close', resolve)
   })
   // Drain diagnostics without retaining arbitrary source/device payloads.
   child.stderr.resume()
@@ -70,19 +72,32 @@ export function startBackend({ binary, catalog, data, recoverPort = false }) {
       stopping ??= (async () => {
         child.stdin.end()
         // Allow bounded in-flight cancellation and device recovery to finish.
-        const timeout = new AbortController()
-        await Promise.race([
-          exited,
-          delay(150000, null, { signal: timeout.signal }).catch(() => {}),
-        ])
-        timeout.abort()
-        if (!settled) {
+        if (!(await within(gone, 150000))) {
           child.kill('SIGKILL')
-          await exited
+          await within(gone, 5000)
+        }
+        // Let the remaining output drain, then release pipes still held by a
+        // descendant so 'close' can fire instead of holding quit open.
+        if (!(await within(exited, 1000))) {
+          child.stdout.destroy()
+          child.stderr.destroy()
+          await within(exited, 1000)
         }
         lines.close()
       })()
       return stopping
     },
+  }
+}
+
+async function within(promise, ms) {
+  const timeout = new AbortController()
+  try {
+    return await Promise.race([
+      promise.then(() => true),
+      delay(ms, false, { signal: timeout.signal }).catch(() => false),
+    ])
+  } finally {
+    timeout.abort()
   }
 }

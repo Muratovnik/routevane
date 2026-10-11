@@ -278,3 +278,49 @@ func TestDesktopFailedPortRecoveryKeepsOldStateAndClosesListener(t *testing.T) {
 		t.Fatal("candidate listener leaked")
 	}
 }
+
+func TestDesktopPortRecoveryKeepsOldStateWhenCompositionFails(t *testing.T) {
+	data := t.TempDir()
+	const oldPort = 43210
+	if err := filesystem.SaveDesktopPort(data, oldPort); err != nil {
+		t.Fatal(err)
+	}
+	var candidate net.Listener
+	input, control := io.Pipe()
+	defer input.Close()
+	defer control.Close()
+	go func() { _, _ = io.WriteString(control, strings.Repeat("a", 64)+"\n") }()
+	deps := runtimeDeps{DesktopInput: input, Listen: func(network, address string) (net.Listener, error) {
+		if address != "127.0.0.1:0" {
+			return nil, os.ErrPermission
+		}
+		var err error
+		candidate, err = net.Listen(network, address)
+		if err != nil {
+			return nil, err
+		}
+		return zonedListener{candidate}, nil
+	}}
+	var stdout, logs bytes.Buffer
+	code := runWithDeps(&stdout, &logs, []string{"desktop", "--recover-desktop-port", "--catalog-dir", filepath.Join("..", "..", "catalog"), "--data-dir", data}, deps)
+	if code != 1 || stdout.Len() != 0 || candidate == nil || !strings.Contains(logs.String(), "composition_invalid") {
+		t.Fatalf("failed composition announced readiness: code=%d stdout=%q logs=%s", code, stdout.String(), logs.String())
+	}
+	if saved, err := filesystem.DesktopPort(data); err != nil || saved != oldPort {
+		t.Fatalf("failed composition replaced old state: %d %v", saved, err)
+	}
+	if connection, err := net.DialTimeout("tcp4", candidate.Addr().String(), time.Second); err == nil {
+		_ = connection.Close()
+		t.Fatal("candidate listener leaked")
+	}
+}
+
+// zonedListener passes the loopback check but cannot form an HTTP origin, so
+// server composition fails only after the candidate port is bound.
+type zonedListener struct{ net.Listener }
+
+func (l zonedListener) Addr() net.Addr {
+	address := *l.Listener.Addr().(*net.TCPAddr)
+	address.Zone = "zone"
+	return &address
+}

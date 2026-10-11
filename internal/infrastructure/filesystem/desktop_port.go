@@ -51,7 +51,8 @@ func writeDesktopPort(dataRoot string, port int, replace bool) error {
 	if port < 1 || port > 65535 {
 		return fmt.Errorf("invalid desktop port")
 	}
-	file, err := os.CreateTemp(dataRoot, ".desktop-port-*.tmp")
+	removeStaleDesktopPortFiles(dataRoot)
+	file, err := os.CreateTemp(dataRoot, desktopPortTemp)
 	if err != nil {
 		return err
 	}
@@ -67,7 +68,33 @@ func writeDesktopPort(dataRoot string, port int, replace bool) error {
 	}
 	destination := filepath.Join(dataRoot, "desktop.port")
 	if replace {
-		return os.Rename(file.Name(), destination)
+		err = os.Rename(file.Name(), destination)
+	} else {
+		err = os.Link(file.Name(), destination)
 	}
-	return os.Link(file.Name(), destination)
+	if err != nil {
+		return err
+	}
+	// Make the new entry durable; the platform helper skips Windows, which
+	// offers no directory flush through os.File.
+	return syncDirectory(dataRoot)
+}
+
+const desktopPortTemp = ".desktop-port-*.tmp"
+
+// removeStaleDesktopPortFiles clears temporary files a crashed writer left
+// before its deferred removal. The caller's data lock rules out a live writer.
+// Names are matched inside dataRoot rather than globbed through it, so a data
+// directory containing pattern characters cannot reach other directories.
+// Cleanup is best effort: a leftover file is clutter, not port state.
+func removeStaleDesktopPortFiles(dataRoot string) {
+	entries, err := os.ReadDir(dataRoot)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if matched, _ := filepath.Match(desktopPortTemp, entry.Name()); matched && entry.Type().IsRegular() {
+			_ = os.Remove(filepath.Join(dataRoot, entry.Name()))
+		}
+	}
 }

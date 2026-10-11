@@ -127,12 +127,6 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 			return 1
 		}
 	}
-	if replacingDesktopPort {
-		if err := filesystem.ReplaceDesktopPort(root, savedDesktopPort, tcp.Port); err != nil {
-			logResult(logger, "serve", "", "", "failed", 0, started, "desktop_port_unavailable")
-			return 1
-		}
-	}
 	// The server can apply what it publishes. Deployment is composed separately
 	// because it is a different decision: publication owns formats, deployment
 	// owns transports.
@@ -203,6 +197,15 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		server.RequireDesktopToken(options.DesktopToken)
 	}
 	server.SetVersion(version)
+	// Recovery changes every copied subscription address, so the new port is
+	// persisted only once the server is composed and nothing but readiness is
+	// left. A composition failure keeps the previous port.
+	if replacingDesktopPort {
+		if err := filesystem.ReplaceDesktopPort(root, savedDesktopPort, tcp.Port); err != nil {
+			logResult(logger, "serve", "", "", "failed", 0, started, "desktop_port_unavailable")
+			return 1
+		}
+	}
 	if _, err := fmt.Fprintln(stdout, origin); err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "output_failed")
 		return 1
