@@ -11,6 +11,14 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
+## [0.3.2](https://github.com/Muratovnik/routevane/compare/v0.3.1...v0.3.2) (2026-10-11)
+
+### Bug Fixes
+
+- **desktop:** ([e423840](https://github.com/Muratovnik/routevane/commit/e42384012028540b529ac220cd9ea246044b2cb0), [509fb3f](https://github.com/Muratovnik/routevane/commit/509fb3fcf31660c4126886b5e6cf3d158e8d1678)) Offer to choose a new local port when Windows has reserved the saved one, instead of failing to start. The question warns that previously copied subscription addresses need the new port; quitting keeps the saved address, and data and subscription tokens are preserved.
+- **desktop:** ([e0e0efd](https://github.com/Muratovnik/routevane/commit/e0e0efde247d15b2bf56167aa66b56ab3f93556f)) Choose new desktop ports from 20000–29999, below the ranges where Windows reserves ports and opens outgoing connections. Existing installations keep their saved port.
+- **desktop:** ([509fb3f](https://github.com/Muratovnik/routevane/commit/509fb3fcf31660c4126886b5e6cf3d158e8d1678)) Limit how long quitting waits for the background service once it has stopped.
+
 ## [0.3.1](https://github.com/Muratovnik/routevane/compare/v0.3.0...v0.3.1) (2026-10-11)
 
 ### Bug Fixes
