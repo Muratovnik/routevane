@@ -17,13 +17,14 @@ import {
   readdir,
   rm,
   stat,
+  writeFile,
 } from 'node:fs/promises'
 import { execFile, spawn } from 'node:child_process'
 import { promisify } from 'node:util'
 import { randomUUID } from 'node:crypto'
 import { once } from 'node:events'
 import { setTimeout as delay } from 'node:timers/promises'
-import { join, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
 import { isolatedProductEnvironment } from '../e2e/support/environment'
 
 const root = resolve(import.meta.dirname, '../../..')
@@ -71,6 +72,46 @@ const updaterCacheFor = (fixtureID: string): string => {
   return join(localAppData, `routevane-${fixtureID}-updater`)
 }
 
+// Paths may hold characters outside the console's code page; read them as UTF-8.
+const UTF8_OUTPUT =
+  '[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); '
+
+/**
+ * The Start Menu and Desktop shortcuts an installer with this fixture identity
+ * owns: the template names both after the shortcut name, which a fixture build
+ * sets to its identity, in the current user's known folders.
+ */
+const shortcutsFor = async (fixtureID: string): Promise<string[]> => {
+  const folders = (
+    await powershell(
+      `${UTF8_OUTPUT}[Environment]::GetFolderPath('Programs'); [Environment]::GetFolderPath('Desktop')`,
+    )
+  )
+    .split(/\r?\n/)
+    .map((folder) => folder.trim())
+  if (folders.length !== 2 || !folders.every((folder) => isAbsolute(folder)))
+    throw new Error(`unexpected shortcut folders: ${folders.join(', ')}`)
+  return folders.map((folder) => join(folder, `${fixtureID}.lnk`))
+}
+
+/** Saves a shortcut at `link` that opens `target`. */
+const plantShortcut = (link: string, target: string) =>
+  powershell(
+    `$link = (New-Object -ComObject WScript.Shell).CreateShortcut(${quote(link)}); $link.TargetPath = ${quote(target)}; $link.Save()`,
+  )
+
+/** The executable a shortcut opens. */
+const shortcutTarget = (link: string) =>
+  powershell(
+    `${UTF8_OUTPUT}(New-Object -ComObject WScript.Shell).CreateShortcut(${quote(link)}).TargetPath`,
+  )
+
+/** The application identity the taskbar groups a shortcut's windows under. */
+const shortcutAppID = (link: string) =>
+  powershell(
+    `(New-Object -ComObject Shell.Application).NameSpace(${quote(dirname(link))}).ParseName(${quote(basename(link))}).ExtendedProperty('System.AppUserModel.ID')`,
+  )
+
 /** The loopback port a listening server was given by the operating system. */
 const listeningPort = (server: Server): number => {
   const address = server.address()
@@ -93,6 +134,27 @@ const uninstall = async (installDir: string): Promise<void> => {
   await exec(join(installDir, uninstaller), ['/S'], {
     windowsHide: true,
     timeout: 60000,
+  })
+}
+
+/**
+ * Removes a run's scratch directory once the run passed: nothing in it is left
+ * to inspect, and it holds three full installers. A failed run keeps it as
+ * evidence. An NSIS uninstaller can finish from a copy of itself after the one
+ * the test started has exited, so the installation inside must be gone first.
+ */
+const removeScratchOfPassedRun = async (
+  passed: boolean,
+  installDir: string,
+  scratch: string,
+): Promise<void> => {
+  if (!passed) return
+  await expect.poll(() => exists(installDir), { timeout: 60000 }).toBe(false)
+  await rm(scratch, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 200,
   })
 }
 
@@ -165,7 +227,11 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
   }
   let app: Awaited<ReturnType<typeof electron.launch>> | undefined
   let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | undefined
+  // Only links named after this run's fixture identity; set before any exists.
+  let shortcuts: string[] = []
+  let passed = false
   try {
+    shortcuts = await shortcutsFor(fixtureID)
     for (const [version, output] of [
       ['0.0.1', first],
       ['0.0.2', middle],
@@ -252,6 +318,21 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
     ).toBeVisible()
     await app.close()
     app = undefined
+    // A fixture build creates no shortcuts of its own, and its two installs so
+    // far found none to re-point: the installer must not create one either, so
+    // a shortcut the operator deleted stays deleted.
+    for (const link of shortcuts) expect(await exists(link)).toBe(false)
+    // An earlier build, such as a development one, left both shortcuts opening
+    // another executable; the update must bring them back to the installed one.
+    const stale = join(scratch, 'stale', 'Routevane.exe')
+    await mkdir(dirname(stale), { recursive: true })
+    await writeFile(stale, '')
+    for (const link of shortcuts) {
+      await plantShortcut(link, stale)
+      expect((await shortcutTarget(link)).toLowerCase()).toBe(
+        stale.toLowerCase(),
+      )
+    }
     // Exercise installation without a Node inspector: a debugger holds app.quit
     // open and Playwright's Electron cleanup also kills detached descendants.
     const child = spawn(exe, ['--remote-debugging-port=0'], {
@@ -355,6 +436,10 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
         `(Get-Item -LiteralPath ${quote(exe)}).VersionInfo.ProductVersion`,
       ),
     ).toMatch(/^0\.0\.3/)
+    for (const link of shortcuts) {
+      expect((await shortcutTarget(link)).toLowerCase()).toBe(exe.toLowerCase())
+      expect(await shortcutAppID(link)).toBe(`io.routevane.${fixtureID}`)
+    }
     await stopOwned()
     await expect
       .poll(async () => {
@@ -390,7 +475,11 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
         }),
     ).toBeVisible()
     await reopened.screenshot({ path: join(parent, 'updated-settings.png') })
+    passed = true
   } finally {
+    // The fixture uninstaller leaves shortcuts alone; these sit in the
+    // operator's own folders, so they go first, whatever failed.
+    for (const link of shortcuts) await rm(link, { force: true })
     await app?.close()
     await browser?.close()
     await stopOwned()
@@ -398,5 +487,6 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
     await rm(updaterCache, { recursive: true, force: true })
     server.closeAllConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))
+    await removeScratchOfPassedRun(passed, installDir, scratch)
   }
 })

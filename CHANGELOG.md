@@ -22,6 +22,11 @@ This file starts at the first published version, 0.1.0.
   installer's own version and refuses the build otherwise, and the update
   acceptance test checks the version the application shows after each install
   and after an in-app update.
+- Installing or updating the desktop application re-points existing Start
+  menu and desktop shortcuts at the installed application. Previously an update
+  kept a shortcut that opened another `Routevane.exe`, such as a development
+  build, which then reported itself as `dev`. A shortcut that was deleted stays
+  deleted.
 - Excluding a value in a list's contents now keeps it out of builds and
   forecasts even when a feed or DNS observation supplied it; the plan records
   it as rejected with `operator_excluded`. Previously only catalog values were
