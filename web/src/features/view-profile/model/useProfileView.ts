@@ -19,6 +19,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import {
   loadDeployableTargets,
   type ConnectionRequirements,
+  type DeployableTarget,
 } from '@/shared/api/deploy'
 import { loadDevices, type DeviceCard } from '@/shared/api/devices'
 import {
@@ -48,6 +49,8 @@ import {
 } from '@/shared/api/outputs'
 
 export type ProfileState = 'loading' | 'ready' | 'missing' | 'failed'
+type ProfileDetail = Awaited<ReturnType<typeof loadProfile>>
+type DeviceRegistry = Awaited<ReturnType<typeof loadDevices>>
 export type AutomaticDeliveryCapability =
   'available' | 'unavailable' | 'unknown'
 export type LoadState = 'idle' | 'loading' | 'ready' | 'failed'
@@ -90,6 +93,10 @@ export const useProfileView = (profileID: () => string) => {
   const secretStoreAvailable = ref<boolean | null>(null)
   const devices = ref<DeviceCard[]>([])
   let initializeRequest = 0
+  // The profile whose detail the screen currently holds, and whether the last
+  // read of it failed while that detail stayed on screen.
+  let loadedID = ''
+  const rereadFailed = ref(false)
   const selectedOutputID = ref('')
   const content = ref<ArtifactContent | null>(null)
   const contentState = ref<LoadState>('idle')
@@ -252,14 +259,76 @@ export const useProfileView = (profileID: () => string) => {
       .sort((left, right) => left.id.localeCompare(right.id))
   })
 
+  // Whether this read refreshes the profile already on screen. Only the first
+  // read of a profile is a loading state, and only it starts from nothing.
+  const beginRead = (id: string): boolean => {
+    const reread =
+      state.value === 'ready' && loadedID === id && profile.value !== null
+    if (!reread) {
+      state.value = 'loading'
+      rereadFailed.value = false
+      devices.value = []
+      connectionRequirements.value = new Map()
+      secretStoreAvailable.value = null
+    }
+    return reread
+  }
+
+  // A capability claim is never carried past a read that failed to confirm it:
+  // automatic delivery falls back to unknown, while the devices already listed
+  // stay on screen.
+  const applyDelivery = (
+    deployables: PromiseSettledResult<DeployableTarget[]>,
+    registry: PromiseSettledResult<DeviceRegistry>,
+  ): void => {
+    if (deployables.status === 'fulfilled') {
+      deployableIDs.value = new Set(
+        deployables.value.map((entry) => entry.targetID),
+      )
+      connectionRequirements.value = new Map(
+        deployables.value.map((entry) => [entry.targetID, entry.requirements]),
+      )
+    } else {
+      connectionRequirements.value = new Map()
+    }
+    if (registry.status === 'fulfilled') {
+      devices.value = registry.value.devices
+      secretStoreAvailable.value = registry.value.secretStoreAvailable
+    } else {
+      secretStoreAvailable.value = null
+    }
+  }
+
+  const applyDetail = (detail: ProfileDetail, revision: number): void => {
+    rereadFailed.value = false
+    profile.value = detail.profile
+    resolved.value = detail.resolved
+    missingCategories.value = detail.missingCategories
+    if (revision === scheduleRevision && scheduleState.value !== 'saving')
+      schedule.value = detail.schedule
+    outputs.value = detail.outputs
+    if (!outputs.value.some((output) => output.id === selectedOutputID.value)) {
+      selectedOutputID.value =
+        outputs.value.find((output) => output.latest !== null)?.id ??
+        outputs.value[0]?.id ??
+        ''
+    }
+    state.value = 'ready'
+  }
+
+  /**
+   * initialize reads the profile and everything its facets show. Every write on
+   * this screen reads the profile again, and that read keeps the page it
+   * refreshes mounted — the facets not on show hold the operator's unsaved
+   * drafts — replacing values as they arrive. A re-read that fails leaves the
+   * last confirmed profile on screen and says so; only a profile the server no
+   * longer has stops being shown.
+   */
   const initialize = async (): Promise<void> => {
     const request = ++initializeRequest
     const id = profileID()
     const revision = scheduleRevision
-    state.value = 'loading'
-    devices.value = []
-    connectionRequirements.value = new Map()
-    secretStoreAvailable.value = null
+    const reread = beginRead(id)
     const [detail, loadedCatalog, deployables, formats, registry] =
       await Promise.allSettled([
         loadProfile(id),
@@ -271,45 +340,22 @@ export const useProfileView = (profileID: () => string) => {
     if (request !== initializeRequest || id !== profileID()) return
     if (loadedCatalog.status === 'fulfilled')
       catalog.value = loadedCatalog.value
-    if (deployables.status === 'fulfilled') {
-      deployableIDs.value = new Set(
-        deployables.value.map((entry) => entry.targetID),
-      )
-      connectionRequirements.value = new Map(
-        deployables.value.map((entry) => [entry.targetID, entry.requirements]),
-      )
-    }
+    applyDelivery(deployables, registry)
     if (formats.status === 'fulfilled') exportFormats.value = formats.value
-    if (registry.status === 'fulfilled') {
-      devices.value = registry.value.devices
-      secretStoreAvailable.value = registry.value.secretStoreAvailable
-    }
-    if (detail.status === 'rejected') {
-      // A profile the server has never heard of (404) is a different fact from a
-      // profile the server cannot answer for right now: only the first is
-      // "missing". Everything else — 5xx, a network failure, a contract the
-      // client cannot decode — leaves the profile possibly still there, so the
-      // screen offers retry instead of "not found".
-      state.value =
-        detail.reason instanceof RoutevaneAPIError &&
-        detail.reason.status === 404
-          ? 'missing'
-          : 'failed'
+    if (detail.status === 'fulfilled') {
+      loadedID = id
+      applyDetail(detail.value, revision)
       return
     }
-    profile.value = detail.value.profile
-    resolved.value = detail.value.resolved
-    missingCategories.value = detail.value.missingCategories
-    if (revision === scheduleRevision && scheduleState.value !== 'saving')
-      schedule.value = detail.value.schedule
-    outputs.value = detail.value.outputs
-    if (!outputs.value.some((output) => output.id === selectedOutputID.value)) {
-      selectedOutputID.value =
-        outputs.value.find((output) => output.latest !== null)?.id ??
-        outputs.value[0]?.id ??
-        ''
-    }
-    state.value = 'ready'
+    // A profile the server has never heard of (404) is a different fact from a
+    // profile the server cannot answer for right now: only the first is
+    // "missing". Everything else — 5xx, a network failure, a contract the
+    // client cannot decode — leaves the profile possibly still there, so the
+    // screen offers retry instead of "not found".
+    const missing =
+      detail.reason instanceof RoutevaneAPIError && detail.reason.status === 404
+    if (reread && !missing) rereadFailed.value = true
+    else state.value = missing ? 'missing' : 'failed'
   }
 
   // Bumped whenever the loaded detail is discarded (a new output picked, or a
@@ -619,6 +665,7 @@ export const useProfileView = (profileID: () => string) => {
     rebuild,
     rebuildFailed,
     registerCatalog,
+    rereadFailed,
     reveal,
     revealed,
     ruleCount,

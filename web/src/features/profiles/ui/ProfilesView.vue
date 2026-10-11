@@ -45,10 +45,22 @@ const openRoute = (event: MouseEvent, card: ProfileCard): void => {
   void router.push(profileHref(card))
 }
 
+// The outcome of the last action taken on the shelf. Each action withdraws the
+// previous outcome when it starts, so at most one of these is ever set.
 const copyMessage = computed(() => {
   if (library.copiedID.value !== '') return t('profiles.copied')
   if (library.copyFailedID.value !== '') return t('profiles.copyFailed')
   if (library.exportFailedID.value !== '') return t('profiles.export.failed')
+  const refused = library.shelveFailed.value
+  if (refused !== null) {
+    const card = [...library.rows.value, ...library.archived.value].find(
+      (candidate) => candidate.id === refused.id,
+    )
+    const name = card === undefined ? '' : displayName(card)
+    return refused.archive
+      ? t('profiles.archive.failed', { name })
+      : t('profiles.restore.failed', { name })
+  }
   return ''
 })
 const importedCount = computed(
@@ -152,7 +164,10 @@ const menuItems = (card: ProfileCard): MenuItem[] => {
   if (library.downloadable(card) !== null) {
     items.push({ icon: 'copy', key: 'copy', label: t('profiles.copy') })
   }
+  // One shelf change at a time: the archive answer rearranges the shelf, so a
+  // second request is withheld until the first one has been answered.
   items.push({
+    disabled: library.shelving.value !== '',
     icon: 'archive',
     key: card.archivedAt === '' ? 'archive' : 'restore',
     label:

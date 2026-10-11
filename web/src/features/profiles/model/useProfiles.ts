@@ -42,6 +42,9 @@ export const useProfiles = () => {
   const copiedID = ref('')
   const copyFailedID = ref('')
   const shelving = ref('')
+  // A refused archive or restore, named by the profile and the direction it
+  // was asked to go.
+  const shelveFailed = ref<{ id: string; archive: boolean } | null>(null)
   const exportFormats = ref<ExportFormat[]>([])
   const exporting = ref('')
   const exportFailedID = ref('')
@@ -115,6 +118,16 @@ export const useProfiles = () => {
     }
   }
 
+  // The shelf states the outcome of the last action taken on it, so each
+  // action starts by withdrawing whatever the previous one reported: an earlier
+  // success never stands in for a later failure.
+  const clearOutcomes = (): void => {
+    copiedID.value = ''
+    copyFailedID.value = ''
+    exportFailedID.value = ''
+    shelveFailed.value = null
+  }
+
   const listTitle = (id: string): string =>
     catalog.value?.listDetails.find((detail) => detail.id === id)?.title ?? id
 
@@ -157,6 +170,7 @@ export const useProfiles = () => {
   ): Promise<boolean> => {
     if (shelving.value !== '') return false
     shelving.value = card.id
+    clearOutcomes()
     // The archive response changes the page split, so a continuation begun
     // before this action no longer belongs beside the confirmed shelf.
     readGeneration += 1
@@ -177,6 +191,7 @@ export const useProfiles = () => {
       )
       return true
     } catch {
+      shelveFailed.value = { archive: next, id: card.id }
       return false
     } finally {
       shelving.value = ''
@@ -195,8 +210,7 @@ export const useProfiles = () => {
    * refused. The row states what happened, so the refusal is the browser's own.
    */
   const copyContents = async (card: ProfileCard): Promise<void> => {
-    copiedID.value = ''
-    copyFailedID.value = ''
+    clearOutcomes()
     const output = downloadable(card)
     if (output === null || output.latest === null) return
     // A browser with no clipboard to write to says so on the row, instead of
@@ -222,7 +236,7 @@ export const useProfiles = () => {
   ): Promise<void> => {
     if (exporting.value !== '') return
     exporting.value = `${card.id}:${formatID}`
-    exportFailedID.value = ''
+    clearOutcomes()
     try {
       await downloadProfileExport(card.id, formatID)
     } catch {
@@ -254,6 +268,7 @@ export const useProfiles = () => {
     moreFailed,
     nextCursor,
     setArchived,
+    shelveFailed,
     shelving,
     state,
   }

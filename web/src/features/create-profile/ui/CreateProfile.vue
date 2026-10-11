@@ -25,7 +25,7 @@ const setup = useCreateProfile()
 // to read a list's sources takes a few seconds, and saying so is better than
 // numbers that appear from nowhere — it explains a wait, it gates nothing.
 const stageMessage = computed(() => {
-  if (setup.flowState.value === 'creating') return t('create.stage.creating')
+  if (setup.busy.value) return t('create.stage.creating')
   return setup.observing.value ? t('listCard.observing') : ''
 })
 

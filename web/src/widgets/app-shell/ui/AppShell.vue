@@ -15,13 +15,13 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import ApplicationUpdate from '@/features/application-update/ui/ApplicationUpdate.vue'
-import ApplicationVersion from '@/features/application-version/ui/ApplicationVersion.vue'
 
 /**
  * The chrome: the product's name and its sections. Sections mirror the object
  * types the product holds — lists, connections, settings — and nothing here is
  * a step: every section is reachable at any time. Preferences and the
- * service's own address live on the settings screen, not in the chrome.
+ * service's own address and version live on the settings screen, not in the
+ * chrome.
  */
 const { locale, t } = useLocale()
 const route = useRoute()
@@ -174,7 +174,6 @@ const retry = async (): Promise<void> => {
               }}</span>
             </button>
           </RvTooltip>
-          <ApplicationVersion :collapsed="collapsed" class="shell__version" />
         </div>
       </header>
 
@@ -260,7 +259,7 @@ const retry = async (): Promise<void> => {
   gap: var(--rv-space-8);
   height: 100dvh;
 
-  /* Leave the footer's closing inset beneath its version and controls. */
+  /* Leave the footer's closing inset beneath its controls. */
   padding: var(--rv-space-8) var(--rv-space-5) var(--rv-space-5);
   color: var(--rv-color-ink);
   background: var(--rv-color-chrome);
@@ -517,11 +516,6 @@ const retry = async (): Promise<void> => {
   gap: var(--rv-space-1);
   margin-top: auto;
   flex: none;
-}
-
-.shell--collapsed .shell__version {
-  padding-inline: 0;
-  text-align: center;
 }
 
 .shell__collapse > .rv-icon {

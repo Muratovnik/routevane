@@ -367,10 +367,84 @@ describe('ProfileEditor', () => {
       .element(screen.getByRole('button', { name: CANCEL }))
       .not.toBeInTheDocument()
 
+    // A stored profile that really changed under an untouched draft — read
+    // again after a write elsewhere on the page — is followed, not offered
+    // back to the operator as an edit they never made.
     await screen.rerender({ exclusions: ['discord'] })
+    expect([...composition(screen)].sort()).toEqual(['Telegram', 'YouTube'])
+    await expect
+      .element(screen.getByRole('button', { name: CANCEL }))
+      .not.toBeInTheDocument()
+  })
+
+  // The profile page re-reads the stored profile after every write on any of
+  // its facets, and this editor stays mounted through that read. What the
+  // operator has typed and not saved is theirs until they save or discard it.
+  it('keeps an unsaved draft when the stored profile is read again', async () => {
+    stubPreview()
+    const screen = await renderEditor()
+    await settle()
+    const name = screen.getByLabelText('Name')
+    await name.fill('Unsaved name')
+    await screen
+      .getByRole('checkbox', { name: 'Remove Discord from the profile' })
+      .click()
+    const drafted = composition(screen)
+
+    await screen.rerender({ busy: true })
+    await screen.rerender({
+      busy: false,
+      exclusions: [],
+      name: 'Chat and video',
+      selected: ['youtube'],
+      selectedCategories: ['communication'],
+    })
+    await screen.rerender({ name: 'Renamed in another tab' })
+
+    await expect.element(name).toHaveValue('Unsaved name')
+    expect(composition(screen)).toEqual(drafted)
     await expect
       .element(screen.getByRole('button', { name: CANCEL }))
       .toBeVisible()
+  })
+
+  it('takes the stored profile once the save it submitted has landed', async () => {
+    stubPreview()
+    const screen = await renderEditor()
+    await settle()
+    const name = screen.getByLabelText('Name')
+    await name.fill('  Saved name  ')
+    await screen
+      .getByRole('checkbox', { name: 'Remove Discord from the profile' })
+      .click()
+    await screen.getByRole('button', { name: SAVE }).click()
+    const [savedName, saved] = screen.emitted('save')!.at(-1) as [
+      string,
+      {
+        lists: string[]
+        categories: string[]
+        exclusions: string[]
+        priority: string[]
+      },
+    ]
+
+    await screen.rerender({ busy: true })
+    await screen.rerender({
+      busy: false,
+      exclusions: saved.exclusions,
+      name: savedName,
+      priority: saved.priority,
+      selected: saved.lists,
+      selectedCategories: saved.categories,
+    })
+
+    await expect.element(name).toHaveValue('Saved name')
+    await expect
+      .element(screen.getByRole('button', { name: CANCEL }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: SAVE }))
+      .toBeDisabled()
   })
 
   it('cancels the edited name and composition without saving', async () => {

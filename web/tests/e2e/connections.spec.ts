@@ -491,3 +491,71 @@ test('an output can be explicitly bound to and detached from a compatible device
   )
   expect(forgotten.ok()).toBe(true)
 })
+
+// Every write on the profile page reads the profile again. That read keeps the
+// page mounted, so an unsaved rename on Contents survives a device binding made
+// on Publishing instead of being reset by a reloaded editor.
+test('binding a device on Publishing keeps an unsaved rename on Contents', async ({
+  page,
+  origin,
+}) => {
+  const headers = { Origin: origin, 'X-Routevane-Request': '1' }
+  const deviceName = 'Draft-keeping Keenetic'
+  const created = await page.request.post(`${origin}/v1/devices`, {
+    data: {
+      account: 'admin',
+      address: 'http://192.168.1.2',
+      interface: 'Wireguard0',
+      name: deviceName,
+      target_id: 'keenetic',
+    },
+    headers,
+  })
+  expect(created.ok()).toBe(true)
+  const deviceID = ((await created.json()) as { device: { id: string } }).device
+    .id
+  const { outputId } = await buildProfile(page, origin)
+
+  const sections = page.getByRole('tablist', { name: 'Profile sections' })
+  await sections.getByRole('tab', { name: 'Contents' }).click()
+  const contents = page.getByRole('tabpanel', { name: 'Contents' })
+  const name = contents.getByLabel('Name', { exact: true })
+  await name.fill('Unsaved rename')
+
+  await sections.getByRole('tab', { name: 'Publishing' }).click()
+  const publishing = page.getByRole('tabpanel', { name: 'Publishing' })
+  const binding = publishing.getByLabel(
+    englishCopy('outputs.device.label').replace('{target}', 'Keenetic'),
+    { exact: true },
+  )
+  await binding.click()
+  const [boundResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === `/v1/outputs/${outputId}/device`,
+    ),
+    page
+      .getByRole('option', {
+        name: new RegExp(`^${escapeRegExp(deviceName)} · `),
+      })
+      .click(),
+  ])
+  expect(boundResponse.ok()).toBe(true)
+  await expect(binding).toContainText(deviceName)
+  await expect(
+    publishing.getByRole('button', { name: 'Detach', exact: true }),
+  ).toBeEnabled()
+
+  await sections.getByRole('tab', { name: 'Contents' }).click()
+  await expect(name).toHaveValue('Unsaved rename')
+  await expect(
+    contents.getByRole('button', { name: 'Discard changes' }),
+  ).toBeVisible()
+
+  const forgotten = await page.request.post(
+    `${origin}/v1/devices/${deviceID}/forget`,
+    { data: {}, headers },
+  )
+  expect(forgotten.ok()).toBe(true)
+})

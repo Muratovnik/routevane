@@ -1,5 +1,6 @@
 import * as v from 'valibot'
 
+import { invalidateCatalogCache } from './catalog'
 import {
   decode,
   type Decoder,
@@ -92,22 +93,30 @@ export const previewConfigTransfer = (
     parsePreview,
   )
 
-export const applyConfigTransfer = (
+// An apply writes custom lists and categories, which the session's cached
+// catalog describes, so it discards that copy whatever the answer: a request
+// whose answer never arrived may still have committed on the server.
+export const applyConfigTransfer = async (
   previewDigest: string,
   transfer: ConfigTransferDocument,
-): Promise<ConfigTransferApplyResult> =>
-  requestJSON(
-    '/v1/config-transfer/apply',
-    {
-      method: 'POST',
-      headers: {
-        ...mutationHeaders,
-        [CONFIG_TRANSFER_DIGEST_HEADER]: previewDigest,
+): Promise<ConfigTransferApplyResult> => {
+  try {
+    return await requestJSON(
+      '/v1/config-transfer/apply',
+      {
+        method: 'POST',
+        headers: {
+          ...mutationHeaders,
+          [CONFIG_TRANSFER_DIGEST_HEADER]: previewDigest,
+        },
+        body: transfer,
       },
-      body: transfer,
-    },
-    parseApplyResult,
-  )
+      parseApplyResult,
+    )
+  } finally {
+    invalidateCatalogCache()
+  }
+}
 
 // Content-Disposition is an HTTP header, not a trusted path. The exported
 // document is JSON, so any name outside this compact portable-file grammar is

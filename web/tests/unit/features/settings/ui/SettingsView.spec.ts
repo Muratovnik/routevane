@@ -7,6 +7,7 @@ import SettingsView from '@/features/settings/ui/SettingsView.vue'
 
 const SETTINGS = '/v1/settings'
 const UPDATE = '/v1/settings/update'
+const HEALTH = '/health'
 const READ_FAILED = 'The refresh rule could not be read.'
 const SAVE_FAILED = 'The refresh rule could not be saved.'
 
@@ -30,6 +31,9 @@ const callsTo = (
   fetchMock: ReturnType<typeof vi.fn>,
   url: string,
 ): unknown[][] => fetchMock.mock.calls.filter(([input]) => input === url)
+
+// The service states its version on `/health`; the screen reads it once.
+const running = (): Response => json({ status: 'ok', version: '0.2.7' })
 
 const isChecked = (radio: { element: () => Element }): boolean =>
   (radio.element() as HTMLInputElement).checked
@@ -69,6 +73,7 @@ describe('SettingsView prerequisite audit', () => {
 
   it('retries in the settings section and renders the server value', async () => {
     const fetchMock = installFetch((input: string) => {
+      if (input === HEALTH) return Promise.resolve(running())
       if (input !== SETTINGS)
         return Promise.reject(new Error(`unexpected request ${input}`))
       return Promise.resolve(
@@ -92,6 +97,7 @@ describe('SettingsView prerequisite audit', () => {
     async (success) => {
       const held = Promise.withResolvers<undefined>()
       const fetchMock = installFetch((input: string) => {
+        if (input === HEALTH) return Promise.resolve(running())
         if (input === SETTINGS)
           return Promise.resolve(json({ refresh_interval: 'daily' }))
         if (input === UPDATE)
@@ -136,4 +142,71 @@ describe('SettingsView prerequisite audit', () => {
       })
     },
   )
+})
+
+describe('SettingsView runtime version', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    useLocale().setLocale('en')
+  })
+
+  it('states the reported version beside the address and keeps it through a language change', async () => {
+    useLocale().setLocale('en')
+    const health = Promise.withResolvers<Response>()
+    const fetchMock = installFetch((input: string) => {
+      if (input === HEALTH) return health.promise
+      if (input === SETTINGS)
+        return Promise.resolve(json({ refresh_interval: 'daily' }))
+      return Promise.reject(new Error(`unexpected request ${input}`))
+    })
+    const screen = await render(SettingsView)
+    const service = screen.getByRole('region', { name: 'Service', exact: true })
+
+    await expect.element(service.getByText(/^Address ·/)).toBeVisible()
+    // Until the service answers there is no version to state, and the row
+    // does not stand in for one.
+    expect(service.getByText(/Version/).query()).toBeNull()
+
+    health.resolve(running())
+
+    await expect
+      .element(service.getByText('Version · 0.2.7', { exact: true }))
+      .toBeVisible()
+    useLocale().setLocale('ru')
+    await expect
+      .element(
+        screen
+          .getByRole('region', { name: 'Служба', exact: true })
+          .getByText('Версия · 0.2.7', { exact: true }),
+      )
+      .toBeVisible()
+    // A language switch restates the answer it has; it does not ask again.
+    expect(callsTo(fetchMock, HEALTH)).toHaveLength(1)
+  })
+
+  it('states no version when the service does not report one', async () => {
+    useLocale().setLocale('en')
+    const refused = json({ error: 'unavailable' }, 503)
+    const refusalRead = (): void => {
+      if (!refused.bodyUsed) throw new Error('the refusal is still unread')
+    }
+    installFetch(async (input: string) => {
+      if (input === HEALTH) return refused
+      if (input === SETTINGS) {
+        // The refresh rule is answered only once the refusal has been read,
+        // so the rule on screen means the version read has already settled.
+        await vi.waitFor(refusalRead)
+        return json({ refresh_interval: 'daily' })
+      }
+      throw new Error(`unexpected request ${input}`)
+    })
+    const screen = await render(SettingsView)
+    const service = screen.getByRole('region', { name: 'Service', exact: true })
+
+    await expect
+      .element(screen.getByRole('radio', { name: 'Daily' }))
+      .toBeChecked()
+    await expect.element(service.getByText(/^Address ·/)).toBeVisible()
+    expect(service.getByText(/Version/).query()).toBeNull()
+  })
 })

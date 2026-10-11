@@ -7,6 +7,7 @@ import {
   requestConfigTransferExport,
 } from '@/shared/api/configTransfer'
 import { RoutevaneAPIError } from '@/shared/api/http'
+import { invalidateCatalogCache, loadCatalogCached } from '@/shared/api/catalog'
 
 const fetchMock = vi.fn()
 const DOCUMENT = ' {"version":1,"routes":[]} ' as ReturnType<
@@ -201,5 +202,58 @@ describe('configuration transfer API contract', () => {
         RoutevaneAPIError,
       )
     }
+  })
+})
+
+// An apply writes custom lists and categories, which the session's cached
+// catalog describes. Every screen the operator reaches next reads that cache,
+// so the apply discards it whatever the answer: a transport failure may still
+// have committed on the server.
+describe('configuration apply and the cached catalog', () => {
+  const catalogReads = (): number =>
+    fetchMock.mock.calls.filter(([input]) => String(input) === '/v1/lists')
+      .length
+
+  const answerCatalog = (): void => {
+    fetchMock.mockResolvedValueOnce(
+      json({ lists: [], list_details: [], categories: [] }),
+    )
+    fetchMock.mockResolvedValueOnce(json({ targets: [] }))
+  }
+
+  it.each([
+    {
+      outcome: 'an applied transfer',
+      answer: (): void => {
+        fetchMock.mockResolvedValueOnce(
+          json({ applied: true, counts: counts() }),
+        )
+      },
+    },
+    {
+      outcome: 'a refused transfer',
+      answer: (): void => {
+        fetchMock.mockResolvedValueOnce(json({ error: 'stale preview' }, 409))
+      },
+    },
+    {
+      outcome: 'a transfer whose answer never arrived',
+      answer: (): void => {
+        fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      },
+    },
+  ])('reads the catalog again after $outcome', async ({ answer }) => {
+    invalidateCatalogCache()
+    answerCatalog()
+    await loadCatalogCached()
+    await loadCatalogCached()
+    expect(catalogReads()).toBe(1)
+
+    answer()
+    await applyConfigTransfer(digest, DOCUMENT).catch(() => undefined)
+    answerCatalog()
+    await loadCatalogCached()
+
+    expect(catalogReads()).toBe(2)
   })
 })

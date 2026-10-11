@@ -28,7 +28,7 @@ import { useFreshCatalog } from '@/shared/model/useFreshCatalog'
 import { useSurfacePreferences } from '@/shared/model/useSurfacePreferences'
 
 export type CatalogState = 'loading' | 'ready' | 'empty' | 'failed'
-export type FlowState = 'idle' | 'creating' | 'failed'
+export type FlowState = 'idle' | 'creating' | 'created' | 'failed'
 export type CreatedProfileSetup = { profileID: string; targetID: string }
 
 /**
@@ -191,7 +191,12 @@ export const useCreateProfile = () => {
     localizedTargetTitle(suggestedTarget.value, locale.value),
   )
 
-  const busy = computed(() => flowState.value === 'creating')
+  // A created profile is handed to the caller, which leaves this screen for it.
+  // Until it has, the draft stays held: a second activation would store a
+  // second profile.
+  const busy = computed(
+    () => flowState.value === 'creating' || flowState.value === 'created',
+  )
   const canCreate = computed(
     () =>
       catalogState.value === 'ready' &&
@@ -291,7 +296,7 @@ export const useCreateProfile = () => {
     try {
       flowState.value = 'creating'
       const profile = await createProfile(name.value.trim(), composition.value)
-      flowState.value = 'idle'
+      flowState.value = 'created'
       return {
         profileID: profile.id,
         targetID: selectedTargetID.value,

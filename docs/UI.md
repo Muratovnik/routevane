@@ -23,11 +23,6 @@ collapse control. The action remains reachable with the menu collapsed and expla
 the version and restart on hover/focus. One click downloads, installs and restarts;
 progress replaces the label, errors offer retry. Idle/offline checks and browser/dev
 sessions add no update item. Application updates are independent of source refresh.
-The footer below the collapse control shows the running service's version after
-one bounded read. A development build reports `dev`; an unavailable version is
-left unstated rather than inferred from the interface package. The collapsed
-menu shows the version without its caption, while assistive software still
-receives the complete label.
 
 The unit of the product is the **profile** (ADR 0013, named by ADR 0028): a
 stored, server-owned composition of **lists** and **categories** with no
@@ -307,7 +302,10 @@ Sections, addressable by URL:
    same content column. The source-refresh explanation belongs beside its
    schedule. The server's address is the final, secondary section. It identifies
    the serving origin, including the local backend address in the desktop app,
-   rather than the application window's internal hostname.
+   rather than the application window's internal hostname. Below the address
+   it states the running service's version after one bounded read when the
+   screen opens. A development build reports `dev`; an unavailable version is
+   left unstated rather than inferred from the interface package.
    Export and import are separate actions. Preferences live here,
    not in the chrome. Import starts with a product-styled file
    surface backed by the labelled native file chooser, supports dropping a file,
@@ -335,8 +333,8 @@ labels remain single-line throughout the width transition, fading and translatin
 without switching display or changing button height. Horizontal overflow stays
 clipped throughout motion. A detail panel animates as one surface, including its
 border; its host paints no separate piece that could appear before the panel. The
-server's own address is a Settings fact, not a footer — and no section is
-ever locked.
+server's own address and version are Settings facts, not a footer — and no
+section is ever locked.
 
 A profile's name and composition are editable; saving them republishes every
 format, so a stored profile and the files it stands behind never quietly

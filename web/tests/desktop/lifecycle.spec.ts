@@ -300,7 +300,9 @@ test('desktop publishes and transfers a reviewed configuration to a fresh instal
     })
     expect(runtimeVersion).not.toBe('')
     await expect(
-      page.getByText(`Version ${runtimeVersion}`, { exact: true }),
+      page
+        .getByRole('paragraph')
+        .filter({ hasText: `Version · ${runtimeVersion}` }),
     ).toBeVisible()
     await page.screenshot({
       path: join(root, 'tmp/desktop-acceptance/settings.png'),

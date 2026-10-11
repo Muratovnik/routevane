@@ -48,7 +48,7 @@ for (const locale of ['en', 'ru'] as const) {
   test.describe(`runtime identity (${locale})`, () => {
     test.use({ locale })
 
-    test('reports the serving address and running version with the menu expanded or collapsed', async ({
+    test('states the serving address and running version in Settings, and neither in the menu, expanded or collapsed', async ({
       page,
       origin,
     }) => {
@@ -60,26 +60,29 @@ for (const locale of ['en', 'ru'] as const) {
       await mkdir(reviewRoot, { recursive: true })
       await page.setViewportSize({ width: 1920, height: 1080 })
       await page.goto(`${origin}/settings`)
-      const address = page.getByText(origin, { exact: true })
-      await expect(address).toBeVisible()
-      const version = page.getByText(
-        copy('shell.version').replace('{version}', runtime.version),
+      const service = page.getByRole('region', {
+        name: copy('settings.runtime'),
+        exact: true,
+      })
+      const address = service.getByText(origin, { exact: true })
+      const version = service.getByText(
+        `${copy('settings.runtime.version')} · ${runtime.version}`,
         { exact: true },
       )
-      await expect(version).toBeInViewport()
-      await address.scrollIntoViewIfNeeded()
+      const menu = page.getByRole('banner')
+      await expect(address).toBeVisible()
+      await expect(version).toBeVisible()
+      await expect(menu).not.toContainText(runtime.version)
+      await version.scrollIntoViewIfNeeded()
       await expect(address).toBeInViewport()
+      await expect(version).toBeInViewport()
       await page.screenshot({
         animations: 'disabled',
         path: join(reviewRoot, `settings-runtime-${locale}-1920.png`),
         fullPage: true,
       })
-      await page.setViewportSize({ width: 1024, height: 640 })
-      await expect(version).toBeInViewport()
-      const expanded = (await version.boundingBox())!
-      expect(expanded.x).toBeLessThan(200)
-      expect(expanded.y).toBeGreaterThan(560)
 
+      await page.setViewportSize({ width: 1024, height: 640 })
       await page
         .getByRole('button', { name: copy('shell.collapse'), exact: true })
         .click()
@@ -89,11 +92,10 @@ for (const locale of ['en', 'ru'] as const) {
           exact: true,
         }),
       ).toBeVisible()
-      await expect(
-        page.getByText(runtime.version, { exact: true }),
-      ).toBeInViewport()
-      await address.scrollIntoViewIfNeeded()
+      await expect(menu).not.toContainText(runtime.version)
+      await version.scrollIntoViewIfNeeded()
       await expect(address).toBeInViewport()
+      await expect(version).toBeInViewport()
       await page.screenshot({
         animations: 'disabled',
         path: join(reviewRoot, `settings-runtime-${locale}-collapsed-1024.png`),

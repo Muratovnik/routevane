@@ -45,7 +45,6 @@ const ru: Dictionary = {
     'Приоритет списка {list}: сначала добавьте его в профиль',
   'shell.collapse': 'Свернуть меню',
   'shell.expand': 'Развернуть меню',
-  'shell.version': 'Версия {version}',
   'update.available': 'Обновить',
   'update.downloading': 'Загрузка · {percent}%',
   'update.installing': 'Перезапуск…',
@@ -247,6 +246,10 @@ const ru: Dictionary = {
   'profiles.allArchived.body': 'Верните профиль из архива или соберите новый.',
   'profiles.restore': 'Вернуть из архива',
   'profiles.restore.aria': 'Вернуть профиль {name} из архива',
+  'profiles.archive.failed':
+    'Профиль {name} не перенесён в архив. Повторите попытку.',
+  'profiles.restore.failed':
+    'Профиль {name} не возвращён из архива. Повторите попытку.',
 
   'create.title': 'Новый профиль',
   'create.lists': 'Списки',
@@ -626,6 +629,9 @@ const ru: Dictionary = {
   'profile.notice.action.failed': 'Изменения не сохранены',
   'profile.notice.action.failed.body':
     'Проверьте введённые данные и повторите. Опубликованные файлы не изменены.',
+  'profile.notice.reread.failed': 'Страница не обновлена',
+  'profile.notice.reread.failed.body':
+    'Профиль показан таким, каким был прочитан в последний раз, и может не отражать последнее изменение. Несохранённые правки на месте. Повторите, чтобы прочитать его снова.',
   'profile.rebuild': 'Пересобрать файлы',
   'profile.rebuild.busy': 'Пересобираем…',
   'profile.file.loading': 'Читаем опубликованный файл…',
@@ -667,6 +673,7 @@ const ru: Dictionary = {
     'использованы сохранённые данные источника',
   'profile.diagnostics.reason.lower_priority_overlap':
     'правило принадлежит списку с более высоким приоритетом',
+  'profile.diagnostics.reason.operator_excluded': 'исключено вручную в списке',
   'profile.diagnostics.reason.special_use_destination':
     'служебный или локальный адрес',
   'profile.diagnostics.reason.prefix_too_wide': 'сетевой префикс слишком широк',
@@ -915,6 +922,7 @@ const ru: Dictionary = {
   'settings.refresh.failed': 'Не удалось сохранить правило обновления.',
   'settings.refresh.saving': 'Сохраняем правило…',
   'settings.runtime.address': 'Адрес',
+  'settings.runtime.version': 'Версия',
   'configTransfer.title': 'Перенос конфигурации',
   'configTransfer.download': 'Скачать конфигурацию',
   'configTransfer.download.busy': 'Скачиваем…',
@@ -1036,7 +1044,6 @@ const en: Dictionary = {
     'Priority of {list}: add it to the profile first',
   'shell.collapse': 'Collapse sidebar',
   'shell.expand': 'Expand sidebar',
-  'shell.version': 'Version {version}',
   'update.available': 'Update',
   'update.downloading': 'Downloading · {percent}%',
   'update.installing': 'Restarting…',
@@ -1237,6 +1244,9 @@ const en: Dictionary = {
     'Restore one from the archive, or build a new one.',
   'profiles.restore': 'Restore',
   'profiles.restore.aria': 'Restore profile {name} from the archive',
+  'profiles.archive.failed': 'Profile {name} was not archived. Try again.',
+  'profiles.restore.failed':
+    'Profile {name} was not restored from the archive. Try again.',
 
   'create.title': 'New profile',
   'create.lists': 'Lists',
@@ -1596,6 +1606,9 @@ const en: Dictionary = {
   'profile.notice.action.failed': 'Changes were not saved',
   'profile.notice.action.failed.body':
     'Check the entered values and try again. Published files were not changed.',
+  'profile.notice.reread.failed': 'The page was not updated',
+  'profile.notice.reread.failed.body':
+    'The profile is shown as it was last read and may not reflect the latest change. Unsaved edits are kept. Retry to read it again.',
   'profile.rebuild': 'Rebuild files',
   'profile.rebuild.busy': 'Rebuilding…',
   'profile.file.loading': 'Reading the published file…',
@@ -1636,6 +1649,7 @@ const en: Dictionary = {
   'profile.diagnostics.reason.source_degraded': 'using saved source data',
   'profile.diagnostics.reason.lower_priority_overlap':
     'the rule belongs to a higher-priority list',
+  'profile.diagnostics.reason.operator_excluded': 'excluded in the list',
   'profile.diagnostics.reason.special_use_destination':
     'special-use or local address',
   'profile.diagnostics.reason.prefix_too_wide': 'network prefix is too broad',
@@ -1881,6 +1895,7 @@ const en: Dictionary = {
   'settings.refresh.failed': 'The refresh rule could not be saved.',
   'settings.refresh.saving': 'Saving the rule…',
   'settings.runtime.address': 'Address',
+  'settings.runtime.version': 'Version',
   'configTransfer.title': 'Configuration transfer',
   'configTransfer.download': 'Download configuration',
   'configTransfer.download.busy': 'Downloading…',

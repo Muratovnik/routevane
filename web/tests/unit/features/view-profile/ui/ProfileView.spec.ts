@@ -148,6 +148,18 @@ const installFetch = (overrides: Partial<Scenario> = {}) => {
             : [],
           secret_store_available: false,
         })
+      case '/v1/outputs/output-1/device':
+        // The write is confirmed and the stored output changes with it, so the
+        // profile read that follows reports the device as detached.
+        scenario.boundDevice = false
+        return json({
+          output: {
+            id: 'output-1',
+            list_id: 'profile-1',
+            target_id: 'keenetic',
+            device_id: '',
+          },
+        })
       case '/v1/artifacts/artifact-1':
         return new Response('verified bytes', { status: scenario.fileStatus })
       case '/v1/snapshots/snapshot-1':
@@ -349,4 +361,92 @@ it('keeps the saved schedule on refusal and retries the requested interval', asy
       String(input).endsWith('/schedule'),
     ),
   ).toHaveLength(2)
+})
+
+// A write on one facet re-reads the profile. The page that asked for it stays
+// mounted through that read: the facets it is not showing hold the operator's
+// unsaved work, and a skeleton in their place would discard it (docs/UI.md,
+// layout stability).
+describe('profile re-read after a write', () => {
+  const renderWorkspace = () =>
+    render(ProfileView, {
+      props: { profileId: 'profile-1' },
+      global: {
+        stubs: {
+          RvMenu: true,
+          RvInfoTip: true,
+          NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+        },
+      },
+    })
+
+  const profileReads = (fetchMock: ReturnType<typeof vi.fn>): number =>
+    fetchMock.mock.calls.filter(
+      ([input]) => String(input) === '/v1/profiles/profile-1',
+    ).length
+
+  it('keeps an unsaved rename on Contents while a device change on Publishing re-reads the profile', async () => {
+    const { fetchMock, scenario } = installFetch({ boundDevice: true })
+    const screen = await renderWorkspace()
+    const name = screen.getByLabelText('Name', { exact: true })
+    await expect.element(name).toHaveValue('Known profile')
+    await name.fill('Unsaved rename')
+
+    await screen.getByRole('tab', { name: 'Publishing' }).click()
+    const publishing = screen.getByRole('tabpanel', { name: 'Publishing' })
+    const reread = Promise.withResolvers<undefined>()
+    scenario.holdRoute = reread.promise
+    await publishing
+      .getByRole('button', { name: 'Detach', exact: true })
+      .click()
+
+    await expect.poll(() => profileReads(fetchMock)).toBe(2)
+    await expect
+      .element(screen.getByRole('status', { name: LOADING }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('tab', { name: 'Publishing' }))
+      .toHaveAttribute('aria-selected', 'true')
+
+    reread.resolve(undefined)
+    await expect
+      .element(publishing.getByRole('button', { name: 'Detach', exact: true }))
+      .not.toBeInTheDocument()
+
+    await screen.getByRole('tab', { name: 'Contents' }).click()
+    await expect.element(name).toHaveValue('Unsaved rename')
+    await expect
+      .element(screen.getByRole('button', { name: 'Discard changes' }))
+      .toBeVisible()
+  })
+
+  it('keeps the loaded profile and offers a retry when the re-read fails', async () => {
+    const { fetchMock, scenario } = installFetch({ boundDevice: true })
+    const screen = await renderWorkspace()
+    await screen.getByRole('tab', { name: 'Publishing' }).click()
+    const publishing = screen.getByRole('tabpanel', { name: 'Publishing' })
+
+    scenario.routeStatus = 503
+    await publishing
+      .getByRole('button', { name: 'Detach', exact: true })
+      .click()
+
+    await expect
+      .element(screen.getByText('The page was not updated'))
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('heading', { level: 1 }))
+      .toHaveTextContent('Known profile')
+    await expect.element(publishing).toBeVisible()
+    await expect
+      .element(screen.getByText('Profiles are unavailable'))
+      .not.toBeInTheDocument()
+
+    scenario.routeStatus = 200
+    await screen.getByRole('button', { name: 'Retry', exact: true }).click()
+    await expect
+      .element(screen.getByText('The page was not updated'))
+      .not.toBeInTheDocument()
+    expect(profileReads(fetchMock)).toBe(3)
+  })
 })

@@ -533,6 +533,22 @@ const onProfileMenu = async (key: string): Promise<void> => {
         :title="t('profile.notice.action.failed')"
         tone="failed"
       />
+      <!-- A read that follows a write and does not answer leaves the confirmed
+           profile on screen, with the drafts beside it, and says it may be
+           behind rather than swapping the page for a failure. -->
+      <RvStateNotice
+        v-if="view.rereadFailed.value"
+        :body="t('profile.notice.reread.failed.body')"
+        live
+        :title="t('profile.notice.reread.failed')"
+        tone="warning"
+      >
+        <template #action>
+          <RvButton :disabled="view.busy.value" @click="view.initialize">{{
+            t('action.retry')
+          }}</RvButton>
+        </template>
+      </RvStateNotice>
       <RvStateNotice
         v-if="view.stale.value"
         :body="t('profile.notice.stale.body')"

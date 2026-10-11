@@ -266,8 +266,9 @@ test('an operator category carries its lists into a profile and is kept while a 
   await page
     .getByRole('menuitem', { name: 'Select new lists manually' })
     .click()
-  // Saving reloads the stored profile and remounts its editor. Wait for that
-  // read instead of accepting the menu's optimistic, still-unsaved value.
+  // Saving reads the stored profile again while the editor stays mounted, so
+  // the category filter survives it. Wait for that read instead of accepting
+  // the menu's optimistic, still-unsaved value.
   const [savedProfile] = await Promise.all([
     page.waitForResponse(
       (response) =>
@@ -284,8 +285,6 @@ test('an operator category carries its lists into a profile and is kept while a 
   await expect(
     page.getByRole('button', { name: 'Save and rebuild', exact: true }),
   ).toBeDisabled()
-  await routeEditorFilter.click()
-  await page.getByRole('option', { name: 'Домашние' }).click()
   await expect(
     page.getByRole('button', { name: 'Follow “Домашние”' }),
   ).toContainText('New lists: manual')

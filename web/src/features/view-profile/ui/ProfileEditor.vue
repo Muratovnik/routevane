@@ -185,6 +185,37 @@ const reset = (): void => {
     props.categories,
   )
 }
+
+// The page reads the stored profile again after a write on any of its facets
+// and keeps this editor mounted through that read. A draft the operator has not
+// touched follows what is stored; one they changed stays theirs, unless the
+// server now holds exactly what it says, which is a save of this draft landing.
+// Each side is compared under the categories it was read with.
+const stored = computed(() => ({
+  categories: props.categories,
+  composition: storedComposition(),
+  name: props.name,
+}))
+
+const draftMatches = (
+  name: string,
+  side: {
+    categories: CategoryDetail[]
+    composition: ProfileComposition
+    name: string
+  },
+): boolean =>
+  name === side.name &&
+  compositionSignature(draftComposition.value, side.categories) ===
+    compositionSignature(side.composition, side.categories)
+
+watch(stored, (next, previous) => {
+  if (
+    draftMatches(draftName.value, previous) ||
+    draftMatches(draftName.value.trim(), next)
+  )
+    reset()
+})
 </script>
 
 <template>

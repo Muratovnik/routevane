@@ -36,7 +36,6 @@ const draw = async () =>
   render(AppShell, {
     global: {
       stubs: {
-        ApplicationVersion: true,
         NuxtLink: { props: ['to'], template: '<a><slot /></a>' },
       },
     },

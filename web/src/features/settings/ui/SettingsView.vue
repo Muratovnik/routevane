@@ -2,6 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
+import { useRuntimeVersion } from '@/features/settings/model/useRuntimeVersion'
 import { useSettings } from '@/features/settings/model/useSettings'
 import ConfigTransferPanel from '@/features/settings/ui/ConfigTransferPanel.vue'
 import { servingOrigin } from '@/shared/api/desktop'
@@ -22,6 +23,7 @@ import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 const { locale, setLocale, t } = useLocale()
 const preferences = useSurfacePreferences()
 const settings = useSettings()
+const runtime = useRuntimeVersion()
 const router = useRouter()
 
 const localeOptions = computed(() =>
@@ -54,6 +56,7 @@ const refreshOptions = computed(() => [
 
 onMounted(() => {
   void settings.initialize()
+  void runtime.load()
 })
 
 const onRefreshInterval = async (value: string): Promise<void> => {
@@ -174,6 +177,10 @@ const onConfigTransferApplied = (): void => {
         <p class="settings__runtime">
           {{ t('settings.runtime.address') }} ·
           <span class="settings__mono">{{ origin }}</span>
+        </p>
+        <p v-if="runtime.version.value !== null" class="settings__runtime">
+          {{ t('settings.runtime.version') }} ·
+          <span class="settings__mono">{{ runtime.version.value }}</span>
         </p>
       </RvSettingsSection>
     </div>

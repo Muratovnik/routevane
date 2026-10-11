@@ -466,13 +466,14 @@ test('docked inspection transitions the form and table together on opening and c
   check(await transitionFrames('.rv-dialog__close'))
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(openList(page, 'Discord')).toBeFocused()
-  // The version paragraph is the last footer item. Its layout box includes
-  // the line's leading, which the inline label's font box excludes.
-  const version = page
-    .getByRole('paragraph')
-    .filter({ hasText: /^Version .+$/ })
-  await expect(version).toBeVisible()
-  const footer = await version.boundingBox()
+  // The menu's collapse control is the last footer item, so its box closes
+  // the footer at the chrome's bottom inset.
+  const collapse = page.getByRole('button', {
+    name: englishCopy('shell.collapse'),
+    exact: true,
+  })
+  await expect(collapse).toBeVisible()
+  const footer = await collapse.boundingBox()
   expect(
     Math.abs(footer!.y + footer!.height - (960 - CHROME_FOOT_INSET)),
   ).toBeLessThanOrEqual(1)
