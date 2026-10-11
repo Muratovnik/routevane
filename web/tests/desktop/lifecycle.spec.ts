@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { analyze, axeFor } from '../e2e/support/axe'
 import { spawn } from 'node:child_process'
-import { copyFile, mkdtemp, mkdir, readFile } from 'node:fs/promises'
+import { copyFile, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { once } from 'node:events'
 import { isolatedProductEnvironment } from '../e2e/support/environment'
@@ -11,17 +11,19 @@ import {
   stopOwnedProduct,
 } from '../e2e/support/product'
 import {
+  acceptanceScratch,
   backendReachable,
   backgroundRequests,
   executablePath,
   launchPackaged,
+  removeScratchOfPassedTest,
   root,
 } from './support/packaged'
 
+test.afterEach(() => removeScratchOfPassedTest(test.info()))
+
 const scratch = async () => {
-  const parent = join(root, 'tmp/desktop-acceptance')
-  await mkdir(parent, { recursive: true })
-  const directory = await mkdtemp(join(parent, 'profile '))
+  const directory = await acceptanceScratch('profile ')
   return {
     ...isolatedProductEnvironment(),
     ROUTEVANE_DESKTOP_PROFILE: join(directory, 'profile'),

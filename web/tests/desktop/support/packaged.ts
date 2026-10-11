@@ -2,12 +2,45 @@ import {
   _electron as electron,
   expect,
   type ElectronApplication,
+  type TestInfo,
 } from '@playwright/test'
 import { once } from 'node:events'
+import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { reserveLoopbackPort } from '../../e2e/support/product'
 
 export const root = resolve(import.meta.dirname, '../../../..')
+
+// Directories the running test created; a worker runs one test at a time.
+const scratchOfThisTest: string[] = []
+
+/** A new directory under tmp/desktop-acceptance owned by the running test. */
+export const acceptanceScratch = async (prefix: string): Promise<string> => {
+  const parent = join(root, 'tmp/desktop-acceptance')
+  await mkdir(parent, { recursive: true })
+  const directory = await mkdtemp(join(parent, prefix))
+  scratchOfThisTest.push(directory)
+  return directory
+}
+
+/**
+ * Removes the directories the finished test created once it passed; a failed
+ * test keeps them as evidence. Runs after the test body, whose own cleanup has
+ * already closed the processes that held files in them.
+ */
+export const removeScratchOfPassedTest = async (
+  testInfo: TestInfo,
+): Promise<void> => {
+  const directories = scratchOfThisTest.splice(0)
+  if (testInfo.status !== 'passed') return
+  for (const directory of directories)
+    await rm(directory, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 200,
+    })
+}
 
 const packageDirectory = (): string => {
   if (process.platform === 'win32') return 'win-unpacked'

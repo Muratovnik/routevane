@@ -1,15 +1,18 @@
 import { expect, test, type ElectronApplication } from '@playwright/test'
 import { once } from 'node:events'
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { connect, createServer, type AddressInfo } from 'node:net'
 import { join } from 'node:path'
 import { isolatedProductEnvironment } from '../e2e/support/environment'
 import {
+  acceptanceScratch,
   backendReachable,
   launchPackaged,
   nativeQuestions,
-  root,
+  removeScratchOfPassedTest,
 } from './support/packaged'
+
+test.afterEach(() => removeScratchOfPassedTest(test.info()))
 
 interface NativeQuestion {
   type: string
@@ -27,9 +30,7 @@ interface NativeQuestions {
 // The saved port is held by an application Routevane does not own. Recovery
 // must leave it alone, so it answers every connection for the whole test.
 const occupiedInstallation = async () => {
-  const parent = join(root, 'tmp/desktop-acceptance')
-  await mkdir(parent, { recursive: true })
-  const directory = await mkdtemp(join(parent, 'port-recovery '))
+  const directory = await acceptanceScratch('port-recovery ')
   const env = {
     ...isolatedProductEnvironment(),
     ROUTEVANE_DESKTOP_PROFILE: join(directory, 'profile'),
