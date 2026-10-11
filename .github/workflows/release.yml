@@ -165,6 +165,11 @@ jobs:
       - name: Build the Windows installer and updater metadata
         shell: pwsh
         run: ./tools/dev.ps1 installer -Version "$env:VERSION"
+      - name: Install, inspect and uninstall the built installer
+        shell: pwsh
+        run: |
+          python tools/installer_smoke.py --assets .cache/desktop-release --version "$env:VERSION"
+          if ($LASTEXITCODE -ne 0) { throw 'installer acceptance failed' }
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: desktop-bundle

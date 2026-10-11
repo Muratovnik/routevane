@@ -53,4 +53,6 @@ commands. Do not add a second runner whose result can drift.
   identity, health, UI and cleanup; a version-only invocation is insufficient.
 - The pre-commit hook clears Git's index/worktree environment before launching
   child tools so throwaway repositories and worktrees cannot inherit the wrong
-  index.
+  index. The staged audit and the subsystem routing are the exception: they
+  read the index being committed, which `git commit -a` and `git commit
+  <paths>` pass only through `GIT_INDEX_FILE`. Routing includes deletions.

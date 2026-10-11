@@ -332,5 +332,149 @@ class DeveloperEntrypointTests(unittest.TestCase):
         self.assertIn("formatter is missing", rejected.stdout + rejected.stderr)
 
 
+HOOK_DOCTOR = """\
+import json, os, pathlib
+log = pathlib.Path(__file__).resolve().parents[1] / "hook-log.jsonl"
+with log.open("a", encoding="utf-8") as stream:
+    print(json.dumps({"tool": "doctor", "index": os.environ.get("GIT_INDEX_FILE")}), file=stream)
+"""
+# The audit double reads the index through Git exactly as the real audit does,
+# so whichever index the hook hands it is the one it judges.
+HOOK_AUDIT = """\
+import json, os, pathlib, subprocess, sys
+root = pathlib.Path(__file__).resolve().parents[1]
+names = subprocess.run(["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"], cwd=root,
+                       check=True, capture_output=True, text=True).stdout.split()
+with (root / "hook-log.jsonl").open("a", encoding="utf-8") as stream:
+    print(json.dumps({"tool": "audit", "arguments": sys.argv[1:],
+                      "index": os.environ.get("GIT_INDEX_FILE"), "staged": names}), file=stream)
+for name in names:
+    blob = subprocess.run(["git", "show", ":" + name], cwd=root, check=True, capture_output=True).stdout
+    if b"PLANTED-SECRET" in blob:
+        print("audit rejected " + name, file=sys.stderr)
+        sys.exit(1)
+"""
+HOOK_ENTRYPOINT = """\
+param([string]$Command)
+$Log = Join-Path (Split-Path -Parent $PSScriptRoot) 'hook-log.jsonl'
+$Entry = [ordered]@{ tool = 'dev'; command = $Command; index = $env:GIT_INDEX_FILE } | ConvertTo-Json -Compress
+Add-Content -LiteralPath $Log -Value $Entry -Encoding utf8
+"""
+
+
+@unittest.skipUnless(PWSH, "PowerShell 7 is required for the pre-commit hook tests")
+class PreCommitHookTests(unittest.TestCase):
+    """Run the tracked pre-commit hook in a throwaway repository with recording tools."""
+
+    def setUp(self):
+        scratch = ROOT / "tmp"
+        scratch.mkdir(exist_ok=True)
+        directory = tempfile.TemporaryDirectory(prefix="pre-commit hook ", dir=scratch)
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        self.env.update({"GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+                         "POWERSHELL_TELEMETRY_OPTOUT": "1", "PYTHONIOENCODING": "utf-8"})
+        self.git("init", "--quiet")
+        self.git("config", "user.name", "Hook Test")
+        self.git("config", "user.email", "hook@example.invalid")
+        self.git("config", "core.autocrlf", "false")
+        for relative, content in (("tools/doctor.py", HOOK_DOCTOR), (".github/relkit.pyz", HOOK_AUDIT),
+                                  ("tools/dev.ps1", HOOK_ENTRYPOINT)):
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        self.write("internal/app.go", "package app\n")
+        self.write("docs/notes.md", "notes\n")
+        self.git("add", "--", "internal/app.go", "docs/notes.md")
+        self.git("commit", "--quiet", "-m", "base")
+        hooks = self.root / "hooks"
+        hooks.mkdir()
+        hook = hooks / "pre-commit"
+        hook.write_bytes((ROOT / ".githooks/pre-commit").read_bytes())
+        hook.chmod(0o755)
+        self.git("config", "core.hooksPath", "hooks")
+
+    def git(self, *arguments, check=True):
+        return subprocess.run(["git", *arguments], cwd=self.root, env=self.env,
+                              check=check, capture_output=True, text=True, timeout=120)
+
+    def write(self, relative, content):
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    def commit(self, *arguments):
+        log = self.root / "hook-log.jsonl"
+        if log.exists():
+            log.unlink()
+        result = self.git("commit", "--quiet", *arguments, check=False)
+        entries = []
+        if log.exists():
+            entries = [json.loads(line) for line in log.read_text(encoding="utf-8-sig").splitlines() if line]
+        return result, entries
+
+    def checks(self, entries):
+        return [entry["command"] for entry in entries if entry["tool"] == "dev"]
+
+    def audit(self, entries):
+        audits = [entry for entry in entries if entry["tool"] == "audit"]
+        self.assertEqual(len(audits), 1, entries)
+        self.assertEqual(audits[0]["arguments"], ["audit", "--staged"])
+        return audits[0]
+
+    def assert_children_have_a_clean_git_environment(self, entries):
+        for entry in entries:
+            if entry["tool"] in ("doctor", "dev"):
+                self.assertIn(entry["index"], (None, ""), entry)
+
+    def test_commit_all_is_audited_against_the_index_being_committed(self):
+        self.write("internal/app.go", "package app\n\n// PLANTED-SECRET\n")
+        result, entries = self.commit("-a", "-m", "include the secret")
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        audit = self.audit(entries)
+        self.assertEqual(audit["staged"], ["internal/app.go"])
+        self.assertTrue(Path(audit["index"]).is_absolute(), audit)
+        self.assertEqual(self.git("log", "--format=%s").stdout.split("\n")[0], "base")
+
+    def test_commit_all_routes_the_files_it_commits(self):
+        self.write("internal/app.go", "package app\n\nconst Name = \"app\"\n")
+        result, entries = self.commit("-a", "-m", "change go")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.audit(entries)["staged"], ["internal/app.go"])
+        self.assertEqual(self.checks(entries), ["check-go"])
+        self.assert_children_have_a_clean_git_environment(entries)
+
+    def test_a_path_commit_routes_only_the_named_paths(self):
+        self.write("internal/app.go", "package app\n\nconst Name = \"app\"\n")
+        self.write("docs/notes.md", "changed notes\n")
+        result, entries = self.commit("-m", "change go only", "--", "internal/app.go")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.audit(entries)["staged"], ["internal/app.go"])
+        self.assertEqual(self.checks(entries), ["check-go"])
+        self.assert_children_have_a_clean_git_environment(entries)
+
+    def test_a_deleted_go_file_still_runs_the_go_gate(self):
+        self.git("rm", "--quiet", "--", "internal/app.go")
+        result, entries = self.commit("-m", "remove go")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.checks(entries), ["check-go"])
+        self.assert_children_have_a_clean_git_environment(entries)
+
+    def test_an_ordinary_documentation_commit_runs_no_subsystem_gate(self):
+        self.write("docs/notes.md", "changed notes\n")
+        self.git("add", "--", "docs/notes.md")
+        result, entries = self.commit("-m", "docs")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        audit = self.audit(entries)
+        self.assertEqual(audit["staged"], ["docs/notes.md"])
+        # A plain commit hands the hook a relative index path; the audit must
+        # still receive one it can open from any directory.
+        self.assertTrue(Path(audit["index"]).is_absolute(), audit)
+        self.assertEqual(self.checks(entries), [])
+        self.assertIn("doctor", [entry["tool"] for entry in entries])
+        self.assert_children_have_a_clean_git_environment(entries)
+
+
 if __name__ == "__main__":
     unittest.main()
