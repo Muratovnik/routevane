@@ -9,7 +9,7 @@
   "main": "src/main.mjs",
   "engines": {
     "node": ">=24.19.0 <25",
-    "npm": ">=11.17.0 <12"
+    "npm": ">=11.17.0 <13"
   },
   "scripts": {
     "start": "electron .",

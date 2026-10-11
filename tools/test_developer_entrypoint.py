@@ -114,6 +114,70 @@ class DeveloperEntrypointTests(unittest.TestCase):
         self.assertEqual(observed["arguments"], ["--go", str(applications[0])])
         self.assertEqual(observed["identity"], "first-go")
 
+    def entrypoint_with_path_probe(self):
+        tools = self.root / "tools"
+        tools.mkdir()
+        entrypoint = tools / "dev.ps1"
+        shutil.copyfile(ROOT / "tools/dev.ps1", entrypoint)
+        (tools / "doctor.py").write_text(
+            "import json, os\nprint(json.dumps(os.environ['PATH']))\n", encoding="utf-8")
+        go = self.root / "go bin"
+        go.mkdir()
+        executable = go / ("go.cmd" if os.name == "nt" else "go")
+        executable.write_text("@echo off\n" if os.name == "nt" else "#!/bin/sh\n", encoding="utf-8")
+        executable.chmod(0o755)
+        return entrypoint, go
+
+    def run_entrypoint(self, entrypoint, path):
+        self.env["PATH"] = path
+        return subprocess.run(
+            [PWSH, "-NoLogo", "-NoProfile", "-File", str(entrypoint), "doctor"],
+            # A localized warning prefix arrives in the console code page.
+            cwd=self.root, env=self.env, capture_output=True, text=True, errors="replace", timeout=20)
+
+    def test_child_path_drops_duplicate_and_missing_directories_on_windows_only(self):
+        entrypoint, go = self.entrypoint_with_path_probe()
+        first, second = self.root / "first tools", self.root / "second tools"
+        first.mkdir()
+        second.mkdir()
+        inherited = os.environ["PATH"]
+        crafted = [str(go), str(first), str(self.root / "removed tools"), str(first).upper() + os.sep,
+                   str(self.driver), f'"{second}"', "relative tools", "relative tools",
+                   str(go).replace("\\", "/")]
+        result = self.run_entrypoint(entrypoint, os.pathsep.join(crafted + [inherited]))
+        self.assert_ok(result)
+        observed = json.loads(result.stdout).split(os.pathsep)
+        if os.name != "nt":
+            # Elsewhere PATH is left alone; PowerShell itself may prepend its home.
+            expected = crafted + inherited.split(os.pathsep)
+            self.assertEqual(observed[-len(expected):], expected)
+            return
+        kept = [str(go), str(first), f'"{second}"', "relative tools"]
+        self.assertEqual([entry for entry in observed if entry in kept], kept)
+        for dropped in (str(self.root / "removed tools"), str(first).upper() + os.sep, str(self.driver),
+                        str(go).replace("\\", "/")):
+            self.assertNotIn(dropped, observed)
+        keys = [os.path.normcase(os.path.normpath(entry.strip().strip('"'))) for entry in observed]
+        self.assertEqual(len(keys), len(set(keys)), observed)
+        for entry in observed:
+            directory = entry.strip().strip('"')
+            if os.path.isabs(directory):
+                self.assertTrue(os.path.isdir(directory), entry)
+
+    @unittest.skipUnless(os.name == "nt", "cmd.exe limits PATH only on Windows")
+    def test_overlong_distinct_path_warns_and_still_runs(self):
+        entrypoint, go = self.entrypoint_with_path_probe()
+        directories = [str(go)]
+        while sum(len(entry) + 1 for entry in directories) <= 6000:
+            directory = self.root / f"distinct tools {len(directories):03d} {'x' * 100}"
+            directory.mkdir()
+            directories.append(str(directory))
+        result = self.run_entrypoint(entrypoint, os.pathsep.join(directories + [os.environ["PATH"]]))
+        self.assert_ok(result)
+        self.assertIn("8191-character limit", result.stdout + result.stderr)
+        self.assertTrue(any(line.startswith('"') for line in result.stdout.splitlines()),
+                        "the probe must still run")
+
     @unittest.skipUnless(GO, "Go is required for the real formatter check")
     def test_formatting_check_handles_long_checkout_paths_and_nested_files(self):
         for name in ("cmd", "sdk", "examples", "tools", "internal"):

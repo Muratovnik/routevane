@@ -8,7 +8,7 @@ application, use the [user guide](README.md).
 - Go 1.27.2 or a newer patch in the 1.27 line, as declared in [go.mod](go.mod).
 - Node.js 24.19+ within the 24.x line. [.node-version](.node-version) pins the
   version used by CI; [web/package.json](web/package.json) declares the minimum.
-- npm 11.17+ within the 11.x line.
+- npm 11.17+ or npm 12; npm 13 is not supported yet.
 - PowerShell 7.4+ on every development OS; Windows PowerShell 5.1 is not supported.
 - Python 3.11+ and Git.
 

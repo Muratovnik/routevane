@@ -58,7 +58,7 @@ class RepositoryContracts(unittest.TestCase):
             with self.subTest(pin=pin), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / "web").mkdir()
-                engines = {"node": f">=0.0.0 <{line + 1}", "npm": ">=11.17.0 <12"}
+                engines = {"node": f">=0.0.0 <{line + 1}", "npm": ">=11.17.0 <13"}
                 (root / "web/package-lock.json").write_text(
                     json.dumps({"packages": {"": {"engines": engines}}}), encoding="utf-8",
                 )
@@ -153,7 +153,7 @@ class RepositoryContracts(unittest.TestCase):
             for name in ("tools", "web", "docs/history", "docs/adr", ".private"):
                 (root / name).mkdir(parents=True, exist_ok=True)
             shutil.copyfile(Path(__file__).with_name("check_repository.py"), root / "tools/check_repository.py")
-            engines = {"node": ">=24.19.0 <25", "npm": ">=11.17.0 <12"}
+            engines = {"node": ">=24.19.0 <25", "npm": ">=11.17.0 <13"}
             (root / "web/package.json").write_text(
                 json.dumps({"engines": engines, "packageManager": "npm@11.17.0"}), encoding="utf-8",
             )

@@ -73,6 +73,22 @@ class DoctorPrerequisites(unittest.TestCase):
         self.assertIn(selected, errors.getvalue())
         workflows.assert_not_called()
 
+    def test_declared_npm_range_accepts_npm_12_and_refuses_untested_lines(self):
+        minimum = ".".join(map(str, doctor.required_go_version(ROOT)))
+        for npm, allowed in (("11.16.9", False), ("11.17.0", True), ("12.2.0", True), ("13.0.0", False)):
+            versions = {"git": str(ROOT), "go": f"go version go{minimum} linux/amd64",
+                        "node": "v24.21.0", "npm": npm}
+            with (
+                self.subTest(npm=npm),
+                patch("doctor.shutil.which", side_effect=lambda name: name),
+                patch("doctor.command_version", side_effect=lambda args: versions[args[0]]),
+                patch("doctor.workflow_problems", return_value=[]),
+                patch("doctor.subprocess.run", return_value=subprocess.CompletedProcess([], 0, "", "")),
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as errors,
+            ):
+                self.assertEqual(doctor.main(["--go", "go"]), 0 if allowed else 1)
+                self.assertEqual("npm" in errors.getvalue(), not allowed, errors.getvalue())
+
     def test_empty_version_is_a_clear_failure(self):
         with self.assertRaisesRegex(ValueError, "did not report a version"):
             doctor.command_version([sys.executable, "-c", "pass"])

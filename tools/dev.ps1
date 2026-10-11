@@ -16,6 +16,44 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $RepositoryRoot = Split-Path -Parent $PSScriptRoot
+
+function Get-RoutevaneNormalizedPath {
+    param([Parameter(Mandatory)] [AllowEmptyString()] [string]$Value)
+    # First occurrence wins, as in command lookup. A relative entry depends on
+    # the child's working directory, so only its exact duplicates are removed.
+    $Comparer = if ($IsWindows) { [StringComparer]::OrdinalIgnoreCase } else { [StringComparer]::Ordinal }
+    $Seen = [Collections.Generic.HashSet[string]]::new($Comparer)
+    $Kept = [Collections.Generic.List[string]]::new()
+    foreach ($Entry in $Value.Split([IO.Path]::PathSeparator)) {
+        $Directory = $Entry.Trim().Trim('"')
+        $Key = $Directory
+        if ([IO.Path]::IsPathFullyQualified($Directory)) {
+            if (-not [IO.Directory]::Exists($Directory)) { continue }
+            $Key = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath($Directory))
+        }
+        if ($Seen.Add($Key)) { $Kept.Add($Entry) }
+    }
+    $Kept -join [IO.Path]::PathSeparator
+}
+
+# npm runs package scripts through cmd.exe on Windows, and every nested `npm run`
+# prepends a node_modules\.bin entry for each ancestor directory (about 470
+# characters per level in a typical checkout; `check` nests three). Past cmd.exe's
+# 8191-character limit, script commands are no longer found. Duplicate and removed
+# directories in a workstation PATH are the usual excess; drop them for this
+# process and its children only.
+if ($IsWindows) {
+    $PathLimit = 6000
+    $NormalizedPath = Get-RoutevaneNormalizedPath -Value ([string]$env:PATH)
+    # A warning rather than a refusal: commands that start no npm scripts, and
+    # shallower nesting, still work with a longer PATH.
+    if ($NormalizedPath.Length -gt $PathLimit) {
+        Write-Warning ("PATH is $($NormalizedPath.Length) characters even without duplicate and missing directories; " +
+            "nested npm scripts may exceed cmd.exe's 8191-character limit and fail to find their commands. " +
+            'Remove unused entries from the user or system PATH, then open a new terminal.')
+    }
+    $env:PATH = $NormalizedPath
+}
 if (-not $env:PLAYWRIGHT_BROWSERS_PATH) {
     $env:PLAYWRIGHT_BROWSERS_PATH = Join-Path $RepositoryRoot '.cache/browsers'
 }
