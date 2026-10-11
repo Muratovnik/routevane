@@ -75,3 +75,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0045: reviewed security repairs for web dependencies](./0045-reviewed-web-dependency-security-repairs.md) | adopted |
 | [ADR 0046: apply Linux plugin limits at the exec stop](./0046-apply-linux-plugin-limits-at-the-exec-stop.md) | adopted |
 | [ADR 0047: explicit recovery of an unavailable desktop port](./0047-explicit-desktop-port-recovery.md) | adopted |
+| [ADR 0048: choose new desktop ports below the ephemeral ranges](./0048-desktop-port-band.md) | adopted |

@@ -139,6 +139,9 @@ test('choosing a new port recovers startup and later starts reuse that port', as
       origin = await openWindow(app)
       const recovered = Number(new URL(origin).port)
       expect(recovered).not.toBe(occupied)
+      // A recovered port comes from the band below the ephemeral ranges (ADR 0048).
+      expect(recovered).toBeGreaterThanOrEqual(20000)
+      expect(recovered).toBeLessThan(30000)
       expect(await readFile(portFile, 'utf8')).toBe(`${recovered}\n`)
       expect(await backendReachable(origin)).toBe(true)
       expect(await accepts(occupied)).toBe(true)

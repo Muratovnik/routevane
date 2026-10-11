@@ -27,8 +27,8 @@ replace the port in previously copied subscription addresses. The database,
 subscription tokens, published artifacts and renderer preferences remain intact.
 
 After consent, start the same Go executable with a one-shot recovery intent.
-It still tries the saved address first. Only if that bind fails does it ask the
-OS for a free loopback port. Under the existing data lock, flush and replace
+It still tries the saved address first. Only if that bind fails does it choose
+a new loopback port (ADR 0048). Under the existing data lock, flush and replace
 the saved port after the server is composed and immediately before announcing
 readiness, so a composition failure keeps the previous port. Refuse
 replacement if the saved value changed. If saving fails, close the candidate
@@ -46,9 +46,8 @@ Recovery changes only the address's port. Existing subscription token paths
 remain valid on the recovered address, but consumers using the old absolute
 address must be updated by the operator. Automatic port rotation would hide
 this change; altering Windows reservations would affect unrelated applications.
-The OS assigns the recovered port from its dynamic range, where Windows also
-places reservations, so a later reservation can require the same recovery again.
-Choosing a fixed range instead is a separate decision.
+[ADR 0048](0048-desktop-port-band.md) chooses the recovered port outside the
+ephemeral ranges where Windows places its reservations.
 
 `cmd/routevane/desktop_test.go` covers ordinary refusal, explicit recovery with
 the same subscription content and token, persistence on restart, preservation

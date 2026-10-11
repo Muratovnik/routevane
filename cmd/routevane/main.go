@@ -68,6 +68,9 @@ type runtimeDeps struct {
 	Listen         func(string, string) (net.Listener, error)
 	OpenBrowser    func(context.Context, string) error
 	DesktopInput   io.Reader
+	// RandomIndex returns a uniform index in [0, n). It chooses a new desktop
+	// port; tests replace it to make that choice reproducible.
+	RandomIndex func(int) int
 }
 
 func productionDeps() runtimeDeps {
@@ -83,6 +86,7 @@ func productionDeps() runtimeDeps {
 			return signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 		},
 		Listen:       net.Listen,
+		RandomIndex:  cryptoRandomIndex,
 		OpenBrowser:  openSystemBrowser,
 		DesktopInput: os.Stdin,
 	}
@@ -115,6 +119,9 @@ func normalizeDeps(deps runtimeDeps) runtimeDeps {
 	}
 	if deps.Listen == nil {
 		deps.Listen = production.Listen
+	}
+	if deps.RandomIndex == nil {
+		deps.RandomIndex = production.RandomIndex
 	}
 	if deps.OpenBrowser == nil {
 		deps.OpenBrowser = production.OpenBrowser

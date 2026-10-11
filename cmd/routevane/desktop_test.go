@@ -5,14 +5,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -43,6 +47,9 @@ func TestDesktopLeaseAndPrivateAPI(t *testing.T) {
 			t.Fatal(err)
 		}
 		origin = strings.TrimSpace(origin)
+		if previousOrigin == "" {
+			desktopBandPort(t, data, origin)
+		}
 		if previousOrigin != "" && origin != previousOrigin {
 			t.Fatalf("subscription origin changed: %s -> %s", previousOrigin, origin)
 		}
@@ -323,4 +330,203 @@ func (l zonedListener) Addr() net.Addr {
 	address := *l.Listener.Addr().(*net.TCPAddr)
 	address.Zone = "zone"
 	return &address
+}
+
+func TestDesktopFirstPortRetriesDistinctBandPorts(t *testing.T) {
+	data := t.TempDir()
+	binds := &recordingListen{refuse: func(_ string, attempt int) bool { return attempt <= 5 }}
+	// A constant source would ask for one port forever without the permutation.
+	deps := runtimeDeps{Listen: binds.listen, RandomIndex: func(int) int { return 0 }}
+	origin, _, stop := startDesktopBackend(t, []string{"--data-dir", data}, deps)
+	port := desktopBandPort(t, data, origin)
+	if code := stop(); code != 0 {
+		t.Fatalf("desktop exit=%d", code)
+	}
+	addresses := binds.recorded()
+	if len(addresses) < 6 || addresses[len(addresses)-1] != fmt.Sprintf("127.0.0.1:%d", port) {
+		t.Fatalf("announced port %d is not the bound attempt: %v", port, addresses)
+	}
+	requireDistinctBandAttempts(t, addresses, 0)
+}
+
+func TestDesktopExhaustedBandFallsBackToAssignedPort(t *testing.T) {
+	data := t.TempDir()
+	binds := &recordingListen{refuse: func(address string, _ int) bool { return address != "127.0.0.1:0" }}
+	origin, logs, stop := startDesktopBackend(t, []string{"--data-dir", data}, runtimeDeps{Listen: binds.listen})
+	if code := stop(); code != 0 {
+		t.Fatalf("desktop exit=%d", code)
+	}
+	addresses := binds.recorded()
+	if len(addresses) != desktopPortAttempts+1 || addresses[desktopPortAttempts] != "127.0.0.1:0" {
+		t.Fatalf("bounded band search did not end in the assigned port: %v", addresses)
+	}
+	requireDistinctBandAttempts(t, addresses[:desktopPortAttempts], 0)
+	if !strings.Contains(logs.String(), "desktop_port_band_unavailable") {
+		t.Fatalf("fallback has no reason code: %s", logs.String())
+	}
+	if saved, err := filesystem.DesktopPort(data); err != nil || origin != fmt.Sprintf("http://127.0.0.1:%d", saved) {
+		t.Fatalf("announced %s, persisted %d %v", origin, saved, err)
+	}
+}
+
+func TestDesktopPortRecoveryNeverRetriesTheFailedSavedPort(t *testing.T) {
+	data := t.TempDir()
+	// Index zero would draw the first band port first if the failed port were
+	// still a candidate.
+	const failed = desktopPortFirst
+	if err := filesystem.SaveDesktopPort(data, failed); err != nil {
+		t.Fatal(err)
+	}
+	failedAddress := fmt.Sprintf("127.0.0.1:%d", failed)
+	binds := &recordingListen{refuse: func(address string, attempt int) bool { return address == failedAddress || attempt <= 3 }}
+	deps := runtimeDeps{Listen: binds.listen, RandomIndex: func(int) int { return 0 }}
+	origin, _, stop := startDesktopBackend(t, []string{"--data-dir", data, "--recover-desktop-port"}, deps)
+	port := desktopBandPort(t, data, origin)
+	if code := stop(); code != 0 {
+		t.Fatalf("desktop exit=%d", code)
+	}
+	addresses := binds.recorded()
+	if port == failed || len(addresses) < 4 || addresses[0] != failedAddress {
+		t.Fatalf("recovery did not start from the saved port: port=%d attempts=%v", port, addresses)
+	}
+	requireDistinctBandAttempts(t, addresses[1:], failed)
+}
+
+func TestDesktopReusesSavedPortOutsideTheBand(t *testing.T) {
+	data := t.TempDir()
+	// A port saved before the band existed stays, because copied subscription
+	// addresses carry it.
+	const saved = 59943
+	if err := filesystem.SaveDesktopPort(data, saved); err != nil {
+		t.Fatal(err)
+	}
+	binds := &recordingListen{refuse: func(string, int) bool { return false }, assign: true}
+	_, _, stop := startDesktopBackend(t, []string{"--data-dir", data}, runtimeDeps{Listen: binds.listen})
+	if code := stop(); code != 0 {
+		t.Fatalf("desktop exit=%d", code)
+	}
+	if addresses := binds.recorded(); len(addresses) != 1 || addresses[0] != fmt.Sprintf("127.0.0.1:%d", saved) {
+		t.Fatalf("saved port was not reused as-is: %v", addresses)
+	}
+	if port, err := filesystem.DesktopPort(data); err != nil || port != saved {
+		t.Fatalf("saved port changed: %d %v", port, err)
+	}
+}
+
+func TestDesktopBandSearchIsBoundedDistinctAndSkipsTheFailedPort(t *testing.T) {
+	sources := map[string]func(int) int{
+		"first":  func(int) int { return 0 },
+		"last":   func(n int) int { return n - 1 },
+		"crypto": cryptoRandomIndex,
+	}
+	for name, source := range sources {
+		for _, failed := range []int{0, desktopPortFirst, 24321, desktopPortFirst + desktopPortCount - 1, 59943} {
+			binds := &recordingListen{refuse: func(string, int) bool { return true }}
+			listener, err := listenDesktopBand(binds.listen, source, failed)
+			if listener != nil || !errors.Is(err, errDesktopPortBandUnavailable) {
+				t.Fatalf("%s/%d: refused band returned %v %v", name, failed, listener, err)
+			}
+			addresses := binds.recorded()
+			if len(addresses) != desktopPortAttempts {
+				t.Fatalf("%s/%d: %d attempts", name, failed, len(addresses))
+			}
+			requireDistinctBandAttempts(t, addresses, failed)
+		}
+	}
+}
+
+// recordingListen records every address the backend asks to bind. Refused
+// attempts fail like an excluded port; the rest bind for real, so a band port
+// that is genuinely busy on this machine only adds an attempt. assign binds an
+// OS-assigned port instead of the requested one.
+type recordingListen struct {
+	mu        sync.Mutex
+	addresses []string
+	refuse    func(address string, attempt int) bool
+	assign    bool
+}
+
+func (r *recordingListen) listen(network, address string) (net.Listener, error) {
+	r.mu.Lock()
+	r.addresses = append(r.addresses, address)
+	refused := r.refuse(address, len(r.addresses))
+	r.mu.Unlock()
+	if refused {
+		return nil, os.ErrPermission
+	}
+	if r.assign {
+		return net.Listen(network, "127.0.0.1:0")
+	}
+	return net.Listen(network, address)
+}
+
+func (r *recordingListen) recorded() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]string(nil), r.addresses...)
+}
+
+func requireDistinctBandAttempts(t *testing.T, addresses []string, failed int) {
+	t.Helper()
+	seen := make(map[int]bool, len(addresses))
+	for _, address := range addresses {
+		port, err := strconv.Atoi(strings.TrimPrefix(address, "127.0.0.1:"))
+		if err != nil || port < desktopPortFirst || port >= desktopPortFirst+desktopPortCount || port == failed || seen[port] {
+			t.Fatalf("attempt %s outside the band, repeated or the failed port %d: %v", address, failed, addresses)
+		}
+		seen[port] = true
+	}
+}
+
+// desktopBandPort checks that the announced origin is a band port and the
+// persisted one, and returns it.
+func desktopBandPort(t *testing.T, data, origin string) int {
+	t.Helper()
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(parsed.Port())
+	if err != nil || port < desktopPortFirst || port >= desktopPortFirst+desktopPortCount {
+		t.Fatalf("desktop origin %s is outside the band", origin)
+	}
+	if saved, err := filesystem.DesktopPort(data); err != nil || saved != port {
+		t.Fatalf("announced port %d, persisted %d %v", port, saved, err)
+	}
+	return port
+}
+
+// startDesktopBackend runs one desktop backend on the shipped catalog and
+// returns its announced origin, its logs and a function that ends the lease.
+func startDesktopBackend(t *testing.T, args []string, deps runtimeDeps) (string, *syncBuffer, func() int) {
+	t.Helper()
+	input, control := io.Pipe()
+	read, write := io.Pipe()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	t.Cleanup(cancel)
+	t.Cleanup(func() { _ = control.Close(); _ = read.Close(); _ = input.Close() })
+	deps.Context, deps.DesktopInput = ctx, input
+	logs := &syncBuffer{}
+	exited := make(chan int, 1)
+	go func() {
+		exited <- runWithDeps(write, logs, append([]string{"desktop", "--catalog-dir", filepath.Join("..", "..", "catalog")}, args...), deps)
+		_ = write.Close()
+	}()
+	if _, err := io.WriteString(control, strings.Repeat("a", 64)+"\n"); err != nil {
+		t.Fatal(err)
+	}
+	line, err := bufio.NewReader(read).ReadString('\n')
+	if err != nil {
+		t.Fatalf("no ready origin: %v logs=%s", err, logs.String())
+	}
+	return strings.TrimSpace(line), logs, func() int {
+		_ = control.Close()
+		select {
+		case code := <-exited:
+			return code
+		case <-ctx.Done():
+			t.Fatal("desktop backend outlived its parent pipe")
+			return -1
+		}
+	}
 }

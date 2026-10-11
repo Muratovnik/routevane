@@ -99,7 +99,12 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 			return 1
 		}
 	}
-	listener, err := deps.Listen("tcp4", fmt.Sprintf("127.0.0.1:%d", options.Port))
+	var listener net.Listener
+	if options.DesktopToken != "" && options.Port == 0 {
+		listener, err = listenNewDesktopPort(logger, deps, 0)
+	} else {
+		listener, err = deps.Listen("tcp4", fmt.Sprintf("127.0.0.1:%d", options.Port))
+	}
 	savedDesktopPort := options.Port
 	replacingDesktopPort := false
 	if err != nil && options.DesktopToken != "" && options.Port != 0 {
@@ -108,7 +113,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 			logResult(logger, "serve", "", "", "failed", 0, started, "desktop_listen_failed")
 			return 1
 		}
-		listener, err = deps.Listen("tcp4", "127.0.0.1:0")
+		listener, err = listenNewDesktopPort(logger, deps, savedDesktopPort)
 		replacingDesktopPort = err == nil
 	}
 	if err != nil {

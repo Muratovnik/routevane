@@ -35,10 +35,11 @@ Electron's protocol handler forwards to Go on a loopback port, with
 a random 256-bit credential sent through a parent-owned pipe. The credential is
 absent from command arguments, files and renderer APIs. Go requires it for UI/API
 requests; subscriptions keep their existing separately authenticated bearer URL.
-On first launch the OS assigns a free port; Go commits it under the data lock
-before publishing URLs and reuses it on later launches. An occupied saved port
-is a startup error, never a reason to silently change subscriptions or stop another
-process. [ADR 0047](0047-explicit-desktop-port-recovery.md) adds explicit recovery
+On first launch Go chooses a free port as [ADR 0048](0048-desktop-port-band.md)
+describes, commits it under the data lock before publishing URLs and reuses it
+on later launches. An occupied saved port is a startup error, never a reason to
+silently change subscriptions or stop another process.
+[ADR 0047](0047-explicit-desktop-port-recovery.md) adds explicit recovery
 with a warning that previously copied subscription addresses need their port
 updated. Subscription URLs remain local to the computer and work while it is running.
 
