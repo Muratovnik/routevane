@@ -37,6 +37,14 @@ const (
 	// but a list may hold several slow feeds in sequence, and cutting the
 	// cycle at the screen's budget would persist a half-observed list.
 	refreshRequestTimeout = time.Minute
+	// profileRefreshRequestTimeout is the budget for re-observing every list
+	// of one profile. The lists are observed one after another, each source
+	// inside its own bounded fetch, so a profile of many lists outgrows the
+	// one-list budget; cutting it there leaves the later lists unobserved
+	// while the earlier ones already moved on. It stays well inside the
+	// desktop transport's ten-minute abort, write slack included, so the
+	// operator gets this route's own answer rather than a transport failure.
+	profileRefreshRequestTimeout = 5 * time.Minute
 )
 
 type Backend interface {

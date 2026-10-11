@@ -1741,8 +1741,19 @@ func TestTheDeployRouteCarriesItsOwnBudget(t *testing.T) {
 	if !owned || refresh.timeout <= requestTimeout || refresh.timeout >= spec.timeout {
 		t.Fatalf("list refresh budget = %s", refresh.timeout)
 	}
+	// A profile refresh re-observes every list of the profile one after
+	// another, so it outgrows a single list's budget. The desktop transport
+	// abandons any request after ten minutes; the route must answer, with its
+	// write slack, before that.
+	profileRefresh, owned := routes["profiles.refresh"]
+	if !owned || profileRefresh.timeout <= requestTimeout || profileRefresh.timeout <= refresh.timeout {
+		t.Fatalf("profile refresh budget = %s, list refresh budget = %s", profileRefresh.timeout, refresh.timeout)
+	}
+	if profileRefresh.timeout+writeDeadlineSlack >= 10*time.Minute {
+		t.Fatalf("profile refresh budget = %s outlives the desktop transport", profileRefresh.timeout)
+	}
 	for route, other := range routes {
-		if route == "artifacts.deploy" || route == "lists.refresh" || other.timeout == 0 {
+		if route == "artifacts.deploy" || route == "lists.refresh" || route == "profiles.refresh" || other.timeout == 0 {
 			continue
 		}
 		t.Errorf("route %q also overrides the budget (%s); every override needs its own reason", route, other.timeout)

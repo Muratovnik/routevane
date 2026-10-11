@@ -216,7 +216,7 @@ var routes = map[string]routeSpec{
 	"profiles.outputs": {path: "/v1/profiles/{id}/outputs", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.addOutput(w, r, r.PathValue("id"))
 	}},
-	"profiles.refresh": {path: "/v1/profiles/{id}/refresh", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"profiles.refresh": {path: "/v1/profiles/{id}/refresh", methods: writeMethods, timeout: profileRefreshRequestTimeout, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.refresh(w, r, r.PathValue("id"))
 	}},
 	"profiles.export": {path: "/v1/profiles/{id}/export", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {

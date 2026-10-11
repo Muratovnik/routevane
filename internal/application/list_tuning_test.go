@@ -3,13 +3,16 @@ package application
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/Muratovnik/routevane/internal/domain"
+	"github.com/Muratovnik/routevane/internal/renderers/rawjson"
 )
 
 func tuningTestService(t *testing.T, store *publicationFakeStore) *PublicationService {
@@ -364,5 +367,143 @@ func TestListContentsMergesStaticAndObservedRows(t *testing.T) {
 	}
 	if contents.Sources[1].ID != "vendor" || contents.Sources[1].Enabled {
 		t.Fatalf("sources = %#v", contents.Sources)
+	}
+}
+
+// publishedPlanRules reads the rule values and the operator exclusions out of
+// the snapshot bytes a build published, so the assertion is about the stored
+// artifact rather than an intermediate value.
+func publishedPlanRules(t *testing.T, candidate PublicationCandidate) (rules []string, operatorExcluded []string) {
+	t.Helper()
+	var plan struct {
+		Rules []struct {
+			Value string `json:"value"`
+		} `json:"rules"`
+		Excluded []struct {
+			Candidate struct {
+				Value string `json:"value"`
+			} `json:"candidate"`
+			Outcome     string   `json:"outcome"`
+			ReasonCodes []string `json:"reason_codes"`
+		} `json:"excluded"`
+	}
+	if err := json.Unmarshal(candidate.Snapshot.RoutingPlanJSON, &plan); err != nil {
+		t.Fatalf("decode published plan: %v", err)
+	}
+	for _, rule := range plan.Rules {
+		rules = append(rules, rule.Value)
+	}
+	for _, excluded := range plan.Excluded {
+		if excluded.Outcome == "rejected" && slices.Contains(excluded.ReasonCodes, "operator_excluded") {
+			operatorExcluded = append(operatorExcluded, excluded.Candidate.Value)
+		}
+	}
+	return rules, operatorExcluded
+}
+
+func forecastListRules(t *testing.T, publication *PublicationService, listID string) int {
+	t.Helper()
+	forecasts, err := publication.ForecastComposition(context.Background(), ProfileComposition{Lists: []string{listID}}, []string{"keenetic"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(forecasts) != 1 || len(forecasts[0].PerList) != 1 || forecasts[0].PerList[0].ListID != listID {
+		t.Fatalf("forecasts = %#v", forecasts)
+	}
+	return forecasts[0].PerList[0].Rules
+}
+
+// An exclusion switches a destination off wherever it comes from (ADR 0025).
+// An address a source observed is not a seed, so rewriting the seeds alone let
+// it keep reaching the published file while the card showed it switched off.
+// The build, the forecast and the card must tell the same story, and a return
+// to the automatic verdict must bring the observed value back.
+func TestExcludingAnObservedAddressKeepsItOutOfBuildsAndForecasts(t *testing.T) {
+	profile, output := testProfileAndOutput()
+	store := &publicationFakeStore{profile: profile, output: output}
+	publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x71}, 512)))
+	const observed = "198.51.100.8" // the DNS sighting the fake store answers with
+
+	if _, err := publication.Build(context.Background(), output.ID); err != nil {
+		t.Fatal(err)
+	}
+	rules, _ := publishedPlanRules(t, store.published[0])
+	if !slices.Contains(rules, observed) {
+		t.Fatalf("baseline plan lacks the observed address: %v", rules)
+	}
+	before := forecastListRules(t, publication, "example")
+
+	if err := publication.SetListValues(context.Background(), "example", []string{observed}, DomainVerdictExclude); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := publication.ListContents(context.Background(), "example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range contents.Rows {
+		if row.Value == observed && (row.Enabled || row.Origin != "dns-main") {
+			t.Fatalf("card row = %#v", row)
+		}
+	}
+	if _, err := publication.Build(context.Background(), output.ID); err != nil {
+		t.Fatal(err)
+	}
+	rules, excluded := publishedPlanRules(t, store.published[len(store.published)-1])
+	if slices.Contains(rules, observed) {
+		t.Fatalf("an excluded observed address was published: %v", rules)
+	}
+	if !slices.Contains(excluded, observed) {
+		t.Fatalf("the plan does not record the operator exclusion: %v", excluded)
+	}
+	if after := forecastListRules(t, publication, "example"); after != before-1 {
+		t.Fatalf("forecast rules = %d after excluding, want %d", after, before-1)
+	}
+
+	if err := publication.SetListValues(context.Background(), "example", []string{observed}, DomainVerdictAuto); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := publication.Build(context.Background(), output.ID); err != nil {
+		t.Fatal(err)
+	}
+	rules, excluded = publishedPlanRules(t, store.published[len(store.published)-1])
+	if !slices.Contains(rules, observed) || len(excluded) != 0 {
+		t.Fatalf("auto did not restore the observed address: rules=%v excluded=%v", rules, excluded)
+	}
+	if again := forecastListRules(t, publication, "example"); again != before {
+		t.Fatalf("forecast rules = %d after auto, want %d", again, before)
+	}
+}
+
+// A feed's domain is observed material too: excluding it removes it from the
+// plan the same way the card switches it off.
+func TestExcludingAFeedDomainRemovesItFromThePlan(t *testing.T) {
+	store := &publicationFakeStore{observedDomains: map[string][]string{
+		"vendor":   {"cdn.example.net"},
+		"dns-main": {"www.example.org"},
+	}}
+	publication := tuningTestService(t, store)
+	profile := Profile{ID: strings.Repeat("1", 32), Lists: []string{"example"}}
+	planDomains := func() []string {
+		t.Helper()
+		prepared, _, err := publication.prepareProfile(context.Background(), profile, domain.RawJSONTargetDefinition(), rawjson.Renderer{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		values := make([]string, 0)
+		for _, rule := range prepared.Plan.Rules {
+			if rule.Kind.IsDomain() {
+				values = append(values, rule.Domain)
+			}
+		}
+		return values
+	}
+	if got := planDomains(); !slices.Contains(got, "cdn.example.net") {
+		t.Fatalf("baseline plan domains = %v", got)
+	}
+	if err := publication.SetListValues(context.Background(), "example", []string{"CDN.example.net."}, DomainVerdictExclude); err != nil {
+		t.Fatal(err)
+	}
+	if got := planDomains(); slices.Contains(got, "cdn.example.net") || !slices.Contains(got, "www.example.org") {
+		t.Fatalf("plan domains after excluding the feed domain = %v", got)
 	}
 }

@@ -123,7 +123,9 @@ func (s *PublicationService) listTuning(listID string) ListTuning {
 // disabled sources leave the source set, added feeds join it, and domain
 // verdicts rewrite the static seeds. Because every observation is filtered by
 // the source revisions this definition declares, a disabled source's stored
-// sightings stop reaching plans without being deleted.
+// sightings stop reaching plans without being deleted. Exclusions also travel
+// as ExcludedValues, so the planner rejects an observed value the operator
+// switched off: the card shows such a row disabled, and the plan must agree.
 func (s *PublicationService) tunedDefinition(base domain.ListDefinition) domain.ListDefinition {
 	tuning := s.listTuning(base.ID)
 	if len(tuning.DisabledSources) == 0 && len(tuning.CustomSources) == 0 &&
@@ -179,6 +181,9 @@ func (s *PublicationService) tunedDefinition(base domain.ListDefinition) domain.
 	}
 	base.Sources = sources
 	base.Seeds = seeds
+	if len(tuning.Excludes) > 0 {
+		base.ExcludedValues = append([]string(nil), tuning.Excludes...)
+	}
 	return base
 }
 

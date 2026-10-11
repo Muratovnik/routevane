@@ -195,3 +195,114 @@ func TestDomainSufficiencyKeepsAVendorRangeAndDropsAnAggregatedOne(t *testing.T)
 		t.Fatalf("rules = %v", values(plan.Rules))
 	}
 }
+
+// Two networks that touch nothing were not merged, even though they share a
+// group: the reason code belongs to a prefix that stands for several inputs.
+func TestDisjointFeedNetworksCarryNoCollapseReason(t *testing.T) {
+	rules := collapseObserved([]domain.RouteRule{
+		prefixRule(t, "198.51.100.0/24", domain.SourceCommunity),
+		prefixRule(t, "203.0.113.0/24", domain.SourceCommunity),
+	})
+	if values(rules) != "198.51.100.0/24,203.0.113.0/24" {
+		t.Fatalf("collapsed = %v", values(rules))
+	}
+	for _, rule := range rules {
+		if containsReason(rule.ReasonCodes, ReasonLosslessCollapsed) {
+			t.Fatalf("an unmerged network claims a collapse: %#v", rule)
+		}
+	}
+}
+
+// When two source classes arrive at one destination, the class the plan keeps
+// is a fixed precedence, never the order the rules happened to be read in.
+func TestDedupeKeepsTheStrongestClassWhateverTheOrder(t *testing.T) {
+	manual := prefixRule(t, "198.51.100.0/24", domain.SourceManual)
+	official := prefixRule(t, "198.51.100.0/24", domain.SourceOfficial)
+	observed := prefixRule(t, "198.51.100.0/24", domain.SourceObserved)
+	for _, order := range [][]domain.RouteRule{
+		{manual, official, observed},
+		{observed, official, manual},
+		{official, observed, manual},
+	} {
+		rules := dedupeRules(order)
+		if len(rules) != 1 || rules[0].SourceClass != domain.SourceManual {
+			t.Fatalf("dedupe of %v kept %#v", order, rules)
+		}
+	}
+	rules := dedupeRules([]domain.RouteRule{observed, official})
+	if len(rules) != 1 || rules[0].SourceClass != domain.SourceOfficial {
+		t.Fatalf("dedupe kept %#v", rules)
+	}
+}
+
+// Collapsing runs per source class, so two classes can each produce the same
+// destination. Which class survives used to follow map iteration order, and the
+// class is part of the semantic hash: one input set published two artifacts.
+// Each case is planned many times so an order dependence cannot hide.
+func TestCrossClassCollisionsPlanToOneHash(t *testing.T) {
+	cutoff := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	sighting := func(resource domain.Resource, class domain.SourceClass, id string) domain.Sighting {
+		return domain.Sighting{
+			ListID: "example", ComponentID: "web", Resource: resource, SourceID: id, SourceClass: class,
+			SourceRevision: "r", FirstSeen: cutoff, LastSeen: cutoff, ValidUntil: cutoff.Add(time.Hour),
+			ObservationCount: 1, Validity: domain.ValidityValid,
+		}
+	}
+	address, err := domain.NewAddrResourceFromString("198.51.100.7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := domain.TargetDefinition{
+		ID: "keenetic", FormatKey: "p", RendererID: "r",
+		Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: 1000, MaxArtifactSize: 1 << 20},
+	}
+	cases := []struct {
+		name      string
+		seeds     []domain.Seed
+		sightings []domain.Sighting
+		value     string
+		class     domain.SourceClass
+	}{
+		{
+			name:  "manual network and two official halves",
+			seeds: []domain.Seed{{Kind: domain.RulePrefix4, Value: "198.51.100.0/24", ComponentID: "web", SourceID: "manual:net", SourceClass: domain.SourceManual}},
+			sightings: []domain.Sighting{
+				sighting(mustPrefixResource(t, "198.51.100.0/25"), domain.SourceOfficial, "vendor"),
+				sighting(mustPrefixResource(t, "198.51.100.128/25"), domain.SourceOfficial, "vendor"),
+			},
+			value: "198.51.100.0/24", class: domain.SourceManual,
+		},
+		{
+			name: "official host network and an observed address",
+			sightings: []domain.Sighting{
+				sighting(mustPrefixResource(t, "198.51.100.7/32"), domain.SourceOfficial, "vendor"),
+				sighting(address, domain.SourceObserved, "dns"),
+			},
+			value: "198.51.100.7", class: domain.SourceOfficial,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			definition := domain.ListDefinition{
+				ID: "example", CatalogRevision: "c",
+				Components: []domain.ComponentDefinition{{ID: "web", Required: true}},
+				Seeds:      tc.seeds,
+			}
+			var firstHash string
+			for run := 0; run < 64; run++ {
+				plan, err := BuildPlan(definition, tc.sightings, target, cutoff, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(plan.Rules) != 1 || plan.Rules[0].CanonicalValue() != tc.value || plan.Rules[0].SourceClass != tc.class {
+					t.Fatalf("run %d rules = %#v", run, plan.Rules)
+				}
+				if run == 0 {
+					firstHash = plan.SemanticHash
+				} else if plan.SemanticHash != firstHash {
+					t.Fatalf("run %d hash %s differs from %s", run, plan.SemanticHash, firstHash)
+				}
+			}
+		})
+	}
+}

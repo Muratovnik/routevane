@@ -68,6 +68,12 @@ type ListDefinition struct {
 	DNSNames        []string
 	Sources         []SourceDefinition
 	CatalogRevision string
+	// ExcludedValues are canonical destinations (NormalizeRuleValue form) the
+	// operator switched off for this list. They are policy, not observation
+	// state: the planner rejects any observed candidate with one of these
+	// values whichever source offered it, while the sighting stays stored and
+	// valid. The tuning that sets them removes matching seeds itself.
+	ExcludedValues []string
 }
 
 // CategoryDefinition is a catalog-supplied grouping of lists. It owns no

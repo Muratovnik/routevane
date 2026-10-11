@@ -42,6 +42,7 @@ const (
 	ReasonSourceDegraded                    = "source_degraded"
 	ReasonSpecialUseDestination             = "special_use_destination"
 	ReasonPrefixTooWide                     = "prefix_too_wide"
+	ReasonOperatorExcluded                  = "operator_excluded"
 )
 
 // A routing rule is a destination the device will send traffic to. These bounds
@@ -166,6 +167,11 @@ func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time
 		return domain.RoutingPlan{}, fmt.Errorf("list %q has no components", def.ID)
 	}
 
+	operatorExcluded := make(map[string]struct{}, len(def.ExcludedValues))
+	for _, value := range def.ExcludedValues {
+		operatorExcluded[value] = struct{}{}
+	}
+
 	accepted := make([]domain.RouteRule, 0, len(def.Seeds)+len(sightings))
 	excluded := make([]domain.Excluded, 0)
 	for _, rawSeed := range def.Seeds {
@@ -218,6 +224,13 @@ func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time
 		candidate, err := sightingRule(sighting, def.ID, components)
 		if err != nil {
 			excluded = append(excluded, domain.Excluded{Candidate: invalidCandidate(sighting, def.ID), Outcome: "rejected", ReasonCodes: []string{ReasonInvalidResource}, ProvenanceRefs: provenance(sighting.SourceID)})
+			continue
+		}
+		// The operator's standing exclusion outranks every judgement below:
+		// it switches a destination off wherever it comes from, so neither
+		// freshness nor grace nor the source's class can bring it back.
+		if _, off := operatorExcluded[candidate.CanonicalValue()]; off {
+			excluded = append(excluded, domain.Excluded{Candidate: candidate, Outcome: "rejected", ReasonCodes: []string{ReasonOperatorExcluded}, ProvenanceRefs: provenance(sighting.SourceID)})
 			continue
 		}
 		if !sighting.IsFresh(cutoff) {
@@ -560,7 +573,11 @@ func collapseObserved(rules []domain.RouteRule) []domain.RouteRule {
 			others = append(others, rule)
 		}
 	}
-	for key, group := range groups {
+	// Groups are read in key order so the collapsed rules leave in one order
+	// whatever the map's iteration did; dedupeRules below no longer depends on
+	// that order either, but nothing here should hand it a random one.
+	for _, key := range slices.Sorted(maps.Keys(groups)) {
+		group := groups[key]
 		inputs := make([]netip.Prefix, 0, len(group))
 		for _, rule := range group {
 			if rule.Kind.IsPrefix() {
@@ -579,10 +596,12 @@ func collapseObserved(rules []domain.RouteRule) []domain.RouteRule {
 			refs := make([]string, 0)
 			reasons := make([]string, 0)
 			var expires *time.Time
+			merged := 0
 			for _, rule := range group {
 				if !covers(prefix, rule) {
 					continue
 				}
+				merged++
 				refs = append(refs, rule.ProvenanceRefs...)
 				reasons = append(reasons, rule.ReasonCodes...)
 				if rule.ExpiresAt != nil && (expires == nil || rule.ExpiresAt.After(*expires)) {
@@ -596,9 +615,10 @@ func collapseObserved(rules []domain.RouteRule) []domain.RouteRule {
 				reasons = []string{ReasonFreshDNSObservation}
 			}
 			network := prefix.Bits() != prefix.Addr().BitLen()
-			// A merge earns its reason code only when it actually merged
-			// something: a feed's own /24 arrived as a network already.
-			if network && len(group) > 1 {
+			// A merge earns its reason code only when this prefix stands for
+			// more than one input rule: a feed's own /24 arrived as a network
+			// already, and a group of disjoint networks merged nothing.
+			if network && merged > 1 {
 				reasons = domain.StableStrings(append(reasons, ReasonLosslessCollapsed))
 			}
 			var rule domain.RouteRule
@@ -634,11 +654,50 @@ func splitGroupKey(key string) (string, string, domain.SourceClass) {
 	return key, "web", domain.SourceObserved
 }
 
+// sourceClassPrecedence orders competing claims about one destination. Like
+// the list card, the operator's own word comes first; then the vendor's
+// declaration, a curated third-party list, and finally an observation.
+func sourceClassPrecedence(class domain.SourceClass) int {
+	switch class {
+	case domain.SourceManual:
+		return 0
+	case domain.SourceOfficial:
+		return 1
+	case domain.SourceCommunity:
+		return 2
+	case domain.SourceObserved:
+		return 3
+	case domain.SourceMetadata:
+		return 4
+	default:
+		return 5
+	}
+}
+
+// strongerClass answers whether candidate outranks current. Equal precedence
+// falls back to the class text, so the choice is a total order.
+func strongerClass(candidate, current domain.SourceClass) bool {
+	return cmp.Or(
+		cmp.Compare(sourceClassPrecedence(candidate), sourceClassPrecedence(current)),
+		cmp.Compare(candidate, current),
+	) < 0
+}
+
+// dedupeRules merges rules naming one destination. CandidateKey excludes the
+// source class, and the class is part of the semantic hash, so the merged rule
+// keeps the strongest class rather than the first one read: collapse produces
+// its groups per class, and "first" would let input order pick the hash. The
+// other fields that can differ at this stage merge as a union (reasons,
+// provenance) or a maximum (expiry), so the result depends only on the set of
+// rules.
 func dedupeRules(input []domain.RouteRule) []domain.RouteRule {
 	byKey := make(map[string]domain.RouteRule, len(input))
 	for _, rule := range input {
 		key := rule.CandidateKey()
 		if prior, ok := byKey[key]; ok {
+			if strongerClass(rule.SourceClass, prior.SourceClass) {
+				prior.SourceClass = rule.SourceClass
+			}
 			prior.ReasonCodes = domain.StableStrings(append(prior.ReasonCodes, rule.ReasonCodes...))
 			prior.ProvenanceRefs = domain.StableStrings(append(prior.ProvenanceRefs, rule.ProvenanceRefs...))
 			if prior.ExpiresAt == nil || (rule.ExpiresAt != nil && rule.ExpiresAt.After(*prior.ExpiresAt)) {

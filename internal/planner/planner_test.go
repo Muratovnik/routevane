@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/netip"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -532,4 +533,62 @@ func resourceFromString(value string) (domain.Resource, error) {
 		return domain.NewAddrResourceFromString(value)
 	}
 	return domain.NewDomainResource(value)
+}
+
+// An operator exclusion is policy over observations: the sighting stays in the
+// plan exactly as stored, while the candidate it would have produced is
+// rejected under its own reason code, whatever class of source offered it.
+func TestOperatorExcludedValuesNeverBecomeRules(t *testing.T) {
+	cutoff := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	sighting := func(resource domain.Resource, class domain.SourceClass, id string) domain.Sighting {
+		return domain.Sighting{
+			ListID: "example", ComponentID: "web", Resource: resource, SourceID: id, SourceClass: class,
+			SourceRevision: "r", FirstSeen: cutoff, LastSeen: cutoff, ValidUntil: cutoff.Add(time.Hour),
+			ObservationCount: 1, Validity: domain.ValidityValid,
+		}
+	}
+	excludedAddr, _ := domain.NewAddrResourceFromString("198.51.100.7")
+	keptAddr, _ := domain.NewAddrResourceFromString("198.51.100.9")
+	excludedNet, _ := domain.NewPrefixResourceFromString("203.0.113.0/24")
+	excludedName, _ := domain.NewDomainResource("cdn.example.net")
+	definition := domain.ListDefinition{
+		ID: "example", CatalogRevision: "c",
+		Components:     []domain.ComponentDefinition{{ID: "web", Required: true}},
+		ExcludedValues: []string{"198.51.100.7", "203.0.113.0/24", "cdn.example.net"},
+	}
+	sightings := []domain.Sighting{
+		sighting(excludedAddr, domain.SourceObserved, "dns"),
+		sighting(keptAddr, domain.SourceObserved, "dns"),
+		sighting(excludedNet, domain.SourceOfficial, "vendor"),
+		sighting(excludedName, domain.SourceCommunity, "feed"),
+	}
+	target := domain.TargetDefinition{
+		ID: "keenetic", FormatKey: "p", RendererID: "r",
+		Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: 1000, MaxArtifactSize: 1 << 20},
+	}
+	plan, err := BuildPlan(definition, sightings, target, cutoff, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if values(plan.Rules) != "198.51.100.9" {
+		t.Fatalf("rules = %v", values(plan.Rules))
+	}
+	rejected := make([]string, 0)
+	for _, excluded := range plan.Excluded {
+		if excluded.Outcome == "rejected" && reflect.DeepEqual(excluded.ReasonCodes, []string{ReasonOperatorExcluded}) {
+			rejected = append(rejected, excluded.Candidate.CanonicalValue())
+		}
+	}
+	sort.Strings(rejected)
+	if strings.Join(rejected, ",") != "198.51.100.7,203.0.113.0/24,cdn.example.net" {
+		t.Fatalf("operator exclusions = %v (excluded = %#v)", rejected, plan.Excluded)
+	}
+	if len(plan.Sightings) != len(sightings) {
+		t.Fatalf("an exclusion removed observations from the plan: %#v", plan.Sightings)
+	}
+	for _, kept := range plan.Sightings {
+		if kept.Validity != domain.ValidityValid {
+			t.Fatalf("an exclusion changed observation validity: %#v", kept)
+		}
+	}
 }
