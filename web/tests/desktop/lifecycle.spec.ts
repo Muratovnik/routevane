@@ -1,7 +1,7 @@
 import { _electron as electron, expect, test } from '@playwright/test'
 import { analyze, axeFor } from '../e2e/support/axe'
 import { spawn } from 'node:child_process'
-import { mkdtemp, mkdir, readFile } from 'node:fs/promises'
+import { copyFile, mkdtemp, mkdir, readFile } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { once } from 'node:events'
 import { isolatedProductEnvironment } from '../e2e/support/environment'
@@ -283,13 +283,29 @@ test('desktop publishes and transfers a reviewed configuration to a fresh instal
     // initiates the real blob download through Electron's download manager.
     // The Electron typings live with the desktop package, so the main-process
     // handle this callback receives is described by what it is asked to do.
-    await app.evaluate(({ session }, path) => {
-      session.defaultSession.once(
-        'will-download',
-        (_event: unknown, item: { setSavePath: (target: string) => void }) =>
-          item.setSavePath(path),
-      )
-    }, saved)
+    const downloaded = await app.evaluateHandle(
+      ({ session }, path) => ({
+        done: new Promise<string>((completed) => {
+          session.defaultSession.once(
+            'will-download',
+            (
+              _event: unknown,
+              item: {
+                setSavePath: (target: string) => void
+                once: (
+                  event: 'done',
+                  listener: (_event: unknown, state: string) => void,
+                ) => void
+              },
+            ) => {
+              item.setSavePath(path)
+              item.once('done', (_event, state) => completed(state))
+            },
+          )
+        }),
+      }),
+      saved,
+    )
     await page.goto('routevane://app/settings')
     await expect(page.getByText(origin, { exact: true })).toBeVisible()
     const runtimeVersion = await page.evaluate(async () => {
@@ -307,15 +323,12 @@ test('desktop publishes and transfers a reviewed configuration to a fresh instal
     await page
       .getByRole('button', { name: 'Download configuration', exact: true })
       .click()
-    await expect
-      .poll(async () => {
-        try {
-          return await readFile(saved, 'utf8')
-        } catch {
-          return ''
-        }
-      })
-      .toContain('Desktop list')
+    expect(await downloaded.evaluate(({ done }) => done)).toBe('completed')
+    await downloaded.dispose()
+    // Keep a completed transfer fixture after its download context closes.
+    const transfer = join(env.ROUTEVANE_DESKTOP_PROFILE, 'transfer.json')
+    await copyFile(saved, transfer)
+    expect(await readFile(transfer, 'utf8')).toContain('Desktop list')
     await app.close()
     const reopened = await start(env)
     try {
@@ -336,7 +349,7 @@ test('desktop publishes and transfers a reviewed configuration to a fresh instal
       await destination.page.goto('routevane://app/settings')
       await destination.page
         .getByLabel('Choose a .json file')
-        .setInputFiles(saved)
+        .setInputFiles(transfer)
       await destination.page
         .getByRole('button', { name: 'Preview transfer' })
         .click()
