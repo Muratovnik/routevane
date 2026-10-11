@@ -149,12 +149,15 @@ func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time
 	if withRelations {
 		plan.Relations = canonicalRelations(input.Relations)
 	}
-	grace := make(map[string]time.Time, len(input.Degraded))
+	grace := make(map[string]DegradedSource, len(input.Degraded))
 	for _, degraded := range input.Degraded {
-		if degraded.SourceID == "" || !degraded.GraceUntil.After(cutoff) {
+		// Without its last success a window has no reported set to keep, and
+		// admitting everything the source ever said would revive what it
+		// withdrew, so such a window admits nothing.
+		if degraded.SourceID == "" || !degraded.GraceUntil.After(cutoff) || degraded.LastSuccessAt.IsZero() {
 			continue
 		}
-		grace[degraded.SourceID] = degraded.GraceUntil.UTC()
+		grace[degraded.SourceID] = DegradedSource{SourceID: degraded.SourceID, GraceUntil: degraded.GraceUntil.UTC(), LastSuccessAt: degraded.LastSuccessAt.UTC()}
 	}
 
 	components := make(map[string]domain.ComponentDefinition, len(def.Components))
@@ -244,7 +247,7 @@ func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time
 			candidate.ReasonCodes = domain.StableStrings(append(candidate.ReasonCodes, ReasonSourceDegraded))
 			// The rule now expires with the grace window, not with the
 			// observation, so downstream staleness checks stay meaningful.
-			graceUntil := grace[sighting.SourceID]
+			graceUntil := grace[sighting.SourceID].GraceUntil
 			candidate.ExpiresAt = &graceUntil
 		}
 		// A target that routes by name does not need the addresses that name
@@ -321,8 +324,9 @@ type ListInput struct {
 	Sightings  []domain.Sighting
 	Relations  []domain.Relation
 	// Degraded lists the sources whose latest cycle failed while an earlier
-	// success is still inside its grace window. The caller owns the window; the
-	// planner owns what a window is allowed to admit.
+	// success is still inside its grace window. The caller owns the window and
+	// names the last success; the planner owns what a window is allowed to
+	// admit.
 	Degraded []DegradedSource
 }
 
@@ -330,17 +334,27 @@ type ListInput struct {
 type DegradedSource struct {
 	SourceID   string
 	GraceUntil time.Time
+	// LastSuccessAt is when the source's last successful cycle observed. A
+	// successful cycle stamps every value it reports with this time, so it
+	// separates what the source still reported from what it withdrew.
+	LastSuccessAt time.Time
 }
 
-// admissibleUnderGrace accepts only an expired-but-retained observation from a
-// source that is inside its grace window. Invalid and archived observations are
-// never revived, so grace cannot resurrect data the retention policy dropped.
-func admissibleUnderGrace(sighting domain.Sighting, grace map[string]time.Time) bool {
+// admissibleUnderGrace accepts only an expired-but-retained observation that
+// the source's last successful cycle reported, while that source is inside its
+// grace window. Grace preserves that cycle's set: a value an earlier cycle
+// reported and the last one withdrew stays expired. Invalid and archived
+// observations are never revived, so grace cannot resurrect data the retention
+// policy dropped.
+func admissibleUnderGrace(sighting domain.Sighting, grace map[string]DegradedSource) bool {
 	if len(grace) == 0 || sighting.Validity != domain.ValidityStale || !sighting.Resource.IsValid() {
 		return false
 	}
-	_, degraded := grace[sighting.SourceID]
-	return degraded
+	degraded, ok := grace[sighting.SourceID]
+	// A successful cycle stamps each value it reports with its own time, and
+	// the store keeps the latest stamp, so a value that cycle reported was
+	// last seen at that time and an older stamp means it was withdrawn.
+	return ok && !sighting.LastSeen.Before(degraded.LastSuccessAt)
 }
 
 // declaredNetwork reports whether a prefix was published as a prefix rather
@@ -718,7 +732,7 @@ func dedupeRules(input []domain.RouteRule) []domain.RouteRule {
 	return out
 }
 
-func buildWarnings(rules []domain.RouteRule, components map[string]domain.ComponentDefinition, listID string, grace map[string]time.Time) []string {
+func buildWarnings(rules []domain.RouteRule, components map[string]domain.ComponentDefinition, listID string, grace map[string]DegradedSource) []string {
 	covered := make(map[string]bool)
 	for _, rule := range rules {
 		if rule.ListID == listID {

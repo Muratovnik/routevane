@@ -80,7 +80,8 @@ an observation can be usable for one target and unnecessary for a domain-capable
 one. Canonical order and semantic hashes exclude incidental IDs, map order and
 wall-clock metadata. DNS addresses never prove ASN/RDAP/network ownership.
 Official source evidence is distinct from community observations. A failed source
-inside its configured grace window can contribute explicitly degraded evidence;
+inside its configured grace window can contribute explicitly degraded evidence,
+limited to what its last successful cycle reported; withdrawn and
 invalid/archived data is not revived
 ([source grace](adr/0006-official-feeds-and-source-grace.md)).
 

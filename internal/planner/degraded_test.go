@@ -38,11 +38,13 @@ func prefixSighting(t *testing.T, value, sourceID string, class domain.SourceCla
 
 func TestGraceKeepsExpiredObservationsRoutableAndMarksThePlanDegraded(t *testing.T) {
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	lastSuccess := now.Add(-2 * time.Hour)
 	expired := addrSighting(t, "192.0.2.7", "dns", domain.SourceObserved, now.Add(-time.Hour), domain.ValidityStale)
+	expired.LastSeen = lastSuccess
 	input := ListInput{
 		Definition: degradedDefinition(),
 		Sightings:  []domain.Sighting{expired},
-		Degraded:   []DegradedSource{{SourceID: "dns", GraceUntil: now.Add(6 * time.Hour)}},
+		Degraded:   []DegradedSource{{SourceID: "dns", GraceUntil: now.Add(6 * time.Hour), LastSuccessAt: lastSuccess}},
 	}
 	plan, err := BuildPlanSet([]ListInput{input}, degradedTarget(), now)
 	if err != nil {
@@ -62,16 +64,62 @@ func TestGraceKeepsExpiredObservationsRoutableAndMarksThePlanDegraded(t *testing
 	}
 }
 
+// A feed listed X and Y, then a later successful read listed only Y, then the
+// feed failed. Grace keeps what the last successful read reported; it must not
+// bring back X, which that read withdrew.
+func TestGraceKeepsOnlyWhatTheLastSuccessfulCycleReported(t *testing.T) {
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	earlierSuccess := now.Add(-26 * time.Hour)
+	lastSuccess := now.Add(-2 * time.Hour)
+	withdrawn := addrSighting(t, "192.0.2.7", "feed", domain.SourceObserved, earlierSuccess.Add(time.Hour), domain.ValidityStale)
+	withdrawn.FirstSeen, withdrawn.LastSeen = earlierSuccess, earlierSuccess
+	reported := addrSighting(t, "192.0.2.8", "feed", domain.SourceObserved, lastSuccess.Add(time.Hour), domain.ValidityStale)
+	reported.FirstSeen, reported.LastSeen = earlierSuccess, lastSuccess
+	graceUntil := lastSuccess.Add(24 * time.Hour)
+	input := ListInput{
+		Definition: degradedDefinition(),
+		Sightings:  []domain.Sighting{withdrawn, reported},
+		Degraded:   []DegradedSource{{SourceID: "feed", GraceUntil: graceUntil, LastSuccessAt: lastSuccess}},
+	}
+	plan, err := BuildPlanSet([]ListInput{input}, degradedTarget(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Rules) != 1 || plan.Rules[0].CanonicalValue() != "192.0.2.8" {
+		t.Fatalf("grace must keep exactly the last successful set: %#v", plan.Rules)
+	}
+	if !contains(plan.Rules[0].ReasonCodes, ReasonSourceDegraded) || plan.Rules[0].ExpiresAt == nil || !plan.Rules[0].ExpiresAt.Equal(graceUntil) {
+		t.Fatalf("the kept value must be marked degraded and expire with the window: %#v", plan.Rules[0])
+	}
+	stale := false
+	for _, excluded := range plan.Excluded {
+		if excluded.Candidate.CanonicalValue() == "192.0.2.7" && contains(excluded.ReasonCodes, ReasonStaleObservation) {
+			stale = true
+		}
+	}
+	if !stale {
+		t.Fatalf("the withdrawn value must be excluded as stale: %#v", plan.Excluded)
+	}
+	if !contains(plan.Warnings, ReasonSourceDegraded+":example:feed") {
+		t.Fatalf("plan is missing the source_degraded warning: %#v", plan.Warnings)
+	}
+}
+
 func TestGraceDoesNotApplyOutsideItsWindowOrToOtherSources(t *testing.T) {
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	lastSuccess := now.Add(-2 * time.Hour)
 	expired := addrSighting(t, "192.0.2.7", "dns", domain.SourceObserved, now.Add(-time.Hour), domain.ValidityStale)
+	expired.LastSeen = lastSuccess
 	fresh := addrSighting(t, "192.0.2.8", "other", domain.SourceObserved, now.Add(time.Hour), domain.ValidityValid)
 	cases := []struct {
 		name     string
 		degraded []DegradedSource
 	}{
-		{"window already closed", []DegradedSource{{SourceID: "dns", GraceUntil: now}}},
-		{"another source is degraded", []DegradedSource{{SourceID: "other", GraceUntil: now.Add(time.Hour)}}},
+		{"window already closed", []DegradedSource{{SourceID: "dns", GraceUntil: now, LastSuccessAt: lastSuccess}}},
+		{"another source is degraded", []DegradedSource{{SourceID: "other", GraceUntil: now.Add(time.Hour), LastSuccessAt: lastSuccess}}},
+		// Without the last success there is no reported set to keep, so the
+		// window admits nothing rather than everything the source ever said.
+		{"last success unknown", []DegradedSource{{SourceID: "dns", GraceUntil: now.Add(time.Hour)}}},
 		{"no degraded source", nil},
 	}
 	for _, testCase := range cases {
@@ -98,11 +146,15 @@ func TestGraceNeverRevivesArchivedOrInvalidObservations(t *testing.T) {
 	fresh := addrSighting(t, "192.0.2.8", "dns", domain.SourceObserved, now.Add(time.Hour), domain.ValidityValid)
 	for _, validity := range []domain.ObservationValidity{domain.ValidityArchived, domain.ValidityInvalid} {
 		t.Run(string(validity), func(t *testing.T) {
+			lastSuccess := now.Add(-2 * time.Hour)
 			retained := addrSighting(t, "192.0.2.7", "dns", domain.SourceObserved, now.Add(-100*24*time.Hour), validity)
+			// Even an observation the last success reported stays dead once
+			// it is archived or invalid.
+			retained.LastSeen = lastSuccess
 			input := ListInput{
 				Definition: degradedDefinition(),
 				Sightings:  []domain.Sighting{retained, fresh},
-				Degraded:   []DegradedSource{{SourceID: "dns", GraceUntil: now.Add(time.Hour)}},
+				Degraded:   []DegradedSource{{SourceID: "dns", GraceUntil: now.Add(time.Hour), LastSuccessAt: lastSuccess}},
 			}
 			plan, err := BuildPlanSet([]ListInput{input}, degradedTarget(), now)
 			if err != nil {
@@ -151,9 +203,11 @@ func TestOfficialFeedPrefixesRouteWhileInferredPrefixesStayQuarantined(t *testin
 
 func TestGracedPlanStaysDeterministicAcrossDegradedOrder(t *testing.T) {
 	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	lastSuccess := now.Add(-2 * time.Hour)
 	first := addrSighting(t, "192.0.2.7", "alpha", domain.SourceObserved, now.Add(-time.Hour), domain.ValidityStale)
 	second := addrSighting(t, "192.0.2.8", "beta", domain.SourceObserved, now.Add(-time.Hour), domain.ValidityStale)
-	window := []DegradedSource{{SourceID: "alpha", GraceUntil: now.Add(time.Hour)}, {SourceID: "beta", GraceUntil: now.Add(time.Hour)}}
+	first.LastSeen, second.LastSeen = lastSuccess, lastSuccess
+	window := []DegradedSource{{SourceID: "alpha", GraceUntil: now.Add(time.Hour), LastSuccessAt: lastSuccess}, {SourceID: "beta", GraceUntil: now.Add(time.Hour), LastSuccessAt: lastSuccess}}
 	reversed := []DegradedSource{window[1], window[0]}
 	definition := degradedDefinition()
 	left, err := BuildPlanSet([]ListInput{{Definition: definition, Sightings: []domain.Sighting{first, second}, Degraded: window}}, degradedTarget(), now)

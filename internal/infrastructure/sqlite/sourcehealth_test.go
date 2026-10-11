@@ -144,6 +144,48 @@ func TestPlanningSnapshotSeparatesHealthPerSourceRevision(t *testing.T) {
 	}
 }
 
+// Grace keeps a stale value only when its last observation is the source's last
+// successful cycle. That comparison needs the stored sighting time and the
+// stored cycle time to read back as the same instant, sub-second part included.
+func TestPlanningSnapshotSightingTimeMatchesItsSuccessfulCycle(t *testing.T) {
+	root := newDataRoot(t)
+	store, err := Open(context.Background(), root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	observedAt := time.Date(2026, 8, 21, 12, 0, 0, 123456789, time.FixedZone("UTC+3", 3*60*60))
+	resource, err := domain.NewAddrResourceFromString("192.0.2.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profileJSON, err := json.Marshal(domain.RawJSONTargetDefinition())
+	if err != nil {
+		t.Fatal(err)
+	}
+	format := FormatRecord{FormatKey: "raw-v1", ListID: "example", TargetID: "raw-json", RendererID: "raw-json", CatalogRevision: strings.Repeat("a", 64), ConfigJSON: profileJSON, UpdatedAt: observedAt}
+	sighting := domain.Sighting{ListID: "example", ComponentID: "web", Resource: resource, SourceID: "official-feed", SourceClass: domain.SourceOfficial, SourceRevision: "r1", FirstSeen: observedAt, LastSeen: observedAt, ValidUntil: observedAt.Add(time.Hour), ObservationCount: 1, Validity: domain.ValidityValid}
+	if err := store.ApplySuccess(context.Background(), SuccessCycle{ListID: "example", SourceID: "official-feed", SourceRevision: "r1", StartedAt: observedAt, CompletedAt: observedAt, Sightings: []domain.Sighting{sighting}, Format: &format}); err != nil {
+		t.Fatal(err)
+	}
+	failedAt := observedAt.Add(2 * time.Hour)
+	if err := store.RecordFailure(context.Background(), FailureCycle{ListID: "example", SourceID: "official-feed", SourceRevision: "r1", StartedAt: failedAt, CompletedAt: failedAt, ErrorCode: "http_feed_failed"}); err != nil {
+		t.Fatal(err)
+	}
+	active := map[string]string{"official-feed": "r1"}
+	snapshot, err := store.ReadPlanningSnapshot(context.Background(), "example", active, "raw-v1", failedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	degraded := application.DegradedSources(snapshot.SourceHealth, active, failedAt)
+	if len(degraded) != 1 || len(snapshot.Sightings) != 1 {
+		t.Fatalf("degraded = %#v sightings = %#v", degraded, snapshot.Sightings)
+	}
+	if !snapshot.Sightings[0].LastSeen.Equal(degraded[0].LastSuccessAt) || !degraded[0].LastSuccessAt.Equal(observedAt) {
+		t.Fatalf("stored sighting %v and its cycle %v disagree", snapshot.Sightings[0].LastSeen, degraded[0].LastSuccessAt)
+	}
+}
+
 func healthByID(t *testing.T, states []SourceRunState) map[string]SourceRunState {
 	t.Helper()
 	result := make(map[string]SourceRunState, len(states))

@@ -106,12 +106,16 @@ func (s SourceRunState) LastRunFailed() bool {
 }
 
 // DegradedSources selects the sources whose latest cycle failed while their last
-// success is still inside the grace window. The result is sorted by source id so
-// the planner stays deterministic.
+// success is still inside the grace window, and names that success so the
+// planner can keep exactly what it reported. The result is sorted by source id
+// so the planner stays deterministic.
 func DegradedSources(health []SourceRunState, activeRevisions map[string]string, cutoff time.Time) []planner.DegradedSource {
 	// One source id can have rows for several revisions. The longest surviving
 	// grace window wins so a revision change cannot shorten an active window.
-	windows := make(map[string]time.Time, len(health))
+	// The window is measured from the last success, so the winning row's
+	// success is also the latest one: it is the cycle whose reported set the
+	// window preserves, and the two are carried together.
+	windows := make(map[string]planner.DegradedSource, len(health))
 	for _, state := range health {
 		if state.SourceID == "" || state.LastSuccessAt.IsZero() || !state.LastRunFailed() {
 			continue
@@ -121,18 +125,19 @@ func DegradedSources(health []SourceRunState, activeRevisions map[string]string,
 				continue
 			}
 		}
-		graceUntil := state.LastSuccessAt.UTC().Add(SourceGracePeriod)
+		lastSuccessAt := state.LastSuccessAt.UTC()
+		graceUntil := lastSuccessAt.Add(SourceGracePeriod)
 		if !graceUntil.After(cutoff.UTC()) {
 			continue
 		}
-		if existing, ok := windows[state.SourceID]; !ok || existing.Before(graceUntil) {
-			windows[state.SourceID] = graceUntil
+		if existing, ok := windows[state.SourceID]; !ok || existing.GraceUntil.Before(graceUntil) {
+			windows[state.SourceID] = planner.DegradedSource{SourceID: state.SourceID, GraceUntil: graceUntil, LastSuccessAt: lastSuccessAt}
 		}
 	}
 	ids := slices.Sorted(maps.Keys(windows))
 	degraded := make([]planner.DegradedSource, 0, len(ids))
 	for _, id := range ids {
-		degraded = append(degraded, planner.DegradedSource{SourceID: id, GraceUntil: windows[id]})
+		degraded = append(degraded, windows[id])
 	}
 	return degraded
 }

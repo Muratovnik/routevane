@@ -79,3 +79,65 @@ func TestDisablingAFailedSourcePreservesTheActiveSourcesGraceWindow(t *testing.T
 		t.Fatalf("active DNS grace and disabled feed were not separated: status=%d body=%s", payload.status, payload.body)
 	}
 }
+
+// A feed listed two ranges, a later successful read listed only one, and then
+// the feed failed inside its grace window. The degraded build keeps the range
+// the last successful read reported and must not bring back the one it
+// withdrew.
+func TestSourceGraceDoesNotReviveAValueTheLastSuccessfulReadWithdrew(t *testing.T) {
+	catalog := filepath.Join("..", "..", "testdata", "two-formats", "catalog")
+	data := filepath.Join(t.TempDir(), "data")
+	clock := &publicationTestClock{now: time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)}
+	const kept, withdrawn = "198.51.100.0", "203.0.113.0"
+	var feedBody atomic.Value
+	feedBody.Store(kept + "/24\n" + withdrawn + "/24\n")
+	var feedHealthy atomic.Bool
+	feedHealthy.Store(true)
+	feed := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if !feedHealthy.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		_, _ = w.Write([]byte(feedBody.Load().(string)))
+	}))
+	defer feed.Close()
+	pool := x509.NewCertPool()
+	pool.AddCert(feed.Certificate())
+	resolver := &hostAddressResolver{}
+	resolver.set(map[string][]string{"youtube.two-formats.test": {"192.0.2.10"}})
+	origin, cancel, done, stderr := startServeServerWithFeed(t, catalog, data, resolver, clock.read, pool, feed.Listener.Addr().String())
+	defer func() {
+		cancel()
+		if code := <-done; code != 0 {
+			t.Fatalf("server code=%d stderr=%s", code, stderr.String())
+		}
+	}()
+	profileID, outputID, _ := createProfileOutput(t, origin, "Withdrawn", "keenetic", "youtube")
+
+	first := downloadArtifact(t, origin, guardedRefreshAndBuild(t, origin, profileID, outputID).Artifact.ID)
+	if !strings.Contains(string(first.body), kept) || !strings.Contains(string(first.body), withdrawn) {
+		t.Fatalf("the first read must publish both ranges: %s", first.body)
+	}
+
+	feedBody.Store(kept + "/24\n")
+	clock.set(clock.read().Add(feedValidity + time.Minute))
+	second := downloadArtifact(t, origin, guardedRefreshAndBuild(t, origin, profileID, outputID).Artifact.ID)
+	if !strings.Contains(string(second.body), kept) || strings.Contains(string(second.body), withdrawn) {
+		t.Fatalf("a successful read must drop the range it no longer lists: %s", second.body)
+	}
+
+	feedHealthy.Store(false)
+	clock.set(clock.read().Add(feedValidity + time.Minute))
+	degradedBuild := guardedRefreshAndBuild(t, origin, profileID, outputID)
+	if !reflect.DeepEqual(degradedBuild.Summary.DegradedSources, []string{"official-ranges"}) {
+		t.Fatalf("degraded sources = %#v", degradedBuild.Summary.DegradedSources)
+	}
+	degraded := downloadArtifact(t, origin, degradedBuild.Artifact.ID)
+	if keenetic.Validate(degraded.body) != nil || !strings.Contains(string(degraded.body), kept) || !strings.Contains(string(degraded.body), "192.0.2.10") {
+		t.Fatalf("grace must keep the last successful read and the healthy source: %s", degraded.body)
+	}
+	if strings.Contains(string(degraded.body), withdrawn) {
+		t.Fatalf("grace revived a range the last successful read withdrew: %s", degraded.body)
+	}
+}

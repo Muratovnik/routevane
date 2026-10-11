@@ -4,6 +4,10 @@ status: adopted
 
 # ADR 0006: official network feeds, destination policy, and source grace
 
+> Current scope: the source grace clause was amended in place to keep only the
+> set the source's last successful cycle reported. The note in that clause
+> records the original wording.
+
 ## Context
 
 Milestone 5 adds a second real source. A network feed differs from DNS in three
@@ -53,11 +57,19 @@ a transient outage into a broken artifact.
   `shared_cdn_or_cloud`, because a shared CDN range is not service specific.
 - Source health is read in the same transaction as the observations it explains.
   A source whose latest cycle failed while its previous success is still inside
-  `SourceGracePeriod` is degraded: its expired observations stay routable, each
-  such rule carries `source_degraded` and expires with the grace window, and the
-  plan carries a `source_degraded:<service>:<source>` warning. Grace never
-  revives an archived or invalid observation, so it cannot resurrect data the
+  `SourceGracePeriod` is degraded: the expired observations that its last
+  successful cycle reported stay routable, each such rule carries
+  `source_degraded` and expires with the grace window, and the plan carries a
+  `source_degraded:<service>:<source>` warning. A value an earlier cycle
+  reported and the last successful one no longer listed is withdrawn, and grace
+  does not bring it back. A successful cycle stamps every value it reports with
+  its own time, so the planner tells the two apart by comparing an
+  observation's last-seen time with that cycle's time. Grace never revives an
+  archived or invalid observation either, so it cannot resurrect data the
   retention policy dropped.
+  *(As first adopted, this clause kept every expired observation of a degraded
+  source. That brought back values the feed had withdrawn, and DNS addresses
+  rotated out of an answer, while the source was failing.)*
 - Lossless collapse now carries the union of the merged rules' reason codes and
   their latest expiry instead of rebuilding a fixed reason. A collapse that
   dropped `source_degraded` would have changed policy silently.
@@ -74,9 +86,12 @@ the trade this decision accepts; a future milestone that needs it must add an
 explicit, narrowly named local-feed permission rather than widening this policy.
 
 Grace changes what a published artifact means: a route may outlive its
-observation by up to the grace window. The reason code and the plan warning are
-what keep that visible, so removing either would make the artifact dishonest.
-The window is a source-level decision because feeds carry no per-entry TTL.
+observation by up to the grace window. It preserves the set the source last
+reported successfully, not everything the source ever reported, so an outage
+never republishes a value the source had already withdrawn. The reason code and
+the plan warning are what keep that visible, so removing either would make the
+artifact dishonest. The window is a source-level decision because feeds carry
+no per-entry TTL.
 
 Accepting official prefixes as routes makes the artifact considerably larger for
 services that publish wide ranges. The target rule limit, not the feed, is what

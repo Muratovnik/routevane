@@ -26,6 +26,10 @@ This file starts at the first published version, 0.1.0.
   forecasts even when a feed or DNS observation supplied it; the plan records
   it as rejected with `operator_excluded`. Previously only catalog values were
   removed.
+- While a feed or DNS source is failing inside its grace window, builds keep
+  only what its last successful read reported. Previously they could bring back
+  a value that read had already withdrawn, such as a range removed from a feed
+  or an address rotated out of a DNS answer.
 - Refreshing a profile with many lists no longer fails at the 20-second screen
   budget; the route has its own five-minute budget.
 - Plans are deterministic when two source classes produce the same address or

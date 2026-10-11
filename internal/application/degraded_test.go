@@ -32,6 +32,11 @@ func TestDegradedSourcesSelectsOnlyFailingSourcesInsideTheGraceWindow(t *testing
 	if !degraded[0].GraceUntil.Equal(now.Add(-2 * time.Hour).Add(SourceGracePeriod)) {
 		t.Fatalf("grace window = %v", degraded[0].GraceUntil)
 	}
+	// The planner keeps only what this success reported, so it must be the
+	// same success that opened the window.
+	if !degraded[0].LastSuccessAt.Equal(now.Add(-2 * time.Hour)) {
+		t.Fatalf("last success = %v", degraded[0].LastSuccessAt)
+	}
 }
 
 func TestDegradedSourcesAnEmptyActiveSetExcludesStoredHealth(t *testing.T) {
@@ -59,6 +64,9 @@ func TestDegradedSourcesIsSortedAndKeepsTheLongestWindowPerSource(t *testing.T) 
 	}
 	if !degraded[0].GraceUntil.Equal(now.Add(-time.Hour).Add(SourceGracePeriod)) {
 		t.Fatalf("a revision change must not shorten an active window: %v", degraded[0].GraceUntil)
+	}
+	if !degraded[0].LastSuccessAt.Equal(now.Add(-time.Hour)) || !degraded[1].LastSuccessAt.Equal(now.Add(-3*time.Hour)) {
+		t.Fatalf("each window must carry the success that opened it: %#v", degraded)
 	}
 }
 
