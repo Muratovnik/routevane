@@ -27,20 +27,31 @@ var excludedDestinations = []netip.Prefix{
 	netip.MustParsePrefix("192.0.0.0/24"),
 	netip.MustParsePrefix("192.168.0.0/16"),
 	netip.MustParsePrefix("224.0.0.0/4"),
-	netip.MustParsePrefix("255.255.255.255/32"),
+	netip.MustParsePrefix("240.0.0.0/4"),
 	netip.MustParsePrefix("::/128"),
 	netip.MustParsePrefix("::1/128"),
 	// Retain the existing conservative NAT64-family boundary, including
 	// 64:ff9b:1::/48, as well as Teredo and 6to4 transition destinations.
 	netip.MustParsePrefix("64:ff9b::/32"),
+	// IANA's discard-only and dummy prefixes never identify an internet host.
+	netip.MustParsePrefix("100::/64"),
+	netip.MustParsePrefix("100:0:0:1::/64"),
 	netip.MustParsePrefix("2001::/32"),
+	netip.MustParsePrefix("2001:10::/28"),
 	netip.MustParsePrefix("2002::/16"),
+	// SRv6 SIDs belong to an administrative domain (RFC 9602).
+	netip.MustParsePrefix("5f00::/16"),
 	netip.MustParsePrefix("fc00::/7"),
 	netip.MustParsePrefix("fe80::/10"),
+	// Deprecated site-local addresses can still reach a local host (RFC 3879).
+	netip.MustParsePrefix("fec0::/10"),
 	netip.MustParsePrefix("ff00::/8"),
 }
 
-var benchmarking = netip.MustParsePrefix("198.18.0.0/15")
+var benchmarking = []netip.Prefix{
+	netip.MustParsePrefix("198.18.0.0/15"),
+	netip.MustParsePrefix("2001:2::/48"),
+}
 
 // PublicUnicast reports whether one resolved address may be contacted.
 //
@@ -52,7 +63,16 @@ var benchmarking = netip.MustParsePrefix("198.18.0.0/15")
 // boundary, and tests need an address class that is neither local nor a real
 // internet host.
 func PublicUnicast(address netip.Addr) bool {
-	return RoutableDestination(address) && !benchmarking.Contains(address.WithZone("").Unmap())
+	if !RoutableDestination(address) {
+		return false
+	}
+	address = address.WithZone("").Unmap()
+	for _, prefix := range benchmarking {
+		if prefix.Contains(address) {
+			return false
+		}
+	}
+	return true
 }
 
 // RoutableDestination reports whether one address may appear in a routing plan
@@ -60,7 +80,7 @@ func PublicUnicast(address netip.Addr) bool {
 //
 // This is a different question from PublicUnicast, which asks whether Routevane
 // itself may open a connection. A plan is data about destinations, so the answer
-// differs in exactly one range: RFC 2544 benchmarking space is allowed here.
+// differs for the RFC 2544 and RFC 5180 benchmarking ranges, allowed here.
 // Steering it reaches nobody and costs nothing, and refusing it would only make
 // it unusable as a synthetic destination — the same reason PublicUnicast keeps
 // documentation ranges allowed.

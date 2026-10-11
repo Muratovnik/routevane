@@ -100,7 +100,10 @@ func preflightPlan(plan domain.RoutingPlan, target domain.TargetDefinition, rend
 		}
 	}
 	projectedRuleCount, err := renderer.ProjectedRuleCount(cloneRoutingPlan(plan))
-	if err != nil || projectedRuleCount < 0 {
+	if err != nil {
+		return fmt.Errorf("%w: invalid renderer projection: %w", ErrPreflight, err)
+	}
+	if projectedRuleCount < 0 {
 		return fmt.Errorf("%w: invalid renderer projection", ErrPreflight)
 	}
 	if enforceRuleLimit && target.Constraints.MaxRules > 0 && projectedRuleCount > target.Constraints.MaxRules {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
 import { defineComponent, h } from 'vue'
@@ -89,7 +89,14 @@ describe('RvMenu', () => {
     const group = screen.getByRole('menuitem', { name: 'Скачать' })
     await expect.element(group).toHaveAttribute('aria-haspopup', 'menu')
 
-    await group.click()
+    // Enter by keyboard so the pointer's delayed hover opener is not still
+    // queued when ArrowLeft closes the group. Verify focus before each step.
+    await userEvent.keyboard('{End}')
+    await expect.element(group).toHaveFocus()
+    await userEvent.keyboard('{ArrowRight}')
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'JSON · все правила' }))
+      .toHaveFocus()
 
     // The submenu is its own panel; the menu that opened it is still standing.
     await expect
@@ -99,8 +106,8 @@ describe('RvMenu', () => {
 
     // Leaving the group closes only the group: the keyboard walks into the
     // submenu and back out of it, and the menu behind is still standing.
-    await userEvent.keyboard('{ArrowRight}')
     await userEvent.keyboard('{ArrowLeft}')
+    await expect.element(group).toHaveFocus()
     await expect
       .element(screen.getByRole('menuitem', { name: 'JSON · все правила' }))
       .not.toBeInTheDocument()
@@ -113,6 +120,130 @@ describe('RvMenu', () => {
     await group.click()
     await screen.getByRole('menuitem', { name: 'JSON · все правила' }).click()
     expect(screen.emitted('select')).toEqual([['json']])
+  })
+
+  it('keeps a pointer-opened group closed after ArrowLeft until new input', async () => {
+    const screen = await renderMenu({
+      items: [
+        { key: 'open', label: 'Open' },
+        {
+          key: 'download',
+          label: 'Download',
+          children: [{ key: 'json', label: 'JSON' }],
+        },
+      ],
+      label: 'Actions',
+    })
+    await screen.getByRole('button', { name: 'Actions' }).click()
+    const group = screen.getByRole('menuitem', { name: 'Download' })
+    const choice = screen.getByRole('menuitem', { name: 'JSON' })
+
+    // A native click first moves the pointer over the trigger. Hold that hover
+    // timer until the keyboard has closed the group, then run pending work.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      await group.click()
+      await userEvent.keyboard('{ArrowRight}')
+      await expect.element(choice).toHaveFocus()
+      await userEvent.keyboard('{ArrowLeft}')
+      await expect.element(group).toHaveFocus()
+      await expect.element(group).toHaveAttribute('aria-expanded', 'false')
+
+      await vi.runOnlyPendingTimersAsync()
+
+      await expect.element(choice).not.toBeInTheDocument()
+      await expect.element(group).toHaveAttribute('aria-expanded', 'false')
+      await expect
+        .element(hidden('Actions'))
+        .toHaveAttribute('aria-expanded', 'true')
+
+      // A new keyboard command and a fresh hover can still reopen the group.
+      await userEvent.keyboard('{ArrowRight}')
+      await expect.element(choice).toHaveFocus()
+      await userEvent.keyboard('{ArrowLeft}')
+      await expect.element(group).toHaveFocus()
+      await expect.element(choice).not.toBeInTheDocument()
+
+      await screen.getByRole('menuitem', { name: 'Open', exact: true }).hover()
+      await group.hover()
+      await vi.runOnlyPendingTimersAsync()
+      await expect.element(choice).toBeVisible()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps hover, disabled groups and reopening independent across groups', async () => {
+    const screen = await renderMenu({
+      items: [
+        {
+          key: 'files',
+          label: 'Files',
+          children: [{ key: 'json', label: 'JSON' }],
+        },
+        {
+          key: 'routes',
+          label: 'Routes',
+          children: [{ key: 'bat', label: 'BAT' }],
+        },
+        {
+          key: 'blocked',
+          label: 'Unavailable',
+          disabled: true,
+          children: [{ key: 'blocked-child', label: 'Unavailable child' }],
+        },
+      ],
+      label: 'Actions',
+    })
+    const trigger = screen.getByRole('button', { name: 'Actions' })
+    const files = screen.getByRole('menuitem', { name: 'Files' })
+    const routes = screen.getByRole('menuitem', { name: 'Routes' })
+    await trigger.click()
+
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      await files.hover()
+      await vi.runOnlyPendingTimersAsync()
+      await expect
+        .element(screen.getByRole('menuitem', { name: 'JSON' }))
+        .toBeVisible()
+
+      await routes.hover()
+      await vi.runOnlyPendingTimersAsync()
+      await expect
+        .element(screen.getByRole('menuitem', { name: 'JSON' }))
+        .not.toBeInTheDocument()
+      await expect
+        .element(screen.getByRole('menuitem', { name: 'BAT' }))
+        .toBeVisible()
+
+      await screen
+        .getByRole('menuitem', { name: 'Unavailable', exact: true })
+        .hover()
+      await vi.runOnlyPendingTimersAsync()
+      await expect
+        .element(screen.getByRole('menuitem', { name: 'Unavailable child' }))
+        .not.toBeInTheDocument()
+
+      await routes.click()
+      await userEvent.keyboard('{ArrowRight}')
+      await expect
+        .element(screen.getByRole('menuitem', { name: 'BAT' }))
+        .toHaveFocus()
+      await userEvent.keyboard('{Escape}')
+      await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
+      await vi.runOnlyPendingTimersAsync()
+    } finally {
+      vi.useRealTimers()
+    }
+
+    await trigger.click()
+    await expect.element(panels().first()).toBeVisible()
+    expect(panels().all()).toHaveLength(1)
+    await routes.click()
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'BAT' }))
+      .toBeVisible()
   })
 
   // Escape is the keyboard's way out, and the way out has to land somewhere:

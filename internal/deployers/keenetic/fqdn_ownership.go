@@ -13,29 +13,42 @@ import (
 
 type fqdnRoute struct {
 	Interface               string
+	Gateway                 string
 	Auto, Reject, Ambiguous bool
 }
 
+type fqdnGroup struct {
+	Entries     []string
+	Description string
+	Excluded    bool
+}
+
 // observedGroups includes foreign objects so a collision cannot look absent.
-func (s *session) observedGroups(ctx context.Context) (map[string][]string, map[string]fqdnRoute, error) {
+func (s *session) observedGroups(ctx context.Context) (map[string]fqdnGroup, map[string]fqdnRoute, error) {
 	var configured map[string]struct {
-		Include []struct {
+		Description string `json:"description"`
+		Include     []struct {
 			Address string `json:"address"`
 		} `json:"include"`
+		Exclude []struct {
+			Address string `json:"address"`
+		} `json:"exclude"`
 	}
 	if err := s.command(ctx, "/rci/object-group/fqdn", nil, &configured); err != nil {
 		return nil, nil, err
 	}
-	groups := make(map[string][]string, len(configured))
+	groups := make(map[string]fqdnGroup, len(configured))
 	for name, group := range configured {
-		groups[name] = nil
+		state := fqdnGroup{Description: group.Description, Excluded: len(group.Exclude) > 0}
 		for _, entry := range group.Include {
-			groups[name] = append(groups[name], entry.Address)
+			state.Entries = append(state.Entries, entry.Address)
 		}
+		groups[name] = state
 	}
 	var attached []struct {
 		Group     string `json:"group"`
 		Interface string `json:"interface"`
+		Gateway   string `json:"gateway"`
 		Auto      bool   `json:"auto"`
 		Reject    bool   `json:"reject"`
 	}
@@ -44,7 +57,7 @@ func (s *session) observedGroups(ctx context.Context) (map[string][]string, map[
 	}
 	routes := make(map[string]fqdnRoute, len(attached))
 	for _, route := range attached {
-		next := fqdnRoute{Interface: route.Interface, Auto: route.Auto, Reject: route.Reject}
+		next := fqdnRoute{Interface: route.Interface, Gateway: route.Gateway, Auto: route.Auto, Reject: route.Reject}
 		if previous, exists := routes[route.Group]; exists && previous != next {
 			next.Ambiguous = true
 		}
@@ -53,12 +66,12 @@ func (s *session) observedGroups(ctx context.Context) (map[string][]string, map[
 	return groups, routes, nil
 }
 
-func scopedGroups(artifact application.DeployArtifact, wanted, existing map[string][]string, routes map[string]fqdnRoute, beforeWrite bool) (map[string][]string, map[string]fqdnRoute, error) {
+func scopedGroups(artifact application.DeployArtifact, wanted, existing map[string]fqdnGroup, routes map[string]fqdnRoute, beforeWrite bool) (map[string]fqdnGroup, map[string]fqdnRoute, error) {
 	owned := map[string]bool{}
 	for _, group := range artifact.OwnedFQDNGroups {
 		owned[group.Name] = true
 	}
-	groups := map[string][]string{}
+	groups := map[string]fqdnGroup{}
 	attached := map[string]fqdnRoute{}
 	newCount := len(existing)
 	for name := range wanted {
@@ -71,10 +84,18 @@ func scopedGroups(artifact application.DeployArtifact, wanted, existing map[stri
 			newCount++
 		}
 	}
-	for name, entries := range existing {
+	for name, group := range existing {
 		_, desired := wanted[name]
 		if owned[name] || desired {
-			groups[name] = entries
+			if !keeneticdns.ValidGroupName(name) || group.Excluded {
+				return nil, nil, fmt.Errorf("%w: unsupported FQDN group %q", ErrDeviceAnswer, name)
+			}
+			for _, entry := range group.Entries {
+				if !keeneticdns.ValidEntry(entry) {
+					return nil, nil, fmt.Errorf("%w: invalid entry in FQDN group %q", ErrDeviceAnswer, name)
+				}
+			}
+			groups[name] = group
 		}
 		if owned[name] && !desired {
 			newCount--
@@ -88,7 +109,7 @@ func scopedGroups(artifact application.DeployArtifact, wanted, existing map[stri
 		if !owned[name] && !desired {
 			continue
 		}
-		if route.Reject || route.Interface == "" || route.Ambiguous {
+		if !keeneticdns.ValidGroupName(name) || route.Reject || !validInterfaceWord(route.Interface) || route.Gateway != "" || route.Ambiguous {
 			return nil, nil, fmt.Errorf("%w: unsupported route for group %q", ErrDeviceAnswer, name)
 		}
 		attached[name] = route
@@ -111,12 +132,16 @@ func (d *FQDNDeployer) DesiredFQDNGroups(device application.DeviceInfo, artifact
 	}
 	result := make([]application.ManagedFQDNGroup, 0, len(wanted))
 	for _, name := range sortedNames(wanted) {
-		result = append(result, application.ManagedFQDNGroup{Name: name, Entries: wanted[name], Interface: device.Interface, Auto: true})
+		group := wanted[name]
+		result = append(result, application.ManagedFQDNGroup{Name: name, Entries: group.Entries, Description: group.Description, Interface: device.Interface, Auto: true})
 	}
 	return result, nil
 }
 
 func (d *FQDNDeployer) PreviewFQDNGroups(ctx context.Context, device application.DeviceInfo, connection application.Connection, artifact application.DeployArtifact) ([]string, error) {
+	if !validInterfaceWord(device.Interface) {
+		return nil, fmt.Errorf("%w: invalid FQDN interface", ErrDeviceAnswer)
+	}
 	wanted, err := artifactGroups(artifact)
 	if err != nil {
 		return nil, err
@@ -135,4 +160,18 @@ func (d *FQDNDeployer) PreviewFQDNGroups(ctx context.Context, device application
 		return nil, err
 	}
 	return reconcileGroups(wanted, existing, routes, device.Interface), nil
+}
+
+// The parse endpoint accepts CLI words, not interface descriptions. Native
+// interface IDs include forms such as Wireguard0 and GigabitEthernet0/Vlan7.
+func validInterfaceWord(value string) bool {
+	if value == "" || len(value) > 128 {
+		return false
+	}
+	for _, char := range value {
+		if !(char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' || char == '/' || char == '.' || char == '-' || char == '_') {
+			return false
+		}
+	}
+	return true
 }

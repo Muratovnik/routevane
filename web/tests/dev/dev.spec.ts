@@ -255,7 +255,7 @@ const draft = ref('')
     .toContain('[dev] Ready:')
 
   const health = await request.get(`${origin}/health`)
-  expect(await health.json()).toEqual({ status: 'ok' })
+  expect(await health.json()).toEqual({ status: 'ok', version: 'dev' })
   expect(health.headers()['access-control-allow-origin']).toBeUndefined()
   expect((await request.get(`${origin}/v1/lists`)).ok()).toBe(true)
   const headers = { Origin: origin, 'X-Routevane-Request': '1' }

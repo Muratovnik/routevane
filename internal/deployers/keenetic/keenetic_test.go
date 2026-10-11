@@ -51,10 +51,11 @@ type deviceDouble struct {
 	// fqdn is the device's FQDN object groups and dnsRoutes the dns-proxy
 	// routes pointing at them. They are the second artifact format's state and
 	// live beside the route table because it is one device.
-	fqdn      map[string][]string
-	dnsRoutes map[string]string
-	dnsAuto   map[string]bool
-	config    []byte
+	fqdn             map[string][]string
+	fqdnDescriptions map[string]string
+	dnsRoutes        map[string]string
+	dnsAuto          map[string]bool
+	config           []byte
 
 	authenticated bool
 	deployCalls   int
@@ -100,6 +101,16 @@ func (d *deviceDouble) applyLine(line string) map[string]any {
 		}
 		d.fqdn[fields[2]] = append(group, fields[4])
 		return accept
+	case len(fields) >= 5 && fields[0] == "object-group" && fields[1] == "fqdn" && fields[3] == "description":
+		if _, exists := d.fqdn[fields[2]]; !exists {
+			return refuse("objectGroup.missing", "no such group")
+		}
+		_, quoted, _ := strings.Cut(line, " description ")
+		if len(quoted) < 2 || quoted[0] != '"' || quoted[len(quoted)-1] != '"' || strings.ContainsAny(quoted[1:len(quoted)-1], "\"\\\r\n") {
+			return refuse("description.invalid", "invalid quoted description")
+		}
+		d.fqdnDescriptions[fields[2]] = quoted[1 : len(quoted)-1]
+		return accept
 	case len(fields) == 4 && fields[0] == "no" && fields[1] == "object-group" && fields[2] == "fqdn":
 		// A group a route still points at cannot be removed. This refusal is
 		// why the deployer withdraws routes first.
@@ -107,6 +118,7 @@ func (d *deviceDouble) applyLine(line string) map[string]any {
 			return refuse("objectGroup.inUse", "group is in use by dns-proxy")
 		}
 		delete(d.fqdn, fields[3])
+		delete(d.fqdnDescriptions, fields[3])
 		return accept
 	case len(fields) == 6 && fields[0] == "no" && fields[1] == "object-group" && fields[2] == "fqdn" && fields[4] == "include":
 		kept := make([]string, 0, len(d.fqdn[fields[3]]))
@@ -141,7 +153,7 @@ func (d *deviceDouble) fqdnList() map[string]any {
 		for _, entry := range entries {
 			include = append(include, map[string]any{"address": entry})
 		}
-		groups[name] = map[string]any{"include": include}
+		groups[name] = map[string]any{"include": include, "description": d.fqdnDescriptions[name]}
 	}
 	return groups
 }
@@ -187,11 +199,12 @@ func (d *deviceDouble) commandLog() []string {
 
 func newDeviceDouble(firmware string) *deviceDouble {
 	return &deviceDouble{
-		firmware:  firmware,
-		routes:    map[string]string{},
-		comments:  map[string]string{},
-		fqdn:      map[string][]string{},
-		dnsRoutes: map[string]string{}, dnsAuto: map[string]bool{},
+		firmware:         firmware,
+		routes:           map[string]string{},
+		comments:         map[string]string{},
+		fqdn:             map[string][]string{},
+		fqdnDescriptions: map[string]string{},
+		dnsRoutes:        map[string]string{}, dnsAuto: map[string]bool{},
 		config: []byte("! Keenetic startup-config\nsystem hostname router\n"),
 	}
 }
@@ -248,7 +261,7 @@ func (d *deviceDouble) handler() http.Handler {
 			writeJSON(w, d.dnsRouteList())
 		case r.URL.Path == "/ci/startup-config" && r.Method == http.MethodGet:
 			d.mu.Lock()
-			state, _ := json.Marshal(deviceConfiguration{Routes: d.routes, Comments: d.comments, Groups: d.fqdn, DNSRoutes: d.dnsRoutes, Auto: d.dnsAuto})
+			state, _ := json.Marshal(deviceConfiguration{Routes: d.routes, Comments: d.comments, Groups: d.fqdn, Descriptions: d.fqdnDescriptions, DNSRoutes: d.dnsRoutes, Auto: d.dnsAuto})
 			config := append(append([]byte(nil), d.config...), append([]byte("! fixture-state "), state...)...)
 			d.mu.Unlock()
 			w.Header().Set("Content-Type", "text/plain")
@@ -263,6 +276,7 @@ func (d *deviceDouble) handler() http.Handler {
 			d.routes = map[string]string{}
 			d.comments = map[string]string{}
 			d.fqdn = map[string][]string{}
+			d.fqdnDescriptions = map[string]string{}
 			d.dnsRoutes = map[string]string{}
 			d.dnsAuto = map[string]bool{}
 			if found {
@@ -275,6 +289,7 @@ func (d *deviceDouble) handler() http.Handler {
 				d.routes = restored.Routes
 				d.comments = restored.Comments
 				d.fqdn = restored.Groups
+				d.fqdnDescriptions = restored.Descriptions
 				d.dnsRoutes = restored.DNSRoutes
 				d.dnsAuto = restored.Auto
 			}
@@ -355,6 +370,7 @@ func (d *deviceDouble) applyBatch(w http.ResponseWriter, r *http.Request) {
 type deviceConfiguration struct {
 	Routes, Comments map[string]string
 	Groups           map[string][]string
+	Descriptions     map[string]string
 	DNSRoutes        map[string]string
 	Auto             map[string]bool
 }

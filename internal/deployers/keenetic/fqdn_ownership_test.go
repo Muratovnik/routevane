@@ -184,3 +184,68 @@ func TestFQDNPartialDeviceFailureRestoresAndCanRetry(t *testing.T) {
 		t.Fatalf("retry=%#v %v", result, err)
 	}
 }
+
+// Existing immutable include-only artifacts remain valid. A new build labels
+// the exact owned object in place; its title is verified and included in recovery.
+func TestFQDNDescriptionUpdatesOwnedLegacyGroupAndRollsBackWithItsLedger(t *testing.T) {
+	f := newFQDNFixture(t, "5.1.2")
+	ledger := &fqdnLedger{states: map[string]application.ManagedFQDNOwnership{}}
+	id := strings.Repeat("1", 32)
+	current := outputFQDNArtifact(t, id, "", "claude", "claude.ai")
+	current.Payload = []byte(strings.ReplaceAll(string(current.Payload), `description "claude"`, `description "Claude"`))
+	parsed, err := keeneticdns.Parse(current.Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	name := parsed[0].Name
+	legacy := current
+	legacy.Payload = []byte("object-group fqdn " + name + " include claude.ai\n")
+	f.device.fqdn["manual"] = []string{"manual.example"}
+	f.device.fqdnDescriptions["manual"] = "Operator list"
+	if result, err := applyFQDNOutput(f, ledger, id, legacy); err != nil || !result.Applied {
+		t.Fatalf("legacy apply=%#v %v", result, err)
+	}
+	before := len(f.device.commandLog())
+	if result, err := applyFQDNOutput(f, ledger, id, current); err != nil || !result.Applied {
+		t.Fatalf("label migration=%#v %v", result, err)
+	}
+	want := []string{"object-group fqdn " + name + ` description "Claude"`, "system configuration save"}
+	if got := f.device.commandLog()[before:]; !reflect.DeepEqual(got, want) {
+		t.Fatalf("label migration recreated or rerouted a group: %v", got)
+	}
+	groups, _ := f.device.groupSnapshot()
+	if len(groups) != 2 {
+		t.Fatalf("migration created duplicate groups: %v", groups)
+	}
+	before = len(f.device.commandLog())
+	for _, artifact := range []application.DeployArtifact{legacy, current, current} {
+		if _, err := applyFQDNOutput(f, ledger, id, artifact); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(f.device.commandLog()) != before {
+		t.Fatal("same or legacy artifact rewrote a correctly labelled group")
+	}
+	prior, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", id)
+	changed := current
+	changed.Payload = []byte(strings.ReplaceAll(string(current.Payload), `description "Claude"`, `description "Claude work"`))
+	ledger.fail = true
+	result, err := applyFQDNOutput(f, ledger, id, changed)
+	if !errors.Is(err, application.ErrOwnershipPersist) || result.Applied || !result.RolledBack {
+		t.Fatalf("label ledger failure=%#v %v", result, err)
+	}
+	f.device.mu.Lock()
+	label, foreign := f.device.fqdnDescriptions[name], f.device.fqdnDescriptions["manual"]
+	f.device.mu.Unlock()
+	after, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", id)
+	if label != "Claude" || foreign != "Operator list" || !reflect.DeepEqual(prior, after) {
+		t.Fatalf("label recovery lost prior state: label=%q foreign=%q ledger=%#v", label, foreign, after)
+	}
+	current.OwnedFQDNGroups = prior.Groups
+	f.device.mu.Lock()
+	f.device.fqdnDescriptions[name] = ""
+	f.device.mu.Unlock()
+	if err := f.deployer.Verify(context.Background(), f.probe(t), f.connection, current); !errors.Is(err, ErrDeviceAnswer) {
+		t.Fatalf("missing readable label passed read-back: %v", err)
+	}
+}

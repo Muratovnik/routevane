@@ -8,6 +8,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from 'reka-ui'
+import { ref } from 'vue'
 
 import type { IconName, MenuItem } from '@/shared/ui/types'
 import RvIcon from '@/shared/ui/RvIcon.vue'
@@ -19,8 +20,8 @@ import RvMenuItem from '@/shared/ui/RvMenuItem.vue'
  * The panel is a viewport overlay portalled to the document body, so a table or
  * a sheet never has to own its geometry and never grows its own scroll box
  * around it. Grouped choices are a submenu rather than a longer flat list:
- * ArrowRight or a click opens one, ArrowLeft or Escape returns to the item that
- * opened it, and neither closes the menu.
+ * ArrowRight or a click opens one, ArrowLeft returns to the item that opened it,
+ * and Escape closes the menu.
  */
 const props = defineProps<{
   disabled?: boolean
@@ -41,6 +42,29 @@ const grouped = (item: MenuItem): boolean =>
 
 const choose = (item: MenuItem): void => {
   if (item.disabled !== true) emit('select', item.key)
+}
+
+const openGroups = ref(new Set<string>())
+const dismissedGroups = new Set<string>()
+
+// Reka's hover opener can still be queued after a click opens a group. Once
+// that group closes, a delayed request must wait for fresh input on its trigger.
+const changeGroup = (key: string, open: boolean): void => {
+  if (open) {
+    if (!dismissedGroups.has(key)) openGroups.value.add(key)
+  } else if (openGroups.value.delete(key)) {
+    dismissedGroups.add(key)
+  }
+}
+
+const renewGroupIntent = (key: string, event: Event): void => {
+  if (event instanceof KeyboardEvent) {
+    const trigger = event.currentTarget as HTMLElement
+    const openingArrow =
+      getComputedStyle(trigger).direction === 'rtl' ? 'ArrowLeft' : 'ArrowRight'
+    if (!['Enter', ' ', openingArrow].includes(event.key)) return
+  }
+  dismissedGroups.delete(key)
 }
 
 // Closing normally hands the keyboard back to the trigger. When the chosen
@@ -82,11 +106,18 @@ const onCloseAutoFocus = (event: Event): void => {
         @close-auto-focus="onCloseAutoFocus"
       >
         <template v-for="item in props.items" :key="item.key">
-          <DropdownMenuSub v-if="grouped(item)">
+          <DropdownMenuSub
+            v-if="grouped(item)"
+            :open="openGroups.has(item.key)"
+            @update:open="changeGroup(item.key, $event)"
+          >
             <DropdownMenuSubTrigger
               class="rv-menu__item"
               :class="{ 'rv-menu__item--separated': item.separatorBefore }"
               :disabled="item.disabled === true"
+              @click.capture="renewGroupIntent(item.key, $event)"
+              @keydown.capture="renewGroupIntent(item.key, $event)"
+              @pointermove.capture="renewGroupIntent(item.key, $event)"
             >
               <RvIcon v-if="item.icon !== undefined" :name="item.icon" />
               <span class="rv-menu__item-label">{{ item.label }}</span>

@@ -35,8 +35,10 @@ func TestRenderMakesOneGroupPerList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include googlevideo.com\n" +
+	want := "object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 description \"youtube\"\n" +
+		"object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include googlevideo.com\n" +
 		"object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include youtube.com\n" +
+		"object-group fqdn routevane-e3b0c44298fc-e1ba4807a15d8579-s1 description \"discord\"\n" +
 		"object-group fqdn routevane-e3b0c44298fc-e1ba4807a15d8579-s1 include discord.com\n"
 	if string(payload) != want {
 		t.Fatalf("payload =\n%s", payload)
@@ -69,6 +71,90 @@ func TestAListOverTheBoundIsSplitIntoSubGroups(t *testing.T) {
 	}
 	if groups[1].Name != "routevane-e3b0c44298fc-24e6654bfd1ab85b-s2" || len(groups[1].Entries) != 5 {
 		t.Fatalf("second group = %s/%d", groups[1].Name, len(groups[1].Entries))
+	}
+	if groups[0].Description != "youtube (1/2)" || groups[1].Description != "youtube (2/2)" {
+		t.Fatalf("shards lost their list label: %#v", groups)
+	}
+}
+
+// List titles are presentation data. Editing a title or a destination must
+// update the existing object, while a different output keeps its own scope.
+func TestListTitleLabelsTheStableGroupWithoutChangingItsIdentity(t *testing.T) {
+	rule := suffix(t, "claude.ai", "claude")
+	rule.Labels = []string{"(AI/Claude)"}
+	render := func(rule domain.RouteRule, outputID string) Group {
+		t.Helper()
+		payload, err := (Renderer{}).RenderOutput(plan(rule), outputID, "home")
+		if err != nil {
+			t.Fatal(err)
+		}
+		groups, err := Parse(payload)
+		if err != nil || len(groups) != 1 {
+			t.Fatalf("parse groups=%#v err=%v", groups, err)
+		}
+		return groups[0]
+	}
+	first := render(rule, strings.Repeat("1", 32))
+	if first.Description != "Claude" {
+		t.Fatalf("router label=%q", first.Description)
+	}
+	rule.Labels = []string{"(AI/Claude — рабочий)"}
+	rule.Domain = "anthropic.com"
+	changed := render(rule, strings.Repeat("1", 32))
+	if changed.Name != first.Name || changed.Description != "Claude — рабочий" || changed.Entries[0] != "anthropic.com" {
+		t.Fatalf("title/content edit changed identity or lost the label: %#v", changed)
+	}
+	other := render(rule, strings.Repeat("2", 32))
+	if other.Name == first.Name {
+		t.Fatal("independent output adopted the first output's group")
+	}
+}
+
+func TestFQDNDescriptionIsASafeLiteralAndLegacyArtifactsStillValidate(t *testing.T) {
+	rule := suffix(t, "example.com", "example")
+	rule.Labels = []string{"(AI/Мои \"сайты\"\\ветка\n" + strings.Repeat("я", 100) + ")"}
+	payload, err := Render(plan(rule))
+	if err != nil {
+		t.Fatal(err)
+	}
+	groups, err := Parse(payload)
+	if err != nil || len(groups) != 1 || !strings.HasPrefix(groups[0].Description, "Мои ”сайты”＼ветка ") || len(groups[0].Description) > MaxDescriptionBytes {
+		t.Fatalf("unsafe or unreadable title: %#v %v", groups, err)
+	}
+	legacy := "object-group fqdn routevane-example include example.com\n"
+	if err := Validate([]byte(legacy)); err != nil {
+		t.Fatalf("existing published artifact became invalid: %v", err)
+	}
+	for _, description := range []string{
+		`"Claude" include other.example`,
+		`"Claude\"; system reboot"`,
+		"\"Claude\nno object-group fqdn manual\"",
+		"\"Claude\u2028other\"",
+		`""`,
+	} {
+		if err := Validate([]byte("object-group fqdn routevane-example description " + description + "\n" + legacy)); err == nil {
+			t.Fatalf("accepted an ambiguous CLI string: %q", description)
+		}
+	}
+}
+
+// The legal DNS and generated-name maxima fit together in one CLI command;
+// the bound must not reject a valid domain only because its output has a prefix.
+func TestMaximumDomainWithMaximumPrefixAndScopedIPv6Boundary(t *testing.T) {
+	domainName := strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61)
+	payload, err := (Renderer{}).RenderOutput(plan(suffix(t, domainName, "example")), strings.Repeat("1", 32), strings.Repeat("p", MaxPrefixLength))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Validate(payload); err != nil {
+		t.Fatalf("valid maximum domain refused: %v", err)
+	}
+	for _, address := range []string{"2001:db8::1", "fe80::1%Wireguard0", "fe80::1%bad zone"} {
+		line := []byte("object-group fqdn routevane-example include " + address + "\n")
+		err := Validate(line)
+		if (err == nil) != (address == "2001:db8::1") {
+			t.Fatalf("address boundary %q: %v", address, err)
+		}
 	}
 }
 
@@ -212,6 +298,8 @@ func TestRenderProducesTheGoldenGroupFile(t *testing.T) {
 // like a valid group file but is reordered, padded, or duplicated must be
 // refused, never silently corrected.
 func FuzzParseNeverAcceptsANonCanonicalFile(f *testing.F) {
+	f.Add("object-group fqdn routevane-example description \"Claude — сайты\"\n" +
+		"object-group fqdn routevane-example include claude.ai\n")
 	f.Add("object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include googlevideo.com\n" +
 		"object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include youtube.com\n" +
 		"object-group fqdn routevane-e3b0c44298fc-e1ba4807a15d8579-s1 include discord.com\n")

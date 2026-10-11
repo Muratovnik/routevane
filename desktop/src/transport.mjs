@@ -47,7 +47,12 @@ export function createTransport(origin, token) {
       'X-Routevane-Desktop': token,
       Origin: origin,
     })
-    for (const name of ['Content-Type', 'X-Routevane-Request', 'Accept']) {
+    for (const name of [
+      'Content-Type',
+      'X-Routevane-Request',
+      'X-Routevane-Transfer-Digest',
+      'Accept',
+    ]) {
       if (request.headers.has(name))
         headers.set(name, request.headers.get(name))
     }

@@ -2,7 +2,65 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import { once } from 'node:events'
+import { createHash } from 'node:crypto'
 import { createTransport, externalURL, isAppURL } from '../src/transport.mjs'
+
+test(
+  'configuration transfer keeps the preview digest and exact document across the desktop boundary',
+  { timeout: 5000 },
+  async (t) => {
+    const document = '{"version":"config-transfer-v1.4","profiles":[]}\n'
+    const digest = `sha256:${createHash('sha256').update(document).digest('hex')}`
+    const received = []
+    const server = http.createServer(async (request, response) => {
+      let body = ''
+      for await (const chunk of request) body += chunk
+      received.push({ headers: request.headers, body, path: request.url })
+      response.writeHead(
+        request.headers['x-routevane-transfer-digest'] === digest ? 200 : 409,
+        { 'Content-Type': 'application/json' },
+      )
+      response.end('{"applied":true}')
+    })
+    t.after(() => {
+      server.closeAllConnections()
+      server.close()
+    })
+    server.listen(0, '127.0.0.1')
+    await once(server, 'listening')
+    const transport = createTransport(
+      `http://127.0.0.1:${server.address().port}`,
+      'owned-desktop-credential',
+    )
+    const result = await transport(
+      new Request('routevane://app/v1/config-transfer/apply', {
+        method: 'POST',
+        headers: {
+          Origin: 'routevane://app',
+          'Content-Type': 'application/json',
+          'X-Routevane-Request': '1',
+          'X-Routevane-Transfer-Digest': digest,
+          'X-Routevane-Desktop': 'renderer-must-not-select-this',
+          Authorization: 'Bearer untrusted',
+          Cookie: 'untrusted',
+        },
+        body: document,
+      }),
+    )
+    assert.equal(result.status, 200)
+    await result.body.cancel()
+    assert.equal(received.length, 1)
+    assert.equal(received[0].path, '/v1/config-transfer/apply')
+    assert.equal(received[0].body, document)
+    assert.equal(received[0].headers['x-routevane-transfer-digest'], digest)
+    assert.equal(
+      received[0].headers['x-routevane-desktop'],
+      'owned-desktop-credential',
+    )
+    assert.equal(received[0].headers.authorization, undefined)
+    assert.equal(received[0].headers.cookie, undefined)
+  },
+)
 
 test('only the internal app authority is navigable; external links exclude executable schemes', () => {
   assert.ok(isAppURL('routevane://app/profiles/new#tab=contents'))

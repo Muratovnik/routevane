@@ -252,9 +252,10 @@ func (m *memoryManagedRoutes) RetireManagedRouteOwnership(context.Context, Manag
 
 type managedSpyDeployer struct {
 	*spyDeployer
-	desired  []ManagedRouteSpec
-	current  [][]ManagedRouteSpec
-	mutation ManagedRouteMutation
+	desired    []ManagedRouteSpec
+	current    [][]ManagedRouteSpec
+	mutation   ManagedRouteMutation
+	applyCalls int
 }
 
 func (*managedSpyDeployer) ManagedRouteScope(domain.TargetDefinition, Connection) (ManagedRouteScope, error) {
@@ -275,8 +276,62 @@ func (m *managedSpyDeployer) CurrentManagedRoutes(context.Context, DeviceInfo, C
 }
 
 func (m *managedSpyDeployer) ApplyManagedRoutes(_ context.Context, _ DeviceInfo, _ Connection, mutation ManagedRouteMutation) error {
+	m.applyCalls++
 	m.mutation = mutation
 	return nil
+}
+
+func TestManagedRouteReadOrReconciliationRefusalDoesNotRestoreBeforeWriting(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		current [][]ManagedRouteSpec
+	}{
+		{name: "device read failed"},
+		{name: "unsupported observed route", current: [][]ManagedRouteSpec{managedSpecs(managedPrefix("2001:db8::/64"))}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			base := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("startup-config before another writer")}
+			deployer := &managedSpyDeployer{spyDeployer: base, desired: managedSpecs(managedPrefix("192.0.2.10/32")), current: test.current}
+			ledger := &memoryManagedRoutes{}
+			request := deployTestRequest()
+			request.OutputID, request.ManagedRoutes = managedOutputA, ledger
+			result, err := DeployToDevice(context.Background(), request, DeployerRegistry{deployer.ID(): deployer}, &memoryBackups{}, fixedClock())
+			if !errors.Is(err, ErrDeviceUnchanged) || result.Applied || result.RolledBack || deployer.applyCalls != 0 || ledger.replaces != 0 {
+				t.Fatalf("read-only refusal caused recovery or ownership mutation: result=%#v err=%v apply=%d ledger=%d", result, err, deployer.applyCalls, ledger.replaces)
+			}
+			if !reflect.DeepEqual(base.calls, []string{StepProbe, StepBackup}) {
+				t.Fatalf("pre-write failure restored an earlier snapshot: %v", base.calls)
+			}
+		})
+	}
+}
+
+func TestManagedRouteNoOpDoesNotRollbackAReadbackOrPersistenceFailure(t *testing.T) {
+	desired := managedSpecs(managedPrefix("192.0.2.10/32"))
+	for _, test := range []struct {
+		name                  string
+		verified              []ManagedRouteSpec
+		persistErr, wantError error
+	}{
+		{name: "readback failed", wantError: ErrVerifyFailed},
+		{name: "ownership write failed", verified: desired, persistErr: errors.New("disk full"), wantError: ErrOwnershipPersist},
+		{name: "unchanged routes can acquire a claim", verified: desired},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			base := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1", backup: []byte("earlier configuration")}
+			deployer := &managedSpyDeployer{spyDeployer: base, desired: desired, current: [][]ManagedRouteSpec{desired, test.verified}}
+			ledger := &memoryManagedRoutes{err: test.persistErr}
+			request := deployTestRequest()
+			request.OutputID, request.ManagedRoutes = managedOutputA, ledger
+			result, err := DeployToDevice(context.Background(), request, DeployerRegistry{deployer.ID(): deployer}, &memoryBackups{}, fixedClock())
+			if !errors.Is(err, test.wantError) || result.RolledBack || result.Applied != (test.wantError == nil) || deployer.applyCalls != 0 {
+				t.Fatalf("no-op result=%#v err=%v apply=%d", result, err, deployer.applyCalls)
+			}
+			if !reflect.DeepEqual(base.calls, []string{StepProbe, StepBackup}) {
+				t.Fatalf("no-op touched device mutation methods: %v", base.calls)
+			}
+		})
+	}
 }
 
 func TestFailedManagedRouteVerificationRollsBackWithoutChangingTheLedger(t *testing.T) {

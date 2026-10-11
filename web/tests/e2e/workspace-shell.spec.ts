@@ -6,9 +6,13 @@
  * alone, over the data directory named below.
  */
 
+import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
+
 import { expect } from '@playwright/test'
 
-import { englishCopy } from './support/copy'
+import { reviewRoot } from './support/audits'
+import { copyFor, englishCopy } from './support/copy'
 import { assertPainted, openFormats } from './support/flows'
 import {
   forceStaleCatalog,
@@ -39,6 +43,65 @@ const WORKSPACE_FRAMES = [
   { path: '/profiles/new', testID: 'rv-list-picker-frame' },
   { path: '/lists', testID: 'rv-lists-workspace' },
 ]
+
+for (const locale of ['en', 'ru'] as const) {
+  test.describe(`runtime identity (${locale})`, () => {
+    test.use({ locale })
+
+    test('reports the serving address and running version with the menu expanded or collapsed', async ({
+      page,
+      origin,
+    }) => {
+      const copy = copyFor(locale)
+      const health = await page.request.get(`${origin}/health`)
+      expect(health.ok()).toBe(true)
+      const runtime = (await health.json()) as { version: string }
+      expect(runtime.version).not.toBe('')
+      await mkdir(reviewRoot, { recursive: true })
+      await page.setViewportSize({ width: 1920, height: 1080 })
+      await page.goto(`${origin}/settings`)
+      const address = page.getByText(origin, { exact: true })
+      await expect(address).toBeVisible()
+      const version = page.getByText(
+        copy('shell.version').replace('{version}', runtime.version),
+        { exact: true },
+      )
+      await expect(version).toBeInViewport()
+      await address.scrollIntoViewIfNeeded()
+      await expect(address).toBeInViewport()
+      await page.screenshot({
+        animations: 'disabled',
+        path: join(reviewRoot, `settings-runtime-${locale}-1920.png`),
+        fullPage: true,
+      })
+      await page.setViewportSize({ width: 1024, height: 640 })
+      await expect(version).toBeInViewport()
+      const expanded = (await version.boundingBox())!
+      expect(expanded.x).toBeLessThan(200)
+      expect(expanded.y).toBeGreaterThan(560)
+
+      await page
+        .getByRole('button', { name: copy('shell.collapse'), exact: true })
+        .click()
+      await expect(
+        page.getByRole('button', {
+          name: copy('shell.expand'),
+          exact: true,
+        }),
+      ).toBeVisible()
+      await expect(
+        page.getByText(runtime.version, { exact: true }),
+      ).toBeInViewport()
+      await address.scrollIntoViewIfNeeded()
+      await expect(address).toBeInViewport()
+      await page.screenshot({
+        animations: 'disabled',
+        path: join(reviewRoot, `settings-runtime-${locale}-collapsed-1024.png`),
+        fullPage: true,
+      })
+    })
+  })
+}
 
 /**
  * Every overlay on this surface is portalled out of the component that owns it,

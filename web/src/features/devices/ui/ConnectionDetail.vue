@@ -298,20 +298,6 @@ const onForget = async (): Promise<void> => {
       :title="t('devices.work.failed')"
       tone="failed"
     />
-    <RvStateNotice
-      v-if="devices.state.value === 'stale'"
-      :body="t('devices.stale.body')"
-      live
-      :title="t('devices.stale')"
-      tone="warning"
-    >
-      <template #action>
-        <RvButton @click="devices.retryDevices">{{
-          t('action.retry')
-        }}</RvButton>
-      </template>
-    </RvStateNotice>
-
     <RvDialog
       :close-label="t('action.close')"
       :dismissible="!devices.busy.value"

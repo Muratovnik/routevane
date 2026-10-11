@@ -136,6 +136,7 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 	if err != nil {
 		return PublishedBuild{}, err
 	}
+	renderer = rendererWithContext(ctx, renderer)
 	prepared, cutoff, err := s.prepareProfile(ctx, profile, target, renderer)
 	if err != nil {
 		return PublishedBuild{}, err
@@ -218,6 +219,7 @@ func (s *PublicationService) prepareProfile(ctx context.Context, profile Profile
 }
 
 func (s *PublicationService) prepareProfileAt(ctx context.Context, profile Profile, target domain.TargetDefinition, renderer Renderer, cutoff time.Time) (PreparedPlan, time.Time, error) {
+	renderer = rendererWithContext(ctx, renderer)
 	// References are expanded, exclusions applied and duplicates dropped once
 	// here, so every renderer sees the same current list set.
 	lists := s.ResolvedLists(profile)

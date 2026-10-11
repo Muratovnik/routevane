@@ -82,8 +82,8 @@ var routes = map[string]routeSpec{
 	routeStatus: {path: "/{$}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.status(w, r)
 	}},
-	"health": {path: "/health", methods: readMethods, handle: func(_ *handler, w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	"health": {path: "/health", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": h.version})
 	}},
 	"lists.collection": {path: "/v1/lists", methods: collectionMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {

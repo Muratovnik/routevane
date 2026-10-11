@@ -133,7 +133,7 @@ func evidenceFromPageLoad(target Target, page PageLoad) SessionEvidence {
 		add(HostEvidence{Host: normalized, Refused: reason})
 	}
 	slices.SortFunc(hosts, func(a, b HostEvidence) int { return cmp.Compare(a.Host, b.Host) })
-	return SessionEvidence{Target: target, Hosts: hosts, Requests: page.Requests, Bytes: page.Bytes}
+	return SessionEvidence{Target: target, Hosts: hosts, Requests: page.Requests, Bytes: page.Bytes, OmittedRefusals: page.OmittedRefusals}
 }
 
 func loaderOf(documentHost, host string) []string {

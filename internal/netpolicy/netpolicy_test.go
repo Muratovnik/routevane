@@ -12,10 +12,17 @@ func TestPublicUnicastRefusesLocalAndSpecialUseAddresses(t *testing.T) {
 		"169.254.10.10", "169.254.169.254", "fe80::1",
 		"100.64.0.1", "192.0.0.1", "198.18.0.1", "198.19.255.255",
 		"224.0.0.1", "ff02::1",
+		"240.0.0.0", "240.0.0.1", "255.255.255.254", "255.255.255.255",
+		"100::", "100::ffff:ffff:ffff:ffff", "100:0:0:1::1",
+		"2001:2::1", "2001:2:0:ffff:ffff:ffff:ffff:ffff", "5f00::1",
+		"2001:10::", "2001:10::1", "2001:1f:ffff:ffff:ffff:ffff:ffff:ffff",
+		"fec0::", "fec0::1", "feff:ffff:ffff:ffff:ffff:ffff:ffff:ffff",
 		"fe80::1%eth0", "fd00::1%eth0", "ff02::1%eth0",
+		"fec0::1%eth0",
 		"64:ff9b::c000:221", "2002::1", "2001:0:1::1",
 		// An IPv4-mapped address is judged as the IPv4 destination it is.
 		"::ffff:127.0.0.1", "::ffff:10.0.0.1", "::ffff:169.254.169.254",
+		"::ffff:240.0.0.1",
 	}
 	for _, value := range refused {
 		t.Run("refused/"+value, func(t *testing.T) {
@@ -24,7 +31,9 @@ func TestPublicUnicastRefusesLocalAndSpecialUseAddresses(t *testing.T) {
 			}
 		})
 	}
-	accepted := []string{"203.0.113.10", "192.0.2.1", "198.51.100.7", "2001:db8::1", "8.8.8.8", "::ffff:192.0.2.1"}
+	accepted := []string{"203.0.113.10", "192.0.2.1", "198.51.100.7", "2001:db8::1", "3fff::1", "8.8.8.8", "::ffff:192.0.2.1",
+		"2001:1::1", "2001:3::1", "2001:4:112::1", "2620:4f:8000::1",
+		"2001:20::1", "2001:2f:ffff:ffff:ffff:ffff:ffff:ffff", "2001:30::1"}
 	for _, value := range accepted {
 		t.Run("accepted/"+value, func(t *testing.T) {
 			if !PublicUnicast(netip.MustParseAddr(value)) {
@@ -58,6 +67,9 @@ func TestRoutablePrefixChecksTheWholeRange(t *testing.T) {
 	for _, value := range []string{
 		"172.0.0.0/10", "100.0.0.0/9", "169.0.0.0/8", "192.0.0.0/8",
 		"2001::/16", "fe00::/8", "::/0", "::ffff:172.0.0.0/106",
+		"240.0.0.0/4", "240.0.0.1/32", "::ffff:240.0.0.0/100",
+		"100::/64", "100::/63", "100:0:0:1::/64", "5f00::/16", "fec0::/10",
+		"2001:10::/28", "2001:10::1/128", "2001:18::/29",
 	} {
 		if RoutablePrefix(netip.MustParsePrefix(value)) {
 			t.Errorf("accepted prefix containing forbidden destinations: %s", value)
@@ -66,7 +78,9 @@ func TestRoutablePrefixChecksTheWholeRange(t *testing.T) {
 	for _, value := range []string{
 		"172.0.0.0/12", "172.32.0.0/11", "100.0.0.0/10", "100.128.0.0/9",
 		"169.0.0.0/9", "169.255.0.0/16", "192.0.2.0/24", "198.51.100.0/24",
-		"198.18.0.0/15", "203.0.113.0/24", "2001:db8::/32", "::ffff:192.0.2.0/120",
+		"198.18.0.0/15", "203.0.113.0/24", "2001:db8::/32", "3fff::/20", "::ffff:192.0.2.0/120",
+		"2001:2::/48", "2001:3::/32", "2001:4:112::/48", "2620:4f:8000::/48",
+		"2001:20::/28", "2001:30::/28",
 	} {
 		if !RoutablePrefix(netip.MustParsePrefix(value)) {
 			t.Errorf("refused allowed prefix: %s", value)
@@ -74,6 +88,15 @@ func TestRoutablePrefixChecksTheWholeRange(t *testing.T) {
 	}
 	if RoutablePrefix(netip.Prefix{}) {
 		t.Fatal("accepted invalid prefix")
+	}
+}
+
+func TestBenchmarkingIsOnlyAllowedAsRoutingData(t *testing.T) {
+	for _, value := range []string{"198.18.0.1", "2001:2::1", "::ffff:198.18.0.1"} {
+		address := netip.MustParseAddr(value)
+		if !RoutableDestination(address) || PublicUnicast(address) {
+			t.Errorf("benchmark destination %s must remain synthetic routing data without permitting outbound access", value)
+		}
 	}
 }
 

@@ -237,7 +237,29 @@ test('quick profile reads stay quiet while slow reads and failures remain visibl
   page,
   origin,
 }) => {
-  const payload = await (await page.request.get(`${origin}/v1/profiles`)).json()
+  const profiles = await page.request.get(`${origin}/v1/profiles`)
+  expect(profiles.ok()).toBe(true)
+  const payload = await profiles.json()
+  // The shelf waits for these decorations as well as its profiles. Keep all
+  // initial reads fast; an uncontrolled catalog read can outlast the feedback
+  // delay even when the profiles response is immediate.
+  const decorations = await Promise.all(
+    [
+      '/v1/lists',
+      '/v1/targets',
+      '/v1/deployments/targets',
+      '/v1/export-formats',
+    ].map(async (path) => {
+      const response = await page.request.get(`${origin}${path}`)
+      expect(response.ok()).toBe(true)
+      return { path, payload: await response.json() }
+    }),
+  )
+  for (const decoration of decorations) {
+    await page.route(`**${decoration.path}`, (route) =>
+      route.fulfill({ status: 200, json: decoration.payload }),
+    )
+  }
   let mode: 'fast' | 'slow' | 'failure' = 'fast'
   let release!: () => void
   let held = new Promise<void>((resolve) => {

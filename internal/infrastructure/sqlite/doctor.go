@@ -56,7 +56,7 @@ func InspectExisting(ctx context.Context, dataRoot string) Inspection {
 		return appendFailure(report, "integrity", "shm_status_failed")
 	}
 
-	uri := "file:" + filepath.ToSlash(path) + "?mode=ro&immutable=1"
+	uri := sqliteFileURI(path) + "?mode=ro&immutable=1"
 	db, err := sql.Open("sqlite", uri)
 	if err != nil {
 		return appendFailure(report, "schema", "database_open_failed")
@@ -140,7 +140,7 @@ func ReadUserVersion(ctx context.Context, dataRoot string) (int, error) {
 	if _, err := os.Stat(path); err != nil {
 		return 0, err
 	}
-	uri := "file:" + filepath.ToSlash(path) + "?mode=ro&immutable=1"
+	uri := sqliteFileURI(path) + "?mode=ro&immutable=1"
 	db, err := sql.Open("sqlite", uri)
 	if err != nil {
 		return 0, err

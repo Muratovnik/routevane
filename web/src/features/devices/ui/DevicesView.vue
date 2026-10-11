@@ -73,13 +73,17 @@ const empty = computed(
   () => devices.devices.value.length === 0 && !composing.value,
 )
 
+const focusSelection = async (): Promise<void> => {
+  await nextTick()
+  if (selectedID.value === '') emptyHeading.value?.focus()
+  else detail.value?.focusHeading()
+}
+
 const openConnection = async (id: string): Promise<void> => {
   if (devices.busy.value) return
   composing.value = false
   selectedID.value = id
-  await nextTick()
-  if (id === '') emptyHeading.value?.focus()
-  else detail.value?.focusHeading()
+  await focusSelection()
 }
 
 const startComposing = async (): Promise<void> => {
@@ -91,12 +95,13 @@ const startComposing = async (): Promise<void> => {
   createHeading.value?.focus()
 }
 
-// Reconcile only an authoritative registry. A failed read keeps the selection
-// and draft in place until the GET-only recovery has answered.
-watch([devices.state, devices.busy, devices.devices], () => {
-  if (devices.state.value !== 'ready' || devices.busy.value) return
-  if (selectedID.value !== '' && selectedDevice.value === null)
-    void openConnection(devices.devices.value[0]?.id ?? '')
+// The model changes this array only after a confirmed write or registry read.
+// Selection follows a confirmed removal even while the follow-up GET runs;
+// a failed read on its own changes neither the selection nor an unrelated draft.
+watch(devices.devices, () => {
+  if (selectedID.value === '' || selectedDevice.value !== null) return
+  selectedID.value = devices.devices.value[0]?.id ?? ''
+  void focusSelection()
 })
 
 const selectedRequirements = computed(
@@ -253,6 +258,20 @@ const submit = async (): Promise<void> => {
         </template>
       </RvStateNotice>
 
+      <RvStateNotice
+        v-if="devices.state.value === 'stale'"
+        :body="t('devices.stale.body')"
+        live
+        :title="t('devices.stale')"
+        tone="warning"
+      >
+        <template #action>
+          <RvButton @click="devices.retryDevices">{{
+            t('action.retry')
+          }}</RvButton>
+        </template>
+      </RvStateNotice>
+
       <section
         v-if="empty"
         :aria-labelledby="emptyHeadingID"
@@ -298,6 +317,7 @@ const submit = async (): Promise<void> => {
 
         <ConnectionDetail
           v-if="selectedDevice"
+          :key="selectedDevice.id"
           ref="detail"
           v-model:confirmation="confirmation"
           :connection="selectedDevice"
@@ -397,20 +417,6 @@ const submit = async (): Promise<void> => {
             :title="t('devices.work.failed')"
             tone="failed"
           />
-          <RvStateNotice
-            v-if="devices.state.value === 'stale'"
-            :body="t('devices.stale.body')"
-            live
-            :title="t('devices.stale')"
-            tone="warning"
-          >
-            <template #action>
-              <RvButton @click="devices.retryDevices">{{
-                t('action.retry')
-              }}</RvButton>
-            </template>
-          </RvStateNotice>
-
           <div class="devices__actions">
             <RvButton :disabled="devices.busy.value" @click="cancelCreation">{{
               t('action.cancel')

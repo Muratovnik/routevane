@@ -371,82 +371,138 @@ describe('DevicesView prerequisite audit', () => {
   })
 })
 
-it('marks a saved device change stale and retries only the read while preserving drafts', async () => {
-  useLocale().setLocale('en')
-  const fetchMock = installFetch(async (input, init) => {
-    if (input === '/v1/devices/device-1/forget') return json({})
-    if (input === DEVICES) {
-      const reads = callsTo(fetchMock, DEVICES).length
-      if (reads === 2) return json({ error: 'unavailable' }, 503)
-      return json(
-        reads === 1
-          ? DEVICE_PAYLOAD
-          : { devices: [], secret_store_available: true },
-      )
-    }
-    if (input === LISTS) return json(CATALOG_PAYLOAD)
-    if (input === TARGETS) return json(TARGETS_PAYLOAD)
-    if (input === REQUIREMENTS) return json(REQUIREMENTS_PAYLOAD)
-    throw new Error(`unexpected request ${input} ${init?.method}`)
-  })
-  const screen = await render(DevicesView)
-  await screen
-    .getByRole('button', { name: 'Add a connection', exact: true })
-    .click()
-  await screen.getByLabelText('What to connect').click()
-  await screen.getByRole('option', { name: /^Keenetic/ }).click()
-  await screen.getByLabelText('Connection name').fill('Unsaved connection')
-  await screen
-    .getByRole('button', {
-      name: 'Configure connection Home router',
-      exact: true,
+it.each([
+  { remaining: [], nextHeading: 'No connections yet' },
+  {
+    remaining: [
+      {
+        ...DEVICE_PAYLOAD.devices[0],
+        id: 'device-2',
+        name: 'Office router',
+        address: 'http://192.168.1.2',
+      },
+    ],
+    nextHeading: 'Office router',
+  },
+])(
+  'forgets the confirmed connection and opens $nextHeading while its registry read recovers',
+  async ({ remaining, nextHeading }) => {
+    useLocale().setLocale('en')
+    const fetchMock = installFetch(async (input, init) => {
+      if (input === '/v1/devices/device-1/forget')
+        return json({ forgotten: 'device-1' })
+      if (input === DEVICES) {
+        const reads = callsTo(fetchMock, DEVICES).length
+        if (reads === 2) return json({ error: 'unavailable' }, 503)
+        return json({
+          devices:
+            reads === 1 ? [...DEVICE_PAYLOAD.devices, ...remaining] : remaining,
+          secret_store_available: true,
+        })
+      }
+      if (input === LISTS) return json(CATALOG_PAYLOAD)
+      if (input === TARGETS) return json(TARGETS_PAYLOAD)
+      if (input === REQUIREMENTS) return json(REQUIREMENTS_PAYLOAD)
+      throw new Error(`unexpected request ${input} ${init?.method}`)
     })
-    .click()
-  // Forgetting is the connection's own secondary action and it is confirmed:
-  // the menu offers it, the dialog runs it.
-  await screen
-    .getByRole('button', { name: 'Actions for connection Home router' })
-    .click()
-  await screen.getByRole('menuitem', { name: 'Forget this connection' }).click()
-  await screen
-    .getByRole('button', { name: 'Forget this connection', exact: true })
-    .click()
-  await expect
-    .element(screen.getByText('Connections could not be refreshed'))
-    .toBeVisible()
-  await expect
-    .element(screen.getByRole('heading', { name: 'Home router' }))
-    .toBeVisible()
-  // A registry this tab could not re-read is not one to write to again.
-  await expect
-    .element(
-      screen.getByRole('button', {
-        name: 'Actions for connection Home router',
-      }),
-    )
-    .toBeDisabled()
-  await screen.getByRole('button', { name: 'Retry', exact: true }).click()
-  await expect
-    .element(screen.getByRole('heading', { name: 'Home router' }))
-    .not.toBeInTheDocument()
-  await expect
-    .element(screen.getByText('Connections could not be refreshed'))
-    .not.toBeInTheDocument()
-  // Forgetting the last connection leaves the registry stating that it holds
-  // nothing, and the draft is still there for the next visit to the form.
-  await expect
-    .element(screen.getByRole('heading', { name: 'No connections yet' }))
-    .toBeVisible()
-  await screen
-    .getByRole('button', { name: 'Add a connection', exact: true })
-    .click()
-  await expect
-    .element(screen.getByLabelText('Connection name'))
-    .toHaveValue('Unsaved connection')
-  expect(callsTo(fetchMock, '/v1/devices/device-1/forget')).toHaveLength(1)
-  expect(callsTo(fetchMock, DEVICES)).toHaveLength(3)
-  vi.unstubAllGlobals()
-})
+    const screen = await render(DevicesView)
+    await screen
+      .getByRole('button', { name: 'Add a connection', exact: true })
+      .click()
+    await screen.getByLabelText('What to connect').click()
+    await screen.getByRole('option', { name: /^Keenetic/ }).click()
+    await screen.getByLabelText('Connection name').fill('Unsaved connection')
+    await screen
+      .getByRole('button', {
+        name: 'Configure connection Home router',
+        exact: true,
+      })
+      .click()
+    // Forgetting is the connection's own secondary action and it is confirmed:
+    // the menu offers it, the dialog runs it.
+    await screen
+      .getByRole('button', { name: 'Actions for connection Home router' })
+      .click()
+    await screen
+      .getByRole('menuitem', { name: 'Forget this connection' })
+      .click()
+    await screen
+      .getByRole('button', { name: 'Forget this connection', exact: true })
+      .click()
+    await expect
+      .element(screen.getByText('Connections could not be refreshed'))
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('heading', { name: 'Home router' }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('heading', { name: nextHeading, exact: true }))
+      .toBeVisible()
+    await screen.getByRole('button', { name: 'Retry', exact: true }).click()
+    await expect
+      .element(screen.getByRole('heading', { name: 'Home router' }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByText('Connections could not be refreshed'))
+      .not.toBeInTheDocument()
+    // Neither selection recovery nor the registry retry discards a draft for
+    // a different connection.
+    await expect
+      .element(screen.getByRole('heading', { name: nextHeading, exact: true }))
+      .toBeVisible()
+    await screen
+      .getByRole('button', { name: 'Add a connection', exact: true })
+      .click()
+    await expect
+      .element(screen.getByLabelText('Connection name'))
+      .toHaveValue('Unsaved connection')
+    expect(callsTo(fetchMock, '/v1/devices/device-1/forget')).toHaveLength(1)
+    expect(callsTo(fetchMock, DEVICES)).toHaveLength(3)
+    vi.unstubAllGlobals()
+  },
+)
+
+it.each(['refused', 'unanswered'] as const)(
+  'keeps the connection when forgetting is %s',
+  async (outcome) => {
+    useLocale().setLocale('en')
+    const endpoint = '/v1/devices/device-1/forget'
+    const fetchMock = installFetch(async (input, init) => {
+      if (input === endpoint) {
+        if (outcome === 'unanswered') throw new TypeError('connection lost')
+        return json({ error: 'unavailable' }, 503)
+      }
+      if (input === DEVICES) return json(DEVICE_PAYLOAD)
+      if (input === LISTS) return json(CATALOG_PAYLOAD)
+      if (input === TARGETS) return json(TARGETS_PAYLOAD)
+      if (input === REQUIREMENTS) return json(REQUIREMENTS_PAYLOAD)
+      if (input === '/health') return json({ status: 'ok', version: 'dev' })
+      throw new Error(`unexpected request ${input} ${init?.method}`)
+    })
+    const screen = await render(DevicesView)
+    await screen
+      .getByRole('button', { name: 'Actions for connection Home router' })
+      .click()
+    await screen
+      .getByRole('menuitem', { name: 'Forget this connection' })
+      .click()
+    await screen
+      .getByRole('button', { name: 'Forget this connection', exact: true })
+      .click()
+
+    await expect
+      .element(
+        screen.getByRole('heading', { name: 'Home router', exact: true }),
+      )
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('That did not go through'))
+      .toBeVisible()
+    expect(callsTo(fetchMock, endpoint)).toHaveLength(1)
+    expect(callsTo(fetchMock, DEVICES)).toHaveLength(1)
+    vi.unstubAllGlobals()
+  },
+)
 
 it('selects the created identity after a failed reread recovers without repeating registration', async () => {
   useLocale().setLocale('en')
@@ -547,6 +603,76 @@ const AUTO_DEVICE = {
 
 const UPDATE = `${DEVICES}/device-1/update`
 const FORGET = `${DEVICES}/device-1/forget`
+
+describe('confirmed automatic-delivery changes', () => {
+  beforeEach(() => {
+    useLocale().setLocale('en')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it.each([
+    { enabled: true, passwordAfterWrite: null },
+    { enabled: false, passwordAfterWrite: '' },
+  ])(
+    'keeps the confirmed enabled=$enabled state when the registry reread fails',
+    async ({ enabled, passwordAfterWrite }) => {
+      const endpoint = `${DEVICES}/device-1/auto-delivery`
+      const saved = { ...AUTO_DEVICE, auto_deliver: enabled }
+      const fetchMock = installFetch(async (input, init) => {
+        if (input === endpoint) return json({ device: saved })
+        if (input === DEVICES) {
+          const reads = callsTo(fetchMock, DEVICES).length
+          if (reads === 2) return json({ error: 'unavailable' }, 503)
+          return json({
+            devices: [
+              reads === 1 ? { ...saved, auto_deliver: !enabled } : saved,
+            ],
+            secret_store_available: true,
+          })
+        }
+        if (input === LISTS) return json(CATALOG_PAYLOAD)
+        if (input === TARGETS) return json(TARGETS_PAYLOAD)
+        if (input === REQUIREMENTS) return json(REQUIREMENTS_PAYLOAD)
+        throw new Error(`unexpected request ${input} ${init?.method}`)
+      })
+      const screen = await render(DevicesView)
+      const password = screen.getByLabelText('Password', { exact: true })
+      if (enabled) await password.fill('router-password')
+      await screen
+        .getByRole('button', {
+          name: enabled
+            ? 'Turn on automatic delivery'
+            : 'Turn off automatic delivery',
+        })
+        .click()
+
+      await expect
+        .element(screen.getByText('Connections could not be refreshed'))
+        .toBeVisible()
+      const nextAction = screen.getByRole('button', {
+        name: enabled
+          ? 'Turn off automatic delivery'
+          : 'Turn on automatic delivery',
+      })
+      await expect.element(nextAction).toBeDisabled()
+      const remainingPassword = password.query() as HTMLInputElement | null
+      expect(remainingPassword?.value ?? null).toBe(passwordAfterWrite)
+
+      await screen.getByRole('button', { name: 'Retry', exact: true }).click()
+      const availableControl = enabled ? nextAction : password
+      await expect.element(availableControl).toBeEnabled()
+      const written = callsTo(fetchMock, endpoint)
+      expect(written).toHaveLength(1)
+      expect(JSON.parse(String((written[0]?.[1] as RequestInit).body))).toEqual(
+        enabled ? { enabled, credential: 'router-password' } : { enabled },
+      )
+      expect(callsTo(fetchMock, DEVICES)).toHaveLength(3)
+    },
+  )
+})
 
 it('saves a renamed connection through the update endpoint and says nothing about consent', async () => {
   useLocale().setLocale('en')

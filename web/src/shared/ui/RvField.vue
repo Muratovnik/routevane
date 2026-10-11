@@ -42,6 +42,8 @@ const FieldBinding = defineComponent({
  * rendered.
  */
 const props = defineProps<{
+  /** Share caption and control rows with adjacent fields in a parent grid. */
+  aligned?: boolean
   /** Announce an asynchronous error while focus remains on another control. */
   announceError?: boolean
   error?: string
@@ -57,7 +59,12 @@ const description = computed(() => (props.hint === '' ? undefined : props.hint))
 </script>
 
 <template>
-  <UFormField :description="description" :error="failure" :label="label">
+  <UFormField
+    :class="{ 'rv-field--aligned': aligned }"
+    :description="description"
+    :error="failure"
+    :label="label"
+  >
     <!-- A new id is a new registration, so the binding is keyed by it. -->
     <FieldBinding :key="inputId" v-slot="binding" :input-id="inputId">
       <slot :described-by="binding.describedBy" :invalid="binding.invalid" />
@@ -67,3 +74,14 @@ const description = computed(() => (props.hint === '' ? undefined : props.hint))
     </template>
   </UFormField>
 </template>
+
+<style scoped>
+.rv-field--aligned {
+  display: grid;
+  grid-row: span 2;
+  grid-template-rows: subgrid;
+  row-gap: 0;
+  align-self: stretch;
+  min-width: 0;
+}
+</style>

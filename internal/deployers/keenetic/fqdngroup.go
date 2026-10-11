@@ -3,6 +3,7 @@ package keenetic
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"net/http"
@@ -103,30 +104,46 @@ func (d *FQDNDeployer) Rollback(ctx context.Context, device application.DeviceIn
 // is not something this method can make atomic, because the device applies each
 // command as it reads it.
 func (d *FQDNDeployer) Deploy(ctx context.Context, device application.DeviceInfo, connection application.Connection, artifact application.DeployArtifact) error {
+	_, err := d.DeployWithMutation(ctx, device, connection, artifact)
+	return err
+}
+
+// DeployWithMutation reports a no-op explicitly so later read-back or local
+// persistence failures cannot trigger a destructive, unnecessary restore.
+func (d *FQDNDeployer) DeployWithMutation(ctx context.Context, device application.DeviceInfo, connection application.Connection, artifact application.DeployArtifact) (mutationSubmitted bool, err error) {
+	defer func() {
+		if err != nil && !mutationSubmitted {
+			err = errors.Join(application.ErrDeviceUnchanged, err)
+		}
+	}()
+	if !validInterfaceWord(device.Interface) {
+		return false, fmt.Errorf("%w: invalid FQDN interface", ErrDeviceAnswer)
+	}
 	wanted, err := artifactGroups(artifact)
 	if err != nil {
-		return err
+		return false, err
 	}
 	session, err := d.routes().connect(ctx, connection)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer session.close()
 	existing, routes, err := session.observedGroups(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	existing, routes, err = scopedGroups(artifact, wanted, existing, routes, true)
 	if err != nil {
-		return err
+		return false, err
 	}
 	commands := reconcileGroups(wanted, existing, routes, device.Interface)
 	if len(commands) == 0 {
 		// Nothing to change is a successful deployment, not a skipped one.
-		return nil
+		return false, nil
 	}
 	commands = append(commands, "system configuration save")
-	return session.parseBatch(ctx, commands)
+	mutationSubmitted = true
+	return true, session.parseBatch(ctx, commands)
 }
 
 // Verify reads the device's own groups back. A deployment is applied only if
@@ -172,12 +189,12 @@ func (d *FQDNDeployer) routes() *Deployer { return &Deployer{options: d.options}
 // ones are added, so a group that changed heavily never briefly holds more than
 // the device's per-group bound. A route is attached last, when the group it
 // names is complete, so a resolved answer is never sent to a half-filled group.
-func reconcileGroups(wanted, existing map[string][]string, routes map[string]fqdnRoute, deviceInterface string) []string {
+func reconcileGroups(wanted, existing map[string]fqdnGroup, routes map[string]fqdnRoute, deviceInterface string) []string {
 	commands := make([]string, 0, 16)
 	observedNames := maps.Clone(existing)
 	for name := range routes {
 		if _, exists := observedNames[name]; !exists {
-			observedNames[name] = nil
+			observedNames[name] = fqdnGroup{}
 		}
 	}
 	for _, name := range sortedNames(observedNames) {
@@ -193,22 +210,29 @@ func reconcileGroups(wanted, existing map[string][]string, routes map[string]fqd
 	}
 	for _, name := range sortedNames(wanted) {
 		present, exists := existing[name]
+		attached, bound := routes[name]
+		if bound && !slices.Equal(sortedEntries(present.Entries), sortedEntries(wanted[name].Entries)) {
+			commands = append(commands, "no dns-proxy route object-group "+name+" "+attached.Interface)
+			bound = false
+		}
 		if !exists {
 			commands = append(commands, "object-group fqdn "+name)
 		}
-		keep := membership(wanted[name])
-		for _, entry := range sortedEntries(present) {
+		keep := membership(wanted[name].Entries)
+		for _, entry := range sortedEntries(present.Entries) {
 			if _, stays := keep[entry]; !stays {
 				commands = append(commands, "no object-group fqdn "+name+" include "+entry)
 			}
 		}
-		held := membership(present)
-		for _, entry := range sortedEntries(wanted[name]) {
+		held := membership(present.Entries)
+		for _, entry := range sortedEntries(wanted[name].Entries) {
 			if _, already := held[entry]; !already {
 				commands = append(commands, "object-group fqdn "+name+" include "+entry)
 			}
 		}
-		attached, bound := routes[name]
+		if wanted[name].Description != "" && wanted[name].Description != present.Description {
+			commands = append(commands, "object-group fqdn "+name+" description \""+wanted[name].Description+"\"")
+		}
 		if bound && attached.Interface == deviceInterface && attached.Auto {
 			continue
 		}
@@ -225,7 +249,7 @@ func reconcileGroups(wanted, existing map[string][]string, routes map[string]fqd
 // compareGroups states what the device is missing and what it holds that the
 // artifact does not, in terms an operator can act on: a group, one entry of a
 // group, or a group that is not routed where it was asked to be.
-func compareGroups(wanted, existing map[string][]string, routes map[string]fqdnRoute, deviceInterface string) (missing, extra []string) {
+func compareGroups(wanted, existing map[string]fqdnGroup, routes map[string]fqdnRoute, deviceInterface string) (missing, extra []string) {
 	missing = make([]string, 0)
 	extra = make([]string, 0)
 	for _, name := range sortedNames(wanted) {
@@ -234,17 +258,20 @@ func compareGroups(wanted, existing map[string][]string, routes map[string]fqdnR
 			missing = append(missing, name)
 			continue
 		}
-		held := membership(present)
-		for _, entry := range sortedEntries(wanted[name]) {
+		held := membership(present.Entries)
+		for _, entry := range sortedEntries(wanted[name].Entries) {
 			if _, found := held[entry]; !found {
 				missing = append(missing, name+"/"+entry)
 			}
 		}
-		keep := membership(wanted[name])
-		for _, entry := range sortedEntries(present) {
+		keep := membership(wanted[name].Entries)
+		for _, entry := range sortedEntries(present.Entries) {
 			if _, stays := keep[entry]; !stays {
 				extra = append(extra, name+"/"+entry)
 			}
+		}
+		if wanted[name].Description != "" && wanted[name].Description != present.Description {
+			missing = append(missing, name+"@description")
 		}
 		if attached, bound := routes[name]; !bound || attached.Interface != deviceInterface || !attached.Auto {
 			missing = append(missing, name+"@"+deviceInterface)
@@ -267,7 +294,7 @@ func compareGroups(wanted, existing map[string][]string, routes map[string]fqdnR
 
 // artifactGroups parses the artifact with the renderer's own validator, so a
 // corrupted or foreign file can never reach the device.
-func artifactGroups(artifact application.DeployArtifact) (map[string][]string, error) {
+func artifactGroups(artifact application.DeployArtifact) (map[string]fqdnGroup, error) {
 	if artifact.RendererID != keeneticdns.ID {
 		return nil, fmt.Errorf("%w: renderer %q", ErrArtifactMismatch, artifact.RendererID)
 	}
@@ -278,10 +305,10 @@ func artifactGroups(artifact application.DeployArtifact) (map[string][]string, e
 	if len(parsed) == 0 || len(parsed) > keeneticdns.MaxGroups {
 		return nil, fmt.Errorf("%w: %d groups", ErrArtifactMismatch, len(parsed))
 	}
-	groups := make(map[string][]string, len(parsed))
+	groups := make(map[string]fqdnGroup, len(parsed))
 	total := 0
 	for _, group := range parsed {
-		groups[group.Name] = group.Entries
+		groups[group.Name] = fqdnGroup{Entries: group.Entries, Description: group.Description}
 		total += len(group.Entries)
 	}
 	if total > MaxFQDNEntries {
@@ -290,7 +317,7 @@ func artifactGroups(artifact application.DeployArtifact) (map[string][]string, e
 	return groups, nil
 }
 
-func sortedNames(groups map[string][]string) []string {
+func sortedNames[T any](groups map[string]T) []string {
 	names := slices.Sorted(maps.Keys(groups))
 	return names
 }
@@ -323,10 +350,16 @@ func (*FQDNDeployer) Requirements() application.ConnectionRequirements {
 }
 
 func (d *FQDNDeployer) ValidateConnection(connection application.Connection) error {
+	if !validInterfaceWord(connection.Interface) {
+		return fmt.Errorf("%w: invalid FQDN interface", ErrDeviceRefused)
+	}
 	return d.routes().ValidateConnection(connection)
 }
 
 func (d *FQDNDeployer) ValidateStoredConnection(connection application.Connection) error {
+	if !validInterfaceWord(connection.Interface) {
+		return fmt.Errorf("%w: invalid FQDN interface", ErrDeviceRefused)
+	}
 	return d.routes().ValidateStoredConnection(connection)
 }
 

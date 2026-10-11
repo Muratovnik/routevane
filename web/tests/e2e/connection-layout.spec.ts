@@ -1,18 +1,147 @@
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { expect } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import { audit, auditWidths, reviewRoot } from './support/audits'
-import { copyFor } from './support/copy'
+import { copyFor, type Copy } from './support/copy'
 import { catalogDisclosure } from './support/queries'
 import { test } from './support/served-product'
 
 test.use({ productData: 'connection-layout', productCatalog: 'catalog' })
+
+const expectAlignedFields = async (page: Page, copy: Copy): Promise<void> => {
+  const boxes = await Promise.all(
+    [
+      'devices.field.name',
+      'deploy.field.address.keenetic',
+      'deploy.field.account.keenetic',
+      'deploy.field.interface.keenetic',
+    ].map(async (key) => {
+      const field = page.getByRole('textbox', { name: copy(key), exact: true })
+      await expect(field).toBeVisible()
+      return (await field.boundingBox())!
+    }),
+  )
+  expect(boxes[0]!.x).toBeLessThan(boxes[1]!.x)
+  expect(boxes[0]!.y).toBeCloseTo(boxes[1]!.y, 0)
+  expect(boxes[0]!.width).toBeCloseTo(boxes[1]!.width, 0)
+  expect(boxes[2]!.x).toBeLessThan(boxes[3]!.x)
+  expect(boxes[2]!.y).toBeCloseTo(boxes[3]!.y, 0)
+}
 
 for (const locale of ['en', 'ru'] as const) {
   test.describe(`connection layout (${locale})`, () => {
     test.use({
       locale,
       colorScheme: 'dark',
+    })
+
+    test('aligns inputs with unequal help text in both connection forms', async ({
+      page,
+      origin,
+      assertProductAlive,
+    }) => {
+      const copy = copyFor(locale)
+      const seed = await page.request.post(`${origin}/v1/devices`, {
+        headers: { Origin: origin, 'X-Routevane-Request': '1' },
+        data: {
+          target_id: 'keenetic-dns',
+          name: `Saved connection ${locale}`,
+          address: 'http://192.168.1.1',
+          account: 'admin',
+          interface: 'Wireguard0',
+        },
+      })
+      expect(seed.ok()).toBe(true)
+      await mkdir(reviewRoot, { recursive: true })
+      await page.setViewportSize({ width: 1920, height: 1080 })
+      await page.goto(`${origin}/connections`)
+      await expectAlignedFields(page, copy)
+      await page.screenshot({
+        animations: 'disabled',
+        path: join(reviewRoot, `connection-form-${locale}-saved-1920.png`),
+        fullPage: true,
+      })
+
+      await page
+        .getByRole('button', { name: copy('devices.add'), exact: true })
+        .click()
+      await page
+        .getByRole('button', {
+          name: copy('devices.field.target'),
+          exact: true,
+        })
+        .click()
+      await page.getByRole('option', { name: 'Keenetic', exact: true }).click()
+      await expectAlignedFields(page, copy)
+      await page.screenshot({
+        animations: 'disabled',
+        path: join(reviewRoot, `connection-form-${locale}-new-1920.png`),
+        fullPage: true,
+      })
+
+      const name = page.getByRole('textbox', {
+        name: copy('devices.field.name'),
+        exact: true,
+      })
+      await name.fill(`New connection ${locale}`)
+      await page
+        .getByRole('textbox', {
+          name: copy('deploy.field.address.keenetic'),
+          exact: true,
+        })
+        .fill('http://192.168.1.2')
+      await page
+        .getByRole('textbox', {
+          name: copy('deploy.field.account.keenetic'),
+          exact: true,
+        })
+        .fill('admin')
+      await page
+        .getByRole('textbox', {
+          name: copy('deploy.field.interface.keenetic'),
+          exact: true,
+        })
+        .fill('Wireguard1')
+      await page
+        .getByRole('button', { name: copy('action.save'), exact: true })
+        .click()
+      await expect(
+        page.getByRole('heading', {
+          level: 2,
+          name: `New connection ${locale}`,
+          exact: true,
+        }),
+      ).toBeVisible()
+      await expectAlignedFields(page, copy)
+
+      await name.fill(`Resized draft ${locale}`)
+      await page.setViewportSize({ width: 768, height: 900 })
+      await expect(name).toHaveValue(`Resized draft ${locale}`)
+      const address = page.getByRole('textbox', {
+        name: copy('deploy.field.address.keenetic'),
+        exact: true,
+      })
+      expect((await address.boundingBox())!.y).toBeGreaterThan(
+        (await name.boundingBox())!.y,
+      )
+      await page
+        .getByRole('button', { name: copy('action.cancel'), exact: true })
+        .scrollIntoViewIfNeeded()
+      await expect(name).toBeInViewport()
+      await expect(address).toBeInViewport()
+      await page.screenshot({
+        animations: 'disabled',
+        path: join(reviewRoot, `connection-form-${locale}-draft-768.png`),
+        fullPage: true,
+      })
+      await page.setViewportSize({ width: 1920, height: 1080 })
+      await expectAlignedFields(page, copy)
+      await expect(name).toHaveValue(`Resized draft ${locale}`)
+      await page
+        .getByRole('button', { name: copy('action.cancel'), exact: true })
+        .click()
+      await expect(name).toHaveValue(`New connection ${locale}`)
+      assertProductAlive()
     })
 
     test('keeps DNS configuration and actions reachable across window sizes', async ({

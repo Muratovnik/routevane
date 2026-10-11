@@ -223,8 +223,8 @@ func TestDeployReattachesAGroupRoutedElsewhere(t *testing.T) {
 // never sent to a group that is still being filled.
 func TestReconcileAttachesTheRouteAfterTheGroupIsFilled(t *testing.T) {
 	commands := reconcileGroups(
-		map[string][]string{"routevane-youtube": {"youtube.com", "ytimg.com"}},
-		map[string][]string{},
+		map[string]fqdnGroup{"routevane-youtube": {Entries: []string{"youtube.com", "ytimg.com"}}},
+		map[string]fqdnGroup{},
 		map[string]fqdnRoute{},
 		deviceInterface,
 	)
@@ -243,14 +243,16 @@ func TestReconcileAttachesTheRouteAfterTheGroupIsFilled(t *testing.T) {
 // briefly holds more than the device's per-group bound.
 func TestReconcileRemovesBeforeItAdds(t *testing.T) {
 	commands := reconcileGroups(
-		map[string][]string{"routevane-a": {"new.example"}},
-		map[string][]string{"routevane-a": {"old.example"}},
+		map[string]fqdnGroup{"routevane-a": {Entries: []string{"new.example"}}},
+		map[string]fqdnGroup{"routevane-a": {Entries: []string{"old.example"}}},
 		map[string]fqdnRoute{"routevane-a": {Interface: deviceInterface, Auto: true}},
 		deviceInterface,
 	)
 	want := []string{
+		"no dns-proxy route object-group routevane-a " + deviceInterface,
 		"no object-group fqdn routevane-a include old.example",
 		"object-group fqdn routevane-a include new.example",
+		"dns-proxy route object-group routevane-a " + deviceInterface + " auto",
 	}
 	if !reflect.DeepEqual(commands, want) {
 		t.Fatalf("commands = %v, want %v", commands, want)
@@ -260,8 +262,8 @@ func TestReconcileRemovesBeforeItAdds(t *testing.T) {
 // Nothing to change is a successful deployment that sends nothing at all.
 func TestReconcileSaysNothingWhenTheDeviceAlreadyAgrees(t *testing.T) {
 	commands := reconcileGroups(
-		map[string][]string{"routevane-a": {"one.example", "two.example"}},
-		map[string][]string{"routevane-a": {"two.example", "one.example"}},
+		map[string]fqdnGroup{"routevane-a": {Entries: []string{"one.example", "two.example"}}},
+		map[string]fqdnGroup{"routevane-a": {Entries: []string{"two.example", "one.example"}}},
 		map[string]fqdnRoute{"routevane-a": {Interface: deviceInterface, Auto: true}},
 		deviceInterface,
 	)

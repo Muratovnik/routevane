@@ -52,8 +52,9 @@ published as reason-coded, provenance-carrying, perfectly auditable rules.
   because a destination policy two callers each reimplement is a policy that
   will diverge, and a second copy in the planner would have been exactly that.
 
-- **The two questions differ in one range, deliberately.** Benchmarking space
-  (RFC 2544) may appear in a plan and may not be connected to. Steering it
+- **The two questions differ for benchmarking space, deliberately.** IPv4
+  `198.18.0.0/15` (RFC 2544) and IPv6 `2001:2::/48` (RFC 5180) may appear in a
+  plan and may not be connected to. Steering those ranges
   reaches nobody and costs nothing, while refusing it would remove the only
   address class a test can use that is neither local nor a real host — the same
   reason `PublicUnicast` keeps documentation ranges allowed. Every range that

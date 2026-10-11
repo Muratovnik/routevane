@@ -47,10 +47,13 @@ limits, since they are outside our control.
 - The renderer emits **domain suffixes**, never enumerated hostnames, because
   the device expands subdomains itself. A source that enumerates hosts is the
   wrong material for this target (ADR 0015 is amended accordingly).
-- **Every published limit lives in the target profile as data**, not in code:
-  `max_entries_per_list` and `max_lists` join the existing `max_rules`. An
-  undocumented bound is recorded as our chosen value with its provenance, so a
-  firmware change is a YAML edit and never a release.
+- **The target profile declares each supported budget.**
+  `max_entries_per_list` and `max_lists` join the existing `max_rules`. The
+  built-in format currently fixes group bounds at 300 entries and 128 groups;
+  target aliases must declare those same group bounds. These are Routevane's
+  supported values, not established firmware limits. Changing group budgets
+  requires coordinated renderer, publication and deployment support, rather
+  than a YAML edit alone; see the [renderer guide](../adding-a-renderer.md).
 - **A list that exceeds `max_entries_per_list` is split into sub-groups**
   automatically, named `<group>`, `<group>-2`, `<group>-3`. The operator asked
   for one list and gets one list; the split is the adapter's business. Each

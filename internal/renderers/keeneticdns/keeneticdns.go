@@ -1,6 +1,6 @@
 // Package keeneticdns renders the FQDN object groups KeeneticOS 5.0 and later
-// route by name. It owns format only: target limits and coverage decisions are
-// supplied by the target definition and planner.
+// route by name. Target declarations are checked against this format's bounds;
+// coverage decisions belong to the planner.
 //
 // Three properties make this a distinct format rather than a second copy of the
 // static-route dialect. The device expands the subdomains of a listed name
@@ -26,6 +26,8 @@ import (
 	"net/netip"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/Muratovnik/routevane/internal/domain"
 )
@@ -40,8 +42,8 @@ const (
 	MaxPrefixLength = 24
 	// MaxEntriesPerGroup bounds one group. Keenetic documents no entry limit for
 	// an FQDN group, so this is our value, not theirs: it matches the figure the
-	// field tooling settled on, and it lives here and in the target definition so a
-	// firmware change is an edit rather than a release.
+	// field tooling settled on. The built-in target and aliases must declare
+	// this same bound until configurable sharding is supported end to end.
 	MaxEntriesPerGroup = 300
 	// MaxGroups bounds how many groups one artifact defines. The only published
 	// number is a KeeneticOS 5.0 changelog line raising the object-group limit
@@ -52,9 +54,12 @@ const (
 	ContentType     = "text/plain; charset=utf-8"
 	FileExtension   = "txt"
 
-	maxLineBytes   = 320
 	maxGroupName   = 64
 	maxEntryLength = 253
+	maxLineBytes   = len("object-group fqdn  include \n") + maxGroupName + maxEntryLength
+	// MaxDescriptionBytes is a product bound for a compact router list label,
+	// not a claimed firmware limit.
+	MaxDescriptionBytes = 96
 )
 
 type Renderer struct{}
@@ -92,8 +97,9 @@ func (Renderer) Validate(payload []byte) error                  { return Validat
 
 // Group is one named object group as the independent validator projects it.
 type Group struct {
-	Name    string
-	Entries []string
+	Name        string
+	Entries     []string
+	Description string
 }
 
 func Render(plan domain.RoutingPlan) ([]byte, error) {
@@ -115,8 +121,8 @@ func (Renderer) RenderOutput(plan domain.RoutingPlan, outputID, prefix string) (
 
 // projectPlan turns already-decided rules into one group per list, split into
 // numbered sub-groups when a list carries more entries than a group holds.
-// Grouping by list is what makes a group on the router attributable: an
-// operator reading the name knows what it is and what removing it costs.
+// Grouping by list preserves stable identity, while the native description
+// carries the readable title independently of that identity.
 func projectPlan(plan domain.RoutingPlan) ([]Group, error) {
 	return projectOutputPlan(plan, "", "")
 }
@@ -127,6 +133,7 @@ func projectOutputPlan(plan domain.RoutingPlan, outputID, prefix string) ([]Grou
 	}
 	owner := sha256.Sum256([]byte(outputID))
 	byList := make(map[string][]string)
+	labels := make(map[string][]string)
 	for _, rule := range plan.Rules {
 		if !rule.IsValid() || rule.Action != domain.ActionRoute {
 			return nil, fmt.Errorf("routing plan contains an invalid route rule")
@@ -139,6 +146,7 @@ func projectOutputPlan(plan domain.RoutingPlan, outputID, prefix string) ([]Grou
 			return nil, err
 		}
 		byList[rule.ListID] = append(byList[rule.ListID], value)
+		labels[rule.ListID] = append(labels[rule.ListID], rule.Labels...)
 	}
 	lists := slices.Sorted(maps.Keys(byList))
 	groups := make([]Group, 0, len(lists))
@@ -146,6 +154,8 @@ func projectOutputPlan(plan domain.RoutingPlan, outputID, prefix string) ([]Grou
 	for _, list := range lists {
 		identity := sha256.Sum256([]byte(list))
 		entries := domain.StableStrings(byList[list])
+		description := listDescription(list, labels[list])
+		shards := (len(entries) + MaxEntriesPerGroup - 1) / MaxEntriesPerGroup
 		for index := 0; index < len(entries); index += MaxEntriesPerGroup {
 			end := min(index+MaxEntriesPerGroup, len(entries))
 			name := fmt.Sprintf("%s-%x-%x-s%d", prefix, owner[:6], identity[:8], index/MaxEntriesPerGroup+1)
@@ -156,7 +166,12 @@ func projectOutputPlan(plan domain.RoutingPlan, outputID, prefix string) ([]Grou
 				return nil, fmt.Errorf("keenetic FQDN group identity collision")
 			}
 			seen[name] = true
-			groups = append(groups, Group{Name: name, Entries: entries[index:end]})
+			label := description
+			if shards > 1 {
+				suffix := fmt.Sprintf(" (%d/%d)", index/MaxEntriesPerGroup+1, shards)
+				label = truncateDescription(description, MaxDescriptionBytes-len(suffix)) + suffix
+			}
+			groups = append(groups, Group{Name: name, Entries: entries[index:end], Description: label})
 		}
 	}
 	if len(groups) == 0 {
@@ -174,7 +189,7 @@ func entryValue(rule domain.RouteRule) (string, error) {
 		}
 		return value, nil
 	case domain.RuleIPv4, domain.RuleIPv6:
-		if !rule.Addr.IsValid() {
+		if !rule.Addr.IsValid() || rule.Addr.Zone() != "" {
 			return "", fmt.Errorf("routing plan contains an invalid address")
 		}
 		return rule.Addr.Unmap().String(), nil
@@ -197,7 +212,7 @@ func entryValue(rule domain.RouteRule) (string, error) {
 func renderGroups(input []Group) ([]byte, error) {
 	groups := make([]Group, 0, len(input))
 	for _, group := range input {
-		groups = append(groups, Group{Name: group.Name, Entries: domain.StableStrings(group.Entries)})
+		groups = append(groups, Group{Name: group.Name, Entries: domain.StableStrings(group.Entries), Description: group.Description})
 	}
 	slices.SortFunc(groups, func(a, b Group) int { return cmp.Compare(a.Name, b.Name) })
 	if len(groups) > MaxGroups {
@@ -205,11 +220,17 @@ func renderGroups(input []Group) ([]byte, error) {
 	}
 	var output bytes.Buffer
 	for _, group := range groups {
-		if !validGroupName(group.Name) {
+		if !ValidGroupName(group.Name) {
 			return nil, fmt.Errorf("keenetic FQDN projection contains an invalid group name")
 		}
 		if len(group.Entries) == 0 || len(group.Entries) > MaxEntriesPerGroup {
 			return nil, fmt.Errorf("keenetic FQDN group holds %d entries and the bound is %d", len(group.Entries), MaxEntriesPerGroup)
+		}
+		if group.Description != "" {
+			if !ValidDescription(group.Description) {
+				return nil, fmt.Errorf("keenetic FQDN projection contains an invalid description")
+			}
+			output.WriteString("object-group fqdn " + group.Name + " description \"" + group.Description + "\"\n")
 		}
 		for _, entry := range group.Entries {
 			// One self-contained command per line. The nested form would leave a
@@ -236,10 +257,10 @@ func Parse(payload []byte) ([]Group, error) {
 	if !bytes.HasSuffix(payload, []byte("\n")) {
 		return nil, fmt.Errorf("keenetic FQDN file must end with a newline")
 	}
+	if !utf8.Valid(payload) {
+		return nil, fmt.Errorf("keenetic FQDN file must be valid UTF-8")
+	}
 	for _, value := range payload {
-		if value >= 0x80 {
-			return nil, fmt.Errorf("keenetic FQDN file must be ASCII without a BOM")
-		}
 		if value != '\n' && (value < 0x20 || value == 0x7f) {
 			return nil, fmt.Errorf("keenetic FQDN file contains a control byte")
 		}
@@ -249,25 +270,38 @@ func Parse(payload []byte) ([]Group, error) {
 	index := make(map[string]int, 8)
 	seen := make(map[string]struct{}, len(lines))
 	for _, line := range lines {
-		parts := strings.Split(line, " ")
-		if len(parts) != 5 || parts[0] != "object-group" || parts[1] != "fqdn" || parts[3] != "include" {
+		parts := strings.SplitN(line, " ", 5)
+		if len(parts) != 5 || parts[0] != "object-group" || parts[1] != "fqdn" {
 			return nil, fmt.Errorf("keenetic FQDN file contains an unknown command")
 		}
-		name, entry := parts[2], parts[4]
-		if !validGroupName(name) || !validEntry(entry) {
-			return nil, fmt.Errorf("keenetic FQDN file contains an invalid group or entry")
+		name, value := parts[2], parts[4]
+		if !ValidGroupName(name) {
+			return nil, fmt.Errorf("keenetic FQDN file contains an invalid group")
 		}
-		if _, duplicate := seen[name+" "+entry]; duplicate {
-			return nil, fmt.Errorf("keenetic FQDN file repeats an entry")
-		}
-		seen[name+" "+entry] = struct{}{}
 		position, exists := index[name]
 		if !exists {
 			position = len(groups)
 			index[name] = position
 			groups = append(groups, Group{Name: name})
 		}
-		groups[position].Entries = append(groups[position].Entries, entry)
+		switch parts[3] {
+		case "include":
+			if !ValidEntry(value) {
+				return nil, fmt.Errorf("keenetic FQDN file contains an invalid entry")
+			}
+			if _, duplicate := seen[name+" "+value]; duplicate {
+				return nil, fmt.Errorf("keenetic FQDN file repeats an entry")
+			}
+			seen[name+" "+value] = struct{}{}
+			groups[position].Entries = append(groups[position].Entries, value)
+		case "description":
+			if len(value) < 2 || value[0] != '"' || value[len(value)-1] != '"' || !ValidDescription(value[1:len(value)-1]) || groups[position].Description != "" {
+				return nil, fmt.Errorf("keenetic FQDN file contains an invalid or repeated description")
+			}
+			groups[position].Description = value[1 : len(value)-1]
+		default:
+			return nil, fmt.Errorf("keenetic FQDN file contains an unknown command")
+		}
 	}
 	canonical, err := renderGroups(groups)
 	if err != nil {
@@ -284,7 +318,9 @@ func Validate(payload []byte) error {
 	return err
 }
 
-func validGroupName(name string) bool {
+// ValidGroupName accepts the command-safe object identity used by artifacts
+// and the exact ownership boundary when interpreting device observations.
+func ValidGroupName(name string) bool {
 	rest := name
 	if rest == "" || len(name) > maxGroupName {
 		return false
@@ -309,7 +345,8 @@ func ValidatePrefix(prefix string) error {
 	return nil
 }
 
-func validEntry(value string) bool {
+// ValidEntry accepts one canonical domain, address or prefix CLI argument.
+func ValidEntry(value string) bool {
 	if value == "" || len(value) > maxEntryLength {
 		return false
 	}
@@ -318,8 +355,65 @@ func validEntry(value string) bool {
 		return err == nil && prefix.Bits() > 0 && prefix.Masked().String() == value
 	}
 	if address, err := netip.ParseAddr(value); err == nil {
-		return address.Unmap().String() == value
+		return address.Zone() == "" && address.Unmap().String() == value
 	}
 	normalized, err := domain.NormalizeDomain(value)
 	return err == nil && normalized == value
+}
+
+// ValidDescription accepts a literal quoted CLI string without escape syntax.
+// The projection preserves Unicode titles while replacing quote delimiters;
+// untrusted artifact text cannot close the string or introduce another command.
+func ValidDescription(value string) bool {
+	if value == "" || !utf8.ValidString(value) || len(value) > MaxDescriptionBytes || strings.TrimSpace(value) != value || strings.ContainsAny(value, "\"\\") {
+		return false
+	}
+	for _, r := range value {
+		if unicode.IsControl(r) || r == '\u2028' || r == '\u2029' {
+			return false
+		}
+	}
+	return true
+}
+
+func listDescription(list string, labels []string) string {
+	title := list
+	for _, label := range domain.StableStrings(labels) {
+		// Publication owns the escaped (category/list) provenance grammar.
+		if !strings.HasPrefix(label, "(") || !strings.HasSuffix(label, ")") {
+			continue
+		}
+		if _, candidate, found := strings.Cut(label[1:len(label)-1], "/"); found && candidate != "" {
+			title = candidate
+			break
+		}
+	}
+	title = strings.Map(func(r rune) rune {
+		switch {
+		case r == '"':
+			return '\u201d'
+		case r == '\\':
+			return '\uff3c'
+		case unicode.IsControl(r) || unicode.IsSpace(r):
+			return ' '
+		default:
+			return r
+		}
+	}, title)
+	title = strings.Join(strings.Fields(title), " ")
+	if title == "" {
+		title = list
+	}
+	return truncateDescription(title, MaxDescriptionBytes)
+}
+
+func truncateDescription(value string, limit int) string {
+	if len(value) <= limit {
+		return value
+	}
+	value = value[:limit]
+	for !utf8.ValidString(value) {
+		value = value[:len(value)-1]
+	}
+	return strings.TrimSpace(value)
 }

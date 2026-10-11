@@ -145,6 +145,9 @@ type SessionEvidence struct {
 	// Requests and Bytes are the session totals.
 	Requests int   `json:"requests,omitempty"`
 	Bytes    int64 `json:"bytes,omitempty"`
+	// OmittedRefusals counts refusal events omitted from per-host diagnostics
+	// when their storage bound is reached or the supplied host is too large.
+	OmittedRefusals int64 `json:"omitted_refusals,omitempty"`
 	// CleanupError reports that the session's temporary profile could not be
 	// removed even after the bounded retry. It never replaces the session's
 	// own error: a run failure is still reported through the returned error,
@@ -264,6 +267,7 @@ func MergeEvidence(target Target, parts ...SessionEvidence) SessionEvidence {
 	for _, part := range parts {
 		merged.Requests += part.Requests
 		merged.Bytes += part.Bytes
+		merged.OmittedRefusals += part.OmittedRefusals
 		for _, step := range part.Steps {
 			steps[step] = struct{}{}
 		}

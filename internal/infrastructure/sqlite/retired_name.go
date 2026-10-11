@@ -66,7 +66,7 @@ func renameRetiredDatabase(ctx context.Context, root string) error {
 // and closes it. A busy database means another writer is still running, and
 // renaming underneath it would split one database across two names.
 func checkpointRetiredDatabase(ctx context.Context, path string) error {
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", sqliteFileURI(path))
 	if err != nil {
 		return fmt.Errorf("open retired database: %w", err)
 	}

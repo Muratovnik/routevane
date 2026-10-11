@@ -28,7 +28,7 @@ type legacyProfile struct {
 // and only then swaps files. An unknown version-three database remains
 // untouched and is refused by the normal compatibility check.
 func migrateLegacyV3(ctx context.Context, root, path string) (bool, error) {
-	legacy, err := sql.Open("sqlite", path)
+	legacy, err := sql.Open("sqlite", sqliteFileURI(path))
 	if err != nil {
 		return false, fmt.Errorf("inspect legacy SQLite: %w", err)
 	}
@@ -155,7 +155,7 @@ func legacyV3Fingerprint(ctx context.Context, db *sql.DB) (bool, error) {
 }
 
 func createImportedDatabase(ctx context.Context, tempPath, backupPath string) error {
-	db, err := sql.Open("sqlite", tempPath)
+	db, err := sql.Open("sqlite", sqliteDSN(tempPath))
 	if err != nil {
 		return fmt.Errorf("create imported SQLite: %w", err)
 	}
@@ -169,7 +169,7 @@ func createImportedDatabase(ctx context.Context, tempPath, backupPath string) er
 	if err := store.initializeCurrent(ctx); err != nil {
 		return failed(fmt.Errorf("initialize imported SQLite: %w", err))
 	}
-	legacyURI := "file:" + filepath.ToSlash(backupPath) + "?mode=ro"
+	legacyURI := sqliteFileURI(backupPath) + "?mode=ro"
 	if _, err := db.ExecContext(ctx, "ATTACH DATABASE ? AS legacy", legacyURI); err != nil {
 		return failed(fmt.Errorf("attach legacy backup: %w", err))
 	}

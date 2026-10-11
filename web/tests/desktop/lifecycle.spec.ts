@@ -200,7 +200,8 @@ test('a killed shell releases its backend and data lock', async () => {
   }
 })
 
-test('desktop composes and publishes, copies a usable subscription and downloads configuration', async () => {
+test('desktop publishes and transfers a reviewed configuration to a fresh installation', async () => {
+  test.setTimeout(120000)
   const env = await scratch()
   const { app, page } = await start(env)
   try {
@@ -290,6 +291,19 @@ test('desktop composes and publishes, copies a usable subscription and downloads
       )
     }, saved)
     await page.goto('routevane://app/settings')
+    await expect(page.getByText(origin, { exact: true })).toBeVisible()
+    const runtimeVersion = await page.evaluate(async () => {
+      const response = await fetch('/health')
+      const runtime = (await response.json()) as { version: string }
+      return runtime.version
+    })
+    expect(runtimeVersion).not.toBe('')
+    await expect(
+      page.getByText(`Version ${runtimeVersion}`, { exact: true }),
+    ).toBeVisible()
+    await page.screenshot({
+      path: join(root, 'tmp/desktop-acceptance/settings.png'),
+    })
     await page
       .getByRole('button', { name: 'Download configuration', exact: true })
       .click()
@@ -312,6 +326,45 @@ test('desktop composes and publishes, copies a usable subscription and downloads
       ).toHaveValue('desktop-home')
     } finally {
       await reopened.app.close()
+    }
+
+    const destination = await start(await scratch())
+    try {
+      await destination.page.evaluate(() =>
+        localStorage.setItem('rv.locale', 'en'),
+      )
+      await destination.page.goto('routevane://app/settings')
+      await destination.page
+        .getByLabel('Choose a .json file')
+        .setInputFiles(saved)
+      await destination.page
+        .getByRole('button', { name: 'Preview transfer' })
+        .click()
+      const preview = destination.page.getByRole('region', {
+        name: 'Will be imported',
+      })
+      await expect(preview).toContainText('1 profile')
+      await preview.getByRole('button', { name: 'Review and apply' }).click()
+      const confirmation = destination.page.getByRole('dialog', {
+        name: 'Add the reviewed configuration to this empty installation?',
+      })
+      await confirmation.getByRole('button', { name: 'Apply transfer' }).click()
+      await expect(destination.page).toHaveURL('routevane://app/')
+      await expect(
+        destination.page.getByRole('link', {
+          name: 'Desktop list',
+          exact: true,
+        }),
+      ).toBeVisible()
+      await destination.page.reload()
+      await expect(
+        destination.page.getByRole('link', {
+          name: 'Desktop list',
+          exact: true,
+        }),
+      ).toBeVisible()
+    } finally {
+      await destination.app.close()
     }
   } finally {
     await app.close()

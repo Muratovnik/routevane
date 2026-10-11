@@ -85,18 +85,18 @@ export const forgetDevice = (id: string): Promise<true> =>
 export const enableAutoDelivery = (
   id: string,
   credential: string,
-): Promise<true> =>
+): Promise<DeviceWrite> =>
   postJSON(
     `/v1/devices/${id}/auto-delivery`,
     { enabled: true, credential },
-    parseAcknowledgement,
+    parseDeviceWrite,
   )
 
-export const disableAutoDelivery = (id: string): Promise<true> =>
+export const disableAutoDelivery = (id: string): Promise<DeviceWrite> =>
   postJSON(
     `/v1/devices/${id}/auto-delivery`,
     { enabled: false },
-    parseAcknowledgement,
+    parseDeviceWrite,
   )
 
 const deviceSchema = v.pipe(
