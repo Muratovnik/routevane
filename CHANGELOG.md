@@ -11,6 +11,38 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
+### Changed
+
+- The running version is shown in Settings, in the Service section below the
+  service address, instead of at the bottom of the navigation menu.
+
+### Fixed
+
+- Building a desktop installer now verifies that the bundled core reports the
+  installer's own version and refuses the build otherwise, and the update
+  acceptance test checks the version the application shows after each install
+  and after an in-app update.
+- Excluding a value in a list's contents now keeps it out of builds and
+  forecasts even when a feed or DNS observation supplied it; the plan records
+  it as rejected with `operator_excluded`. Previously only catalog values were
+  removed.
+- Refreshing a profile with many lists no longer fails at the 20-second screen
+  budget; the route has its own five-minute budget.
+- Plans are deterministic when two source classes produce the same address or
+  network, and `lossless_collapsed` is recorded only on networks that actually
+  merged. Affected plans get a new hash on their next build.
+- The profile page keeps unsaved edits and the open tab when it reloads after a
+  rebuild, save, archive or device change; a failed reload keeps the page and
+  offers a retry.
+- Importing a configuration refreshes the list library in the open session.
+- A refused archive or restore on the profile shelf is now reported, and the
+  status line shows the latest copy or download outcome.
+- Creating a profile can no longer submit twice before the page changes.
+- The pre-commit hook audits the index Git is about to commit, including for
+  `git commit -a` and `git commit <paths>`, and routes deletions to their
+  checks. The release workflow installs and uninstalls the built Windows
+  installer before publishing it.
+
 ## [0.3.2](https://github.com/Muratovnik/routevane/compare/v0.3.1...v0.3.2) (2026-10-11)
 
 ### Bug Fixes

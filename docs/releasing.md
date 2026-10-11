@@ -207,18 +207,30 @@ repository permissions are external prerequisites, not actions a local gate prov
 ### Windows desktop installer
 
 Build the installer with `tools/dev.ps1 installer -Version vX.Y.Z` (substitute
-the intended release version). The executable, its blockmap and `latest.yml` are
-staged with `DESKTOP-SHA256SUMS` under `.cache/desktop-release/`. Building never
-publishes. The release workflow uploads the three files to the same GitHub
+the intended release version). Packaging refuses an installer whose bundled
+core does not report that exact version. The executable, its blockmap and
+`latest.yml` are staged with `DESKTOP-SHA256SUMS` under `.cache/desktop-release/`.
+Building never publishes. The release workflow uploads the three files to the same GitHub
 release as the CLI archives and lists them in that release's single
 `SHA256SUMS`; `DESKTOP-SHA256SUMS` only carries the bundle between jobs and is
 not published. Do not upload just `latest.yml` or reuse metadata from a
 different installer.
 
-`tools/dev.ps1 test-update` builds three isolated NSIS fixture versions and
+Before upload, the release workflow runs `tools/installer_smoke.py`: it installs
+the built installer silently into a run-owned directory, checks that the bundled
+core reports the release version, that the installed marker exists and that the
+update feed names `Muratovnik/routevane`, then uninstalls it. The installer
+carries the production identity, so the smoke refuses to run where any
+Routevane is registered; run it only on a clean machine such as the release
+runner.
+
+`tools/dev.ps1 test-update` builds three isolated NSIS fixture versions, each
+carrying a core stamped with its own version under `.cache/update-fixture/`, and
 exercises manual upgrade, discovery, a rejected corrupt download, retry,
-automatic restart, and preserved data. It uses a loopback feed, a unique
-installer identity and a temporary profile; production builds always use
-`Muratovnik/routevane`. Development and unpacked directory builds do not offer
-application updates. The installer is currently unsigned; signing is separate
+automatic restart, and preserved data. After each install and after the restart
+it checks the version the running core reports, finally on the Settings page.
+It uses a loopback feed, a unique installer identity and a temporary profile,
+and removes that identity's updater download cache afterwards; production
+builds always use `Muratovnik/routevane`. Development and unpacked directory
+builds do not offer application updates. The installer is currently unsigned; signing is separate
 work recorded in [requirements](requirements.md#open-work-and-limits).
