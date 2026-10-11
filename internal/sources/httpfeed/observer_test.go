@@ -137,6 +137,7 @@ func TestFeedRefusesLocalAndSpecialUseDestinations(t *testing.T) {
 		{"discard only ipv6", "100::1"},
 		{"dummy ipv6", "100:0:0:1::1"},
 		{"segment routing ipv6", "5f00::1"},
+		{"deprecated orchid ipv6", "2001:10::1"},
 		{"multicast", "224.0.0.1"},
 		{"nat64", "64:ff9b::c000:221"},
 		{"6to4", "2002::1"},

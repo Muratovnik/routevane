@@ -428,6 +428,8 @@ func TestBuildPlanRefusesSpecialUseAndOverWideDestinations(t *testing.T) {
 		{"discard only IPv6", "100::/64", ReasonSpecialUseDestination},
 		{"dummy IPv6", "100:0:0:1::/64", ReasonSpecialUseDestination},
 		{"segment routing IPv6", "5f00::/16", ReasonSpecialUseDestination},
+		{"deprecated ORCHID address", "2001:10::1", ReasonSpecialUseDestination},
+		{"deprecated ORCHID prefix", "2001:10::/28", ReasonSpecialUseDestination},
 		{"half the internet", "0.0.0.0/1", ReasonSpecialUseDestination},
 		{"a quarter of the internet", "64.0.0.0/2", ReasonPrefixTooWide},
 		{"an over-wide IPv6 prefix", "2001:db8::/8", ReasonPrefixTooWide},

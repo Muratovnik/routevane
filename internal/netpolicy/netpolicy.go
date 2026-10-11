@@ -37,6 +37,7 @@ var excludedDestinations = []netip.Prefix{
 	netip.MustParsePrefix("100::/64"),
 	netip.MustParsePrefix("100:0:0:1::/64"),
 	netip.MustParsePrefix("2001::/32"),
+	netip.MustParsePrefix("2001:10::/28"),
 	netip.MustParsePrefix("2002::/16"),
 	// SRv6 SIDs belong to an administrative domain (RFC 9602).
 	netip.MustParsePrefix("5f00::/16"),
