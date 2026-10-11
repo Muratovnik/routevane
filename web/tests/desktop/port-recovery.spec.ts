@@ -1,46 +1,15 @@
-import {
-  _electron as electron,
-  expect,
-  test,
-  type ElectronApplication,
-} from '@playwright/test'
+import { expect, test, type ElectronApplication } from '@playwright/test'
 import { once } from 'node:events'
 import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import { connect, createServer, type AddressInfo } from 'node:net'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { isolatedProductEnvironment } from '../e2e/support/environment'
-import { reserveLoopbackPort } from '../e2e/support/product'
-
-// The packaged-application helpers below mirror lifecycle.spec.ts, which does
-// not export them.
-const root = resolve(import.meta.dirname, '../../..')
-
-const packageDirectory = (): string => {
-  if (process.platform === 'win32') return 'win-unpacked'
-  if (process.platform !== 'darwin') return 'linux-unpacked'
-  return process.arch === 'arm64' ? 'mac-arm64' : 'mac'
-}
-
-const executableName = (): string =>
-  process.platform === 'win32' ? 'Routevane.exe' : 'Routevane'
-
-const packageRoot = join(root, '.cache/desktop', packageDirectory())
-const executablePath =
-  process.platform === 'darwin'
-    ? join(packageRoot, 'Routevane.app/Contents/MacOS/Routevane')
-    : join(packageRoot, executableName())
-
-const questionsBootstrap = join(
-  import.meta.dirname,
-  'support/native-questions.cjs',
-)
-
-const defined = (env: NodeJS.ProcessEnv): Record<string, string> =>
-  Object.fromEntries(
-    Object.entries(env).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined,
-    ),
-  )
+import {
+  backendReachable,
+  launchPackaged,
+  nativeQuestions,
+  root,
+} from './support/packaged'
 
 interface NativeQuestion {
   type: string
@@ -88,104 +57,10 @@ const accepts = async (port: number): Promise<boolean> => {
   }
 }
 
-const backendReachable = async (origin: string) => {
-  try {
-    return (
-      (await fetch(`${origin}/health`, { signal: AbortSignal.timeout(500) }))
-        .status === 403
-    )
-  } catch {
-    return false
-  }
-}
-
-interface InspectorMessage {
-  id?: number
-  method?: string
-  params?: { callFrames?: { callFrameId: string }[] }
-  result?: { exceptionDetails?: unknown }
-}
-
-const requireRecorder = `process.getBuiltinModule('node:module').createRequire(${JSON.stringify(questionsBootstrap)})(${JSON.stringify(questionsBootstrap)})`
-
-// A packaged application ignores `-r`, and the question can be asked before a
-// launched application accepts evaluation. The main process therefore starts
-// held by the Node inspector, and the recorder is required at the first pause
-// where module loading works: at the latest the first statement of the
-// application module, before anything can start the backend.
-const holdUntilRecorded = async (inspectorPort: number) => {
-  let address = ''
-  await expect(async () => {
-    const targets = (await (
-      await fetch(`http://127.0.0.1:${inspectorPort}/json/list`)
-    ).json()) as { webSocketDebuggerUrl: string }[]
-    address = targets[0]!.webSocketDebuggerUrl
-  }).toPass({ timeout: 15000 })
-  const socket = new WebSocket(address)
-  await once(socket, 'open')
-  let sent = 0
-  const replies = new Map<number, (message: InspectorMessage) => void>()
-  let paused: (callFrameId: string) => void = () => {}
-  socket.addEventListener('message', ({ data }) => {
-    const message = JSON.parse(String(data)) as InspectorMessage
-    if (message.method === 'Debugger.paused')
-      paused(message.params!.callFrames![0]!.callFrameId)
-    else if (message.id !== undefined) replies.get(message.id)?.(message)
-  })
-  const send = (method: string, params: object = {}) =>
-    new Promise<InspectorMessage>((reply) => {
-      sent += 1
-      replies.set(sent, reply)
-      socket.send(JSON.stringify({ id: sent, method, params }))
-    })
-  const nextPause = () =>
-    new Promise<string>((resolvePause) => {
-      paused = resolvePause
-    })
-  try {
-    await send('Debugger.enable')
-    await send('Debugger.setBreakpointByUrl', {
-      urlRegex: String.raw`[\\/]main\.mjs$`,
-      lineNumber: 0,
-    })
-    let pause = nextPause()
-    await send('Runtime.runIfWaitingForDebugger')
-    for (;;) {
-      const { result } = await send('Debugger.evaluateOnCallFrame', {
-        callFrameId: await pause,
-        expression: requireRecorder,
-      })
-      pause = nextPause()
-      await send('Debugger.resume')
-      if (result?.exceptionDetails === undefined) return
-    }
-  } finally {
-    socket.close()
-  }
-}
-
 // The native dialog follows the system locale; English is pinned so its words
 // can be asserted on any workstation.
-const launch = async (env: NodeJS.ProcessEnv) => {
-  const inspectorPort = await reserveLoopbackPort()
-  const launching = electron.launch({
-    executablePath,
-    args: [`--inspect-brk=${inspectorPort}`, '--lang=en-US'],
-    env: defined(env),
-  })
-  // The launch settles only once the held process is released below.
-  launching.catch(() => {})
-  try {
-    await holdUntilRecorded(inspectorPort)
-  } catch (error) {
-    await launching.then(
-      (app) => app.close(),
-      () => {},
-    )
-    throw error
-  }
-  return launching
-}
+const launch = (env: NodeJS.ProcessEnv) =>
+  launchPackaged(env, { args: ['--lang=en-US'], modules: [nativeQuestions] })
 
 const askedQuestions = (app: ElectronApplication) =>
   app.evaluate(

@@ -1,8 +1,8 @@
-import { _electron as electron, expect, test } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { analyze, axeFor } from '../e2e/support/axe'
 import { spawn } from 'node:child_process'
 import { copyFile, mkdtemp, mkdir, readFile } from 'node:fs/promises'
-import { resolve, join } from 'node:path'
+import { join } from 'node:path'
 import { once } from 'node:events'
 import { isolatedProductEnvironment } from '../e2e/support/environment'
 import {
@@ -10,23 +10,13 @@ import {
   spawnProduct,
   stopOwnedProduct,
 } from '../e2e/support/product'
-
-const root = resolve(import.meta.dirname, '../../..')
-
-const packageDirectory = (): string => {
-  if (process.platform === 'win32') return 'win-unpacked'
-  if (process.platform !== 'darwin') return 'linux-unpacked'
-  return process.arch === 'arm64' ? 'mac-arm64' : 'mac'
-}
-
-const executableName = (): string =>
-  process.platform === 'win32' ? 'Routevane.exe' : 'Routevane'
-
-const packageRoot = join(root, '.cache/desktop', packageDirectory())
-const executablePath =
-  process.platform === 'darwin'
-    ? join(packageRoot, 'Routevane.app/Contents/MacOS/Routevane')
-    : join(packageRoot, executableName())
+import {
+  backendReachable,
+  backgroundRequests,
+  executablePath,
+  launchPackaged,
+  root,
+} from './support/packaged'
 
 const scratch = async () => {
   const parent = join(root, 'tmp/desktop-acceptance')
@@ -39,33 +29,12 @@ const scratch = async () => {
   }
 }
 
-// Electron's launcher takes a complete string map, while `process.env` declares
-// every value as possibly unset. A variable that is not set is not one to hand
-// on, so it is dropped rather than passed as an empty string.
-const defined = (env: NodeJS.ProcessEnv): Record<string, string> =>
-  Object.fromEntries(
-    Object.entries(env).filter(
-      (entry): entry is [string, string] => entry[1] !== undefined,
-    ),
-  )
-
 const start = async (env: NodeJS.ProcessEnv) => {
-  const app = await electron.launch({ executablePath, env: defined(env) })
+  const app = await launchPackaged(env)
   const page = await app.firstWindow()
   await page.waitForURL('routevane://app/')
   await page.getByRole('heading', { level: 1 }).waitFor()
   return { app, page }
-}
-
-const backendReachable = async (origin: string) => {
-  try {
-    return (
-      (await fetch(`${origin}/health`, { signal: AbortSignal.timeout(500) }))
-        .status === 403
-    )
-  } catch {
-    return false
-  }
 }
 
 test('packaged app persists data, hides to tray, reuses its instance and quits cleanly', async () => {
@@ -134,6 +103,16 @@ test('packaged app persists data, hides to tray, reuses its instance and quits c
       ),
     ).toBe(false)
     expect(await backendReachable(origin)).toBe(true)
+    // The tray notice is recorded rather than shown on the operator's desktop.
+    const hidden = await backgroundRequests(app)
+    const notices = await app.evaluate(({ Notification }) =>
+      Notification.isSupported(),
+    )
+    expect(hidden.notifications).toEqual(
+      notices
+        ? [{ title: 'Routevane', body: expect.stringMatching(/tray|трее/) }]
+        : [],
+    )
     const second = spawn(executablePath, [], {
       env,
       windowsHide: true,
@@ -148,6 +127,11 @@ test('packaged app persists data, hides to tray, reuses its instance and quits c
         ),
       )
       .toBe(true)
+    // The reused instance asks for the foreground, which the test records
+    // instead of granting so the window never takes focus from the operator.
+    expect((await backgroundRequests(app)).focusRequests).toBeGreaterThan(
+      hidden.focusRequests,
+    )
     expect(
       await page.evaluate(() => window.routevaneDesktop!.backendOrigin),
     ).toBe(origin)
