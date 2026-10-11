@@ -364,6 +364,16 @@ function Invoke-WebCheck {
     return Sync-RoutevaneGeneratedUI
 }
 
+# Compiles the core against whatever interface was last generated and synced;
+# callers that need a fresh interface run Invoke-ProductBuild instead.
+function Invoke-CoreBuild {
+    param(
+        [Parameter(Mandatory)][string]$ProductVersion,
+        [Parameter(Mandatory)][string]$Output
+    )
+    Invoke-Checked $GoExecutable @('build', '-trimpath', '-buildvcs=true', '-mod=readonly', '-ldflags', "-X main.version=$ProductVersion", '-o', $Output, './cmd/routevane')
+}
+
 function Invoke-ProductBuild {
     param([string]$ProductVersion = 'dev')
     Invoke-WebGenerateAndSync | Out-Null
@@ -371,7 +381,7 @@ function Invoke-ProductBuild {
     New-Item -ItemType Directory -Force -Path $BuildRoot | Out-Null
     $BinaryName = if ($IsWindows) { 'routevane.exe' } else { 'routevane' }
     $Binary = Join-Path $BuildRoot $BinaryName
-    Invoke-Checked $GoExecutable @('build', '-trimpath', '-buildvcs=true', '-mod=readonly', '-ldflags', "-X main.version=$ProductVersion", '-o', $Binary, './cmd/routevane')
+    Invoke-CoreBuild -ProductVersion $ProductVersion -Output $Binary
     return $Binary
 }
 
@@ -674,7 +684,9 @@ try {
         'installer' {
             if (-not $IsWindows -or [Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne 'X64') { throw 'installer requires Windows x64' }
             if ($Version -notmatch '^v?\d+\.\d+\.\d+$') { throw 'installer requires a stable -Version vX.Y.Z' }
-            Invoke-ProductBuild -ProductVersion $Version | Out-Null
+            # The packager refuses a core that does not report the installer's
+            # own version, so the stamp always carries the tag's v prefix.
+            Invoke-ProductBuild -ProductVersion ('v' + ($Version -replace '^v', '')) | Out-Null
             Invoke-Checked 'node' @((Join-Path $RepositoryRoot 'desktop/icons.mjs'))
             Invoke-DesktopCommand @('run', 'package', '--', '--installer', '--version', $Version)
             $DesktopRelease = Join-Path $RepositoryRoot '.cache/desktop-release'
@@ -697,6 +709,16 @@ try {
         'test-update' {
             if (-not $IsWindows) { throw 'Update acceptance requires Windows' }
             Invoke-ProductBuild | Out-Null
+            # Each fixture installer carries a core stamped with its own
+            # version, so the acceptance can check what the app reports after
+            # every upgrade. The interface generated above is reused as is.
+            $FixtureRoot = Join-Path $RepositoryRoot '.cache\update-fixture'
+            Remove-RoutevaneGeneratedDirectory -Path $FixtureRoot
+            foreach ($FixtureVersion in @('v0.0.1', 'v0.0.2', 'v0.0.3')) {
+                $FixtureDirectory = Join-Path $FixtureRoot $FixtureVersion
+                New-Item -ItemType Directory -Force -Path $FixtureDirectory | Out-Null
+                Invoke-CoreBuild -ProductVersion $FixtureVersion -Output (Join-Path $FixtureDirectory 'routevane.exe')
+            }
             Invoke-Checked 'node' @((Join-Path $RepositoryRoot 'desktop/icons.mjs'))
             Push-Location (Join-Path $RepositoryRoot 'web')
             try { Invoke-Checked 'npx' @('--no-install', 'playwright', 'test', '--config', 'playwright.update.config.ts') } finally { Pop-Location }

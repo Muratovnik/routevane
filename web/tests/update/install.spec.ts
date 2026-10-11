@@ -1,5 +1,12 @@
-import { _electron as electron, chromium, expect, test } from '@playwright/test'
+import {
+  _electron as electron,
+  chromium,
+  expect,
+  test,
+  type Page,
+} from '@playwright/test'
 import { analyze, axeFor } from '../e2e/support/axe'
+import { copyFor } from '../e2e/support/copy'
 import { createServer, type Server } from 'node:http'
 import { createReadStream } from 'node:fs'
 import {
@@ -8,6 +15,7 @@ import {
   mkdtemp,
   readFile,
   readdir,
+  rm,
   stat,
 } from 'node:fs/promises'
 import { execFile, spawn } from 'node:child_process'
@@ -41,6 +49,26 @@ const exists = async (path: string) => {
   } catch {
     return false
   }
+}
+
+/** The version the running core reports to the window it serves. */
+const reportedVersion = (page: Page): Promise<string> =>
+  page.evaluate(async () => {
+    const health = (await (await fetch('/health')).json()) as {
+      version: string
+    }
+    return health.version
+  })
+
+/**
+ * electron-updater's download cache for one fixture identity. It lives outside
+ * the scratch directory, under the user's local application data, and holds a
+ * full installer, so the test that chose the identity removes it.
+ */
+const updaterCacheFor = (fixtureID: string): string => {
+  const localAppData = process.env.LOCALAPPDATA
+  if (!localAppData) throw new Error('update acceptance needs LOCALAPPDATA')
+  return join(localAppData, `routevane-${fixtureID}-updater`)
 }
 
 /** The loopback port a listening server was given by the operating system. */
@@ -83,6 +111,8 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
     ROUTEVANE_DESKTOP_DATA: join(scratch, 'data'),
   }
   const fixtureID = `test-${randomUUID().replaceAll('-', '')}`
+  const updaterCache = updaterCacheFor(fixtureID)
+  const ru = copyFor('ru')
   let corrupt = true
   let downloads = 0
   const server = createServer(async (request, response) => {
@@ -154,6 +184,10 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
           fixtureID,
           '--fixture-root',
           scratch,
+          // Each installer carries a core stamped with its own version, built
+          // by `tools/dev.ps1 test-update`.
+          '--core-binary',
+          join(root, '.cache/update-fixture', `v${version}`, 'routevane.exe'),
           '--output',
           output!,
         ],
@@ -175,6 +209,7 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
     let page = await app.firstWindow()
     await page.getByRole('heading', { level: 1 }).waitFor()
     expect(await app.evaluate(({ app }) => app.getVersion())).toBe('0.0.1')
+    expect(await reportedVersion(page)).toBe('v0.0.1')
     const created = await page.evaluate(async () => {
       localStorage.setItem('rv.locale', 'ru')
       return (
@@ -211,6 +246,7 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
     app = await electron.launch({ executablePath: exe, env })
     page = await app.firstWindow()
     expect(await app.evaluate(({ app }) => app.getVersion())).toBe('0.0.2')
+    expect(await reportedVersion(page)).toBe('v0.0.2')
     await expect(
       page.getByRole('link', { name: 'Survives update', exact: true }),
     ).toBeVisible()
@@ -286,6 +322,8 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
     expect(
       await page.evaluate(async () => (await fetch('/health')).status),
     ).toBe(200)
+    // The rejected download replaced nothing: the running core is still 0.0.2.
+    expect(await reportedVersion(page)).toBe('v0.0.2')
     await page.screenshot({ path: join(parent, 'retry.png') })
     corrupt = false
     const exited = once(child, 'exit')
@@ -339,11 +377,25 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
       reopened.getByRole('heading', { name: 'Профили', exact: true }),
     ).toBeVisible()
     await reopened.screenshot({ path: join(parent, 'updated.png') })
+    // What the operator reads after the update: the core restarted by the
+    // installer states the new version on the Settings page.
+    await reopened
+      .getByRole('link', { name: ru('shell.nav.settings'), exact: true })
+      .click()
+    await expect(
+      reopened
+        .getByRole('region', { name: ru('settings.runtime'), exact: true })
+        .getByText(`${ru('settings.runtime.version')} · v0.0.3`, {
+          exact: true,
+        }),
+    ).toBeVisible()
+    await reopened.screenshot({ path: join(parent, 'updated-settings.png') })
   } finally {
     await app?.close()
     await browser?.close()
     await stopOwned()
     await uninstall(installDir)
+    await rm(updaterCache, { recursive: true, force: true })
     server.closeAllConnections()
     await new Promise<void>((resolve) => server.close(() => resolve()))
   }

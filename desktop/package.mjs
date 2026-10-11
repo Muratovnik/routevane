@@ -46,6 +46,38 @@ if (args.includes('--fixture-feed')) {
     throw new Error('invalid fixture feed')
   publish = { provider: 'generic', url: url.href }
 }
+const binary = process.platform === 'win32' ? 'routevane.exe' : 'routevane'
+let coreBinary = join(root, '.cache/build', binary)
+// Update acceptance needs one core per fixture version. Only a fixture build
+// may swap the core, and only for one generated beside the other fixtures.
+if (args.includes('--core-binary')) {
+  if (!fixtureID) throw new Error('--core-binary requires --fixture-feed')
+  coreBinary = resolve(args[args.indexOf('--core-binary') + 1] ?? '')
+  if (!coreBinary.startsWith(resolve(root, '.cache/update-fixture') + sep))
+    throw new Error('fixture core binary must stay under .cache/update-fixture')
+}
+// An installer states a version, and the core it carries reports one to the
+// interface. Refuse to package the two disagreeing, before anything is written.
+if (installer) {
+  const expected = `routevane v${version}`
+  let reported
+  try {
+    reported = execFileSync(coreBinary, ['version'], {
+      encoding: 'utf8',
+      timeout: 30000,
+      windowsHide: true,
+    }).trim()
+  } catch (error) {
+    throw new Error(`cannot read the version of ${coreBinary}`, {
+      cause: error,
+    })
+  }
+  if (reported !== expected)
+    throw new Error(
+      `${coreBinary} reports "${reported}", but the installer is ${version}; ` +
+        `build the core with -ldflags "-X main.version=v${version}"`,
+    )
+}
 const out = args.includes('--output')
   ? args[args.indexOf('--output') + 1]
   : join(root, '.cache/desktop')
@@ -95,7 +127,6 @@ if (installer) {
     { cwd: root, stdio: 'inherit', windowsHide: true },
   )
 }
-const binary = process.platform === 'win32' ? 'routevane.exe' : 'routevane'
 await builder.build({
   projectDir: fileURLToPath(new URL('.', import.meta.url)),
   targets: builder.Platform.current().createTarget(installer ? 'nsis' : 'dir'),
@@ -131,7 +162,7 @@ await builder.build({
     ],
     extraResources: [
       ...(installer ? [{ from: coreMetadata, to: '.' }] : []),
-      { from: join(root, '.cache/build', binary), to: binary },
+      { from: coreBinary, to: binary },
       { from: join(root, 'catalog'), to: 'catalog' },
       { from: join(root, 'LICENSE'), to: 'LICENSE' },
     ],
