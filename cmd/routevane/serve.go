@@ -100,6 +100,17 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		}
 	}
 	listener, err := deps.Listen("tcp4", fmt.Sprintf("127.0.0.1:%d", options.Port))
+	savedDesktopPort := options.Port
+	replacingDesktopPort := false
+	if err != nil && options.DesktopToken != "" && options.Port != 0 {
+		if !options.RecoverDesktopPort {
+			_, _ = fmt.Fprintln(stdout, "routevane:desktop-port-unavailable")
+			logResult(logger, "serve", "", "", "failed", 0, started, "desktop_listen_failed")
+			return 1
+		}
+		listener, err = deps.Listen("tcp4", "127.0.0.1:0")
+		replacingDesktopPort = err == nil
+	}
 	if err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "listen_failed")
 		return 1
@@ -112,6 +123,12 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	}
 	if options.DesktopToken != "" && options.Port == 0 {
 		if err := filesystem.SaveDesktopPort(root, tcp.Port); err != nil {
+			logResult(logger, "serve", "", "", "failed", 0, started, "desktop_port_unavailable")
+			return 1
+		}
+	}
+	if replacingDesktopPort {
+		if err := filesystem.ReplaceDesktopPort(root, savedDesktopPort, tcp.Port); err != nil {
 			logResult(logger, "serve", "", "", "failed", 0, started, "desktop_port_unavailable")
 			return 1
 		}

@@ -174,12 +174,8 @@ async function start() {
     : join(app.getPath('userData'), 'data')
   await mkdir(data, { recursive: true })
   if (quitting) return
-  backend = startBackend({ binary, catalog, data })
-  void backend.exited.then(() => {
-    if (!quitting) failure()
-  })
-  const origin = await backend.ready
-  if (quitting) return
+  const origin = await connectBackend({ binary, catalog, data })
+  if (quitting || !origin) return
   const identity = await fetch(origin, {
     headers: { 'X-Routevane-Desktop': backend.token },
     signal: AbortSignal.timeout(5000),
@@ -349,6 +345,48 @@ async function start() {
     updateTimer = setInterval(() => void updates.check(), 4 * 60 * 60 * 1000)
     updateTimer.unref()
     powerMonitor.on('resume', () => void updates.check())
+  }
+}
+
+async function connectBackend(options) {
+  let recoverPort = false
+  for (;;) {
+    backend = startBackend({ ...options, recoverPort })
+    try {
+      const origin = await backend.ready
+      void backend.exited.then(() => {
+        if (!quitting) failure()
+      })
+      return origin
+    } catch (error) {
+      await backend.stop()
+      if (quitting) return
+      if (error.message !== 'desktop_port_unavailable' || recoverPort)
+        throw error
+      const ru = app.getLocale().startsWith('ru')
+      const { response } = await dialog.showMessageBox({
+        type: 'warning',
+        title: 'Routevane',
+        message: ru
+          ? 'Локальный адрес Routevane недоступен.'
+          : 'Routevane’s local address is unavailable.',
+        detail: ru
+          ? 'Выбор нового порта восстановит запуск. Данные и токены подписок сохранятся, но во всех ранее скопированных ссылках подписок нужно будет заменить номер порта. Другие приложения продолжат работать.'
+          : 'Choosing a new port restores startup. Your data and subscription tokens stay intact, but you must update the port in every previously copied subscription address. Other applications keep running.',
+        buttons: ru
+          ? ['Выйти', 'Выбрать новый порт']
+          : ['Quit', 'Choose new port'],
+        defaultId: 0,
+        cancelId: 0,
+        noLink: true,
+      })
+      if (quitting) return
+      if (response !== 1) {
+        app.quit()
+        return
+      }
+      recoverPort = true
+    }
   }
 }
 

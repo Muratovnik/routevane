@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/hex"
+	"flag"
 	"io"
 	"log/slog"
 )
@@ -13,8 +14,13 @@ import (
 // on Windows where SIGTERM does not provide a graceful child shutdown.
 // The credential travels through that pipe, never through argv or a disk file.
 func runDesktop(stdout io.Writer, logger *slog.Logger, args []string, deps runtimeDeps) int {
-	options, ok := parseDoctor(args)
-	if !ok {
+	set := flag.NewFlagSet("desktop", flag.ContinueOnError)
+	set.SetOutput(io.Discard)
+	options := doctorOptions{}
+	set.StringVar(&options.CatalogDir, "catalog-dir", "./catalog", "catalog directory")
+	set.StringVar(&options.DataDir, "data-dir", "./data", "data directory")
+	recoverPort := set.Bool("recover-desktop-port", false, "choose a new port if the saved desktop port cannot bind")
+	if set.Parse(args) != nil || set.NArg() != 0 {
 		return 2
 	}
 	input := bufio.NewReaderSize(deps.DesktopInput, 128)
@@ -36,6 +42,7 @@ func runDesktop(stdout io.Writer, logger *slog.Logger, args []string, deps runti
 	deps.Context = ctx
 	return runServe(stdout, logger, serveOptions{
 		Port: 0, CatalogDir: options.CatalogDir, DataDir: options.DataDir,
-		DesktopToken: token,
+		DesktopToken:       token,
+		RecoverDesktopPort: *recoverPort,
 	}, deps)
 }

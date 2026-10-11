@@ -3,11 +3,18 @@ import { randomBytes } from 'node:crypto'
 import { createInterface } from 'node:readline'
 import { setTimeout as delay } from 'node:timers/promises'
 
-export function startBackend({ binary, catalog, data }) {
+export function startBackend({ binary, catalog, data, recoverPort = false }) {
   const token = randomBytes(32).toString('hex')
   const child = spawn(
     binary,
-    ['desktop', '--catalog-dir', catalog, '--data-dir', data],
+    [
+      'desktop',
+      '--catalog-dir',
+      catalog,
+      '--data-dir',
+      data,
+      ...(recoverPort ? ['--recover-desktop-port'] : []),
+    ],
     {
       stdio: ['pipe', 'pipe', 'pipe'],
       windowsHide: true,
@@ -21,7 +28,7 @@ export function startBackend({ binary, catalog, data }) {
       settled = true
       resolve()
     })
-    child.once('exit', () => {
+    child.once('close', () => {
       settled = true
       resolve()
     })
@@ -35,6 +42,10 @@ export function startBackend({ binary, catalog, data }) {
     const timer = setTimeout(() => reject(new Error('startup_timeout')), 30000)
     lines.once('line', (line) => {
       clearTimeout(timer)
+      if (line === 'routevane:desktop-port-unavailable') {
+        reject(new Error('desktop_port_unavailable'))
+        return
+      }
       if (
         !/^http:\/\/127\.0\.0\.1:[1-9]\d{0,4}$/.test(line) ||
         Number(new URL(line).port) > 65535

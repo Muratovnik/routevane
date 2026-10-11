@@ -20,6 +20,10 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
   lock. A second launch activates the existing desktop instance. A shell crash
   ends the owned backend's lifetime. Independently started CLI processes are
   never adopted or terminated implicitly.
+- Reuse the desktop's saved local port. When it cannot bind, offer explicit
+  recovery on a new port with a warning that previously copied subscription
+  addresses need updating. Declining preserves the saved address; recovery
+  preserves data, bearer tokens and foreign listeners (ADR 0047).
 - Source refresh schedules belong to Go and keep running while the desktop is
   in the tray. Application updates belong to packaging, independently of those
   schedules; unattended application replacement is not enabled by this slice.

@@ -38,7 +38,9 @@ requests; subscriptions keep their existing separately authenticated bearer URL.
 On first launch the OS assigns a free port; Go commits it under the data lock
 before publishing URLs and reuses it on later launches. An occupied saved port
 is a startup error, never a reason to silently change subscriptions or stop another
-process. Subscription URLs remain local to the computer and work while it is running.
+process. [ADR 0047](0047-explicit-desktop-port-recovery.md) adds explicit recovery
+with a warning that previously copied subscription addresses need their port
+updated. Subscription URLs remain local to the computer and work while it is running.
 
 Use a single-instance lock before spawning Go. A second launch foregrounds the
 existing window. Closing the window hides it to the tray, preserving its draft;

@@ -31,6 +31,23 @@ func DesktopPort(dataRoot string) (int, error) {
 // SaveDesktopPort commits the first bound port before any URL can be published.
 // The caller owns the data lock. An existing file is never replaced.
 func SaveDesktopPort(dataRoot string, port int) error {
+	return writeDesktopPort(dataRoot, port, false)
+}
+
+// ReplaceDesktopPort requires explicit recovery and the serving data lock.
+// Check the expected endpoint so recovery cannot overwrite different state.
+func ReplaceDesktopPort(dataRoot string, previous, port int) error {
+	current, err := DesktopPort(dataRoot)
+	if err != nil {
+		return err
+	}
+	if previous == 0 || current != previous {
+		return fmt.Errorf("desktop port changed")
+	}
+	return writeDesktopPort(dataRoot, port, true)
+}
+
+func writeDesktopPort(dataRoot string, port int, replace bool) error {
 	if port < 1 || port > 65535 {
 		return fmt.Errorf("invalid desktop port")
 	}
@@ -48,5 +65,9 @@ func SaveDesktopPort(dataRoot string, port int) error {
 	if err := file.Close(); err != nil {
 		return err
 	}
-	return os.Link(file.Name(), filepath.Join(dataRoot, "desktop.port"))
+	destination := filepath.Join(dataRoot, "desktop.port")
+	if replace {
+		return os.Rename(file.Name(), destination)
+	}
+	return os.Link(file.Name(), destination)
 }
