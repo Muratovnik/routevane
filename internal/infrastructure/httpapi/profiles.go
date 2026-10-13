@@ -48,19 +48,32 @@ func (h *handler) previewComposition(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *handler) listProfiles(w http.ResponseWriter, r *http.Request) {
-	h.listProfilePage(w, r, "")
+	h.listProfilePage(w, r, application.ProfileShelfAll, "")
 }
 
 // listProfilePage keeps every list read bounded. The cursor is returned by the
 // preceding page in the path rather than a query string, because API requests
 // with query parameters are rejected before routing.
-func (h *handler) listProfilePage(w http.ResponseWriter, r *http.Request, afterID string) {
-	page, err := h.backend.ProfileCardsPage(r.Context(), afterID)
+func (h *handler) listProfilePage(w http.ResponseWriter, r *http.Request, shelf application.ProfileShelf, afterID string) {
+	page, err := h.backend.ProfileCardsPage(r.Context(), shelf, afterID)
 	if err != nil {
 		h.backendError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, page)
+}
+
+// listProfileShelf reads one shelf of the library. The shelf is a path segment
+// for the same reason the cursor is: a query string is refused before routing.
+// Only the two shelves a profile can be on are addressable; "all" is the
+// unfiltered listing's own address.
+func (h *handler) listProfileShelf(w http.ResponseWriter, r *http.Request, shelf, afterID string) {
+	switch application.ProfileShelf(shelf) {
+	case application.ProfileShelfActive, application.ProfileShelfArchived:
+		h.listProfilePage(w, r, application.ProfileShelf(shelf), afterID)
+	default:
+		h.backendError(w, application.ErrNotFound)
+	}
 }
 
 func (h *handler) getProfile(w http.ResponseWriter, r *http.Request, id string) {

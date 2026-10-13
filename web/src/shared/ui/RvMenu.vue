@@ -3,6 +3,7 @@ import {
   DropdownMenuContent,
   DropdownMenuPortal,
   DropdownMenuRoot,
+  DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -111,6 +112,10 @@ const onCloseAutoFocus = (event: Event): void => {
         @close-auto-focus="onCloseAutoFocus"
       >
         <template v-for="item in props.items" :key="item.key">
+          <DropdownMenuSeparator
+            v-if="item.separatorBefore === true"
+            class="rv-menu__separator"
+          />
           <DropdownMenuSub
             v-if="grouped(item)"
             :open="openGroups.has(item.key)"
@@ -118,7 +123,6 @@ const onCloseAutoFocus = (event: Event): void => {
           >
             <DropdownMenuSubTrigger
               class="rv-menu__item"
-              :class="{ 'rv-menu__item--separated': item.separatorBefore }"
               :disabled="item.disabled === true"
               @click.capture="renewGroupIntent(item.key, $event)"
               @keydown.capture="renewGroupIntent(item.key, $event)"
@@ -259,10 +263,11 @@ const onCloseAutoFocus = (event: Event): void => {
   overflow-wrap: anywhere;
 }
 
-.rv-menu__item--separated {
-  margin-top: var(--rv-space-1);
-  padding-top: var(--rv-space-1);
-  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+/* A real separator, so assistive technology hears where one group ends. */
+.rv-menu__separator {
+  height: var(--rv-border-hair);
+  margin-block: var(--rv-space-1);
+  background: var(--rv-color-rule);
 }
 
 .rv-menu__item[data-highlighted] {

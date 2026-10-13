@@ -211,11 +211,12 @@ type PublicationRepository interface {
 	RecordProfileRefreshResult(ctx context.Context, profileID string, lastRefreshedAt time.Time, failed bool) error
 	CreateProfile(context.Context, Profile) error
 	Profile(context.Context, string) (Profile, error)
-	// ProfilePage returns one bounded, stable page of stored profiles. afterID is
-	// empty for the newest page and otherwise comes from the preceding page's
-	// NextCursor; callers must not invent an offset because inserts may happen
-	// between reads.
-	ProfilePage(context.Context, string) (ProfilePage, error)
+	// ProfilePage returns one bounded, stable page of the stored profiles on one
+	// shelf. afterID is empty for the newest page and otherwise comes from the
+	// preceding page's NextCursor; callers must not invent an offset because
+	// inserts may happen between reads. The cursor is a position, so it stays
+	// valid whichever shelf it is continued on.
+	ProfilePage(ctx context.Context, shelf ProfileShelf, afterID string) (ProfilePage, error)
 	// Profiles returns stored profiles newest first. The repository owns the bound
 	// because this transport has no pagination parameters.
 	Profiles(context.Context) ([]Profile, error)

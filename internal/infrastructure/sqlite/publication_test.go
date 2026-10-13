@@ -394,11 +394,11 @@ func TestSchedulerAndReferenceQueriesSeeProfilesBeyondTheShelfLimit(t *testing.T
 	if err := store.SetProfileArchived(context.Background(), oldestID, now.Add(2*time.Hour), now.Add(2*time.Hour)); err != nil {
 		t.Fatalf("archive oldest profile: %v", err)
 	}
-	firstPage, err := store.ProfilePage(context.Background(), "")
+	firstPage, err := store.ProfilePage(context.Background(), application.ProfileShelfAll, "")
 	if err != nil || len(firstPage.Profiles) != profileLimit || firstPage.NextCursor == "" {
 		t.Fatalf("first page profiles=%d next=%q err=%v", len(firstPage.Profiles), firstPage.NextCursor, err)
 	}
-	secondPage, err := store.ProfilePage(context.Background(), firstPage.NextCursor)
+	secondPage, err := store.ProfilePage(context.Background(), application.ProfileShelfAll, firstPage.NextCursor)
 	if err != nil || len(secondPage.Profiles) != 1 || secondPage.NextCursor != "" {
 		t.Fatalf("second page profiles=%#v next=%q err=%v", secondPage.Profiles, secondPage.NextCursor, err)
 	}

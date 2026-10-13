@@ -213,16 +213,16 @@ func TestDeletingAnArchivedProfileRetiresItAndKeepsItsHistory(t *testing.T) {
 	if err != nil || len(profiles) != 1 || profiles[0].ID != f.sibling.ID {
 		t.Fatalf("profiles=%v err=%v", profiles, err)
 	}
-	page, err := store.ProfilePage(ctx, "")
+	page, err := store.ProfilePage(ctx, application.ProfileShelfAll, "")
 	if err != nil || len(page.Profiles) != 1 || page.Profiles[0].ID != f.sibling.ID {
 		t.Fatalf("page=%v err=%v", page.Profiles, err)
 	}
 	// The deleted profile is newer than the sibling, so a cursor naming it
 	// still positions the next page instead of failing it.
-	if page, err := store.ProfilePage(ctx, f.sibling.ID); err != nil || len(page.Profiles) != 0 {
+	if page, err := store.ProfilePage(ctx, application.ProfileShelfAll, f.sibling.ID); err != nil || len(page.Profiles) != 0 {
 		t.Fatalf("page after the sibling=%v err=%v", page.Profiles, err)
 	}
-	if page, err := store.ProfilePage(ctx, f.profile.ID); err != nil || len(page.Profiles) != 0 {
+	if page, err := store.ProfilePage(ctx, application.ProfileShelfAll, f.profile.ID); err != nil || len(page.Profiles) != 0 {
 		t.Fatalf("a deleted cursor=%v err=%v", page.Profiles, err)
 	}
 	scheduled, err := store.ProfilesForScheduling(ctx)

@@ -51,13 +51,34 @@ records as a separate change rather than a rename.
 Sections, addressable by URL:
 
 1. `/` — **Profiles / Профили.** Every stored profile, newest first: its name
-   and composition, its formats and content time. The row is a state
-   summary, not a toolbar: one overflow menu owns configuration, one-off export,
-   delivery, publishing and archive actions. Clicking a noninteractive row cell navigates to the
-   profile's own page; the title remains a native link. Nothing on the page explains what a profile is: the rows
-   are the explanation. Imported v3 profiles are identified as restored profiles
-   and say what to do next rather than leaking migration names. The primary
-   action is «Build a profile».
+   and composition, its formats and content time. A format whose last build
+   failed is marked «Build failed» in that cell, with the time of the file still
+   published beside it when there is one. The row is a state summary, not a
+   toolbar: one overflow menu owns the profile's actions. For a live profile it
+   lists open, export to a file (a submenu of file formats), send (one item per
+   format, naming the connection it is bound to), add a format (the profile's
+   Publishing tab), copy contents (one published format names itself, several
+   are a submenu), rebuild files (only while every format has been built, so a
+   first link is never produced where it cannot be shown), and, after a
+   separator, archive. Clicking a noninteractive row cell navigates to the
+   profile's own page; the title remains a native link. Nothing on the page
+   explains what a profile is: the rows are the explanation. Imported v3
+   profiles are identified as restored profiles and say what to do next rather
+   than leaking migration names. The primary action is «Build a profile», and
+   the empty shelf does not repeat it.
+   **Archive** is a filter of the same table, not a second block: once any
+   profile is archived a segmented control above the table reads «Active ·
+   Archive N», where N is the server's count of archived profiles and not the
+   number of rows loaded. The archive lists its profiles with the same columns
+   plus when each was archived, and an informer beside the control carries the
+   explanation of what an archived profile is. Archiving runs at once and the
+   shelf answers with a notice naming the profile and one «Undo» action.
+   An archived row's menu is open, export, restore and, after a separator,
+   «Delete permanently…» (trash glyph), which asks first and says what the
+   deletion leaves behind: the profile's subscription links stop working,
+   published files and the delivery log are kept, and groups and routes already
+   sent to routers stay (ADR 0051). When the row goes the count follows, and an
+   emptied archive returns the operator to the shelf.
 2. `/profiles/new` — **New profile.** The composer keeps the first setup in one
    visible flow: lists or whole categories on the left; the proposed, editable
    name and first format on the right. That choice still

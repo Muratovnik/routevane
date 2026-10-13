@@ -6,11 +6,11 @@
  * alone, over the data directory named below.
  */
 
-import { expect } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 
 import { assertNoOverflow, audit } from './support/audits'
 import { englishCopy } from './support/copy'
-import { buildProfile, statesFlow } from './support/flows'
+import { buildProfile, pressSegment, statesFlow } from './support/flows'
 import {
   addConnectionField,
   linkTo,
@@ -18,6 +18,7 @@ import {
   nameField,
   profileOutputsCell,
   scheduleField,
+  segmentOption,
 } from './support/queries'
 import { test } from './support/served-product'
 
@@ -26,6 +27,58 @@ import { test } from './support/served-product'
 // directory: it starts empty, no other suite writes to it, and it is gone
 // again when the suite ends.
 test.use({ locale: 'en-US', productData: 'profile-shelf' })
+
+const mutationHeaders = (origin: string): Record<string, string> => ({
+  Origin: origin,
+  'X-Routevane-Request': '1',
+})
+
+// The archive is counted by the server, so the suite asks the server what the
+// count is instead of assuming how many profiles earlier cases left archived.
+const archivedCount = async (page: Page, origin: string): Promise<number> => {
+  const shelf = await page.request.get(`${origin}/v1/profile-shelf/archived`)
+  return ((await shelf.json()) as { archived_count: number }).archived_count
+}
+
+type SeededProfile = { id: string; outputs: Record<string, string> }
+
+// A profile with every named format published, made through the service the
+// way the composer and the profile page do, so a case about the shelf does not
+// have to walk the composer once per format.
+const seedProfile = async (
+  page: Page,
+  origin: string,
+  name: string,
+  targets: string[],
+): Promise<SeededProfile> => {
+  const post = async <T>(path: string, data: object = {}): Promise<T> => {
+    const response = await page.request.post(`${origin}${path}`, {
+      data,
+      headers: mutationHeaders(origin),
+    })
+    expect(response.ok(), path).toBe(true)
+    return (await response.json()) as T
+  }
+  const created = await post<{ profile: { id: string } }>('/v1/profiles', {
+    categories: [],
+    exclusions: [],
+    lists: ['youtube'],
+    name,
+  })
+  const id = created.profile.id
+  const outputs: Record<string, string> = {}
+  for (const target of targets) {
+    const added = await post<{ output: { id: string } }>(
+      `/v1/profiles/${id}/outputs`,
+      { target_id: target },
+    )
+    outputs[target] = added.output.id
+  }
+  await post(`/v1/profiles/${id}/refresh`)
+  for (const outputID of Object.values(outputs))
+    await post(`/v1/outputs/${outputID}/build`)
+  return { id, outputs }
+}
 
 test('legacy profile names are explained as restored lists', async ({
   page,
@@ -79,6 +132,8 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
   test.setTimeout(180000)
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(error.message))
+  // Earlier cases leave nothing archived, so the filter counts this profile alone.
+  expect(await archivedCount(page, origin)).toBe(0)
 
   const { profileId } = await buildProfile(page, origin)
   // Earlier walkthroughs left their own lists on the shelf, so every row here
@@ -136,28 +191,31 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
     page.getByRole('main').getByRole('row').filter({ hasText: 'Keenetic' }),
   ).toBeVisible()
 
-  // The archived profile has left the shelf without leaving the library: the row
-  // is behind one disclosure, still names when it was archived, and still
-  // offers its published file.
+  // The archived profile has left the shelf without leaving the library: it is
+  // one filter away, in the same table, and the filter states the server's count.
   await page.getByRole('link', { name: 'Profiles' }).first().click()
   await page.waitForURL(`${origin}/`)
   await expect(shelfRow).toHaveCount(0)
-  // The archive is one disclosure, named by what it holds and how much.
-  const archive = page.getByRole('button', { name: /^Archive/ })
-  await expect(archive).toBeVisible()
-  await archive.click()
+  await expect(segmentOption(page, 'Archive 1')).toHaveCount(1)
+  await pressSegment(page, 'Archive 1')
   const archivedRow = page
-    .getByRole('region', { name: /^Archive/ })
-    .getByRole('listitem')
+    .getByRole('row')
     .filter({ has: linkTo(page, `/profiles/${profileId}`) })
   await expect(archivedRow).toHaveCount(1)
-  await expect(archivedRow).toContainText('Archived since')
+  // The same columns as the shelf, plus when the profile left it.
+  for (const column of ['Profile', 'Formats', 'Content from', 'Archived since'])
+    await expect(
+      page.getByRole('columnheader', { name: column, exact: true }),
+    ).toBeVisible()
+  await expect(archivedRow).toContainText(/\b20\d\d\b/)
   await archivedRow
     .getByRole('button', {
       name: 'Actions for profile Discord, YouTube',
     })
     .click()
-  await menuPanel(page).getByRole('menuitem', { name: 'Download' }).click()
+  await menuPanel(page)
+    .getByRole('menuitem', { name: 'Export to file' })
+    .click()
   await expect(
     menuPanel(page).last().getByRole('menuitem', { name: 'BAT · routes' }),
   ).toBeVisible()
@@ -168,7 +226,8 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
   await assertNoOverflow(page, 'library-archive')
 
   // Restoring puts the profile back on the shelf with everything it had, and
-  // publishes nothing by itself.
+  // publishes nothing by itself. The archive is empty again, so its filter goes
+  // and the shelf is what is shown.
   mutations.length = 0
   await archivedRow
     .getByRole('button', { name: 'Actions for profile Discord, YouTube' })
@@ -176,10 +235,248 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
   await menuPanel(page).getByRole('menuitem', { name: 'Restore' }).click()
   await expect(shelfRow).toHaveCount(1)
   expect(mutations).toEqual([`/v1/profiles/${profileId}/restore`])
-  await expect(page.getByRole('button', { name: /^Archive/ })).toHaveCount(0)
+  await expect(page.getByRole('radio')).toHaveCount(0)
+  expect(await archivedCount(page, origin)).toBe(0)
 
   expect(pageErrors).toEqual([])
   assertProductAlive()
+})
+
+// Archiving runs the moment it is chosen, so the way back is offered on the
+// shelf itself: what moved is named and one action puts it back.
+test('archiving from the shelf offers an undo that puts the profile back', async ({
+  page,
+  origin,
+}) => {
+  test.setTimeout(120000)
+  expect(await archivedCount(page, origin)).toBe(0)
+  const { profileId } = await buildProfile(page, origin)
+  await page.goto(origin)
+  const shelfRow = page
+    .getByRole('row')
+    .filter({ has: linkTo(page, `/profiles/${profileId}`) })
+  const mutations: string[] = []
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname
+    if (request.method() === 'POST' && statesFlow(path)) mutations.push(path)
+  })
+
+  await shelfRow.getByRole('button', { name: /^Actions for profile/ }).click()
+  await menuPanel(page).getByRole('menuitem', { name: 'Archive' }).click()
+
+  const notice = page
+    .getByRole('status')
+    .filter({ hasText: 'moved to the archive' })
+  await expect(notice).toContainText(
+    'Profile “Discord, YouTube” moved to the archive',
+  )
+  await expect(shelfRow).toHaveCount(0)
+  await expect(segmentOption(page, 'Archive 1')).toHaveCount(1)
+
+  await notice.getByRole('button', { name: 'Undo' }).click()
+  await expect(shelfRow).toHaveCount(1)
+  await expect(notice).toHaveCount(0)
+  await expect(page.getByRole('radio')).toHaveCount(0)
+  expect(mutations).toEqual([
+    `/v1/profiles/${profileId}/archive`,
+    `/v1/profiles/${profileId}/restore`,
+  ])
+  expect(await archivedCount(page, origin)).toBe(0)
+})
+
+// Deletion is the step after archival and withdraws the profile's links. The
+// case reads the real link before and after, so "stops working" is a status the
+// server answered rather than a sentence the screen printed.
+test('deleting an archived profile asks first, then its subscription link answers gone', async ({
+  page,
+  origin,
+}) => {
+  test.setTimeout(120000)
+  expect(await archivedCount(page, origin)).toBe(0)
+  const { profileId } = await buildProfile(page, origin)
+  await page
+    .getByRole('tablist', { name: 'Profile sections' })
+    .getByRole('tab', { name: 'Publishing' })
+    .click()
+  await page.getByRole('button', { name: 'Show', exact: true }).click()
+  const secret = page.getByRole('region', { name: /^Subscription link/ })
+  const link =
+    /http:\/\/127\.0\.0\.1:\d+\/v1\/subscriptions\/rv1\.[a-f0-9]{32}\.[\w-]{43}/.exec(
+      (await secret.textContent()) ?? '',
+    )?.[0]
+  expect(link).toBeDefined()
+  const subscription = link ?? ''
+  expect((await page.request.get(subscription)).status()).toBe(200)
+
+  await page.goto(origin)
+  const shelfRow = page
+    .getByRole('row')
+    .filter({ has: linkTo(page, `/profiles/${profileId}`) })
+  await shelfRow.getByRole('button', { name: /^Actions for profile/ }).click()
+  await menuPanel(page).getByRole('menuitem', { name: 'Archive' }).click()
+  await pressSegment(page, 'Archive 1')
+  const archivedRow = page
+    .getByRole('row')
+    .filter({ has: linkTo(page, `/profiles/${profileId}`) })
+  const mutations: string[] = []
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname
+    if (request.method() === 'POST' && statesFlow(path)) mutations.push(path)
+  })
+
+  // The permanent action is the last item of the archived menu. It asks, and
+  // asking changes nothing.
+  await archivedRow
+    .getByRole('button', { name: /^Actions for profile/ })
+    .click()
+  const items = menuPanel(page).getByRole('menuitem')
+  await expect(items.last()).toHaveText('Delete permanently…')
+  await items.last().click()
+  const dialog = page.getByRole('dialog', {
+    name: 'Delete profile “Discord, YouTube” permanently?',
+  })
+  await expect(dialog).toContainText(
+    'The subscription links of this profile will stop working',
+  )
+  await expect(dialog).toContainText(
+    'Published files and the delivery log are kept',
+  )
+  expect(await audit(page, 'library-delete-dialog')).toEqual([])
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(mutations).toEqual([])
+  expect((await page.request.get(subscription)).status()).toBe(200)
+  await expect(archivedRow).toHaveCount(1)
+
+  await archivedRow
+    .getByRole('button', { name: /^Actions for profile/ })
+    .click()
+  await menuPanel(page)
+    .getByRole('menuitem', { name: 'Delete permanently…' })
+    .click()
+  await dialog
+    .getByRole('button', { name: 'Delete permanently', exact: true })
+    .click()
+
+  // The row is gone, the archive is empty so its filter leaves, and the server
+  // no longer knows the profile or honours its link.
+  await expect(archivedRow).toHaveCount(0)
+  await expect(
+    page
+      .getByRole('status')
+      .filter({ hasText: 'Profile “Discord, YouTube” deleted' }),
+  ).toBeVisible()
+  await expect(page.getByRole('radio')).toHaveCount(0)
+  expect(mutations).toEqual([`/v1/profiles/${profileId}/delete`])
+  expect(
+    (await page.request.get(`${origin}/v1/profiles/${profileId}`)).status(),
+  ).toBe(404)
+  expect((await page.request.get(subscription)).status()).toBe(410)
+  expect(await archivedCount(page, origin)).toBe(0)
+})
+
+// A profile with two published formats has two files, so "copy the contents"
+// has to be asked which one. The sing-box file is the second one; copying the
+// first would have put the Keenetic file on the clipboard.
+test('copying contents from the row copies the format that was chosen', async ({
+  page,
+  origin,
+}) => {
+  const seeded = await seedProfile(page, origin, 'Two formats', [
+    'keenetic',
+    'singbox',
+  ])
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: (text: string) => {
+          Object.assign(window, { copiedText: text })
+          return Promise.resolve()
+        },
+      },
+    })
+  })
+  const shelf = await page.request.get(`${origin}/v1/profile-shelf/active`)
+  const card = (
+    (await shelf.json()) as {
+      profiles: {
+        id: string
+        outputs: { id: string; latest: { id: string } }[]
+      }[]
+    }
+  ).profiles.find((candidate) => candidate.id === seeded.id)
+  const singBoxArtifact = card?.outputs.find(
+    (output) => output.id === seeded.outputs.singbox,
+  )?.latest.id
+  const keeneticArtifact = card?.outputs.find(
+    (output) => output.id === seeded.outputs.keenetic,
+  )?.latest.id
+  const expected = await (
+    await page.request.get(`${origin}/v1/artifacts/${singBoxArtifact}`)
+  ).text()
+  const other = await (
+    await page.request.get(`${origin}/v1/artifacts/${keeneticArtifact}`)
+  ).text()
+  expect(expected).not.toBe(other)
+
+  await page.goto(origin)
+  const row = page
+    .getByRole('row')
+    .filter({ has: linkTo(page, `/profiles/${seeded.id}`) })
+  await row.getByRole('button', { name: /^Actions for profile/ }).click()
+  await menuPanel(page).getByRole('menuitem', { name: 'Copy contents' }).click()
+  const formats = menuPanel(page).last()
+  await expect(formats.getByRole('menuitem')).toHaveText([
+    'Keenetic',
+    'sing-box',
+  ])
+  await formats.getByRole('menuitem', { name: 'sing-box' }).click()
+
+  await expect(page.getByText('Contents copied')).toBeVisible()
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { copiedText: string }).copiedText,
+    ),
+  ).toBe(expected)
+})
+
+// A first build that failed leaves no file and one failed attempt. The row has
+// to say the build failed, not only that nothing was published. The service has
+// no way to be made to fail a build on demand, so the shelf read is answered
+// with the one fact this case is about changed.
+test('a profile whose build failed is marked in its row', async ({
+  page,
+  origin,
+}) => {
+  const seeded = await seedProfile(page, origin, 'Failing build', ['keenetic'])
+  await page.route('**/v1/profile-shelf/active', async (route) => {
+    const response = await route.fetch()
+    const payload = (await response.json()) as {
+      profiles: { id: string; outputs: Record<string, unknown>[] }[]
+    }
+    for (const profile of payload.profiles) {
+      if (profile.id !== seeded.id) continue
+      profile.outputs = profile.outputs.map((output) => ({
+        ...output,
+        last_attempt: {
+          code: 'source_unavailable',
+          completed_at: '2026-10-13T12:00:00Z',
+          status: 'failed',
+        },
+        latest: null,
+      }))
+    }
+    await route.fulfill({ json: payload, response })
+  })
+  await page.goto(origin)
+  const row = page
+    .getByRole('row')
+    .filter({ has: linkTo(page, `/profiles/${seeded.id}`) })
+
+  await expect(row.getByText('Build failed', { exact: true })).toBeVisible()
+  await expect(row.getByText('No published file')).toHaveCount(0)
+  expect(await audit(page, 'library-failed-build')).toEqual([])
 })
 
 // The hidden actions column header once escaped `.profiles__scroll` and
@@ -237,7 +534,7 @@ test('quick profile reads stay quiet while slow reads and failures remain visibl
   page,
   origin,
 }) => {
-  const profiles = await page.request.get(`${origin}/v1/profiles`)
+  const profiles = await page.request.get(`${origin}/v1/profile-shelf/active`)
   expect(profiles.ok()).toBe(true)
   const payload = await profiles.json()
   // The shelf waits for these decorations as well as its profiles. Keep all
@@ -275,7 +572,7 @@ test('quick profile reads stay quiet while slow reads and failures remain visibl
     }
     requestAnimationFrame(sample)
   })
-  await page.route('**/v1/profiles', async (route) => {
+  await page.route('**/v1/profile-shelf/active', async (route) => {
     if (mode !== 'fast') await held
     await route.fulfill({
       status: mode === 'failure' ? 503 : 200,

@@ -42,7 +42,7 @@ describe('ProfilesView pagination', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((input: string) => {
-        if (input === '/v1/profiles')
+        if (input === '/v1/profile-shelf/active')
           return Promise.resolve(
             json({
               profiles: [profile(firstID, 'Newest profile')],
@@ -57,7 +57,7 @@ describe('ProfilesView pagination', () => {
           return Promise.resolve(json({ targets: [] }))
         if (input === '/v1/export-formats')
           return Promise.resolve(json({ formats: [] }))
-        if (input === `/v1/profile-pages/${cursor}`) {
+        if (input === `/v1/profile-shelf/active/${cursor}`) {
           continuationReads += 1
           if (continuationReads === 1)
             return Promise.reject(new TypeError('service unavailable'))

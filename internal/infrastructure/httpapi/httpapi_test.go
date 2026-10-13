@@ -59,15 +59,17 @@ type fakeBackend struct {
 	listsRemoved []string
 	// categoryInUse and listInUse name the profiles a deletion is refused
 	// with. They are separate because the two refusals carry different words.
-	categoryInUse   []application.ProfileReference
-	listInUse       []application.ProfileReference
-	sourceToggles   []string
-	domainVerdicts  []string
-	transferPayload []byte
-	transferDigest  string
-	transferErr     error
-	profileCursor   string
-	profileNext     string
+	categoryInUse    []application.ProfileReference
+	listInUse        []application.ProfileReference
+	sourceToggles    []string
+	domainVerdicts   []string
+	transferPayload  []byte
+	transferDigest   string
+	transferErr      error
+	profileCursor    string
+	profileNext      string
+	profileShelf     application.ProfileShelf
+	archivedProfiles int
 	// retireErr is what the retirement verbs answer with; retired records the
 	// verb and identity each route passed through.
 	retireErr       error
@@ -344,9 +346,11 @@ func (f *fakeBackend) RestoreProfile(context.Context, string) (application.Profi
 	f.archived = false
 	return application.Profile{ID: strings.Repeat("a", 32)}, nil
 }
-func (f *fakeBackend) ProfileCardsPage(_ context.Context, cursor string) (application.ProfileCardPage, error) {
+func (f *fakeBackend) ProfileCardsPage(_ context.Context, shelf application.ProfileShelf, cursor string) (application.ProfileCardPage, error) {
 	f.profileCursor = cursor
+	f.profileShelf = shelf
 	return application.ProfileCardPage{
+		ArchivedCount: f.archivedProfiles,
 		Profiles: []application.ProfileCard{{
 			ID: strings.Repeat("a", 32), Name: "Example list", Lists: []string{"example"},
 			Outputs: []application.OutputCard{{
@@ -1502,6 +1506,59 @@ func TestProfileListingContinuesWithTheReturnedPathCursor(t *testing.T) {
 	}
 }
 
+// The shelf is a path segment, not a query string, and each half of the library
+// is read from its own address. The archived count rides on every page, so the
+// screen never derives it from the rows it happened to load.
+func TestProfileShelvesAreReadByPathAndCarryTheArchivedCount(t *testing.T) {
+	backend := testBackend()
+	backend.archivedProfiles = 7
+	backend.profileNext = strings.Repeat("b", 32)
+	server, err := New("http://127.0.0.1:8765", backend, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	get := func(path string) *httptest.ResponseRecorder {
+		t.Helper()
+		request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765"+path, nil)
+		request.RemoteAddr = "127.0.0.1:54321"
+		response := httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, request)
+		return response
+	}
+	for _, test := range []struct {
+		path   string
+		shelf  application.ProfileShelf
+		cursor string
+	}{
+		{"/v1/profile-shelf/active", application.ProfileShelfActive, ""},
+		{"/v1/profile-shelf/archived", application.ProfileShelfArchived, ""},
+		{"/v1/profile-shelf/active/" + backend.profileNext, application.ProfileShelfActive, backend.profileNext},
+		{"/v1/profile-shelf/archived/" + backend.profileNext, application.ProfileShelfArchived, backend.profileNext},
+	} {
+		response := get(test.path)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"archived_count":7`) {
+			t.Fatalf("%s code=%d body=%s", test.path, response.Code, response.Body.String())
+		}
+		if backend.profileShelf != test.shelf || backend.profileCursor != test.cursor {
+			t.Fatalf("%s read shelf=%q cursor=%q", test.path, backend.profileShelf, backend.profileCursor)
+		}
+	}
+	// The unfiltered listing keeps its address and gains the count.
+	if response := get("/v1/profiles"); response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"archived_count":7`) || backend.profileShelf != application.ProfileShelfAll {
+		t.Fatalf("listing code=%d shelf=%q body=%s", response.Code, backend.profileShelf, response.Body.String())
+	}
+	// "all" is not a shelf a profile can be on, and any other word is not one at all.
+	backend.profileShelf = ""
+	for _, name := range []string{"all", "deleted", "Active"} {
+		if response := get("/v1/profile-shelf/" + name); response.Code != http.StatusNotFound || backend.profileShelf != "" {
+			t.Fatalf("shelf %q code=%d reached the backend as %q", name, response.Code, backend.profileShelf)
+		}
+	}
+	if response := get("/v1/profile-shelf/archived?cursor=x"); response.Code == http.StatusOK {
+		t.Fatalf("a query string was accepted: %d", response.Code)
+	}
+}
+
 // Archival is two verbs at two paths, not one toggle: a request that arrives
 // twice must not put the profile back where it started. The refusal an
 // archived profile answers an edit with is a conflict, because the request is
@@ -1628,6 +1685,8 @@ var everyAPIPath = []struct {
 	{"/v1/settings/update", "settings.update"},
 	{"/v1/profiles", "profiles.collection"},
 	{"/v1/profile-pages/" + testID, "profiles.page"},
+	{"/v1/profile-shelf/archived", "profiles.shelf"},
+	{"/v1/profile-shelf/archived/" + testID, "profiles.shelf.page"},
 	{"/v1/profiles/preview", "profiles.preview"},
 	{"/v1/profiles/" + testID + "", "profiles.get"},
 	{"/v1/profiles/" + testID + "/update", "profiles.update"},

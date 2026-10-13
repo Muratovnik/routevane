@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/Muratovnik/routevane/internal/application"
 )
 
 // writeDeadlineSlack is the margin between a route's own budget and the write
@@ -193,7 +195,16 @@ var routes = map[string]routeSpec{
 		h.listProfiles(w, r)
 	}},
 	"profiles.page": {path: "/v1/profile-pages/{cursor}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
-		h.listProfilePage(w, r, r.PathValue("cursor"))
+		h.listProfilePage(w, r, application.ProfileShelfAll, r.PathValue("cursor"))
+	}},
+	// A shelf is one half of the library: the profiles on it, newest first, and
+	// the count of archived ones whichever half is read. The literal prefix keeps
+	// both routes clear of the identifier forms below.
+	"profiles.shelf": {path: "/v1/profile-shelf/{shelf}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.listProfileShelf(w, r, r.PathValue("shelf"), "")
+	}},
+	"profiles.shelf.page": {path: "/v1/profile-shelf/{shelf}/{cursor}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.listProfileShelf(w, r, r.PathValue("shelf"), r.PathValue("cursor"))
 	}},
 	// The forecast is a POST because it carries a composition in its body, not
 	// because it changes anything: it creates no profile, output, attempt, or

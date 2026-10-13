@@ -44,9 +44,13 @@ describe('useProfiles pagination', () => {
     vi.stubGlobal(
       'fetch',
       vi.fn((input: string, init?: RequestInit) => {
-        if (input === '/v1/profiles')
+        if (input === '/v1/profile-shelf/active')
           return Promise.resolve(
-            json({ profiles: [profile(firstID, 'Newest')], next: cursor }),
+            json({
+              profiles: [profile(firstID, 'Newest')],
+              next: cursor,
+              archived_count: 0,
+            }),
           )
         if (input === '/v1/lists')
           return Promise.resolve(
@@ -56,7 +60,8 @@ describe('useProfiles pagination', () => {
           return Promise.resolve(json({ targets: [] }))
         if (input === '/v1/export-formats')
           return Promise.resolve(json({ formats: [] }))
-        if (input === `/v1/profile-pages/${cursor}`) return continued.promise
+        if (input === `/v1/profile-shelf/active/${cursor}`)
+          return continued.promise
         if (
           input === `/v1/profiles/${firstID}/archive` &&
           init?.method === 'POST'
@@ -80,7 +85,9 @@ describe('useProfiles pagination', () => {
     await expect(continuation).resolves.toBe(false)
 
     expect(library.rows.value).toEqual([])
-    expect(library.archived.value.map((card) => card.id)).toEqual([firstID])
+    // The archive is counted by the server and read from its own shelf, never
+    // reconstructed from rows this tab happened to load.
+    expect(library.archivedCount.value).toBe(1)
     expect(library.nextCursor.value).toBe(cursor)
   })
 })

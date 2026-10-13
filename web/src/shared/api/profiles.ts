@@ -7,6 +7,7 @@ import {
   fields,
   getJSON,
   jsonObject,
+  optionalCount,
   optionalFlag,
   optionalText,
   optionalTimestamp,
@@ -65,11 +66,18 @@ export type ProfileCard = ProfileRecord & {
   outputs: OutputCard[]
 }
 
+// The two halves of the library a page can be read from. A profile is on exactly
+// one of them, so the server filters before it bounds the page.
+export type ProfileShelf = 'active' | 'archived'
+
 // One bounded page of the profile library. nextCursor is empty after the final
 // page; it is returned by the service and used only as the next path segment.
+// archivedCount is every archived profile the library holds, whichever shelf the
+// page was read from and however many pages precede it.
 export type ProfileCardPage = {
   profiles: ProfileCard[]
   nextCursor: string
+  archivedCount: number
 }
 
 // How a profile is refreshed right now, and where that rule came from. The server
@@ -88,6 +96,11 @@ export type Schedule = {
 // profile deferring to the service-wide default, which is a different statement
 // from naming the default's current value.
 export type RefreshInterval = '' | 'off' | 'daily' | 'weekly'
+
+export type DeletedProfile = {
+  id: string
+  deletedAt: string
+}
 
 export type ListDetail = {
   profile: ProfileRecord
@@ -222,6 +235,12 @@ export const archiveProfile = (profileID: string): Promise<ProfileRecord> =>
 export const restoreProfile = (profileID: string): Promise<ProfileRecord> =>
   postJSON(`/v1/profiles/${profileID}/restore`, {}, parseProfileEnvelope)
 
+// Deleting is the step after archival and cannot be undone. The server answers
+// 409 `profile_not_archived` for a profile still on the shelf and 404 for one it
+// no longer knows; the reply names the profile because nothing can be read back.
+export const deleteProfile = (profileID: string): Promise<DeletedProfile> =>
+  postJSON(`/v1/profiles/${profileID}/delete`, {}, parseDeleted)
+
 export const refreshProfile = async (profileID: string): Promise<void> => {
   await postJSON(`/v1/profiles/${profileID}/refresh`, {}, parseRefresh)
 }
@@ -232,9 +251,14 @@ export const loadProfile = (profileID: string): Promise<ListDetail> =>
 export const loadProfiles = (): Promise<ProfileCard[]> =>
   getJSON('/v1/profiles', parseProfileCards)
 
-export const loadProfilePage = (afterID = ''): Promise<ProfileCardPage> =>
+export const loadProfilePage = (
+  shelf: ProfileShelf,
+  afterID = '',
+): Promise<ProfileCardPage> =>
   getJSON(
-    afterID === '' ? '/v1/profiles' : `/v1/profile-pages/${afterID}`,
+    afterID === ''
+      ? `/v1/profile-shelf/${shelf}`
+      : `/v1/profile-shelf/${shelf}/${afterID}`,
     parseProfileCardPage,
   )
 
@@ -380,10 +404,20 @@ const profileCardPageSchema = v.pipe(
   fields({
     profiles: v.array(profileCardSchema),
     next: v.string(),
+    archived_count: optionalCount,
   }),
   v.transform((page): ProfileCardPage => ({
     profiles: page.profiles,
     nextCursor: page.next,
+    archivedCount: page.archived_count,
+  })),
+)
+
+const deletedSchema = v.pipe(
+  fields({ id: text, deleted_at: timestamp }),
+  v.transform((deleted): DeletedProfile => ({
+    id: deleted.id,
+    deletedAt: deleted.deleted_at,
   })),
 )
 
@@ -528,3 +562,4 @@ const parseProfileCardPage: Decoder<ProfileCardPage> = decode(
 )
 const parseForecasts: Decoder<TargetForecast[]> = decode(forecastsSchema)
 const parseRefresh: Decoder<true> = decode(refreshSchema)
+const parseDeleted: Decoder<DeletedProfile> = decode(deletedSchema)

@@ -56,7 +56,7 @@ const profile = (): Record<string, unknown> => ({
  */
 const installService = (archive: () => Promise<Response>) => {
   const fetchMock = vi.fn((input: string, init?: RequestInit) => {
-    if (input === '/v1/profiles')
+    if (input === '/v1/profile-shelf/active')
       return Promise.resolve(json({ profiles: [profile()], next: '' }))
     if (input === '/v1/lists')
       return Promise.resolve(
@@ -125,11 +125,13 @@ describe('ProfilesView row outcomes', () => {
     const actions = screen.getByRole('button', { name: MENU })
 
     await actions.click()
-    await screen.getByRole('menuitem', { name: 'Copy contents' }).click()
+    await screen
+      .getByRole('menuitem', { name: 'Copy contents · Keenetic' })
+      .click()
     await expect.element(screen.getByText('Contents copied')).toBeVisible()
 
     await actions.click()
-    await screen.getByRole('menuitem', { name: 'Download' }).click()
+    await screen.getByRole('menuitem', { name: 'Export to file' }).click()
     await screen.getByRole('menuitem', { name: 'TXT' }).click()
 
     await expect

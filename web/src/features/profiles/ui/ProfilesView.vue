@@ -1,27 +1,28 @@
 <script setup lang="ts">
 import RvTable from '@/shared/ui/RvTable.vue'
 import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
+import { profileHref } from '@/features/profiles/lib/profileHref'
+import { useProfileMenu } from '@/features/profiles/model/useProfileMenu'
 import { useProfiles } from '@/features/profiles/model/useProfiles'
+import ProfileDeleteDialog from '@/features/profiles/ui/ProfileDeleteDialog.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
-import type { ExportFormat } from '@/shared/api/exports'
 import type { ProfileCard } from '@/shared/api/profiles'
-import type { OutputCard } from '@/shared/api/outputs'
 import { legacyImportedOrdinal } from '@/shared/lib/legacyProfile'
-import {
-  profilePageHash,
-  parseLegacyProfileHash,
-} from '@/shared/lib/profileHash'
-import type { MenuItem } from '@/shared/ui/types'
+import { parseLegacyProfileHash } from '@/shared/lib/profileHash'
+import type { StatusTone } from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
-import RvDisclosure from '@/shared/ui/RvDisclosure.vue'
+import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvMenu from '@/shared/ui/RvMenu.vue'
+import RvSegmented from '@/shared/ui/RvSegmented.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
+import RvStatus from '@/shared/ui/RvStatus.vue'
 
-const { dateTime, t, tc, tor } = useLocale()
+const { dateTime, t, tc } = useLocale()
 const library = useProfiles()
+const { menuItems } = useProfileMenu(library)
 const route = useRoute()
 const router = useRouter()
 
@@ -45,30 +46,98 @@ const openRoute = (event: MouseEvent, card: ProfileCard): void => {
   void router.push(profileHref(card))
 }
 
+const archivedShelf = computed(() => library.shelf.value === 'archived')
+
+const displayName = (card: ProfileCard): string => {
+  const ordinal = legacyImportedOrdinal(card.name)
+  return ordinal === null
+    ? card.name
+    : t('profiles.imported.name', { number: ordinal })
+}
+
+const nameOf = (id: string): string => {
+  const card = library.rows.value.find((candidate) => candidate.id === id)
+  return card === undefined ? '' : displayName(card)
+}
+
 // The outcome of the last action taken on the shelf. Each action withdraws the
-// previous outcome when it starts, so at most one of these is ever set.
-const copyMessage = computed(() => {
-  if (library.copiedID.value !== '') return t('profiles.copied')
-  if (library.copyFailedID.value !== '') return t('profiles.copyFailed')
-  if (library.exportFailedID.value !== '') return t('profiles.export.failed')
+// previous outcome when it starts, so at most one of these is ever set. A
+// failure carries a mark as well as words.
+const outcome = computed((): { text: string; tone?: StatusTone } | null => {
+  if (library.rebuilding.value !== '')
+    return {
+      text: t('profiles.rebuilding', {
+        name: nameOf(library.rebuilding.value),
+      }),
+      tone: 'busy',
+    }
+  if (library.copiedID.value !== '') return { text: t('profiles.copied') }
+  if (library.rebuiltID.value !== '')
+    return {
+      text: t('profiles.rebuilt', { name: nameOf(library.rebuiltID.value) }),
+    }
+  if (library.justRestored.value !== null)
+    return {
+      text: t('profiles.restore.done', {
+        name: displayName(library.justRestored.value),
+      }),
+    }
+  if (library.justDeleted.value !== null)
+    return {
+      text: t('profiles.delete.done', {
+        name: displayName(library.justDeleted.value),
+      }),
+    }
+  if (library.copyFailedID.value !== '')
+    return { text: t('profiles.copyFailed'), tone: 'failed' }
+  if (library.exportFailedID.value !== '')
+    return { text: t('profiles.export.failed'), tone: 'failed' }
+  if (library.rebuildFailedID.value !== '')
+    return {
+      text: t('profiles.rebuild.failed', {
+        name: nameOf(library.rebuildFailedID.value),
+      }),
+      tone: 'failed',
+    }
   const refused = library.shelveFailed.value
   if (refused !== null) {
-    const card = [...library.rows.value, ...library.archived.value].find(
-      (candidate) => candidate.id === refused.id,
-    )
-    const name = card === undefined ? '' : displayName(card)
-    return refused.archive
-      ? t('profiles.archive.failed', { name })
-      : t('profiles.restore.failed', { name })
+    const name = nameOf(refused.id)
+    return {
+      text: refused.archive
+        ? t('profiles.archive.failed', { name })
+        : t('profiles.restore.failed', { name }),
+      tone: 'failed',
+    }
   }
-  return ''
+  return null
 })
+
 const importedCount = computed(
   () =>
-    [...library.rows.value, ...library.archived.value].filter(
+    library.rows.value.filter(
       (card) => legacyImportedOrdinal(card.name) !== null,
     ).length,
 )
+
+// The filter is offered while there is an archive to look at, and stays while
+// the archive is what is being looked at, even if it just emptied.
+const showFilter = computed(
+  () => library.archivedCount.value > 0 || archivedShelf.value,
+)
+const shelfOptions = computed(() => [
+  { label: t('profiles.filter.active'), value: 'active' },
+  {
+    label: t('profiles.filter.archived', {
+      count: library.archivedCount.value,
+    }),
+    value: 'archived',
+  },
+])
+const onShelf = (value: string): void => {
+  if (value === 'active' || value === 'archived')
+    void library.selectShelf(value)
+}
+
 onMounted(() => {
   // The retired drawer address `/#list={id}` still resolves: an old bookmark
   // lands on the profile's page instead of an empty shelf.
@@ -81,25 +150,17 @@ onMounted(() => {
 })
 
 const updatedAt = (card: ProfileCard): string => {
-  const output = publishedOutputs(card).sort((left, right) =>
-    (right.latest?.contentCreatedAt ?? '').localeCompare(
-      left.latest?.contentCreatedAt ?? '',
-    ),
-  )[0]
+  const output = library
+    .publishedOutputs(card)
+    .sort((left, right) =>
+      (right.latest?.contentCreatedAt ?? '').localeCompare(
+        left.latest?.contentCreatedAt ?? '',
+      ),
+    )[0]
   if (output?.latest === null || output === undefined)
     return t('profiles.noArtifact')
   const parsed = new Date(output.latest.contentCreatedAt)
   return Number.isNaN(parsed.valueOf()) ? '—' : dateTime.value.format(parsed)
-}
-
-const publishedOutputs = (card: ProfileCard): OutputCard[] =>
-  card.outputs.filter((output) => output.latest !== null)
-
-const displayName = (card: ProfileCard): string => {
-  const ordinal = legacyImportedOrdinal(card.name)
-  return ordinal === null
-    ? card.name
-    : t('profiles.imported.name', { number: ordinal })
 }
 
 const outputSummary = (card: ProfileCard): string => {
@@ -107,89 +168,75 @@ const outputSummary = (card: ProfileCard): string => {
   return card.outputs.map(library.outputTitle).join(', ')
 }
 
-const exportLabel = (format: ExportFormat): string =>
-  tor(`export.format.${format.rendererID}`, format.fileExtension.toUpperCase())
-
-const profileHref = (card: ProfileCard, tab = ''): string =>
-  `/profiles/${card.id}${profilePageHash({ tab })}`
-
 const archivedSince = (card: ProfileCard): string => {
   const parsed = new Date(card.archivedAt)
-  return Number.isNaN(parsed.valueOf())
-    ? '—'
-    : t('profiles.archived.since', { time: dateTime.value.format(parsed) })
+  return Number.isNaN(parsed.valueOf()) ? '—' : dateTime.value.format(parsed)
 }
 
-const menuItems = (card: ProfileCard): MenuItem[] => {
-  const items: MenuItem[] = [
-    {
-      icon: 'edit',
-      key: 'open',
-      label: t('profiles.configure'),
-      to: profileHref(card),
-    },
-  ]
-  items.push({
-    icon: 'download',
-    key: 'downloads',
-    label: t('profiles.download.menu'),
-    children: library.exportFormats.value.map((format) => ({
-      disabled: library.exporting.value !== '',
-      icon: 'download',
-      key: `export:${format.id}`,
-      label: exportLabel(format),
-    })),
-  })
-  const deployItems = library.deployableOutputs(card).map((output) => ({
-    icon: 'send' as const,
-    key: `send:${output.id}`,
-    label: t('profiles.sendTarget', { target: library.outputTitle(output) }),
-    to: `/profiles/${card.id}/send/${output.id}`,
-  }))
-  if (deployItems.length === 1) items.push(deployItems[0] as MenuItem)
-  if (deployItems.length > 1) {
-    items.push({
-      children: deployItems,
-      icon: 'send',
-      key: 'send',
-      label: t('profiles.send'),
-    })
+// Permanent deletion asks first, and says what it leaves behind. The row it is
+// asked about is held here until the answer, because the model's rows change
+// the moment the server agrees.
+const pendingDelete = ref<ProfileCard | null>(null)
+
+const askDelete = (card: ProfileCard): void => {
+  library.deleteFailure.value = ''
+  pendingDelete.value = card
+}
+
+const confirmDelete = async (): Promise<void> => {
+  const card = pendingDelete.value
+  if (card === null) return
+  const done = await library.removeForever(card)
+  if (done || library.deleteFailure.value === 'gone') pendingDelete.value = null
+}
+
+const deleteFailureText = computed(() => {
+  const card = pendingDelete.value
+  if (card === null) return ''
+  switch (library.deleteFailure.value) {
+    case 'notArchived':
+      return t('profiles.delete.notArchived')
+    case 'gone':
+      return t('profiles.delete.gone')
+    case 'failed':
+      return t('profiles.delete.failed', { name: displayName(card) })
+    default:
+      return ''
   }
-  items.push({
-    icon: 'plus',
-    key: 'connections',
-    label: t('profiles.connections'),
-    to: profileHref(card, 'outputs'),
-  })
-  if (library.downloadable(card) !== null) {
-    items.push({ icon: 'copy', key: 'copy', label: t('profiles.copy') })
-  }
-  // One shelf change at a time: the archive answer rearranges the shelf, so a
-  // second request is withheld until the first one has been answered.
-  items.push({
-    disabled: library.shelving.value !== '',
-    icon: 'archive',
-    key: card.archivedAt === '' ? 'archive' : 'restore',
-    label:
-      card.archivedAt === '' ? t('profiles.archive') : t('profiles.restore'),
-    separatorBefore: true,
-  })
-  return items
+})
+
+const undoArchive = (): void => {
+  const card = library.justArchived.value
+  if (card !== null) void library.setArchived(card, false)
 }
 
 const onMenu = (card: ProfileCard, key: string): void => {
   if (key.startsWith('export:'))
     void library.exportFile(card, key.slice('export:'.length))
-  if (key === 'copy') void library.copyContents(card)
+  if (key.startsWith('copy:')) {
+    const output = card.outputs.find(
+      (candidate) => candidate.id === key.slice('copy:'.length),
+    )
+    if (output !== undefined) void library.copyContents(card, output)
+  }
+  if (key === 'rebuild') void library.rebuild(card)
   if (key === 'archive') void library.setArchived(card, true)
   if (key === 'restore') void library.setArchived(card, false)
+  if (key === 'delete') askDelete(card)
 }
 </script>
 
 <template>
   <section aria-labelledby="profiles-title" class="profiles">
     <RvPageHeader title-id="profiles-title" :title="t('profiles.title')">
-      <p class="profiles__copy-message" role="status">{{ copyMessage }}</p>
+      <p class="profiles__outcome" role="status">
+        <RvStatus
+          v-if="outcome !== null && outcome.tone !== undefined"
+          :label="outcome.text"
+          :tone="outcome.tone"
+        />
+        <template v-else>{{ outcome?.text }}</template>
+      </p>
       <RvButton size="touch" to="/profiles/new" variant="primary">
         <RvIcon name="plus" />
         {{ t('profiles.new') }}
@@ -197,11 +244,46 @@ const onMenu = (card: ProfileCard, key: string): void => {
     </RvPageHeader>
 
     <RvStateNotice
+      v-if="library.justArchived.value !== null"
+      live
+      :title="
+        t('profiles.archive.done', {
+          name: displayName(library.justArchived.value),
+        })
+      "
+      tone="ready"
+    >
+      <template #action>
+        <RvButton
+          :disabled="library.shelving.value !== ''"
+          @click="undoArchive"
+        >
+          {{ t('profiles.archive.undo') }}
+        </RvButton>
+      </template>
+    </RvStateNotice>
+
+    <RvStateNotice
       v-if="library.state.value === 'ready' && importedCount > 0"
       :body="t('profiles.imported.body')"
       :title="tc('profiles.imported.title', importedCount)"
       tone="waiting"
     />
+
+    <div v-if="showFilter" class="profiles__filter">
+      <RvSegmented
+        label-hidden
+        :label="t('profiles.filter.label')"
+        :model-value="library.shelf.value"
+        name="profiles-shelf"
+        :options="shelfOptions"
+        @update:model-value="onShelf"
+      />
+      <RvInfoTip
+        :label="t('profiles.archived.info')"
+        :text="t('profiles.archived.body')"
+      />
+    </div>
 
     <RvStateNotice
       v-if="library.state.value === 'loading'"
@@ -222,13 +304,11 @@ const onMenu = (card: ProfileCard, key: string): void => {
         </RvButton>
       </template>
     </RvStateNotice>
+    <!-- The page header carries the one primary action, so the empty shelf does
+         not repeat it. -->
     <div v-else-if="library.state.value === 'empty'" class="profiles__empty">
       <p class="profiles__empty-title">{{ t('profiles.empty') }}</p>
       <p class="profiles__empty-body">{{ t('profiles.empty.body') }}</p>
-      <RvButton to="/profiles/new" variant="secondary">
-        <RvIcon name="plus" />
-        {{ t('profiles.new') }}
-      </RvButton>
     </div>
 
     <!-- The scroll box the table lives in. It is a presentational containing
@@ -244,6 +324,9 @@ const onMenu = (card: ProfileCard, key: string): void => {
           <th scope="col">{{ t('profiles.column.name') }}</th>
           <th scope="col">{{ t('profiles.column.outputs') }}</th>
           <th scope="col">{{ t('profiles.column.updated') }}</th>
+          <th v-if="archivedShelf" scope="col">
+            {{ t('profiles.column.archived') }}
+          </th>
           <th scope="col">
             <span class="rv-visually-hidden">
               {{ t('profiles.column.actions') }}
@@ -283,10 +366,32 @@ const onMenu = (card: ProfileCard, key: string): void => {
             :data-label="t('profiles.column.updated')"
             :class="{
               'profiles__cell-updated--none':
-                library.downloadable(card) === null,
+                library.downloadable(card) === null &&
+                !library.buildFailed(card),
             }"
           >
-            {{ updatedAt(card) }}
+            <div class="profiles__updated">
+              <RvStatus
+                v-if="library.buildFailed(card)"
+                :label="t('profiles.buildFailed')"
+                tone="failed"
+              />
+              <span
+                v-if="
+                  !library.buildFailed(card) ||
+                  library.downloadable(card) !== null
+                "
+              >
+                {{ updatedAt(card) }}
+              </span>
+            </div>
+          </td>
+          <td
+            v-if="archivedShelf"
+            class="profiles__cell-archived"
+            :data-label="t('profiles.column.archived')"
+          >
+            {{ archivedSince(card) }}
           </td>
           <td
             class="profiles__cell-actions"
@@ -310,36 +415,6 @@ const onMenu = (card: ProfileCard, key: string): void => {
       tone="waiting"
     />
 
-    <!-- An archived profile leaves the shelf, not the library: its file and its
-         subscription are still working, so the row stays findable. -->
-    <RvDisclosure
-      v-if="
-        library.state.value === 'ready' && library.archived.value.length > 0
-      "
-      class="profiles__archive"
-      :hint="tc('profiles.archived.count', library.archived.value.length)"
-      :summary="t('profiles.archived')"
-    >
-      <p class="profiles__archive-body">{{ t('profiles.archived.body') }}</p>
-      <ul class="profiles__archive-list">
-        <li
-          v-for="card in library.archived.value"
-          :key="card.id"
-          class="profiles__archive-row"
-        >
-          <NuxtLink class="profiles__link" :to="profileHref(card)">
-            {{ displayName(card) }}
-          </NuxtLink>
-          <span class="profiles__archive-since">{{ archivedSince(card) }}</span>
-          <RvMenu
-            :items="menuItems(card)"
-            :label="t('profiles.menu', { name: displayName(card) })"
-            @select="(key) => onMenu(card, key)"
-          />
-        </li>
-      </ul>
-    </RvDisclosure>
-
     <div
       v-if="library.state.value === 'ready' && library.nextCursor.value !== ''"
       class="profiles__pagination"
@@ -357,6 +432,15 @@ const onMenu = (card: ProfileCard, key: string): void => {
         }}
       </RvButton>
     </div>
+
+    <ProfileDeleteDialog
+      :blocked="library.deleteFailure.value === 'notArchived'"
+      :busy="library.deleting.value !== ''"
+      :failure="deleteFailureText"
+      :name="pendingDelete === null ? null : displayName(pendingDelete)"
+      @cancel="pendingDelete = null"
+      @confirm="confirmDelete"
+    />
   </section>
 </template>
 
@@ -368,11 +452,19 @@ const onMenu = (card: ProfileCard, key: string): void => {
   width: 100%;
 }
 
-/* The copy result is announced and shown without moving the table below it. */
-.profiles__copy-message {
+/* The outcome of the last action is announced and shown without moving the
+   table below it. */
+.profiles__outcome {
   min-height: 1.25rem;
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
+}
+
+/* The filter and what explains it share one line above the table. */
+.profiles__filter {
+  display: flex;
+  gap: var(--rv-space-2);
+  align-items: center;
 }
 
 .profiles__empty {
@@ -389,10 +481,6 @@ const onMenu = (card: ProfileCard, key: string): void => {
 
 .profiles__empty-body {
   color: var(--rv-color-ink-muted);
-}
-
-.profiles__empty .rv-button {
-  margin-top: var(--rv-space-2);
 }
 
 /* The table scrolls inside its own box on narrow screens; the page never
@@ -437,7 +525,8 @@ const onMenu = (card: ProfileCard, key: string): void => {
   color: var(--rv-color-ink-tertiary);
 }
 
-.profiles__cell-updated {
+.profiles__cell-updated,
+.profiles__cell-archived {
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
   white-space: nowrap;
@@ -445,6 +534,14 @@ const onMenu = (card: ProfileCard, key: string): void => {
 
 .profiles__cell-updated--none {
   color: var(--rv-color-ink-tertiary);
+}
+
+/* A failed build states itself above the time of the file that is still
+   published, when there is one. */
+.profiles__updated {
+  display: grid;
+  gap: var(--rv-space-1);
+  justify-items: start;
 }
 
 .profiles__cell-actions {
@@ -458,41 +555,6 @@ const onMenu = (card: ProfileCard, key: string): void => {
   gap: var(--rv-space-2);
   align-items: center;
   justify-content: flex-end;
-}
-
-/* The archive is one disclosure below the shelf. It is a list rather than a
-   second table: the questions asked of an archived row are when it left and
-   how to get it back, not how it compares with the rows above. */
-.profiles__archive {
-  margin-top: var(--rv-space-4);
-}
-
-.profiles__archive-body {
-  margin: 0 0 var(--rv-space-3);
-  color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-dense);
-}
-
-.profiles__archive-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--rv-space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.profiles__archive-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-2);
-  align-items: baseline;
-}
-
-.profiles__archive-since {
-  flex: 1 1 auto;
-  color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-dense);
 }
 
 .profiles__pagination {
@@ -550,7 +612,8 @@ const onMenu = (card: ProfileCard, key: string): void => {
   }
 
   .profiles__cell-outputs,
-  .profiles__cell-updated {
+  .profiles__cell-updated,
+  .profiles__cell-archived {
     display: grid;
     grid-template-columns: minmax(6rem, 0.4fr) minmax(0, 1fr);
     gap: var(--rv-space-3);
@@ -558,14 +621,15 @@ const onMenu = (card: ProfileCard, key: string): void => {
   }
 
   .profiles__cell-outputs::before,
-  .profiles__cell-updated::before {
+  .profiles__cell-updated::before,
+  .profiles__cell-archived::before {
     color: var(--rv-color-ink-tertiary);
     font-size: var(--rv-text-meta);
     content: attr(data-label);
   }
 
   .profiles__cell-actions {
-    grid-row: 2 / span 2;
+    grid-row: 2 / span 3;
     grid-column: 2;
     align-self: center;
   }

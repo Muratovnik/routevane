@@ -42,7 +42,6 @@ const linkAttributes = computed(() => {
     <component
       :is="element"
       class="rv-menu__item"
-      :class="{ 'rv-menu__item--separated': item.separatorBefore }"
       :data-menu-key="item.key"
       v-bind="linkAttributes"
     >

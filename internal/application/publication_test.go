@@ -343,15 +343,26 @@ func (s *publicationFakeStore) CreateProfile(_ context.Context, profile Profile)
 func (s *publicationFakeStore) Profile(context.Context, string) (Profile, error) {
 	return s.profile, nil
 }
-func (s *publicationFakeStore) ProfilePage(ctx context.Context, afterID string) (ProfilePage, error) {
+func (s *publicationFakeStore) ProfilePage(ctx context.Context, shelf ProfileShelf, afterID string) (ProfilePage, error) {
 	profiles, err := s.Profiles(ctx)
 	if err != nil {
 		return ProfilePage{}, err
 	}
-	if afterID != "" {
-		return ProfilePage{Profiles: []Profile{}}, nil
+	archived := 0
+	shelved := make([]Profile, 0, len(profiles))
+	for _, profile := range profiles {
+		isArchived := !profile.ArchivedAt.IsZero()
+		if isArchived {
+			archived++
+		}
+		if shelf == ProfileShelfAll || isArchived == (shelf == ProfileShelfArchived) {
+			shelved = append(shelved, profile)
+		}
 	}
-	return ProfilePage{Profiles: profiles}, nil
+	if afterID != "" {
+		return ProfilePage{Profiles: []Profile{}, ArchivedCount: archived}, nil
+	}
+	return ProfilePage{Profiles: shelved, ArchivedCount: archived}, nil
 }
 func (s *publicationFakeStore) Profiles(context.Context) ([]Profile, error) {
 	if len(s.profiles) > 0 {

@@ -293,6 +293,23 @@ describe('RvMenu', () => {
 
     await expect.element(trigger).toHaveAttribute('aria-expanded', 'false')
   })
+
+  // A group boundary drawn only as a border is invisible to a screen reader,
+  // which then hears a destructive item as one more of the same kind.
+  it('announces a group boundary as a separator', async () => {
+    const screen = await renderMenu({
+      items: [
+        { key: 'open', label: 'Открыть' },
+        { key: 'delete', label: 'Удалить навсегда', separatorBefore: true },
+      ],
+      label: 'Действия',
+    })
+
+    await screen.getByRole('button', { name: 'Действия' }).click()
+
+    await expect.element(innermost().getByRole('separator')).toBeInTheDocument()
+    expect(innermost().getByRole('separator').elements()).toHaveLength(1)
+  })
 })
 
 it.each([false, true])(

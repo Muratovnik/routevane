@@ -42,14 +42,14 @@ func TestProfileBatchReadsMatchSingleProfileDetails(t *testing.T) {
 	}
 	assertProfileBatchOrder(t, shelf, profiles[2].ID, profiles[0].ID, profiles[1].ID)
 	assertProfileBatchMatchesSingles(t, store, shelf)
-	page, err := store.ProfilePage(t.Context(), "")
+	page, err := store.ProfilePage(t.Context(), application.ProfileShelfAll, "")
 	if err != nil || page.NextCursor != "" {
 		t.Fatalf("page=%#v err=%v", page, err)
 	}
 	if !reflect.DeepEqual(page.Profiles, shelf) {
 		t.Fatalf("page differs from shelf:\npage=%#v\nshelf=%#v", page.Profiles, shelf)
 	}
-	after, err := store.ProfilePage(t.Context(), profiles[0].ID)
+	after, err := store.ProfilePage(t.Context(), application.ProfileShelfAll, profiles[0].ID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,12 +58,12 @@ func TestProfileBatchReadsMatchSingleProfileDetails(t *testing.T) {
 	if !after.Profiles[0].Archived() {
 		t.Fatal("the cursor omitted archival state")
 	}
-	empty, err := store.ProfilePage(t.Context(), profiles[1].ID)
+	empty, err := store.ProfilePage(t.Context(), application.ProfileShelfAll, profiles[1].ID)
 	if err != nil || empty.Profiles == nil || len(empty.Profiles) != 0 || empty.NextCursor != "" {
 		t.Fatalf("empty final page=%#v err=%v", empty, err)
 	}
 	for _, cursor := range []string{"invalid", strings.Repeat("f", 32)} {
-		if _, err := store.ProfilePage(t.Context(), cursor); !errors.Is(err, application.ErrNotFound) {
+		if _, err := store.ProfilePage(t.Context(), application.ProfileShelfAll, cursor); !errors.Is(err, application.ErrNotFound) {
 			t.Fatalf("unknown cursor %q error=%v", cursor, err)
 		}
 	}
@@ -89,7 +89,7 @@ func TestProfileBatchDetailsBoundQueriesAndKeepLimitsPerProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback()
-	rows, err := profilePageRows(t.Context(), tx, "")
+	rows, err := profilePageRows(t.Context(), tx, application.ProfileShelfAll, "")
 	if err != nil || len(rows) != profileLimit+1 {
 		t.Fatalf("page boundary fixture count=%d err=%v", len(rows), err)
 	}
@@ -143,11 +143,11 @@ func TestProfileBatchDetailsBoundQueriesAndKeepLimitsPerProfile(t *testing.T) {
 	if err := tx.Commit(); err != nil {
 		t.Fatal(err)
 	}
-	page, err := store.ProfilePage(t.Context(), "")
+	page, err := store.ProfilePage(t.Context(), application.ProfileShelfAll, "")
 	if err != nil || len(page.Profiles) != profileLimit || page.NextCursor != selected[profileLimit-1].ID {
 		t.Fatalf("public page boundary count=%d cursor=%q err=%v", len(page.Profiles), page.NextCursor, err)
 	}
-	last, err := store.ProfilePage(t.Context(), page.NextCursor)
+	last, err := store.ProfilePage(t.Context(), application.ProfileShelfAll, page.NextCursor)
 	if err != nil || len(last.Profiles) != 1 || last.Profiles[0].ID != rows[profileLimit].ID || last.NextCursor != "" {
 		t.Fatalf("last page=%#v err=%v", last, err)
 	}
@@ -187,7 +187,7 @@ func TestProfileBatchReadsRejectInvalidStoredDomains(t *testing.T) {
 			if err == nil || err.Error() != want.Error() || len(shelf) != 0 {
 				t.Fatalf("shelf=%#v err=%v, want %v", shelf, err, want)
 			}
-			page, err := store.ProfilePage(t.Context(), "")
+			page, err := store.ProfilePage(t.Context(), application.ProfileShelfAll, "")
 			if err == nil || err.Error() != want.Error() || len(page.Profiles) != 0 || page.NextCursor != "" {
 				t.Fatalf("page=%#v err=%v, want %v", page, err, want)
 			}
@@ -288,7 +288,7 @@ func TestProfileBatchDetailsKeepTheProfileRowSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer tx.Rollback()
-	profiles, err := profilePageRows(t.Context(), tx, "")
+	profiles, err := profilePageRows(t.Context(), tx, application.ProfileShelfAll, "")
 	if err != nil {
 		t.Fatal(err)
 	}

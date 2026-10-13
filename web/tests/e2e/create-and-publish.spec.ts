@@ -409,18 +409,22 @@ test('the library starts empty and shelves the profile the composer creates and 
   await expect(
     menu.getByRole('menuitem', { name: 'Open profile' }),
   ).toBeVisible()
-  await expect(menu.getByRole('menuitem', { name: 'Download' })).toBeVisible()
-  await expect(menu.getByRole('menuitem')).toHaveCount(6)
   await expect(
-    menu.getByRole('menuitem', { name: 'Send to Keenetic' }),
+    menu.getByRole('menuitem', { name: 'Export to file' }),
+  ).toBeVisible()
+  await expect(menu.getByRole('menuitem')).toHaveCount(7)
+  await menu.getByRole('menuitem', { name: 'Send', exact: true }).click()
+  await expect(
+    menuPanel(page).last().getByRole('menuitem', { name: 'Keenetic' }),
   ).toHaveAttribute('href', `/profiles/${profileID}/send/${outputID}`)
+  await page.keyboard.press('ArrowLeft')
   const exported = page.waitForResponse(
     (candidate) =>
       candidate.request().method() === 'POST' &&
       new URL(candidate.url()).pathname === `/v1/profiles/${profileID}/export`,
   )
   const download = page.waitForEvent('download')
-  await menu.getByRole('menuitem', { name: 'Download' }).click()
+  await menu.getByRole('menuitem', { name: 'Export to file' }).click()
   // A grouped choice opens its own menu over the one that offered it, so the
   // formats are in the last panel the stack holds.
   const formats = menuPanel(page).last()

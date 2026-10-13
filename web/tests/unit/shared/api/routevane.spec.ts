@@ -9,6 +9,7 @@ import {
 import { loadExportFormats, requestProfileExport } from '@/shared/api/exports'
 import {
   createProfile,
+  deleteProfile,
   loadProfilePage,
   loadProfiles,
   previewComposition,
@@ -346,28 +347,65 @@ describe('Routevane local API decoders', () => {
     await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
   })
 
-  it('continues profile pages with the server cursor in a path segment', async () => {
+  it('reads a shelf and continues it with the server cursor in a path segment', async () => {
     const next = 'e'.repeat(32)
-    fetchMock.mockResolvedValueOnce(json({ profiles: [], next }))
-    await expect(loadProfilePage()).resolves.toEqual({
+    fetchMock.mockResolvedValueOnce(
+      json({ profiles: [], next, archived_count: 3 }),
+    )
+    await expect(loadProfilePage('active')).resolves.toEqual({
       profiles: [],
       nextCursor: next,
+      archivedCount: 3,
     })
-    expect(fetchMock).toHaveBeenLastCalledWith('/v1/profiles', {
+    expect(fetchMock).toHaveBeenLastCalledWith('/v1/profile-shelf/active', {
       method: 'GET',
     })
 
     fetchMock.mockResolvedValueOnce(json({ profiles: [], next: '' }))
-    await expect(loadProfilePage(next)).resolves.toEqual({
+    await expect(loadProfilePage('archived', next)).resolves.toEqual({
       profiles: [],
       nextCursor: '',
+      archivedCount: 0,
     })
-    expect(fetchMock).toHaveBeenLastCalledWith(`/v1/profile-pages/${next}`, {
-      method: 'GET',
-    })
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `/v1/profile-shelf/archived/${next}`,
+      { method: 'GET' },
+    )
 
     fetchMock.mockResolvedValueOnce(json({ profiles: [], next: 42 }))
-    await expect(loadProfilePage()).rejects.toBeInstanceOf(RoutevaneAPIError)
+    await expect(loadProfilePage('active')).rejects.toBeInstanceOf(
+      RoutevaneAPIError,
+    )
+  })
+
+  it('deletes a profile with an empty body and reads the code of a refusal', async () => {
+    const id = 'a'.repeat(32)
+    fetchMock.mockResolvedValueOnce(
+      json({ id, deleted_at: '2026-10-13T12:00:00Z' }),
+    )
+    await expect(deleteProfile(id)).resolves.toEqual({
+      id,
+      deletedAt: '2026-10-13T12:00:00Z',
+    })
+    expect(fetchMock).toHaveBeenLastCalledWith(`/v1/profiles/${id}/delete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Routevane-Request': '1',
+      },
+      body: '{}',
+    })
+
+    fetchMock.mockResolvedValueOnce(
+      json(
+        { error: 'profile is not archived', code: 'profile_not_archived' },
+        409,
+      ),
+    )
+    await expect(deleteProfile(id)).rejects.toMatchObject({
+      code: 'profile_not_archived',
+      status: 409,
+    })
   })
 
   it('lists independent export formats and downloads one without an output id', async () => {

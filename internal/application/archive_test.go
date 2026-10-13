@@ -87,6 +87,29 @@ func TestAnArchivedProfileStaysReadable(t *testing.T) {
 	}
 }
 
+// A page names the shelf it was read from and carries the library's archived
+// count, so a screen's "Archive 1" never depends on which rows it loaded.
+func TestAProfilePageCarriesTheShelfItWasReadFromAndTheArchivedCount(t *testing.T) {
+	publication, store := archivedTestService(t)
+	ctx := context.Background()
+
+	archived, err := publication.ProfileCardsPage(ctx, ProfileShelfArchived, "")
+	if err != nil || len(archived.Profiles) != 1 || archived.ArchivedCount != 1 {
+		t.Fatalf("archived shelf = %#v, err = %v", archived, err)
+	}
+	active, err := publication.ProfileCardsPage(ctx, ProfileShelfActive, "")
+	if err != nil || len(active.Profiles) != 0 || active.ArchivedCount != 1 {
+		t.Fatalf("active shelf = %#v, err = %v", active, err)
+	}
+	if _, err := publication.RestoreProfile(ctx, store.profile.ID); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := publication.ProfileCardsPage(ctx, ProfileShelfActive, "")
+	if err != nil || len(restored.Profiles) != 1 || restored.ArchivedCount != 0 {
+		t.Fatalf("after restoring = %#v, err = %v", restored, err)
+	}
+}
+
 // Restoring returns the profile to the shelf and to every write it refused. It
 // does not rebuild: what the profile publishes is what it published when it left.
 func TestRestoringReturnsTheProfileToTheShelf(t *testing.T) {

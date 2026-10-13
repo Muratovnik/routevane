@@ -117,7 +117,7 @@ type Backend interface {
 	SetDefaultRefreshInterval(context.Context, application.RefreshInterval) error
 	SetProfileRefreshInterval(context.Context, string, application.RefreshInterval) (application.Profile, error)
 	ProfileSchedule(context.Context, application.Profile) (application.Schedule, error)
-	ProfileCardsPage(context.Context, string) (application.ProfileCardPage, error)
+	ProfileCardsPage(context.Context, application.ProfileShelf, string) (application.ProfileCardPage, error)
 	AddOutput(context.Context, string, string) (application.CreatedOutput, error)
 	SetOutputDevice(context.Context, string, string) (application.Output, error)
 	SetOutputFQDNPrefix(context.Context, string, string) (application.Output, error)

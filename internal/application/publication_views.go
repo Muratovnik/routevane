@@ -142,19 +142,38 @@ type ProfileCard struct {
 	Outputs           []OutputCard `json:"outputs"`
 }
 
+// ProfileShelf names the part of the profile library one page reads. A profile
+// is on exactly one of the two shelves, so a filtered page never has to look
+// past rows of the other kind to fill itself.
+type ProfileShelf string
+
+const (
+	// ProfileShelfAll reads every stored profile, archived or not.
+	ProfileShelfAll ProfileShelf = "all"
+	// ProfileShelfActive reads the profiles that are not archived.
+	ProfileShelfActive ProfileShelf = "active"
+	// ProfileShelfArchived reads the archived profiles.
+	ProfileShelfArchived ProfileShelf = "archived"
+)
+
 // ProfilePage is one stable, bounded slice of the profile library. NextCursor is
 // empty only after the final page; it is an internal profile identity rather than
 // an offset so rows created while a page is being read cannot shift later rows.
+// ArchivedCount is every archived profile, whichever shelf the page was read
+// from and however many pages precede it: a count the screen would otherwise
+// have to guess from the rows it happens to have loaded.
 type ProfilePage struct {
-	Profiles   []Profile `json:"-"`
-	NextCursor string    `json:"-"`
+	Profiles      []Profile `json:"-"`
+	NextCursor    string    `json:"-"`
+	ArchivedCount int       `json:"-"`
 }
 
 // ProfileCardPage is the browser-safe representation of one ProfilePage.
 // The cursor deliberately names no time or storage implementation detail.
 type ProfileCardPage struct {
-	Profiles   []ProfileCard `json:"profiles"`
-	NextCursor string        `json:"next"`
+	Profiles      []ProfileCard `json:"profiles"`
+	NextCursor    string        `json:"next"`
+	ArchivedCount int           `json:"archived_count"`
 }
 
 // Lists names every list the library currently holds. A list the operator
@@ -263,18 +282,18 @@ func (s *PublicationService) Targets() []TargetOption {
 // that do not yet page. Browser-facing consumers use ProfileCardsPage so a
 // profile can never become invisible merely because it is older than the page.
 func (s *PublicationService) ProfileCards(ctx context.Context) ([]ProfileCard, error) {
-	page, err := s.ProfileCardsPage(ctx, "")
+	page, err := s.ProfileCardsPage(ctx, ProfileShelfAll, "")
 	if err != nil {
 		return nil, err
 	}
 	return page.Profiles, nil
 }
 
-// ProfileCardsPage lists one profile page with the outputs each row owns. A
-// latest artifact that cannot be read is omitted from its output rather than
-// failing the listing: the profile still exists and says so.
-func (s *PublicationService) ProfileCardsPage(ctx context.Context, afterID string) (ProfileCardPage, error) {
-	page, err := s.config.Store.ProfilePage(ctx, afterID)
+// ProfileCardsPage lists one profile page of the given shelf with the outputs
+// each row owns. A latest artifact that cannot be read is omitted from its
+// output rather than failing the listing: the profile still exists and says so.
+func (s *PublicationService) ProfileCardsPage(ctx context.Context, shelf ProfileShelf, afterID string) (ProfileCardPage, error) {
+	page, err := s.config.Store.ProfilePage(ctx, shelf, afterID)
 	if err != nil {
 		return ProfileCardPage{}, err
 	}
@@ -299,7 +318,7 @@ func (s *PublicationService) ProfileCardsPage(ctx context.Context, afterID strin
 		}
 		cards = append(cards, card)
 	}
-	return ProfileCardPage{Profiles: cards, NextCursor: page.NextCursor}, nil
+	return ProfileCardPage{Profiles: cards, NextCursor: page.NextCursor, ArchivedCount: page.ArchivedCount}, nil
 }
 
 // OutputCards describes one profile's outputs for the profile screen.
