@@ -33,7 +33,7 @@ is edited by the operator on top of it. A profile publishes in one or more
 **formats**, and a format owns its subscription link, its chain of published
 files and, when delivery is set up, the connection that carries them. A
 **connection** is one registered access — an address, an account, an interface
-and, on consent, a password — and it names the access rather than what stands
+and, if the operator saves one, a password — and it names the access rather than what stands
 at the far end, which may be a router, an application or a service (ADR 0041).
 The API, the schema and the code keep `output` and `device`; the interface word
 and the identifier differ here deliberately, as they already do for three wire
@@ -428,8 +428,9 @@ initial build leaves no unusable secret behind. It lives in memory for the life
 of the tab: never in storage, never in the URL, never in a query, never in a
 log. The profile that survives a refresh is the server's; it deliberately
 cannot restore the link. A device password is held for one attempt and cleared
-when it ends, unless the operator explicitly opts into unattended delivery
-backed by the operating system's secret store. The address, account and
+when it ends, unless the operator explicitly saves it for the connection in the
+operating system's secret store (ADR 0050); saving is separate from unattended
+delivery, and the interface never reads a saved password back. The address, account and
 interface are not secrets and are remembered for the tab, because asking again
 for what was just typed is the redundant entry WCAG 2.2 asks products to stop
 doing.

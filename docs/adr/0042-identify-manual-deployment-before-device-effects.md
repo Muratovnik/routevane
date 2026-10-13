@@ -4,6 +4,12 @@ status: adopted
 
 # ADR 0042: identify a manual deployment before device effects
 
+The rule for reading a saved credential in a manual send is amended by
+[ADR 0050](0050-saved-connection-credential.md): it is read whenever the
+connection records a saved password, not only while automatic delivery is on.
+The request contract, the attempt journal and the refusal codes below are
+unchanged.
+
 ## Context
 
 A confirmed manual deployment was represented only by its HTTP request. If the

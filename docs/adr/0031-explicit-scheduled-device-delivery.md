@@ -6,6 +6,13 @@ status: adopted
 
 Replaces [`0014-opt-in-device-credential-storage.md`](0014-opt-in-device-credential-storage.md).
 
+The credential clauses are amended by
+[ADR 0050](0050-saved-connection-credential.md): a saved password is its own fact,
+disabling automatic delivery no longer removes it, and a manual send reads it
+whether or not automatic delivery is on. Removing the credential when the
+address, account or interface changes or the device is forgotten, the binding,
+the scheduler and the lifecycle below are unchanged.
+
 ## Context
 
 ADR 0013 says an output may name one device, and ADR 0014 permitted keeping a

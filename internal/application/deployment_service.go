@@ -145,7 +145,7 @@ type deploymentDeviceSource interface {
 
 // ResolveDeviceConnection turns one registered access into the canonical
 // connection used for this request. The caller holds the delivery gate through
-// resolution and deployment so an address edit or consent revocation cannot
+// resolution and deployment so an address edit or a credential removal cannot
 // separate the credential check from its use. It does not change a binding or
 // persist the optional one-use password.
 func (s *DeploymentService) ResolveDeviceConnection(ctx context.Context, command DeployCommand, devices deploymentDeviceSource) (DeployCommand, error) {
@@ -179,7 +179,9 @@ func (s *DeploymentService) ResolveDeviceConnection(ctx context.Context, command
 	}
 	connection := Connection{URL: device.Address, Username: device.Account, Interface: device.Interface, Password: command.Connection.Password}
 	if connection.Password == "" && deployer.Requirements().NeedsCredential {
-		if !device.AutoDeliver {
+		// A saved credential serves a manual delivery whether or not automatic
+		// delivery is on (ADR 0050); a password in the request still wins above.
+		if !device.CredentialStored {
 			return DeployCommand{}, ErrConnectionInvalid
 		}
 		credential, credentialErr := devices.DeviceCredential(ctx, device.ID)

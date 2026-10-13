@@ -68,9 +68,44 @@ func (h *handler) forgetDevice(w http.ResponseWriter, r *http.Request, id string
 	writeJSON(w, http.StatusOK, map[string]any{"forgotten": id})
 }
 
-// autoDelivery turns unattended delivery on or off. Turning it on carries the
-// credential in the request body and nowhere else: the reply states the device,
-// never the secret, and the request is never logged.
+// saveDeviceCredential keeps a password for the device in the operating
+// system's store (ADR 0050). The credential travels in the request body and
+// nowhere else: the reply states the device, never the secret, and the request
+// is never logged.
+func (h *handler) saveDeviceCredential(w http.ResponseWriter, r *http.Request, id string) {
+	var request struct {
+		Credential string `json:"credential"`
+	}
+	if !decodeJSON(w, r, &request) {
+		return
+	}
+	device, err := h.backend.SaveDeviceCredential(r.Context(), id, request.Credential)
+	if err != nil {
+		h.backendError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"device": device})
+}
+
+// removeDeviceCredential deletes the saved password. Automatic delivery that
+// depended on it is turned off with it.
+func (h *handler) removeDeviceCredential(w http.ResponseWriter, r *http.Request, id string) {
+	if !decodeEmpty(w, r) {
+		return
+	}
+	device, err := h.backend.RemoveDeviceCredential(r.Context(), id)
+	if err != nil {
+		h.backendError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"device": device})
+}
+
+// autoDelivery turns unattended delivery on or off. Turning it on needs a saved
+// credential when the deployer takes one; a credential in the request body is
+// saved first, for compatibility. Turning it off keeps the saved credential.
+// The reply states the device, never the secret, and the request is never
+// logged.
 func (h *handler) autoDelivery(w http.ResponseWriter, r *http.Request, id string) {
 	var request struct {
 		Enabled    bool   `json:"enabled"`

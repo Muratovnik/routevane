@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 15
+const CurrentSchemaVersion = 16
 
 type migration struct {
 	version int
@@ -677,6 +677,20 @@ END;
 CREATE TRIGGER deployment_attempts_no_delete BEFORE DELETE ON deployment_attempts BEGIN
  SELECT RAISE(ABORT, 'immutable deployment attempt');
 END;
+`}, {version: 16, sql: `
+-- ADR 0050: a saved password is its own fact, independent of automatic
+-- delivery. The column records that the operating system's store holds a
+-- password the operator saved for the device; the secret itself is never here.
+ALTER TABLE devices ADD COLUMN credential_stored INTEGER NOT NULL DEFAULT 0 CHECK (credential_stored IN (0,1));
+-- Before this version a password was stored only as part of automatic-delivery
+-- consent, so a device that is opted in held one exactly when its deployer
+-- takes a credential. SQLite cannot ask a deployer, but registration and
+-- import refuse any device whose account does not match that requirement
+-- (an account is present if and only if a credential is needed), so a
+-- non-empty account is the stored form of the same fact. A credential-free
+-- device (no account) keeps 0: the column reports a stored password, not
+-- intent. A device that is not opted in held no password.
+UPDATE devices SET credential_stored=1 WHERE auto_deliver=1 AND account<>'';
 `}}
 
 var requiredTables = []string{
@@ -725,7 +739,7 @@ var requiredColumns = map[string][]string{
 	"effective_formats":       {"format_key", "list_id", "target_id", "renderer_id", "catalog_revision", "config_json", "updated_at_ns"},
 	"settings":                {"key", "value", "updated_at_ns"},
 	"profiles":                {"id", "name", "refresh_interval", "last_refreshed_at_ns", "last_refresh_failed", "archived_at_ns", "created_at_ns", "updated_at_ns"},
-	"devices":                 {"id", "target_id", "name", "address", "account", "auto_deliver", "created_at_ns", "updated_at_ns", "interface"},
+	"devices":                 {"id", "target_id", "name", "address", "account", "auto_deliver", "created_at_ns", "updated_at_ns", "interface", "credential_stored"},
 	"catalog_removals":        {"kind", "id", "removed_at"},
 	"custom_categories":       {"id", "title", "created_at_ns", "updated_at_ns"},
 	"category_memberships":    {"category_id", "list_id", "state", "updated_at_ns"},

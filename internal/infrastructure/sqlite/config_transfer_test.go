@@ -47,6 +47,9 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 	if got := countRows(t, store, "SELECT count(*) FROM devices WHERE auto_deliver=1"); got != 0 {
 		t.Fatalf("import enabled automatic delivery for %d device(s)", got)
 	}
+	if got := countRows(t, store, "SELECT count(*) FROM devices WHERE credential_stored=1"); got != 0 {
+		t.Fatalf("import claimed a saved credential for %d device(s)", got)
+	}
 	if got := countRows(t, store, "SELECT count(*) FROM outputs WHERE latest_artifact_id IS NOT NULL OR previous_artifact_id IS NOT NULL"); got != 0 {
 		t.Fatalf("import restored %d publication pointer(s)", got)
 	}

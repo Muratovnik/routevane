@@ -21,7 +21,7 @@ Important chains: 0004 → 0013/0023 (objects and issuance), 0013 → 0016 → 0
 0028 → 0039 (the deferred identifiers, and the executable that carries them),
 0027 → 0041 (one interface word per object),
 0024 → 0025 → 0029 (editing),
-0012 → 0014 → 0031 (credentials and unattended delivery), 0008 → 0020 → 0042
+0012 → 0014 → 0031 → 0050 (credentials, unattended delivery and the saved password), 0008 → 0020 → 0042
 (deployment recovery), 0008 → 0032 → 0034
 (Keenetic route ownership and descriptions), 0017 → 0040 → 0049 (Keenetic FQDN
 group ownership and names), and 0002 → 0030 (Go).
@@ -78,3 +78,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0047: explicit recovery of an unavailable desktop port](./0047-explicit-desktop-port-recovery.md) | adopted |
 | [ADR 0048: choose new desktop ports below the ephemeral ranges](./0048-desktop-port-band.md) | adopted |
 | [ADR 0049: readable Keenetic FQDN group names](./0049-readable-fqdn-group-names.md) | adopted |
+| [ADR 0050: a connection's saved password is its own fact](./0050-saved-connection-credential.md) | adopted |

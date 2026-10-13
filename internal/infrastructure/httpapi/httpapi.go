@@ -133,6 +133,8 @@ type Backend interface {
 	RegisterDevice(ctx context.Context, targetID, name, address, account, interfaceName string) (application.Device, error)
 	UpdateDevice(ctx context.Context, id, name, address, account, interfaceName string) (application.Device, error)
 	ForgetDevice(context.Context, string) error
+	SaveDeviceCredential(ctx context.Context, id, secret string) (application.Device, error)
+	RemoveDeviceCredential(context.Context, string) (application.Device, error)
 	EnableAutoDelivery(ctx context.Context, id, secret string) (application.Device, error)
 	DisableAutoDelivery(context.Context, string) (application.Device, error)
 	DeployableTargets() []application.DeployableTarget
@@ -509,6 +511,10 @@ func writeBackendError(w http.ResponseWriter, err error) {
 		})
 	case errors.Is(err, application.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not found")
+	case errors.Is(err, application.ErrCredentialRequired):
+		// Automatic delivery for a deployer that takes a password needs one saved
+		// first (ADR 0050). A stable code, because a screen acts on it.
+		writeError(w, http.StatusConflict, "credential_required")
 	case errors.Is(err, application.ErrArtifactUnavailable):
 		writeError(w, http.StatusServiceUnavailable, "artifact unavailable")
 	case errors.Is(err, application.ErrTargetChanged):

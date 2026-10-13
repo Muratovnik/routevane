@@ -92,6 +92,9 @@ func (s *AutomaticDeliveryService) deliverOne(ctx context.Context, publication S
 	if !device.AutoDeliver {
 		return false, ""
 	}
+	// Unattended delivery needs consent AND, when the deployer takes a
+	// password, a saved one: DeviceCredential refuses a device whose credential
+	// is not recorded as stored (ADR 0050).
 	credential, err := s.config.Devices.DeviceCredential(attemptCtx, device.ID)
 	if err != nil {
 		return false, "credential_unavailable"

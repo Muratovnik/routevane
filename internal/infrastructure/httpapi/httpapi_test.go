@@ -39,6 +39,8 @@ type fakeBackend struct {
 	defaultPriority    []string
 	defaultPriorityErr error
 	storedCredential   string
+	deviceErr          error
+	removedCredentials int
 	archived           bool
 	createdComposition application.ProfileComposition
 	// forecastComposition and forecastTargets record what the preview route
@@ -414,13 +416,32 @@ func (f *fakeBackend) UpdateDevice(_ context.Context, id, name, address, account
 	return application.Device{ID: id, TargetID: "keenetic", Name: name, Address: address, Account: account, Interface: interfaceName}, nil
 }
 func (f *fakeBackend) ForgetDevice(context.Context, string) error { return nil }
-func (f *fakeBackend) EnableAutoDelivery(_ context.Context, id, secret string) (application.Device, error) {
+func (f *fakeBackend) SaveDeviceCredential(_ context.Context, id, secret string) (application.Device, error) {
+	if f.deviceErr != nil {
+		return application.Device{}, f.deviceErr
+	}
 	f.storedCredential = secret
-	return application.Device{ID: id, TargetID: "keenetic", Name: "Роутер", Address: "http://192.168.1.1", AutoDeliver: true}, nil
+	return application.Device{ID: id, TargetID: "keenetic", Name: "Роутер", Address: "http://192.0.2.1", CredentialStored: true}, nil
+}
+func (f *fakeBackend) RemoveDeviceCredential(_ context.Context, id string) (application.Device, error) {
+	if f.deviceErr != nil {
+		return application.Device{}, f.deviceErr
+	}
+	f.storedCredential = ""
+	f.removedCredentials++
+	return application.Device{ID: id, TargetID: "keenetic", Name: "Роутер", Address: "http://192.0.2.1"}, nil
+}
+func (f *fakeBackend) EnableAutoDelivery(_ context.Context, id, secret string) (application.Device, error) {
+	if f.deviceErr != nil {
+		return application.Device{}, f.deviceErr
+	}
+	if secret != "" {
+		f.storedCredential = secret
+	}
+	return application.Device{ID: id, TargetID: "keenetic", Name: "Роутер", Address: "http://192.0.2.1", AutoDeliver: true, CredentialStored: f.storedCredential != ""}, nil
 }
 func (f *fakeBackend) DisableAutoDelivery(_ context.Context, id string) (application.Device, error) {
-	f.storedCredential = ""
-	return application.Device{ID: id, TargetID: "keenetic", Name: "Роутер", Address: "http://192.168.1.1"}, nil
+	return application.Device{ID: id, TargetID: "keenetic", Name: "Роутер", Address: "http://192.0.2.1", CredentialStored: f.storedCredential != ""}, nil
 }
 
 func (f *fakeBackend) DeployableTargets() []application.DeployableTarget {
@@ -1587,6 +1608,8 @@ var everyAPIPath = []struct {
 	{"/v1/devices", "devices.collection"},
 	{"/v1/devices/" + testID + "/update", "devices.update"},
 	{"/v1/devices/" + testID + "/forget", "devices.forget"},
+	{"/v1/devices/" + testID + "/credential", "devices.credential"},
+	{"/v1/devices/" + testID + "/credential/remove", "devices.credential.remove"},
 	{"/v1/devices/" + testID + "/auto-delivery", "devices.autodelivery"},
 	{"/v1/outputs/" + testID + "", "outputs.get"},
 	{"/v1/outputs/" + testID + "/build", "outputs.build"},

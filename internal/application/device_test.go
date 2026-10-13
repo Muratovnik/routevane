@@ -212,7 +212,7 @@ func TestChangingAConnectionRevokesConsentCredentialAndOldRouteOwnership(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.AutoDeliver || updated.Address != "http://192.168.1.2" || updated.Account != "operator" || updated.Interface != "Wireguard1" {
+	if updated.AutoDeliver || updated.CredentialStored || updated.Address != "http://192.168.1.2" || updated.Account != "operator" || updated.Interface != "Wireguard1" {
 		t.Fatalf("updated = %#v", updated)
 	}
 	if _, held := secrets.secrets[secretKey(device.ID)]; held {
@@ -237,7 +237,7 @@ func TestRenamingADeviceKeepsConsentForTheSameConnection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !updated.AutoDeliver || secrets.secrets[secretKey(device.ID)] != "password" {
+	if !updated.AutoDeliver || !updated.CredentialStored || secrets.secrets[secretKey(device.ID)] != "password" {
 		t.Fatalf("updated = %#v secrets = %#v", updated, secrets.secrets)
 	}
 }
@@ -254,20 +254,22 @@ func TestAConnectionChangeStopsWhenItsCredentialCannotBeRevoked(t *testing.T) {
 		t.Fatal("the connection changed while its old credential could not be revoked")
 	}
 	stored := store.devices[0]
-	if !stored.AutoDeliver || stored.Address != device.Address || secrets.secrets[secretKey(device.ID)] != "password" {
+	if !stored.AutoDeliver || !stored.CredentialStored || stored.Address != device.Address || secrets.secrets[secretKey(device.ID)] != "password" {
 		t.Fatalf("stored = %#v secrets = %#v", stored, secrets.secrets)
 	}
 }
 
 // The flag is written only after the store accepted the secret, so the surface
-// never shows a device as unattended while nothing holds its password.
-func TestUnattendedDeliveryIsOnlyOnWhenTheStoreHoldsTheSecret(t *testing.T) {
+// never shows a device as unattended while nothing holds its password. Turning
+// automatic delivery off keeps the saved password (ADR 0050): it is a separate
+// fact that manual delivery uses too.
+func TestUnattendedDeliveryIsOnlyOnWhenTheStoreHoldsTheSecretAndDisablingKeepsIt(t *testing.T) {
 	secrets := &fakeSecretStore{available: true}
 	devices, _ := deviceService(t, secrets)
 	device := registered(t, devices)
 
 	enabled, err := devices.EnableAutoDelivery(context.Background(), device.ID, "пароль")
-	if err != nil || !enabled.AutoDeliver {
+	if err != nil || !enabled.AutoDeliver || !enabled.CredentialStored {
 		t.Fatalf("device = %#v err = %v", enabled, err)
 	}
 	if secrets.secrets[secretKey(device.ID)] != "пароль" {
@@ -279,11 +281,14 @@ func TestUnattendedDeliveryIsOnlyOnWhenTheStoreHoldsTheSecret(t *testing.T) {
 	}
 
 	disabled, err := devices.DisableAutoDelivery(context.Background(), device.ID)
-	if err != nil || disabled.AutoDeliver {
+	if err != nil || disabled.AutoDeliver || !disabled.CredentialStored {
 		t.Fatalf("device = %#v err = %v", disabled, err)
 	}
-	if _, held := secrets.secrets[secretKey(device.ID)]; held {
-		t.Fatal("the credential outlived the consent that stored it")
+	if secrets.secrets[secretKey(device.ID)] != "пароль" {
+		t.Fatal("turning automatic delivery off deleted the saved credential")
+	}
+	if credential, err := devices.DeviceCredential(context.Background(), device.ID); err != nil || credential != "пароль" {
+		t.Fatalf("saved credential after disabling = %q err = %v", credential, err)
 	}
 }
 
@@ -336,15 +341,18 @@ func TestADeviceWithoutADeployerCannotOptInToAutomaticDelivery(t *testing.T) {
 	}
 }
 
-// A credential left over from a disabled device must not be usable by asking.
-func TestACredentialIsUnreadableWithoutTheConsentFlag(t *testing.T) {
+// A secret left behind without the recorded fact -- a failed or interrupted
+// write -- must not be usable by asking, whatever automatic delivery says.
+func TestASecretIsUnreadableWithoutTheSavedCredentialFact(t *testing.T) {
 	secrets := &fakeSecretStore{available: true, secrets: map[string]string{}}
 	devices, store := deviceService(t, secrets)
 	device := registered(t, devices)
 	secrets.secrets[secretKey(device.ID)] = "leftover"
-	store.devices[0].AutoDeliver = false
-	if _, err := devices.DeviceCredential(context.Background(), device.ID); !errors.Is(err, ErrNotFound) {
-		t.Fatalf("err = %v", err)
+	for _, autoDeliver := range []bool{false, true} {
+		store.devices[0].AutoDeliver, store.devices[0].CredentialStored = autoDeliver, false
+		if _, err := devices.DeviceCredential(context.Background(), device.ID); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("auto=%v err = %v", autoDeliver, err)
+		}
 	}
 }
 

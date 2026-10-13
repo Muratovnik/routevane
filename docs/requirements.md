@@ -34,12 +34,24 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 - A **rule** is one destination; a **list** holds rules; a **category** groups
   lists; a **profile** composes them and publishes in one or more **formats**.
   A **connection** is one registered access — an address, an account, an
-  interface and, on consent, a password — that can deliver a format's file.
+  interface and, if the operator saves one, a password — that can deliver a
+  format's file.
   The interface, the HTTP API, the catalog, the transfer format and the stored
   schema all use rule, list, category and profile (ADR 0039). Format and
   connection are interface words for what those surfaces call an output and a
   device; the interface keeps one word per object and the wire keeps its
   identifiers (ADR 0041).
+- A connection's password is its own saved fact, separate from automatic
+  delivery (ADR 0050). The operator saves it explicitly; it lives only in the
+  operating system's credential store, and the registry records only that one
+  is held. A manual send uses it when the request carries no password; a
+  password in the request wins for that attempt and is never saved. Automatic
+  delivery is a second, separate consent and, for a format whose deployer
+  takes a password, requires one to be saved. Turning it off keeps the
+  password; removing the password turns it off. Changing the address,
+  account or interface, or forgetting the connection, removes the password and
+  turns automatic delivery off. Configuration transfer never carries a
+  password.
 - Prefer safe domain-capable rules when the target supports them. DNS evidence
   never justifies WHOIS/RDAP/ASN expansion. Observation validity and policy
   acceptance are separate; decisions are deterministic and reason-coded.
@@ -97,9 +109,10 @@ results. Device doubles and parser tests do not prove physical-device acceptance
   tray or installer behavior.
 
 - The operating-system credential store is currently implemented only on
-  Windows. Automatic delivery to a router that requires a password is unavailable
-  in the Linux/macOS CLI. Manual delivery with a password supplied for each send
-  and automatic delivery to a credential-free local sing-box remain available.
+  Windows. Saving a router password, and so automatic delivery to a router that
+  requires one, is unavailable in the Linux/macOS CLI. Manual delivery with a
+  password supplied for each send and automatic delivery to a credential-free
+  local sing-box remain available.
 - Physical Keenetic, OpenWrt, MikroTik, and Amnezia acceptance, including device
   interruption/recovery where relevant, remains unverified. Local sing-box
   delivery proves file validity, not live runtime reload.

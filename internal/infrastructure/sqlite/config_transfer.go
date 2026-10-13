@@ -450,7 +450,7 @@ func (s *Store) ApplyConfigTransfer(ctx context.Context, a application.ConfigTra
 		}
 	}
 	for _, v := range d.Devices {
-		if _, err := tx.ExecContext(ctx, "INSERT INTO devices(id,target_id,name,address,account,auto_deliver,created_at_ns,updated_at_ns,interface) VALUES(?,?,?,?,?,0,?,?,?)", a.DeviceIDs[v.Ref], v.TargetID, v.Name, v.Address, v.Account, now, now, v.Interface); err != nil {
+		if _, err := tx.ExecContext(ctx, "INSERT INTO devices(id,target_id,name,address,account,auto_deliver,credential_stored,created_at_ns,updated_at_ns,interface) VALUES(?,?,?,?,?,0,0,?,?,?)", a.DeviceIDs[v.Ref], v.TargetID, v.Name, v.Address, v.Account, now, now, v.Interface); err != nil {
 			return err
 		}
 	}

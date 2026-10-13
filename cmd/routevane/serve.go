@@ -418,6 +418,24 @@ func (b serveBackend) ForgetDevice(ctx context.Context, id string) error {
 	return b.devices.ForgetDevice(ctx, id)
 }
 
+func (b serveBackend) SaveDeviceCredential(ctx context.Context, id, secret string) (application.Device, error) {
+	release, err := b.deliveryGate.Acquire(ctx)
+	if err != nil {
+		return application.Device{}, err
+	}
+	defer release()
+	return b.devices.SaveCredential(ctx, id, secret)
+}
+
+func (b serveBackend) RemoveDeviceCredential(ctx context.Context, id string) (application.Device, error) {
+	release, err := b.deliveryGate.Acquire(ctx)
+	if err != nil {
+		return application.Device{}, err
+	}
+	defer release()
+	return b.devices.RemoveCredential(ctx, id)
+}
+
 func (b serveBackend) EnableAutoDelivery(ctx context.Context, id, secret string) (application.Device, error) {
 	release, err := b.deliveryGate.Acquire(ctx)
 	if err != nil {

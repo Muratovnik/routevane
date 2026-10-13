@@ -92,8 +92,8 @@ That folder does not contain device passwords. Routevane keeps them separately
 in the Windows credential store, whose entries are available only to the Windows
 user that created them. After restoring onto a fresh Windows installation or
 under another account, open **Connections** for every credential-backed device:
-turn off automatic delivery, enter the password, review the consent text, and
-turn it on again. Confirm a subsequent delivery succeeds. Do not add passwords
+save the password again, review the consent text, and, where you use automatic
+delivery, turn it on again. Confirm a subsequent delivery succeeds. Do not add passwords
 to a portable configuration export; exports intentionally exclude them.
 
 Data from the CLI package is not imported automatically. To move profiles from a
@@ -103,8 +103,8 @@ files and subscription links.
 
 ### Remove
 
-Before removing Routevane, disable automatic delivery for your devices in
-**Connections** so stored passwords are removed from the Windows credential
+Before removing Routevane, remove the saved passwords of your devices in
+**Connections** so they are deleted from the Windows credential
 store. Then quit Routevane and uninstall it from **Settings → Apps**. The
 uninstaller keeps `%APPDATA%\Routevane\`; delete that folder yourself if you do
 not want to keep your profiles. Removing Routevane does **not** undo routes
@@ -157,9 +157,10 @@ another computer cannot fetch a `127.0.0.1` subscription URL from it. Use file
 export or an available delivery integration for those devices; do not expose
 the local service to the network as a workaround.
 
-Automatic delivery to a router that needs a password is currently supported
-only on Windows, which stores it in Windows Credential Manager. On Linux or
-macOS, enter the router password for each manual send; it is not saved.
+Saving a router password, and so automatic delivery to a router that needs one,
+is currently supported only on Windows, which stores it in Windows Credential
+Manager. On Linux or macOS, enter the router password for each manual send; it
+is not saved.
 Automatic delivery to a local sing-box needs no password and is available on
 all three CLI platforms. See [device delivery](usage.md#applying-an-artifact-to-a-device)
 for setup.
@@ -181,10 +182,10 @@ Device passwords are outside `data/`, in Windows Credential Manager. An update
 on the same Windows installation and account can reuse its existing stored
 passwords. After copying `data/` to another computer, a fresh Windows
 installation, or another account, open **Connections** for each device that
-needs a password: turn off automatic delivery, enter the password again, review
-the consent text, and enable it again. Confirm a subsequent delivery succeeds.
-On Linux or macOS, turn off router automatic delivery and enter its password
-for each manual send.
+needs a password: save the password again, review the consent text, and, where
+you use automatic delivery, enable it again. Confirm a subsequent delivery
+succeeds. On Linux or macOS, turn off router automatic delivery and enter its
+password for each manual send.
 
 For a portable settings transfer, use [configuration transfer](usage.md#moving-configuration-to-another-computer).
 Its file excludes passwords, and imported connections start with automatic
@@ -195,8 +196,8 @@ not open a database migrated by a newer version with an older binary.
 
 ### Remove
 
-Before removing it, disable automatic delivery for your devices in
-**Connections** so stored passwords are removed from the operating system's
+Before removing it, remove the saved passwords of your devices in
+**Connections** so they are deleted from the operating system's
 credential store. Then stop Routevane, save any data you want to keep, and
 delete its extracted folder. Deleting the folder also deletes its local data.
 It does **not** undo routes already applied to a device.

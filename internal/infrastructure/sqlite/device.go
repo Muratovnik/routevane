@@ -13,7 +13,7 @@ import (
 // parameters, so the bound lives here rather than in the request.
 const deviceLimit = 200
 
-const deviceColumns = `SELECT id,target_id,name,address,account,interface,auto_deliver,created_at_ns,updated_at_ns`
+const deviceColumns = `SELECT id,target_id,name,address,account,interface,auto_deliver,credential_stored,created_at_ns,updated_at_ns`
 
 func validDevice(device application.Device) bool {
 	return validID(device.ID) &&
@@ -41,13 +41,9 @@ func (s *Store) CreateDevice(ctx context.Context, device application.Device) err
 	if taken != 0 {
 		return application.ErrIdentityCollision
 	}
-	autoDeliver := 0
-	if device.AutoDeliver {
-		autoDeliver = 1
-	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO devices(id,target_id,name,address,account,interface,auto_deliver,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?,?,?,?,?)`,
-		device.ID, device.TargetID, device.Name, device.Address, device.Account, device.Interface, autoDeliver,
+		`INSERT INTO devices(id,target_id,name,address,account,interface,auto_deliver,credential_stored,created_at_ns,updated_at_ns) VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		device.ID, device.TargetID, device.Name, device.Address, device.Account, device.Interface, boolInt(device.AutoDeliver), boolInt(device.CredentialStored),
 		device.CreatedAt.UTC().UnixNano(), device.UpdatedAt.UTC().UnixNano())
 	if err != nil {
 		return fmt.Errorf("insert device: %w", err)
@@ -86,7 +82,15 @@ func (s *Store) Devices(ctx context.Context) ([]application.Device, error) {
 	return devices, nil
 }
 
-// UpdateDevice replaces the editable parts and the delivery flag. The target is
+func boolInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
+}
+
+// UpdateDevice replaces the editable parts, the delivery flag and the saved-
+// credential fact. The target is
 // not editable: a device that became a different kind of device is a different
 // device.
 func (s *Store) UpdateDevice(ctx context.Context, device application.Device) error {
@@ -98,13 +102,9 @@ func (s *Store) UpdateDevice(ctx context.Context, device application.Device) err
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	autoDeliver := 0
-	if device.AutoDeliver {
-		autoDeliver = 1
-	}
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE devices SET name=?,address=?,account=?,interface=?,auto_deliver=?,updated_at_ns=? WHERE id=? AND target_id=?`,
-		device.Name, device.Address, device.Account, device.Interface, autoDeliver, device.UpdatedAt.UTC().UnixNano(), device.ID, device.TargetID)
+		`UPDATE devices SET name=?,address=?,account=?,interface=?,auto_deliver=?,credential_stored=?,updated_at_ns=? WHERE id=? AND target_id=?`,
+		device.Name, device.Address, device.Account, device.Interface, boolInt(device.AutoDeliver), boolInt(device.CredentialStored), device.UpdatedAt.UTC().UnixNano(), device.ID, device.TargetID)
 	if err != nil {
 		return fmt.Errorf("update device: %w", err)
 	}
@@ -138,15 +138,16 @@ func (s *Store) DeleteDevice(ctx context.Context, id string) error {
 
 func scanDevice(row rowScanner) (application.Device, error) {
 	var device application.Device
-	var autoDeliver int
+	var autoDeliver, credentialStored int
 	var created, updated int64
-	if err := row.Scan(&device.ID, &device.TargetID, &device.Name, &device.Address, &device.Account, &device.Interface, &autoDeliver, &created, &updated); err != nil {
+	if err := row.Scan(&device.ID, &device.TargetID, &device.Name, &device.Address, &device.Account, &device.Interface, &autoDeliver, &credentialStored, &created, &updated); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return application.Device{}, application.ErrNotFound
 		}
 		return application.Device{}, fmt.Errorf("read device: %w", err)
 	}
 	device.AutoDeliver = autoDeliver == 1
+	device.CredentialStored = credentialStored == 1
 	device.CreatedAt = unixNanos(created)
 	device.UpdatedAt = unixNanos(updated)
 	return device, nil

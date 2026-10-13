@@ -29,10 +29,14 @@ func registeredDeploymentCommand(device Device) DeployCommand {
 	}
 }
 
-func TestRegisteredDeploymentUsesOnlyTheSelectedAccessAndConsentedSecret(t *testing.T) {
+// ADR 0050: a saved credential serves a manual delivery whether or not
+// automatic delivery is on, a credential in the request wins for that attempt,
+// and a secret that is not recorded as saved is never read.
+func TestRegisteredDeploymentUsesOnlyTheSelectedAccessAndTheSavedSecret(t *testing.T) {
 	tests := []struct {
 		name       string
 		consent    bool
+		saved      bool
 		stored     string
 		oneUse     string
 		wantSecret string
@@ -40,17 +44,19 @@ func TestRegisteredDeploymentUsesOnlyTheSelectedAccessAndConsentedSecret(t *test
 		wantErr    error
 	}{
 		{name: "one-use credential", oneUse: "one-use-secret", wantSecret: "one-use-secret"},
-		{name: "consented saved credential", consent: true, stored: "saved-secret", wantSecret: "saved-secret", wantReads: 1},
-		{name: "one-use overrides saved credential", consent: true, stored: "saved-secret", oneUse: "one-use-secret", wantSecret: "one-use-secret"},
-		{name: "orphaned secret without consent", stored: "orphaned-secret", wantErr: ErrConnectionInvalid},
-		{name: "consent without a saved credential", consent: true, wantReads: 1, wantErr: ErrConnectionInvalid},
+		{name: "saved credential without automatic delivery", saved: true, stored: "saved-secret", wantSecret: "saved-secret", wantReads: 1},
+		{name: "saved credential with automatic delivery", consent: true, saved: true, stored: "saved-secret", wantSecret: "saved-secret", wantReads: 1},
+		{name: "one-use overrides saved credential", saved: true, stored: "saved-secret", oneUse: "one-use-secret", wantSecret: "one-use-secret"},
+		{name: "orphaned secret that is not recorded as saved", stored: "orphaned-secret", wantErr: ErrConnectionInvalid},
+		{name: "consent alone is not a saved credential", consent: true, stored: "orphaned-secret", wantErr: ErrConnectionInvalid},
+		{name: "saved fact but the store lost the secret", saved: true, wantReads: 1, wantErr: ErrConnectionInvalid},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			secrets := &fakeSecretStore{available: true, secrets: map[string]string{}}
 			devices, store := deviceService(t, secrets)
 			device := registered(t, devices)
-			store.devices[0].AutoDeliver = test.consent
+			store.devices[0].AutoDeliver, store.devices[0].CredentialStored = test.consent, test.saved
 			if test.stored != "" {
 				secrets.secrets[secretKey(device.ID)] = test.stored
 			}
@@ -84,8 +90,8 @@ func TestRegisteredDeploymentUsesOnlyTheSelectedAccessAndConsentedSecret(t *test
 			} else if len(deployer.calls) != 0 {
 				t.Fatalf("refused selection contacted the device: %v", deployer.calls)
 			}
-			if store.devices[0].AutoDeliver != test.consent || secrets.secrets[secretKey(device.ID)] != test.stored || artifacts.output.DeviceID != "" {
-				t.Fatal("manual delivery changed consent, a stored credential, or an output binding")
+			if store.devices[0].AutoDeliver != test.consent || store.devices[0].CredentialStored != test.saved || secrets.secrets[secretKey(device.ID)] != test.stored || artifacts.output.DeviceID != "" {
+				t.Fatal("manual delivery changed consent, the saved credential, or an output binding")
 			}
 		})
 	}
@@ -135,7 +141,7 @@ func TestRegisteredDeploymentRefusesStaleOrMixedMetadataBeforeReadingASecret(t *
 			secrets := &fakeSecretStore{available: true, secrets: map[string]string{}}
 			devices, store := deviceService(t, secrets)
 			device := registered(t, devices)
-			store.devices[0].AutoDeliver = true
+			store.devices[0].CredentialStored = true
 			secrets.secrets[secretKey(device.ID)] = "saved-secret"
 			observed := &observedDeploymentDevices{deploymentDeviceSource: devices}
 			artifacts := deploymentTestArtifacts()
@@ -173,7 +179,7 @@ func TestRegisteredDeploymentRechecksTheDisplayedAccessAfterPreview(t *testing.T
 			secrets := &fakeSecretStore{available: true, secrets: map[string]string{}}
 			devices, store := deviceService(t, secrets)
 			device := registered(t, devices)
-			store.devices[0].AutoDeliver = true
+			store.devices[0].CredentialStored = true
 			secrets.secrets[secretKey(device.ID)] = "saved-secret"
 			observed := &observedDeploymentDevices{deploymentDeviceSource: devices}
 			artifacts := deploymentTestArtifacts()

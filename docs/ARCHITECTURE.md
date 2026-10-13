@@ -152,8 +152,10 @@ of an owned route and verifies it on read-back without changing BAT artifact byt
 [descriptions](adr/0034-keenetic-route-descriptions-from-plan-provenance.md)).
 
 Manual credentials arrive through the CLI environment or the local API request.
-They are not persisted by the deployment call. Unattended credentials are stored
-only through explicit consent and the OS secret-store boundary; unavailable
+They are not persisted by the deployment call. A saved credential is stored only
+through an explicit save and the OS secret-store boundary, and the registry
+records that fact beside, not inside, automatic-delivery consent
+([saved credential](adr/0050-saved-connection-credential.md)); unavailable
 secret-store support cannot silently fall back to SQLite or browser storage.
 
 The scheduler publishes due outputs independently and passes only successful,

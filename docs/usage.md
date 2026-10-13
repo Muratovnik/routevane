@@ -327,11 +327,11 @@ them again after transfer. Local catalog discoveries are also excluded because
 another installation may not have the same files.
 
 After import, publish every output to create a new artifact and subscription.
-Imported devices always start with automatic delivery off. Set up
-[delivery](#applying-an-artifact-to-a-device) again where wanted: storing a router
-password for automatic delivery requires Windows and a newly entered password;
-local sing-box delivery requires no password. On Linux or macOS, enter the router
-password for each manual send instead. Preview and apply
+Imported devices start with no saved password and automatic delivery off. Set up
+[delivery](#applying-an-artifact-to-a-device) again where wanted: saving a router
+password requires Windows and a newly entered password; local sing-box delivery
+requires no password. On Linux or macOS, enter the router password for each
+manual send instead. Preview and apply
 validate the same file digest; editing or replacing the file requires a new
 preview. A file exported by an earlier version still imports: the fields ADR 0039
 renamed are read under their retired names for one minor version. A file
@@ -476,21 +476,28 @@ selected initially. You can choose another connection for this send without
 changing the output's binding or automatic-delivery setting. The manual-entry
 option remains available for a destination you do not want to save. Review the
 selected address and preview before applying; changing the destination requires
-a new preview. A saved router password is reused only while that connection has
-automatic delivery enabled. Otherwise enter a password for this send; it is not
-saved. After a lost response, check the existing attempt's outcome before trying
+a new preview. A saved router password is used for a send whether or not that
+connection has automatic delivery on. A password you enter for the send takes
+precedence for that send only and is never saved. Without a saved password,
+enter one for the send. After a lost response, check the existing attempt's outcome before trying
 another send. Its result identifies the destination of that attempt separately
 from the currently selected connection.
 
-Automatic delivery to a router that needs a password is currently available
-only on Windows. Routevane keeps that password in the Windows credential store.
-On Linux or macOS, use manual delivery and enter the password for each send; it
-is not saved. A local target such as sing-box needs no password, so its automatic
-delivery is available on all three CLI platforms without a credential entry.
+A router's password is its own saved fact, separate from automatic delivery.
+Under **Connections** you save it explicitly, which is your consent to keeping
+it; saving again replaces it, and removing it deletes it. Saving a password for
+a router that needs one is currently available only on Windows, where Routevane
+keeps it in the Windows credential store. The registry records only that a
+password is held, never the password. On Linux or macOS, use manual delivery and
+enter the password for each send; it is not saved. A local target such as
+sing-box needs no password, so its automatic delivery is available on all three
+CLI platforms without a credential entry. See
+[ADR 0050](adr/0050-saved-connection-credential.md).
 
 For unattended delivery, register the device under **Connections** with every
 non-secret connection field its deployer requests (Keenetic includes the route
-interface), then turn on automatic delivery. On the profile's **Publishing**
+interface). When the deployer needs a password, save it, then turn on automatic
+delivery, which requires the saved password. On the profile's **Publishing**
 tab, bind the matching output to that explicit device and set the profile to
 daily or weekly refresh. The scheduler then:
 
@@ -502,11 +509,16 @@ daily or weekly refresh. The scheduler then:
 
 A failed format is not delivered from an older file, a failed device does not
 stop sibling outputs, and the previously published artifact remains available.
-Disabling automatic delivery deletes the stored credential; forgetting the
-device detaches it from outputs without deleting their files or subscriptions
-and retires its route-ownership scope without changing the router.
+Disabling automatic delivery keeps the saved password. Removing the password
+also turns automatic delivery off for a router that needs one. Changing a
+connection's address, account or interface deletes the saved password and turns
+automatic delivery off, and so does forgetting the device, which also detaches
+it from outputs without deleting their files or subscriptions and retires its
+route-ownership scope without changing the router.
 The consent, binding, and credential-free target rules are recorded in
-[`docs/adr/0031-explicit-scheduled-device-delivery.md`](adr/0031-explicit-scheduled-device-delivery.md).
+[`docs/adr/0031-explicit-scheduled-device-delivery.md`](adr/0031-explicit-scheduled-device-delivery.md);
+the saved password is recorded in
+[`docs/adr/0050-saved-connection-credential.md`](adr/0050-saved-connection-credential.md).
 
 The Keenetic RCI interface, including its route `comment` property, is not covered
 by a vendor specification. The deployer is verified against a faithful device

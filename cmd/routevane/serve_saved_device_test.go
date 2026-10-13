@@ -155,7 +155,10 @@ func (s *savedDeviceSecrets) DeleteSecret(context.Context, string) error {
 	return nil
 }
 
-func TestRegisteredDeploymentReadsConsentOnlyAfterAcquiringTheDeliveryGate(t *testing.T) {
+// ADR 0050: the saved credential, not automatic delivery, is what a registered
+// manual delivery reads, and removing it while a request waits for the gate
+// must be seen by that request.
+func TestRegisteredDeploymentReadsTheSavedCredentialOnlyAfterAcquiringTheDeliveryGate(t *testing.T) {
 	for _, confirm := range []bool{false, true} {
 		name := "preview"
 		if confirm {
@@ -231,15 +234,15 @@ func TestRegisteredDeploymentReadsConsentOnlyAfterAcquiringTheDeliveryGate(t *te
 			case <-ctx.Done():
 				t.Fatal("registered selection did not wait for the delivery gate")
 			}
-			if _, err := devices.DisableAutoDelivery(context.Background(), device.ID); err != nil {
+			if _, err := devices.RemoveCredential(context.Background(), device.ID); err != nil {
 				t.Fatal(err)
 			}
 			release()
 			if err := <-done; !errors.Is(err, application.ErrConnectionInvalid) || confirm && !errors.Is(err, application.ErrDeploymentNotStarted) {
-				t.Fatalf("queued delivery did not refuse revoked consent: %v", err)
+				t.Fatalf("queued delivery did not refuse the removed credential: %v", err)
 			}
 			if secrets.reads != 0 || len(deployer.entered) != 0 {
-				t.Fatalf("revoked consent reached credential or device: reads=%d calls=%d", secrets.reads, len(deployer.entered))
+				t.Fatalf("a removed credential reached the store or device: reads=%d calls=%d", secrets.reads, len(deployer.entered))
 			}
 			if _, err := attempts.Attempt(context.Background(), strings.Repeat("e", 32)); !errors.Is(err, application.ErrNotFound) {
 				t.Fatalf("refused selection created a durable attempt: %v", err)

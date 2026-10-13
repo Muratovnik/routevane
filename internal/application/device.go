@@ -20,12 +20,16 @@ var (
 	// that follows a failed flag write in EnableAutoDelivery. It never carries
 	// the secret itself -- only the fact that the store may still hold it.
 	ErrSecretCompensationFailed = errors.New("removing the stored credential after a failed write also failed")
+	// ErrCredentialRequired is returned when automatic delivery is requested for
+	// a device whose deployer needs a password and none is saved (ADR 0050).
+	ErrCredentialRequired = errors.New("the device needs a saved credential")
 )
 
 // Device is a registered instance of a catalog target: what the operator calls
-// it, where it is, and whether they asked for unattended delivery. The
-// credential is deliberately absent -- it lives in the operating system's
-// secret store or in one attempt, and nowhere this product persists.
+// it, where it is, whether a password is saved for it, and whether they asked
+// for unattended delivery. The credential itself is deliberately absent -- it
+// lives in the operating system's secret store or in one attempt, and nowhere
+// this product persists.
 type Device struct {
 	ID       string `json:"id"`
 	TargetID string `json:"target_id"`
@@ -36,8 +40,12 @@ type Device struct {
 	// It is connection metadata, not a credential, and is kept with the device
 	// so an unattended attempt has the same inputs as a manual one.
 	Interface string `json:"interface,omitempty"`
+	// CredentialStored is true while the operating system's store holds a
+	// password the operator explicitly saved for this device (ADR 0050). It
+	// reports a fact: a deployer that needs no credential never has one.
+	CredentialStored bool `json:"credential_stored"`
 	// AutoDeliver is true only after explicit consent and, when the deployer
-	// needs one, while a credential is actually held for this device. It is a
+	// needs one, while a saved credential is held for this device. It is a
 	// report of stored state, never an intention.
 	AutoDeliver bool      `json:"auto_deliver"`
 	CreatedAt   time.Time `json:"created_at"`
@@ -72,7 +80,7 @@ type DeviceRepository interface {
 // implements it by refusing rather than by inventing a substitute.
 type SecretStore interface {
 	// Available reports whether this platform has a store at all. It is asked
-	// before the operator is offered unattended delivery, so the offer is only
+	// before the operator is offered to save a password, so the offer is only
 	// made where it can be kept.
 	Available() bool
 	PutSecret(ctx context.Context, key, account, secret string) error
@@ -115,8 +123,8 @@ func NewDeviceService(config DeviceConfig) (*DeviceService, error) {
 	return &DeviceService{config: config}, nil
 }
 
-// SecretStoreAvailable says whether credential-backed unattended delivery can
-// be offered. A deployer that takes no credential does not depend on it.
+// SecretStoreAvailable says whether a password can be saved. A deployer that
+// takes no credential does not depend on it.
 func (s *DeviceService) SecretStoreAvailable() bool { return s.config.Secrets.Available() }
 
 const maxDeviceNameRunes = 120
@@ -299,15 +307,15 @@ func (s *DeviceService) UpdateDevice(ctx context.Context, id, name, address, acc
 	}
 	connectionChanged := current.Address != cleanAddress || current.Account != cleanAccount || current.Interface != cleanInterface
 	if connectionChanged {
-		// Consent names one exact destination and account. Revoke it and remove
-		// the credential before storing another connection; a failed metadata
-		// write may leave the old address visible, but never opted in or secret-
-		// backed.
-		disabled, err := s.DisableAutoDelivery(ctx, current.ID)
+		// A saved credential and consent name one exact destination and account.
+		// Revoke both and remove the credential before storing another
+		// connection; a failed metadata write may leave the old address visible,
+		// but never opted in or secret-backed.
+		revoked, err := s.revokeCredentialAndConsent(ctx, current)
 		if err != nil {
 			return Device{}, err
 		}
-		current.AutoDeliver = disabled.AutoDeliver
+		current.AutoDeliver, current.CredentialStored = revoked.AutoDeliver, revoked.CredentialStored
 		if err := s.config.RetireManagedRoutes(ctx, current.TargetID, Connection{URL: current.Address, Username: current.Account, Interface: current.Interface}); err != nil {
 			return Device{}, fmt.Errorf("retire managed routes: %w", err)
 		}
@@ -350,10 +358,10 @@ func (s *DeviceService) DeviceCards(ctx context.Context) ([]DeviceCard, error) {
 // goes first: a failure there must leave the device visible, because a device
 // nobody can see is a credential nobody can revoke.
 //
-// The delete is unconditional, not gated on the AutoDeliver flag: a secret can
-// outlive that flag when a flag write failed after the store already accepted
-// the secret (see EnableAutoDelivery), or when the process died between the
-// two writes. DeleteSecret already treats an absent credential as success, so
+// The delete is unconditional, not gated on the CredentialStored flag: a secret
+// can outlive that flag when a flag write failed after the store already
+// accepted the secret (see SaveCredential), or when the process died between
+// the two writes. DeleteSecret already treats an absent credential as success, so
 // asking it to remove nothing costs nothing.
 func (s *DeviceService) ForgetDevice(ctx context.Context, id string) error {
 	device, err := s.Device(ctx, id)
@@ -374,10 +382,104 @@ func (s *DeviceService) ForgetDevice(ctx context.Context, id string) error {
 // credential manager can tell what an entry is and delete it themselves.
 func secretKey(deviceID string) string { return "Routevane device " + deviceID }
 
-// EnableAutoDelivery stores a required credential and turns unattended
-// delivery on. The order is deliberate: a credential-backed flag is only
-// written after the store accepted the secret. A credential-free deployer
-// removes an obsolete entry and records only the consent flag.
+const maxCredentialBytes = 1024
+
+// SaveCredential keeps a password for one device in the operating system's
+// store and records that fact (ADR 0050). Saving is the operator's explicit
+// consent to storage and is independent of automatic delivery. A saved
+// credential replaces any earlier one. A deployer that takes no credential has
+// nothing to save, so the flag can never claim a password that does not exist.
+func (s *DeviceService) SaveCredential(ctx context.Context, id, secret string) (Device, error) {
+	device, err := s.Device(ctx, id)
+	if err != nil {
+		return Device{}, err
+	}
+	if !s.config.Deployable(device.TargetID) {
+		return Device{}, fmt.Errorf("%w: %q", ErrDeployerUnavailable, device.TargetID)
+	}
+	if !s.config.NeedsCredential(device.TargetID) {
+		return Device{}, fmt.Errorf("the device's deployer takes no credential")
+	}
+	if secret == "" || len(secret) > maxCredentialBytes {
+		return Device{}, fmt.Errorf("invalid credential")
+	}
+	if !s.config.Secrets.Available() {
+		return Device{}, ErrSecretStoreUnavailable
+	}
+	if err := s.config.Secrets.PutSecret(ctx, secretKey(device.ID), device.Account, secret); err != nil {
+		return Device{}, fmt.Errorf("store the credential: %w", err)
+	}
+	if device.CredentialStored {
+		// The store now holds the replacement and the recorded fact was already
+		// true, so there is nothing to write.
+		return device, nil
+	}
+	now := s.config.Clock.Now().UTC()
+	if now.IsZero() {
+		return Device{}, s.compensateStoredSecret(ctx, device.ID, fmt.Errorf("clock returned zero time"))
+	}
+	device.CredentialStored, device.UpdatedAt = true, now
+	if err := s.config.Store.UpdateDevice(ctx, device); err != nil {
+		return Device{}, s.compensateStoredSecret(ctx, device.ID, err)
+	}
+	return device, nil
+}
+
+// compensateStoredSecret removes a secret whose flag was never recorded. It is
+// used only when the device had no credential before, because a replaced
+// secret cannot be restored and its flag is already correct. A failed delete
+// is reported together with the original failure, never with the secret.
+func (s *DeviceService) compensateStoredSecret(ctx context.Context, id string, cause error) error {
+	if compErr := s.config.Secrets.DeleteSecret(ctx, secretKey(id)); compErr != nil {
+		return errors.Join(fmt.Errorf("%w: %v", ErrSecretCompensationFailed, compErr), cause)
+	}
+	return cause
+}
+
+// RemoveCredential deletes the saved password. The secret goes first: a
+// failure keeps the recorded fact true rather than claiming a deletion that did
+// not happen. When the deployer needs a credential, automatic delivery cannot
+// continue without it and is turned off in the same write.
+func (s *DeviceService) RemoveCredential(ctx context.Context, id string) (Device, error) {
+	device, err := s.Device(ctx, id)
+	if err != nil {
+		return Device{}, err
+	}
+	return s.clearCredential(ctx, device, s.config.NeedsCredential(device.TargetID))
+}
+
+// revokeCredentialAndConsent is the ADR 0031 rule for a changed connection: the
+// credential and the consent both name the old destination, whatever the
+// deployer needs.
+func (s *DeviceService) revokeCredentialAndConsent(ctx context.Context, device Device) (Device, error) {
+	return s.clearCredential(ctx, device, true)
+}
+
+// clearCredential deletes the secret unconditionally, because one can outlive
+// its flag (a crash between the two writes), and records that none is held.
+func (s *DeviceService) clearCredential(ctx context.Context, device Device, disableAuto bool) (Device, error) {
+	if err := s.config.Secrets.DeleteSecret(ctx, secretKey(device.ID)); err != nil {
+		return Device{}, fmt.Errorf("remove the stored credential: %w", err)
+	}
+	now := s.config.Clock.Now().UTC()
+	if now.IsZero() {
+		return Device{}, fmt.Errorf("clock returned zero time")
+	}
+	device.CredentialStored, device.UpdatedAt = false, now
+	if disableAuto {
+		device.AutoDeliver = false
+	}
+	if err := s.config.Store.UpdateDevice(ctx, device); err != nil {
+		return Device{}, err
+	}
+	return device, nil
+}
+
+// EnableAutoDelivery turns unattended delivery on. A deployer that needs a
+// credential requires one to be saved already (ADR 0050); a non-empty secret is
+// saved first, the same as SaveCredential, so a caller that sends both in one
+// request still works. A deployer that takes no credential removes an obsolete
+// entry and records only the consent flag.
 func (s *DeviceService) EnableAutoDelivery(ctx context.Context, id, secret string) (Device, error) {
 	device, err := s.Device(ctx, id)
 	if err != nil {
@@ -386,16 +488,14 @@ func (s *DeviceService) EnableAutoDelivery(ctx context.Context, id, secret strin
 	if !s.config.Deployable(device.TargetID) {
 		return Device{}, fmt.Errorf("%w: %q", ErrDeployerUnavailable, device.TargetID)
 	}
-	needsCredential := s.config.NeedsCredential(device.TargetID)
-	if needsCredential && (secret == "" || len(secret) > 1024) {
-		return Device{}, fmt.Errorf("invalid credential")
-	}
-	if needsCredential && !s.config.Secrets.Available() {
-		return Device{}, ErrSecretStoreUnavailable
-	}
-	if needsCredential {
-		if err := s.config.Secrets.PutSecret(ctx, secretKey(device.ID), device.Account, secret); err != nil {
-			return Device{}, fmt.Errorf("store the credential: %w", err)
+	if s.config.NeedsCredential(device.TargetID) {
+		if secret != "" {
+			if device, err = s.SaveCredential(ctx, id, secret); err != nil {
+				return Device{}, err
+			}
+		}
+		if !device.CredentialStored {
+			return Device{}, ErrCredentialRequired
 		}
 	} else if err := s.config.Secrets.DeleteSecret(ctx, secretKey(device.ID)); err != nil {
 		return Device{}, fmt.Errorf("remove an obsolete stored credential: %w", err)
@@ -406,32 +506,18 @@ func (s *DeviceService) EnableAutoDelivery(ctx context.Context, id, secret strin
 	}
 	device.AutoDeliver, device.UpdatedAt = true, now
 	if err := s.config.Store.UpdateDevice(ctx, device); err != nil {
-		// The secret is already in the store and the flag is not. Removing it
-		// is the only state that stays true to what the operator asked for.
-		// When that compensating delete also fails, the caller must learn
-		// both facts -- the flag write failed, and the secret may have been
-		// left behind -- without losing the original cause of the failure.
-		if needsCredential {
-			if compErr := s.config.Secrets.DeleteSecret(ctx, secretKey(device.ID)); compErr != nil {
-				return Device{}, errors.Join(fmt.Errorf("%w: %v", ErrSecretCompensationFailed, compErr), err)
-			}
-		}
 		return Device{}, err
 	}
 	return device, nil
 }
 
-// DisableAutoDelivery removes the credential and turns unattended delivery off.
-// A failure to remove it is reported rather than swallowed: leaving the flag
-// off while the secret stays would tell the operator their password is gone
-// when it is not.
+// DisableAutoDelivery turns unattended delivery off and keeps the saved
+// credential: the password is its own fact (ADR 0050) and manual delivery
+// still uses it. Removing it is RemoveCredential.
 func (s *DeviceService) DisableAutoDelivery(ctx context.Context, id string) (Device, error) {
 	device, err := s.Device(ctx, id)
 	if err != nil {
 		return Device{}, err
-	}
-	if err := s.config.Secrets.DeleteSecret(ctx, secretKey(device.ID)); err != nil {
-		return Device{}, fmt.Errorf("remove the stored credential: %w", err)
 	}
 	now := s.config.Clock.Now().UTC()
 	if now.IsZero() {
@@ -444,19 +530,21 @@ func (s *DeviceService) DisableAutoDelivery(ctx context.Context, id string) (Dev
 	return device, nil
 }
 
-// DeviceCredential reads the stored credential for an unattended delivery. It
-// is the only reader, and it refuses for a device the operator never marked:
-// a credential left over from a disabled device must not be usable by asking.
+// DeviceCredential reads the saved credential for one device. It is the only
+// reader. It is gated on the recorded fact, not on automatic delivery: a manual
+// delivery uses it too, and the scheduler checks consent itself before asking.
+// A secret left behind without the fact -- a failed or interrupted write -- is
+// not usable by asking. A deployer that takes no credential needs none.
 func (s *DeviceService) DeviceCredential(ctx context.Context, id string) (string, error) {
 	device, err := s.Device(ctx, id)
 	if err != nil {
 		return "", err
 	}
-	if !device.AutoDeliver {
-		return "", ErrNotFound
-	}
 	if !s.config.NeedsCredential(device.TargetID) {
 		return "", nil
+	}
+	if !device.CredentialStored {
+		return "", ErrNotFound
 	}
 	return s.config.Secrets.Secret(ctx, secretKey(device.ID))
 }
