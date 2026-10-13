@@ -162,7 +162,7 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
           <th scope="col">{{ t('outputs.column.device') }}</th>
           <th scope="col">{{ t('outputs.column.updated') }}</th>
           <th scope="col">
-            <span class="outputs__visually-hidden">
+            <span class="rv-visually-hidden">
               {{ t('outputs.column.actions') }}
             </span>
           </th>
@@ -190,8 +190,9 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
           </td>
           <td class="outputs__cell-device">
             <label
+              :id="`output-device-${output.id}-label`"
               :for="`output-device-${output.id}`"
-              class="outputs__visually-hidden"
+              class="rv-visually-hidden"
             >
               {{ t('outputs.device.label', { target: outputTitle(output) }) }}
             </label>
@@ -204,6 +205,10 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
                   :disabled="props.busy || props.archived"
                   searchable
                   :input-id="`output-device-${output.id}`"
+                  :label="
+                    t('outputs.device.label', { target: outputTitle(output) })
+                  "
+                  :labelled-by="`output-device-${output.id}-label`"
                   :loading="props.busy"
                   :model-value="output.deviceID"
                   :options="deviceChoices(output)"
@@ -334,13 +339,15 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
       </section>
 
       <form class="outputs__add" @submit.prevent="add">
-        <label class="outputs__add-label" for="outputs-target">
-          {{ t('outputs.add') }}
+        <div class="outputs__add-label">
+          <label id="outputs-target-label" for="outputs-target">{{
+            t('outputs.add')
+          }}</label>
           <RvInfoTip
             :label="t('outputs.add.info')"
             :text="t('outputs.add.info.text')"
           />
-        </label>
+        </div>
         <div class="outputs__add-row">
           <div class="outputs__target-field">
             <RvSelect
@@ -349,6 +356,8 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
               :groups="targetChoices"
               searchable
               input-id="outputs-target"
+              :label="t('outputs.add')"
+              labelled-by="outputs-target-label"
               :loading="props.busy"
               :placeholder="t('outputs.add.placeholder')"
             />
@@ -523,15 +532,6 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
 .outputs__note {
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
-}
-
-.outputs__visually-hidden {
-  position: absolute;
-  width: 0.0625rem;
-  height: 0.0625rem;
-  overflow: hidden;
-  white-space: nowrap;
-  clip-path: inset(50%);
 }
 
 .outputs__settings {

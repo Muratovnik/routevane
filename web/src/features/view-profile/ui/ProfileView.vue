@@ -425,7 +425,7 @@ const onProfileMenu = async (key: string): Promise<void> => {
       class="profile__loading rv-loading-feedback"
       role="status"
     >
-      <span class="profile__visually-hidden">{{ t('profile.loading') }}</span>
+      <span class="rv-visually-hidden">{{ t('profile.loading') }}</span>
       <span
         aria-hidden="true"
         class="profile__loading-line profile__loading-line--breadcrumb"
@@ -697,6 +697,7 @@ const onProfileMenu = async (key: string): Promise<void> => {
               class="profile__panel-scope"
             >
               <label
+                id="profile-file-scope-label"
                 class="profile__panel-scope-label"
                 for="profile-file-scope"
               >
@@ -705,6 +706,7 @@ const onProfileMenu = async (key: string): Promise<void> => {
               <RvSelect
                 v-model="outputScope"
                 input-id="profile-file-scope"
+                labelled-by="profile-file-scope-label"
                 :options="outputChoices"
                 :placeholder="t('outputs.column.target')"
               />
@@ -759,6 +761,7 @@ const onProfileMenu = async (key: string): Promise<void> => {
               class="profile__panel-scope"
             >
               <label
+                id="profile-diagnostics-scope-label"
                 class="profile__panel-scope-label"
                 for="profile-diagnostics-scope"
               >
@@ -767,6 +770,7 @@ const onProfileMenu = async (key: string): Promise<void> => {
               <RvSelect
                 v-model="outputScope"
                 input-id="profile-diagnostics-scope"
+                labelled-by="profile-diagnostics-scope-label"
                 :options="outputChoices"
                 :placeholder="t('outputs.column.target')"
               />
@@ -912,15 +916,6 @@ const onProfileMenu = async (key: string): Promise<void> => {
 
 .profile__loading-panel {
   min-height: var(--rv-editor-min-height);
-}
-
-.profile__visually-hidden {
-  position: absolute;
-  width: var(--rv-border-hair);
-  height: var(--rv-border-hair);
-  overflow: hidden;
-  white-space: nowrap;
-  clip-path: inset(50%);
 }
 
 @keyframes rv-list-loading {

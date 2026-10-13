@@ -229,7 +229,7 @@ watch(contentsState, async (state) => {
         aria-labelledby="list-card-name"
         class="list-card__section"
       >
-        <h3 id="list-card-name" class="list-card__visually-hidden">
+        <h3 id="list-card-name" class="rv-visually-hidden">
           {{ t('listCard.title.field') }}
         </h3>
         <div class="list-card__rename">
@@ -939,15 +939,6 @@ watch(contentsState, async (state) => {
 
 .list-card__rename > :first-child {
   flex: 1;
-}
-
-.list-card__visually-hidden {
-  position: absolute;
-  width: 0.0625rem;
-  height: 0.0625rem;
-  overflow: hidden;
-  white-space: nowrap;
-  clip-path: inset(50%);
 }
 
 /* The filter and the way in share one line above the table: the control that

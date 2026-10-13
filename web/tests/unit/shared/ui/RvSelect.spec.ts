@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
+import { defineComponent } from 'vue'
 
 import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/types'
+import RvField from '@/shared/ui/RvField.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 
 const OPTIONS: ChoiceOption[] = [
@@ -142,5 +144,61 @@ describe('RvSelect', () => {
 
     await screen.rerender({ modelValue: 'keenetic' })
     await expect.element(trigger.getByTestId('rv-icon')).toBeInTheDocument()
+  })
+})
+
+// A panel named by its placeholder repeats what the trigger shows instead of
+// saying what the choice is.
+describe('RvSelect, panel name', () => {
+  const FieldHost = defineComponent({
+    components: { RvField, RvSelect },
+    setup: () => ({ OPTIONS }),
+    template: `
+      <RvField input-id="delivery" label="Delivery">
+        <template #default="{ describedBy }">
+          <RvSelect
+            :described-by="describedBy"
+            input-id="delivery"
+            model-value=""
+            :options="OPTIONS"
+            placeholder="Choose one"
+          />
+        </template>
+      </RvField>`,
+  })
+
+  it('names its list by the label of its field', async () => {
+    const screen = await render(FieldHost)
+
+    screen.getByRole('combobox').element().focus()
+    await userEvent.keyboard('{Enter}')
+    await expect
+      .element(screen.getByRole('listbox', { name: 'Delivery' }))
+      .toBeVisible()
+  })
+
+  it('names its list by the heading it is pointed at', async () => {
+    const Host = defineComponent({
+      components: { RvSelect },
+      setup: () => ({ OPTIONS }),
+      template: `
+        <div>
+          <h2 id="schedule-title">Refresh</h2>
+          <RvSelect
+            input-id="schedule"
+            labelled-by="schedule-title"
+            model-value=""
+            :options="OPTIONS"
+            placeholder="Choose one"
+          />
+        </div>`,
+    })
+    const screen = await render(Host)
+
+    screen.getByRole('combobox').element().focus()
+    await userEvent.keyboard('{Enter}')
+    await expect
+      .element(screen.getByRole('listbox', { name: 'Refresh' }))
+      .toBeVisible()
   })
 })

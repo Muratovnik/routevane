@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
+import { defineComponent } from 'vue'
 
 import type { ChoiceOption } from '@/shared/ui/types'
+import RvField from '@/shared/ui/RvField.vue'
 import RvSearchSelect from '@/shared/ui/RvSearchSelect.vue'
 
 const CATEGORIES: ChoiceOption[] = [
@@ -131,9 +133,9 @@ describe('RvSearchSelect, field', () => {
       },
     })
 
-  // With a field label the trigger takes its name from that label, so the
-  // facade names it only while it is busy and its content says so.
-  it('leaves its name to the field label and states a busy trigger', async () => {
+  // The trigger's own content is its name when no label is drawn for it, and
+  // a busy trigger keeps saying what it shows.
+  it('is named by what it shows and states a busy trigger', async () => {
     const screen = await renderField()
 
     const trigger = screen.getByRole('button', { name: 'Choose a format' })
@@ -161,8 +163,9 @@ describe('RvSearchSelect, field', () => {
   })
 
   // A single choice is made once: the panel closes on it, and the choice made
-  // from a narrowed list is the one reported.
-  it('closes on a single choice and names its panel for what it chooses', async () => {
+  // from a narrowed list is the one reported. With no field label to name it,
+  // the panel falls back to the placeholder, the one thing it can say.
+  it('closes on a single choice', async () => {
     const screen = await renderField()
 
     await screen.getByRole('button', { name: 'Choose a format' }).click()
@@ -175,5 +178,88 @@ describe('RvSearchSelect, field', () => {
     await expect
       .element(screen.getByRole('dialog', { name: 'Choose a format' }))
       .not.toBeInTheDocument()
+  })
+})
+
+const LONG_VALUE =
+  'A choice whose name is far longer than the narrow column its field stands in'
+
+// A field the way every form writes one, in a column narrower than the longest
+// choice it lists.
+const FieldHost = defineComponent({
+  components: { RvField, RvSearchSelect },
+  props: {
+    loading: Boolean,
+    modelValue: { type: String, default: '' },
+  },
+  setup: () => ({ LONG_VALUE }),
+  template: `
+    <div style="width: 15rem">
+      <RvField input-id="format" label="Format">
+        <template #default="{ describedBy }">
+          <RvSearchSelect
+            :model-value="modelValue"
+            :described-by="describedBy"
+            input-id="format"
+            :loading="loading"
+            loading-label="Loading formats"
+            :options="[
+              { label: 'Short', value: 'short' },
+              { label: LONG_VALUE, value: 'long' },
+            ]"
+            placeholder="Choose a format"
+            size="default"
+          />
+        </template>
+      </RvField>
+    </div>`,
+})
+
+describe('RvSearchSelect, in a labelled field', () => {
+  // A bound value read as the opposite fact while the control was busy: the
+  // trigger swapped it for the placeholder.
+  it('keeps the chosen value visible while busy and says it is busy', async () => {
+    const screen = await render(FieldHost, {
+      props: { loading: true, modelValue: 'short' },
+    })
+
+    const trigger = screen.getByRole('button', { name: /Format/ })
+    await expect.element(trigger).toHaveTextContent('Short')
+    await expect.element(trigger).not.toHaveTextContent('Choose a format')
+    await expect.element(trigger).toHaveAttribute('aria-busy', 'true')
+    await expect.element(trigger).toBeDisabled()
+  })
+
+  it('says it is loading while nothing is chosen yet', async () => {
+    const screen = await render(FieldHost, { props: { loading: true } })
+
+    await expect
+      .element(screen.getByRole('button', { name: /Format/ }))
+      .toHaveTextContent('Loading formats')
+  })
+
+  // The field's label named the trigger on its own, so a reader heard the
+  // field and never what was chosen in it.
+  it('is named by its field label and the value it holds', async () => {
+    const screen = await render(FieldHost, { props: { modelValue: 'short' } })
+
+    await expect
+      .element(screen.getByRole('button', { name: 'Format Short' }))
+      .toBeVisible()
+    await screen.rerender({ modelValue: '' })
+    await expect
+      .element(screen.getByRole('button', { name: 'Format Choose a format' }))
+      .toBeVisible()
+  })
+
+  // A panel named by its placeholder repeats the trigger's own content instead
+  // of saying what it chooses.
+  it('names its panel by the field label, not by the placeholder', async () => {
+    const screen = await render(FieldHost, { props: { modelValue: 'short' } })
+
+    await screen.getByRole('button', { name: /Format/ }).click()
+    await expect
+      .element(screen.getByRole('dialog', { name: 'Format' }))
+      .toBeVisible()
   })
 })

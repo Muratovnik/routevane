@@ -78,9 +78,13 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
           :disabled="busy"
           @click="emit('select', connection.id)"
         >
-          <RvIcon :name="targetIcon(connection.targetID)" />
           <span class="connections__identity">
-            <strong class="connections__name">{{ connection.name }}</strong>
+            <!-- The mark stands in the name's own line, so it keeps that line's
+                 centre however tall the row grows beneath it. -->
+            <strong class="connections__name">
+              <RvIcon :name="targetIcon(connection.targetID)" />
+              <span class="connections__name-text">{{ connection.name }}</span>
+            </strong>
             <span class="connections__meta">
               {{ titleOf(connection) }}
               <span aria-hidden="true"> · </span>
@@ -153,7 +157,7 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
   font: inherit;
   text-align: start;
   background: transparent;
-  border: var(--rv-border-hair) solid transparent;
+  border: 0;
   cursor: pointer;
 }
 
@@ -161,9 +165,11 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
   background: var(--rv-color-surface-hover);
 }
 
+/* The chosen row takes the ground every other selection here takes. It carries
+   no frame of its own: the rows already divide by a hairline, and the mark at
+   its end and the pressed state say what the ground does not. */
 .connections__row--selected {
-  background: var(--rv-color-surface-selected);
-  border-color: var(--rv-color-accent);
+  background: var(--rv-color-surface-muted);
 }
 
 .connections__row:disabled {
@@ -179,7 +185,15 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
 }
 
 .connections__name {
+  display: flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+  min-width: 0;
   font-size: var(--rv-text-interface);
+}
+
+.connections__name-text {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 

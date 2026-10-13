@@ -245,7 +245,7 @@ const onMenu = (card: ProfileCard, key: string): void => {
           <th scope="col">{{ t('profiles.column.outputs') }}</th>
           <th scope="col">{{ t('profiles.column.updated') }}</th>
           <th scope="col">
-            <span class="profiles__visually-hidden">
+            <span class="rv-visually-hidden">
               {{ t('profiles.column.actions') }}
             </span>
           </th>
@@ -458,15 +458,6 @@ const onMenu = (card: ProfileCard, key: string): void => {
   gap: var(--rv-space-2);
   align-items: center;
   justify-content: flex-end;
-}
-
-.profiles__visually-hidden {
-  position: absolute;
-  width: 0.0625rem;
-  height: 0.0625rem;
-  overflow: hidden;
-  white-space: nowrap;
-  clip-path: inset(50%);
 }
 
 /* The archive is one disclosure below the shelf. It is a list rather than a

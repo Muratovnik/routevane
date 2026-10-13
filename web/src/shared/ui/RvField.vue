@@ -1,6 +1,8 @@
 <script lang="ts">
 import { useFormField } from '@nuxt/ui/composables/useFormField'
-import { computed, defineComponent, type SlotsType } from 'vue'
+import { computed, defineComponent, provide, type SlotsType } from 'vue'
+
+import { fieldLabelId, fieldLabelKey } from '@/shared/lib/fieldLabel'
 
 /**
  * The link between the library's form field and whatever control fills it.
@@ -15,12 +17,23 @@ import { computed, defineComponent, type SlotsType } from 'vue'
  */
 const FieldBinding = defineComponent({
   name: 'RvFieldBinding',
-  props: { inputId: { type: String, required: true } },
+  props: {
+    inputId: { type: String, required: true },
+    label: { type: String, required: true },
+  },
   slots: Object as SlotsType<{
     default: { describedBy: string | undefined; invalid: boolean }
   }>,
   setup(props, { slots }) {
     const { ariaAttrs } = useFormField({ id: props.inputId })
+    provide(
+      fieldLabelKey,
+      computed(() => ({
+        inputId: props.inputId,
+        label: props.label,
+        labelId: fieldLabelId(props.inputId),
+      })),
+    )
     const describedBy = computed(() => ariaAttrs.value?.['aria-describedby'])
     const invalid = computed(() => ariaAttrs.value?.['aria-invalid'] === true)
     return () =>
@@ -65,8 +78,17 @@ const description = computed(() => (props.hint === '' ? undefined : props.hint))
     :error="failure"
     :label="label"
   >
+    <!-- The label's text carries the id a choice button names itself by. -->
+    <template #label>
+      <span :id="fieldLabelId(inputId)">{{ label }}</span>
+    </template>
     <!-- A new id is a new registration, so the binding is keyed by it. -->
-    <FieldBinding :key="inputId" v-slot="binding" :input-id="inputId">
+    <FieldBinding
+      :key="inputId"
+      v-slot="binding"
+      :input-id="inputId"
+      :label="label"
+    >
       <slot :described-by="binding.describedBy" :invalid="binding.invalid" />
     </FieldBinding>
     <template v-if="announceError === true && failure !== undefined" #error>

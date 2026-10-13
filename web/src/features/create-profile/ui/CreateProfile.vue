@@ -162,7 +162,7 @@ const submit = async (): Promise<void> => {
         class="create__lists"
         role="group"
       >
-        <h2 id="create-lists-title" class="create__legend">
+        <h2 id="create-lists-title" class="rv-visually-hidden">
           {{ t('create.lists') }}
         </h2>
         <div class="create__lists-body">
@@ -330,14 +330,6 @@ const submit = async (): Promise<void> => {
   margin: 0;
   padding: 0;
   border: 0;
-}
-
-.create__legend {
-  position: absolute;
-  width: var(--rv-border-hair);
-  height: var(--rv-border-hair);
-  overflow: hidden;
-  clip-path: inset(50%);
 }
 
 .create__lists-body {

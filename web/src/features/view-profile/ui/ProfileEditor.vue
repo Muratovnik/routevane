@@ -222,7 +222,7 @@ watch(stored, (next, previous) => {
   <div class="editor">
     <RvComposer :settings-label="t('create.settings')">
       <section aria-labelledby="editor-composition" class="editor__composition">
-        <h2 id="editor-composition" class="editor__legend">
+        <h2 id="editor-composition" class="rv-visually-hidden">
           {{ t('profile.composition.lists') }}
         </h2>
         <div class="editor__composition-body">
@@ -386,14 +386,6 @@ watch(stored, (next, previous) => {
 .editor__actions {
   display: grid;
   gap: var(--rv-space-3);
-}
-
-.editor__legend {
-  position: absolute;
-  width: var(--rv-border-hair);
-  height: var(--rv-border-hair);
-  overflow: hidden;
-  clip-path: inset(50%);
 }
 
 /* The block keeps a control row's height so the two-column compact layout

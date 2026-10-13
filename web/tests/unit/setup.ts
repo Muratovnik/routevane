@@ -57,10 +57,14 @@ const UButtonDouble = defineComponent({
     disabled: Boolean,
     external: Boolean,
     href: String,
+    // The library draws `label` as a truncating span when no content is given;
+    // `ui` is class overrides, which have no rendered form here.
+    label: String,
     loading: Boolean,
     size: String,
     to: String,
     type: String as PropType<'button' | 'submit'>,
+    ui: Object as PropType<Record<string, string>>,
     variant: String,
   },
   setup(props, { attrs, slots }) {
@@ -91,7 +95,14 @@ const UButtonDouble = defineComponent({
           },
           type: isLink ? undefined : (props.type ?? 'button'),
         },
-        children([slots.leading?.(), slots.default?.(), slots.trailing?.()]),
+        children([
+          slots.leading?.(),
+          slots.default?.() ??
+            (props.label === undefined
+              ? undefined
+              : h('span', { 'data-slot': 'label' }, props.label)),
+          slots.trailing?.(),
+        ]),
       )
     }
   },
@@ -271,7 +282,13 @@ const UFormFieldDouble = defineComponent({
       return h(
         'div',
         children([
-          props.label ? h('label', { for: id.value }, props.label) : undefined,
+          props.label
+            ? h(
+                'label',
+                { for: id.value },
+                slots.label?.({ label: props.label }) ?? props.label,
+              )
+            : undefined,
           props.description
             ? h('p', { id: `${ariaId}-description` }, props.description)
             : undefined,

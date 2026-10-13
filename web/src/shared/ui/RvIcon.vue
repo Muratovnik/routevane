@@ -12,7 +12,7 @@ import type { IconName } from '@/shared/ui/types'
  * A vendor's mark is not one of those meanings and is not drawn here: a name
  * that stands for a publisher is served from `brandGlyphs`, in that
  * publisher's own artwork and its own coordinate space, which is why the
- * viewBox below is read from the glyph rather than fixed at 16.
+ * viewBox below is derived from the glyph's rather than fixed at 16.
  *
  * `spin` turns the glyph in place while the act it names is running. It is for
  * a command whose own glyph is the progress — a refresh — so the control keeps
@@ -24,6 +24,21 @@ const props = defineProps<{
 }>()
 
 const brand = computed(() => BRAND_GLYPHS[props.name] ?? null)
+
+// A publisher's artwork runs to the edge of its own box, while the product's
+// strokes stay inside 2..14 of 16 units. Drawn at the same size the mark looks
+// larger than the icons beside it, so its box is widened until its ink takes
+// the same share and sits on the same centre. Strokes are widened with it, to
+// keep the weight the source was set at.
+const INK_SHARE = 0.75
+const brandBox = computed(() => {
+  if (brand.value === null) return '0 0 16 16'
+  const [x = 0, y = 0, width = 16, height = 16] = brand.value.viewBox
+    .split(' ')
+    .map(Number)
+  const side = Math.max(width, height) / INK_SHARE
+  return `${x + (width - side) / 2} ${y + (height - side) / 2} ${side} ${side}`
+})
 
 const strokes: Record<string, string[]> = {
   archive: ['M2 3.5h12v3H2v-3Z', 'M3 6.5v7h10v-7', 'M6.5 9.5h3'],
@@ -99,7 +114,7 @@ const dots: Record<string, [number, number, number][]> = {
     data-testid="rv-icon"
     fill="none"
     focusable="false"
-    :viewBox="brand?.viewBox ?? '0 0 16 16'"
+    :viewBox="brandBox"
   >
     <template v-if="brand">
       <path
@@ -115,7 +130,11 @@ const dots: Record<string, [number, number, number][]> = {
         stroke="currentColor"
         stroke-linecap="round"
         stroke-linejoin="round"
-        :stroke-width="brand.strokeWidth"
+        :stroke-width="
+          brand.strokeWidth === undefined
+            ? undefined
+            : brand.strokeWidth / INK_SHARE
+        "
       />
     </template>
     <template v-else>

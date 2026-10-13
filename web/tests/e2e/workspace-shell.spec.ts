@@ -9,7 +9,7 @@
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
-import { expect } from '@playwright/test'
+import { expect, type Locator } from '@playwright/test'
 
 import { reviewRoot } from './support/audits'
 import { copyFor, englishCopy } from './support/copy'
@@ -142,7 +142,7 @@ test('every portalled overlay arrives with its own ground and edge', async ({
     .click()
   await deviceField(page, 'devices.field.target').click()
   await assertPainted(
-    choicePanel(page, englishCopy('devices.field.target.pick')),
+    choicePanel(page, englishCopy('devices.field.target')),
     'connection choice',
   )
   await page.keyboard.press('Escape')
@@ -465,4 +465,43 @@ test('a stale-library notice lengthens the new-profile page instead of shortenin
   } finally {
     await releaseCatalog(page)
   }
+})
+
+// A pointer over a section and the page the operator is on are two states. The
+// current page carries a heavier name as well as its ground, because a ground
+// alone is one more thing to tell apart by colour.
+test('the current section and a hovered one are told apart', async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${origin}/`)
+  const sections = page.getByRole('navigation', {
+    name: englishCopy('shell.nav'),
+  })
+  const current = sections.getByRole('link', {
+    name: englishCopy('shell.nav.profiles'),
+  })
+  const other = sections.getByRole('link', {
+    name: englishCopy('shell.nav.lists'),
+  })
+  await expect(current).toHaveAttribute('aria-current', 'page')
+  const paint = (link: Locator) =>
+    link.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return {
+        background: style.backgroundColor,
+        weight: Number(style.fontWeight),
+      }
+    })
+
+  const resting = await paint(other)
+  await other.hover()
+  const hovered = await paint(other)
+  const active = await paint(current)
+
+  expect(hovered.background).not.toBe(resting.background)
+  expect(active.background).not.toBe(resting.background)
+  expect(active.background).not.toBe(hovered.background)
+  expect(active.weight).toBeGreaterThan(resting.weight)
 })

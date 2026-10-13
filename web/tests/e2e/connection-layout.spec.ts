@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { expect, type Page } from '@playwright/test'
 import { audit, auditWidths, reviewRoot } from './support/audits'
 import { copyFor, type Copy } from './support/copy'
-import { catalogDisclosure } from './support/queries'
+import { catalogDisclosure, deviceField } from './support/queries'
 import { test } from './support/served-product'
 
 test.use({ productData: 'connection-layout', productCatalog: 'catalog' })
@@ -65,12 +65,7 @@ for (const locale of ['en', 'ru'] as const) {
       await page
         .getByRole('button', { name: copy('devices.add'), exact: true })
         .click()
-      await page
-        .getByRole('button', {
-          name: copy('devices.field.target'),
-          exact: true,
-        })
-        .click()
+      await deviceField(page, 'devices.field.target', copy).click()
       await page.getByRole('option', { name: 'Keenetic', exact: true }).click()
       await expectAlignedFields(page, copy)
       await page.screenshot({

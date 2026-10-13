@@ -47,7 +47,7 @@ const select = (value: string, event: Event): void => {
   <fieldset class="rv-segmented" :disabled="disabled">
     <legend
       class="rv-segmented__legend"
-      :class="{ 'rv-segmented__legend--hidden': labelHidden }"
+      :class="{ 'rv-visually-hidden': labelHidden }"
     >
       {{ label }}
     </legend>
@@ -106,17 +106,8 @@ const select = (value: string, event: Event): void => {
   border-radius: var(--rv-radius-md);
 }
 
-.rv-segmented__legend:not(.rv-segmented__legend--hidden) {
+.rv-segmented__legend:not(.rv-visually-hidden) {
   margin-block-end: var(--rv-space-2);
-}
-
-.rv-segmented__legend--hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 .rv-segmented__option {

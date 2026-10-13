@@ -185,15 +185,17 @@ const onForget = async (): Promise<void> => {
 <template>
   <section :aria-labelledby="headingID" class="connection">
     <header class="connection__header">
-      <RvIcon :name="targetIcon(connection.targetID)" />
       <div class="connection__identity">
+        <!-- The mark stands in the heading's own line, so it keeps that line's
+             centre whatever stands beneath it. -->
         <h2
           :id="headingID"
           ref="heading"
           class="connection__name"
           tabindex="-1"
         >
-          {{ connection.name }}
+          <RvIcon :name="targetIcon(connection.targetID)" />
+          <span class="connection__name-text">{{ connection.name }}</span>
         </h2>
         <p class="connection__meta">
           {{ targetTitle }}
@@ -354,7 +356,15 @@ const onForget = async (): Promise<void> => {
 }
 
 .connection__name {
+  display: flex;
+  gap: var(--rv-space-3);
+  align-items: center;
+  min-width: 0;
   font-size: var(--rv-text-module);
+}
+
+.connection__name-text {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
 

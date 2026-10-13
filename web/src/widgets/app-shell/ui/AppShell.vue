@@ -351,13 +351,18 @@ const retry = async (): Promise<void> => {
   color: var(--rv-color-ink-tertiary);
 }
 
+/* Hover and the current page are two states and look like two: a pointer lifts
+   a row to the hover ground, and the page the operator is on keeps the quieter
+   raised ground with the full ink and a heavier weight, which a ground alone
+   would not say. */
 .shell__nav-link:hover {
   color: var(--rv-color-ink);
-  background: var(--rv-color-chrome-raised);
+  background: var(--rv-color-chrome-hover);
 }
 
 .shell__nav-link--active {
   color: var(--rv-color-ink);
+  font-weight: 700;
   background: var(--rv-color-chrome-raised);
 }
 
@@ -393,6 +398,8 @@ const retry = async (): Promise<void> => {
   margin-inline: auto;
 }
 
+/* One narrow-window rule set: the rail becomes a bar above the page and its
+   links share the row. */
 @container (width <= 40rem) {
   .shell {
     grid-template-rows: auto minmax(0, 1fr);
@@ -405,50 +412,29 @@ const retry = async (): Promise<void> => {
     align-items: center;
     gap: var(--rv-space-3) var(--rv-space-5);
     height: auto;
-    padding: var(--rv-space-4) var(--rv-space-5);
+    padding: var(--rv-space-4);
     border-right: 0;
     border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
   }
 
   .shell__product {
     padding: 0;
+    width: 100%;
   }
 
   .shell__nav {
     display: flex;
     flex-wrap: wrap;
     gap: var(--rv-space-1);
-  }
-
-  .shell__nav-link {
-    min-height: var(--rv-control-default);
-    padding: 0 var(--rv-space-3);
-    font-size: var(--rv-text-interface);
-  }
-
-  .shell__measure {
-    --rv-page-inline: var(--rv-space-6);
-
-    padding: var(--rv-space-8) var(--rv-page-inline) var(--rv-space-10);
-  }
-}
-
-@container (width <= 40rem) {
-  .shell__side {
-    padding-inline: var(--rv-space-4);
-  }
-
-  .shell__product {
-    width: 100%;
-  }
-
-  .shell__nav {
     width: 100%;
   }
 
   .shell__nav-link {
     flex: 1 1 auto;
     justify-content: center;
+    min-height: var(--rv-control-default);
+    padding: 0 var(--rv-space-3);
+    font-size: var(--rv-text-interface);
   }
 
   .shell__measure {

@@ -68,11 +68,12 @@ for (const colorScheme of ['dark', 'light'] as const) {
       .click()
 
     // A choice sits in the same field as a text input, and its label names it
-    // just the same: the field's caption is the trigger's accessible name.
+    // just the same. A button is named by its label alone, so the trigger also
+    // names what it holds: the caption, then the choice or its placeholder.
     const target = deviceField(page, 'devices.field.target')
     await expect(target).toHaveAttribute('id', 'device-target')
     await expect(target).toHaveAccessibleName(
-      englishCopy('devices.field.target'),
+      `${englishCopy('devices.field.target')} ${englishCopy('devices.field.target.pick')}`,
     )
     expect((await paint(target)).height).toBe(CONTROL_DEFAULT)
     await target.click()

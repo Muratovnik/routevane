@@ -87,6 +87,13 @@ test('a plain choice keeps the select keyboard contract inside a sheet', async (
   const formatBox = await box(format)
   expect(formatBox.height).toBe(CONTROL_DEFAULT)
   await expect(format).toHaveText(englishCopy('listCard.feed.format.text'))
+  // The plain choice reads from its leading edge as the searchable one does.
+  const valueEdge = await format.evaluate(
+    (element) =>
+      element.querySelector('span')!.getBoundingClientRect().left -
+      element.getBoundingClientRect().left,
+  )
+  expect(valueEdge).toBeLessThanOrEqual(16)
 
   await format.focus()
   await page.keyboard.press('Enter')
@@ -136,14 +143,19 @@ test('a searchable field choice searches, chooses and returns the keyboard', asy
     .click()
   const caption = englishCopy('devices.field.target')
   const target = deviceField(page, 'devices.field.target')
-  // The field's label is the name an operator hears for the trigger.
-  await expect(target).toHaveAccessibleName(caption)
+  // What an operator hears for the trigger is the field's label and what it
+  // holds: a button is named by its label alone, which would leave out the
+  // choice.
+  const placeholder = englishCopy('devices.field.target.pick')
+  await expect(target).toHaveAccessibleName(`${caption} ${placeholder}`)
   await expect(target).not.toHaveAttribute('aria-label')
   const targetBox = await box(target)
   expect(targetBox.height).toBe(CONTROL_DEFAULT)
 
   await target.click()
-  const panel = choicePanel(page, englishCopy('devices.field.target.pick'))
+  // The panel is named for what it chooses, which is the field's label and
+  // not the placeholder the trigger shows.
+  const panel = choicePanel(page, caption)
   await expect(panel).toBeVisible()
   await assertPainted(panel, 'searchable choice')
   await expectAnchored(panel, targetBox)
@@ -165,6 +177,7 @@ test('a searchable field choice searches, chooses and returns the keyboard', asy
   await expect(panel).toBeHidden()
   await expect(target).toBeFocused()
   await expect(target).toContainText('sing-box')
+  await expect(target).toHaveAccessibleName(`${caption} sing-box`)
 
   await target.click()
   await expect(search).toBeFocused()
@@ -173,6 +186,61 @@ test('a searchable field choice searches, chooses and returns the keyboard', asy
   await expect(panel).toBeHidden()
   await expect(target).toBeFocused()
   await expect(target).toContainText('sing-box')
+  assertProductAlive()
+})
+
+// A field's trigger is a button, which centres its text and wraps it. A field
+// reads from its leading edge on one line and never stands taller than the
+// control beside it, so a value longer than the column is cut with an ellipsis.
+test('a field-size choice keeps its value at the leading edge on one line', async ({
+  page,
+  origin,
+  assertProductAlive,
+}) => {
+  await page.goto(`${origin}/connections`)
+  await page
+    .getByRole('button', { name: englishCopy('devices.add'), exact: true })
+    .click()
+  const target = deviceField(page, 'devices.field.target')
+  await target.click()
+  await page.getByRole('option', { name: 'sing-box' }).click()
+  // The panel carries the field's label as its name while it closes, so the
+  // trigger is read again once it has gone.
+  await expect(
+    choicePanel(page, englishCopy('devices.field.target')),
+  ).toBeHidden()
+  await expect(target).toContainText('sing-box')
+
+  // The column is narrowed through the object model, as the page's policy
+  // allows, until the value cannot fit beside the glyph and the chevron.
+  await target.evaluate((trigger) => {
+    trigger.style.setProperty('max-width', '6rem')
+  })
+  const trigger = await target.evaluate((element) => {
+    const text = element.querySelector('[data-slot="label"]')
+    const glyph = element.querySelector('svg')
+    if (text === null || glyph === null) throw new Error('no value drawn')
+    const style = getComputedStyle(element)
+    const textStyle = getComputedStyle(text)
+    return {
+      clipped: text.scrollWidth > text.clientWidth,
+      gap:
+        text.getBoundingClientRect().left - glyph.getBoundingClientRect().right,
+      height: element.getBoundingClientRect().height,
+      justify: style.justifyContent,
+      overflow: textStyle.textOverflow,
+      textAlign: style.textAlign,
+      wrap: textStyle.whiteSpace,
+    }
+  })
+  expect(trigger.height).toBe(CONTROL_DEFAULT)
+  expect(trigger.justify).toBe('flex-start')
+  expect(trigger.textAlign).toBe('start')
+  expect(trigger.wrap).toBe('nowrap')
+  expect(trigger.overflow).toBe('ellipsis')
+  expect(trigger.clipped).toBe(true)
+  // The value follows the glyph directly rather than floating in the middle.
+  expect(trigger.gap).toBeLessThanOrEqual(12)
   assertProductAlive()
 })
 
@@ -200,7 +268,7 @@ test('the accepted audit finding covers the palette list and nothing else', asyn
     .getByRole('button', { name: englishCopy('devices.add'), exact: true })
     .click()
   await deviceField(page, 'devices.field.target').click()
-  const panel = choicePanel(page, englishCopy('devices.field.target.pick'))
+  const panel = choicePanel(page, englishCopy('devices.field.target'))
   await expect(panel).toBeVisible()
   // Open, the palette passes every rule with only its list's name waived.
   expect(await audit(page, 'palette-open')).toEqual([])

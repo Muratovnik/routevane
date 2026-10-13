@@ -238,9 +238,10 @@ Sections, addressable by URL:
    the selection opens the next connection or the form. A row states the
    connection's name, its format and address, and what Routevane does with it
    — automatic delivery on, off, or by hand only — and nothing about
-   reachability. The selected row is marked by its ground, a hairline accent
-   and a mark that is not a colour; the list scrolls inside its own frame
-   rather than lengthening the page.
+   reachability. The selected row is marked by the shared selected ground and a
+   mark that is not a colour, the chevron at its end; it has no frame or edge
+   stripe. The format's glyph stands in the name's own line, and the list
+   scrolls inside its own frame rather than lengthening the page.
    Saved connections remain selectable beside the creation or
    configuration area; a constrained window stacks these regions in document
    flow. Creation and delivery permission are primary page work, without a modal
@@ -583,7 +584,10 @@ case, a field drawn as a bordered wrapper around an input lets the wrapper own
 that height rather than the input inside it, or it stands a border taller than
 the control beside it. A text field has no hover state: a `<label for>` forwards
 `:hover` to its control, so a hovered field would light up from its label. A
-choice trigger takes the library's hover.
+choice trigger takes the library's hover. A choice trigger at field size reads
+from its leading edge on one line, cut by an ellipsis, and keeps the chosen
+value on screen while it is busy; a field's label and the value it holds name
+it, and its panel is named by that label rather than by its placeholder.
 `RvField` names its control by the caller's id whether or not the control is a
 library input. Its hint is the library's description between the label and
 the control, and it stays on screen while an error is shown under the control;

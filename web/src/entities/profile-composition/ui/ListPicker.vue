@@ -426,7 +426,7 @@ const listLabel = (listID: string): string =>
       <thead>
         <tr>
           <th class="picker__priority-column" scope="col">
-            <span class="picker__visually-hidden">{{
+            <span class="rv-visually-hidden">{{
               t('listPicker.column.priority')
             }}</span>
           </th>
@@ -463,7 +463,7 @@ const listLabel = (listID: string): string =>
             </span>
           </th>
           <th class="picker__action-heading" scope="col">
-            <span class="picker__visually-hidden">{{
+            <span class="rv-visually-hidden">{{
               t('listPicker.column.open')
             }}</span>
           </th>
@@ -601,7 +601,7 @@ const listLabel = (listID: string): string =>
               class="picker__unknown"
             >
               <span aria-hidden="true">—</span>
-              <span class="picker__visually-hidden">
+              <span class="rv-visually-hidden">
                 {{
                   overlapUnavailable && overlapUnavailableLabel
                     ? overlapUnavailableLabel
@@ -707,13 +707,20 @@ const listLabel = (listID: string): string =>
   font-weight: 600;
 }
 
+/* The row whose card is open takes the shared hover ground and a heavier name:
+   an edge stripe is not part of this surface, and a ground alone would not tell
+   a reader who cannot see it. */
 .picker__row--inspected {
-  box-shadow: inset var(--rv-border-mark) 0 var(--rv-color-accent);
+  background: var(--rv-color-surface-hover);
 }
 
 .picker__name {
   display: block;
   font-weight: 400;
+}
+
+.picker__row--inspected .picker__name {
+  font-weight: 700;
 }
 
 .picker__table-frame th:nth-child(3) {
@@ -812,15 +819,6 @@ const listLabel = (listID: string): string =>
   padding: var(--rv-space-8) var(--rv-space-4);
   color: var(--rv-color-ink-muted);
   text-align: center;
-}
-
-.picker__visually-hidden {
-  position: absolute;
-  width: 0.0625rem;
-  height: 0.0625rem;
-  overflow: hidden;
-  white-space: nowrap;
-  clip-path: inset(50%);
 }
 
 @container (width <= 42rem) {

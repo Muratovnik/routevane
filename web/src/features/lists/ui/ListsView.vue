@@ -721,7 +721,7 @@ const submitPriority = async (): Promise<void> => {
         <thead>
           <tr>
             <th class="lists__priority-column" scope="col">
-              <span class="lists__visually-hidden">{{
+              <span class="rv-visually-hidden">{{
                 t('lists.priority.column')
               }}</span>
             </th>
@@ -730,7 +730,7 @@ const submitPriority = async (): Promise<void> => {
               {{ t('listPicker.collections') }}
             </th>
             <th class="lists__action-column" scope="col">
-              <span class="lists__visually-hidden">{{
+              <span class="rv-visually-hidden">{{
                 t('lists.manageCategories')
               }}</span>
             </th>
@@ -1283,14 +1283,6 @@ const submitPriority = async (): Promise<void> => {
 
 .lists__form-note {
   color: var(--rv-color-ink-muted);
-}
-
-.lists__visually-hidden {
-  position: absolute;
-  width: var(--rv-border-hair);
-  height: var(--rv-border-hair);
-  overflow: hidden;
-  clip-path: inset(50%);
 }
 
 @media (width <= 64rem), (height <= 36rem) {

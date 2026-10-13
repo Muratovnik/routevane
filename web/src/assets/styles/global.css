@@ -39,6 +39,19 @@ body {
   font-family: var(--rv-font-mono);
 }
 
+/* The role for text only a reader of the accessibility tree meets: a label, a
+ * legend or a heading the layout has no room to draw. It stays in the document
+ * and in the table's own scrolling context, which is why it is positioned
+ * rather than removed. */
+.rv-visually-hidden {
+  position: absolute;
+  width: var(--rv-border-hair);
+  height: var(--rv-border-hair);
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 h1,
 h2,
 h3,

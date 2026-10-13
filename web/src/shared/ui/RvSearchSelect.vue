@@ -5,6 +5,7 @@ import { computed, h, inject, ref, watch, type FunctionalComponent } from 'vue'
 
 import type { ChoiceGroup, ChoiceOption, IconName } from '@/shared/ui/types'
 import { useLocale } from '@/shared/i18n/useLocale'
+import { fieldLabelKey } from '@/shared/lib/fieldLabel'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 
 /**
@@ -94,14 +95,35 @@ const choices = computed(() => runs.value.flatMap((group) => group.options))
 const selected = computed(() =>
   choices.value.find((option) => option.value === props.modelValue),
 )
+// The label the field this choice stands in drew for it, when there is one.
+const enclosingField = inject(fieldLabelKey, undefined)
+const fieldLabel = computed(() => {
+  const drawn = enclosingField?.value
+  return drawn?.inputId === props.inputId ? drawn : undefined
+})
+// What the choice is called: the caller's heading, else the label of its
+// field. A caller with neither is named by its placeholder as a last resort,
+// which says what it shows rather than what it chooses.
 const heading = computed(
-  () => props.label ?? props.toggleLabel ?? props.placeholder,
+  () =>
+    props.label ??
+    props.toggleLabel ??
+    fieldLabel.value?.label ??
+    props.placeholder,
 )
+// What a reader's software follows from the trigger to the words that name it.
+const namedBy = computed(() => props.labelledBy ?? fieldLabel.value?.labelId)
 const search = computed(() => props.searchLabel ?? t('choice.search'))
 const empty = computed(() => props.emptyLabel ?? t('choice.empty'))
-const shown = computed(
-  () => props.triggerLabel ?? selected.value?.label ?? props.placeholder,
-)
+// A bound choice stays on screen while the control is busy: swapping it for the
+// placeholder would state that nothing is chosen. Only when nothing is chosen
+// does a busy control say what it is waiting for.
+const shown = computed(() => {
+  const chosen = props.triggerLabel ?? selected.value?.label
+  if (chosen !== undefined) return chosen
+  if (props.loading === true) return props.loadingLabel ?? props.placeholder
+  return props.placeholder
+})
 
 // Matching is by name, by the compared fact and by the run's own name, the
 // same way in both sizes; the library is told not to filter again.
@@ -166,11 +188,11 @@ const choose = (value: unknown): void => {
   if (valid(value)) emit('update:modelValue', value as T)
 }
 
-// The panel's own attributes. It is named for what it chooses. The library
-// also points the panel at the id it gives its trigger; a field's trigger
-// carries the caller's id instead, which the field's label needs, so that
-// reference finds nothing and the panel's name is this one. The mark tells the
-// accessibility audit which list is the palette's own
+// The panel's own attributes. It is named for what it chooses, in words: the
+// library also points the panel at the id it gives its trigger, and a field's
+// trigger carries the caller's id instead, which the field's label needs, so
+// that reference finds nothing and the name given here is the panel's. The mark
+// tells the accessibility audit which list is the palette's own
 // (docs/adr/0043-accept-two-command-palette-findings.md).
 const panelContent = computed(() => ({
   align: 'start' as const,
@@ -189,14 +211,26 @@ const paletteInput = computed(() => ({
   autocomplete: 'off',
 }))
 
-// The field's trigger takes its name from the field's label; a trigger with
-// no label names the choice and what it shows, and a busy one says so.
-const triggerName = computed(() => {
-  if (props.loading === true) return props.loadingLabel ?? props.placeholder
-  if (props.inputId !== undefined || props.labelledBy !== undefined)
-    return undefined
-  return `${heading.value}: ${shown.value}`
+// A button is named by its label element alone, so a trigger in a field names
+// itself by that label and its own content: the field and what it holds. One
+// with no field names the choice and what it shows.
+const triggerName = computed(() =>
+  props.inputId !== undefined || props.labelledBy !== undefined
+    ? undefined
+    : `${heading.value}: ${shown.value}`,
+)
+const triggerNamedBy = computed(() => {
+  if (props.inputId === undefined) return props.labelledBy
+  return namedBy.value === undefined
+    ? undefined
+    : `${namedBy.value} ${props.inputId}`
 })
+// A button centres its content; a field reads from its leading edge. The value
+// is one line cut with an ellipsis, so a long name never makes the field taller
+// than the control beside it, and the chevron keeps the end.
+const triggerUI = computed(() =>
+  field.value ? { base: 'justify-start text-start' } : undefined,
+)
 const selectedGlyph = computed(() =>
   selected.value?.icon === undefined ? undefined : glyph(selected.value.icon),
 )
@@ -234,19 +268,19 @@ const choosePalette = (value: unknown): void => {
       :aria-describedby="describedBy"
       :aria-invalid="invalid === true ? 'true' : undefined"
       :aria-label="triggerName"
-      :aria-labelledby="labelledBy"
+      :aria-labelledby="triggerNamedBy"
       :block="field"
       :color="invalid === true ? 'error' : 'neutral'"
       :disabled="unavailable || choices.length === 0"
       :leading-icon="loading === true ? undefined : selectedGlyph"
       :loading="loading === true"
       :loading-icon="workingGlyph"
+      :label="shown"
       :size="field ? 'xl' : 'lg'"
       :trailing-icon="chevronGlyph"
+      :ui="triggerUI"
       variant="outline"
-    >
-      {{ loading === true ? (loadingLabel ?? placeholder) : shown }}
-    </UButton>
+    />
     <template #content>
       <UCommandPalette
         v-model:search-term="query"

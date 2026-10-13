@@ -2,6 +2,7 @@
 import { portalTargetInjectionKey } from '@nuxt/ui/composables/usePortal'
 import { computed, h, inject, ref, type FunctionalComponent } from 'vue'
 
+import { fieldLabelKey } from '@/shared/lib/fieldLabel'
 import type { ChoiceGroup, ChoiceOption, IconName } from '@/shared/ui/types'
 import RvSearchSelect from '@/shared/ui/RvSearchSelect.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
@@ -32,6 +33,13 @@ const props = defineProps<{
   invalid?: boolean
   loading?: boolean
   loadingLabel?: string
+  /**
+   * What the choice is called, in words, for the panel it opens. A choice
+   * drawn in an `RvField` is named by that field's label and needs none; one
+   * named by a heading elsewhere points at it with `labelledBy`, or says it
+   * here, rather than being named by its placeholder.
+   */
+  label?: string
   /** A heading that already names this choice, when no label element does. */
   labelledBy?: string
   options?: ChoiceOption[]
@@ -103,10 +111,19 @@ const measureRoom = (open: boolean): void => {
       : null
 }
 
-// The panel's own name; the library forwards it to the listbox it opens.
+// The panel's own name; the library forwards it to the listbox it opens. It is
+// named for what it chooses: the heading the caller points at, else the label
+// of the field it opens from, with the same words as a fallback. The placeholder
+// is the last name it has, for a choice nothing else names.
+const enclosingField = inject(fieldLabelKey, undefined)
+const fieldLabel = computed(() => {
+  const drawn = enclosingField?.value
+  return drawn?.inputId === props.inputId ? drawn : undefined
+})
 const panel = computed(() => ({
   align: 'start' as const,
-  'aria-label': props.placeholder,
+  'aria-label': props.label ?? fieldLabel.value?.label ?? props.placeholder,
+  'aria-labelledby': props.labelledBy ?? fieldLabel.value?.labelId,
   collisionBoundary: boundary.value ?? undefined,
 }))
 
