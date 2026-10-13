@@ -17,7 +17,7 @@ describe('outputActionError', () => {
 
   it('states a request that never reached the service as a network failure', () => {
     expect(outputActionError(new TypeError('Failed to fetch'))).toBe(
-      'error.network',
+      'failure.unreachable.body',
     )
   })
 })

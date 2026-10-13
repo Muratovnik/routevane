@@ -12,7 +12,8 @@ const TARGETS = '/v1/targets'
 const REQUIREMENTS = '/v1/deployments/targets'
 const MISSING_FIELD = 'Fill in this field'
 const ADDRESS_EXPECTED = 'Expected an address like http://192.168.1.1.'
-const ADDRESS_RULE = 'An explicit http or https address'
+const ADDRESS_RULE =
+  'Start with http:// or https://, then the router’s local IP address'
 
 const json = (payload: unknown, status = 200): Response =>
   new Response(JSON.stringify(payload), {
@@ -84,6 +85,49 @@ const callsTo = (
   url: string,
 ): unknown[][] => fetchMock.mock.calls.filter(([input]) => input === url)
 
+describe('DevicesView router form labels', () => {
+  beforeEach(() => {
+    useLocale().setLocale('en')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // One subject for what a router asks for, so the form does not read
+  // «Address» above «Router login» (the saved password is «Router password»).
+  it('names the address and the login of a router with the same subject', async () => {
+    installFetch((input: string) => {
+      if (input === DEVICES)
+        return Promise.resolve(
+          json({ devices: [], secret_store_available: true }),
+        )
+      if (input === LISTS) return Promise.resolve(json(CATALOG_PAYLOAD))
+      if (input === TARGETS) return Promise.resolve(json(TARGETS_PAYLOAD))
+      if (input === REQUIREMENTS)
+        return Promise.resolve(json(REQUIREMENTS_PAYLOAD))
+      return Promise.reject(new Error(`unexpected request ${input}`))
+    })
+    const screen = await render(DevicesView)
+
+    await screen
+      .getByRole('button', { name: 'Add a connection', exact: true })
+      .click()
+    await screen.getByLabelText('Format', { exact: true }).click()
+    await screen.getByRole('option', { name: /^Keenetic/ }).click()
+
+    await expect
+      .element(screen.getByLabelText('Router address', { exact: true }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByLabelText('Router login', { exact: true }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByLabelText('Address', { exact: true }))
+      .not.toBeInTheDocument()
+  })
+})
+
 describe('DevicesView prerequisite audit', () => {
   beforeEach(() => {
     useLocale().setLocale('en')
@@ -138,7 +182,7 @@ describe('DevicesView prerequisite audit', () => {
 
     await screen.getByLabelText('Connection name').fill('Draft router')
     await screen
-      .getByLabelText('Address', { exact: true })
+      .getByLabelText('Router address', { exact: true })
       .fill('http://192.168.1.2')
     const submit = screen.getByRole('button', { name: 'Save' })
     await expect.element(submit).toBeDisabled()
@@ -150,7 +194,7 @@ describe('DevicesView prerequisite audit', () => {
       .element(screen.getByLabelText('Connection name'))
       .toHaveValue('Draft router')
     await expect
-      .element(screen.getByLabelText('Address', { exact: true }))
+      .element(screen.getByLabelText('Router address', { exact: true }))
       .toHaveValue('http://192.168.1.2')
     // With the requirements read, the fields they ask for appear.
     const account = screen.getByLabelText('Router login')
@@ -225,7 +269,7 @@ describe('DevicesView prerequisite audit', () => {
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
     await screen.getByLabelText('Connection name').fill('Manual router')
     await screen
-      .getByLabelText('Address', { exact: true })
+      .getByLabelText('Router address', { exact: true })
       .fill('file:///router.conf')
 
     // A target with no deployer asks for nothing beyond a name and an address,
@@ -285,7 +329,7 @@ describe('DevicesView prerequisite audit', () => {
     await screen.getByLabelText('Connection name').fill('Home router')
     await screen.getByLabelText('Router login').fill('admin')
     await screen.getByLabelText('Interface for routes').fill('Wireguard0')
-    const address = screen.getByLabelText('Address', { exact: true })
+    const address = screen.getByLabelText('Router address', { exact: true })
     await address.fill('192.168.1.1')
     // Leaving the field is what asks it to answer, as with a field left empty.
     await screen.getByLabelText('Connection name').click()
@@ -555,7 +599,7 @@ it('selects the created identity after a failed reread recovers without repeatin
   await screen.getByRole('option', { name: /^Keenetic/ }).click()
   await screen.getByLabelText('Connection name').fill('Home router')
   await screen
-    .getByLabelText('Address', { exact: true })
+    .getByLabelText('Router address', { exact: true })
     .fill('http://192.168.1.1')
   await screen.getByLabelText('Router login').fill('admin')
   await screen.getByLabelText('Interface for routes').fill('Wireguard0')
@@ -567,7 +611,7 @@ it('selects the created identity after a failed reread recovers without repeatin
     .element(screen.getByRole('heading', { name: 'Saved router' }))
     .toBeVisible()
   await expect
-    .element(screen.getByLabelText('Address', { exact: true }))
+    .element(screen.getByLabelText('Router address', { exact: true }))
     .toHaveValue('http://192.168.1.9')
   await expect
     .element(screen.getByRole('button', { name: 'Save', exact: true }))
@@ -761,7 +805,7 @@ it('keeps an updated same-device card through a failed reread and retry', async 
   const screen = await render(DevicesView)
   await screen.getByLabelText('Connection name').fill('Study router')
   await screen
-    .getByLabelText('Address', { exact: true })
+    .getByLabelText('Router address', { exact: true })
     .fill('http://192.168.1.9')
   await screen.getByLabelText('Router login').fill('admin')
   await screen.getByLabelText('Interface for routes').fill('Wireguard0')
@@ -774,7 +818,7 @@ it('keeps an updated same-device card through a failed reread and retry', async 
     .element(screen.getByRole('heading', { name: 'Study router' }))
     .toBeVisible()
   await expect
-    .element(screen.getByLabelText('Address', { exact: true }))
+    .element(screen.getByLabelText('Router address', { exact: true }))
     .toHaveValue('http://192.168.1.9')
   await expect
     .element(screen.getByRole('button', { name: 'Save', exact: true }))
@@ -822,7 +866,7 @@ it('states that a changed destination ends the setup, then reports the state the
   await expect.element(toggle).toHaveAttribute('aria-checked', 'true')
 
   await screen
-    .getByLabelText('Address', { exact: true })
+    .getByLabelText('Router address', { exact: true })
     .fill('http://192.168.1.2')
   // The warning stands beside Save, before it is pressed.
   await expect

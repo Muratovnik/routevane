@@ -167,7 +167,7 @@ const openBound = async (language: 'en' | 'ru', stored: boolean) => {
   await expect.element(review).toBeEnabled()
   return {
     fetchMock,
-    password: screen.getByLabelText(t('send.field.password')),
+    password: screen.getByLabelText(t('deploy.field.password.keenetic')),
     review,
     screen,
     selected,
@@ -229,7 +229,7 @@ it.each(['en', 'ru'] as const)(
     const opened = await openBound(language, true)
     const { password, screen, selected, t } = opened
     await expect
-      .element(screen.getByText(t('send.password.stored'), { exact: true }))
+      .element(screen.getByText(t('devices.credential.saved'), { exact: true }))
       .toBeVisible()
     await expect
       .element(
@@ -255,7 +255,7 @@ it.each(['en', 'ru'] as const)(
     const { fetchMock, password, review, screen, selected, t } = opened
     await expect.element(password).toHaveValue('')
     await expect
-      .element(screen.getByText(t('send.password.stored'), { exact: true }))
+      .element(screen.getByText(t('devices.credential.saved'), { exact: true }))
       .not.toBeInTheDocument()
     await expect
       .element(screen.getByRole('switch', { name: t('send.password.save') }))
@@ -282,7 +282,7 @@ it.each(['en', 'ru'] as const)(
   },
 )
 
-it('keeps a typed password in the connection only when asked, once the preview worked', async () => {
+it('keeps a typed password in the connection only when asked, once the send succeeded', async () => {
   const { setLocale, t } = useLocale()
   setLocale('en')
   const credential = crypto.randomUUID()
@@ -293,14 +293,113 @@ it('keeps a typed password in the connection only when asked, once the preview w
   await expect
     .element(screen.getByText(t('send.password.save.consequence')))
     .toBeVisible()
-  await screen.getByLabelText(t('send.field.password')).fill(credential)
+  await screen
+    .getByLabelText(t('deploy.field.password.keenetic'))
+    .fill(credential)
   await keep.click()
   await screen
     .getByRole('button', { name: t('send.review'), exact: true })
     .click()
+  const apply = screen.getByRole('button', {
+    name: t('send.apply'),
+    exact: true,
+  })
+  await expect.element(apply).toBeVisible()
+  // A review of a router does not contact the device, so it proves nothing
+  // about the password: nothing is stored until a send has worked with it.
+  const saved = () =>
+    fetchMock.mock.calls.filter(([input]) =>
+      String(input).endsWith('/credential'),
+    )
+  expect(saved()).toHaveLength(0)
+
+  await apply.click()
   await expect
-    .element(screen.getByText(t('send.password.stored'), { exact: true }))
+    .element(screen.getByText(t('devices.credential.saved'), { exact: true }))
     .toBeVisible()
+  expect(saved().map(([input]) => String(input))).toEqual([
+    `/v1/devices/${selected.id}/credential`,
+  ])
+  expect(JSON.parse(String(saved()[0]?.[1]?.body))).toEqual({ credential })
+})
+
+it('does not keep a password whose send failed', async () => {
+  const { setLocale, t } = useLocale()
+  setLocale('en')
+  const { fetchMock, props } = scenario(false, 'outcome_unknown')
+  vi.stubGlobal('fetch', fetchMock)
+  const screen = await render(SendPanel, { props, ...links })
+  await screen
+    .getByLabelText(t('deploy.field.password.keenetic'))
+    .fill(crypto.randomUUID())
+  await screen.getByRole('switch', { name: t('send.password.save') }).click()
+  await screen
+    .getByRole('button', { name: t('send.review'), exact: true })
+    .click()
+  await screen
+    .getByRole('button', { name: t('send.apply'), exact: true })
+    .click()
+  await expect
+    .element(screen.getByText(t('send.outcomeUnknown.title')))
+    .toBeVisible()
+  expect(
+    fetchMock.mock.calls.filter(([input]) =>
+      String(input).endsWith('/credential'),
+    ),
+  ).toHaveLength(0)
+})
+
+it('says the saved password was not accepted and takes a new one in its place', async () => {
+  const { setLocale, t } = useLocale()
+  setLocale('en')
+  const credential = crypto.randomUUID()
+  const { selected, fetchMock, props } = scenario(true)
+  let refusals = 0
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        password?: string
+      }
+      if (String(input).endsWith('/deploy') && body.password === '') {
+        refusals += 1
+        return json(
+          { error: 'connection_invalid', attempt_started: false },
+          400,
+        )
+      }
+      return fetchMock(input, init)
+    }),
+  )
+  const screen = await render(SendPanel, { props, ...links })
+  await screen
+    .getByRole('button', { name: t('send.review'), exact: true })
+    .click()
+
+  await expect
+    .element(screen.getByText(t('send.password.rejected')))
+    .toBeVisible()
+  await expect
+    .element(screen.getByText(t('error.connection_invalid')))
+    .not.toBeInTheDocument()
+  expect(refusals).toBe(1)
+
+  // The way out is in the notice itself: one place to press, not two.
+  const another = screen.getByRole('button', {
+    name: t('send.password.override'),
+  })
+  await another.click()
+  const password = screen.getByLabelText(t('deploy.field.password.keenetic'))
+  await expect.element(password).toHaveFocus()
+  await password.fill(credential)
+  await screen.getByRole('switch', { name: t('send.password.replace') }).click()
+  await screen
+    .getByRole('button', { name: t('send.review'), exact: true })
+    .click()
+  await screen
+    .getByRole('button', { name: t('send.apply'), exact: true })
+    .click()
+  await expect.element(screen.getByText(t('send.applied'))).toBeVisible()
   const saves = fetchMock.mock.calls.filter(([input]) =>
     String(input).endsWith('/credential'),
   )
@@ -308,10 +407,37 @@ it('keeps a typed password in the connection only when asked, once the preview w
     `/v1/devices/${selected.id}/credential`,
   ])
   expect(JSON.parse(String(saves[0]?.[1]?.body))).toEqual({ credential })
-  // The preview made with that password still stands.
+})
+
+it('keeps the plain refusal for a password typed for this send', async () => {
+  const { setLocale, t } = useLocale()
+  setLocale('en')
+  const { fetchMock, props } = scenario(true)
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown, init?: RequestInit) =>
+      String(input).endsWith('/deploy')
+        ? json({ error: 'connection_invalid', attempt_started: false }, 400)
+        : fetchMock(input, init),
+    ),
+  )
+  const screen = await render(SendPanel, { props, ...links })
+  await screen
+    .getByRole('button', { name: t('send.password.override') })
+    .click()
+  await screen
+    .getByLabelText(t('deploy.field.password.keenetic'))
+    .fill(crypto.randomUUID())
+  await screen
+    .getByRole('button', { name: t('send.review'), exact: true })
+    .click()
+
   await expect
-    .element(screen.getByRole('button', { name: t('send.apply'), exact: true }))
+    .element(screen.getByText(t('error.connection_invalid')))
     .toBeVisible()
+  await expect
+    .element(screen.getByText(t('send.password.rejected')))
+    .not.toBeInTheDocument()
 })
 
 it('takes another password for one send without saving it', async () => {
@@ -324,7 +450,7 @@ it('takes another password for one send without saving it', async () => {
   await screen
     .getByRole('button', { name: t('send.password.override') })
     .click()
-  const password = screen.getByLabelText(t('send.field.password'))
+  const password = screen.getByLabelText(t('deploy.field.password.keenetic'))
   await expect.element(password).toHaveFocus()
   await password.fill(credential)
   await screen
@@ -355,7 +481,9 @@ it('offers only compatible connections and discards the prior preview and passwo
   await screen
     .getByRole('button', { name: t('send.password.override') })
     .click()
-  await screen.getByLabelText(t('send.field.password')).fill(credential)
+  await screen
+    .getByLabelText(t('deploy.field.password.keenetic'))
+    .fill(credential)
   await screen
     .getByRole('button', { name: t('send.review'), exact: true })
     .click()
@@ -375,7 +503,7 @@ it('offers only compatible connections and discards the prior preview and passwo
   await screen.getByRole('option', { name: /^Office router/ }).click()
   await expect.element(connection).toHaveTextContent(alternate.name)
   await expect
-    .element(screen.getByLabelText(t('send.field.password')))
+    .element(screen.getByLabelText(t('deploy.field.password.keenetic')))
     .toHaveValue('')
   await expect
     .element(screen.getByRole('button', { name: t('send.apply'), exact: true }))
@@ -421,7 +549,9 @@ it('keeps manual entry usable when the saved registry cannot be loaded', async (
   await screen
     .getByRole('textbox', { name: t('deploy.field.account.keenetic') })
     .fill('manual-admin')
-  await screen.getByLabelText(t('send.field.password')).fill(credential)
+  await screen
+    .getByLabelText(t('deploy.field.password.keenetic'))
+    .fill(credential)
   await screen
     .getByRole('textbox', { name: t('deploy.field.interface.keenetic') })
     .fill('Wireguard8')
@@ -457,7 +587,9 @@ it.each(['succeeded', 'outcome_unknown'] as const)(
     })
     await connection.click()
     await screen.getByRole('option', { name: /^Office router/ }).click()
-    await screen.getByLabelText(t('send.field.password')).fill(credential)
+    await screen
+      .getByLabelText(t('deploy.field.password.keenetic'))
+      .fill(credential)
     await screen
       .getByRole('button', { name: t('send.review'), exact: true })
       .click()
@@ -545,7 +677,7 @@ it.each(['succeeded', 'outcome_unknown'] as const)(
       .toBeVisible()
     // The connection chosen now holds a saved password, so none is asked for.
     await expect
-      .element(reloaded.getByLabelText(t('send.field.password')))
+      .element(reloaded.getByLabelText(t('deploy.field.password.keenetic')))
       .not.toBeInTheDocument()
     expect(JSON.stringify({ ...window.sessionStorage })).not.toContain(
       credential,

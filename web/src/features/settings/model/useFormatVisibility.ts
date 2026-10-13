@@ -5,6 +5,7 @@ import {
   localizedTargetTitle,
   type TargetOption,
 } from '@/shared/api/catalog'
+import { failureKind, type FailureKind } from '@/shared/api/http'
 import { useLocale } from '@/shared/i18n/useLocale'
 import { useSurfacePreferences } from '@/shared/model/useSurfacePreferences'
 
@@ -26,6 +27,7 @@ export const useFormatVisibility = () => {
   const { locale } = useLocale()
   const targets = ref<TargetOption[]>([])
   const state = ref<FormatsState>('loading')
+  const failure = ref<FailureKind>('unreachable')
   let request = 0
 
   const load = async (): Promise<void> => {
@@ -36,8 +38,9 @@ export const useFormatVisibility = () => {
       if (current !== request) return
       targets.value = catalog.targets
       state.value = catalog.targets.length === 0 ? 'empty' : 'ready'
-    } catch {
+    } catch (error) {
       if (current !== request) return
+      failure.value = failureKind(error)
       state.value = 'failed'
     }
   }
@@ -54,5 +57,5 @@ export const useFormatVisibility = () => {
     preferences.setTargetHidden(id, !shown)
   }
 
-  return { choices, load, setShown, state }
+  return { choices, failure, load, setShown, state }
 }

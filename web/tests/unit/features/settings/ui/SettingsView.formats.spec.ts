@@ -76,7 +76,7 @@ describe('SettingsView formats', () => {
     const screen = await render(SettingsView)
 
     const group = screen.getByRole('group', {
-      name: 'Show when creating a profile',
+      name: 'Offer when adding a format',
     })
     const keenetic = group.getByRole('switch', { name: 'Keenetic' })
     const singBox = group.getByRole('switch', { name: 'sing-box' })

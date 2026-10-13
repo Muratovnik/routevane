@@ -32,7 +32,7 @@ onMounted(() => {
     />
     <RvStateNotice
       v-else-if="formats.state.value === 'failed'"
-      :body="t('settings.formats.failed.body')"
+      :body="t(`failure.${formats.failure.value}.body`)"
       live
       :title="t('settings.formats.failed')"
       tone="failed"

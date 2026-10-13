@@ -480,7 +480,7 @@ retiring the local ledger does not authorize automatic adoption. Interruption
 before the ownership commit can require the same manual review. See
 [ADR 0040](adr/0040-exact-fqdn-output-ownership.md).
 
-For a manual send, open **Send to device** and choose a compatible saved
+For a manual send, open **Send** and choose a compatible saved
 connection. If the output is already bound to a device, that connection is
 selected initially. You can choose another connection for this send without
 changing the output's binding or automatic-delivery setting. The manual-entry

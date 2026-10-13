@@ -27,7 +27,11 @@ import {
   loadExportFormats,
   type ExportFormat,
 } from '@/shared/api/exports'
-import { RoutevaneAPIError } from '@/shared/api/http'
+import {
+  failureKind,
+  RoutevaneAPIError,
+  type FailureKind,
+} from '@/shared/api/http'
 import {
   archiveProfile,
   isArchived,
@@ -78,7 +82,11 @@ const reissuedLinks = ref<Record<string, string>>({})
  * a fact, and everything else is the common failure of that request.
  */
 export const outputActionError = (error: unknown): string => {
-  if (!(error instanceof RoutevaneAPIError)) return 'error.network'
+  if (
+    !(error instanceof RoutevaneAPIError) ||
+    failureKind(error) === 'unreachable'
+  )
+    return 'failure.unreachable.body'
   if (error.code === 'profile_archived') return 'outputs.error.archived'
   if (error.code === 'subscription_not_issued')
     return 'outputs.reissue.error.notIssued'
@@ -98,6 +106,8 @@ export const useProfileView = (profileID: () => string) => {
   const { locale } = useLocale()
 
   const state = ref<ProfileState>('loading')
+  // What a failed first read was, so the screen words it by what happened.
+  const failure = ref<FailureKind>('unreachable')
   const profile = ref<ProfileRecord | null>(null)
   const resolved = ref<string[]>([])
   const missingCategories = ref<string[]>([])
@@ -213,6 +223,18 @@ export const useProfileView = (profileID: () => string) => {
         }))
         .filter((group) => group.targets.length > 0),
   )
+
+  // Formats that are not on this profile yet but are kept out of the picker by
+  // the operator's own choice in Settings: what an empty picker says depends
+  // on whether anything was merely hidden.
+  const hiddenTargetCount = computed<number>(() => {
+    const bound = new Set(outputs.value.map((output) => output.targetID))
+    return (catalog.value?.targets ?? []).filter(
+      (target) =>
+        !bound.has(target.id) &&
+        preferences.hiddenTargets.value.includes(target.id),
+    ).length
+  })
 
   const deployable = (output: OutputCard): boolean =>
     output.latest !== null && deployableIDs.value.has(output.targetID)
@@ -389,7 +411,11 @@ export const useProfileView = (profileID: () => string) => {
     const missing =
       detail.reason instanceof RoutevaneAPIError && detail.reason.status === 404
     if (reread && !missing) rereadFailed.value = true
-    else state.value = missing ? 'missing' : 'failed'
+    else if (missing) state.value = 'missing'
+    else {
+      failure.value = failureKind(detail.reason)
+      state.value = 'failed'
+    }
   }
 
   // Bumped whenever the loaded detail is discarded (a new output picked, or a
@@ -733,6 +759,7 @@ export const useProfileView = (profileID: () => string) => {
     exportFormats,
     exporting,
     failedOutputs,
+    failure,
     fresh,
     initialize,
     latest,
@@ -773,6 +800,7 @@ export const useProfileView = (profileID: () => string) => {
     stale,
     state,
     subscriptionURL,
+    hiddenTargetCount,
     targetGroups,
     targetTitle,
     work,

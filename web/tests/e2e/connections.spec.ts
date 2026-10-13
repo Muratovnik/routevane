@@ -97,7 +97,7 @@ test('hiding a format in Settings removes it from the connection picker', async 
     .getByRole('link', { name: 'Settings' })
     .click()
   const formats = page.getByRole('group', {
-    name: 'Show when creating a profile',
+    name: 'Offer when adding a format',
   })
   const toggle = formats.getByRole('switch', { name: 'Keenetic', exact: true })
   await expect(toggle).toBeChecked()

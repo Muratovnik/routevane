@@ -17,7 +17,11 @@ import {
   type DeviceCard,
   type DeviceWrite,
 } from '@/shared/api/devices'
-import { RoutevaneAPIError } from '@/shared/api/http'
+import {
+  failureKind,
+  RoutevaneAPIError,
+  type FailureKind,
+} from '@/shared/api/http'
 
 export type DevicesState = 'loading' | 'ready' | 'stale' | 'failed'
 export type DevicesWork = 'idle' | 'working' | 'failed'
@@ -50,6 +54,10 @@ export const useDevices = () => {
   const work = ref<DevicesWork>('idle')
   const registeredID = ref('')
   const failure = ref<DeviceFailure | null>(null)
+  // What the last failed read of the registry, and of what the formats can
+  // deliver to, was: the screen words each by what happened to the request.
+  const readFailure = ref<FailureKind>('unreachable')
+  const requirementsFailure = ref<FailureKind>('unreachable')
   let deviceRead = false
   let initializeRequest = 0
   let requirementsRequest = 0
@@ -83,6 +91,7 @@ export const useDevices = () => {
         deploymentCatalogAvailable.value = true
         requirementsState.value = 'ready'
       } else if (!background) {
+        requirementsFailure.value = failureKind(loadedDeployables.reason)
         deploymentCatalogAvailable.value = false
         requirementsState.value = 'failed'
       }
@@ -95,6 +104,7 @@ export const useDevices = () => {
       catalogAvailable.value = false
     }
     if (loaded.status === 'rejected') {
+      readFailure.value = failureKind(loaded.reason)
       state.value = deviceRead ? 'stale' : 'failed'
       return
     }
@@ -113,9 +123,11 @@ export const useDevices = () => {
       secretStoreAvailable.value = loaded.secretStoreAvailable
       state.value = 'ready'
       deviceRead = true
-    } catch {
-      if (request === initializeRequest)
+    } catch (error) {
+      if (request === initializeRequest) {
+        readFailure.value = failureKind(error)
         state.value = deviceRead ? 'stale' : 'failed'
+      }
     }
   }
 
@@ -132,8 +144,9 @@ export const useDevices = () => {
       deploymentCatalogAvailable.value = true
       requirementsState.value = 'ready'
       return true
-    } catch {
+    } catch (error) {
       if (request !== requirementsRequest) return false
+      requirementsFailure.value = failureKind(error)
       deploymentCatalogAvailable.value = false
       requirementsState.value = 'failed'
       return false
@@ -318,8 +331,10 @@ export const useDevices = () => {
     forget,
     initialize,
     register,
+    readFailure,
     registeredID,
     removeCredential,
+    requirementsFailure,
     requirementsState,
     retryRequirements,
     retryDevices,

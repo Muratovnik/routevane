@@ -27,6 +27,12 @@ import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import type { ChoiceOption } from '@/shared/ui/types'
 
+// A link from another screen can name the connection to open; the Connections
+// page reads it from the address and hands it in.
+const props = defineProps<{ initialConnection?: string }>()
+// The connection the operator opened, so the page can keep it in the address.
+const emit = defineEmits<{ select: [id: string] }>()
+
 const { locale, t } = useLocale()
 const devices = useDevices()
 
@@ -92,6 +98,7 @@ const openConnection = async (id: string): Promise<void> => {
   if (devices.busy.value) return
   composing.value = false
   selectedID.value = id
+  emit('select', id)
   await focusSelection()
 }
 
@@ -171,9 +178,14 @@ const addDisabled = computed(
     !devices.catalogAvailable.value,
 )
 
+// A named connection that is not registered — removed since the link was made —
+// falls back to the default, and the keyboard goes only where the link pointed.
 onMounted(async () => {
   await devices.initialize()
-  selectedID.value = devices.devices.value[0]?.id ?? ''
+  const requested = props.initialConnection ?? ''
+  const named = devices.devices.value.some((device) => device.id === requested)
+  selectedID.value = named ? requested : (devices.devices.value[0]?.id ?? '')
+  if (named) await focusSelection()
 })
 
 const clearDraft = (): void => {
@@ -243,7 +255,7 @@ const submit = async (): Promise<void> => {
     />
     <RvStateNotice
       v-else-if="devices.state.value === 'failed'"
-      :body="t('devices.failed.body')"
+      :body="t(`failure.${devices.readFailure.value}.body`)"
       live
       :title="t('devices.failed')"
       tone="failed"
@@ -468,6 +480,7 @@ const submit = async (): Promise<void> => {
               )
             : null
         "
+        :failure="devices.requirementsFailure.value"
         :targets="devices.targets.value"
         @retry="devices.retryRequirements"
       />

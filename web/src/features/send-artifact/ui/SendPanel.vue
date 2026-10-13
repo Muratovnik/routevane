@@ -89,6 +89,9 @@ const addressLabel = computed(() =>
 const accountLabel = computed(() =>
   tor(`deploy.field.account.${props.targetId}`, t('send.field.account')),
 )
+const passwordLabel = computed(() =>
+  tor(`deploy.field.password.${props.targetId}`, t('send.field.password')),
+)
 const interfaceLabel = computed(() =>
   tor(
     `deploy.field.interface.${props.targetId}`,
@@ -225,11 +228,29 @@ const savedPasswordInUse = computed(
     connections.storedCredential.value &&
     !deployment.passwordNeeded.value,
 )
+// A typed password can be kept in the connection; one typed beside a saved
+// password replaces it.
 const offerToSave = computed(
   () =>
     !connections.manual.value &&
-    !connections.storedCredential.value &&
-    connections.secretStoreAvailable.value,
+    connections.secretStoreAvailable.value &&
+    (!connections.storedCredential.value || deployment.overridePassword.value),
+)
+const saveLabel = computed(() =>
+  connections.storedCredential.value
+    ? t('send.password.replace')
+    : t('send.password.save'),
+)
+// The message a failed send states. A refusal of the connection that relied on
+// its saved password says so, because the password is what to replace.
+const failureTitle = computed(() =>
+  deployment.savedPasswordRefused.value
+    ? 'send.password.rejected'
+    : (deployment.errorKey.value ?? ''),
+)
+const offerAnotherPassword = computed(
+  () =>
+    deployment.savedPasswordRefused.value && !deployment.overridePassword.value,
 )
 
 // Each field's element is named by the field it holds, so a refused preview
@@ -290,7 +311,7 @@ onMounted(() => {
     />
     <RvStateNotice
       v-else-if="deployment.targetsState.value === 'failed'"
-      :body="t('send.targets.failed.body')"
+      :body="t(`failure.${deployment.targetsFailure.value}.body`)"
       live
       :title="t('send.targets.failed')"
       tone="failed"
@@ -402,10 +423,10 @@ onMounted(() => {
           >
             <span class="send__saved-fact">
               <RvIcon name="check" />
-              {{ t('send.password.stored') }}
+              {{ t('devices.credential.saved') }}
             </span>
             <RvButton
-              v-if="savedPasswordInUse"
+              v-if="savedPasswordInUse && !offerAnotherPassword"
               :disabled="deployment.busy.value"
               size="compact"
               variant="quiet"
@@ -418,7 +439,7 @@ onMounted(() => {
             v-if="deployment.passwordNeeded.value"
             :error="fieldError('password')"
             :input-id="fieldID('password')"
-            :label="t('send.field.password')"
+            :label="passwordLabel"
           >
             <template #default="{ describedBy, invalid }">
               <RvTextInput
@@ -437,7 +458,7 @@ onMounted(() => {
             v-model="deployment.savePassword.value"
             :description="t('send.password.save.consequence')"
             :disabled="deployment.busy.value"
-            :label="t('send.password.save')"
+            :label="saveLabel"
           />
           <RvStatus
             v-if="deployment.passwordSaveFailed.value"
@@ -483,9 +504,15 @@ onMounted(() => {
       <RvStateNotice
         v-if="deployment.errorKey.value !== null && !attemptVisible"
         live
-        :title="t(deployment.errorKey.value)"
+        :title="t(failureTitle)"
         tone="failed"
-      />
+      >
+        <template v-if="offerAnotherPassword" #action>
+          <RvButton @click="enterAnotherPassword">
+            {{ t('send.password.override') }}
+          </RvButton>
+        </template>
+      </RvStateNotice>
 
       <section
         v-if="
@@ -567,9 +594,15 @@ onMounted(() => {
               : undefined
           "
           live
-          :title="t(deployment.errorKey.value)"
+          :title="t(failureTitle)"
           tone="failed"
-        />
+        >
+          <template v-if="offerAnotherPassword" #action>
+            <RvButton @click="enterAnotherPassword">
+              {{ t('send.password.override') }}
+            </RvButton>
+          </template>
+        </RvStateNotice>
         <RvStateNotice
           v-if="deployment.state.value === 'applied'"
           :body="t('send.applied.body')"

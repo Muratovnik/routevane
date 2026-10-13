@@ -293,7 +293,7 @@ const onMenu = (card: ProfileCard, key: string): void => {
     />
     <RvStateNotice
       v-else-if="library.state.value === 'failed'"
-      :body="t('profiles.failed.body')"
+      :body="t(`failure.${library.failure.value}.body`)"
       live
       :title="t('profiles.failed')"
       tone="failed"

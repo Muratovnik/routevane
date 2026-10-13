@@ -6,6 +6,7 @@ import {
   localizedTargetTitle,
   type TargetOption,
 } from '@/shared/api/catalog'
+import type { FailureKind } from '@/shared/api/http'
 import { useLocale } from '@/shared/i18n/useLocale'
 import { targetIcon } from '@/shared/lib/targetIcon'
 import RvButton from '@/shared/ui/RvButton.vue'
@@ -27,6 +28,8 @@ import RvTable from '@/shared/ui/RvTable.vue'
 const props = defineProps<{
   /** The formats that have a deployer, or null while that is not known. */
   deliverableIds: ReadonlySet<string> | null
+  /** What the failed read of that answer was, when it is not known. */
+  failure: FailureKind
   targets: TargetOption[]
 }>()
 
@@ -67,7 +70,7 @@ const delivery = (target: TargetOption): string => {
     <div class="formats">
       <RvStateNotice
         v-if="deliverableIds === null"
-        :body="t('targets.degraded.body')"
+        :body="t(`failure.${failure}.body`)"
         :title="t('targets.degraded')"
         tone="warning"
       >

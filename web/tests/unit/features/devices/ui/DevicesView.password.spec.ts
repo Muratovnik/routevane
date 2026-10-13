@@ -338,7 +338,7 @@ describe('changing a saved connection', () => {
       .not.toBeInTheDocument()
 
     await screen
-      .getByLabelText('Address', { exact: true })
+      .getByLabelText('Router address', { exact: true })
       .fill('http://192.168.1.50')
     await expect
       .element(
@@ -364,7 +364,7 @@ describe('changing a saved connection', () => {
     const registry = installRegistry([router()])
     registry.refuseUpdate = true
     const screen = await render(DevicesView)
-    const address = screen.getByLabelText('Address', { exact: true })
+    const address = screen.getByLabelText('Router address', { exact: true })
 
     await address.fill('http://192.168.1.60')
     await screen.getByRole('button', { name: 'Save', exact: true }).click()

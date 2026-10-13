@@ -9,6 +9,10 @@ import ProfileView from '@/features/view-profile/ui/ProfileView.vue'
 
 const TIMESTAMP = '2026-09-03T09:00:00Z'
 const LOADING = 'Loading the profile…'
+const NO_ANSWER =
+  'The local service did not answer. Check that Routevane is running.'
+const ERROR_ANSWER =
+  'The service received the request but answered with an error. Try again.'
 
 /**
  * What the service answers for one case. Built per case rather than kept at
@@ -270,6 +274,23 @@ describe('profile screen read boundaries', () => {
     await expect
       .element(screen.getByText('Profiles are unavailable'))
       .not.toBeInTheDocument()
+  })
+
+  it('tells an error answer from a lost request when the read fails', async () => {
+    installFetch({ routeStatus: 500 })
+    const answered = await renderRoute()
+    await expect.element(answered.getByText(ERROR_ANSWER)).toBeVisible()
+    await expect.element(answered.getByText(NO_ANSWER)).not.toBeInTheDocument()
+    answered.unmount()
+
+    // The same read, lost on the way: nothing answered, so the service is the
+    // thing to check.
+    const lost = Promise.withResolvers<undefined>()
+    installFetch({ holdRoute: lost.promise })
+    const silent = await renderRoute()
+    lost.reject(new TypeError('Failed to fetch'))
+    await expect.element(silent.getByText(NO_ANSWER)).toBeVisible()
+    await expect.element(silent.getByText(ERROR_ANSWER)).not.toBeInTheDocument()
   })
 
   it('renders a true 404 without advertising a retry or editable profile', async () => {

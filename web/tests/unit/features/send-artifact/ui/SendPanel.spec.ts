@@ -264,3 +264,101 @@ it.each(['dropped', 'mismatched'] as const)(
     ).not.toContain('response was lost')
   },
 )
+
+const NO_ANSWER =
+  'The local service did not answer. Check that Routevane is running.'
+const ERROR_ANSWER =
+  'The service received the request but answered with an error. Try again.'
+
+it.each([
+  [
+    'an error status',
+    () =>
+      Promise.resolve(
+        new Response(JSON.stringify({ error: 'internal' }), { status: 500 }),
+      ),
+    ERROR_ANSWER,
+    NO_ANSWER,
+  ],
+  [
+    'a lost request',
+    () => Promise.reject(new TypeError('Failed to fetch')),
+    NO_ANSWER,
+    ERROR_ANSWER,
+  ],
+] as const)(
+  'words an unreadable delivery catalog by what happened to the request: %s',
+  async (_case, answer, shown, absent) => {
+    useLocale().setLocale('en')
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: unknown) =>
+        String(input) === '/v1/devices'
+          ? Promise.resolve(
+              json({ devices: [], secret_store_available: false }),
+            )
+          : answer(),
+      ),
+    )
+    const screen = await render(SendPanel, {
+      ...links,
+      props: {
+        artifactId: 'artifact',
+        breadcrumbs: [],
+        groupPrefix: 'routevane',
+        heading: 'Send · Keenetic DNS',
+        targetId: 'keenetic-dns',
+        target: null,
+      },
+    })
+    await expect
+      .element(screen.getByText('Delivery options unavailable'))
+      .toBeVisible()
+    await expect.element(screen.getByText(shown)).toBeVisible()
+    await expect.element(screen.getByText(absent)).not.toBeInTheDocument()
+  },
+)
+
+it('names the address and the login of a router with the same subject as Connections', async () => {
+  useLocale().setLocale('en')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) =>
+      String(input) === '/v1/devices'
+        ? json({ devices: [], secret_store_available: false })
+        : json({
+            targets: [
+              {
+                target_id: 'keenetic',
+                title: 'Keenetic',
+                deployer_id: 'keenetic',
+                requirements: {
+                  address_label: 'Device address',
+                  address_example: 'http://192.0.2.1',
+                  needs_credential: true,
+                  needs_interface: true,
+                  interface_label: 'Interface for routes',
+                },
+              },
+            ],
+          }),
+    ),
+  )
+  const screen = await render(SendPanel, {
+    ...links,
+    props: {
+      artifactId: 'artifact',
+      breadcrumbs: [],
+      groupPrefix: '',
+      heading: 'Send · Keenetic',
+      targetId: 'keenetic',
+      target: null,
+    },
+  })
+  await expect
+    .element(screen.getByLabelText('Router address', { exact: true }))
+    .toBeVisible()
+  await expect
+    .element(screen.getByLabelText('Router login', { exact: true }))
+    .toBeVisible()
+})

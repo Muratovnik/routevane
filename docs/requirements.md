@@ -96,7 +96,7 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 | Library ownership and profile preservation | `cmd/routevane/library_removal_e2e_test.go`; `cmd/routevane/profile_archive_e2e_test.go` |
 | Profile and format retirement, link reissue | `cmd/routevane/profile_retirement_e2e_test.go` |
 | Discovery and learning boundaries | `cmd/routevane/list_from_url_e2e_test.go`; `cmd/routevane/learning_session_e2e_test.go` |
-| Explicit device delivery | `cmd/routevane/device_deploy_e2e_test.go`; `cmd/routevane/scheduled_delivery_e2e_test.go` |
+| Explicit device delivery | `cmd/routevane/device_deploy_e2e_test.go`; `cmd/routevane/scheduled_delivery_e2e_test.go`; `cmd/routevane/saved_credential_e2e_test.go` |
 | Real plugin examples | `cmd/routevane/external_plugin_e2e_test.go` consumes their shipped manifests |
 | Keyboard, localization, and browser flows | `web/tests/e2e/` against the built binary |
 | Desktop lifetime, isolation, persistence and tray behavior | `tools/dev.ps1 test-desktop` against the native package; `cmd/routevane/desktop_test.go` |

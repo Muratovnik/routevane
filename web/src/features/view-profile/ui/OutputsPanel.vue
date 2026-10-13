@@ -5,6 +5,7 @@ import { computed, nextTick, ref, useTemplateRef } from 'vue'
 import FormatSettingsDialog from '@/features/view-profile/ui/FormatSettingsDialog.vue'
 import type { AutomaticDeliveryCapability } from '@/features/view-profile/model/useProfileView'
 import { useLocale } from '@/shared/i18n/useLocale'
+import { connectionPageHash } from '@/shared/lib/connectionHash'
 import { targetIcon } from '@/shared/lib/targetIcon'
 import type { TargetOption } from '@/shared/api/catalog'
 import type { DeviceCard } from '@/shared/api/devices'
@@ -39,6 +40,8 @@ const props = defineProps<{
   busy: boolean
   deployable: (output: OutputCard) => boolean
   devices: DeviceCard[]
+  /** Formats left out of the picker by the operator's choice in Settings. */
+  hiddenTargetCount?: number
   profileId: string
   outputs: OutputCard[]
   schedule: Schedule | null
@@ -186,7 +189,7 @@ const readinessTone = (output: OutputCard): StatusTone => {
 const opensConnection = (output: OutputCard): boolean =>
   ['auto', 'unknown'].includes(readiness(output))
 const connectionLink = (output: OutputCard): string =>
-  `/connections#connection=${encodeURIComponent(output.deviceID)}`
+  `/connections${connectionPageHash(output.deviceID)}`
 
 // Formats stay grouped by the kind of thing they feed: a reader looks for a
 // router or an application before looking for a name.
@@ -313,7 +316,11 @@ const onRowMenu = (output: OutputCard, key: string): void => {
           {{ t('outputs.add') }}
         </span>
         <span v-if="props.targetGroups.length === 0" class="outputs__note">
-          {{ t('outputs.add.none') }}
+          {{
+            (props.hiddenTargetCount ?? 0) > 0
+              ? t('outputs.add.hidden')
+              : t('outputs.add.none')
+          }}
         </span>
         <RvSearchSelect
           :disabled="props.busy"

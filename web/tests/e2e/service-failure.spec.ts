@@ -58,3 +58,50 @@ test('the composer tells the two apart as well', async ({ page, origin }) => {
   await expect(page.getByText(REFUSED)).toBeVisible()
   await expect(page.getByText(SILENT)).toHaveCount(0)
 })
+
+// The same distinction on the other screens that read the service on arrival:
+// each states what was lost, and the body is the one the failure kind chose.
+const SCREENS = [
+  {
+    heading: 'Profiles are unavailable',
+    path: '/',
+    read: '**/v1/profile-shelf/**',
+    screen: 'the profile shelf',
+  },
+  {
+    heading: 'Connections unavailable',
+    path: '/connections',
+    read: '**/v1/devices',
+    screen: 'the connections screen',
+  },
+  {
+    heading: 'The format catalog is unavailable',
+    path: '/settings',
+    read: '**/v1/targets',
+    screen: 'the format visibility setting',
+  },
+] as const
+
+for (const { heading, path, read, screen } of SCREENS) {
+  test(`${screen} says the service answered with an error on HTTP 500`, async ({
+    page,
+    origin,
+  }) => {
+    await answerWithError(page, read)
+    await page.goto(`${origin}${path}`)
+    await expect(page.getByText(heading)).toBeVisible()
+    await expect(page.getByText(REFUSED)).toBeVisible()
+    await expect(page.getByText(SILENT)).toHaveCount(0)
+  })
+
+  test(`${screen} says nothing answered when the request is lost`, async ({
+    page,
+    origin,
+  }) => {
+    await page.route(read, (route) => route.abort())
+    await page.goto(`${origin}${path}`)
+    await expect(page.getByText(heading)).toBeVisible()
+    await expect(page.getByText(SILENT)).toBeVisible()
+    await expect(page.getByText(REFUSED)).toHaveCount(0)
+  })
+}

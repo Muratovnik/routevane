@@ -233,9 +233,10 @@ Sections, addressable by URL:
    новую ссылку…» once the format has published, and «Убрать формат…»; when
    the panel is narrow, Download and Send move into the same menu. Issuing a
    new link and removing a format each confirm with their consequence; the new
-   link is shown once (see «The one-time secret»). Once the page no longer
-   holds a published format's link, the tab says so above the table and offers
-   «Выпустить новую ссылку…», in every detail mode. Automatic delivery is
+   link is shown once (see «The one-time secret»). After a reload no format
+   has its link on screen; each format's own menu offers «Выпустить новую
+   ссылку…», and the tab carries no notice that speaks for one format of
+   several. Automatic delivery is
    primary when a deployer exists; subscription and manual download remain
    available ways to get the file.
    The Diagnostics tab is one table of the rules of the shown file: a list
@@ -294,8 +295,12 @@ Sections, addressable by URL:
    «Ввести другой для этой отправки», which reveals the field for this send only;
    otherwise the password field is shown, with «Сохранить пароль в подключении»
    when the system has a credential store, stating that the password will be
-   kept in the Windows credential store. The password is saved only after a
-   preview or apply succeeds. «Показать изменения» is the primary action until a
+   kept in the Windows credential store. The password is saved only after the
+   send succeeds: a preview of a router does not contact it and proves nothing
+   about the password. A send refused while it used the saved password says
+   «Сохранённый пароль не принят» and offers «Ввести другой для этой отправки»;
+   «Заменить сохранённый пароль» keeps the new one in its place.
+   «Показать изменения» is the primary action until a
    plan exists. The by-hand path is «Скачать файл (.ext)» and a «Как установить
    вручную» disclosure with the numbered catalog steps.
 6. `/connections` — **Connections / Подключения** (ADR 0027; `/devices`
@@ -402,7 +407,7 @@ Sections, addressable by URL:
    mode, the formats the profile composer offers, the default source-refresh
    schedule, and portable configuration transfer. The page has the same width
    as Connections. «Форматы» lists every format this build carries as one
-   switch each under «Показывать при создании профиля»; a switch states what
+   switch each under «Предлагать при добавлении формата»; a switch states what
    this browser holds and is the only place that preference is changed. An
    unreadable catalog says so with a retry instead of an empty list. The
    segmented choices mark the chosen option with a border, a ground and a check
@@ -435,10 +440,12 @@ Sections, addressable by URL:
    over the shared 64 MiB boundary before reading it, and never parses then
    rewrites the document sent to the server.
 
-The URL hash carries only page location — the active tab and the first-setup
-handoff — never profile contents: a refresh, bookmark, second tab or second
-browser resolves the same server-owned object via `GET /v1/profiles` and
-`GET /v1/profiles/{profileId}`, never to an empty form. Local storage holds display
+The URL hash carries only page location — the active tab, the first-setup
+handoff and, on Connections, the connection to open (`#connection=<id>`; an
+unknown id opens the default one) — never profile contents: a refresh,
+bookmark, second tab or second browser resolves the same server-owned object
+via `GET /v1/profile-shelf/{shelf}` and `GET /v1/profiles/{profileId}`, never
+to an empty form. Local storage holds display
 preferences only — no product state. Each screen carries exactly one `<h1>` and
 one `<main>`. The chrome is a collapsible sidebar of sections; its bottom control switches
 between labels and icons and remembers that display preference. Navigation

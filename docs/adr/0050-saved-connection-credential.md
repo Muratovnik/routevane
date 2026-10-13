@@ -29,7 +29,9 @@ the device while the operator is away.
   exactly as in ADR 0014: keyed by the connection's identity, never in SQLite,
   never returned by the API, never in a URL or a log. Saving again replaces the
   stored password. Nothing is saved implicitly, and a password supplied with one
-  send is never saved by that send.
+  send is never saved by that send unless the operator asked for it on the send
+  page; that opt-in saves only after the send has succeeded, because a preview of
+  a router does not contact it and proves nothing about the password.
 - **The registry records the fact, not the secret.** A connection has a boolean
   `credential_stored`. It is true only while the store holds a password the
   operator saved for this connection, and it is the only authority for reading

@@ -31,12 +31,30 @@ describe('failure messages', () => {
     expect(
       messageKey(new RoutevaneAPIError('output target changed', 409)),
     ).toBe('error.targetChanged')
-    expect(messageKey(new RoutevaneAPIError('artifact unavailable', 503))).toBe(
-      'error.unavailable',
-    )
+    expect(
+      messageKey(
+        new RoutevaneAPIError(
+          'artifact unavailable',
+          503,
+          '',
+          {},
+          { error: 'artifact unavailable' },
+        ),
+      ),
+    ).toBe('error.unavailable')
     expect(messageKey(new RoutevaneAPIError('teapot', 418))).toBe(
       'error.unexpected',
     )
-    expect(messageKey(new TypeError('failed to fetch'))).toBe('error.network')
+    expect(messageKey(new TypeError('failed to fetch'))).toBe(
+      'failure.unreachable.body',
+    )
+  })
+
+  // The desktop transport answers 503 with no body when its backend never
+  // replied. That is nothing answering, not the service refusing a file.
+  it('states a body-less 503 as nothing answering, not as an unavailable file', () => {
+    expect(messageKey(new RoutevaneAPIError('unavailable', 503))).toBe(
+      'failure.unreachable.body',
+    )
   })
 })

@@ -88,6 +88,20 @@ describe('OutputsPanel connection readiness', () => {
       .toBeVisible()
   })
 
+  // An empty picker has two causes, and they ask for different things: all
+  // formats added needs nothing, formats hidden in Settings are one switch away.
+  it.each([
+    [0, 'Every available format is already added.'],
+    [2, 'The remaining formats are hidden in Settings.'],
+  ])(
+    'says why the format picker is empty with %i hidden formats',
+    async (hiddenTargetCount, words) => {
+      const screen = await renderPanel({ hiddenTargetCount })
+
+      await expect.element(screen.getByText(words)).toBeVisible()
+    },
+  )
+
   it('states when automatic delivery is on but profile refresh is off', async () => {
     const screen = await renderPanel({
       devices: [CONNECTED_DEVICE],

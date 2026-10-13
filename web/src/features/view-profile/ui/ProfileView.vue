@@ -101,7 +101,7 @@ const statusLabel = computed(() => {
   if (hasBuildFailure.value)
     return published.value
       ? t('profile.status.failed')
-      : t('profile.status.buildFailed')
+      : t('profiles.buildFailed')
   if (!published.value) return t('profile.status.empty')
   return warned.value ? t('profile.status.warning') : t('profile.status.ready')
 })
@@ -384,7 +384,7 @@ const profileMenuItems = computed<MenuItem[]>(() => {
       })),
       icon: 'download',
       key: 'export',
-      label: t('profile.menu.export'),
+      label: t('profiles.menu.export'),
     },
   ]
   if (view.archived.value) {
@@ -392,7 +392,7 @@ const profileMenuItems = computed<MenuItem[]>(() => {
       disabled: view.busy.value,
       icon: 'archive',
       key: 'restore',
-      label: t('profile.restore'),
+      label: t('profiles.restore'),
       separatorBefore: true,
     })
     return items
@@ -410,7 +410,7 @@ const profileMenuItems = computed<MenuItem[]>(() => {
         label:
           device === undefined
             ? format
-            : t('profile.menu.sendTo', { format, connection: device.name }),
+            : t('profiles.sendTo', { format, connection: device.name }),
         to: `/profiles/${props.profileId}/send/${output.id}`,
       }
     })
@@ -419,26 +419,26 @@ const profileMenuItems = computed<MenuItem[]>(() => {
       children: sendItems,
       icon: 'send',
       key: 'send',
-      label: t('profile.menu.send'),
+      label: t('profiles.menu.send'),
     })
   }
   items.push(
     {
       disabled: view.busy.value || view.targetGroups.value.length === 0,
       key: 'add-format',
-      label: t('profile.menu.addFormat'),
+      label: t('profiles.addFormat'),
     },
     {
       disabled: view.busy.value || view.outputs.value.length === 0,
       icon: 'refresh',
       key: 'rebuild',
-      label: t('profile.rebuild'),
+      label: t('profiles.rebuild'),
     },
     {
       disabled: view.busy.value,
       icon: 'archive',
       key: 'archive',
-      label: t('profile.archive'),
+      label: t('profiles.archive'),
       separatorBefore: true,
     },
   )
@@ -528,15 +528,21 @@ const onConfirm = async (): Promise<void> => {
       <span
         aria-hidden="true"
         class="profile__loading-line profile__loading-line--breadcrumb"
+        data-testid="rv-skeleton-part"
       />
       <span
         aria-hidden="true"
         class="profile__loading-line profile__loading-line--title"
+        data-testid="rv-skeleton-part"
       />
       <span aria-hidden="true" class="profile__loading-tabs">
-        <span v-for="index in 4" :key="index" />
+        <span v-for="index in 4" :key="index" data-testid="rv-skeleton-part" />
       </span>
-      <span aria-hidden="true" class="profile__loading-panel" />
+      <span
+        aria-hidden="true"
+        class="profile__loading-panel"
+        data-testid="rv-skeleton-part"
+      />
     </div>
     <RvStateNotice
       v-else-if="view.state.value === 'missing'"
@@ -551,7 +557,7 @@ const onConfirm = async (): Promise<void> => {
     </RvStateNotice>
     <RvStateNotice
       v-else-if="view.state.value === 'failed'"
-      :body="t('profiles.failed.body')"
+      :body="t(`failure.${view.failure.value}.body`)"
       live
       :title="t('profiles.failed')"
       tone="failed"
@@ -660,7 +666,7 @@ const onConfirm = async (): Promise<void> => {
         live
         :title="
           firstBuildFailed
-            ? t('profile.notice.build.firstFailed')
+            ? t('profiles.buildFailed')
             : t('profile.notice.build.failed')
         "
         tone="failed"
@@ -671,7 +677,7 @@ const onConfirm = async (): Promise<void> => {
             :loading="view.work.value === 'rebuilding'"
             :loading-label="t('profile.rebuild.busy')"
             @click="onRebuild"
-            >{{ t('profile.rebuild') }}</RvButton
+            >{{ t('profiles.rebuild') }}</RvButton
           >
         </template>
       </RvStateNotice>
@@ -770,31 +776,6 @@ const onConfirm = async (): Promise<void> => {
 
         <template #outputs>
           <div class="profile__panel">
-            <!-- A link is shown once. Once this page no longer holds it, the
-                 format's own tab says so and offers the one way to have a
-                 working link on screen again: a new one, which withdraws the
-                 old. It stands here rather than above the tabs, so the
-                 composition keeps the window it fills. -->
-            <div
-              v-if="
-                view.subscriptionURL.value === '' &&
-                view.selectedOutput.value?.latest != null
-              "
-              class="profile__secret-gone"
-            >
-              <p>
-                {{ t('profile.subscription.gone', { target: selectedTitle }) }}
-              </p>
-              <RvButton
-                v-if="!view.archived.value"
-                :disabled="view.busy.value"
-                size="compact"
-                variant="secondary"
-                @click="askConfirmation('reissue', view.selectedOutputID.value)"
-              >
-                {{ t('outputs.menu.reissue') }}
-              </RvButton>
-            </div>
             <OutputsPanel
               ref="outputsPanel"
               :archived="view.archived.value"
@@ -802,6 +783,7 @@ const onConfirm = async (): Promise<void> => {
               :busy="view.busy.value"
               :deployable="view.deployable"
               :devices="view.devices.value"
+              :hidden-target-count="view.hiddenTargetCount.value"
               :profile-id="profileId"
               :outputs="view.outputs.value"
               :schedule="view.schedule.value"
@@ -1019,13 +1001,14 @@ const onConfirm = async (): Promise<void> => {
   width: 100%;
 }
 
+/* The same placeholder ground the list card's loading rows stand on, so a
+   placeholder is as visible here as there. It does not pulse: a pulse between
+   two grounds passes through values the page cannot tell from its own. */
 .profile__loading-line,
 .profile__loading-tabs > span,
 .profile__loading-panel {
-  background: var(--rv-color-surface);
+  background: var(--rv-color-skeleton);
   border-radius: var(--rv-radius-sm);
-  animation: rv-list-loading var(--rv-motion-working) var(--rv-motion-ease-out)
-    infinite alternate;
 }
 
 .profile__loading-line--breadcrumb {
@@ -1052,16 +1035,6 @@ const onConfirm = async (): Promise<void> => {
 
 .profile__loading-panel {
   min-height: var(--rv-editor-min-height);
-}
-
-@keyframes rv-list-loading {
-  from {
-    background: var(--rv-color-surface);
-  }
-
-  to {
-    background: var(--rv-color-surface-muted);
-  }
 }
 
 .profile__header {
@@ -1139,15 +1112,6 @@ const onConfirm = async (): Promise<void> => {
   flex-wrap: wrap;
   gap: var(--rv-space-2);
   align-items: center;
-}
-
-.profile__secret-gone {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-2) var(--rv-space-4);
-  align-items: center;
-  color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-dense);
 }
 
 /* Outside the composition editor, which fills its standing height, rows keep

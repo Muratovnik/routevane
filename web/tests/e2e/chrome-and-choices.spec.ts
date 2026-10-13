@@ -146,6 +146,47 @@ for (const colorScheme of ['dark', 'light'] as const) {
     ).toBeGreaterThanOrEqual(1.5)
     release()
   })
+
+  test(`a loading profile page draws placeholders that can be seen in the ${colorScheme} theme`, async ({
+    page,
+    origin,
+  }) => {
+    const { profileId } = await buildProfile(page, origin)
+    await page.emulateMedia({ colorScheme })
+    let release = () => {}
+    const held = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await page.route(`**/v1/profiles/${profileId}`, async (route) => {
+      await held
+      await route.continue()
+    })
+    await page.goto(`${origin}/profiles/${profileId}`)
+    const parts = page.getByTestId('rv-skeleton-part')
+    await expect(parts.first()).toBeVisible()
+    // Breadcrumb, title, four tabs and the panel: every one of them stands in
+    // for content and has to be seen against the page it sits on.
+    await expect(parts).toHaveCount(7)
+    const painted = await parts.evaluateAll((elements) =>
+      elements.map((element) => {
+        let ground = element.parentElement
+        while (
+          ground !== null &&
+          getComputedStyle(ground).backgroundColor === 'rgba(0, 0, 0, 0)'
+        )
+          ground = ground.parentElement
+        return {
+          ground: ground ? getComputedStyle(ground).backgroundColor : '',
+          placeholder: getComputedStyle(element).backgroundColor,
+        }
+      }),
+    )
+    for (const { ground, placeholder } of painted)
+      expect(
+        await contrastRatio(page, placeholder, ground),
+      ).toBeGreaterThanOrEqual(1.5)
+    release()
+  })
 }
 
 test('a choice trigger is not lit by the pointer, as a text field is not', async ({

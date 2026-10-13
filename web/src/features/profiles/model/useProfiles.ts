@@ -16,7 +16,11 @@ import {
   loadExportFormats,
   type ExportFormat,
 } from '@/shared/api/exports'
-import { RoutevaneAPIError } from '@/shared/api/http'
+import {
+  failureKind,
+  RoutevaneAPIError,
+  type FailureKind,
+} from '@/shared/api/http'
 import {
   archiveProfile,
   deleteProfile,
@@ -55,6 +59,8 @@ export const useProfiles = () => {
   const shelf = ref<ProfileShelf>('active')
   const archivedCount = ref(0)
   const state = ref<LibraryState>('loading')
+  // What a failed first read was, so the screen words it by what happened.
+  const failure = ref<FailureKind>('unreachable')
   const catalog = ref<Catalog | null>(null)
   const deployableIDs = ref<Set<string>>(new Set())
   const connectionNames = ref<Map<string, string>>(new Map())
@@ -106,8 +112,11 @@ export const useProfiles = () => {
       archivedCount.value = page.archivedCount
       settle()
       return true
-    } catch {
-      if (generation === readGeneration) state.value = 'failed'
+    } catch (error) {
+      if (generation === readGeneration) {
+        failure.value = failureKind(error)
+        state.value = 'failed'
+      }
       return false
     }
   }
@@ -486,6 +495,7 @@ export const useProfiles = () => {
     exportFile,
     exportFormats,
     exporting,
+    failure,
     initialize,
     justArchived,
     justDeleted,

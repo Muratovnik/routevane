@@ -17,7 +17,14 @@ import {
   type DeployPlan,
 } from '@/shared/api/deploy'
 import { saveDeviceCredential } from '@/shared/api/devices'
-import { decode, fields, RoutevaneAPIError, text } from '@/shared/api/http'
+import {
+  decode,
+  failureKind,
+  fields,
+  RoutevaneAPIError,
+  text,
+  type FailureKind,
+} from '@/shared/api/http'
 import { validAddress } from '@/shared/lib/deviceAddress'
 
 export type DeploymentState =
@@ -71,10 +78,15 @@ export const useDeployment = (
 ) => {
   const targets = ref<DeployableTarget[]>([])
   const targetsState = ref<TargetsState>('loading')
+  const targetsFailure = ref<FailureKind>('unreachable')
   const state = ref<DeploymentState>('idle')
   const plan = ref<DeployPlan | null>(null)
   const outcome = ref<DeployOutcome | null>(null)
   const errorKey = ref<string | null>(null)
+  // Whether the last send relied on the connection's saved password, so a
+  // refusal of the connection can be told apart from a refusal of what was
+  // typed for this send.
+  const sentWithSavedPassword = ref(false)
   const checkingOutcome = ref(false)
   const currentAttemptID = ref(readRememberedAttempt(artifactID()))
   const attemptRecipient = ref<DeploymentRecipient | null>(
@@ -224,8 +236,9 @@ export const useDeployment = (
       targets.value = loaded
       targetsState.value = target.value === null ? 'unsupported' : 'ready'
       if (targetsState.value === 'ready') await recoverOutcome()
-    } catch {
+    } catch (error) {
       if (request !== initializationRequest) return
+      targetsFailure.value = failureKind(error)
       targetsState.value = 'failed'
     }
   }
@@ -253,8 +266,23 @@ export const useDeployment = (
     }
   }
 
-  // A password the operator asked to keep goes to the connection once a plan or
-  // an apply has worked with it. A failure is stated and changes nothing else.
+  const usesSavedPassword = (submitted: DeployConnection): boolean =>
+    'deviceID' in submitted &&
+    submitted.password === '' &&
+    connections.storedCredential.value
+
+  // The connection was refused while it relied on its saved password: the
+  // password is what to replace, not the connection's other details.
+  const savedPasswordRefused = computed(
+    () =>
+      sentWithSavedPassword.value &&
+      errorKey.value === 'error.connection_invalid',
+  )
+
+  // A password the operator asked to keep goes to the connection once an apply
+  // has succeeded with it: a review of a router does not contact the device, so
+  // it proves nothing about the password. A failure is stated and changes
+  // nothing else.
   const persistPassword = async (
     submitted: DeployConnection,
   ): Promise<void> => {
@@ -303,6 +331,7 @@ export const useDeployment = (
     const request = ++reviewRequest
     const submittedArtifactID = artifactID()
     const submittedConnection = connection()
+    sentWithSavedPassword.value = usesSavedPassword(submittedConnection)
     try {
       const result = await planDeployment(
         submittedArtifactID,
@@ -312,7 +341,6 @@ export const useDeployment = (
         return null
       plan.value = result
       state.value = 'planned'
-      await persistPassword(submittedConnection)
     } catch (error) {
       if (request !== reviewRequest || artifactID() !== submittedArtifactID)
         return null
@@ -329,6 +357,7 @@ export const useDeployment = (
     errorKey.value = null
     const submittedArtifactID = artifactID()
     const submittedConnection = connection()
+    sentWithSavedPassword.value = usesSavedPassword(submittedConnection)
     const recipient = recipientSnapshot(submittedConnection)
     const attemptID = createDeploymentAttemptID()
     currentAttemptID.value = attemptID
@@ -340,9 +369,8 @@ export const useDeployment = (
         submittedConnection,
         attemptID,
       )
-      consumeOutcome(result, attemptID)
       // Only an attempt this screen accepted as succeeded proves the password.
-      if (outcome.value === result && result.status === 'succeeded')
+      if (consumeOutcome(result, attemptID))
         await persistPassword(submittedConnection)
     } catch (error) {
       if (
@@ -372,11 +400,12 @@ export const useDeployment = (
     }
   }
 
+  // Answers whether this screen accepted the result as a succeeded attempt.
   const consumeOutcome = (
     result: DeployOutcome,
     expectedAttemptID: string,
-  ): void => {
-    if (currentAttemptID.value !== expectedAttemptID) return
+  ): boolean => {
+    if (currentAttemptID.value !== expectedAttemptID) return false
     if (
       result.attemptID !== expectedAttemptID ||
       result.artifactID !== artifactID() ||
@@ -385,11 +414,12 @@ export const useDeployment = (
       state.value = 'outcome_unknown'
       outcome.value = null
       errorKey.value = null
-      return
+      return false
     }
     outcome.value = result
     state.value = result.status === 'succeeded' ? 'applied' : 'failed'
     errorKey.value = result.status === 'succeeded' ? null : outcomeKey(result)
+    return result.status === 'succeeded'
   }
 
   const checkOutcome = async (): Promise<void> => {
@@ -443,6 +473,7 @@ export const useDeployment = (
     plan.value = null
     outcome.value = null
     errorKey.value = null
+    sentWithSavedPassword.value = false
     checkingOutcome.value = false
     attempted.value = false
     overridePassword.value = false
@@ -483,6 +514,7 @@ export const useDeployment = (
     password,
     passwordNeeded,
     passwordSaveFailed,
+    savedPasswordRefused,
     plan,
     requirements,
     recoverOutcome,
@@ -491,6 +523,7 @@ export const useDeployment = (
     savePassword,
     state,
     target,
+    targetsFailure,
     targetsState,
     username,
   }
@@ -509,7 +542,11 @@ const failureCodes = new Set([
 ])
 
 export const messageKey = (error: unknown): string => {
-  if (!(error instanceof RoutevaneAPIError)) return 'error.network'
+  if (
+    !(error instanceof RoutevaneAPIError) ||
+    failureKind(error) === 'unreachable'
+  )
+    return 'failure.unreachable.body'
   if (failureCodes.has(error.message)) return `error.${error.message}`
   if (error.status === 404) return 'error.notFound'
   if (error.status === 409) return 'error.targetChanged'

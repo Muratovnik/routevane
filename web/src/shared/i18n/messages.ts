@@ -97,7 +97,6 @@ const ru: Dictionary = {
   'connections.title': 'Подключения',
   'devices.loading': 'Читаем подключения…',
   'devices.failed': 'Подключения недоступны',
-  'devices.failed.body': 'Сервис не ответил. Повторите попытку.',
   'devices.stale': 'Список подключений не обновлён',
   'devices.stale.body':
     'Показанные сведения могут быть устаревшими. Повторите чтение списка перед следующим изменением.',
@@ -120,7 +119,6 @@ const ru: Dictionary = {
   'devices.empty.body':
     'Добавьте роутер или приложение, чтобы отправлять файлы прямо на него.',
   'devices.add': 'Добавить подключение',
-  'devices.configure': 'Настроить',
   'devices.configure.aria': 'Настроить подключение {name}',
   'devices.menu': 'Действия для подключения {name}',
   'devices.auto.title': 'Автоотправка',
@@ -188,11 +186,9 @@ const ru: Dictionary = {
   'devices.auto.needsCredential': 'Сначала сохраните пароль',
   'devices.auto.noStore': 'В системе нет хранилища учётных данных',
   'settings.formats.title': 'Форматы',
-  'settings.formats.show': 'Показывать при создании профиля',
+  'settings.formats.show': 'Предлагать при добавлении формата',
   'settings.formats.loading': 'Читаем каталог форматов…',
   'settings.formats.failed': 'Каталог форматов недоступен',
-  'settings.formats.failed.body':
-    'Локальный сервис не ответил. Повторите попытку.',
   'settings.formats.empty': 'В этой сборке нет форматов.',
 
   'shell.nav.settings': 'Настройки',
@@ -204,8 +200,6 @@ const ru: Dictionary = {
   'profiles.new': 'Собрать профиль',
   'profiles.loading': 'Загружаем профили…',
   'profiles.failed': 'Профили недоступны',
-  'profiles.failed.body':
-    'Локальный сервис не ответил. Проверьте, что Routevane запущен.',
   'profiles.empty': 'Профилей пока нет',
   'profiles.empty.body':
     'Выберите списки и формат — Routevane подготовит правила и покажет, как получить файл.',
@@ -214,10 +208,7 @@ const ru: Dictionary = {
   'profiles.column.updated': 'Содержимое от',
   'profiles.column.actions': 'Действия',
   'profiles.menu': 'Действия с профилем {name}',
-  'profiles.more': 'Ещё',
-  'profiles.open': 'Открыть',
   'profiles.configure': 'Открыть профиль',
-  'profiles.drawer': 'Профиль {name}',
   'profiles.copy': 'Скопировать содержимое',
   'profiles.copied': 'Содержимое скопировано',
   'profiles.copyFailed': 'Не удалось скопировать',
@@ -666,11 +657,8 @@ const ru: Dictionary = {
   'profile.subscription.copy': 'Скопировать',
   'profile.subscription.copied': 'Скопирована',
   'profile.subscription.copyFailed': 'Не удалось скопировать',
-  'profile.subscription.gone':
-    'Ссылка подписки · {target} показывается один раз и больше не отображается.',
   'profile.download': 'Скачать {format}',
   'profile.download.plain': 'Скачать файл',
-  'profile.send': 'Отправить файл',
   'profile.notice.preparing': 'Готовим формат…',
   'profile.notice.preparing.body':
     'Собираем правила для {target}. После этого появятся способы получить файл.',
@@ -680,7 +668,6 @@ const ru: Dictionary = {
   'profile.notice.reread.failed': 'Страница не обновлена',
   'profile.notice.reread.failed.body':
     'Профиль показан таким, каким был прочитан в последний раз, и может не отражать последнее изменение. Несохранённые правки на месте. Повторите, чтобы прочитать его снова.',
-  'profile.rebuild': 'Пересобрать файлы',
   'profile.rebuild.busy': 'Пересобираем…',
   'profile.file.loading': 'Читаем опубликованный файл…',
   'profile.file.failed': 'Файл не прочитан',
@@ -734,10 +721,6 @@ const ru: Dictionary = {
   'profile.technical.size': 'Размер',
   'profile.panel.scope': 'Формат файла',
   'profile.edit': 'Изменить',
-  'profile.archive': 'В архив',
-  'profile.archive.busy': 'Убираем в архив…',
-  'profile.restore': 'Вернуть из архива',
-  'profile.restore.busy': 'Возвращаем…',
   'profile.notice.archived': 'Профиль в архиве',
   'profile.notice.archived.body':
     'Он не обновляется и не редактируется. Опубликованный файл и ссылка подписки продолжают работать.',
@@ -808,12 +791,8 @@ const ru: Dictionary = {
   'outputs.send': 'Отправить',
   'outputs.failed': 'Последняя сборка не удалась',
   'outputs.add': 'Добавить формат',
-  'outputs.add.info': 'Как это работает',
-  'outputs.add.info.text':
-    'У каждого формата своя ссылка подписки и своя история версий.',
-  'outputs.add.placeholder': 'Выберите формат',
-  'outputs.add.submit': 'Добавить',
   'outputs.add.none': 'Все доступные форматы уже добавлены.',
+  'outputs.add.hidden': 'Остальные форматы скрыты в настройках.',
 
   'send.title': 'Отправка файла',
   'send.profile.failed': 'Профиль недоступен',
@@ -829,7 +808,6 @@ const ru: Dictionary = {
     'Повторите загрузку или введите данные для этой отправки.',
   'send.connection.unavailable':
     'Подключение недоступно для этого формата. Выберите другое или введите данные.',
-  'send.password.stored': 'Пароль сохранён',
   'send.status.idle': 'Не применялось',
   'send.status.planning': 'Готовим изменения',
   'send.status.planned': 'Готово к применению',
@@ -844,19 +822,18 @@ const ru: Dictionary = {
   'send.outcomeUnknown.checking': 'Проверяем результат…',
   'send.loading': 'Проверяем способы отправки…',
   'send.targets.failed': 'Способы отправки недоступны',
-  'send.targets.failed.body': 'Локальный сервис не ответил.',
   'send.unsupported': 'Автоматическая отправка для {device} недоступна',
   'send.field.address': 'Адрес подключения',
   'send.field.account': 'Логин',
   'send.field.password': 'Пароль',
   'send.field.interface': 'Интерфейс подключения',
-  'deploy.field.address.keenetic': 'Адрес',
-  'deploy.field.address.keenetic-dns': 'Адрес',
+  'deploy.field.address.keenetic': 'Адрес роутера',
+  'deploy.field.address.keenetic-dns': 'Адрес роутера',
   'deploy.field.address.singbox': 'Путь к конфигурации sing-box',
   'deploy.field.address.keenetic.hint':
-    'HTTP- или HTTPS-адрес с IP роутера в локальной сети. Имена хостов не поддерживаются.',
+    'Начните с http:// или https://, затем локальный IP-адрес роутера.',
   'deploy.field.address.keenetic-dns.hint':
-    'HTTP- или HTTPS-адрес с IP роутера в локальной сети. Имена хостов не поддерживаются.',
+    'Начните с http:// или https://, затем локальный IP-адрес роутера.',
   'deploy.field.address.singbox.hint':
     'Путь к файлу в виде file-адреса, например file:///C:/sing-box/config.json.',
   'deploy.field.account.keenetic': 'Логин роутера',
@@ -908,12 +885,6 @@ const ru: Dictionary = {
   'send.step.failed': 'не выполнено',
   'send.rolledBack': 'Предыдущее состояние восстановлено.',
   'send.manual': 'Вручную',
-  'profile.status.buildFailed': 'Сборка не удалась',
-  'profile.notice.build.firstFailed': 'Сборка не удалась',
-  'profile.menu.export': 'Экспорт в файл',
-  'profile.menu.send': 'Отправить',
-  'profile.menu.sendTo': '{format} · {connection}',
-  'profile.menu.addFormat': 'Добавить формат…',
   'profile.diagnostics.rules': 'Правила',
   'profile.diagnostics.list': 'Список',
   'profile.diagnostics.allLists': 'Все списки',
@@ -947,6 +918,8 @@ const ru: Dictionary = {
   'send.connection.none': 'Нет сохранённых подключений',
   'send.connection.add': 'Добавить подключение',
   'send.password.override': 'Ввести другой для этой отправки',
+  'send.password.rejected': 'Сохранённый пароль не принят',
+  'send.password.replace': 'Заменить сохранённый пароль',
   'send.password.save': 'Сохранить пароль в подключении',
   'send.password.save.consequence':
     'Пароль будет храниться в хранилище учётных данных Windows',
@@ -965,7 +938,6 @@ const ru: Dictionary = {
   'targets.auto.no': 'Нет',
   'targets.auto.unknown': 'Неизвестно',
   'targets.degraded': 'Автоотправка не проверена',
-  'targets.degraded.body': 'Каталог загружен, но способы доставки не ответили.',
   'targets.hint': 'Как установить файл на {target}',
 
   'settings.title': 'Настройки',
@@ -1080,7 +1052,6 @@ const ru: Dictionary = {
     'Каталог форматов изменился с момента сборки. Пересоберите профиль.',
   'error.operationFailed':
     'Устройство не приняло данные: адрес, аккаунт или пароль не подошли.',
-  'error.network': 'Локальный сервис не отвечает. Проверьте, что он запущен.',
   'error.unexpected': 'Не получилось. Повторите ещё раз.',
   'error.connection_invalid':
     'Данные подключения не подходят этому устройству.',
@@ -1172,7 +1143,6 @@ const en: Dictionary = {
   'connections.title': 'Connections',
   'devices.loading': 'Reading connections…',
   'devices.failed': 'Connections unavailable',
-  'devices.failed.body': 'The service did not answer. Try again.',
   'devices.stale': 'Connections could not be refreshed',
   'devices.stale.body':
     'These details may be outdated. Read the list again before making another change.',
@@ -1195,7 +1165,6 @@ const en: Dictionary = {
   'devices.empty.body':
     'Add a router or an application to send files straight to it.',
   'devices.add': 'Add a connection',
-  'devices.configure': 'Configure',
   'devices.configure.aria': 'Configure connection {name}',
   'devices.menu': 'Actions for connection {name}',
   'devices.auto.title': 'Automatic delivery',
@@ -1264,11 +1233,9 @@ const en: Dictionary = {
   'devices.auto.needsCredential': 'Save the password first',
   'devices.auto.noStore': 'This system has no credential store',
   'settings.formats.title': 'Formats',
-  'settings.formats.show': 'Show when creating a profile',
+  'settings.formats.show': 'Offer when adding a format',
   'settings.formats.loading': 'Reading the format catalog…',
   'settings.formats.failed': 'The format catalog is unavailable',
-  'settings.formats.failed.body':
-    'The local service did not answer. Try again.',
   'settings.formats.empty': 'This build carries no formats.',
 
   'shell.nav.settings': 'Settings',
@@ -1280,8 +1247,6 @@ const en: Dictionary = {
   'profiles.new': 'Build a profile',
   'profiles.loading': 'Loading profiles…',
   'profiles.failed': 'Profiles are unavailable',
-  'profiles.failed.body':
-    'The local service did not answer. Check that Routevane is running.',
   'profiles.empty': 'No profiles yet',
   'profiles.empty.body':
     'Choose lists and a format; Routevane will prepare the rules and show how to get the file.',
@@ -1290,10 +1255,7 @@ const en: Dictionary = {
   'profiles.column.updated': 'Content from',
   'profiles.column.actions': 'Actions',
   'profiles.menu': 'Actions for profile {name}',
-  'profiles.more': 'More',
-  'profiles.open': 'Open',
   'profiles.configure': 'Open profile',
-  'profiles.drawer': 'Profile {name}',
   'profiles.copy': 'Copy contents',
   'profiles.copied': 'Contents copied',
   'profiles.copyFailed': 'Copying failed',
@@ -1720,11 +1682,8 @@ const en: Dictionary = {
   'profile.subscription.copy': 'Copy',
   'profile.subscription.copied': 'Copied',
   'profile.subscription.copyFailed': 'Copying failed',
-  'profile.subscription.gone':
-    'The subscription link · {target} is shown once and is no longer on screen.',
   'profile.download': 'Download {format}',
   'profile.download.plain': 'Download the file',
-  'profile.send': 'Send the file',
   'profile.notice.preparing': 'Preparing the format…',
   'profile.notice.preparing.body':
     'Building the rules for {target}. The ways to get the file will appear next.',
@@ -1734,7 +1693,6 @@ const en: Dictionary = {
   'profile.notice.reread.failed': 'The page was not updated',
   'profile.notice.reread.failed.body':
     'The profile is shown as it was last read and may not reflect the latest change. Unsaved edits are kept. Retry to read it again.',
-  'profile.rebuild': 'Rebuild files',
   'profile.rebuild.busy': 'Rebuilding…',
   'profile.file.loading': 'Reading the published file…',
   'profile.file.failed': 'The file was not read',
@@ -1787,10 +1745,6 @@ const en: Dictionary = {
   'profile.technical.size': 'Size',
   'profile.panel.scope': 'File format',
   'profile.edit': 'Edit',
-  'profile.archive': 'Archive',
-  'profile.archive.busy': 'Archiving…',
-  'profile.restore': 'Restore',
-  'profile.restore.busy': 'Restoring…',
   'profile.notice.archived': 'This profile is archived',
   'profile.notice.archived.body':
     'It no longer updates and cannot be edited. Its published file and subscription link keep working.',
@@ -1859,12 +1813,8 @@ const en: Dictionary = {
   'outputs.send': 'Send',
   'outputs.failed': 'Last build failed',
   'outputs.add': 'Add a format',
-  'outputs.add.info': 'How this works',
-  'outputs.add.info.text':
-    'Every format has its own subscription link and version history.',
-  'outputs.add.placeholder': 'Choose a format',
-  'outputs.add.submit': 'Add',
   'outputs.add.none': 'Every available format is already added.',
+  'outputs.add.hidden': 'The remaining formats are hidden in Settings.',
 
   'send.title': 'Send the file',
   'send.profile.failed': 'Profile is unavailable',
@@ -1880,7 +1830,6 @@ const en: Dictionary = {
     'Try again or enter the details for this send.',
   'send.connection.unavailable':
     'This connection is unavailable for this format. Choose another or enter the details.',
-  'send.password.stored': 'Password saved',
   'send.status.idle': 'Not applied',
   'send.status.planning': 'Preparing the changes',
   'send.status.planned': 'Ready to apply',
@@ -1895,19 +1844,18 @@ const en: Dictionary = {
   'send.outcomeUnknown.checking': 'Checking result…',
   'send.loading': 'Checking delivery options…',
   'send.targets.failed': 'Delivery options unavailable',
-  'send.targets.failed.body': 'The local service did not answer.',
   'send.unsupported': 'Automatic delivery to {device} is unavailable',
   'send.field.address': 'Connection address',
   'send.field.account': 'Login',
   'send.field.password': 'Password',
   'send.field.interface': 'Connection interface',
-  'deploy.field.address.keenetic': 'Address',
-  'deploy.field.address.keenetic-dns': 'Address',
+  'deploy.field.address.keenetic': 'Router address',
+  'deploy.field.address.keenetic-dns': 'Router address',
   'deploy.field.address.singbox': 'Path to the sing-box configuration',
   'deploy.field.address.keenetic.hint':
-    'An explicit http or https address with the router’s local IP. Host names are not supported.',
+    'Start with http:// or https://, then the router’s local IP address.',
   'deploy.field.address.keenetic-dns.hint':
-    'An explicit http or https address with the router’s local IP. Host names are not supported.',
+    'Start with http:// or https://, then the router’s local IP address.',
   'deploy.field.address.singbox.hint':
     'The path to the file as a file address, such as file:///C:/sing-box/config.json.',
   'deploy.field.account.keenetic': 'Router login',
@@ -1959,12 +1907,6 @@ const en: Dictionary = {
   'send.step.failed': 'not done',
   'send.rolledBack': 'The previous state was restored.',
   'send.manual': 'By hand',
-  'profile.status.buildFailed': 'Build failed',
-  'profile.notice.build.firstFailed': 'Build failed',
-  'profile.menu.export': 'Export to file',
-  'profile.menu.send': 'Send',
-  'profile.menu.sendTo': '{format} · {connection}',
-  'profile.menu.addFormat': 'Add a format…',
   'profile.diagnostics.rules': 'Rules',
   'profile.diagnostics.list': 'List',
   'profile.diagnostics.allLists': 'All lists',
@@ -1999,6 +1941,8 @@ const en: Dictionary = {
   'send.connection.none': 'No saved connections',
   'send.connection.add': 'Add a connection',
   'send.password.override': 'Enter another for this send',
+  'send.password.rejected': 'The saved password was not accepted',
+  'send.password.replace': 'Replace the saved password',
   'send.password.save': 'Save the password in the connection',
   'send.password.save.consequence':
     'The password will be kept in the Windows credential store',
@@ -2017,8 +1961,6 @@ const en: Dictionary = {
   'targets.auto.no': 'No',
   'targets.auto.unknown': 'Unknown',
   'targets.degraded': 'Automatic delivery not checked',
-  'targets.degraded.body':
-    'The catalog loaded, but the delivery-options service did not answer.',
   'targets.hint': 'How to install the file on {target}',
 
   'settings.title': 'Settings',
@@ -2121,7 +2063,6 @@ const en: Dictionary = {
     'The format catalog changed since the build. Rebuild the profile.',
   'error.operationFailed':
     'The device refused the details: the address, account or password did not fit.',
-  'error.network': 'The local service is not answering. Check that it runs.',
   'error.unexpected': 'That did not work. Try again.',
   'error.connection_invalid':
     'These connection details do not fit this device.',

@@ -795,7 +795,10 @@ for (const language of ['en', 'ru'] as const) {
         })
         .click()
       await menuPanel(page)
-        .getByRole('menuitem', { name: copy('profile.menu.send'), exact: true })
+        .getByRole('menuitem', {
+          name: copy('profiles.menu.send'),
+          exact: true,
+        })
         .click()
       await menuPanel(page)
         .getByRole('menuitem', { name: 'sing-box', exact: true })
@@ -1105,7 +1108,7 @@ for (const language of ['en', 'ru'] as const) {
           response.request().method() === 'POST',
       )
       await page
-        .getByRole('menuitem', { name: copy('profile.rebuild'), exact: true })
+        .getByRole('menuitem', { name: copy('profiles.rebuild'), exact: true })
         .click()
       const result = await rebuilt
       expect(result.ok()).toBe(true)
@@ -1183,10 +1186,25 @@ const sendToSavedRouter = async (
     await route.fulfill({ response, json: registry })
   })
   const previews: Record<string, unknown>[] = []
+  const applies: Record<string, unknown>[] = []
   await page.route(/\/v1\/artifacts\/[a-f0-9]{32}\/deploy$/, async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>
+    if (body.confirm === true) {
+      applies.push(body)
+      const [, artifact] = /\/v1\/artifacts\/([a-f0-9]{32})\/deploy$/.exec(
+        route.request().url(),
+      )!
+      await route.fulfill({
+        json: {
+          attempt_id: body.attempt_id,
+          artifact_id: artifact,
+          status: 'succeeded',
+          result: { applied: true, rolled_back: false, device: {}, events: [] },
+        },
+      })
+      return
+    }
     previews.push(body)
-    expect(body.confirm).toBe(false)
     await route.fulfill({
       json: {
         plan: {
@@ -1218,9 +1236,10 @@ const sendToSavedRouter = async (
   ).toHaveText('Home Keenetic')
   return {
     deviceID,
-    password: page.getByLabel(message('en', 'send.field.password'), {
+    password: page.getByLabel(message('en', 'deploy.field.password.keenetic'), {
       exact: true,
     }),
+    applies,
     previews,
     review: page.getByRole('button', {
       name: message('en', 'send.review'),
@@ -1237,7 +1256,9 @@ savedTest(
     const { deviceID, password, previews, review, saves } =
       await sendToSavedRouter(page, request, savedDestinations, true)
     await expect(
-      page.getByText(message('en', 'send.password.stored'), { exact: true }),
+      page.getByText(message('en', 'devices.credential.saved'), {
+        exact: true,
+      }),
     ).toBeVisible()
     await expect(password).toHaveCount(0)
     await expect(
@@ -1275,15 +1296,11 @@ savedTest(
 )
 
 savedTest(
-  'a password typed for a connection is saved in it only when asked, after the preview worked',
+  'a password typed for a connection is saved in it only when asked, after the send succeeded',
   async ({ page, request, savedDestinations }) => {
     savedTest.setTimeout(120000)
-    const { password, previews, review, saves } = await sendToSavedRouter(
-      page,
-      request,
-      savedDestinations,
-      false,
-    )
+    const { applies, password, previews, review, saves } =
+      await sendToSavedRouter(page, request, savedDestinations, false)
     const keep = page.getByRole('switch', {
       name: message('en', 'send.password.save'),
     })
@@ -1306,11 +1323,25 @@ savedTest(
     await password.fill(kept)
     await keep.click()
     await review.click()
-    await expect(
-      page.getByText(message('en', 'send.password.stored'), { exact: true }),
-    ).toBeVisible()
+    const apply = page.getByRole('button', {
+      name: message('en', 'send.apply'),
+      exact: true,
+    })
+    await expect(apply).toBeVisible()
     expect(previews).toHaveLength(1)
     expect(previews[0]).toMatchObject({ password: kept })
+    // A router is not contacted by a review, so the preview proves nothing
+    // about the password and nothing is stored yet.
+    expect(saves).toEqual([])
+    expect(applies).toEqual([])
+
+    await apply.click()
+    await expect(
+      page.getByText(message('en', 'devices.credential.saved'), {
+        exact: true,
+      }),
+    ).toBeVisible()
+    expect(applies).toHaveLength(1)
     expect(saves).toEqual([{ credential: kept }])
     const stored = await page.evaluate(() =>
       JSON.stringify({

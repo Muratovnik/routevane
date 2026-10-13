@@ -295,11 +295,14 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   ).toBeVisible()
   await expect(page.getByText('Technical details')).toBeVisible()
   await tablist.getByRole('tab', { name: 'Publishing' }).click()
+  // The link is shown once. Every format's own row offers a new one; the tab
+  // does not speak for one implicitly selected format.
+  await formatMenu(page, 'Keenetic').click()
   await expect(
-    page.getByText(
-      englishCopy('profile.subscription.gone').replace('{target}', 'Keenetic'),
-    ),
+    menuPanel(page).getByRole('menuitem', { name: 'Issue a new link…' }),
   ).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByText(/shown once/)).toHaveCount(0)
 
   expect(pageErrors).toEqual([])
   assertProductAlive()
@@ -445,6 +448,25 @@ test('send links navigate through the router for one and multiple published outp
   )
 })
 
+test('the header menu names each act in the words of the shelf row menu', async ({
+  page,
+  origin,
+}) => {
+  await buildProfile(page, origin)
+  await page
+    .getByRole('button', { name: 'Actions for profile Discord, YouTube' })
+    .click()
+  // One wording for one act wherever the act is offered: the shelf row owns
+  // these keys, and the page header draws them rather than keeping its own.
+  await expect(menuPanel(page).getByRole('menuitem')).toHaveText([
+    englishCopy('profiles.menu.export'),
+    englishCopy('profiles.menu.send'),
+    englishCopy('profiles.addFormat'),
+    englishCopy('profiles.rebuild'),
+    englishCopy('profiles.archive'),
+  ])
+})
+
 /**
  * A notice is an addition to the page, not a subtraction from the table it
  * appears above, and the page's closing inset stays under its last row.
@@ -503,7 +525,7 @@ test('a tab that outgrows the window keeps the page inset under its last row', a
   page,
   origin,
 }) => {
-  await page.setViewportSize({ width: 1280, height: 640 })
+  await page.setViewportSize({ width: 1280, height: 600 })
   const { profileId } = await buildProfile(page, origin)
   const added = await page.request.post(
     `${origin}/v1/profiles/${profileId}/outputs`,
@@ -690,7 +712,7 @@ test('the row menu issues a new link that withdraws the old one and shows it onc
   })
   expect((await page.request.get(replacement)).status()).toBe(200)
 
-  // Shown once: a reload states that the link is gone and offers a new one.
+  // Shown once: after a reload the format's own row offers a new one.
   const token = replacement.slice(replacement.indexOf('rv1.'))
   await page.reload()
   await expect(
@@ -698,14 +720,15 @@ test('the row menu issues a new link that withdraws the old one and shows it onc
   ).toHaveCount(0)
   await publishingTab(page).click()
   const publishing = page.getByRole('tabpanel', { name: 'Publishing' })
+  await expect(publishing.getByText(/shown once/)).toHaveCount(0)
+  await formatMenu(page, 'Keenetic').click()
   await expect(
-    publishing.getByText(
-      englishCopy('profile.subscription.gone').replace('{target}', 'Keenetic'),
-    ),
+    menuPanel(page).getByRole('menuitem', {
+      name: 'Issue a new link…',
+      exact: true,
+    }),
   ).toBeVisible()
-  await expect(
-    publishing.getByRole('button', { name: 'Issue a new link…', exact: true }),
-  ).toBeVisible()
+  await page.keyboard.press('Escape')
   expect(await page.content()).not.toContain(token)
   const stored = await page.evaluate(() =>
     JSON.stringify({
@@ -895,7 +918,13 @@ test('publishing cells stay on one line at 1024px and archived facts keep their 
   )
   expect(rowHeights.length).toBeGreaterThan(1)
   for (const height of rowHeights) expect(height).toBeLessThan(64)
-  // The archived row offers no change to its formats.
+  // The archived row offers no change to its formats. What it still offers is
+  // reading the published file and sending it, which change nothing: a narrow
+  // panel keeps those two in the row's menu, as it does for a live profile.
   await publishingTab(page).click()
-  await expect(formatMenu(page, 'Keenetic')).toHaveCount(0)
+  await formatMenu(page, 'Keenetic').click()
+  await expect(menuPanel(page).getByRole('menuitem')).toHaveText([
+    'Download',
+    'Send',
+  ])
 })
