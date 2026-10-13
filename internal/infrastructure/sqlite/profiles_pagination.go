@@ -46,9 +46,11 @@ func (s *Store) ProfilePage(ctx context.Context, afterID string) (application.Pr
 }
 
 func profilePageRows(ctx context.Context, tx *sql.Tx, afterID string) ([]application.Profile, error) {
-	query := profileColumns + ` FROM profiles`
+	query := profileColumns + ` FROM profiles WHERE deleted_at_ns=0`
 	args := make([]any, 0, 4)
 	if afterID != "" {
+		// The cursor is a position rather than a read of that profile: one
+		// deleted between two pages still marks where the next page begins.
 		var createdAt int64
 		if err := tx.QueryRowContext(ctx, `SELECT created_at_ns FROM profiles WHERE id=?`, afterID).Scan(&createdAt); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
@@ -56,7 +58,7 @@ func profilePageRows(ctx context.Context, tx *sql.Tx, afterID string) ([]applica
 			}
 			return nil, fmt.Errorf("read profile page cursor: %w", err)
 		}
-		query += ` WHERE created_at_ns < ? OR (created_at_ns = ? AND id > ?)`
+		query += ` AND (created_at_ns < ? OR (created_at_ns = ? AND id > ?))`
 		args = append(args, createdAt, createdAt, afterID)
 	}
 	query += ` ORDER BY created_at_ns DESC, id ASC LIMIT ?`

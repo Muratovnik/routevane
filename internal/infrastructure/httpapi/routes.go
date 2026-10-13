@@ -216,6 +216,11 @@ var routes = map[string]routeSpec{
 	"profiles.restore": {path: "/v1/profiles/{id}/restore", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.setProfileArchived(w, r, r.PathValue("id"), false)
 	}},
+	// Deletion is the step after archival, and the one route that retires a
+	// profile for good (ADR 0051). It is a POST like every other verb here.
+	"profiles.delete": {path: "/v1/profiles/{id}/delete", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.deleteProfile(w, r, r.PathValue("id"))
+	}},
 	"profiles.schedule": {path: "/v1/profiles/{id}/schedule", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.updateProfileSchedule(w, r, r.PathValue("id"))
 	}},
@@ -236,6 +241,12 @@ var routes = map[string]routeSpec{
 	}},
 	"outputs.device": {path: "/v1/outputs/{id}/device", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.setOutputDevice(w, r, r.PathValue("id"))
+	}},
+	"outputs.remove": {path: "/v1/outputs/{id}/remove", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.removeOutput(w, r, r.PathValue("id"))
+	}},
+	"outputs.subscription.reissue": {path: "/v1/outputs/{id}/subscription/reissue", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.reissueSubscription(w, r, r.PathValue("id"))
 	}},
 	"outputs.fqdn-prefix": {path: "/v1/outputs/{id}/fqdn-prefix", methods: []string{http.MethodPut}, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.setOutputFQDNPrefix(w, r, r.PathValue("id"))

@@ -4,6 +4,10 @@ status: adopted
 
 # ADR 0018: an archived list is frozen, not hidden
 
+The clause that archival never becomes a deletion path is replaced by
+[ADR 0051](0051-profile-and-format-retirement-and-subscription-reissue.md): an
+archived profile can be deleted as a tombstone. Archival itself is unchanged.
+
 ## Context
 
 ADR 0004 forbids deletion: a published artifact is immutable and a subscription

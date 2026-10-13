@@ -4,6 +4,10 @@ status: adopted
 
 # ADR 0023: subscriptions begin with a successful publication
 
+A build still never rotates a link, but an operator can reissue one, and a
+retired format's link stops working; see
+[ADR 0051](0051-profile-and-format-retirement-and-subscription-reissue.md).
+
 ## Context
 
 ADR 0004 made a subscription token intentionally irrecoverable: only its ID and

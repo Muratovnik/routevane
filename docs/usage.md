@@ -252,6 +252,16 @@ strong SHA-256 ETag and immutable Last-Modified metadata. If the latest file is
 missing or damaged, the independently verified previous artifact is served with
 `X-Routevane-Fallback: previous`; if neither verifies, the service returns 503.
 
+A leaked or unwanted link can be replaced. `POST /v1/outputs/{id}/subscription/reissue`
+with the body `{}` revokes the current token and returns the new URL once in
+`subscription_url`; the previous URL then answers `410 Gone`. Removing a format
+(`POST /v1/outputs/{id}/remove`) and deleting an archived profile
+(`POST /v1/profiles/{id}/delete`) revoke their links the same way and hide them
+from every read and timer, while their published files stay on disk. Deletion
+cannot be undone. Neither action changes a router: routes and groups a removed
+format already delivered keep working until you remove them on the device
+([ADR 0051](adr/0051-profile-and-format-retirement-and-subscription-reissue.md)).
+
 The root document and SPA deep links return no-store HTML. Hashed `/_nuxt/`
 assets are immutable, unknown API and asset paths remain 404, and the UI carries
 a strict self-only CSP. The response also includes `X-Routevane-UI-Digest` for

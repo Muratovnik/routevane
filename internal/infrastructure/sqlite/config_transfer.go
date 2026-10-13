@@ -212,7 +212,7 @@ func exportTunings(ctx context.Context, q *sql.Tx, d *application.ConfigTransfer
 }
 
 func exportRoutes(ctx context.Context, q *sql.Tx, d *application.ConfigTransferDocument) error {
-	rows, err := q.QueryContext(ctx, "SELECT id,name,refresh_interval,archived_at_ns FROM profiles ORDER BY id")
+	rows, err := q.QueryContext(ctx, "SELECT id,name,refresh_interval,archived_at_ns FROM profiles WHERE deleted_at_ns=0 ORDER BY id")
 	if err != nil {
 		return err
 	}
@@ -308,7 +308,7 @@ func exportDevices(ctx context.Context, q *sql.Tx, d *application.ConfigTransfer
 	return rows.Err()
 }
 func exportOutputs(ctx context.Context, q *sql.Tx, d *application.ConfigTransferDocument) error {
-	rows, err := q.QueryContext(ctx, "SELECT id,profile_id,target_id,COALESCE(device_id,''),fqdn_group_prefix FROM outputs ORDER BY id")
+	rows, err := q.QueryContext(ctx, "SELECT id,profile_id,target_id,COALESCE(device_id,''),fqdn_group_prefix FROM outputs WHERE removed_at_ns=0 ORDER BY id")
 	if err != nil {
 		return err
 	}

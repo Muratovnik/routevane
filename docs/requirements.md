@@ -58,8 +58,12 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 - Keep published plans and files immutable, validate before publication, and
   preserve the previous verified file when rebuilding fails.
 - Separate global library editing from per-profile selection. Permit library
-  removal only when stored profiles are not broken. Profiles are archived, not
-  destructively deleted; published history remains available.
+  removal only when stored profiles are not broken. A profile leaves the shelf by
+  archival; only an archived profile can then be deleted, and a format can be
+  removed from a profile on the shelf. Deletion and removal withdraw the
+  subscription links and hide the object from every read, while published
+  history stays immutable and delivered router state is left in place
+  (ADR 0051).
 - Keep one configurable default list priority in the library. Before an operator
   saves an order, group lists by category, with uncategorized lists last. This
   initializes a new profile or forecast only when that request supplies no order; every profile
@@ -71,6 +75,7 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
   stored profile order.
 - Show secrets only at their deliberate point of use. Subscription issuance
   follows first publication; stored hashes cannot recover the original token.
+  Reissuing a link revokes the previous token and shows the new link once.
 - Device changes require explicit authority, a compatible target, verified
   backup, bounded application, read-back, and recovery after failure. Keenetic
   static-route deletion additionally requires persisted exact ownership; shared,
@@ -89,6 +94,7 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 | Deterministic policy and expiration | `internal/planner/*_test.go`; `cmd/routevane/observation_expiry_e2e_test.go` |
 | Multi-format publication and previous-valid continuity | `cmd/routevane/every_format_e2e_test.go`; `cmd/routevane/two_formats_outage_e2e_test.go` |
 | Library ownership and profile preservation | `cmd/routevane/library_removal_e2e_test.go`; `cmd/routevane/profile_archive_e2e_test.go` |
+| Profile and format retirement, link reissue | `cmd/routevane/profile_retirement_e2e_test.go` |
 | Discovery and learning boundaries | `cmd/routevane/list_from_url_e2e_test.go`; `cmd/routevane/learning_session_e2e_test.go` |
 | Explicit device delivery | `cmd/routevane/device_deploy_e2e_test.go`; `cmd/routevane/scheduled_delivery_e2e_test.go` |
 | Real plugin examples | `cmd/routevane/external_plugin_e2e_test.go` consumes their shipped manifests |
@@ -116,9 +122,10 @@ results. Device doubles and parser tests do not prove physical-device acceptance
 - Physical Keenetic, OpenWrt, MikroTik, and Amnezia acceptance, including device
   interruption/recovery where relevant, remains unverified. Local sing-box
   delivery proves file validity, not live runtime reload.
-- Subscription fetch observation, token rotation/revocation, interface choices
-  returned by device probe, and a user-facing build-history browser remain
-  unimplemented.
+- Subscription fetch observation, interface choices returned by device probe,
+  and a user-facing build-history browser remain unimplemented. Removing the
+  routes and groups a retired format already delivered to a router is not
+  automated (ADR 0051).
 - Per-profile exclusion of individual observed values is not implemented; profile
   composition includes or excludes whole lists (ADR 0029).
 - One product vocabulary is adopted and lands as ordered slices in a breaking

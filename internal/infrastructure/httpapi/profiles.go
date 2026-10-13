@@ -232,3 +232,45 @@ func (h *handler) build(w http.ResponseWriter, r *http.Request, id string) {
 	}
 	writeJSON(w, http.StatusOK, response)
 }
+
+// deleteProfile retires an archived profile (ADR 0051). The reply states which
+// profile and when, so a caller never has to read back an object that no
+// longer answers.
+func (h *handler) deleteProfile(w http.ResponseWriter, r *http.Request, id string) {
+	if !decodeEmpty(w, r) {
+		return
+	}
+	deletedAt, err := h.backend.DeleteProfile(r.Context(), id)
+	if err != nil {
+		h.backendError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "deleted_at": deletedAt})
+}
+
+// removeOutput retires one format of a profile that is still on the shelf.
+func (h *handler) removeOutput(w http.ResponseWriter, r *http.Request, id string) {
+	if !decodeEmpty(w, r) {
+		return
+	}
+	removedAt, err := h.backend.RemoveOutput(r.Context(), id)
+	if err != nil {
+		h.backendError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"id": id, "removed_at": removedAt})
+}
+
+// reissueSubscription answers with the new link in the same field the first
+// publication used. This reply is the only place the new token ever appears.
+func (h *handler) reissueSubscription(w http.ResponseWriter, r *http.Request, id string) {
+	if !decodeEmpty(w, r) {
+		return
+	}
+	token, err := h.backend.ReissueSubscription(r.Context(), id)
+	if err != nil {
+		h.backendError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"subscription_url": h.origin + "/v1/subscriptions/" + token})
+}

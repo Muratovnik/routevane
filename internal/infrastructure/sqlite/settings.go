@@ -74,7 +74,7 @@ func (s *Store) UpdateProfileRefreshInterval(ctx context.Context, profileID stri
 		return err
 	}
 	result, err := tx.ExecContext(ctx,
-		`UPDATE profiles SET refresh_interval=?, updated_at_ns=? WHERE id=?`,
+		`UPDATE profiles SET refresh_interval=?, updated_at_ns=? WHERE id=? AND deleted_at_ns=0`,
 		string(interval), updatedAt.UTC().UnixNano(), profileID)
 	if err != nil {
 		return fmt.Errorf("update profile refresh interval: %w", err)
@@ -105,7 +105,7 @@ func (s *Store) RecordProfileRefreshResult(ctx context.Context, profileID string
 		marked = 1
 	}
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE profiles SET last_refreshed_at_ns=?, last_refresh_failed=? WHERE id=?`,
+		`UPDATE profiles SET last_refreshed_at_ns=?, last_refresh_failed=? WHERE id=? AND deleted_at_ns=0`,
 		lastRefreshedAt.UTC().UnixNano(), marked, profileID)
 	if err != nil {
 		return fmt.Errorf("record profile refresh result: %w", err)

@@ -52,6 +52,10 @@ type publicationFakeStore struct {
 	// with domain sightings that respect the caller's revision filter — the
 	// same contract the real store honors.
 	observedDomains map[string][]string
+	// deletedProfiles and removedOutputs record the retirements that reached
+	// storage, so a refusal can be shown to have written nothing.
+	deletedProfiles []string
+	removedOutputs  []string
 }
 
 func (s *publicationFakeStore) CreateCustomList(_ context.Context, list CustomList) error {
@@ -419,6 +423,38 @@ func (s *publicationFakeStore) CreateSubscription(_ context.Context, outputID, t
 	}
 	if outputID != s.output.ID {
 		return ErrNotFound
+	}
+	s.tokenID, s.tokenHash = tokenID, tokenHash
+	return nil
+}
+
+// The retirement writes record what reached storage. Their rules live in the
+// SQLite store and are proven there; this fake answers only what a service
+// test needs to see arrive.
+func (s *publicationFakeStore) DeleteProfile(_ context.Context, profileID string, deletedAt time.Time) error {
+	if s.profile.ID != profileID {
+		return ErrNotFound
+	}
+	s.deletedProfiles = append(s.deletedProfiles, profileID)
+	return nil
+}
+func (s *publicationFakeStore) RemoveOutput(_ context.Context, outputID string, _ time.Time) error {
+	if s.output.ID != outputID {
+		return ErrNotFound
+	}
+	s.removedOutputs = append(s.removedOutputs, outputID)
+	return nil
+}
+func (s *publicationFakeStore) ReissueSubscription(_ context.Context, outputID, tokenID string, tokenHash [32]byte, _ time.Time) error {
+	if s.output.ID != outputID {
+		return ErrNotFound
+	}
+	if s.tokenID == "" {
+		return ErrSubscriptionMissing
+	}
+	if s.collisions > 0 {
+		s.collisions--
+		return ErrIdentityCollision
 	}
 	s.tokenID, s.tokenHash = tokenID, tokenHash
 	return nil

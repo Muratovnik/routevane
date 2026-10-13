@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -243,7 +244,10 @@ func (s *PublicationService) RunDueRefreshes(ctx context.Context) ([]ScheduledRu
 			}
 		}
 		failed := run.Failed()
-		if err := s.config.Store.RecordProfileRefreshResult(ctx, profile.ID, now, failed); err != nil {
+		// A profile deleted while its run was in flight has no schedule left to
+		// record. That is its own outcome, not a reason to skip every profile
+		// after it in this tick (ADR 0051).
+		if err := s.config.Store.RecordProfileRefreshResult(ctx, profile.ID, now, failed); err != nil && !errors.Is(err, ErrNotFound) {
 			return runs, err
 		}
 		runs = append(runs, run)

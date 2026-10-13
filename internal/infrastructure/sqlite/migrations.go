@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 16
+const CurrentSchemaVersion = 17
 
 type migration struct {
 	version int
@@ -691,6 +691,87 @@ ALTER TABLE devices ADD COLUMN credential_stored INTEGER NOT NULL DEFAULT 0 CHEC
 -- device (no account) keeps 0: the column reports a stored password, not
 -- intent. A device that is not opted in held no password.
 UPDATE devices SET credential_stored=1 WHERE auto_deliver=1 AND account<>'';
+`}, {version: 17, sql: `
+-- ADR 0051: a profile or one of its formats can be retired as a tombstone.
+-- Nothing published is deleted: plan snapshots, artifact builds, attempts and
+-- the deployment journal stay exactly as they are. Retirement is a moment, like
+-- archival, and zero means the object is live.
+--
+-- A profile is retired only once it is archived, and a retired format holds no
+-- connection binding: both are stated here so no writer can produce the other
+-- combination.
+ALTER TABLE profiles ADD COLUMN deleted_at_ns INTEGER NOT NULL DEFAULT 0
+    CHECK (deleted_at_ns >= 0 AND (deleted_at_ns = 0 OR archived_at_ns > 0));
+ALTER TABLE outputs ADD COLUMN removed_at_ns INTEGER NOT NULL DEFAULT 0
+    CHECK (removed_at_ns >= 0 AND (removed_at_ns = 0 OR device_id IS NULL));
+
+-- One live output per format per profile. A retired output keeps its row and
+-- its history, and the format can be bound again as a new output.
+DROP INDEX outputs_profile_target_idx;
+CREATE UNIQUE INDEX outputs_profile_target_idx ON outputs(profile_id, target_id) WHERE removed_at_ns = 0;
+
+-- A subscription was one immutable row per output. Reissuing a link needs
+-- several tokens per output over time, so the table is keyed by its token and
+-- every existing row is carried across unchanged: a token issued before this
+-- version keeps resolving to the same output with the same hash. The triggers
+-- go first and are created again at the end; nothing else refers to the table.
+DROP TRIGGER subscriptions_no_update;
+DROP TRIGGER subscriptions_no_delete;
+CREATE TABLE subscriptions_v17 (
+    token_id TEXT PRIMARY KEY CHECK (length(token_id) = 32 AND token_id NOT GLOB '*[^0-9a-f]*'),
+    output_id TEXT NOT NULL REFERENCES outputs(id),
+    token_hash BLOB NOT NULL CHECK (length(token_hash) = 32),
+    created_at_ns INTEGER NOT NULL
+) WITHOUT ROWID, STRICT;
+INSERT INTO subscriptions_v17(token_id,output_id,token_hash,created_at_ns)
+SELECT token_id,output_id,token_hash,created_at_ns FROM subscriptions;
+DROP TABLE subscriptions;
+ALTER TABLE subscriptions_v17 RENAME TO subscriptions;
+CREATE INDEX subscriptions_output_idx ON subscriptions(output_id, created_at_ns);
+CREATE TRIGGER subscriptions_no_update BEFORE UPDATE ON subscriptions BEGIN
+    SELECT RAISE(ABORT, 'immutable subscription');
+END;
+CREATE TRIGGER subscriptions_no_delete BEFORE DELETE ON subscriptions BEGIN
+    SELECT RAISE(ABORT, 'immutable subscription');
+END;
+
+-- Revocation is its own insert-only fact rather than a change to the token row:
+-- the token stays what it was, and the moment it stopped working is recorded
+-- beside it. An output's active subscription is its newest unrevoked token.
+CREATE TABLE subscription_revocations (
+    token_id TEXT PRIMARY KEY REFERENCES subscriptions(token_id),
+    revoked_at_ns INTEGER NOT NULL CHECK (revoked_at_ns > 0)
+) WITHOUT ROWID, STRICT;
+CREATE TRIGGER subscription_revocations_no_update BEFORE UPDATE ON subscription_revocations BEGIN
+    SELECT RAISE(ABORT, 'immutable subscription revocation');
+END;
+CREATE TRIGGER subscription_revocations_no_delete BEFORE DELETE ON subscription_revocations BEGIN
+    SELECT RAISE(ABORT, 'immutable subscription revocation');
+END;
+
+-- Retirement is permanent and complete. A retired row accepts no further
+-- change, a profile cannot be retired while one of its formats is live, and a
+-- retired profile or format cannot gain a new format or token.
+CREATE TRIGGER profiles_deletion_permanent BEFORE UPDATE ON profiles WHEN OLD.deleted_at_ns <> 0 BEGIN
+    SELECT RAISE(ABORT, 'deleted profile');
+END;
+CREATE TRIGGER profiles_deletion_retires_outputs BEFORE UPDATE OF deleted_at_ns ON profiles
+WHEN NEW.deleted_at_ns <> 0 AND EXISTS (
+    SELECT 1 FROM outputs WHERE profile_id=NEW.id AND removed_at_ns=0
+) BEGIN
+    SELECT RAISE(ABORT, 'deleted profile has a live output');
+END;
+CREATE TRIGGER outputs_removal_permanent BEFORE UPDATE ON outputs WHEN OLD.removed_at_ns <> 0 BEGIN
+    SELECT RAISE(ABORT, 'removed output');
+END;
+CREATE TRIGGER outputs_live_profile BEFORE INSERT ON outputs
+WHEN EXISTS (SELECT 1 FROM profiles WHERE id=NEW.profile_id AND deleted_at_ns <> 0) BEGIN
+    SELECT RAISE(ABORT, 'deleted profile');
+END;
+CREATE TRIGGER subscriptions_live_output BEFORE INSERT ON subscriptions
+WHEN EXISTS (SELECT 1 FROM outputs WHERE id=NEW.output_id AND removed_at_ns <> 0) BEGIN
+    SELECT RAISE(ABORT, 'removed output');
+END;
 `}}
 
 var requiredTables = []string{
@@ -721,6 +802,7 @@ var requiredTables = []string{
 	"plan_snapshots",
 	"artifact_builds",
 	"subscriptions",
+	"subscription_revocations",
 	"relations",
 	"resources",
 	"schema_migrations",
@@ -729,57 +811,59 @@ var requiredTables = []string{
 }
 
 var requiredColumns = map[string][]string{
-	"deployment_attempts":     {"id", "artifact_id", "request_hash", "status", "started_at_ns", "completed_at_ns", "result_json", "error_code"},
-	"managed_fqdn_groups":     {"endpoint", "output_id", "name", "interface", "state_json"},
-	"schema_migrations":       {"version", "applied_at_ns"},
-	"resources":               {"id", "kind", "normalized_value", "ip_version", "created_at_ns"},
-	"sightings":               {"id", "list_id", "component_id", "resource_id", "source_id", "source_class", "source_revision", "first_seen_ns", "last_seen_ns", "valid_until_ns", "ttl_seconds", "observation_count", "metadata_json", "invalid"},
-	"relations":               {"id", "source_resource_id", "relation_type", "target_resource_id", "list_id", "component_id", "first_seen_ns", "last_seen_ns", "valid_until_ns", "source_id", "source_revision", "invalid"},
-	"source_runs":             {"id", "list_id", "source_id", "source_revision", "started_at_ns", "completed_at_ns", "status", "sighting_count", "relation_count", "error_code"},
-	"effective_formats":       {"format_key", "list_id", "target_id", "renderer_id", "catalog_revision", "config_json", "updated_at_ns"},
-	"settings":                {"key", "value", "updated_at_ns"},
-	"profiles":                {"id", "name", "refresh_interval", "last_refreshed_at_ns", "last_refresh_failed", "archived_at_ns", "created_at_ns", "updated_at_ns"},
-	"devices":                 {"id", "target_id", "name", "address", "account", "auto_deliver", "created_at_ns", "updated_at_ns", "interface", "credential_stored"},
-	"catalog_removals":        {"kind", "id", "removed_at"},
-	"custom_categories":       {"id", "title", "created_at_ns", "updated_at_ns"},
-	"category_memberships":    {"category_id", "list_id", "state", "updated_at_ns"},
-	"custom_lists":            {"id", "title", "domains_json", "created_at_ns", "updated_at_ns"},
-	"custom_sources":          {"id", "list_id", "url", "format", "created_at_ns", "updated_at_ns"},
-	"list_disabled_sources":   {"list_id", "source_id"},
-	"list_domain_verdicts":    {"list_id", "domain", "verdict"},
-	"profile_lists":           {"profile_id", "list_id"},
-	"profile_categories":      {"profile_id", "category_id"},
-	"profile_exclusions":      {"profile_id", "list_id"},
-	"profile_list_domains":    {"profile_id", "list_id", "domains_json"},
-	"profile_list_priorities": {"profile_id", "list_id", "position"},
-	"library_list_priorities": {"list_id", "position"},
-	"managed_route_scopes":    {"id", "endpoint", "target_id", "interface", "retired_at_ns", "created_at_ns", "updated_at_ns"},
-	"managed_routes":          {"scope_id", "prefix", "created_by_routevane", "description"},
-	"managed_route_claims":    {"scope_id", "output_id", "prefix", "description", "labels_json"},
-	"outputs":                 {"id", "profile_id", "target_id", "format_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id", "fqdn_group_prefix"},
-	"output_attempts":         {"id", "output_id", "status", "code", "projected_rules", "maximum_rules", "artifact_id", "completed_at_ns"},
-	"plan_snapshots":          {"id", "output_id", "routing_plan_hash", "routing_plan_json", "policy_version", "catalog_revision", "observation_cutoff_ns", "created_at_ns", "status"},
-	"artifact_builds":         {"id", "output_id", "plan_snapshot_id", "renderer_id", "renderer_version", "artifact_hash", "artifact_path", "size_bytes", "content_type", "content_created_at_ns", "validation_status", "status"},
-	"subscriptions":           {"output_id", "token_id", "token_hash", "created_at_ns"},
+	"deployment_attempts":      {"id", "artifact_id", "request_hash", "status", "started_at_ns", "completed_at_ns", "result_json", "error_code"},
+	"managed_fqdn_groups":      {"endpoint", "output_id", "name", "interface", "state_json"},
+	"schema_migrations":        {"version", "applied_at_ns"},
+	"resources":                {"id", "kind", "normalized_value", "ip_version", "created_at_ns"},
+	"sightings":                {"id", "list_id", "component_id", "resource_id", "source_id", "source_class", "source_revision", "first_seen_ns", "last_seen_ns", "valid_until_ns", "ttl_seconds", "observation_count", "metadata_json", "invalid"},
+	"relations":                {"id", "source_resource_id", "relation_type", "target_resource_id", "list_id", "component_id", "first_seen_ns", "last_seen_ns", "valid_until_ns", "source_id", "source_revision", "invalid"},
+	"source_runs":              {"id", "list_id", "source_id", "source_revision", "started_at_ns", "completed_at_ns", "status", "sighting_count", "relation_count", "error_code"},
+	"effective_formats":        {"format_key", "list_id", "target_id", "renderer_id", "catalog_revision", "config_json", "updated_at_ns"},
+	"settings":                 {"key", "value", "updated_at_ns"},
+	"profiles":                 {"id", "name", "refresh_interval", "last_refreshed_at_ns", "last_refresh_failed", "archived_at_ns", "created_at_ns", "updated_at_ns", "deleted_at_ns"},
+	"devices":                  {"id", "target_id", "name", "address", "account", "auto_deliver", "created_at_ns", "updated_at_ns", "interface", "credential_stored"},
+	"catalog_removals":         {"kind", "id", "removed_at"},
+	"custom_categories":        {"id", "title", "created_at_ns", "updated_at_ns"},
+	"category_memberships":     {"category_id", "list_id", "state", "updated_at_ns"},
+	"custom_lists":             {"id", "title", "domains_json", "created_at_ns", "updated_at_ns"},
+	"custom_sources":           {"id", "list_id", "url", "format", "created_at_ns", "updated_at_ns"},
+	"list_disabled_sources":    {"list_id", "source_id"},
+	"list_domain_verdicts":     {"list_id", "domain", "verdict"},
+	"profile_lists":            {"profile_id", "list_id"},
+	"profile_categories":       {"profile_id", "category_id"},
+	"profile_exclusions":       {"profile_id", "list_id"},
+	"profile_list_domains":     {"profile_id", "list_id", "domains_json"},
+	"profile_list_priorities":  {"profile_id", "list_id", "position"},
+	"library_list_priorities":  {"list_id", "position"},
+	"managed_route_scopes":     {"id", "endpoint", "target_id", "interface", "retired_at_ns", "created_at_ns", "updated_at_ns"},
+	"managed_routes":           {"scope_id", "prefix", "created_by_routevane", "description"},
+	"managed_route_claims":     {"scope_id", "output_id", "prefix", "description", "labels_json"},
+	"outputs":                  {"id", "profile_id", "target_id", "format_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id", "fqdn_group_prefix", "removed_at_ns"},
+	"output_attempts":          {"id", "output_id", "status", "code", "projected_rules", "maximum_rules", "artifact_id", "completed_at_ns"},
+	"plan_snapshots":           {"id", "output_id", "routing_plan_hash", "routing_plan_json", "policy_version", "catalog_revision", "observation_cutoff_ns", "created_at_ns", "status"},
+	"artifact_builds":          {"id", "output_id", "plan_snapshot_id", "renderer_id", "renderer_version", "artifact_hash", "artifact_path", "size_bytes", "content_type", "content_created_at_ns", "validation_status", "status"},
+	"subscriptions":            {"token_id", "output_id", "token_hash", "created_at_ns"},
+	"subscription_revocations": {"token_id", "revoked_at_ns"},
 }
 
 // requiredForeignKeys names every parent relation the publication and delivery
 // chains depend on. A schema that lost one would still answer every read and
 // accept an orphan or retain a forgotten device on the next write.
 var requiredForeignKeys = map[string][]string{
-	"plan_snapshots":          {"outputs"},
-	"artifact_builds":         {"outputs"},
-	"subscriptions":           {"outputs"},
-	"profile_lists":           {"profiles"},
-	"profile_categories":      {"profiles"},
-	"profile_exclusions":      {"profiles"},
-	"profile_list_domains":    {"profiles"},
-	"profile_list_priorities": {"profiles"},
-	"outputs":                 {"profiles", "devices"},
-	"output_attempts":         {"outputs"},
-	"managed_routes":          {"managed_route_scopes"},
-	"managed_route_claims":    {"managed_routes", "outputs"},
-	"managed_fqdn_groups":     {"outputs"},
+	"plan_snapshots":           {"outputs"},
+	"artifact_builds":          {"outputs"},
+	"subscriptions":            {"outputs"},
+	"subscription_revocations": {"subscriptions"},
+	"profile_lists":            {"profiles"},
+	"profile_categories":       {"profiles"},
+	"profile_exclusions":       {"profiles"},
+	"profile_list_domains":     {"profiles"},
+	"profile_list_priorities":  {"profiles"},
+	"outputs":                  {"profiles", "devices"},
+	"output_attempts":          {"outputs"},
+	"managed_routes":           {"managed_route_scopes"},
+	"managed_route_claims":     {"managed_routes", "outputs"},
+	"managed_fqdn_groups":      {"outputs"},
 }
 
 var requiredTriggers = []string{
@@ -794,16 +878,23 @@ var requiredTriggers = []string{
 	"deployment_attempts_terminal_immutable",
 	"outputs_identity_immutable",
 	"outputs_no_delete",
+	"outputs_live_profile",
+	"outputs_removal_permanent",
 	"outputs_pointer_integrity_insert",
 	"outputs_pointer_integrity_update",
 	"output_attempts_no_delete",
 	"output_attempts_no_update",
 	"plan_snapshots_no_delete",
 	"plan_snapshots_no_update",
+	"profiles_deletion_permanent",
+	"profiles_deletion_retires_outputs",
 	"profiles_identity_immutable",
 	"profiles_no_delete",
 	"profile_exclusions_not_named",
 	"profile_lists_not_excluded",
+	"subscription_revocations_no_delete",
+	"subscription_revocations_no_update",
+	"subscriptions_live_output",
 	"subscriptions_no_delete",
 	"subscriptions_no_update",
 }

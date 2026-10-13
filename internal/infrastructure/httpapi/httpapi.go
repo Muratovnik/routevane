@@ -102,6 +102,12 @@ type Backend interface {
 	// the edit it would have to refuse.
 	ArchiveProfile(context.Context, string) (application.Profile, error)
 	RestoreProfile(context.Context, string) (application.Profile, error)
+	// Retirement is the step after archival and the only removal of a profile
+	// or a format (ADR 0051). Each answers the moment it took effect.
+	DeleteProfile(context.Context, string) (time.Time, error)
+	RemoveOutput(context.Context, string) (time.Time, error)
+	// ReissueSubscription returns the complete new token exactly once.
+	ReissueSubscription(context.Context, string) (string, error)
 	// ResolvedLists and MissingCategories keep resolution on the server. A
 	// screen that resolved references itself would answer differently from the
 	// build whenever its catalog copy was a moment stale.
@@ -509,6 +515,10 @@ func writeBackendError(w http.ResponseWriter, err error) {
 			"error": "invalid destination",
 			"value": invalidDestination.Value,
 		})
+	case errors.Is(err, application.ErrSubscriptionRevoked):
+		// A genuine link that was withdrawn is gone, not unknown: a subscriber
+		// can stop asking rather than retry.
+		writeCodedError(w, http.StatusGone, "subscription revoked", "subscription_revoked")
 	case errors.Is(err, application.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not found")
 	case errors.Is(err, application.ErrCredentialRequired):
@@ -520,7 +530,11 @@ func writeBackendError(w http.ResponseWriter, err error) {
 	case errors.Is(err, application.ErrTargetChanged):
 		writeError(w, http.StatusConflict, "output target changed")
 	case errors.Is(err, application.ErrProfileArchived):
-		writeError(w, http.StatusConflict, "profile is archived")
+		writeCodedError(w, http.StatusConflict, "profile is archived", "profile_archived")
+	case errors.Is(err, application.ErrProfileNotArchived):
+		writeCodedError(w, http.StatusConflict, "profile is not archived", "profile_not_archived")
+	case errors.Is(err, application.ErrSubscriptionMissing):
+		writeCodedError(w, http.StatusConflict, "subscription not issued", "subscription_not_issued")
 	case errors.Is(err, application.ErrRuleLimit), errors.Is(err, application.ErrPartialCoverage), errors.Is(err, application.ErrFormatMismatch), errors.Is(err, application.ErrPreflight), errors.Is(err, application.ErrSourceFailed), errors.Is(err, application.ErrSourceDegraded):
 		details := application.ClassifyBuildFailure(err)
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
@@ -548,6 +562,12 @@ func writeNoContent(w http.ResponseWriter) {
 }
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+// writeCodedError adds the stable machine code a client branches on beside the
+// message, in the same envelope a build refusal uses.
+func writeCodedError(w http.ResponseWriter, status int, message, code string) {
+	writeJSON(w, status, map[string]string{"error": message, "code": code})
 }
 func securityHeaders(w http.ResponseWriter, digest string) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")

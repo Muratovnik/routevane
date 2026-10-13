@@ -427,10 +427,12 @@ issued once, after that format's first successful publication, so a failed
 initial build leaves no unusable secret behind. It lives in memory for the life
 of the tab: never in storage, never in the URL, never in a query, never in a
 log. The profile that survives a refresh is the server's; it deliberately
-cannot restore the link. A device password is held for one attempt and cleared
-when it ends, unless the operator explicitly saves it for the connection in the
-operating system's secret store (ADR 0050); saving is separate from unattended
-delivery, and the interface never reads a saved password back. The address, account and
+cannot restore the link. Reissuing a link follows the same rules: the new URL
+is shown once, and the previous link stops working at that moment. A device
+password is held for one attempt and cleared when it ends, unless the operator
+explicitly saves it for the connection in the operating system's secret store
+(ADR 0050); saving is separate from unattended delivery, and the interface never
+reads a saved password back. The address, account and
 interface are not secrets and are remembered for the tab, because asking again
 for what was just typed is the redundant entry WCAG 2.2 asks products to stop
 doing.
@@ -652,8 +654,9 @@ Keep optional tutorials off the default path; retain concise guidance needed for
 the current decision, first use or recovery. No dashboard of things
 the product does not have. No status the server cannot substantiate — a live
 "the router fetched your subscription" indicator waits for the server to record
-that fact, and until then the interface does not imply it. Profiles are archived,
-not destructively deleted; their published files remain immutable (ADR 0004).
+that fact, and until then the interface does not imply it. A profile is archived
+before it can be deleted, and deletion withdraws its links while its published
+files remain immutable (ADR 0004, ADR 0051).
 Library lists and categories can be removed through the guarded library flow
 (ADR 0029). Removing a library item never deletes published artifact history.
 

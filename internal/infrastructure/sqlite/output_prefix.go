@@ -27,7 +27,7 @@ func (s *Store) UpdateOutputFQDNPrefix(ctx context.Context, outputID, prefix str
 	}
 	defer func() { _ = tx.Rollback() }()
 	var profileID string
-	err = tx.QueryRowContext(ctx, `SELECT profile_id FROM outputs WHERE id=? AND target_id='keenetic-dns'`, outputID).Scan(&profileID)
+	err = tx.QueryRowContext(ctx, `SELECT profile_id FROM outputs WHERE id=? AND target_id='keenetic-dns' AND removed_at_ns=0`, outputID).Scan(&profileID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return application.ErrNotFound
 	}

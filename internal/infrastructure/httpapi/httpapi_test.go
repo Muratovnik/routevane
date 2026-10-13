@@ -68,6 +68,11 @@ type fakeBackend struct {
 	transferErr     error
 	profileCursor   string
 	profileNext     string
+	// retireErr is what the retirement verbs answer with; retired records the
+	// verb and identity each route passed through.
+	retireErr       error
+	retired         []string
+	subscriptionErr error
 }
 
 func (f *fakeBackend) ExportConfigTransfer(context.Context) ([]byte, error) {
@@ -390,7 +395,34 @@ func (f *fakeBackend) Build(ctx context.Context, _ string) (application.Publishe
 	return testPublishedBuild(), nil
 }
 func (f *fakeBackend) Subscription(context.Context, string) (application.ArtifactPayload, error) {
+	if f.subscriptionErr != nil {
+		return application.ArtifactPayload{}, f.subscriptionErr
+	}
 	return f.artifact, nil
+}
+
+var retiredAt = time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)
+
+func (f *fakeBackend) DeleteProfile(_ context.Context, id string) (time.Time, error) {
+	if f.retireErr != nil {
+		return time.Time{}, f.retireErr
+	}
+	f.retired = append(f.retired, "delete "+id)
+	return retiredAt, nil
+}
+func (f *fakeBackend) RemoveOutput(_ context.Context, id string) (time.Time, error) {
+	if f.retireErr != nil {
+		return time.Time{}, f.retireErr
+	}
+	f.retired = append(f.retired, "remove "+id)
+	return retiredAt, nil
+}
+func (f *fakeBackend) ReissueSubscription(_ context.Context, id string) (string, error) {
+	if f.retireErr != nil {
+		return "", f.retireErr
+	}
+	f.retired = append(f.retired, "reissue "+id)
+	return f.token, nil
 }
 func (f *fakeBackend) Snapshot(context.Context, string) (application.PlanSnapshotRecord, error) {
 	return application.PlanSnapshotRecord{ID: strings.Repeat("a", 32), RoutingPlanJSON: []byte(`{"interface_version":"m0-spike-v1"}`)}, nil
@@ -1604,6 +1636,7 @@ var everyAPIPath = []struct {
 	{"/v1/profiles/" + testID + "/schedule", "profiles.schedule"},
 	{"/v1/profiles/" + testID + "/archive", "profiles.archive"},
 	{"/v1/profiles/" + testID + "/restore", "profiles.restore"},
+	{"/v1/profiles/" + testID + "/delete", "profiles.delete"},
 	{"/v1/profiles/" + testID + "/export", "profiles.export"},
 	{"/v1/devices", "devices.collection"},
 	{"/v1/devices/" + testID + "/update", "devices.update"},
@@ -1615,6 +1648,8 @@ var everyAPIPath = []struct {
 	{"/v1/outputs/" + testID + "/build", "outputs.build"},
 	{"/v1/outputs/" + testID + "/device", "outputs.device"},
 	{"/v1/outputs/" + testID + "/fqdn-prefix", "outputs.fqdn-prefix"},
+	{"/v1/outputs/" + testID + "/remove", "outputs.remove"},
+	{"/v1/outputs/" + testID + "/subscription/reissue", "outputs.subscription.reissue"},
 	{"/v1/subscriptions/" + testID + "", "subscriptions.get"},
 	{"/v1/snapshots/" + testID + "", "snapshots.get"},
 	{"/v1/artifacts/" + testID + "", "artifacts.get"},

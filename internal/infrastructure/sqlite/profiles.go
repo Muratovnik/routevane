@@ -30,7 +30,7 @@ type profileQueryer interface {
 // cannot slip between an application check and the stored operator edit.
 func requireWritableProfile(ctx context.Context, tx *sql.Tx, profileID string) error {
 	var archivedAt int64
-	err := tx.QueryRowContext(ctx, `SELECT archived_at_ns FROM profiles WHERE id=?`, profileID).Scan(&archivedAt)
+	err := tx.QueryRowContext(ctx, `SELECT archived_at_ns FROM profiles WHERE id=? AND deleted_at_ns=0`, profileID).Scan(&archivedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return application.ErrNotFound
 	}
@@ -241,7 +241,7 @@ func (s *Store) Profile(ctx context.Context, id string) (application.Profile, er
 }
 
 func readProfile(ctx context.Context, queryer profileQueryer, id string) (application.Profile, error) {
-	profile, err := scanProfile(queryer.QueryRowContext(ctx, profileColumns+` FROM profiles WHERE id=?`, id))
+	profile, err := scanProfile(queryer.QueryRowContext(ctx, profileColumns+` FROM profiles WHERE id=? AND deleted_at_ns=0`, id))
 	if err != nil {
 		return application.Profile{}, err
 	}
@@ -464,7 +464,7 @@ func readProfileDomainRows(ctx context.Context, queryer profileQueryer, selected
 func (s *Store) Profiles(ctx context.Context) ([]application.Profile, error) {
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	profiles, err := s.readProfiles(ctx, profileColumns+` FROM profiles ORDER BY created_at_ns DESC, id ASC LIMIT ?`, true, profileLimit)
+	profiles, err := s.readProfiles(ctx, profileColumns+` FROM profiles WHERE deleted_at_ns=0 ORDER BY created_at_ns DESC, id ASC LIMIT ?`, true, profileLimit)
 	if err != nil {
 		return nil, err
 	}
@@ -478,7 +478,7 @@ func (s *Store) Profiles(ctx context.Context) ([]application.Profile, error) {
 func (s *Store) ProfilesForScheduling(ctx context.Context) ([]application.Profile, error) {
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	return s.readProfiles(ctx, profileColumns+` FROM profiles ORDER BY created_at_ns DESC, id ASC`, false)
+	return s.readProfiles(ctx, profileColumns+` FROM profiles WHERE deleted_at_ns=0 ORDER BY created_at_ns DESC, id ASC`, false)
 }
 
 func (s *Store) readProfiles(ctx context.Context, query string, includeComposition bool, args ...any) ([]application.Profile, error) {
@@ -526,7 +526,9 @@ func (s *Store) readProfiles(ctx context.Context, query string, includeCompositi
 
 // ProfileReferences queries the normalized reference tables directly so
 // integrity checks see every stored profile, including archived and older rows
-// omitted from the shelf's bounded presentation query.
+// omitted from the shelf's bounded presentation query. A deleted profile has
+// no composition rows left and is excluded as well: it can never be restored,
+// so nothing it once named can silently change for it (ADR 0051).
 func (s *Store) ProfileReferences(ctx context.Context, categoryIDs, listIDs []string) ([]application.ProfileReference, error) {
 	if len(categoryIDs) == 0 && len(listIDs) == 0 {
 		return []application.ProfileReference{}, nil
@@ -553,9 +555,9 @@ func (s *Store) ProfileReferences(ctx context.Context, categoryIDs, listIDs []st
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, `SELECT id,name FROM profiles WHERE
+	rows, err := s.db.QueryContext(ctx, `SELECT id,name FROM profiles WHERE deleted_at_ns=0 AND (
 		EXISTS (SELECT 1 FROM profile_categories WHERE profile_id=profiles.id AND category_id IN (SELECT value FROM json_each(?)))
-		OR EXISTS (SELECT 1 FROM profile_lists WHERE profile_id=profiles.id AND list_id IN (SELECT value FROM json_each(?)))
+		OR EXISTS (SELECT 1 FROM profile_lists WHERE profile_id=profiles.id AND list_id IN (SELECT value FROM json_each(?))))
 		ORDER BY id ASC`, string(categories), string(lists))
 	if err != nil {
 		return nil, fmt.Errorf("list profile references: %w", err)
@@ -633,7 +635,7 @@ func (s *Store) SetProfileArchived(ctx context.Context, profileID string, archiv
 		archived = archivedAt.UTC().UnixNano()
 	}
 	result, err := s.db.ExecContext(ctx,
-		`UPDATE profiles SET archived_at_ns=?, updated_at_ns=? WHERE id=?`,
+		`UPDATE profiles SET archived_at_ns=?, updated_at_ns=? WHERE id=? AND deleted_at_ns=0`,
 		archived, updatedAt.UTC().UnixNano(), profileID)
 	if err != nil {
 		return fmt.Errorf("update list archival: %w", err)

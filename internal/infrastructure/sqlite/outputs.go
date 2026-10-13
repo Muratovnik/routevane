@@ -43,7 +43,7 @@ func (s *Store) CreateOutput(ctx context.Context, create application.NewOutput) 
 	if taken != 0 {
 		return fail(application.ErrIdentityCollision)
 	}
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM outputs WHERE profile_id=? AND target_id=?`, o.ProfileID, o.TargetID).Scan(&taken); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM outputs WHERE profile_id=? AND target_id=? AND removed_at_ns=0`, o.ProfileID, o.TargetID).Scan(&taken); err != nil {
 		return fail(fmt.Errorf("check output target: %w", err))
 	}
 	if taken != 0 {
@@ -83,7 +83,7 @@ func (s *Store) CreateSubscription(ctx context.Context, outputID, tokenID string
 	}
 	fail := func(cause error) error { _ = tx.Rollback(); return cause }
 	var profileID string
-	err = tx.QueryRowContext(ctx, `SELECT profile_id FROM outputs WHERE id=?`, outputID).Scan(&profileID)
+	err = tx.QueryRowContext(ctx, `SELECT profile_id FROM outputs WHERE id=? AND removed_at_ns=0`, outputID).Scan(&profileID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fail(application.ErrNotFound)
 	}
@@ -93,9 +93,11 @@ func (s *Store) CreateSubscription(ctx context.Context, outputID, tokenID string
 	if err := requireWritableProfile(ctx, tx, profileID); err != nil {
 		return fail(err)
 	}
-	var exists int
-	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM subscriptions WHERE output_id=?`, outputID).Scan(&exists); err != nil {
-		return fail(fmt.Errorf("check output subscription: %w", err))
+	// A revoked token is history, not a subscription: only an unrevoked one
+	// makes this output already subscribed.
+	exists, err := activeSubscriptions(ctx, tx, outputID)
+	if err != nil {
+		return fail(err)
 	}
 	if exists != 0 {
 		return fail(application.ErrSubscriptionExists)
@@ -132,7 +134,7 @@ func (s *Store) UpdateOutputDevice(ctx context.Context, outputID, deviceID strin
 	}
 	defer func() { _ = tx.Rollback() }()
 	var profileID string
-	err = tx.QueryRowContext(ctx, `SELECT profile_id FROM outputs WHERE id=?`, outputID).Scan(&profileID)
+	err = tx.QueryRowContext(ctx, `SELECT profile_id FROM outputs WHERE id=? AND removed_at_ns=0`, outputID).Scan(&profileID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return application.ErrNotFound
 	}
@@ -165,7 +167,7 @@ func (s *Store) Output(ctx context.Context, id string) (application.Output, erro
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	return scanOutput(s.db.QueryRowContext(ctx, outputSelect+` WHERE id=?`, id))
+	return scanOutput(s.db.QueryRowContext(ctx, outputSelect+` WHERE id=? AND removed_at_ns=0`, id))
 }
 
 func (s *Store) OutputsByProfile(ctx context.Context, profileID string) ([]application.Output, error) {
@@ -174,7 +176,7 @@ func (s *Store) OutputsByProfile(ctx context.Context, profileID string) ([]appli
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	return s.scanOutputs(ctx, outputSelect+` WHERE profile_id=? ORDER BY created_at_ns ASC, id ASC LIMIT 64`, profileID)
+	return s.scanOutputs(ctx, outputSelect+` WHERE profile_id=? AND removed_at_ns=0 ORDER BY created_at_ns ASC, id ASC LIMIT 64`, profileID)
 }
 
 // Outputs bounds the library read the same way Profiles does, and newest-first for
@@ -183,7 +185,7 @@ func (s *Store) OutputsByProfile(ctx context.Context, profileID string) ([]appli
 func (s *Store) Outputs(ctx context.Context) ([]application.Output, error) {
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	return s.scanOutputs(ctx, outputSelect+` ORDER BY created_at_ns DESC, id ASC LIMIT ?`, profileLimit*4)
+	return s.scanOutputs(ctx, outputSelect+` WHERE removed_at_ns=0 ORDER BY created_at_ns DESC, id ASC LIMIT ?`, profileLimit*4)
 }
 
 func (s *Store) scanOutputs(ctx context.Context, query string, args ...any) ([]application.Output, error) {
@@ -206,6 +208,12 @@ func (s *Store) scanOutputs(ctx context.Context, query string, args ...any) ([]a
 	return outputs, nil
 }
 
+// OutputBySubscription resolves a complete bearer token. The secret is
+// verified before anything else is said about the token, so a caller holding
+// only a token identity learns nothing, not even that it was revoked. A token
+// that matches but no longer works -- revoked by a reissue, or retired with its
+// format or profile -- is ErrSubscriptionRevoked, which is distinct from a
+// token that never existed.
 func (s *Store) OutputBySubscription(ctx context.Context, tokenID string, tokenHash [32]byte) (application.Output, error) {
 	if !validID(tokenID) {
 		return application.Output{}, application.ErrNotFound
@@ -214,7 +222,13 @@ func (s *Store) OutputBySubscription(ctx context.Context, tokenID string, tokenH
 	defer cancel()
 	var outputID string
 	var stored []byte
-	if err := s.db.QueryRowContext(ctx, `SELECT output_id,token_hash FROM subscriptions WHERE token_id=?`, tokenID).Scan(&outputID, &stored); err != nil {
+	var revoked, removed int
+	err := s.db.QueryRowContext(ctx, `SELECT subscriptions.output_id,subscriptions.token_hash,
+		EXISTS (SELECT 1 FROM subscription_revocations WHERE token_id=subscriptions.token_id),
+		outputs.removed_at_ns<>0
+		FROM subscriptions JOIN outputs ON outputs.id=subscriptions.output_id
+		WHERE subscriptions.token_id=?`, tokenID).Scan(&outputID, &stored, &revoked, &removed)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return application.Output{}, application.ErrNotFound
 		}
@@ -223,5 +237,20 @@ func (s *Store) OutputBySubscription(ctx context.Context, tokenID string, tokenH
 	if len(stored) != 32 || subtle.ConstantTimeCompare(stored, tokenHash[:]) != 1 {
 		return application.Output{}, application.ErrNotFound
 	}
+	if revoked != 0 || removed != 0 {
+		return application.Output{}, application.ErrSubscriptionRevoked
+	}
 	return s.Output(ctx, outputID)
+}
+
+// activeSubscriptions counts the unrevoked tokens of one output. The
+// application keeps it at zero or one; it is a count so a caller can refuse
+// anything else rather than pick one.
+func activeSubscriptions(ctx context.Context, tx *sql.Tx, outputID string) (int, error) {
+	var count int
+	if err := tx.QueryRowContext(ctx, `SELECT count(*) FROM subscriptions
+		WHERE output_id=? AND token_id NOT IN (SELECT token_id FROM subscription_revocations)`, outputID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("check output subscription: %w", err)
+	}
+	return count, nil
 }

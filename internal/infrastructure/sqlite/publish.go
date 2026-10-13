@@ -29,7 +29,7 @@ func (s *Store) Publish(ctx context.Context, candidate application.PublicationCa
 		return application.Output{}, application.PlanSnapshotRecord{}, application.ArtifactBuildRecord{}, cause
 	}
 	var profileID, prefix string
-	err = tx.QueryRowContext(ctx, `SELECT profile_id,fqdn_group_prefix FROM outputs WHERE id=?`, candidate.Snapshot.OutputID).Scan(&profileID, &prefix)
+	err = tx.QueryRowContext(ctx, `SELECT profile_id,fqdn_group_prefix FROM outputs WHERE id=? AND removed_at_ns=0`, candidate.Snapshot.OutputID).Scan(&profileID, &prefix)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fail(application.ErrNotFound)
 	}
@@ -145,6 +145,11 @@ func (s *Store) preparePublication() error {
 	return nil
 }
 
+// liveOutputArtifact limits a read by identity to what a live output
+// published. The rows of a retired output stay in the database unchanged, but
+// they are no longer an address anything answers on (ADR 0051).
+const liveOutputArtifact = `output_id IN (SELECT id FROM outputs WHERE removed_at_ns=0)`
+
 const snapshotSelect = `SELECT id,output_id,routing_plan_hash,routing_plan_json,policy_version,catalog_revision,observation_cutoff_ns,created_at_ns,status FROM plan_snapshots`
 const artifactSelect = `SELECT id,output_id,plan_snapshot_id,renderer_id,renderer_version,artifact_hash,artifact_path,size_bytes,content_type,content_created_at_ns,validation_status,status FROM artifact_builds`
 
@@ -154,7 +159,7 @@ func (s *Store) PlanSnapshot(ctx context.Context, id string) (application.PlanSn
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	return scanPlanSnapshot(s.db.QueryRowContext(ctx, snapshotSelect+` WHERE id=?`, id))
+	return scanPlanSnapshot(s.db.QueryRowContext(ctx, snapshotSelect+` WHERE id=? AND `+liveOutputArtifact, id))
 }
 func (s *Store) ArtifactBuild(ctx context.Context, id string) (application.ArtifactBuildRecord, error) {
 	if !validID(id) {
@@ -162,7 +167,7 @@ func (s *Store) ArtifactBuild(ctx context.Context, id string) (application.Artif
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	return scanArtifact(s.db.QueryRowContext(ctx, artifactSelect+` WHERE id=?`, id))
+	return scanArtifact(s.db.QueryRowContext(ctx, artifactSelect+` WHERE id=? AND `+liveOutputArtifact, id))
 }
 
 func validatePublication(c application.PublicationCandidate) error {

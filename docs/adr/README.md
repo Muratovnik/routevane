@@ -16,7 +16,8 @@ word the product has again.
 the change and is the one place it is stated; earlier bodies are deliberately
 not rewritten, because an ADR records the decision as it was taken.
 
-Important chains: 0004 → 0013/0023 (objects and issuance), 0013 → 0016 → 0028 →
+Important chains: 0004 → 0013/0023 (objects and issuance), 0004/0018/0023 → 0051
+(retirement and link reissue), 0013 → 0016 → 0028 →
 0029 → 0036 (composition, vocabulary, library ownership, default and route priority),
 0028 → 0039 (the deferred identifiers, and the executable that carries them),
 0027 → 0041 (one interface word per object),
@@ -79,3 +80,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0048: choose new desktop ports below the ephemeral ranges](./0048-desktop-port-band.md) | adopted |
 | [ADR 0049: readable Keenetic FQDN group names](./0049-readable-fqdn-group-names.md) | adopted |
 | [ADR 0050: a connection's saved password is its own fact](./0050-saved-connection-credential.md) | adopted |
+| [ADR 0051: retiring a profile or a format, and reissuing a subscription link](./0051-profile-and-format-retirement-and-subscription-reissue.md) | adopted |

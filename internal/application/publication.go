@@ -26,6 +26,16 @@ var (
 	ErrOutputExists        = errors.New("output already exists for this target")
 	ErrSubscriptionExists  = errors.New("output subscription already exists")
 	ErrProfileArchived     = errors.New("profile is archived")
+	// ErrProfileNotArchived refuses to delete a profile that is still on the
+	// shelf: deletion is the step after archival, never instead of it.
+	ErrProfileNotArchived = errors.New("profile is not archived")
+	// ErrSubscriptionRevoked answers a genuine token that no longer works. It
+	// is distinct from ErrNotFound so a subscriber can be told the link was
+	// withdrawn rather than that it never existed.
+	ErrSubscriptionRevoked = errors.New("subscription revoked")
+	// ErrSubscriptionMissing refuses to reissue a link for an output that has
+	// never been given one: the first link comes from a successful build.
+	ErrSubscriptionMissing = errors.New("output has no subscription")
 	ErrProfileChanged      = errors.New("profile changed during build")
 	ErrBuildSuperseded     = errors.New("newer build already published")
 )
@@ -257,6 +267,20 @@ type PublicationRepository interface {
 	SetDomainVerdicts(ctx context.Context, listID string, values []string, verdict DomainVerdict) error
 	ListTunings(context.Context) (map[string]ListTuning, error)
 	CreateSubscription(ctx context.Context, outputID, tokenID string, tokenHash [32]byte, createdAt time.Time) error
+	// DeleteProfile retires an archived profile as a tombstone in one
+	// transaction: every token of its formats is revoked, each live format is
+	// retired with its connection binding cleared, and its composition rows are
+	// removed. Published rows and files are untouched (ADR 0051). It answers
+	// ErrNotFound for an unknown or already deleted profile and
+	// ErrProfileNotArchived for one still on the shelf.
+	DeleteProfile(ctx context.Context, profileID string, deletedAt time.Time) error
+	// RemoveOutput retires one format of a profile that is not archived: its
+	// tokens are revoked and its binding cleared in the same transaction.
+	RemoveOutput(ctx context.Context, outputID string, removedAt time.Time) error
+	// ReissueSubscription revokes the output's active token and stores a new
+	// one in one transaction. It answers ErrSubscriptionMissing when the output
+	// has no active token to replace.
+	ReissueSubscription(ctx context.Context, outputID, tokenID string, tokenHash [32]byte, issuedAt time.Time) error
 	RecordOutputAttempt(context.Context, OutputAttempt) error
 	LatestOutputAttempt(context.Context, string) (OutputAttempt, error)
 	Output(context.Context, string) (Output, error)

@@ -409,6 +409,28 @@ func (b serveBackend) SetOutputDevice(ctx context.Context, outputID, deviceID st
 	return b.PublicationService.SetOutputDevice(ctx, outputID, &device)
 }
 
+// DeleteProfile and RemoveOutput clear output-to-device bindings, so they take
+// the same gate as every other binding change (ADR 0031): an automatic delivery
+// either finishes before the retirement or reads the retired output afterwards
+// and finds nothing to deliver.
+func (b serveBackend) DeleteProfile(ctx context.Context, id string) (time.Time, error) {
+	release, err := b.deliveryGate.Acquire(ctx)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer release()
+	return b.PublicationService.DeleteProfile(ctx, id)
+}
+
+func (b serveBackend) RemoveOutput(ctx context.Context, id string) (time.Time, error) {
+	release, err := b.deliveryGate.Acquire(ctx)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer release()
+	return b.PublicationService.RemoveOutput(ctx, id)
+}
+
 func (b serveBackend) ForgetDevice(ctx context.Context, id string) error {
 	release, err := b.deliveryGate.Acquire(ctx)
 	if err != nil {
