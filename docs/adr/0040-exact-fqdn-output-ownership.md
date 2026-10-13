@@ -4,6 +4,11 @@ status: adopted
 
 # ADR 0040: exact FQDN ownership belongs to a router and output
 
+Group naming is amended by
+[ADR 0049](0049-readable-fqdn-group-names.md). The hashed names below describe
+earlier output; new builds name a group by its list ID and a short output code.
+Ownership and the deployment lifecycle below are unchanged.
+
 ## Context
 
 Keenetic FQDN names and routing attachments are device-wide. The prefix-based

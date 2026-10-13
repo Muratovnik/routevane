@@ -57,6 +57,12 @@ const (
 	maxGroupName   = 64
 	maxEntryLength = 253
 	maxLineBytes   = len("object-group fqdn  include \n") + maxGroupName + maxEntryLength
+	// outputCodeBytes and listHashBytes are the SHA-256 prefixes in a group
+	// name: the output code tells apart two outputs that render the same list
+	// on one router, and the list hash keeps truncated long list IDs distinct.
+	// Neither is ownership evidence; the deployer's ledger is.
+	outputCodeBytes = 3
+	listHashBytes   = 4
 	// MaxDescriptionBytes is a product bound for a compact router list label,
 	// not a claimed firmware limit.
 	MaxDescriptionBytes = 96
@@ -122,7 +128,8 @@ func (Renderer) RenderOutput(plan domain.RoutingPlan, outputID, prefix string) (
 // projectPlan turns already-decided rules into one group per list, split into
 // numbered sub-groups when a list carries more entries than a group holds.
 // Grouping by list preserves stable identity, while the native description
-// carries the readable title independently of that identity.
+// carries the readable title independently of that identity. A group is named
+// <prefix>-<list part>-<output code>-s<shard> (ADR 0049).
 func projectPlan(plan domain.RoutingPlan) ([]Group, error) {
 	return projectOutputPlan(plan, "", "")
 }
@@ -132,6 +139,7 @@ func projectOutputPlan(plan domain.RoutingPlan, outputID, prefix string) ([]Grou
 		prefix = "routevane"
 	}
 	owner := sha256.Sum256([]byte(outputID))
+	code := fmt.Sprintf("%x", owner[:outputCodeBytes])
 	byList := make(map[string][]string)
 	labels := make(map[string][]string)
 	for _, rule := range plan.Rules {
@@ -152,13 +160,13 @@ func projectOutputPlan(plan domain.RoutingPlan, outputID, prefix string) ([]Grou
 	groups := make([]Group, 0, len(lists))
 	seen := make(map[string]bool)
 	for _, list := range lists {
-		identity := sha256.Sum256([]byte(list))
 		entries := domain.StableStrings(byList[list])
 		description := listDescription(list, labels[list])
 		shards := (len(entries) + MaxEntriesPerGroup - 1) / MaxEntriesPerGroup
+		part := listNamePart(list, prefix, shards)
 		for index := 0; index < len(entries); index += MaxEntriesPerGroup {
 			end := min(index+MaxEntriesPerGroup, len(entries))
-			name := fmt.Sprintf("%s-%x-%x-s%d", prefix, owner[:6], identity[:8], index/MaxEntriesPerGroup+1)
+			name := fmt.Sprintf("%s-%s-%s-s%d", prefix, part, code, index/MaxEntriesPerGroup+1)
 			if len(name) > maxGroupName {
 				return nil, fmt.Errorf("keenetic FQDN group name exceeds the bound")
 			}
@@ -178,6 +186,23 @@ func projectOutputPlan(plan domain.RoutingPlan, outputID, prefix string) ([]Grou
 		return nil, fmt.Errorf("routing plan contains no group")
 	}
 	return groups, nil
+}
+
+// listNamePart is the readable list component of a group name: the list ID
+// itself when it fits, otherwise its head and a hash of the whole ID, so two
+// long lists sharing a head stay distinct. The room for the shard suffix is
+// reserved for the device's largest group count, so every shard of one list
+// carries the same list part. A list too large to render at all still gets a
+// bounded name, leaving the refusal to the group budget that names the cause.
+func listNamePart(list, prefix string, shards int) string {
+	shardSuffix := len(fmt.Sprintf("-s%d", max(shards, MaxGroups)))
+	budget := maxGroupName - len(prefix) - len("-") - len("-") - 2*outputCodeBytes - shardSuffix
+	if len(list) <= budget {
+		return list
+	}
+	identity := sha256.Sum256([]byte(list))
+	hash := fmt.Sprintf("-%x", identity[:listHashBytes])
+	return strings.TrimRight(list[:budget-len(hash)], "-") + hash
 }
 
 func entryValue(rule domain.RouteRule) (string, error) {

@@ -449,12 +449,18 @@ accepted. Owned attachments are reconciled and verified with `auto=true`; this
 flag is a routing policy, not proof of interface connectivity.
 
 Keenetic DNS groups belong to an exact output and device endpoint. New builds
-name groups `<prefix>-<output hash>-<list hash>-s<shard>`. Set the output's optional
+name groups `<prefix>-<list>-<output code>-s<shard>`, for example
+`routevane-chatgpt-db8428-s1`: the list ID, then six hex characters that tell
+apart two outputs sending the same list to one router. A list ID too long for the
+64-byte name is shortened and ends with a hash. Set the output's optional
 FQDN group prefix (default `routevane`): at most 24 lowercase ASCII letters,
 digits or hyphens, beginning with a letter and ending without a hyphen. Save it,
 then build again. Existing published files remain unchanged. The send preview
 reads the router without changing it and lists exact commands, including cleanup
-of that output's recorded old names after a prefix change.
+of that output's recorded old names after a prefix change. Groups an output sent
+under the earlier hashed names, such as
+`routevane-db842808ecae-60965168ce762e94-s1`, are replaced the same way on its
+next build and send; see [ADR 0049](adr/0049-readable-fqdn-group-names.md).
 
 A prefix never proves ownership. Unowned groups, including old `routevane-*`
 names and groups from another output, are preserved. If a desired name already

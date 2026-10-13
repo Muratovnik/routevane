@@ -249,3 +249,68 @@ func TestFQDNDescriptionUpdatesOwnedLegacyGroupAndRollsBackWithItsLedger(t *test
 		t.Fatalf("missing readable label passed read-back: %v", err)
 	}
 }
+
+// A router configured before readable names holds hashed names. The next
+// deployment of an output replaces the hashed groups its own ledger records
+// with the readable ones and leaves another output's hashed group and a manual
+// group alone, even when both carry the same list.
+func TestFQDNReadableNamesReplaceOnlyTheOutputsOwnHashedGroups(t *testing.T) {
+	f := newFQDNFixture(t, "5.1.2")
+	ledger := &fqdnLedger{states: map[string]application.ManagedFQDNOwnership{}}
+	f.device.fqdn["routevane-manual"] = []string{"manual.example"}
+	f.device.dnsRoutes["routevane-manual"] = "ISP"
+	a, b := strings.Repeat("1", 32), strings.Repeat("2", 32)
+	ownHashed, otherHashed := "routevane-db842808ecae-60965168ce762e94-s1", "routevane-0d6ba19b6253-60965168ce762e94-s1"
+	for _, earlier := range []struct{ id, name string }{{a, ownHashed}, {b, otherHashed}} {
+		artifact := outputFQDNArtifact(t, earlier.id, "", "chatgpt", "chatgpt.com")
+		artifact.Payload = []byte("object-group fqdn " + earlier.name + " description \"ChatGPT\"\n" +
+			"object-group fqdn " + earlier.name + " include chatgpt.com\n")
+		if result, err := applyFQDNOutput(f, ledger, earlier.id, artifact); err != nil || !result.Applied {
+			t.Fatalf("earlier hashed build of %s: %#v %v", earlier.id, result, err)
+		}
+	}
+	otherBefore, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", b)
+
+	current := outputFQDNArtifact(t, a, "", "chatgpt", "chatgpt.com")
+	readable := "routevane-chatgpt-8a8366-s1"
+	if groups, err := keeneticdns.Parse(current.Payload); err != nil || len(groups) != 1 || groups[0].Name != readable {
+		t.Fatalf("current build groups=%#v err=%v", groups, err)
+	}
+	prior, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", a)
+	current.OwnedFQDNGroups = prior.Groups
+	preview, err := f.deployer.PreviewFQDNGroups(context.Background(), f.probe(t), f.connection, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if indexOf(preview, "no object-group fqdn "+ownHashed) < 0 {
+		t.Fatalf("preview does not remove the output's own hashed group: %v", preview)
+	}
+	for _, command := range preview {
+		if strings.Contains(command, otherHashed) || strings.Contains(command, "routevane-manual") {
+			t.Fatalf("preview touches a group this output does not own: %q", command)
+		}
+	}
+	current.OwnedFQDNGroups = nil
+	if result, err := applyFQDNOutput(f, ledger, a, current); err != nil || !result.Applied {
+		t.Fatalf("readable build=%#v %v", result, err)
+	}
+
+	groups, routes := f.device.groupSnapshot()
+	wantGroups := map[string][]string{
+		readable:           {"chatgpt.com"},
+		otherHashed:        {"chatgpt.com"},
+		"routevane-manual": {"manual.example"},
+	}
+	wantRoutes := map[string]string{readable: deviceInterface, otherHashed: deviceInterface, "routevane-manual": "ISP"}
+	if !reflect.DeepEqual(groups, wantGroups) || !reflect.DeepEqual(routes, wantRoutes) {
+		t.Fatalf("device groups=%v routes=%v", groups, routes)
+	}
+	owned, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", a)
+	if len(owned.Groups) != 1 || owned.Groups[0].Name != readable {
+		t.Fatalf("ledger of the deployed output = %#v", owned.Groups)
+	}
+	otherAfter, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", b)
+	if !reflect.DeepEqual(otherBefore, otherAfter) {
+		t.Fatalf("another output's ledger changed: %#v", otherAfter)
+	}
+}

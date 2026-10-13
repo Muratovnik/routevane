@@ -35,11 +35,11 @@ func TestRenderMakesOneGroupPerList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 description \"youtube\"\n" +
-		"object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include googlevideo.com\n" +
-		"object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include youtube.com\n" +
-		"object-group fqdn routevane-e3b0c44298fc-e1ba4807a15d8579-s1 description \"discord\"\n" +
-		"object-group fqdn routevane-e3b0c44298fc-e1ba4807a15d8579-s1 include discord.com\n"
+	want := "object-group fqdn routevane-discord-e3b0c4-s1 description \"discord\"\n" +
+		"object-group fqdn routevane-discord-e3b0c4-s1 include discord.com\n" +
+		"object-group fqdn routevane-youtube-e3b0c4-s1 description \"youtube\"\n" +
+		"object-group fqdn routevane-youtube-e3b0c4-s1 include googlevideo.com\n" +
+		"object-group fqdn routevane-youtube-e3b0c4-s1 include youtube.com\n"
 	if string(payload) != want {
 		t.Fatalf("payload =\n%s", payload)
 	}
@@ -66,10 +66,10 @@ func TestAListOverTheBoundIsSplitIntoSubGroups(t *testing.T) {
 	if len(groups) != 2 {
 		t.Fatalf("groups = %d", len(groups))
 	}
-	if groups[0].Name != "routevane-e3b0c44298fc-24e6654bfd1ab85b-s1" || len(groups[0].Entries) != MaxEntriesPerGroup {
+	if groups[0].Name != "routevane-youtube-e3b0c4-s1" || len(groups[0].Entries) != MaxEntriesPerGroup {
 		t.Fatalf("first group = %s/%d", groups[0].Name, len(groups[0].Entries))
 	}
-	if groups[1].Name != "routevane-e3b0c44298fc-24e6654bfd1ab85b-s2" || len(groups[1].Entries) != 5 {
+	if groups[1].Name != "routevane-youtube-e3b0c4-s2" || len(groups[1].Entries) != 5 {
 		t.Fatalf("second group = %s/%d", groups[1].Name, len(groups[1].Entries))
 	}
 	if groups[0].Description != "youtube (1/2)" || groups[1].Description != "youtube (2/2)" {
@@ -300,6 +300,10 @@ func TestRenderProducesTheGoldenGroupFile(t *testing.T) {
 func FuzzParseNeverAcceptsANonCanonicalFile(f *testing.F) {
 	f.Add("object-group fqdn routevane-example description \"Claude — сайты\"\n" +
 		"object-group fqdn routevane-example include claude.ai\n")
+	f.Add("object-group fqdn routevane-discord-e3b0c4-s1 description \"discord\"\n" +
+		"object-group fqdn routevane-discord-e3b0c4-s1 include discord.com\n" +
+		"object-group fqdn routevane-youtube-e3b0c4-s1 include youtube.com\n")
+	// Earlier hashed names stay valid input: published artifacts are immutable.
 	f.Add("object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include googlevideo.com\n" +
 		"object-group fqdn routevane-e3b0c44298fc-24e6654bfd1ab85b-s1 include youtube.com\n" +
 		"object-group fqdn routevane-e3b0c44298fc-e1ba4807a15d8579-s1 include discord.com\n")
