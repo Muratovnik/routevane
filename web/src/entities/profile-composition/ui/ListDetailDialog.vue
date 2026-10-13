@@ -55,6 +55,7 @@ const {
   addValuesOpen,
   composing,
   contents,
+  contentsFailure,
   contentsState,
   curating,
   dismissalBlocked,
@@ -346,7 +347,7 @@ watch(contentsState, async (state) => {
             <RvStatus
               v-else-if="contentsState === 'failed'"
               class="list-card__refresh-indicator"
-              :label="t('listCard.failed.body')"
+              :label="t(`failure.${contentsFailure}.body`)"
               tone="failed"
             />
             <RvStatus
@@ -450,6 +451,7 @@ watch(contentsState, async (state) => {
               :key="index"
               class="list-card__loading-row rv-loading-feedback"
               aria-hidden="true"
+              data-testid="rv-loading-row"
             />
           </template>
           <li
@@ -986,7 +988,7 @@ watch(contentsState, async (state) => {
   width: 60%;
   height: var(--rv-space-4);
   margin-block: var(--rv-space-3);
-  background: var(--rv-color-surface-muted);
+  background: var(--rv-color-skeleton);
   border-radius: var(--rv-radius-sm);
 }
 

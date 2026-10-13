@@ -228,8 +228,22 @@ const triggerNamedBy = computed(() => {
 // A button centres its content; a field reads from its leading edge. The value
 // is one line cut with an ellipsis, so a long name never makes the field taller
 // than the control beside it, and the chevron keeps the end.
+//
+// A field-size trigger is drawn as a field, so it also takes a field's states:
+// no hover ground, since a field is not lit by the pointer passing over it, and
+// the regular weight a text field's value is set in, with the placeholder muted
+// as a text field's placeholder is. The library's button would otherwise draw
+// both in its own medium weight and lift its ground on hover.
+const placeholderShown = computed(
+  () => props.triggerLabel === undefined && selected.value === undefined,
+)
 const triggerUI = computed(() =>
-  field.value ? { base: 'justify-start text-start' } : undefined,
+  field.value
+    ? {
+        base: 'cursor-pointer justify-start text-start font-normal hover:bg-default active:bg-default',
+        label: placeholderShown.value ? 'text-dimmed' : undefined,
+      }
+    : undefined,
 )
 const selectedGlyph = computed(() =>
   selected.value?.icon === undefined ? undefined : glyph(selected.value.icon),
@@ -351,6 +365,12 @@ const choosePalette = (value: unknown): void => {
     calc(var(--rv-overlay-height) + var(--rv-space-12)),
     var(--reka-popover-content-available-height, var(--rv-overlay-height))
   );
+}
+
+/* The search sits against the panel's own edges and the panel clips what
+   reaches past them, so its ring is drawn inside the field instead of outside. */
+.rv-search-select__palette input:focus-visible {
+  outline-offset: calc(-1 * var(--rv-border-mark));
 }
 
 .rv-search-select__palette--field {

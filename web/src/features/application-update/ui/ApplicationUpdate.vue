@@ -104,6 +104,17 @@ const apply = async () => {
   cursor: pointer;
 }
 
+/* The button's accent text keeps its contrast on the raised ground only, not on
+   the hover ground the rest of the band lifts to, so its hover is the edge
+   taking the accent. It outranks the shared button's hover ground. */
+.rv-button.rv-button--secondary.application-update:hover:not(
+    :disabled,
+    [aria-disabled='true']
+  ) {
+  background: var(--rv-color-chrome-raised);
+  border-color: var(--rv-color-accent);
+}
+
 .application-update:disabled {
   cursor: wait;
 }

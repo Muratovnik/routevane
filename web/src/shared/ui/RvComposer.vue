@@ -9,7 +9,7 @@ const compact = computed(() => pane?.docked.value && pane.open.value)
   <div class="rv-composer" :class="{ 'rv-composer--compact': compact }">
     <div class="rv-composer__main"><slot /></div>
     <aside :aria-label="settingsLabel" class="rv-composer__settings">
-      <slot name="settings" :compact="compact" />
+      <slot name="settings" />
     </aside>
   </div>
 </template>
@@ -50,11 +50,22 @@ const compact = computed(() => pane?.docked.value && pane.open.value)
   grid-row: 1;
 }
 
+/* Without room for the rail beside the table, the settings stand above the
+   table as a band, where the actions that end the draft are in reach, instead
+   of after rows that can run to fifty. */
 @container (width <= 54rem) {
   .rv-composer:not(.rv-composer--compact) {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto auto;
     height: auto;
+  }
+
+  .rv-composer:not(.rv-composer--compact) .rv-composer__settings {
+    grid-row: 1;
+  }
+
+  .rv-composer:not(.rv-composer--compact) .rv-composer__main {
+    grid-row: 2;
   }
 }
 </style>

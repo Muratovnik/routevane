@@ -167,6 +167,7 @@ const chosen = computed<string | undefined>({
     :selected-icon="checkGlyph"
     :size="size === 'compact' ? 'lg' : 'xl'"
     :trailing-icon="chevronGlyph"
+    :ui="{ base: 'cursor-pointer hover:bg-default' }"
     variant="outline"
     @update:open="measureRoom"
   >

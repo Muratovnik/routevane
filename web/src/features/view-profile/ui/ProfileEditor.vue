@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 
 import {
   cloneComposition,
@@ -18,6 +18,7 @@ import type { CategoryDetail, ListDetail } from '@/shared/api/catalog'
 import type { ProfileComposition } from '@/shared/api/profiles'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvField from '@/shared/ui/RvField.vue'
+import RvStatus from '@/shared/ui/RvStatus.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
 const props = defineProps<{
@@ -133,10 +134,13 @@ const dirty = computed(
       compositionSignature(storedComposition(), props.categories),
 )
 
-const canSave = computed(
-  () =>
-    !props.busy && draftName.value.trim() !== '' && resolved.value.length > 0,
-)
+// What a profile cannot be stored without. Pressing save with one of them
+// missing states it beside what is missing and moves the keyboard there; the
+// button itself is withdrawn only while there is nothing to save.
+const nameMissing = computed(() => draftName.value.trim() === '')
+const listsMissing = computed(() => resolved.value.length === 0)
+const attempted = ref(false)
+const picker = useTemplateRef<{ focus: () => void }>('picker')
 
 const setComposition = (composition: ProfileComposition): void => {
   const next = normalizeComposition(composition, props.categories)
@@ -170,14 +174,22 @@ const retryForecast = (): void => {
   forecast.retry(draftComposition.value, resolved.value, forecastTargets.value)
 }
 
-const submit = (): void => {
-  if (!canSave.value) return
+const submit = async (): Promise<void> => {
+  if (props.busy || !dirty.value) return
+  if (nameMissing.value || listsMissing.value) {
+    attempted.value = true
+    await nextTick()
+    if (nameMissing.value) document.getElementById('editor-name')?.focus()
+    else picker.value?.focus()
+    return
+  }
   emit('save', draftName.value.trim(), draftComposition.value)
 }
 
 // Cancel restores the stored profile: the draft returns to what the server
 // holds, and nothing leaves the page.
 const reset = (): void => {
+  attempted.value = false
   draftName.value = props.name
   draftComposition.value = storedComposition()
   preferredPriority.value = resolvedComposition(
@@ -227,6 +239,7 @@ watch(stored, (next, previous) => {
         </h2>
         <div class="editor__composition-body">
           <ListPicker
+            ref="picker"
             fill
             :categories="props.categories"
             :disabled="props.busy"
@@ -253,21 +266,21 @@ watch(stored, (next, previous) => {
         </div>
       </section>
 
-      <template #settings="{ compact }">
-        <RvComposerForm
-          class="editor__settings"
-          :compact="compact"
-          @submit.prevent="submit"
-        >
+      <template #settings>
+        <RvComposerForm class="editor__settings" @submit.prevent="submit">
           <RvField
+            v-slot="{ describedBy, invalid }"
             class="editor__field"
+            :error="attempted && nameMissing ? t('create.name.required') : ''"
             input-id="editor-name"
             :label="t('profile.edit.name')"
           >
             <RvTextInput
               v-model="draftName"
+              :described-by="describedBy"
               :disabled="props.busy"
               input-id="editor-name"
+              :invalid="invalid"
               maxlength="120"
             />
           </RvField>
@@ -296,6 +309,16 @@ watch(stored, (next, previous) => {
             </div>
           </template>
           <template #actions>
+            <!-- The draft says that it differs from what is stored, at the end
+                 of the form where the act that stores it stands. The region is
+                 always present so the change is announced when it appears. -->
+            <span class="editor__dirty" role="status">
+              <RvStatus
+                v-if="dirty"
+                :label="t('profile.edit.dirty')"
+                tone="warning"
+              />
+            </span>
             <!-- Leaving the draft comes before committing it, in the order the
                  eye and the keyboard both travel, so the act that ends this
                  edit sits last and at the row's end. Its name says what it
@@ -312,8 +335,15 @@ watch(stored, (next, previous) => {
             <!-- What saving does is in the name of the control that does it.
                  A note beside it could only restate that name, so there is
                  none. -->
+            <RvStatus
+              v-if="attempted && listsMissing"
+              class="editor__problem"
+              role="alert"
+              tone="failed"
+              :label="t('create.lists.required')"
+            />
             <RvButton
-              :disabled="!canSave || !dirty"
+              :disabled="props.busy || !dirty"
               :loading="props.busy"
               :loading-label="t('profile.edit.saving')"
               type="submit"
@@ -383,12 +413,15 @@ watch(stored, (next, previous) => {
   font-size: var(--rv-text-dense);
 }
 
-.editor__actions {
-  display: grid;
-  gap: var(--rv-space-3);
+.editor__dirty {
+  margin-inline-end: auto;
 }
 
-/* The block keeps a control row's height so the two-column compact layout
+.editor__problem {
+  flex: 1 1 100%;
+}
+
+/* The block keeps a control row's height so the two-column band layout
    still aligns this summary with the name field beside it. */
 .editor__connections {
   display: grid;

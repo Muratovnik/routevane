@@ -79,12 +79,23 @@ Sections, addressable by URL:
    every row. Reordering has arrow-key equivalents. The header checkbox selects
    or clears filtered rows, preserving hidden selections. Only an explicit reorder
    moves rows. Selecting all visible rows is a snapshot of current members.
+   A filter chip, «In profile (N)», shows only the selected rows; a row taken
+   out while it is on stays in place, unchecked, until the chip is pressed
+   again, so selection still never moves a row.
    The secondary “New lists” menu explicitly controls whether future category
    members are included automatically; this live reference is distinct from
    the table's selection checkbox and never occupies a separate banner.
    The settings rail contains the name, first format choice,
    forecast and create action, without repeating the selected lists. In a
-   constrained window it stacks after the table.
+   constrained window it stands above the table in two columns with its actions
+   at the right end, as it already does while a list card is docked, so the
+   create action is never pushed below a table that can run to fifty rows.
+   Create stays pressable while something is missing: pressing it states each
+   omission beside the field that lacks it — name, format, or a table with no
+   list in it — and moves the keyboard to the first of them. A format the
+   forecast cannot weigh in full does not stop creation; beside the create
+   action the screen says that its file will not be published until the named
+   lists have usable data.
    Priority begins grouped by category unless the library has a saved custom
    order. The profile stores that order as its own snapshot. When two selected lists overlap, each affected
    table row shows the number of other selected lists it intersects; activating
@@ -193,9 +204,15 @@ Sections, addressable by URL:
    dense catalog table, search and category filter as the composer, with list
    management actions in place of membership checkboxes. Category labels use
    the same identity colors. The filter includes «Без категории»; a labelled
-   «+» tag beside the filters opens category management with a create action
-   at its foot. «Новый список»
-   creates a list or adds an existing one to the selected category. A category's
+   «+» tag beside the filters creates a category, and «Категории» in the page
+   header opens category management. «Новый список»
+   creates a list or adds an existing one to the selected category. Creating a
+   category and creating a list are each one bounded dialog — a centred box, not
+   a working sheet — with the name at the shared field width and the actions
+   together at the right of its footer. Category management names itself once,
+   in its dialog title; a row is opened by the whole row, so it carries no
+   chevron beside its menu, and the actions column of the table is named
+   «Действия» for a reader's software, so no two column headers share a name. A category's
    menu renames the operator's own category and deletes any category — a catalog
    category included, because deletion is a record in the operator's overlay
    and never an edit to the shipped file. Deleting a category asks the one
@@ -204,8 +221,11 @@ Sections, addressable by URL:
    imports, sources, «Обновить из источников» on the card itself rather than
    inside the sources dialog, and «Удалить список» — and carries a menu whose
    words separate the two acts a bin cannot: «Убрать из категории» and
-   «Удалить список». Deleting a list or a category a profile names directly is
-   refused with those profiles named; removing a list _from a category_ is
+   «Удалить список». A menu panel in which any item has a glyph keeps the glyph
+   column for every item in it, so the names start on one line. Deleting a list or a category a profile names directly is
+   refused with those profiles named, each as a link to the profile, and an
+   archived one is marked as archived and said to be deletable permanently from
+   the archive of «Профили», because an archived profile cannot be edited; removing a list _from a category_ is
    allowed to change what a profile carries, because that is what naming a
    category means. The library also owns the default list priority. Its complete
    ordered table can be rearranged by its always-visible drag handles or
@@ -215,7 +235,11 @@ Sections, addressable by URL:
    stored order. The list card has no profile-membership footer. The table fills
    the available workspace height and scrolls beneath its header. While the library
    is writing or a list is reading its sources, conflicting menus, switches,
-   deletion and dismissal stay unavailable until the result is known.
+   deletion and dismissal stay unavailable until the result is known. A first
+   read that fails says which of two things happened — nothing answered, or the
+   service answered with an error — because they ask for different next steps,
+   and the commands that need the lists stay unavailable until they are read;
+   the composer and the list card say the same.
 5. `/profiles/{profileId}/send/{outputId}` — **Send.** An action, not a step:
    automatic applying with a plan, a backup and an audit trail when the format
    has a deployer, and the by-hand path always stated below it.
@@ -497,8 +521,9 @@ shows priority actions only for an unsaved order, without repeating category
 or priority explanations above the table.
 
 Create and edit share the settings form layout. When moved above the table,
-its fields align at the top in two equal columns; actions occupy a separate
-full-width row below them. Numeric overlap disclosures keep numbers aligned
+its fields align at the top in two equal columns; the actions stand together
+at the right end of a row of their own, and the edit form says beside them
+that the draft has unsaved changes. Numeric overlap disclosures keep numbers aligned
 while providing inset hit areas and a titled list of intersecting names.
 
 This is the shared layout verification matrix; rule and skill files link here:
@@ -584,7 +609,9 @@ case, a field drawn as a bordered wrapper around an input lets the wrapper own
 that height rather than the input inside it, or it stands a border taller than
 the control beside it. A text field has no hover state: a `<label for>` forwards
 `:hover` to its control, so a hovered field would light up from its label. A
-choice trigger takes the library's hover. A choice trigger at field size reads
+choice trigger is a field as well: its ground and border do not change under
+the pointer, and it keeps the pointer cursor and the focus ring. A choice
+trigger at field size reads
 from its leading edge on one line, cut by an ellipsis, and keeps the chosen
 value on screen while it is busy; a field's label and the value it holds name
 it, and its panel is named by that label rather than by its placeholder.

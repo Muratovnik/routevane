@@ -40,6 +40,11 @@ const emit = defineEmits<{
 const grouped = (item: MenuItem): boolean =>
   item.children !== undefined && item.children.length > 0
 
+// A panel whose items carry glyphs keeps the glyph column for every item in it,
+// so the names do not start on different lines.
+const hasGlyphs = (items: MenuItem[]): boolean =>
+  items.some((item) => item.icon !== undefined)
+
 const choose = (item: MenuItem): void => {
   if (item.disabled !== true) emit('select', item.key)
 }
@@ -120,6 +125,11 @@ const onCloseAutoFocus = (event: Event): void => {
               @pointermove.capture="renewGroupIntent(item.key, $event)"
             >
               <RvIcon v-if="item.icon !== undefined" :name="item.icon" />
+              <span
+                v-else-if="hasGlyphs(props.items)"
+                aria-hidden="true"
+                class="rv-menu__item-icon-slot"
+              />
               <span class="rv-menu__item-label">{{ item.label }}</span>
               <RvIcon class="rv-menu__item-next" name="chevron" />
             </DropdownMenuSubTrigger>
@@ -132,6 +142,7 @@ const onCloseAutoFocus = (event: Event): void => {
                 <RvMenuItem
                   v-for="child in item.children"
                   :key="child.key"
+                  :icon-column="hasGlyphs(item.children ?? [])"
                   :item="child"
                   @select="choose(child)"
                 />
@@ -139,7 +150,12 @@ const onCloseAutoFocus = (event: Event): void => {
             </DropdownMenuPortal>
           </DropdownMenuSub>
 
-          <RvMenuItem v-else :item="item" @select="choose(item)" />
+          <RvMenuItem
+            v-else
+            :icon-column="hasGlyphs(props.items)"
+            :item="item"
+            @select="choose(item)"
+          />
         </template>
       </DropdownMenuContent>
     </DropdownMenuPortal>
@@ -265,6 +281,14 @@ const onCloseAutoFocus = (event: Event): void => {
 
 .rv-menu__item-label {
   min-width: 0;
+}
+
+/* The glyph's own box, kept empty: the column an item without a glyph reserves
+   when its neighbours have one. */
+.rv-menu__item-icon-slot {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
 }
 
 .rv-menu__item-next {

@@ -9,7 +9,8 @@ import CategoryFilters from '@/entities/profile-composition/ui/CategoryFilters.v
 import { matchesCategories } from '@/entities/profile-composition/model/categoryFilter'
 import CategoryLabel from '@/entities/profile-composition/ui/CategoryLabel.vue'
 import ListDetailDialog from '@/entities/profile-composition/ui/ListDetailDialog.vue'
-import { useLists } from '@/features/lists/model/useLists'
+import { useLists, type LibraryRefusal } from '@/features/lists/model/useLists'
+import InUseRefusal from '@/features/lists/ui/InUseRefusal.vue'
 import ListSheet from '@/features/lists/ui/ListSheet.vue'
 import type {
   CategoryDetail,
@@ -159,6 +160,13 @@ const categoryActions = (entry: CategoryRow): MenuItem[] => {
   return items
 }
 
+// A write that failed says whether the service answered, because what to do
+// next differs: start it, or repeat the request.
+const failureBody = (refusal: LibraryRefusal): string =>
+  refusal.kind === 'failed' && refusal.failure === 'refused'
+    ? t('failure.refused.body')
+    : t('lists.category.failed.body')
+
 const profileActions = (list: ListDetail): MenuItem[] => {
   const items: MenuItem[] = []
   if (list.custom === true)
@@ -304,15 +312,19 @@ const closeCategoryForm = (): void => {
   library.clearRefusal()
 }
 
+// A refusal belongs to the confirmation it was stated in. Left behind, it would
+// be restated on the page under the title of a different act.
 const closeCategoryRemoval = (): void => {
   if (library.busy.value) return
   removingCategory.value = false
   categorySubject.value = null
+  library.clearRefusal()
 }
 
 const closeListRemoval = (): void => {
   if (library.busy.value) return
   removingList.value = null
+  library.clearRefusal()
 }
 
 const committed = (status: string): boolean =>
@@ -629,7 +641,7 @@ const submitPriority = async (): Promise<void> => {
     />
     <RvStateNotice
       v-else-if="library.state.value === 'failed'"
-      :body="t('lists.failed.body')"
+      :body="t(`failure.${library.failure.value}.body`)"
       live
       :title="t('lists.failed')"
       tone="failed"
@@ -687,25 +699,17 @@ const submitPriority = async (): Promise<void> => {
           >{{ t('lists.priority.save') }}</RvButton
         >
       </div>
+      <InUseRefusal
+        v-if="paneRefusal?.kind === 'inUse'"
+        :profiles="paneRefusal.profiles"
+        subject="category"
+      />
       <RvStateNotice
-        v-if="paneRefusal !== null || priorityError !== ''"
+        v-else-if="paneRefusal !== null || priorityError !== ''"
         :title="
-          t(
-            priorityError
-              ? 'lists.priority.failed'
-              : paneRefusal?.kind === 'inUse'
-                ? 'lists.category.inUse'
-                : 'lists.category.failed',
-          )
+          t(priorityError ? 'lists.priority.failed' : 'lists.category.failed')
         "
-        :body="
-          priorityError ||
-          (paneRefusal?.kind === 'inUse'
-            ? t('lists.category.inUse.body', {
-                profiles: paneRefusal.profiles.join(', '),
-              })
-            : t('lists.category.failed.body'))
-        "
+        :body="priorityError || (paneRefusal ? failureBody(paneRefusal) : '')"
         live
         tone="failed"
       />
@@ -731,7 +735,7 @@ const submitPriority = async (): Promise<void> => {
             </th>
             <th class="lists__action-column" scope="col">
               <span class="rv-visually-hidden">{{
-                t('lists.manageCategories')
+                t('lists.column.actions')
               }}</span>
             </th>
           </tr>
@@ -827,10 +831,10 @@ const submitPriority = async (): Promise<void> => {
       variant="panel"
       @update:open="categoriesOpen = $event"
     >
-      <section aria-labelledby="lists-categories" class="lists__collections">
-        <header class="lists__pane-header">
-          <h2 id="lists-categories">{{ t('listPicker.collections') }}</h2>
-        </header>
+      <section
+        :aria-label="t('listPicker.collections')"
+        class="lists__collections"
+      >
         <ul class="lists__groups">
           <li
             v-for="entry in rows"
@@ -852,7 +856,6 @@ const submitPriority = async (): Promise<void> => {
                     tc('create.category.size', entry.members.length)
                   }}</small>
                 </span>
-                <RvIcon class="lists__category-mark" name="chevron" />
               </button>
               <RvMenu
                 v-if="categoryActions(entry).length > 0"
@@ -876,11 +879,12 @@ const submitPriority = async (): Promise<void> => {
           ? t('lists.category.rename.title')
           : t('lists.category.new')
       "
-      variant="sheet"
+      variant="panel"
       @update:open="$event === false && closeCategoryForm()"
     >
       <form class="lists__form" @submit.prevent="submitCategoryTitle">
         <RvField
+          class="lists__field"
           :error="categoryTitleError"
           input-id="lists-category-title"
           :label="t('lists.category.field')"
@@ -898,23 +902,20 @@ const submitPriority = async (): Promise<void> => {
             />
           </template>
         </RvField>
-        <RvStateNotice
-          v-if="library.refusal.value !== null"
-          :body="
-            library.refusal.value.kind === 'inUse'
-              ? t('lists.category.inUse.body', {
-                  profiles: library.refusal.value.profiles.join(', '),
-                })
-              : t('lists.category.failed.body')
-          "
-          live
-          :title="
-            library.refusal.value.kind === 'inUse'
-              ? t('lists.category.inUse')
-              : t('lists.category.failed')
-          "
-          tone="failed"
-        />
+        <template v-if="library.refusal.value !== null">
+          <InUseRefusal
+            v-if="library.refusal.value.kind === 'inUse'"
+            :profiles="library.refusal.value.profiles"
+            subject="category"
+          />
+          <RvStateNotice
+            v-else
+            :body="failureBody(library.refusal.value)"
+            live
+            :title="t('lists.category.failed')"
+            tone="failed"
+          />
+        </template>
       </form>
       <template #footer>
         <RvButton
@@ -973,23 +974,20 @@ const submitPriority = async (): Promise<void> => {
           name="lists-category-disposition"
           :options="dispositions"
         />
-        <RvStateNotice
-          v-if="library.refusal.value !== null"
-          :body="
-            library.refusal.value.kind === 'inUse'
-              ? t('lists.category.inUse.body', {
-                  profiles: library.refusal.value.profiles.join(', '),
-                })
-              : t('lists.category.failed.body')
-          "
-          live
-          :title="
-            library.refusal.value.kind === 'inUse'
-              ? t('lists.category.inUse')
-              : t('lists.category.failed')
-          "
-          tone="failed"
-        />
+        <template v-if="library.refusal.value !== null">
+          <InUseRefusal
+            v-if="library.refusal.value.kind === 'inUse'"
+            :profiles="library.refusal.value.profiles"
+            subject="category"
+          />
+          <RvStateNotice
+            v-else
+            :body="failureBody(library.refusal.value)"
+            live
+            :title="t('lists.category.failed')"
+            tone="failed"
+          />
+        </template>
       </div>
       <template #footer>
         <RvButton
@@ -1026,23 +1024,20 @@ const submitPriority = async (): Promise<void> => {
             })
           }}
         </p>
-        <RvStateNotice
-          v-if="library.refusal.value !== null"
-          :body="
-            library.refusal.value.kind === 'inUse'
-              ? t('lists.list.inUse.body', {
-                  profiles: library.refusal.value.profiles.join(', '),
-                })
-              : t('lists.category.failed.body')
-          "
-          live
-          :title="
-            library.refusal.value.kind === 'inUse'
-              ? t('lists.list.inUse')
-              : t('lists.category.failed')
-          "
-          tone="failed"
-        />
+        <template v-if="library.refusal.value !== null">
+          <InUseRefusal
+            v-if="library.refusal.value.kind === 'inUse'"
+            :profiles="library.refusal.value.profiles"
+            subject="list"
+          />
+          <RvStateNotice
+            v-else
+            :body="failureBody(library.refusal.value)"
+            live
+            :title="t('lists.category.failed')"
+            tone="failed"
+          />
+        </template>
       </div>
       <template #footer>
         <RvButton
@@ -1213,14 +1208,6 @@ const submitPriority = async (): Promise<void> => {
   min-height: 0;
 }
 
-.lists__pane-header {
-  padding: var(--rv-space-3) var(--rv-space-5);
-}
-
-.lists__pane-header h2 {
-  font-size: var(--rv-text-interface);
-}
-
 .lists__groups {
   max-height: var(--rv-overlay-height);
   overflow-y: auto;
@@ -1266,10 +1253,6 @@ const submitPriority = async (): Promise<void> => {
   color: var(--rv-color-ink-muted);
 }
 
-.lists__category-mark {
-  transform: rotate(-90deg);
-}
-
 .lists__form {
   display: grid;
   gap: var(--rv-space-4);
@@ -1279,6 +1262,10 @@ const submitPriority = async (): Promise<void> => {
 .lists__empty {
   padding: var(--rv-space-5);
   color: var(--rv-color-ink-muted);
+}
+
+.lists__field {
+  max-width: var(--rv-measure-field);
 }
 
 .lists__form-note {

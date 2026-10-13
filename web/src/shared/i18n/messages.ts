@@ -297,8 +297,6 @@ const ru: Dictionary = {
   'create.stage.creating': 'Сохраняем состав…',
   'create.catalog.loading': 'Загружаем каталог…',
   'create.catalog.failed': 'Каталог недоступен',
-  'create.catalog.failed.body':
-    'Локальный сервис не ответил. Проверьте, что Routevane запущен.',
   'create.catalog.empty': 'Каталог пуст',
   'create.catalog.empty.body': 'В этой сборке нет списков.',
   'create.failed': 'Профиль не создан',
@@ -374,8 +372,6 @@ const ru: Dictionary = {
   'lists.title': 'Списки',
   'lists.loading': 'Загружаем списки…',
   'lists.failed': 'Списки недоступны',
-  'lists.failed.body':
-    'Локальный сервис не ответил. Проверьте, что Routevane запущен.',
   'lists.stale': 'Изменение сохранено, но списки не перечитаны',
   'lists.stale.body':
     'Показана прежняя копия каталога. Повторите чтение, чтобы увидеть сохранённое изменение; запись повторно не отправится.',
@@ -406,8 +402,6 @@ const ru: Dictionary = {
   'lists.category.failed.body':
     'Проверьте, что локальный сервис Routevane запущен, и повторите.',
   'lists.category.inUse': 'Категория не удалена',
-  'lists.category.inUse.body':
-    'Она входит в профили: {profiles}. Уберите её оттуда и повторите.',
   'lists.list.menu': 'Действия со списком {list}',
   'lists.list.new': 'Новый список',
   'lists.list.rename': 'Переименовать',
@@ -423,8 +417,6 @@ const ru: Dictionary = {
   'lists.list.remove.body': 'Список «{list}» и его записи будут удалены.',
   'lists.list.remove.submit': 'Удалить',
   'lists.list.inUse': 'Список не удалён',
-  'lists.list.inUse.body':
-    'Он входит в профили: {profiles}. Уберите его оттуда и повторите.',
   'lists.priority.action': 'Порядок по умолчанию',
   'lists.priority.title': 'Порядок списков по умолчанию',
   'lists.priority.body':
@@ -433,6 +425,29 @@ const ru: Dictionary = {
   'lists.priority.failed': 'Порядок не сохранён',
   'lists.priority.failed.body':
     'Проверьте, что Routevane запущен, и повторите сохранение.',
+
+  // Библиотека и составление профиля: разбор интерфейса 2026-10.
+  'failure.unreachable.body':
+    'Локальный сервис не ответил. Проверьте, что Routevane запущен.',
+  'failure.refused.body':
+    'Сервис получил запрос, но ответил ошибкой. Повторите попытку.',
+  'lists.column.actions': 'Действия',
+  'lists.inUse.archived': '(в архиве)',
+  'lists.inUse.archived.next':
+    'Профиль в архиве изменить нельзя: удалите его насовсем в архиве раздела «Профили» и повторите.',
+  'lists.list.inUse.lead': 'Он входит в профили:',
+  'lists.list.inUse.next': 'Уберите его оттуда и повторите.',
+  'lists.category.inUse.lead': 'Она входит в профили:',
+  'lists.category.inUse.next': 'Уберите её оттуда и повторите.',
+  'lists.category.pick.required': 'Выберите список',
+  'listPicker.filter.selected': 'В профиле ({count})',
+  'listPicker.overlap.about': 'О пересечениях',
+  'create.name.required': 'Введите название',
+  'create.target.required': 'Укажите, куда передать профиль',
+  'create.lists.required': 'Отметьте хотя бы один список',
+  'create.forecast.incomplete':
+    'Файл для {target} не опубликуется, пока для списков нет подходящих данных: {lists}',
+  'profile.edit.dirty': 'Есть несохранённые изменения',
 
   'profile.breadcrumb': 'Путь',
 
@@ -531,8 +546,6 @@ const ru: Dictionary = {
   'listCard.origin.missing': 'выключен; сейчас не встречается',
   'listCard.loading': 'Загружаем состав списка…',
   'listCard.failed': 'Состав списка не загрузился',
-  'listCard.failed.body':
-    'Проверьте, что локальный сервис Routevane запущен, и повторите.',
   'listCard.membership.active': 'Активен',
   'listCard.membership.inactive': 'Неактивен',
   'listCard.openLibrary': 'Открыть в библиотеке',
@@ -1287,8 +1300,6 @@ const en: Dictionary = {
   'create.stage.creating': 'Saving the selection…',
   'create.catalog.loading': 'Loading the catalog…',
   'create.catalog.failed': 'Catalog unavailable',
-  'create.catalog.failed.body':
-    'The local service did not answer. Check that Routevane is running.',
   'create.catalog.empty': 'Catalog is empty',
   'create.catalog.empty.body': 'This build carries no lists.',
   'create.failed': 'The profile was not created',
@@ -1362,8 +1373,6 @@ const en: Dictionary = {
   'lists.title': 'Lists',
   'lists.loading': 'Loading the lists…',
   'lists.failed': 'Lists are unavailable',
-  'lists.failed.body':
-    'The local service did not answer. Check that Routevane is running.',
   'lists.stale': 'Saved, but the lists were not reread',
   'lists.stale.body':
     'The previous catalog copy remains visible. Retry the read to see the saved change; the write will not be sent again.',
@@ -1394,8 +1403,6 @@ const en: Dictionary = {
   'lists.category.failed.body':
     'Check that the local Routevane service is running and try again.',
   'lists.category.inUse': 'The category was not deleted',
-  'lists.category.inUse.body':
-    'It is part of these profiles: {profiles}. Remove it there and try again.',
   'lists.list.menu': 'Actions for list {list}',
   'lists.list.new': 'New list',
   'lists.list.rename': 'Rename',
@@ -1411,8 +1418,6 @@ const en: Dictionary = {
   'lists.list.remove.body': 'List “{list}” and its entries are removed.',
   'lists.list.remove.submit': 'Delete',
   'lists.list.inUse': 'The list was not deleted',
-  'lists.list.inUse.body':
-    'It is part of these profiles: {profiles}. Remove it there and try again.',
   'lists.priority.action': 'Default order',
   'lists.priority.title': 'Default list order',
   'lists.priority.body':
@@ -1421,6 +1426,29 @@ const en: Dictionary = {
   'lists.priority.failed': 'Order not saved',
   'lists.priority.failed.body':
     'Check that Routevane is running and retry the save.',
+
+  // The library and composing a profile: interface review, 2026-10.
+  'failure.unreachable.body':
+    'The local service did not answer. Check that Routevane is running.',
+  'failure.refused.body':
+    'The service received the request but answered with an error. Try again.',
+  'lists.column.actions': 'Actions',
+  'lists.inUse.archived': '(archived)',
+  'lists.inUse.archived.next':
+    'An archived profile cannot be edited: delete it permanently in the archive on the Profiles page, then try again.',
+  'lists.list.inUse.lead': 'It is in the profiles:',
+  'lists.list.inUse.next': 'Remove it from them and try again.',
+  'lists.category.inUse.lead': 'It is in the profiles:',
+  'lists.category.inUse.next': 'Remove it from them and try again.',
+  'lists.category.pick.required': 'Choose a list',
+  'listPicker.filter.selected': 'In profile ({count})',
+  'listPicker.overlap.about': 'About overlaps',
+  'create.name.required': 'Enter a name',
+  'create.target.required': 'Say where to deliver the profile',
+  'create.lists.required': 'Select at least one list',
+  'create.forecast.incomplete':
+    'The {target} file will not be published until these lists have usable data: {lists}',
+  'profile.edit.dirty': 'Unsaved changes',
 
   'profile.breadcrumb': 'Path',
 
@@ -1512,8 +1540,6 @@ const en: Dictionary = {
   'listCard.origin.missing': 'off; not currently offered',
   'listCard.loading': 'Loading the list contents…',
   'listCard.failed': 'The list contents did not load',
-  'listCard.failed.body':
-    'Check that the local Routevane service is running and try again.',
   'listCard.membership.active': 'Active',
   'listCard.membership.inactive': 'Inactive',
   'listCard.openLibrary': 'Open in the library',

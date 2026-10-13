@@ -12,7 +12,11 @@ import {
   updateCustomList,
   type DomainVerdict,
 } from '@/shared/api/catalog'
-import { RoutevaneAPIError } from '@/shared/api/http'
+import {
+  failureKind,
+  RoutevaneAPIError,
+  type FailureKind,
+} from '@/shared/api/http'
 import { useLocale } from '@/shared/i18n/useLocale'
 import {
   normalizeDomain,
@@ -92,6 +96,8 @@ export const useListDetail = (
   // --- existing list: contents -------------------------------------------
   const contents = ref<ListContents | null>(null)
   const contentsState = ref<'idle' | 'loading' | 'ready' | 'failed'>('idle')
+  // Why the contents did not load: nothing answered, or the service refused.
+  const contentsFailure = ref<FailureKind>('unreachable')
   const refreshing = ref(false)
   const observing = ref(false)
   // Reading the sources is reported where the reading is asked for — the card —
@@ -267,8 +273,9 @@ export const useListDetail = (
       const loaded = await loadListContents(listID)
       if (request !== contentsRequest) return
       applyContents(request, loaded)
-    } catch {
+    } catch (reason) {
       if (request !== contentsRequest) return
+      contentsFailure.value = failureKind(reason)
       contentsState.value = 'failed'
       return
     }
@@ -750,6 +757,7 @@ export const useListDetail = (
     addValuesOpen,
     composing,
     contents,
+    contentsFailure,
     contentsState,
     curating,
     dismissalBlocked,

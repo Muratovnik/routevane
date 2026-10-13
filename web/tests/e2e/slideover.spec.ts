@@ -49,7 +49,9 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     })
     expect(geometry.left).toBeGreaterThanOrEqual(0)
     expect(geometry.right).toBeLessThanOrEqual(geometry.width + 1)
-    expect(geometry.height).toBe(geometry.viewportHeight)
+    // "New list" is one bounded dialog, not a full-height working sheet.
+    expect(geometry.height).toBeLessThan(geometry.viewportHeight)
+    expect(geometry.left).toBeGreaterThan(0)
     expect(geometry.overflow).toBe('hidden')
     await page.keyboard.press('Escape')
     await expect(sheet).toBeHidden()

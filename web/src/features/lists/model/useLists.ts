@@ -1,5 +1,7 @@
 import { computed, ref } from 'vue'
 
+import { failureKind, type FailureKind } from '@/shared/api/http'
+import { isArchived, loadProfile } from '@/shared/api/profiles'
 import {
   asListDetail,
   categoryInUse,
@@ -35,13 +37,47 @@ export type LibraryWriteResult<T = void> = {
 }
 
 /**
- * What a write had to say when it did not go through. A refusal that names the
- * routes standing in the way is the only one carrying more than a sentence.
+ * A profile standing in the way of a deletion. The refusal names it by title and
+ * identity; whether it is archived is read afterwards, because an archived
+ * profile cannot be edited and so needs a different next step than a live one.
  */
-export type LibraryRefusal = {
-  kind: 'failed' | 'inUse'
-  profiles: string[]
+export type HoldingProfile = {
+  archived: boolean
+  id: string
+  title: string
 }
+
+/**
+ * What a write had to say when it did not go through. A refusal that names the
+ * profiles standing in the way is the only one carrying more than a sentence;
+ * any other says whether the service answered at all.
+ */
+export type LibraryRefusal =
+  | { kind: 'failed'; failure: FailureKind; profiles: [] }
+  | { kind: 'inUse'; profiles: HoldingProfile[] }
+
+// Enough profiles to name without turning a refusal into a crawl: past this the
+// rest are named unmarked.
+const ARCHIVE_LOOKUPS = 20
+
+const holdingProfiles = async (
+  holders: ProfileReference[],
+): Promise<HoldingProfile[]> =>
+  Promise.all(
+    holders.map(async (holder, index) => {
+      if (index >= ARCHIVE_LOOKUPS) return { ...holder, archived: false }
+      try {
+        return {
+          ...holder,
+          archived: isArchived((await loadProfile(holder.id)).profile),
+        }
+      } catch {
+        // The names are the refusal; whether one is archived is a refinement,
+        // and a read that did not land leaves the name unmarked.
+        return { ...holder, archived: false }
+      }
+    }),
+  )
 
 /**
  * The library of lists and the categories that hold them (ADR 0029).
@@ -56,6 +92,8 @@ export type LibraryRefusal = {
 export const useLists = () => {
   const catalog = ref<Catalog | null>(null)
   const state = ref<LibraryState>('loading')
+  // Why the first read failed, for the words the screen says about it.
+  const failure = ref<FailureKind>('unreachable')
   const mutating = ref(false)
   const refreshing = ref(false)
   const busy = computed(() => mutating.value || refreshing.value)
@@ -85,7 +123,8 @@ export const useLists = () => {
       catalog.value = await loadCatalogCached()
       stale.value = false
       state.value = 'ready'
-    } catch {
+    } catch (reason) {
+      failure.value = failureKind(reason)
       state.value = 'failed'
     } finally {
       refreshing.value = false
@@ -224,8 +263,8 @@ export const useLists = () => {
       }
       const nextRefusal: LibraryRefusal =
         holders === null
-          ? { kind: 'failed', profiles: [] }
-          : { kind: 'inUse', profiles: holders.map((held) => held.title) }
+          ? { kind: 'failed', failure: failureKind(reason), profiles: [] }
+          : { kind: 'inUse', profiles: await holdingProfiles(holders) }
       refusal.value = nextRefusal
       mutating.value = false
       return { refusal: nextRefusal, status: 'failed' }
@@ -258,9 +297,10 @@ export const useLists = () => {
     try {
       await readCatalog()
       return true
-    } catch {
+    } catch (reason) {
       // Keep the old verified copy and its stale marker. The next retry remains
       // a GET and can recover without inviting the operator to resubmit a write.
+      failure.value = failureKind(reason)
       stale.value = catalog.value !== null
       state.value = catalog.value === null ? 'failed' : 'ready'
       return false
@@ -335,6 +375,7 @@ export const useLists = () => {
     deleteCategory,
     deleteList,
     detachList,
+    failure,
     initialize,
     refresh,
     refusal,

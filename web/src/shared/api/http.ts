@@ -22,6 +22,26 @@ export class RoutevaneAPIError extends Error {
   }
 }
 
+/**
+ * What a failed request tells the operator to do. `unreachable` means nothing
+ * answered, so the service has to be started or reached; `refused` means the
+ * service answered with an error status, so it is running and the same request
+ * is worth repeating. Saying the first when the second is true sends the
+ * operator to check a process that is up.
+ */
+export type FailureKind = 'unreachable' | 'refused'
+
+// The desktop transport answers 503 with no body when its backend never
+// replied; a status line with a body is the service's own.
+const TRANSPORT_SILENCE = 503
+
+export const failureKind = (error: unknown): FailureKind => {
+  if (!(error instanceof RoutevaneAPIError)) return 'unreachable'
+  return error.status === TRANSPORT_SILENCE && error.payload === null
+    ? 'unreachable'
+    : 'refused'
+}
+
 export const mutationHeaders = {
   'Content-Type': 'application/json',
   'X-Routevane-Request': '1',

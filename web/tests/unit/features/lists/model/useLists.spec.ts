@@ -298,7 +298,7 @@ describe('library audit: write/read reconciliation', () => {
     expect(result.status).toBe('failed')
     expect(library.refusal.value).toEqual({
       kind: 'inUse',
-      profiles: ['Office'],
+      profiles: [{ archived: false, id: 'profile-a', title: 'Office' }],
     })
     expect(library.categories.value[0]?.title).toBe('Communication')
     expect(calls.filter((call) => call.includes('/v1/lists'))).toHaveLength(1)

@@ -18,6 +18,7 @@ import {
   type TargetOption,
 } from '@/shared/api/catalog'
 import { loadDeployableTargets } from '@/shared/api/deploy'
+import { failureKind, type FailureKind } from '@/shared/api/http'
 import {
   createProfile,
   type ProfileComposition,
@@ -54,6 +55,8 @@ export const useCreateProfile = () => {
   const forecast = useCompositionForecast()
   const catalog = ref<Catalog | null>(null)
   const catalogState = ref<CatalogState>('loading')
+  // Why the catalog did not load: nothing answered, or the service refused.
+  const catalogFailure = ref<FailureKind>('unreachable')
   const flowState = ref<FlowState>('idle')
   const composition = ref<ProfileComposition>({
     lists: [],
@@ -197,15 +200,31 @@ export const useCreateProfile = () => {
   const busy = computed(
     () => flowState.value === 'creating' || flowState.value === 'created',
   )
-  const canCreate = computed(
-    () =>
-      catalogState.value === 'ready' &&
-      !busy.value &&
-      !blocked.value &&
-      resolvedListIDs.value.length > 0 &&
-      name.value.trim() !== '' &&
-      selectedTargetID.value !== '',
+  // What stands in the way of storing the draft, apart from the guards above:
+  // the three things a profile cannot be stored without. They are known at all
+  // times and shown only once the operator has tried to create, so a form that
+  // has not been touched does not open on a column of errors.
+  const problems = computed(() => ({
+    lists: resolvedListIDs.value.length === 0,
+    name: name.value.trim() === '',
+    target: selectedTargetID.value === '',
+  }))
+  const attempted = ref(false)
+  const shownProblems = computed(() =>
+    attempted.value
+      ? problems.value
+      : { lists: false, name: false, target: false },
   )
+  const valid = computed(
+    () =>
+      !problems.value.lists && !problems.value.name && !problems.value.target,
+  )
+  // Whether pressing create may act at all. A missing field is not a reason to
+  // withdraw the button: pressing it states what is missing.
+  const startable = computed(
+    () => catalogState.value === 'ready' && !busy.value && !blocked.value,
+  )
+  const canCreate = computed(() => startable.value && valid.value)
 
   const initialize = async (): Promise<void> => {
     catalogState.value = 'loading'
@@ -214,6 +233,7 @@ export const useCreateProfile = () => {
       loadDeployableTargets(),
     ])
     if (loadedCatalog.status === 'rejected') {
+      catalogFailure.value = failureKind(loadedCatalog.reason)
       catalogState.value = 'failed'
       return
     }
@@ -292,7 +312,11 @@ export const useCreateProfile = () => {
 
   /** create stores the profile and carries the chosen first output to its page. */
   const create = async (): Promise<CreatedProfileSetup | null> => {
-    if (!canCreate.value) return null
+    if (!startable.value) return null
+    if (!valid.value) {
+      attempted.value = true
+      return null
+    }
     try {
       flowState.value = 'creating'
       const profile = await createProfile(name.value.trim(), composition.value)
@@ -308,6 +332,7 @@ export const useCreateProfile = () => {
   }
 
   return {
+    catalogFailure,
     catalogRefresh,
     blocked,
     busy,
@@ -334,6 +359,7 @@ export const useCreateProfile = () => {
     resolvedListIDs,
     selectedCategoryIDs,
     selectedForecast,
+    shownProblems,
     selectedListIDs,
     selectedTargetID,
     selectedTargetTitle,
@@ -341,6 +367,7 @@ export const useCreateProfile = () => {
     setName,
     setPriority,
     setTarget,
+    startable,
     suggestedTarget,
     suggestedTargetTitle,
     targetGroups,

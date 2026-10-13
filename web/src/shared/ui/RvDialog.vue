@@ -480,9 +480,12 @@ const PortalScope = defineComponent({
 .rv-dialog__footer {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--rv-space-4);
+  gap: var(--rv-space-3);
   align-items: center;
-  justify-content: space-between;
+
+  /* The acts that end the dialog stand together at its end, in the order they
+     are taken, as they do at the foot of every form. */
+  justify-content: flex-end;
   padding: var(--rv-space-5) var(--rv-space-6);
   border-top: var(--rv-border-hair) solid var(--rv-color-rule);
 }

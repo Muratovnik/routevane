@@ -129,8 +129,38 @@ export const catalogRoutes = (
 export const renderLibrary = (hash = '') => {
   vi.stubGlobal('useRoute', () => ({ hash }))
   vi.stubGlobal('useRouter', () => ({ replace: vi.fn() }))
-  return render(ListsView)
+  return render(ListsView, {
+    global: {
+      stubs: {
+        NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+      },
+    },
+  })
 }
+
+/**
+ * A profile as the service describes one, for the read that tells whether a
+ * profile named in a refusal is archived.
+ */
+export const profileResponse = (id: string, archivedAt = ''): Response =>
+  json({
+    profile: {
+      ...(archivedAt === '' ? {} : { archived_at: archivedAt }),
+      categories: [],
+      created_at: '2026-01-01T00:00:00Z',
+      exclusions: [],
+      id,
+      lists: [],
+      list_domains: {},
+      name: id,
+      priority: [],
+      updated_at: '2026-01-01T00:00:00Z',
+    },
+    outputs: [],
+    resolved: [],
+    missing_categories: [],
+    schedule: { interval: 'off', effective: 'off' },
+  })
 
 export type Library = RenderResult<unknown>
 

@@ -356,3 +356,44 @@ it.each([false, true])(
     expect(router.currentRoute.value.path).toBe('/send/output-a')
   },
 )
+
+describe('RvMenu glyph column', () => {
+  // A panel where some items carry a glyph and some do not keeps the column for
+  // all of them, so the names start on one line whichever way an item is drawn.
+  it('starts every name on one line when only some items have a glyph', async () => {
+    const screen = await renderMenu({
+      items: [
+        { icon: 'edit', key: 'rename', label: 'Rename' },
+        { key: 'detach', label: 'Remove from the category' },
+        { icon: 'trash', key: 'remove', label: 'Delete the list' },
+      ],
+      label: 'Actions',
+    })
+    await screen.getByRole('button', { name: 'Actions' }).click()
+    await expect.element(innermost()).toBeVisible()
+
+    const lefts = screen
+      .getByRole('menuitem')
+      .elements()
+      .map((item) => item.lastElementChild!.getBoundingClientRect().left)
+    expect(lefts).toHaveLength(3)
+    for (const left of lefts) expect(left).toBeCloseTo(lefts[0]!, 0)
+  })
+
+  // A panel with no glyph at all has nothing to line up with, so it keeps its
+  // plain leading edge instead of a column of empty space.
+  it('adds no column to a panel without glyphs', async () => {
+    const screen = await renderMenu({
+      items: [
+        { key: 'auto', label: 'Follow the category' },
+        { key: 'manual', label: 'Keep the current lists' },
+      ],
+      label: 'Future lists',
+    })
+    await screen.getByRole('button', { name: 'Future lists' }).click()
+    await expect.element(innermost()).toBeVisible()
+    // The label is the item's only child: no slot stands before it.
+    for (const item of screen.getByRole('menuitem').elements())
+      expect(item.children).toHaveLength(1)
+  })
+})

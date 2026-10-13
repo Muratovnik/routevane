@@ -240,6 +240,10 @@ const retry = async (): Promise<void> => {
    contrast without knowing where it sits. */
 .shell__side {
   --rv-color-accent: var(--rv-color-chrome-accent);
+
+  /* The page's focus ring is the brand green on the light theme, which on this
+     always-dark band is under 3:1. Inside it the ring is the band's own accent. */
+  --rv-color-focus: var(--rv-color-chrome-accent);
   --rv-color-ink: var(--rv-color-chrome-ink);
   --rv-color-ink-muted: var(--rv-color-chrome-ink-muted);
   --rv-color-ink-tertiary: var(--rv-color-chrome-ink-tertiary);

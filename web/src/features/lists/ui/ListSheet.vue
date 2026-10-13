@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
 import { normalizeDomain } from '@/shared/lib/destinationList'
@@ -36,6 +36,7 @@ const domains = ref('')
 const picked = ref('')
 const titleError = ref('')
 const domainsError = ref('')
+const pickError = ref('')
 
 const modeValue = computed<string>({
   get: () => mode.value,
@@ -43,6 +44,7 @@ const modeValue = computed<string>({
     mode.value = value === 'existing' ? 'existing' : 'create'
     titleError.value = ''
     domainsError.value = ''
+    pickError.value = ''
   },
 })
 
@@ -61,6 +63,7 @@ watch(
     picked.value = ''
     titleError.value = ''
     domainsError.value = ''
+    pickError.value = ''
   },
 )
 
@@ -92,16 +95,32 @@ const parsedDomains = (): string[] | null => {
   return unique
 }
 
-const submit = (): void => {
+// Naming what is missing moves the keyboard to the first field that lacks it.
+const focusField = async (id: string): Promise<void> => {
+  await nextTick()
+  document.getElementById(id)?.focus()
+}
+
+const submit = async (): Promise<void> => {
   if (props.busy) return
   if (mode.value === 'existing') {
-    if (picked.value !== '') emit('add', picked.value)
+    if (picked.value === '') {
+      pickError.value = t('lists.category.pick.required')
+      await focusField('library-existing-list')
+      return
+    }
+    emit('add', picked.value)
     return
   }
   const nextTitle = title.value.trim()
   titleError.value = nextTitle === '' ? t('listCard.title.invalid') : ''
   const nextDomains = parsedDomains()
-  if (nextTitle === '' || nextDomains === null) return
+  if (nextTitle === '' || nextDomains === null) {
+    await focusField(
+      nextTitle === '' ? 'library-list-title' : 'library-list-domains',
+    )
+    return
+  }
   emit('create', { domains: nextDomains, title: nextTitle })
 }
 </script>
@@ -112,7 +131,7 @@ const submit = (): void => {
     :dismissible="!busy"
     :open="open"
     :title="t('lists.list.new')"
-    variant="sheet"
+    variant="panel"
     @update:open="$event === false && emit('close')"
   >
     <form class="list-sheet" @submit.prevent="submit">
@@ -127,6 +146,7 @@ const submit = (): void => {
 
       <template v-if="mode === 'create' && !createdPendingAttachment">
         <RvField
+          class="list-sheet__field"
           :error="titleError"
           input-id="library-list-title"
           :label="t('listCard.title.field')"
@@ -162,16 +182,26 @@ const submit = (): void => {
       </template>
 
       <template v-else-if="mode === 'existing' && !createdPendingAttachment">
-        <RvCombobox
+        <RvField
           v-if="existing.length > 0"
-          v-model="picked"
-          :disabled="busy"
-          :empty-label="t('lists.category.pick.empty')"
+          v-slot="{ describedBy, invalid }"
+          class="list-sheet__field"
+          :error="pickError"
           input-id="library-existing-list"
-          :options="existing"
-          :placeholder="t('lists.category.pick.placeholder')"
-          :toggle-label="t('lists.category.pick.toggle')"
-        />
+          :label="t('listPicker.column.list')"
+        >
+          <RvCombobox
+            v-model="picked"
+            :described-by="describedBy"
+            :disabled="busy"
+            :empty-label="t('lists.category.pick.empty')"
+            input-id="library-existing-list"
+            :invalid="invalid"
+            :options="existing"
+            :placeholder="t('lists.category.pick.placeholder')"
+            :toggle-label="t('lists.category.pick.toggle')"
+          />
+        </RvField>
         <p v-else class="list-sheet__note">
           {{ t('lists.category.pick.none') }}
         </p>
@@ -190,7 +220,7 @@ const submit = (): void => {
         {{ t('action.cancel') }}
       </RvButton>
       <RvButton
-        :disabled="busy || (mode === 'existing' && picked === '')"
+        :disabled="busy"
         :loading="busy"
         type="button"
         variant="primary"
@@ -213,6 +243,10 @@ const submit = (): void => {
   display: grid;
   gap: var(--rv-space-5);
   padding: var(--rv-space-5) var(--rv-space-6);
+}
+
+.list-sheet__field {
+  max-width: var(--rv-measure-field);
 }
 
 .list-sheet__note {

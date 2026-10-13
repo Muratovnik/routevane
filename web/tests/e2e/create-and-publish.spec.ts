@@ -111,11 +111,23 @@ test('the library starts empty and shelves the profile the composer creates and 
   await expect(
     page.getByRole('heading', { level: 1, name: 'New profile' }),
   ).toBeVisible()
-  // Nothing can be prepared before both the contents and their first
-  // connection are chosen, so the primary action cannot create a
-  // half-configured result.
+  // Nothing can be prepared before the name, the contents and their first
+  // connection are given, so pressing the primary action cannot create a
+  // half-configured result: it stays pressable and answers with what is
+  // missing, beside the fields that lack it.
   const submit = page.getByRole('button', { name: 'Create and prepare' })
-  await expect(submit).toBeDisabled()
+  await expect(submit).toBeEnabled()
+  await submit.click()
+  await expect(
+    page.getByText(englishCopy('create.name.required')),
+  ).toBeVisible()
+  await expect(
+    page.getByText(englishCopy('create.target.required')),
+  ).toBeVisible()
+  await expect(
+    page.getByText(englishCopy('create.lists.required')),
+  ).toBeVisible()
+  expect(page.url()).toBe(`${origin}/profiles/new`)
 
   // The list card is one table: every destination the list stands for with its
   // origin, read here rather than edited. Adding to the profile happens from the
@@ -171,7 +183,13 @@ test('the library starts empty and shelves the profile the composer creates and 
   await listCard.getByRole('button', { name: 'Close' }).last().click()
   await expect(listMembership(page, 'Discord')).toBeChecked()
   await expect(page.getByText('1 list in the profile')).toBeVisible()
-  await expect(submit).toBeDisabled()
+  // Each omission goes as soon as what it names is supplied; the others stay.
+  await expect(
+    page.getByText(englishCopy('create.lists.required')),
+  ).toHaveCount(0)
+  await expect(
+    page.getByText(englishCopy('create.target.required')),
+  ).toBeVisible()
 
   // The search narrows the checkboxes without ever unpicking a list.
   const search = page.getByRole('searchbox', { name: 'Find a list' })

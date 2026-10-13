@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { targetIcon } from '@/shared/lib/targetIcon'
-import { computed, onMounted } from 'vue'
+import { computed, nextTick, onMounted, useTemplateRef } from 'vue'
 
 import RvComposerForm from '@/shared/ui/RvComposerForm.vue'
 import RvComposer from '@/shared/ui/RvComposer.vue'
+import { listIdentityLabels } from '@/entities/profile-composition/model/composition'
 import ListPicker from '@/entities/profile-composition/ui/ListPicker.vue'
 import { useCreateProfile } from '@/features/create-profile/model/useCreateProfile'
 import { useLocale } from '@/shared/i18n/useLocale'
@@ -12,6 +13,7 @@ import RvButton from '@/shared/ui/RvButton.vue'
 import RvCombobox from '@/shared/ui/RvCombobox.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
+import RvStatus from '@/shared/ui/RvStatus.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
 const emit = defineEmits<{
@@ -104,9 +106,36 @@ onMounted(() => {
   void setup.initialize()
 })
 
+// A format whose file cannot be built from every list says so beside the act
+// that creates it: the profile is still stored, and the consequence is stated
+// where the choice is made. The forecast already names the lists it could not
+// weigh for this format.
+const unbuildable = computed(() => {
+  const ids = setup.selectedForecast.value?.incompleteLists ?? []
+  if (ids.length === 0) return ''
+  const labels = listIdentityLabels(setup.lists.value)
+  return t('create.forecast.incomplete', {
+    lists: ids.map((id) => labels.get(id) ?? id).join(', '),
+    target: setup.selectedTargetTitle.value,
+  })
+})
+
+const picker = useTemplateRef<{ focus: () => void }>('picker')
+
+// Pressing create with something missing states each omission beside what is
+// missing and moves the keyboard to the first of them, in reading order.
+const focusFirstProblem = async (): Promise<void> => {
+  await nextTick()
+  const shown = setup.shownProblems.value
+  if (shown.name) document.getElementById('create-name')?.focus()
+  else if (shown.target) document.getElementById('create-target')?.focus()
+  else if (shown.lists) picker.value?.focus()
+}
+
 const submit = async (): Promise<void> => {
   const created = await setup.create()
   if (created !== null) emit('created', created.profileID, created.targetID)
+  else await focusFirstProblem()
 }
 </script>
 
@@ -139,7 +168,7 @@ const submit = async (): Promise<void> => {
     />
     <RvStateNotice
       v-else-if="setup.catalogState.value === 'failed'"
-      :body="t('create.catalog.failed.body')"
+      :body="t(`failure.${setup.catalogFailure.value}.body`)"
       live
       :title="t('create.catalog.failed')"
       tone="failed"
@@ -167,6 +196,7 @@ const submit = async (): Promise<void> => {
         </h2>
         <div class="create__lists-body">
           <ListPicker
+            ref="picker"
             v-model="setup.composition.value"
             fill
             :initial-priority="setup.defaultPriority.value"
@@ -190,20 +220,22 @@ const submit = async (): Promise<void> => {
         </div>
       </section>
 
-      <template #settings="{ compact }">
-        <RvComposerForm
-          class="create__form"
-          :compact="compact"
-          @submit.prevent="submit"
-        >
+      <template #settings>
+        <RvComposerForm class="create__form" @submit.prevent="submit">
           <RvField
+            v-slot="{ describedBy, invalid }"
             class="create__name"
+            :error="
+              setup.shownProblems.value.name ? t('create.name.required') : ''
+            "
             input-id="create-name"
             :label="t('create.name')"
           >
             <RvTextInput
+              :described-by="describedBy"
               :disabled="setup.busy.value"
               input-id="create-name"
+              :invalid="invalid"
               maxlength="120"
               :model-value="setup.name.value"
               :placeholder="t('create.name.placeholder')"
@@ -214,17 +246,25 @@ const submit = async (): Promise<void> => {
           <!-- The same field as the name beside it, so the two captions and
                the two controls stand on the same lines. -->
           <RvField
+            v-slot="{ describedBy, invalid }"
             class="create__target"
+            :error="
+              setup.shownProblems.value.target
+                ? t('create.target.required')
+                : ''
+            "
             input-id="create-target"
             :label="t('create.target')"
           >
             <template v-if="setup.targets.value.length > 0">
               <RvCombobox
                 v-model="chosenTarget"
+                :described-by="describedBy"
                 :disabled="setup.busy.value"
                 :empty-label="t('create.target.noMatches')"
                 :groups="targetChoices"
                 input-id="create-target"
+                :invalid="invalid"
                 :placeholder="t('create.target.placeholder')"
                 :toggle-label="t('create.target.toggle')"
               />
@@ -267,8 +307,24 @@ const submit = async (): Promise<void> => {
                 </RvButton>
               </template>
             </RvStateNotice>
+            <!-- Said beside the act, because it is what the act will do: the
+                 profile is stored and this file waits. Creating stays open. -->
+            <RvStatus
+              v-if="unbuildable !== ''"
+              class="create__consequence"
+              role="status"
+              tone="warning"
+              :label="unbuildable"
+            />
+            <RvStatus
+              v-if="setup.shownProblems.value.lists"
+              class="create__consequence"
+              role="alert"
+              tone="failed"
+              :label="t('create.lists.required')"
+            />
             <RvButton
-              :disabled="!setup.canCreate.value"
+              :disabled="!setup.startable.value"
               :loading="setup.busy.value"
               type="submit"
               variant="primary"
@@ -363,8 +419,14 @@ const submit = async (): Promise<void> => {
 /* The refusal explains the disabled control beneath it, so it takes the
    reading width rather than the button's. */
 .create__blocked {
-  justify-self: stretch;
+  flex: 1 1 100%;
   max-width: var(--rv-measure-prose);
+}
+
+/* A statement about the act below takes a line of its own, at the form's
+   start, and the buttons keep the end of the next one. */
+.create__consequence {
+  flex: 1 1 100%;
 }
 
 @container (width <= 54rem) {

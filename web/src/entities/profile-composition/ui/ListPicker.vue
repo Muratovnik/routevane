@@ -58,6 +58,7 @@ const { formatNumber, t, tc, tor } = useLocale()
 const query = ref('')
 const categoryFilter = ref<string[]>([])
 const activeListID = ref('')
+const selectedOnly = ref(false)
 
 const listsByID = computed(
   () => new Map(props.lists.map((list) => [list.id, list])),
@@ -99,6 +100,8 @@ const visibleRows = computed(() => {
       props.categories,
     )
     if (!inCategory) return false
+    if (selectedOnly.value && !shownWhileSelected.value.has(list.id))
+      return false
     if (needle === '') return true
     return [
       list.id,
@@ -107,6 +110,22 @@ const visibleRows = computed(() => {
     ].some((value) => value.toLocaleLowerCase().includes(needle))
   })
 })
+
+// What the in-profile filter shows: the rows selected when it was pressed and
+// every row selected since. A row the operator takes out while it is on stays
+// where it is, unchecked, until the filter is pressed again — selection never
+// moves a row, and a row does not vanish from under the pointer either.
+const shownWhileSelected = ref(new Set<string>())
+watch(
+  [selectedOnly, resolved],
+  ([on, ids], [wasOn]) => {
+    shownWhileSelected.value =
+      on && wasOn === true
+        ? new Set([...shownWhileSelected.value, ...ids])
+        : new Set(ids)
+  },
+  { immediate: true },
+)
 
 // Membership never sorts the catalog. Only an explicit move changes row positions.
 const rowOrder = ref<string[]>([])
@@ -328,6 +347,16 @@ const overlapTitles = (listID: string): string[] | null => {
 
 const listLabel = (listID: string): string =>
   listLabels.value.get(listID) ?? listID
+
+// The first row's membership control, for a host that has to put the keyboard
+// in the table: a draft with no list in it is missing exactly what that row
+// offers.
+const focus = (): void => {
+  tableBody.value
+    ?.querySelector<HTMLInputElement>('input[type="checkbox"]')
+    ?.focus()
+}
+defineExpose({ focus })
 </script>
 
 <template>
@@ -339,9 +368,11 @@ const listLabel = (listID: string): string =>
       <CategoryFilters
         v-model="categoryFilter"
         v-model:query="query"
+        v-model:selected-only="selectedOnly"
         :categories="categories"
         :lists="lists"
         :disabled="disabled"
+        :selected-count="resolved.length"
       />
       <div class="picker__summary">
         <!-- A refresh states its progress by turning its own glyph, so the
@@ -457,7 +488,7 @@ const listLabel = (listID: string): string =>
             <span class="picker__column-label">
               {{ t('listPicker.column.overlaps') }}
               <RvInfoTip
-                :label="t('listPicker.column.overlaps')"
+                :label="t('listPicker.overlap.about')"
                 :text="t('listPicker.overlap.legend')"
               />
             </span>

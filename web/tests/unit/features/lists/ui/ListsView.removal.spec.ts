@@ -9,6 +9,7 @@ import {
   json,
   openCategory,
   openMenu,
+  profileResponse,
   renderLibrary,
   resetLibrary,
   restoreGlobals,
@@ -72,6 +73,10 @@ describe('deleting and detaching', () => {
           },
           409,
         ),
+      [`GET /v1/profiles/${'a'.repeat(32)}`]: () =>
+        profileResponse('a'.repeat(32)),
+      [`GET /v1/profiles/${'b'.repeat(32)}`]: () =>
+        profileResponse('b'.repeat(32), '2026-02-01T00:00:00Z'),
     })
     const screen = await renderLibrary()
     await expect.element(screen.getByRole('table')).toBeVisible()
@@ -89,8 +94,18 @@ describe('deleting and detaching', () => {
         screen.getByText('The category was not deleted', { exact: false }),
       )
       .toBeVisible()
+    // Each profile is a link to where it can be changed, and an archived one
+    // says so and says how it can still be removed.
+    const dialog = screen.getByRole('dialog')
     await expect
-      .element(screen.getByText('Дом, Офис', { exact: false }))
+      .element(dialog.getByRole('link', { name: 'Дом' }))
+      .toHaveAttribute('href', `/profiles/${'a'.repeat(32)}`)
+    await expect
+      .element(dialog.getByRole('link', { name: 'Офис' }))
+      .toHaveAttribute('href', `/profiles/${'b'.repeat(32)}`)
+    await expect.element(dialog.getByText('(archived)')).toBeVisible()
+    await expect
+      .element(dialog.getByText('delete it permanently', { exact: false }))
       .toBeVisible()
     await screen
       .getByRole('dialog')
@@ -166,7 +181,11 @@ describe('deleting and detaching', () => {
     await expect
       .element(screen.getByRole('dialog').getByText('Дом', { exact: false }))
       .toBeVisible()
-    expect(keys().at(-1)).toBe('POST /v1/lists/telegram/remove')
+    expect(
+      keys()
+        .filter((key) => !key.startsWith('GET /v1/profiles/'))
+        .at(-1),
+    ).toBe('POST /v1/lists/telegram/remove')
 
     // The one nothing holds goes, and the catalog is read back after it.
     await screen

@@ -23,11 +23,18 @@ const props = defineProps<{
    * one control that would write.
    */
   actionDisabled?: boolean
+  /**
+   * How many lists the draft holds, when the table is a draft's. The filter
+   * that shows only those exists only then: a library holds no selection.
+   */
+  selectedCount?: number
+  selectedOnly?: boolean
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: string[]]
   'update:query': [value: string]
   action: []
+  'update:selectedOnly': [value: boolean]
 }>()
 const { t, tor, formatNumber } = useLocale()
 const search = computed({
@@ -133,6 +140,20 @@ const toggle = (id: string): void => {
           >
         </template>
       </RvSearchSelect>
+      <button
+        v-if="selectedCount !== undefined"
+        type="button"
+        class="catalog-filters__chip"
+        :aria-pressed="selectedOnly === true"
+        :disabled="disabled"
+        @click="emit('update:selectedOnly', selectedOnly !== true)"
+      >
+        {{
+          t('listPicker.filter.selected', {
+            count: formatNumber(selectedCount),
+          })
+        }}
+      </button>
       <RvTooltip v-if="actionLabel" :text="actionLabel">
         <button
           class="catalog-filters__chip catalog-filters__action"

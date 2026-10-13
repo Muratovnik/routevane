@@ -68,6 +68,11 @@
   --rv-color-status-busy: var(--rv-blue-400);
   --rv-color-status-waiting: var(--rv-grey-300);
 
+  /* The ground of a placeholder that stands in for content still being read.
+   * It has to be perceptible against the canvas and the raised surface alike,
+   * so it is a step further from them than a hairline or a muted surface. */
+  --rv-color-skeleton: #434a50;
+
   /* Chrome roles keep the application rail self-contained without leaking
    * primitive palette values into the shell component. */
   --rv-color-chrome-ink: #ecefed;
@@ -331,6 +336,8 @@
     --rv-color-status-failed: var(--rv-red-600);
     --rv-color-status-busy: var(--rv-blue-600);
     --rv-color-status-waiting: #656e68;
+    --rv-color-skeleton: #b9bfb7;
+    --rv-color-chrome-hover: var(--rv-slate-700);
     --rv-shadow-panel: 0 0.0625rem 0.125rem rgb(20 24 21 / 10%);
     --rv-shadow-raised: 0 0.5rem 1.5rem rgb(20 24 21 / 12%);
     --rv-native-color-scheme: light;
@@ -363,6 +370,8 @@
   --rv-color-status-failed: var(--rv-red-600);
   --rv-color-status-busy: var(--rv-blue-600);
   --rv-color-status-waiting: #656e68;
+  --rv-color-skeleton: #b9bfb7;
+  --rv-color-chrome-hover: var(--rv-slate-700);
   --rv-shadow-panel: 0 0.0625rem 0.125rem rgb(20 24 21 / 10%);
   --rv-shadow-raised: 0 0.5rem 1.5rem rgb(20 24 21 / 12%);
   --rv-native-color-scheme: light;

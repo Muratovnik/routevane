@@ -541,4 +541,88 @@ describe('CreateProfile forecast', () => {
       .toBeChecked()
     expect(catalogRead).toHaveBeenCalledTimes(3)
   })
+
+  // A missing field is not a reason to withdraw the button: pressing it says
+  // what is missing beside each omission and moves the keyboard to the first.
+  it('states every omission when create is pressed with nothing chosen', async () => {
+    const fetchMock = stubNetwork()
+    const screen = await renderComposer()
+    await settle()
+
+    const submit = screen.getByRole('button', { name: SUBMIT })
+    await expect.element(submit).toBeEnabled()
+    await expect
+      .element(screen.getByText('Enter a name'))
+      .not.toBeInTheDocument()
+
+    await submit.click()
+    await settle()
+
+    await expect.element(screen.getByText('Enter a name')).toBeVisible()
+    await expect
+      .element(screen.getByText('Say where to deliver the profile'))
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('Select at least one list'))
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('textbox', { name: 'Name' }))
+      .toHaveFocus()
+    expect(
+      (fetchMock.mock.calls as unknown[][]).some(
+        ([path, init]) =>
+          String(path) === '/v1/profiles' &&
+          (init as RequestInit | undefined)?.method === 'POST',
+      ),
+    ).toBe(false)
+
+    // Each message goes as soon as what it names is supplied.
+    await chooseList(screen, 'Discord')
+    await expect
+      .element(screen.getByText('Select at least one list'))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByText('Enter a name'))
+      .not.toBeInTheDocument()
+  })
+
+  // A format that cannot weigh every list still gets its profile; the screen
+  // says beside create which lists keep its file from being published.
+  it('says which lists keep the chosen format from publishing, and still allows create', async () => {
+    stubNetwork({
+      preview: () =>
+        Promise.resolve(
+          json({
+            targets: [
+              {
+                incomplete_lists: ['limit-fixture'],
+                target_id: 'keenetic',
+                maximum_rules: 1024,
+                projected_rules: 0,
+                fits: false,
+                per_list: [],
+              },
+            ],
+          }),
+        ),
+    })
+    const screen = await renderComposer()
+    await settle()
+    await chooseList(screen, 'Limit fixture')
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
+    await chooseTarget(screen, 'Keenetic')
+    await settle()
+
+    await expect
+      .element(
+        screen.getByText(
+          'The Keenetic file will not be published until these lists have usable data: Limit fixture',
+        ),
+      )
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('button', { name: SUBMIT }))
+      .toBeEnabled()
+  })
 })

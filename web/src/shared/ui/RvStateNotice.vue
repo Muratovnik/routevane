@@ -45,6 +45,11 @@ const icon = computed(() => icons[props.tone ?? 'waiting'])
       <p v-if="body !== undefined && body !== ''" class="rv-notice__body">
         {{ body }}
       </p>
+      <!-- A body that is more than a sentence — one that links to what it names
+           — is given as content instead of text. -->
+      <div v-else-if="$slots.default" class="rv-notice__body">
+        <slot />
+      </div>
       <div v-if="$slots.action" class="rv-notice__action">
         <slot name="action" />
       </div>
@@ -84,6 +89,11 @@ const icon = computed(() => icons[props.tone ?? 'waiting'])
   max-width: var(--rv-measure-prose);
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-interface);
+}
+
+.rv-notice__body:is(div) {
+  display: grid;
+  gap: var(--rv-space-2);
 }
 
 .rv-notice__action {

@@ -239,9 +239,12 @@ test('an operator category carries its lists into a profile and is kept while a 
   await removal.getByRole('button', { exact: true, name: 'Delete' }).click()
   await expect(removal.getByText('The category was not deleted')).toBeVisible()
   await expect(
-    removal.getByText(
-      'It is part of these profiles: Домашние, YouTube. Remove it there and try again.',
-    ),
+    removal.getByText(englishCopy('lists.category.inUse.lead')),
+  ).toBeVisible()
+  for (const title of ['Домашние', 'YouTube'])
+    await expect(removal.getByRole('link', { name: title })).toBeVisible()
+  await expect(
+    removal.getByText(englishCopy('lists.category.inUse.next')),
   ).toBeVisible()
   await removal.getByRole('button', { name: 'Cancel' }).click()
   await page.getByRole('button', { name: 'Categories', exact: true }).click()

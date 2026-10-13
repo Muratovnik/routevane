@@ -52,15 +52,15 @@ describe('the library pane', () => {
     expect(rowNames(screen)).toHaveLength(4)
 
     await screen.getByRole('button', { name: NEW_CATEGORY }).click()
-    // A new category is a full working surface rather than a centred box.
+    // A name is one bounded act, so it is a centred box rather than a sheet.
     const sheet = screen.getByRole('dialog', { name: NEW_CATEGORY })
-    await expect.element(sheet).toHaveClass('rv-dialog--sheet')
+    await expect.element(sheet).toHaveClass('rv-dialog--panel')
     await sheet.getByRole('button', { name: 'Cancel' }).click()
 
     await openCategory(screen, 'Communication')
     await screen.getByRole('button', { name: NEW_LIST }).click()
     const listSheet = screen.getByRole('dialog', { name: NEW_LIST })
-    await expect.element(listSheet).toHaveClass('rv-dialog--sheet')
+    await expect.element(listSheet).toHaveClass('rv-dialog--panel')
     await expect
       .element(listSheet.getByRole('radio', { name: 'Existing list' }))
       .toBeVisible()

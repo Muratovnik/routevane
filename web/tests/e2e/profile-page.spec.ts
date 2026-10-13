@@ -120,15 +120,16 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   })
   await settleAnimations(page)
   const atRest = await scheduleGround()
-  // A heading leaves the field's ground alone. The choice itself takes the
-  // library's hover (docs/UI.md), then returns to the same resting ground.
-  // Read each settled state so an early transition frame cannot satisfy it.
+  // A choice trigger is a field, and a field has no hover state (docs/UI.md):
+  // neither the heading above it nor the pointer on the trigger itself changes
+  // its ground. Read each settled state so an early transition frame cannot
+  // satisfy it.
   await scheduleHeading.hover()
   await settleAnimations(page)
   expect(await scheduleGround()).toBe(atRest)
   await scheduleTrigger.hover()
   await settleAnimations(page)
-  expect(await scheduleGround()).not.toBe(atRest)
+  expect(await scheduleGround()).toBe(atRest)
   await scheduleHeading.hover()
   await settleAnimations(page)
   expect(await scheduleGround()).toBe(atRest)

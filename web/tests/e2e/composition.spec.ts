@@ -277,17 +277,20 @@ test('the composition editor keeps its geometry across selections and shell brea
   expect(after?.width).toBeCloseTo(before?.width ?? 0)
   expect(after?.height).toBeCloseTo(before?.height ?? 0)
 
-  // Below 1024px the rail leaves the table's side and stacks under it, so
-  // these are the widths where it must clear the table rather than overlap it.
-  // Resizing also updates the measured quick-filter count: compare both boxes
-  // in one layout snapshot after that reactive update settles.
+  // Below 1024px the rail leaves the table's side and stands above it, so
+  // the create action is on screen without scrolling; these are the widths
+  // where it must clear the table rather than overlap it. Resizing also updates
+  // the measured quick-filter count: compare both boxes in one layout snapshot
+  // after that reactive update settles.
   for (const width of [768, 320]) {
     await page.setViewportSize({ height: 900, width })
     await expect
       .poll(async () => {
         const stacked = await table.boundingBox()
         const settings = await rail.boundingBox()
-        return (settings?.y ?? 0) - ((stacked?.y ?? 0) + (stacked?.height ?? 0))
+        return (
+          (stacked?.y ?? 0) - ((settings?.y ?? 0) + (settings?.height ?? 0))
+        )
       })
       .toBeGreaterThanOrEqual(0)
   }
