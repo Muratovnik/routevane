@@ -39,6 +39,7 @@ const deviceCard = (autoDeliver = true): DeviceCard => ({
   address: 'http://192.0.2.1',
   account: 'operator',
   interfaceName: '',
+  credentialStored: autoDeliver,
   autoDeliver,
   deployable: true,
 })

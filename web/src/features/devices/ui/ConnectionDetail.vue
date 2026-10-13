@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useId, watch } from 'vue'
+import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue'
 
+import { keepFocus } from '@/features/devices/lib/keepFocus'
 import { useConnectionFields } from '@/features/devices/model/useConnectionFields'
 import type { DevicesModel } from '@/features/devices/model/useDevices'
+import ConnectionCredential from '@/features/devices/ui/ConnectionCredential.vue'
 import ConnectionDelivery from '@/features/devices/ui/ConnectionDelivery.vue'
 import ConnectionFields from '@/features/devices/ui/ConnectionFields.vue'
 import type { DeviceCard } from '@/shared/api/devices'
 import { useLocale } from '@/shared/i18n/useLocale'
-import { validAddress } from '@/shared/lib/deviceAddress'
 import { targetIcon } from '@/shared/lib/targetIcon'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
@@ -18,8 +19,9 @@ import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import type { Fact, MenuItem } from '@/shared/ui/types'
 
 /**
- * One registered connection: what it is, what it is made of, and whether
- * Routevane may deliver to it without being asked each time.
+ * One registered connection: what it is, what it is made of, the password it
+ * may hold, and whether Routevane may deliver to it without being asked each
+ * time.
  *
  * Its target is not among the editable parts. A device that became a different
  * kind of device is a different device, and a stored credential would then
@@ -40,6 +42,7 @@ const emit = defineEmits<{
 const { t } = useLocale()
 const headingID = useId()
 const heading = ref<HTMLElement | null>(null)
+const fields = useTemplateRef<InstanceType<typeof ConnectionFields>>('fields')
 defineExpose({ focusHeading: (): void => heading.value?.focus() })
 
 const requirements = computed(
@@ -60,14 +63,25 @@ const deployerKnown = computed(
 const disabled = computed(
   () => props.devices.busy.value || props.devices.state.value === 'stale',
 )
+const isRouter = computed(
+  () =>
+    props.devices.targets.value.find(
+      (target) => target.id === props.connection.targetID,
+    )?.kind === 'router',
+)
 
-const { needsAccount, needsInterface } = useConnectionFields(
+const {
+  needsAccount,
+  passwordLabel,
+  problems: problemsOf,
+} = useConnectionFields(
   requirements,
   computed(() => props.connection.targetID),
 )
 
 const draft = ref({ account: '', address: '', interfaceName: '', name: '' })
 const reveal = ref(false)
+const refusedAddress = ref(false)
 const forgetting = ref(false)
 const saving = ref(false)
 
@@ -79,9 +93,18 @@ const restore = (): void => {
     name: props.connection.name,
   }
   reveal.value = false
+  refusedAddress.value = false
 }
 
 watch(() => props.connection.id, restore, { immediate: true })
+// A refusal was about the address as it was typed; a new address is a new
+// question.
+watch(
+  () => draft.value.address,
+  () => {
+    refusedAddress.value = false
+  },
+)
 
 const trimmed = computed(() => ({
   account: draft.value.account.trim(),
@@ -89,6 +112,7 @@ const trimmed = computed(() => ({
   interfaceName: draft.value.interfaceName.trim(),
   name: draft.value.name.trim(),
 }))
+const problems = computed(() => problemsOf(trimmed.value))
 
 // The destination and account consent was given for. Changing any of them is
 // what the server answers by revoking that consent.
@@ -101,20 +125,26 @@ const connectionChanged = computed(
 const dirty = computed(
   () => connectionChanged.value || trimmed.value.name !== props.connection.name,
 )
-const complete = computed(
-  () =>
-    trimmed.value.name !== '' &&
-    validAddress(trimmed.value.address) &&
-    (!needsAccount.value || trimmed.value.account !== '') &&
-    (!needsInterface.value || trimmed.value.interfaceName !== ''),
+
+// What a changed destination ends, from what this connection actually holds.
+// The words are the same ones the confirmation of forgetting uses, because the
+// facts are the same ones.
+const consequences = computed(() => [
+  ...(props.connection.credentialStored
+    ? ['devices.consequence.credential']
+    : []),
+  ...(props.connection.autoDeliver ? ['devices.consequence.autoDelivery'] : []),
+  ...(isRouter.value ? ['devices.consequence.routes'] : []),
+])
+const warning = computed(() =>
+  connectionChanged.value && consequences.value.length > 0
+    ? consequences.value.map((key) => t(key))
+    : [],
 )
-const canSave = computed(
-  () =>
-    dirty.value && complete.value && requirementsReady.value && !disabled.value,
-)
-const revoking = computed(
-  () => props.connection.autoDeliver && connectionChanged.value,
-)
+const forgetConsequences = computed(() => [
+  ...consequences.value,
+  'devices.consequence.files',
+])
 
 const facts = computed<Fact[]>(() => [
   {
@@ -149,29 +179,54 @@ const menuItems = computed<MenuItem[]>(() => [
 ])
 
 const onSave = async (): Promise<void> => {
-  if (!dirty.value || disabled.value) return
-  if (!complete.value) {
+  if (disabled.value || !dirty.value) return
+  // Submitting is always possible. What would be refused is stated beside the
+  // fields it is about, and focus goes to the first of them.
+  if (Object.keys(problems.value).length > 0) {
     reveal.value = true
+    await nextTick()
+    fields.value?.focusFirstInvalid()
     return
   }
   // Read before the write: the re-read that follows replaces this card with
   // the server's own, and the message depends on what was true beforehand.
-  const revoked = revoking.value
+  const endedPassword =
+    connectionChanged.value && props.connection.credentialStored
+  const endedDelivery = connectionChanged.value && props.connection.autoDeliver
+  const addressChanged = trimmed.value.address !== props.connection.address
   saving.value = true
-  const saved = await props.devices.update(
-    props.connection.id,
-    trimmed.value.name,
-    trimmed.value.address,
-    trimmed.value.account,
-    trimmed.value.interfaceName,
+  refusedAddress.value = false
+  const saved = await keepFocus(
+    () =>
+      props.devices.update(
+        props.connection.id,
+        trimmed.value.name,
+        trimmed.value.address,
+        trimmed.value.account,
+        trimmed.value.interfaceName,
+      ),
+    () => fields.value?.element('name'),
   )
   saving.value = false
-  if (!saved) return
-  await nextTick()
+  if (!saved) {
+    // The refusal names no field. It is put beside the address only when the
+    // address is what this draft changed; a refused rename says nothing of the
+    // kind and is stated once, below.
+    if (props.devices.failure.value?.status === 422 && addressChanged) {
+      refusedAddress.value = true
+      await nextTick()
+      fields.value?.focus('address')
+    }
+    return
+  }
   restore()
   emit(
     'update:confirmation',
-    t(revoked ? 'devices.updated.revoked' : 'devices.updated'),
+    [
+      t('devices.updated'),
+      ...(endedPassword ? [t('devices.updated.credential')] : []),
+      ...(endedDelivery ? [t('devices.updated.autoDelivery')] : []),
+    ].join(' '),
   )
 }
 
@@ -248,23 +303,27 @@ const onForget = async (): Promise<void> => {
       <form
         v-if="requirementsReady"
         class="connection__form"
+        novalidate
         @submit.prevent="onSave"
       >
         <ConnectionFields
+          ref="fields"
           v-model:account="draft.account"
           v-model:address="draft.address"
           v-model:interface-name="draft.interfaceName"
           v-model:name="draft.name"
           :disabled="disabled"
           id-prefix="device-edit"
+          :problems="problems"
+          :refused-address="refusedAddress"
           :requirements="requirements"
           :reveal="reveal"
           :target-id="connection.targetID"
         />
         <RvStateNotice
-          v-if="revoking"
-          :body="t('devices.parameters.revoke.body')"
-          :title="t('devices.parameters.revoke')"
+          v-if="warning.length > 0"
+          :body="warning.join(' ')"
+          :title="t('devices.revoke.title')"
           tone="warning"
         />
         <div class="connection__actions">
@@ -272,17 +331,25 @@ const onForget = async (): Promise<void> => {
             t('action.cancel')
           }}</RvButton>
           <RvButton
-            :disabled="!canSave"
+            :disabled="!dirty || disabled"
             :loading="saving"
             :loading-label="t('action.save')"
             type="submit"
             variant="primary"
+            @mousedown.prevent
             >{{ t('action.save') }}</RvButton
           >
         </div>
       </form>
       <RvFacts v-else :items="facts" />
     </section>
+
+    <ConnectionCredential
+      v-if="deployerKnown && needsAccount"
+      :connection="connection"
+      :devices="devices"
+      :label="passwordLabel"
+    />
 
     <ConnectionDelivery
       v-if="connection.autoDeliver || requirementsReady"
@@ -308,7 +375,10 @@ const onForget = async (): Promise<void> => {
       variant="panel"
       @update:open="$event === false && (forgetting = false)"
     >
-      <p class="connection__note">{{ t('devices.forget.confirm.body') }}</p>
+      <!-- What forgetting ends, read from what this connection holds. -->
+      <ul class="connection__consequences">
+        <li v-for="key in forgetConsequences" :key="key">{{ t(key) }}</li>
+      </ul>
       <template #footer>
         <RvButton
           :disabled="devices.busy.value"
@@ -368,8 +438,7 @@ const onForget = async (): Promise<void> => {
   overflow-wrap: anywhere;
 }
 
-.connection__meta,
-.connection__note {
+.connection__meta {
   min-width: 0;
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
@@ -405,5 +474,14 @@ const onForget = async (): Promise<void> => {
   flex-wrap: wrap;
   gap: var(--rv-space-3);
   justify-content: flex-end;
+}
+
+.connection__consequences {
+  display: grid;
+  gap: var(--rv-space-2);
+  padding-inline-start: var(--rv-space-5);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+  list-style: disc;
 }
 </style>

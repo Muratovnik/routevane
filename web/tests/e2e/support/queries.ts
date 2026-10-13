@@ -301,7 +301,7 @@ export const segmentOption = (scope: Scope, label: string): Locator =>
 export const refreshInterval = (
   page: Page,
   copy: Copy = englishCopy,
-): Locator => page.getByRole('group', { name: copy('settings.refresh') })
+): Locator => page.getByRole('group', { name: copy('settings.refresh.label') })
 
 /** The library section of «Списки», by the heading it is announced with. */
 export const libraryRegion = (page: Page, copy: Copy = englishCopy): Locator =>

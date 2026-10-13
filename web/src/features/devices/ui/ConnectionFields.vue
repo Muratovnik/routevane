@@ -1,10 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 
-import { useConnectionFields } from '@/features/devices/model/useConnectionFields'
+import {
+  FIELD_ORDER,
+  useConnectionFields,
+  type FieldKey,
+  type FieldProblem,
+  type FieldProblems,
+} from '@/features/devices/model/useConnectionFields'
 import type { ConnectionRequirements } from '@/shared/api/deploy'
 import { useLocale } from '@/shared/i18n/useLocale'
-import { validAddress } from '@/shared/lib/deviceAddress'
 import RvField from '@/shared/ui/RvField.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
@@ -12,14 +17,22 @@ import RvTextInput from '@/shared/ui/RvTextInput.vue'
  * The fields one connection is made of, in the grid that registering and
  * editing share. Which fields exist and what they are called is the chosen
  * target's own answer, so nothing here is written for one device.
+ *
+ * What is wrong with the draft is the host's answer too — it needs the same
+ * answer to decide whether a submission can go — so the fields only say it, and
+ * say it when the operator has had the field or the host asked for every
+ * problem at once.
  */
 const props = defineProps<{
   disabled?: boolean
   /** Keeps the creation form's controls distinct from the editor's. */
   idPrefix: string
+  problems: FieldProblems
   requirements: ConnectionRequirements | null
-  /** State every missing field, not only the ones already left behind. */
+  /** State every problem, not only those of fields already left behind. */
   reveal?: boolean
+  /** The service refused the address this draft changed. */
+  refusedAddress?: boolean
   targetId: string
 }>()
 
@@ -43,46 +56,64 @@ const {
   computed(() => props.targetId),
 )
 
-// Nothing is reported as missing before the operator has had it: a field
-// states its own omission once they have left it, and the whole draft states
-// its omissions when a submission asked for them.
-const visited = ref({
+// Nothing is reported as wrong before the operator has had it: a field states
+// its own problem once they have left it, and the whole draft states its
+// problems when a submission asked for them.
+const emptyVisits = (): Record<FieldKey, boolean> => ({
   account: false,
   address: false,
   interfaceName: false,
   name: false,
 })
-
+const visited = ref(emptyVisits())
 watch(
   () => props.targetId,
   () => {
-    visited.value = {
-      account: false,
-      address: false,
-      interfaceName: false,
-      name: false,
-    }
+    visited.value = emptyVisits()
   },
 )
 
-const error = (value: string, seen: boolean): string | undefined =>
-  (seen || props.reveal === true) && value.trim() === ''
-    ? t('devices.validation.required')
-    : undefined
-
-// An address that is missing is missing; one that is written in a shape no
-// deployer accepts is answered here rather than by a refusal that names no
-// field. What the shape is stays in `shared/lib`, and which networks a device
-// may live on stays on the server.
-const addressError = computed(() => {
-  const required = error(address.value, visited.value.address)
-  if (required !== undefined) return required
-  if (!(visited.value.address || props.reveal === true)) return undefined
-  const value = address.value.trim()
-  if (value === '' || validAddress(value)) return undefined
+const message = (problem: FieldProblem): string => {
+  if (problem === 'required') return t('devices.validation.required')
+  if (problem === 'local') return t('devices.validation.address.local')
   return t('devices.validation.address', {
     example: addressPlaceholder.value,
   })
+}
+
+const errorOf = (key: FieldKey): string | undefined => {
+  const problem = props.problems[key]
+  if (problem !== undefined && (visited.value[key] || props.reveal === true))
+    return message(problem)
+  // The service names no field, so the host only says the address when the
+  // address is what the draft changed.
+  if (key === 'address' && props.refusedAddress === true)
+    return t('devices.address.refused')
+  return undefined
+}
+
+type Input = InstanceType<typeof RvTextInput>
+const inputs = {
+  account: useTemplateRef<Input>('accountInput'),
+  address: useTemplateRef<Input>('addressInput'),
+  interfaceName: useTemplateRef<Input>('interfaceInput'),
+  name: useTemplateRef<Input>('nameInput'),
+}
+
+const element = (key: FieldKey): HTMLElement | null =>
+  inputs[key].value?.element() ?? null
+const focus = (key: FieldKey): void => element(key)?.focus()
+
+defineExpose({
+  element,
+  focus,
+  /** Moves focus to the first field that needs attention; false when none does. */
+  focusFirstInvalid: (): boolean => {
+    const first = FIELD_ORDER.find((key) => props.problems[key] !== undefined)
+    if (first === undefined) return false
+    focus(first)
+    return true
+  },
 })
 </script>
 
@@ -90,13 +121,15 @@ const addressError = computed(() => {
   <div class="connection-fields">
     <RvField
       aligned
-      :error="error(name, visited.name)"
+      :error="errorOf('name')"
       :input-id="`${idPrefix}-name`"
       :label="t('devices.field.name')"
     >
       <template #default="{ describedBy, invalid }">
         <RvTextInput
+          ref="nameInput"
           v-model="name"
+          aria-required="true"
           :described-by="describedBy"
           :disabled="disabled"
           :input-id="`${idPrefix}-name`"
@@ -109,14 +142,16 @@ const addressError = computed(() => {
 
     <RvField
       aligned
-      :error="addressError"
+      :error="errorOf('address')"
       :hint="addressHint"
       :input-id="`${idPrefix}-address`"
       :label="addressLabel"
     >
       <template #default="{ describedBy, invalid }">
         <RvTextInput
+          ref="addressInput"
           v-model="address"
+          aria-required="true"
           :described-by="describedBy"
           :disabled="disabled"
           :input-id="`${idPrefix}-address`"
@@ -132,13 +167,15 @@ const addressError = computed(() => {
     <RvField
       v-if="needsAccount"
       aligned
-      :error="error(account, visited.account)"
+      :error="errorOf('account')"
       :input-id="`${idPrefix}-account`"
       :label="accountLabel"
     >
       <template #default="{ describedBy, invalid }">
         <RvTextInput
+          ref="accountInput"
           v-model="account"
+          aria-required="true"
           :described-by="describedBy"
           :disabled="disabled"
           :input-id="`${idPrefix}-account`"
@@ -153,14 +190,16 @@ const addressError = computed(() => {
     <RvField
       v-if="needsInterface"
       aligned
-      :error="error(interfaceName, visited.interfaceName)"
+      :error="errorOf('interfaceName')"
       :hint="interfaceHint"
       :input-id="`${idPrefix}-interface`"
       :label="interfaceLabel"
     >
       <template #default="{ describedBy, invalid }">
         <RvTextInput
+          ref="interfaceInput"
           v-model="interfaceName"
+          aria-required="true"
           :described-by="describedBy"
           :disabled="disabled"
           :input-id="`${idPrefix}-interface`"

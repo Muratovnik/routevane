@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 
 import DevicesView from '@/features/devices/ui/DevicesView.vue'
-import TargetsView from '@/features/targets-overview/ui/TargetsView.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
 import AppShell from '@/widgets/app-shell/ui/AppShell.vue'
 
@@ -18,9 +17,9 @@ useHead({
 <template>
   <AppShell>
     <!-- The connections this operator made come first. What this build can
-         talk to at all is reference material behind one click, and it states
-         its own summary from the catalog it reads. -->
+         talk to at all is reference material behind one click inside the same
+         section, so the catalog is read once and every part states the same
+         answer. -->
     <DevicesView />
-    <TargetsView />
   </AppShell>
 </template>

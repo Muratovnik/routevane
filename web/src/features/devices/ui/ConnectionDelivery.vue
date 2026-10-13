@@ -1,23 +1,21 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, useId } from 'vue'
 
+import { keepFocus } from '@/features/devices/lib/keepFocus'
 import type { DevicesModel } from '@/features/devices/model/useDevices'
 import type { DeviceCard } from '@/shared/api/devices'
 import { useLocale } from '@/shared/i18n/useLocale'
-import RvButton from '@/shared/ui/RvButton.vue'
-import RvField from '@/shared/ui/RvField.vue'
-import RvStatus from '@/shared/ui/RvStatus.vue'
-import RvTextInput from '@/shared/ui/RvTextInput.vue'
+import RvSwitch from '@/shared/ui/RvSwitch.vue'
 
 /**
  * Whether Routevane may deliver to this connection without being asked each
  * time. It is its own act and its own section: saving a connection's
- * parameters never grants it, and it is one control rather than a switch and a
- * button beside it.
+ * parameters never grants it, and saving its password does not either. One
+ * switch states what the server holds, and it changes only when the server says
+ * it did — a click is a request, never the new state.
  *
- * The credential lives here and nowhere else. It is held for as long as it
- * takes to send it, and this component is unmounted with the connection it
- * belongs to, so departure takes the field with it.
+ * It carries no password. A format that needs one has it saved in the section
+ * above first, and until then the switch is unavailable and says why beside it.
  */
 const props = defineProps<{
   connection: DeviceCard
@@ -33,119 +31,69 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useLocale()
-const credential = ref('')
+const headingID = useId()
 
-const disabled = computed(
+const busy = computed(
   () => props.devices.busy.value || props.devices.state.value === 'stale',
 )
-// Offering to turn delivery on means this build can apply a file to this kind
-// of device, knows what its deployer needs, and has somewhere to keep a
-// password when one is needed.
-const canOfferConsent = computed(
+// A password this format needs and nothing holds is the one precondition the
+// switch can be missing; where the system has no store to hold one, it cannot
+// be met at all.
+const missingPassword = computed(
+  () => props.needsCredential && !props.connection.credentialStored,
+)
+// Turning delivery on needs this build to apply a file to this kind of device
+// and to know what its deployer needs; turning it off needs neither, so a
+// connection already on can always be switched off.
+const canTurnOn = computed(
   () =>
     props.connection.deployable &&
     props.deployerKnown &&
-    (props.devices.secretStoreAvailable.value || !props.needsCredential),
+    !missingPassword.value &&
+    props.devices.requirementsState.value === 'ready',
 )
-const router = computed(
-  () =>
-    props.devices.targets.value.find(
-      (target) => target.id === props.connection.targetID,
-    )?.kind === 'router',
-)
-
-const onEnable = async (): Promise<void> => {
-  const submitted = credential.value
-  if (props.needsCredential && submitted === '') return
-  credential.value = ''
-  const done = await props.devices.enable(props.connection.id, submitted)
-  if (!done) return
-  emit(
-    'notice',
-    t(
-      router.value
-        ? 'devices.auto.enabled.next.router'
-        : 'devices.auto.enabled.next.other',
-    ),
+const reason = computed(() => {
+  if (props.connection.autoDeliver || !missingPassword.value) return undefined
+  return t(
+    props.devices.secretStoreAvailable.value
+      ? 'devices.auto.needsCredential'
+      : 'devices.auto.noStore',
   )
-}
+})
 
-const onDisable = async (): Promise<void> => {
+const onToggle = async (next: boolean): Promise<void> => {
+  if (busy.value) return
   emit('notice', '')
-  await props.devices.disable(props.connection.id)
+  const done = await keepFocus(
+    () =>
+      next
+        ? props.devices.enable(props.connection.id)
+        : props.devices.disable(props.connection.id),
+    () => null,
+  )
+  if (done && next) emit('notice', t('devices.auto.enabled.next'))
 }
 </script>
 
 <template>
-  <section class="delivery">
-    <h3 class="delivery__title">{{ t('devices.auto.title') }}</h3>
+  <section :aria-labelledby="headingID" class="delivery">
+    <h3 :id="headingID" class="delivery__title">
+      {{ t('devices.auto.title') }}
+    </h3>
 
-    <!-- On: the state is stated and the only offer is to withdraw it. The
-         password is not shown, not stood in for, and not read back. -->
-    <template v-if="connection.autoDeliver">
-      <RvStatus
-        :label="
-          t(
-            deployerKnown && needsCredential
-              ? 'devices.auto.on'
-              : 'devices.auto.on.noCredential',
-          )
-        "
-        tone="ready"
-      />
-      <div class="delivery__actions">
-        <RvButton :disabled="disabled" @click="onDisable">{{
-          t('devices.auto.disable')
-        }}</RvButton>
-      </div>
-    </template>
-
-    <form
-      v-else-if="canOfferConsent"
-      class="delivery__consent"
-      @submit.prevent="onEnable"
-    >
-      <p class="delivery__note">
-        {{
-          t(
-            needsCredential
-              ? 'devices.auto.consent'
-              : 'devices.auto.consent.noCredential',
-          )
-        }}
-      </p>
-      <div v-if="needsCredential" class="delivery__credential">
-        <RvField input-id="device-credential" :label="t('devices.auto.label')">
-          <RvTextInput
-            v-model="credential"
-            autocomplete="off"
-            :disabled="disabled"
-            input-id="device-credential"
-            type="password"
-          />
-        </RvField>
-      </div>
-      <div class="delivery__actions">
-        <RvButton
-          :disabled="disabled || (needsCredential && credential === '')"
-          type="submit"
-          >{{ t('devices.auto.enable') }}</RvButton
-        >
-      </div>
-    </form>
-
-    <!-- A device this build cannot apply a file to, and a system with nowhere
-         to keep a password, are two different facts. Neither is a broken
+    <!-- A device this build cannot apply a file to is a download, not a broken
          switch. -->
-    <p v-else class="delivery__note">
-      {{
-        t(
-          connection.deployable
-            ? 'devices.auto.unavailable'
-            : 'devices.manualOnly',
-        )
-      }}
+    <p v-if="!connection.deployable" class="delivery__note">
+      {{ t('devices.manualOnly') }}
     </p>
+    <RvSwitch
+      v-else
+      :description="reason"
+      :disabled="busy || (!connection.autoDeliver && !canTurnOn)"
+      :label="t('devices.auto.switch')"
+      :model-value="connection.autoDeliver"
+      @update:model-value="onToggle"
+    />
   </section>
 </template>
 
@@ -171,22 +119,5 @@ const onDisable = async (): Promise<void> => {
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
   overflow-wrap: anywhere;
-}
-
-.delivery__consent {
-  display: grid;
-  gap: var(--rv-space-4);
-  justify-items: start;
-  min-width: 0;
-}
-
-.delivery__credential {
-  width: min(100%, var(--rv-measure-field));
-}
-
-.delivery__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-3);
 }
 </style>

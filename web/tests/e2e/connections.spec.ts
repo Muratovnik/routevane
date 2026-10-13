@@ -57,7 +57,7 @@ test('the searchable connection choice filters in its panel and reopens by keybo
   assertProductAlive()
 })
 
-test('hiding a format removes it from the connection picker and says where it went', async ({
+test('hiding a format in Settings removes it from the connection picker', async ({
   page,
   origin,
   assertProductAlive,
@@ -81,19 +81,28 @@ test('hiding a format removes it from the connection picker and says where it we
     'Name',
     'Type',
     'File',
-    'Delivery from Routevane',
-    'Offer when connecting',
+    'Automatic delivery',
   ])
   const keeneticRow = page.getByRole('row').filter({ hasText: 'Keenetic' })
   await expect(keeneticRow).toContainText('Router')
   await expect(keeneticRow).toContainText('.bat')
   await expect(keeneticRow).toContainText('Yes')
+  // The reference states what the catalog carries; what the composer offers
+  // is a preference, and it lives in Settings.
+  await expect(page.getByRole('checkbox')).toHaveCount(0)
 
   // Hiding is a preference of this browser, kept under its own key.
-  const toggle = page.getByRole('checkbox', {
-    name: 'Offer Keenetic when connecting',
+  await page
+    .getByRole('navigation', { name: 'Sections' })
+    .getByRole('link', { name: 'Settings' })
+    .click()
+  const formats = page.getByRole('group', {
+    name: 'Show when creating a profile',
   })
-  await toggle.uncheck()
+  const toggle = formats.getByRole('switch', { name: 'Keenetic', exact: true })
+  await expect(toggle).toBeChecked()
+  await toggle.click()
+  await expect(toggle).not.toBeChecked()
   expect(
     await page.evaluate(() => localStorage.getItem('rv.hiddenTargets')),
   ).toBe('["keenetic"]')
@@ -138,13 +147,13 @@ test('hiding a format removes it from the connection picker and says where it we
   )
   await page.keyboard.press('Escape')
 
-  // Unhiding brings it back, in both places it is offered.
+  // Showing it again brings it back, in both places it is offered.
   await page
     .getByRole('navigation', { name: 'Sections' })
-    .getByRole('link', { name: 'Connections' })
+    .getByRole('link', { name: 'Settings' })
     .click()
-  await catalogDisclosure(page).click()
-  await toggle.check()
+  await toggle.click()
+  await expect(toggle).toBeChecked()
   expect(
     await page.evaluate(() => localStorage.getItem('rv.hiddenTargets')),
   ).toBe('[]')
@@ -199,6 +208,12 @@ test('the device form asks only for fields the selected target needs', async ({
     'placeholder',
     'http://192.168.1.1',
   )
+  // Creating a connection uses the same two-column grid as editing one: the
+  // name and the address stand side by side.
+  const nameBox = await deviceField(page, 'devices.field.name').boundingBox()
+  const addressBox = await keeneticAddress.boundingBox()
+  expect(addressBox!.x).toBeGreaterThan(nameBox!.x + nameBox!.width - 1)
+  expect(Math.abs(addressBox!.y - nameBox!.y)).toBeLessThan(2)
   await expect(deviceField(page, 'deploy.field.account.keenetic')).toBeVisible()
   await expect(
     deviceField(page, 'deploy.field.interface.keenetic'),
@@ -295,6 +310,13 @@ test('the device form asks only for fields the selected target needs', async ({
     details.getByText(localConfigAddress(), { exact: true }),
   ).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  // The list's own heading is not the page's: one heading says «Connections».
+  await expect(
+    page.getByRole('heading', { name: 'Connections', exact: true }),
+  ).toHaveCount(1)
+  await expect(
+    page.getByRole('heading', { name: 'Saved connections', exact: true }),
+  ).toBeVisible()
   expect(await auditWidths(page, 'connection-management')).toEqual([])
   await page.screenshot({
     path: join(reviewRoot, 'connection-management-graphite.png'),

@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import { useRuntimeVersion } from '@/features/settings/model/useRuntimeVersion'
 import { useSettings } from '@/features/settings/model/useSettings'
 import ConfigTransferPanel from '@/features/settings/ui/ConfigTransferPanel.vue'
+import FormatVisibility from '@/features/settings/ui/FormatVisibility.vue'
 import { servingOrigin } from '@/shared/api/desktop'
 import type { RefreshInterval } from '@/shared/api/profiles'
 import { useLocale } from '@/shared/i18n/useLocale'
@@ -115,6 +116,8 @@ const onConfigTransferApplied = (): void => {
         </div>
       </RvSettingsSection>
 
+      <FormatVisibility />
+
       <RvSettingsSection
         :title="t('settings.refresh')"
         :description="t('settings.refresh.note')"
@@ -140,7 +143,7 @@ const onConfigTransferApplied = (): void => {
           <RvSegmented
             label-hidden
             :disabled="!settings.canChange.value"
-            :label="t('settings.refresh')"
+            :label="t('settings.refresh.label')"
             :model-value="settings.refreshInterval.value ?? ''"
             name="rv-refresh-interval"
             :options="refreshOptions"
@@ -197,7 +200,6 @@ const onConfigTransferApplied = (): void => {
 .settings__content {
   display: grid;
   gap: var(--rv-space-6);
-  width: min(100%, var(--rv-settings-width));
   container: settings-content / inline-size;
 }
 

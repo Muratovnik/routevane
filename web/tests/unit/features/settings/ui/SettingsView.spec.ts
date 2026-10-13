@@ -8,8 +8,8 @@ import SettingsView from '@/features/settings/ui/SettingsView.vue'
 const SETTINGS = '/v1/settings'
 const UPDATE = '/v1/settings/update'
 const HEALTH = '/health'
-const READ_FAILED = 'The refresh rule could not be read.'
-const SAVE_FAILED = 'The refresh rule could not be saved.'
+const READ_FAILED = 'The schedule could not be read.'
+const SAVE_FAILED = 'The schedule could not be saved.'
 
 const json = (payload: unknown, status = 200): Response =>
   new Response(JSON.stringify(payload), {
@@ -22,7 +22,16 @@ const json = (payload: unknown, status = 200): Response =>
 const installFetch = (
   answer: (input: string) => Promise<Response>,
 ): ReturnType<typeof vi.fn> => {
-  const fetchMock = vi.fn(answer)
+  // The formats section reads the catalog on its own; these cases are about the
+  // refresh schedule, so the catalog answers with nothing to choose from.
+  const fetchMock = vi.fn((input: string) => {
+    if (input === '/v1/lists')
+      return Promise.resolve(
+        json({ lists: [], list_details: [], categories: [] }),
+      )
+    if (input === '/v1/targets') return Promise.resolve(json({ targets: [] }))
+    return answer(input)
+  })
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
@@ -121,7 +130,9 @@ describe('SettingsView prerequisite audit', () => {
       await screen.getByText('Weekly').click()
       await expect.element(daily).toBeChecked()
       await expect.element(weekly).not.toBeChecked()
-      await expect.element(screen.getByText('Saving the rule…')).toBeVisible()
+      await expect
+        .element(screen.getByText('Saving the schedule…'))
+        .toBeVisible()
       expect(callsTo(fetchMock, UPDATE)).toHaveLength(1)
 
       // A second press while one write is in flight starts no second write:
@@ -160,7 +171,10 @@ describe('SettingsView runtime version', () => {
       return Promise.reject(new Error(`unexpected request ${input}`))
     })
     const screen = await render(SettingsView)
-    const service = screen.getByRole('region', { name: 'Service', exact: true })
+    const service = screen.getByRole('region', {
+      name: 'Local service',
+      exact: true,
+    })
 
     await expect.element(service.getByText(/^Address ·/)).toBeVisible()
     // Until the service answers there is no version to state, and the row
@@ -176,7 +190,7 @@ describe('SettingsView runtime version', () => {
     await expect
       .element(
         screen
-          .getByRole('region', { name: 'Служба', exact: true })
+          .getByRole('region', { name: 'Локальный сервис', exact: true })
           .getByText('Версия · 0.2.7', { exact: true }),
       )
       .toBeVisible()
@@ -201,7 +215,10 @@ describe('SettingsView runtime version', () => {
       throw new Error(`unexpected request ${input}`)
     })
     const screen = await render(SettingsView)
-    const service = screen.getByRole('region', { name: 'Service', exact: true })
+    const service = screen.getByRole('region', {
+      name: 'Local service',
+      exact: true,
+    })
 
     await expect
       .element(screen.getByRole('radio', { name: 'Daily' }))

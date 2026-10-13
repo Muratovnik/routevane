@@ -1,15 +1,23 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, useId, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onMounted,
+  ref,
+  useId,
+  useTemplateRef,
+  watch,
+} from 'vue'
 
 import { useConnectionFields } from '@/features/devices/model/useConnectionFields'
 import { useDevices } from '@/features/devices/model/useDevices'
 import ConnectionDetail from '@/features/devices/ui/ConnectionDetail.vue'
 import ConnectionFields from '@/features/devices/ui/ConnectionFields.vue'
 import ConnectionList from '@/features/devices/ui/ConnectionList.vue'
+import FormatReference from '@/features/devices/ui/FormatReference.vue'
 import { localizedTargetTitle } from '@/shared/api/catalog'
 import type { DeviceCard } from '@/shared/api/devices'
 import { useLocale } from '@/shared/i18n/useLocale'
-import { validAddress } from '@/shared/lib/deviceAddress'
 import { targetIcon } from '@/shared/lib/targetIcon'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvField from '@/shared/ui/RvField.vue'
@@ -54,6 +62,7 @@ const emptyHeadingID = useId()
 const createHeading = ref<HTMLElement | null>(null)
 const emptyHeading = ref<HTMLElement | null>(null)
 const detail = ref<InstanceType<typeof ConnectionDetail> | null>(null)
+const fields = useTemplateRef<InstanceType<typeof ConnectionFields>>('fields')
 // Whether the operator asked to register one. An empty registry is not the
 // same state as registering: it states that it holds nothing and offers the
 // act, rather than putting a form in front of someone who has not asked.
@@ -110,7 +119,7 @@ const selectedRequirements = computed(
       (target) => target.targetID === targetID.value,
     )?.requirements ?? null,
 )
-const { needsAccount, needsInterface } = useConnectionFields(
+const { problems: problemsOf } = useConnectionFields(
   selectedRequirements,
   targetID,
 )
@@ -139,16 +148,18 @@ const trimmed = computed(() => ({
   name: draft.value.name.trim(),
 }))
 
-const canRegister = computed(
+const problems = computed(() => problemsOf(trimmed.value))
+
+// Submitting stays possible while the draft is incomplete: what is wrong is
+// stated beside the fields on submit, where a disabled button would only be
+// silent. What can never be submitted is a form with no target to describe or
+// no answer yet to what that target's deployer needs.
+const canSubmit = computed(
   () =>
     !devices.busy.value &&
     devices.state.value !== 'stale' &&
     devices.requirementsState.value === 'ready' &&
-    targetID.value !== '' &&
-    trimmed.value.name !== '' &&
-    validAddress(trimmed.value.address) &&
-    (!needsAccount.value || trimmed.value.account !== '') &&
-    (!needsInterface.value || trimmed.value.interfaceName !== ''),
+    targetID.value !== '',
 )
 
 const addDisabled = computed(
@@ -187,8 +198,11 @@ const cancelCreation = async (): Promise<void> => {
 }
 
 const submit = async (): Promise<void> => {
-  if (!canRegister.value) {
+  if (!canSubmit.value) return
+  if (Object.keys(problems.value).length > 0) {
     reveal.value = true
+    await nextTick()
+    fields.value?.focusFirstInvalid()
     return
   }
   const done = await devices.register(
@@ -199,18 +213,18 @@ const submit = async (): Promise<void> => {
     trimmed.value.interfaceName,
   )
   if (!done) return
-  const target = devices.targets.value.find(
-    (candidate) => candidate.id === targetID.value,
+  const requirements = selectedRequirements.value
+  // A connection whose deployer is unknown, or that needs a password this
+  // system has nowhere to keep, is delivered to by hand. Otherwise what remains
+  // before unattended delivery depends on whether a password is part of it.
+  let messageKey = 'devices.registered.free'
+  if (
+    requirements === null ||
+    (requirements.needsCredential && !devices.secretStoreAvailable.value)
   )
-  const manualOnly =
-    selectedRequirements.value === null ||
-    (selectedRequirements.value.needsCredential &&
-      !devices.secretStoreAvailable.value)
-  let messageKey =
-    target?.kind === 'router'
-      ? 'devices.registered.router'
-      : 'devices.registered.other'
-  if (manualOnly) messageKey = 'devices.registered.manual'
+    messageKey = 'devices.registered.manual'
+  else if (requirements.needsCredential)
+    messageKey = 'devices.registered.credential'
   await openConnection(devices.registeredID.value)
   confirmation.value = t(messageKey)
   clearDraft()
@@ -373,6 +387,7 @@ const submit = async (): Promise<void> => {
             v-if="devices.catalogAvailable.value"
             id="device-create"
             class="devices__form"
+            novalidate
             @submit.prevent="submit"
           >
             <RvField
@@ -398,12 +413,14 @@ const submit = async (): Promise<void> => {
 
             <ConnectionFields
               v-if="targetID !== ''"
+              ref="fields"
               v-model:account="draft.account"
               v-model:address="draft.address"
               v-model:interface-name="draft.interfaceName"
               v-model:name="draft.name"
               :disabled="devices.busy.value || devices.state.value === 'stale'"
               id-prefix="device-create"
+              :problems="problems"
               :requirements="selectedRequirements"
               :reveal="reveal"
               :target-id="targetID"
@@ -421,16 +438,39 @@ const submit = async (): Promise<void> => {
             <RvButton :disabled="devices.busy.value" @click="cancelCreation">{{
               t('action.cancel')
             }}</RvButton>
+            <!-- Pressing the button must not take focus from the field being
+                 left: leaving it states its problem, the line that appears
+                 moves this button, and the click would then land beside it. -->
             <RvButton
-              :disabled="!canRegister"
+              :disabled="!canSubmit"
               form="device-create"
               type="submit"
               variant="primary"
+              @mousedown.prevent
               >{{ t('action.save') }}</RvButton
             >
           </div>
         </section>
       </div>
+
+      <!-- What this build can talk to at all is reference material behind one
+           click, read from the same catalog and requirements this screen
+           already holds: a second read of either could disagree with the
+           first. -->
+      <FormatReference
+        v-if="
+          devices.catalogAvailable.value && devices.targets.value.length > 0
+        "
+        :deliverable-ids="
+          devices.requirementsState.value === 'ready'
+            ? new Set(
+                devices.deployableTargets.value.map((entry) => entry.targetID),
+              )
+            : null
+        "
+        :targets="devices.targets.value"
+        @retry="devices.retryRequirements"
+      />
     </template>
   </section>
 </template>

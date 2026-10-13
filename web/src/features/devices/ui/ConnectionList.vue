@@ -31,11 +31,7 @@ const { t } = useLocale()
 
 const deliveryLabel = (connection: DeviceCard): string => {
   if (!connection.deployable) return t('devices.delivery.manual')
-  return t(
-    connection.autoDeliver
-      ? 'devices.auto.on.noCredential'
-      : 'devices.auto.off',
-  )
+  return t(connection.autoDeliver ? 'devices.auto.on' : 'devices.auto.off')
 }
 
 // Green is the enabled state, not decoration: a connection waiting for an
@@ -45,12 +41,11 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
 </script>
 
 <template>
-  <!-- The page is already announced as «Подключения»; this heading orders the
-       column for a reader moving by headings without adding a second landmark
-       of the same name. -->
+  <!-- The page's own heading says «Connections»; this one names the column, so a
+       reader moving by headings hears two different things. -->
   <section class="connections">
     <header class="connections__header">
-      <h2 class="connections__title">{{ t('connections.title') }}</h2>
+      <h2 class="connections__title">{{ t('devices.list.title') }}</h2>
       <span class="connections__count">{{ connections.length }}</span>
       <!-- The collection's principal action stands the same height here as on
            the profiles shelf and in the library; the row wraps under the title

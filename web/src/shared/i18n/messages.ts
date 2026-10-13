@@ -123,7 +123,7 @@ const ru: Dictionary = {
   'devices.configure': 'Настроить',
   'devices.configure.aria': 'Настроить подключение {name}',
   'devices.menu': 'Действия для подключения {name}',
-  'devices.auto.title': 'Автоматическая отправка',
+  'devices.auto.title': 'Автоотправка',
   'devices.auto.off': 'Автоотправка выключена',
   'configTransfer.export.title': 'Экспорт',
   'configTransfer.export.body':
@@ -135,10 +135,7 @@ const ru: Dictionary = {
   'listCard.sourceState.failed': 'Ошибка чтения',
   'listCard.sourceState.disabled': 'Выключен',
   'devices.parameters': 'Параметры',
-  'devices.parameters.revoke': 'Сохранение выключит автоотправку',
-  'devices.parameters.revoke.body':
-    'Согласие было дано для прежнего адреса и логина. Сохранённый пароль будет удалён; включите автоотправку снова после сохранения.',
-  'devices.field.target': 'Что подключаем',
+  'devices.field.target': 'Формат',
   'devices.field.target.pick': 'Выберите формат',
   'devices.field.name': 'Название подключения',
   'devices.field.address': 'Адрес',
@@ -146,39 +143,57 @@ const ru: Dictionary = {
   'devices.field.interface': 'Интерфейс',
   'devices.forget': 'Забыть подключение',
   'devices.forget.confirm': 'Забыть подключение {name}?',
-  'devices.forget.confirm.body':
-    'Сохранённый пароль будет удалён, автоотправка выключена. Уже установленные файлы останутся на месте.',
   'devices.manualOnly': 'Файл для этого подключения устанавливается вручную.',
   'devices.delivery.manual': 'Только вручную',
   'devices.validation.required': 'Заполните поле',
   'devices.validation.address': 'Ожидается адрес вида {example}.',
-  'devices.auto.label': 'Пароль',
-  'devices.auto.enable': 'Включить автоотправку',
-  'devices.auto.disable': 'Выключить автоотправку',
-  'devices.auto.on': 'Автоотправка включена, пароль хранится в системе.',
-  'devices.auto.on.noCredential': 'Автоотправка включена.',
-  'devices.auto.consent':
-    'Пароль будет сохранён в хранилище учётных данных операционной системы, пока автоотправка не выключена.',
-  'devices.auto.consent.noCredential':
-    'Новые версии будут отправляться автоматически после обновления профиля.',
-  'devices.auto.unavailable':
-    'В этой системе нет хранилища учётных данных, поэтому автоотправка недоступна. Пароль вводится при каждой отправке.',
+  'devices.field.credential': 'Пароль',
+  'devices.auto.on': 'Автоотправка включена',
   'devices.work.failed': 'Действие не выполнено',
   'devices.work.failed.body':
     'Сервис отклонил запрос. Проверьте поля и повторите.',
-  'devices.registered.router':
-    'Роутер сохранён. Включите автоотправку, если хотите обновлять его без ручной загрузки.',
+  'devices.registered.credential':
+    'Подключение сохранено. Сохраните пароль и включите автоотправку, чтобы обновлять файл без ручной загрузки.',
   'devices.registered.manual':
     'Подключение сохранено. Выберите его в профиле для ручной отправки.',
-  'devices.registered.other':
-    'Подключение сохранено. Включите автоотправку, если хотите обновлять его без ручной загрузки.',
+  'devices.registered.free':
+    'Подключение сохранено. Включите автоотправку, чтобы обновлять файл без ручной загрузки.',
   'devices.updated': 'Параметры сохранены.',
-  'devices.updated.revoked':
-    'Параметры сохранены, автоотправка выключена. Включите её снова, когда будете готовы.',
-  'devices.auto.enabled.next.router':
-    'Автоотправка включена. Осталось выбрать этот роутер в профиле.',
-  'devices.auto.enabled.next.other':
+  'devices.updated.credential': 'Сохранённый пароль удалён.',
+  'devices.auto.enabled.next':
     'Автоотправка включена. Осталось выбрать это подключение в профиле.',
+  'devices.list.title': 'Сохранённые подключения',
+  'devices.revoke.title': 'Сохранение отменит прежнюю настройку подключения',
+  'devices.consequence.credential': 'Сохранённый пароль будет удалён.',
+  'devices.consequence.autoDelivery': 'Автоотправка будет выключена.',
+  'devices.consequence.routes':
+    'Routevane перестанет управлять маршрутами и FQDN-группами, которые создал на роутере; они останутся на нём.',
+  'devices.consequence.files': 'Установленные файлы останутся на месте.',
+  'devices.updated.autoDelivery': 'Автоотправка выключена.',
+  'devices.validation.address.local':
+    'Нужен локальный IP-адрес, а не имя хоста или публичный адрес.',
+  'devices.address.refused': 'Сервис не принял этот адрес.',
+  'deploy.field.password.keenetic': 'Пароль роутера',
+  'deploy.field.password.keenetic-dns': 'Пароль роутера',
+  'devices.credential.title': 'Пароль',
+  'devices.credential.saved': 'Пароль сохранён',
+  'devices.credential.save': 'Сохранить пароль',
+  'devices.credential.replace': 'Заменить',
+  'devices.credential.remove': 'Удалить пароль',
+  'devices.credential.where': 'Хранится в хранилище учётных данных системы',
+  'devices.credential.unavailable':
+    'В системе нет хранилища учётных данных, пароль сохранить нельзя.',
+  'devices.credential.removeEffect': 'Удаление пароля выключит и автоотправку.',
+  'devices.auto.switch': 'Отправлять новые версии автоматически',
+  'devices.auto.needsCredential': 'Сначала сохраните пароль',
+  'devices.auto.noStore': 'В системе нет хранилища учётных данных',
+  'settings.formats.title': 'Форматы',
+  'settings.formats.show': 'Показывать при создании профиля',
+  'settings.formats.loading': 'Читаем каталог форматов…',
+  'settings.formats.failed': 'Каталог форматов недоступен',
+  'settings.formats.failed.body':
+    'Локальный сервис не ответил. Повторите попытку.',
+  'settings.formats.empty': 'В этой сборке нет форматов.',
 
   'shell.nav.settings': 'Настройки',
   'shell.skip': 'Перейти к содержимому',
@@ -297,7 +312,7 @@ const ru: Dictionary = {
   'create.target.manual': 'Подписка или ручная установка',
   'create.target.empty': 'Нет доступных форматов',
   'create.target.empty.body':
-    'Верните скрытый формат в разделе «Подключения» или добавьте его в каталог.',
+    'Верните скрытый формат в настройках или добавьте его в каталог.',
   'create.forecast.of': '≈ {n} из {m} правил',
   'create.forecast.rules': {
     few: '≈ {count} правила',
@@ -845,8 +860,8 @@ const ru: Dictionary = {
   'send.field.account': 'Логин подключения',
   'send.field.password': 'Пароль подключения',
   'send.field.interface': 'Интерфейс подключения',
-  'deploy.field.address.keenetic': 'Адрес устройства',
-  'deploy.field.address.keenetic-dns': 'Адрес устройства',
+  'deploy.field.address.keenetic': 'Адрес',
+  'deploy.field.address.keenetic-dns': 'Адрес',
   'deploy.field.address.singbox': 'Путь к конфигурации sing-box',
   'deploy.field.address.keenetic.hint':
     'HTTP- или HTTPS-адрес с IP роутера в локальной сети. Имена хостов не поддерживаются.',
@@ -909,22 +924,16 @@ const ru: Dictionary = {
   'send.back': 'К профилю',
 
   'targets.title': 'Поддерживаемые форматы',
-  'targets.loading': 'Загружаем каталог…',
-  'targets.failed': 'Каталог недоступен',
-  'targets.failed.body': 'Локальный сервис не ответил.',
-  'targets.empty': 'В этой сборке нет ни одного формата.',
   'targets.column.target': 'Название',
   'targets.column.kind': 'Тип',
   'targets.column.format': 'Файл',
-  'targets.column.auto': 'Доставка из Routevane',
-  'targets.column.visible': 'Предлагать при подключении',
+  'targets.column.auto': 'Автоотправка',
   'targets.auto.yes': 'Да',
   'targets.auto.no': 'Нет',
   'targets.auto.unknown': 'Неизвестно',
   'targets.degraded': 'Автоотправка не проверена',
   'targets.degraded.body': 'Каталог загружен, но способы доставки не ответили.',
   'targets.hint': 'Как установить файл на {target}',
-  'targets.toggle': 'Предлагать {target} при подключении',
 
   'settings.title': 'Настройки',
   'settings.interface': 'Интерфейс',
@@ -938,22 +947,22 @@ const ru: Dictionary = {
   'settings.mode.expert': 'Подробно',
   'settings.mode.note':
     '«Подробно» добавляет идентификаторы, форматы и снимки сборки.',
-  'settings.runtime': 'Служба',
+  'settings.runtime': 'Локальный сервис',
   'settings.refresh': 'Обновление источников',
   'settings.refresh.label': 'По умолчанию',
   'settings.refresh.off': 'Выключено',
   'settings.refresh.daily': 'Раз в сутки',
   'settings.refresh.weekly': 'Раз в неделю',
-  'settings.refresh.note': 'Правило для профилей, у которых нет своего.',
-  'settings.refresh.reading': 'Читаем правило обновления…',
-  'settings.refresh.read.failed': 'Не удалось прочитать правило обновления.',
+  'settings.refresh.note': 'Расписание для профилей, у которых нет своего.',
+  'settings.refresh.reading': 'Читаем расписание…',
+  'settings.refresh.read.failed': 'Не удалось прочитать расписание.',
   'settings.refresh.read.failed.body':
     'Значение сервера неизвестно. Повторите чтение, чтобы изменить расписание.',
   'settings.refresh.read.failed.stale':
     'Показано последнее подтверждённое значение. Повторите чтение, чтобы проверить изменения.',
-  'settings.refresh.refreshing': 'Обновляем правило обновления…',
-  'settings.refresh.failed': 'Не удалось сохранить правило обновления.',
-  'settings.refresh.saving': 'Сохраняем правило…',
+  'settings.refresh.refreshing': 'Проверяем расписание…',
+  'settings.refresh.failed': 'Не удалось сохранить расписание.',
+  'settings.refresh.saving': 'Сохраняем расписание…',
   'settings.runtime.address': 'Адрес',
   'settings.runtime.version': 'Версия',
   'configTransfer.title': 'Перенос конфигурации',
@@ -968,7 +977,7 @@ const ru: Dictionary = {
   'configTransfer.boundary':
     'Импорт работает только в пустой установке. Пароли, токены, адреса пользовательских источников и история в файл не входят.',
   'configTransfer.afterImport':
-    'После переноса введите пароли подключений; автодоставка останется выключенной. Форматы нужно опубликовать заново и создать новые подписки.',
+    'После переноса сохраните пароли подключений заново; автоотправка останется выключенной. Форматы нужно опубликовать заново и создать новые подписки.',
   'configTransfer.reading': 'Читаем конфигурацию…',
   'configTransfer.preview': 'Проверить перенос',
   'configTransfer.preview.busy': 'Проверяем перенос…',
@@ -1014,7 +1023,7 @@ const ru: Dictionary = {
   'configTransfer.warning.custom_sources_require_recreation':
     'Пользовательские источники не входят в файл. После переноса добавьте их заново.',
   'configTransfer.warning.automatic_delivery_disabled':
-    'Автодоставка останется выключенной.',
+    'Автоотправка останется выключенной.',
   'configTransfer.warning.outputs_require_publication':
     'Опубликуйте форматы заново и создайте новые подписки.',
   'configTransfer.failure.fileType': 'Выберите файл .json.',
@@ -1168,10 +1177,7 @@ const en: Dictionary = {
   'listCard.sourceState.failed': 'Read failed',
   'listCard.sourceState.disabled': 'Disabled',
   'devices.parameters': 'Parameters',
-  'devices.parameters.revoke': 'Saving turns automatic delivery off',
-  'devices.parameters.revoke.body':
-    'Consent was given for the previous address and login. The stored password is removed; turn automatic delivery on again after saving.',
-  'devices.field.target': 'What to connect',
+  'devices.field.target': 'Format',
   'devices.field.target.pick': 'Choose a format',
   'devices.field.name': 'Connection name',
   'devices.field.address': 'Address',
@@ -1179,40 +1185,58 @@ const en: Dictionary = {
   'devices.field.interface': 'Interface',
   'devices.forget': 'Forget this connection',
   'devices.forget.confirm': 'Forget connection {name}?',
-  'devices.forget.confirm.body':
-    'The stored password is removed and automatic delivery is turned off. Files already installed stay where they are.',
   'devices.manualOnly': 'A file for this connection is installed by hand.',
   'devices.delivery.manual': 'Manual only',
   'devices.validation.required': 'Fill in this field',
   'devices.validation.address': 'Expected an address like {example}.',
-  'devices.auto.label': 'Password',
-  'devices.auto.enable': 'Turn on automatic delivery',
-  'devices.auto.disable': 'Turn off automatic delivery',
-  'devices.auto.on':
-    'Automatic delivery is on and the password is held by the system.',
-  'devices.auto.on.noCredential': 'Automatic delivery is on.',
-  'devices.auto.consent':
-    'The password will be kept in the operating system credential store until automatic delivery is turned off.',
-  'devices.auto.consent.noCredential':
-    'New versions will be delivered automatically after the profile refreshes.',
-  'devices.auto.unavailable':
-    'This system has no credential store, so automatic delivery is unavailable. The password is typed for each send.',
+  'devices.field.credential': 'Password',
+  'devices.auto.on': 'Automatic delivery is on',
   'devices.work.failed': 'That did not go through',
   'devices.work.failed.body':
     'The service refused the request. Check the fields and try again.',
-  'devices.registered.router':
-    'Router saved. Turn on automatic delivery if you want updates without manual upload.',
+  'devices.registered.credential':
+    'Connection saved. Save the password and turn on automatic delivery to update the file without a manual upload.',
   'devices.registered.manual':
     'Connection saved. Choose it in a profile for manual delivery.',
-  'devices.registered.other':
-    'Connection saved. Turn on automatic delivery if you want updates without manual upload.',
+  'devices.registered.free':
+    'Connection saved. Turn on automatic delivery to update the file without a manual upload.',
   'devices.updated': 'Parameters saved.',
-  'devices.updated.revoked':
-    'Parameters saved and automatic delivery is off. Turn it on again when you are ready.',
-  'devices.auto.enabled.next.router':
-    'Automatic delivery is on. All that remains is choosing this router in a profile.',
-  'devices.auto.enabled.next.other':
+  'devices.updated.credential': 'The saved password was deleted.',
+  'devices.auto.enabled.next':
     'Automatic delivery is on. All that remains is choosing this connection in a profile.',
+  'devices.list.title': 'Saved connections',
+  'devices.revoke.title': 'Saving ends the previous setup of this connection',
+  'devices.consequence.credential': 'The saved password will be deleted.',
+  'devices.consequence.autoDelivery': 'Automatic delivery will be turned off.',
+  'devices.consequence.routes':
+    'Routevane will stop managing the routes and FQDN groups it created on the router; they stay there.',
+  'devices.consequence.files': 'Installed files stay where they are.',
+  'devices.updated.autoDelivery': 'Automatic delivery was turned off.',
+  'devices.validation.address.local':
+    'Use a local network IP address, not a host name or a public address.',
+  'devices.address.refused': 'The service did not accept this address.',
+  'deploy.field.password.keenetic': 'Router password',
+  'deploy.field.password.keenetic-dns': 'Router password',
+  'devices.credential.title': 'Password',
+  'devices.credential.saved': 'Password saved',
+  'devices.credential.save': 'Save password',
+  'devices.credential.replace': 'Replace',
+  'devices.credential.remove': 'Remove password',
+  'devices.credential.where': 'Kept in the credential store of this system',
+  'devices.credential.unavailable':
+    'This system has no credential store, so a password cannot be saved.',
+  'devices.credential.removeEffect':
+    'Removing the password also turns automatic delivery off.',
+  'devices.auto.switch': 'Send new versions automatically',
+  'devices.auto.needsCredential': 'Save the password first',
+  'devices.auto.noStore': 'This system has no credential store',
+  'settings.formats.title': 'Formats',
+  'settings.formats.show': 'Show when creating a profile',
+  'settings.formats.loading': 'Reading the format catalog…',
+  'settings.formats.failed': 'The format catalog is unavailable',
+  'settings.formats.failed.body':
+    'The local service did not answer. Try again.',
+  'settings.formats.empty': 'This build carries no formats.',
 
   'shell.nav.settings': 'Settings',
   'shell.skip': 'Skip to content',
@@ -1325,7 +1349,7 @@ const en: Dictionary = {
   'create.target.manual': 'Subscription or manual installation',
   'create.target.empty': 'No formats available',
   'create.target.empty.body':
-    'Restore a hidden format under Connections, or add one to the catalog.',
+    'Show a hidden format again in Settings, or add one to the catalog.',
   'create.forecast.of': '≈ {n} of {m} rules',
   'create.forecast.rules': {
     one: '≈ {count} rule',
@@ -1853,8 +1877,8 @@ const en: Dictionary = {
   'send.field.account': 'Connection login',
   'send.field.password': 'Connection password',
   'send.field.interface': 'Connection interface',
-  'deploy.field.address.keenetic': 'Device address',
-  'deploy.field.address.keenetic-dns': 'Device address',
+  'deploy.field.address.keenetic': 'Address',
+  'deploy.field.address.keenetic-dns': 'Address',
   'deploy.field.address.singbox': 'Path to the sing-box configuration',
   'deploy.field.address.keenetic.hint':
     'An explicit http or https address with the router’s local IP. Host names are not supported.',
@@ -1917,15 +1941,10 @@ const en: Dictionary = {
   'send.back': 'Back to the profile',
 
   'targets.title': 'Supported formats',
-  'targets.loading': 'Loading the catalog…',
-  'targets.failed': 'The catalog is unavailable',
-  'targets.failed.body': 'The local service did not answer.',
-  'targets.empty': 'This build carries no formats.',
   'targets.column.target': 'Name',
   'targets.column.kind': 'Type',
   'targets.column.format': 'File',
-  'targets.column.auto': 'Delivery from Routevane',
-  'targets.column.visible': 'Offer when connecting',
+  'targets.column.auto': 'Automatic delivery',
   'targets.auto.yes': 'Yes',
   'targets.auto.no': 'No',
   'targets.auto.unknown': 'Unknown',
@@ -1933,7 +1952,6 @@ const en: Dictionary = {
   'targets.degraded.body':
     'The catalog loaded, but the delivery-options service did not answer.',
   'targets.hint': 'How to install the file on {target}',
-  'targets.toggle': 'Offer {target} when connecting',
 
   'settings.title': 'Settings',
   'settings.interface': 'Interface',
@@ -1946,22 +1964,23 @@ const en: Dictionary = {
   'settings.mode.simple': 'Plain',
   'settings.mode.expert': 'Full',
   'settings.mode.note': '“Full” adds identifiers, formats and build snapshots.',
-  'settings.runtime': 'Service',
+  'settings.runtime': 'Local service',
   'settings.refresh': 'Source refresh',
   'settings.refresh.label': 'Default',
   'settings.refresh.off': 'Off',
   'settings.refresh.daily': 'Daily',
   'settings.refresh.weekly': 'Weekly',
-  'settings.refresh.note': 'The rule for profiles that have none of their own.',
-  'settings.refresh.reading': 'Reading the refresh rule…',
-  'settings.refresh.read.failed': 'The refresh rule could not be read.',
+  'settings.refresh.note':
+    'The schedule for profiles that have none of their own.',
+  'settings.refresh.reading': 'Reading the schedule…',
+  'settings.refresh.read.failed': 'The schedule could not be read.',
   'settings.refresh.read.failed.body':
     'The server value is unknown. Retry the read before changing the schedule.',
   'settings.refresh.read.failed.stale':
     'The last confirmed value is shown. Retry the read to check for changes.',
-  'settings.refresh.refreshing': 'Refreshing the refresh rule…',
-  'settings.refresh.failed': 'The refresh rule could not be saved.',
-  'settings.refresh.saving': 'Saving the rule…',
+  'settings.refresh.refreshing': 'Checking the schedule…',
+  'settings.refresh.failed': 'The schedule could not be saved.',
+  'settings.refresh.saving': 'Saving the schedule…',
   'settings.runtime.address': 'Address',
   'settings.runtime.version': 'Version',
   'configTransfer.title': 'Configuration transfer',
@@ -1976,7 +1995,7 @@ const en: Dictionary = {
   'configTransfer.boundary':
     'Import works only in an empty installation. Passwords, tokens, custom-source addresses, and history are not in the file.',
   'configTransfer.afterImport':
-    'Enter connection passwords after import; automatic delivery stays off. Publish the formats again and create new subscriptions.',
+    'Save the connection passwords again after import; automatic delivery stays off. Publish the formats again and create new subscriptions.',
   'configTransfer.reading': 'Reading configuration…',
   'configTransfer.preview': 'Preview transfer',
   'configTransfer.preview.busy': 'Checking transfer…',

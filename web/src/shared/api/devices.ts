@@ -13,8 +13,9 @@ import {
 } from './http'
 
 // A device the operator registered: an instance of a catalog target on their
-// own network. The credential is deliberately absent from every shape here --
-// it is written once, to the operating system, and never read back.
+// own network. The credential itself is deliberately absent from every shape
+// here -- it is written to the operating system, never read back, and the
+// registry only reports whether one is saved (ADR 0050).
 export type DeviceCard = {
   id: string
   targetID: string
@@ -23,6 +24,7 @@ export type DeviceCard = {
   address: string
   account: string
   interfaceName: string
+  credentialStored: boolean
   autoDeliver: boolean
   deployable: boolean
 }
@@ -36,6 +38,7 @@ export type DeviceWrite = {
   address?: string
   account?: string
   interfaceName?: string
+  credentialStored?: boolean
   autoDeliver?: boolean
 }
 
@@ -63,7 +66,8 @@ export const registerDevice = (
 // The target is identity and is not part of this call. Changing the address,
 // the account or the interface revokes automatic delivery and removes the
 // stored credential on the server, because consent named one exact destination
-// and account; the credential itself never travels here.
+// and account; the credential itself never travels here. A refusal carries no
+// field name, so a screen can only say which field it suspects.
 export const updateDevice = (
   id: string,
   name: string,
@@ -80,15 +84,27 @@ export const updateDevice = (
 export const forgetDevice = (id: string): Promise<true> =>
   postJSON(`/v1/devices/${id}/forget`, {}, parseAcknowledgement)
 
-// The credential leaves this tab once and is never read back. Nothing here
-// keeps it, and no reply carries it.
-export const enableAutoDelivery = (
+// Saving a password is its own act on a connection and says nothing about
+// automatic delivery. The credential leaves this tab once, to the server, which
+// hands it to the operating system; nothing here keeps it and no reply carries
+// it. Saving again replaces the stored one.
+export const saveDeviceCredential = (
   id: string,
   credential: string,
 ): Promise<DeviceWrite> =>
+  postJSON(`/v1/devices/${id}/credential`, { credential }, parseDeviceWrite)
+
+// Removing it also turns delivery off when the format needs a password, and the
+// reply carries the state that results.
+export const removeDeviceCredential = (id: string): Promise<DeviceWrite> =>
+  postJSON(`/v1/devices/${id}/credential/remove`, {}, parseDeviceWrite)
+
+// Enabling a format that needs a password is refused with 409 until one is
+// saved; disabling keeps the saved password.
+export const enableAutoDelivery = (id: string): Promise<DeviceWrite> =>
   postJSON(
     `/v1/devices/${id}/auto-delivery`,
-    { enabled: true, credential },
+    { enabled: true },
     parseDeviceWrite,
   )
 
@@ -108,6 +124,7 @@ const deviceSchema = v.pipe(
     address: text,
     account: optionalText,
     interface: optionalText,
+    credential_stored: optionalFlag,
     auto_deliver: optionalFlag,
     deployable: optionalFlag,
   }),
@@ -119,6 +136,7 @@ const deviceSchema = v.pipe(
     address: device.address,
     account: device.account,
     interfaceName: device.interface,
+    credentialStored: device.credential_stored,
     autoDeliver: device.auto_deliver,
     deployable: device.deployable,
   })),
@@ -151,6 +169,7 @@ const parseDeviceWrite: Decoder<DeviceWrite> = decode(
         address: v.optional(optionalText),
         account: v.optional(optionalText),
         interface: v.optional(optionalText),
+        credential_stored: v.optional(optionalFlag),
         auto_deliver: v.optional(optionalFlag),
       }),
     }),
@@ -161,6 +180,7 @@ const parseDeviceWrite: Decoder<DeviceWrite> = decode(
       address: device.address,
       account: device.account,
       interfaceName: device.interface,
+      credentialStored: device.credential_stored,
       autoDeliver: device.auto_deliver,
     })),
   ),

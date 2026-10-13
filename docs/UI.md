@@ -301,23 +301,46 @@ Sections, addressable by URL:
    grid the creation form uses. Adjacent fields share caption and control rows,
    so differing help lengths do not stagger the inputs. The format is the
    connection's identity and is never editable: a registered Keenetic does not
-   become an OpenWrt. Save waits
-   for a draft that differs from what is stored and has every required field
-   filled; «Отменить» and opening another connection both return the stored
-   values. Because consent names one exact destination and account, changing
-   the address, account or interface turns automatic delivery off and removes
-   the stored credential — the screen says so beside Save before it is pressed,
-   and afterwards reports the state the server returned. A name-only change
-   says nothing of the kind. When the deployment catalog is unavailable the
+   become an OpenWrt. Both forms validate the same way: Save is available
+   whenever the draft differs from what is stored (creation: whenever a format
+   is chosen), and pressing it never silently does nothing. A field left empty
+   or malformed states its problem beside itself once it has been left or once
+   Save was pressed, every required field is marked for assistive technology,
+   and focus moves to the first field that needs attention. A router address
+   must name a device on the operator's own network — an explicit http or
+   https address with a private or link-local IP — and the form states that
+   before sending, with the same rule the service applies; a refusal the
+   service gives anyway is stated beside the address only when the address is
+   what the draft changed. Pressing Save with a pointer does not take focus from
+   the field being left, because the problem that field then states would move
+   the button from under the click. After a write, focus stays where the
+   operator was, or returns to the first field when the control that held it has
+   nothing left to offer. «Отменить» and opening another connection both return
+   the stored values. Because a password and consent name one exact destination
+   and account, changing the address, account or interface turns automatic
+   delivery off and removes the saved password — the screen says so beside Save
+   before it is pressed, in a notice that lists exactly what will be lost, and
+   afterwards reports the state the server returned. A name-only change says
+   nothing of the kind. When the deployment catalog is unavailable the
    parameters are stated rather than edited, because the fields a format asks
    for are that catalog's answer.
-   «Автоотправка» is its own section and its own act, never part of saving
-   parameters, and it is one control rather than a switch and a button: while
-   it is on, the screen says so and offers to turn it off, and it never shows a
-   password field or a masked stand-in for a credential it cannot read back.
-   A successful change immediately adopts the returned delivery state. If the
-   following registry read fails, that confirmed state stays visible while a
-   retry refreshes the list without repeating the change.
+   «Пароль» and «Автоотправка» are two sections, each its own act, and neither
+   is part of saving parameters (ADR 0050). A format that needs a password shows
+   «Пароль» under the parameters. Without a saved one it is a field and
+   «Сохранить пароль» with the consequence of saving beside them; with one it is
+   the statement «Пароль сохранён» with «Заменить» and a trash «Удалить». The
+   password is never read back, masked or otherwise, and where the system has no
+   secret store the section says saving is unavailable instead of offering a
+   field. Removing the password also turns automatic delivery off, and the
+   section says so while delivery is on. A format that needs no password shows
+   no such section. «Автоотправка» is one switch that states what the server
+   holds and changes only when the server confirms. For a format that needs a
+   password it is unavailable until one is saved, with the reason in words
+   beside it («Сначала сохраните пароль»), and turning it on never carries a
+   password of its own. A successful change immediately adopts the returned
+   delivery state. If the following registry read fails, that confirmed state
+   stays visible while a retry refreshes the list without repeating the
+   change.
    «Забыть подключение» is the connection's only secondary action, in the
    action menu of its detail header, and it is confirmed before it runs.
    A confirmed removal leaves the list immediately, even when the following
@@ -328,8 +351,11 @@ Sections, addressable by URL:
    what remains before unattended delivery, and after opt-in it points to
    choosing that connection in a profile; it never states that a connection is
    unused, because which profiles name it is not a fact this screen reads. The
-   reference of supported devices and formats is collapsed beneath them and
-   summarized by the catalog's own titles. The words «цель», «вывод» and
+   list of connections is headed «Сохранённые подключения». The reference of
+   supported formats is collapsed beneath them and summarized by the catalog's
+   own titles; it states name, type, file and whether the format can be
+   delivered to automatically, and carries no switches: which formats the
+   profile composer offers is chosen in Settings. The words «цель», «вывод» and
    «потребитель» do not appear on any surface, and «подключение» names exactly
    one thing on every surface: the registered access this screen owns
    (ADR 0041). What a profile publishes in is a _format_, and the catalog
@@ -339,14 +365,21 @@ Sections, addressable by URL:
    is unavailable, the screen keeps known devices readable and states exactly
    which actions cannot be trusted yet.
 7. `/settings` — **Настройки.** Language, theme (system/dark/light), detail
-   mode, the default source-refresh schedule, and portable configuration
-   transfer. Every section uses one surface and grid: title and explanation
+   mode, the formats the profile composer offers, the default source-refresh
+   schedule, and portable configuration transfer. The page has the same width
+   as Connections. «Форматы» lists every format this build carries as one
+   switch each under «Показывать при создании профиля»; a switch states what
+   this browser holds and is the only place that preference is changed. An
+   unreadable catalog says so with a retry instead of an empty list. The
+   segmented choices mark the chosen option with a border, a ground and a check
+   mark, so the choice does not rest on colour alone. Every section uses one surface and grid: title and explanation
    on the left, related controls and actions on the right. On constrained
    screens the heading precedes its content. Surface contrast, padding and
    whitespace distinguish sections without horizontal separators. Interface
    fields place labels above their controls; export and import stack in the
    same content column. The source-refresh explanation belongs beside its
-   schedule. The server's address is the final, secondary section. It identifies
+   schedule, and the choice is named once, not by a second visible caption. The
+   server's address is the final, secondary section, «Локальный сервис». It identifies
    the serving origin, including the local backend address in the desktop app,
    rather than the application window's internal hostname. Below the address
    it states the running service's version after one bounded read when the

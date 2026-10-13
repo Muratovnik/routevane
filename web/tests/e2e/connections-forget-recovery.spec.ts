@@ -28,7 +28,7 @@ test('a forgotten connection leaves the real registry and the empty view keeps G
   await page
     .getByRole('button', { name: 'Add a connection', exact: true })
     .click()
-  await page.getByLabel('What to connect', { exact: true }).click()
+  await page.getByLabel('Format', { exact: true }).click()
   await page.getByRole('option', { name: 'Keenetic', exact: true }).click()
   await page
     .getByLabel('Connection name', { exact: true })

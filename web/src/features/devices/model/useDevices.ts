@@ -11,14 +11,23 @@ import {
   forgetDevice,
   loadDevices,
   registerDevice,
+  removeDeviceCredential,
+  saveDeviceCredential,
   updateDevice,
   type DeviceCard,
   type DeviceWrite,
 } from '@/shared/api/devices'
+import { RoutevaneAPIError } from '@/shared/api/http'
 
 export type DevicesState = 'loading' | 'ready' | 'stale' | 'failed'
 export type DevicesWork = 'idle' | 'working' | 'failed'
 export type RequirementsState = 'unknown' | 'loading' | 'ready' | 'failed'
+/**
+ * What a refused write was. The service names no field, so a screen can only
+ * say where it suspects the refusal from what it submitted; the status is what
+ * tells a refusal (422) from a conflict (409) from no answer at all (0).
+ */
+export type DeviceFailure = { status: number; code: string }
 
 /**
  * The devices this operator installed, as opposed to the formats this product
@@ -40,6 +49,7 @@ export const useDevices = () => {
   const state = ref<DevicesState>('loading')
   const work = ref<DevicesWork>('idle')
   const registeredID = ref('')
+  const failure = ref<DeviceFailure | null>(null)
   let deviceRead = false
   let initializeRequest = 0
   let requirementsRequest = 0
@@ -50,31 +60,39 @@ export const useDevices = () => {
   // Requirements are a separate read from the device registry. `ready` means
   // this tab has a current authoritative answer; an empty deployable list is a
   // successful answer that a target has no deployer, not an unknown failure.
+  //
+  // Once an answer is held, a later read refreshes it in the background: it
+  // never takes the answer back to `loading`, because every write re-reads the
+  // registry and a form that unmounts to say so would drop the operator's
+  // focus and draft. A background read that fails leaves the earlier answer.
   const initialize = async (): Promise<void> => {
     const request = ++initializeRequest
     const requirements = ++requirementsRequest
+    const background = requirementsState.value === 'ready'
     if (!deviceRead) state.value = 'loading'
-    requirementsState.value = 'loading'
+    if (!background) requirementsState.value = 'loading'
     const [loaded, loadedCatalog, loadedDeployables] = await Promise.allSettled(
       [loadDevices(), loadCatalog(), loadDeployableTargets()],
     )
+    // The requirements answer belongs to its own read, not to whichever
+    // registry read is current: a registry retry that overtakes this call must
+    // not leave the state waiting for an answer that has already arrived.
+    if (requirements === requirementsRequest) {
+      if (loadedDeployables.status === 'fulfilled') {
+        deployableTargets.value = loadedDeployables.value
+        deploymentCatalogAvailable.value = true
+        requirementsState.value = 'ready'
+      } else if (!background) {
+        deploymentCatalogAvailable.value = false
+        requirementsState.value = 'failed'
+      }
+    }
     if (request !== initializeRequest) return
     if (loadedCatalog.status === 'fulfilled') {
       catalog.value = loadedCatalog.value
       catalogAvailable.value = true
     } else {
       catalogAvailable.value = false
-    }
-    if (
-      loadedDeployables.status === 'fulfilled' &&
-      requirements === requirementsRequest
-    ) {
-      deployableTargets.value = loadedDeployables.value
-      deploymentCatalogAvailable.value = true
-      requirementsState.value = 'ready'
-    } else if (requirements === requirementsRequest) {
-      deploymentCatalogAvailable.value = false
-      requirementsState.value = 'failed'
     }
     if (loaded.status === 'rejected') {
       state.value = deviceRead ? 'stale' : 'failed'
@@ -144,6 +162,8 @@ export const useDevices = () => {
         fallback.interfaceName ??
         previous?.interfaceName ??
         '',
+      credentialStored:
+        saved.credentialStored ?? previous?.credentialStored ?? false,
       autoDeliver: saved.autoDeliver ?? previous?.autoDeliver ?? false,
       deployable:
         previous?.deployable ??
@@ -162,6 +182,7 @@ export const useDevices = () => {
   ): Promise<boolean> => {
     if (busy.value || state.value === 'stale') return false
     work.value = 'working'
+    failure.value = null
     try {
       const result = await action()
       onSuccess?.(result)
@@ -171,8 +192,16 @@ export const useDevices = () => {
       await initialize()
       work.value = 'idle'
       return true
-    } catch {
+    } catch (error) {
       work.value = 'failed'
+      failure.value = {
+        status: error instanceof RoutevaneAPIError ? error.status : 0,
+        code: error instanceof RoutevaneAPIError ? error.code : '',
+      }
+      // The refusal says the registry moved on without this tab: another
+      // window removed the password. Read it again so the screen states what
+      // the server holds rather than what this tab last saw.
+      if (failure.value.status === 409) void initialize()
       return false
     }
   }
@@ -231,11 +260,30 @@ export const useDevices = () => {
     )
 
   /**
-   * Turning delivery on carries the password once, to the server, which hands
-   * it to the operating system. It is never stored in this tab and never read
-   * back: the surface can say that a credential is held, and nothing more.
+   * Saving a password carries it once, to the server, which hands it to the
+   * operating system. It is never stored in this tab and never read back: the
+   * registry says only that one is saved.
    */
-  const enable = (id: string, credential: string): Promise<boolean> => {
+  const saveCredential = (id: string, credential: string): Promise<boolean> => {
+    if (!secretStoreAvailable.value || credential === '')
+      return Promise.resolve(false)
+    return run(
+      () => saveDeviceCredential(id, credential),
+      (saved) => applyWrite(saved, {}),
+    )
+  }
+
+  const removeCredential = (id: string): Promise<boolean> =>
+    run(
+      () => removeDeviceCredential(id),
+      (saved) => applyWrite(saved, {}),
+    )
+
+  /**
+   * Turning delivery on is consent and carries no password: a format that
+   * needs one has it saved first, and the server refuses otherwise.
+   */
+  const enable = (id: string): Promise<boolean> => {
     const device = devices.value.find((candidate) => candidate.id === id)
     if (
       requirementsState.value !== 'ready' ||
@@ -247,7 +295,7 @@ export const useDevices = () => {
     )
       return Promise.resolve(false)
     return run(
-      () => enableAutoDelivery(id, credential),
+      () => enableAutoDelivery(id),
       (saved) => applyWrite(saved, {}),
     )
   }
@@ -266,13 +314,16 @@ export const useDevices = () => {
     devices,
     disable,
     enable,
+    failure,
     forget,
     initialize,
     register,
     registeredID,
+    removeCredential,
     requirementsState,
     retryRequirements,
     retryDevices,
+    saveCredential,
     secretStoreAvailable,
     state,
     targets,

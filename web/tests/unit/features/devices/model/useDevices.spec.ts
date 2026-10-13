@@ -198,7 +198,7 @@ describe('useDevices degraded dependencies', () => {
         'Wireguard0',
       ),
     ).resolves.toBe(false)
-    await expect(devices.enable('device-1', 'secret')).resolves.toBe(false)
+    await expect(devices.enable('device-1')).resolves.toBe(false)
 
     expect(
       fetchMock.mock.calls.filter(

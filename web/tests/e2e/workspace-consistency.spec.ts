@@ -47,14 +47,15 @@ test('graphite settings and inline connection choices preserve readable alignmen
     .getByRole('heading', { name: 'Source refresh', exact: true })
     .boundingBox())!
   const choice = (await page
-    .getByRole('group', { name: 'Source refresh', exact: true })
+    .getByRole('group', { name: 'Default', exact: true })
     .boundingBox())!
   expect(Math.abs(title.y - choice.y)).toBeLessThanOrEqual(12)
   const sections = [
     'Interface',
     'Source refresh',
     'Configuration transfer',
-    'Service',
+    'Formats',
+    'Local service',
   ]
   const geometry = await Promise.all(
     sections.map(async (name) => {
@@ -94,7 +95,7 @@ test('graphite settings and inline connection choices preserve readable alignmen
     page.getByRole('region', { name: 'Добавить подключение', exact: true }),
   ).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await page.getByLabel('Что подключаем', { exact: true }).click()
+  await page.getByLabel('Формат', { exact: true }).click()
   const option = page.getByRole('option', { name: 'Keenetic', exact: true })
   // The panel grows in as it opens; its rows are measured once it settles.
   await expect(option).toBeVisible()

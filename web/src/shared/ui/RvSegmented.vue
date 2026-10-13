@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RvIcon from '@/shared/ui/RvIcon.vue'
 import type { SegmentOption } from '@/shared/ui/types'
 
 /**
@@ -6,6 +7,11 @@ import type { SegmentOption } from '@/shared/ui/types'
  * much detail, which ground, which language, automatic or by hand. Radio inputs
  * carry the semantics, so keyboard and screen-reader behaviour is the platform's
  * rather than ours.
+ *
+ * The chosen option is told from the others by more than a shade: an accent
+ * edge that stands off the track by the 3:1 non-text contrast WCAG asks for, and
+ * a check mark. The mark holds its place in every option and is only drawn on
+ * the chosen one, so choosing another never moves the words.
  */
 const props = withDefaults(
   defineProps<{
@@ -68,7 +74,16 @@ const select = (value: string, event: Event): void => {
           :value="option.value"
           @change="select(option.value, $event)"
         />
-        <span>{{ option.label }}</span>
+        <span class="rv-segmented__body">
+          <span
+            aria-hidden="true"
+            class="rv-segmented__mark"
+            :data-testid="`rv-segmented-mark-${option.value}`"
+          >
+            <RvIcon name="check" />
+          </span>
+          <span>{{ option.label }}</span>
+        </span>
       </label>
     </div>
   </fieldset>
@@ -120,6 +135,10 @@ const select = (value: string, event: Event): void => {
   color: var(--rv-color-ink-muted);
   font-weight: 600;
   font-size: var(--rv-text-dense);
+
+  /* The edge exists on every option and is only coloured on the chosen one, so
+     the chosen option is no larger than the others. */
+  border: var(--rv-border-hair) solid transparent;
   border-radius: var(--rv-radius-sm);
   cursor: pointer;
 }
@@ -136,7 +155,24 @@ const select = (value: string, event: Event): void => {
 
 .rv-segmented__option--active {
   color: var(--rv-color-ink);
-  background: var(--rv-color-surface-hover);
+  background: var(--rv-color-accent-quiet);
+  border-color: var(--rv-color-accent);
+}
+
+.rv-segmented__body {
+  display: inline-flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+}
+
+.rv-segmented__mark {
+  display: inline-flex;
+  visibility: hidden;
+  color: var(--rv-color-accent-ink);
+}
+
+.rv-segmented__option--active .rv-segmented__mark {
+  visibility: visible;
 }
 
 .rv-segmented__input {
@@ -151,7 +187,7 @@ const select = (value: string, event: Event): void => {
   clip-path: inset(50%);
 }
 
-.rv-segmented__input:focus-visible + span {
+.rv-segmented__input:focus-visible + .rv-segmented__body {
   outline: var(--rv-border-mark) solid var(--rv-color-focus);
   outline-offset: 0.1875rem;
 }

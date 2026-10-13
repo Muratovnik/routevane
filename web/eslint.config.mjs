@@ -108,7 +108,6 @@ const NATIVE_CONTROL_EXCEPTIONS = [
   'src/entities/profile-composition/ui/ListPicker.vue',
   'src/features/devices/ui/ConnectionList.vue',
   'src/features/lists/ui/ListsView.vue',
-  'src/features/targets-overview/ui/TargetsView.vue',
   'src/widgets/app-shell/ui/AppShell.vue',
 ]
 

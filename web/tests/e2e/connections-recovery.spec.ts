@@ -22,7 +22,7 @@ test('a saved connection survives a failed registry read and retries without ano
   expect(created.ok()).toBe(true)
   const { device } = (await created.json()) as { device: { id: string } }
   await page.goto(`${origin}/connections`)
-  await expect(page.getByLabel('Device address')).toHaveValue(
+  await expect(page.getByLabel('Address', { exact: true })).toHaveValue(
     'http://192.168.1.1',
   )
 
@@ -39,7 +39,7 @@ test('a saved connection survives a failed registry read and retries without ano
   })
 
   await page.getByLabel('Connection name').fill('Saved router')
-  await page.getByLabel('Device address').fill('http://192.168.1.9')
+  await page.getByLabel('Address', { exact: true }).fill('http://192.168.1.9')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
 
   await expect(
@@ -48,7 +48,7 @@ test('a saved connection survives a failed registry read and retries without ano
   await expect(
     page.getByRole('heading', { name: 'Saved router', exact: true }),
   ).toBeVisible()
-  await expect(page.getByLabel('Device address')).toHaveValue(
+  await expect(page.getByLabel('Address', { exact: true })).toHaveValue(
     'http://192.168.1.9',
   )
   await expect(
@@ -65,7 +65,7 @@ test('a saved connection survives a failed registry read and retries without ano
   await expect(
     page.getByText('Connections could not be refreshed'),
   ).toHaveCount(0)
-  await expect(page.getByLabel('Device address')).toHaveValue(
+  await expect(page.getByLabel('Address', { exact: true })).toHaveValue(
     'http://192.168.1.9',
   )
   expect(writes).toBe(1)

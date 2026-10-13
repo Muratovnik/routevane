@@ -6,7 +6,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import DevicesView from '@/features/devices/ui/DevicesView.vue'
 
 const DEVICES = '/v1/devices'
-const ENABLE_SECOND = '/v1/devices/device-b/auto-delivery'
+const SAVE_SECOND = '/v1/devices/device-b/credential'
 const DUMMY_FIRST = 'dummy-password-for-router-a'
 const DUMMY_SECOND = 'dummy-password-for-router-b'
 const DEVICE_PAYLOAD = {
@@ -19,6 +19,7 @@ const DEVICE_PAYLOAD = {
       address: 'http://192.168.1.1',
       account: 'admin',
       interface: 'Wireguard0',
+      credential_stored: false,
       auto_deliver: false,
       deployable: true,
     },
@@ -30,6 +31,7 @@ const DEVICE_PAYLOAD = {
       address: 'http://192.168.2.1',
       account: 'admin',
       interface: 'Wireguard0',
+      credential_stored: false,
       auto_deliver: false,
       deployable: true,
     },
@@ -56,7 +58,7 @@ const REQUIREMENTS_PAYLOAD = {
       title: 'Keenetic',
       deployer_id: 'keenetic',
       requirements: {
-        address_label: 'Device address',
+        address_label: 'Address',
         address_example: 'http://192.168.1.1',
         needs_credential: true,
         needs_interface: true,
@@ -74,9 +76,11 @@ const json = (payload: unknown): Response =>
 
 const installFetch = () => {
   const fetchMock = vi.fn((input: string, init?: RequestInit) => {
-    if (input === ENABLE_SECOND)
+    if (input === SAVE_SECOND)
       return Promise.resolve(
-        json({ device: { ...DEVICE_PAYLOAD.devices[1], auto_deliver: true } }),
+        json({
+          device: { ...DEVICE_PAYLOAD.devices[1], credential_stored: true },
+        }),
       )
     if (input === DEVICES) return Promise.resolve(json(DEVICE_PAYLOAD))
     if (input === '/v1/lists')
@@ -103,10 +107,10 @@ describe('DevicesView credential ownership', () => {
     vi.unstubAllGlobals()
   })
 
-  it('clears passwords when switching between connections and sends only a newly entered password', async () => {
+  it('clears a typed password when switching between connections and saves only one entered for that connection', async () => {
     const fetchMock = installFetch()
     const screen = await render(DevicesView)
-    await screen.getByLabelText('Password', { exact: true }).fill(DUMMY_FIRST)
+    await screen.getByLabelText('Router password').fill(DUMMY_FIRST)
 
     await screen
       .getByRole('button', {
@@ -120,19 +124,19 @@ describe('DevicesView credential ownership', () => {
       )
       .toBeVisible()
     await expect
-      .element(screen.getByLabelText('Password', { exact: true }))
+      .element(screen.getByLabelText('Router password'))
       .toHaveValue('')
-    const enable = screen.getByRole('button', {
-      name: 'Turn on automatic delivery',
+    const save = screen.getByRole('button', {
+      name: 'Save password',
       exact: true,
     })
-    await expect.element(enable).toBeDisabled()
+    await expect.element(save).toBeDisabled()
     expect(
       fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST'),
     ).toEqual([])
 
     // Returning to A is also a departure from B: neither draft can survive.
-    await screen.getByLabelText('Password', { exact: true }).fill(DUMMY_SECOND)
+    await screen.getByLabelText('Router password').fill(DUMMY_SECOND)
     await screen
       .getByRole('button', {
         name: 'Configure connection Home router',
@@ -145,9 +149,9 @@ describe('DevicesView credential ownership', () => {
       )
       .toBeVisible()
     await expect
-      .element(screen.getByLabelText('Password', { exact: true }))
+      .element(screen.getByLabelText('Router password'))
       .toHaveValue('')
-    await expect.element(enable).toBeDisabled()
+    await expect.element(save).toBeDisabled()
     expect(
       fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST'),
     ).toEqual([])
@@ -159,18 +163,17 @@ describe('DevicesView credential ownership', () => {
       })
       .click()
     await expect
-      .element(screen.getByLabelText('Password', { exact: true }))
+      .element(screen.getByLabelText('Router password'))
       .toHaveValue('')
-    await expect.element(enable).toBeDisabled()
+    await expect.element(save).toBeDisabled()
 
-    await screen.getByLabelText('Password', { exact: true }).fill(DUMMY_SECOND)
-    await enable.click()
+    await screen.getByLabelText('Router password').fill(DUMMY_SECOND)
+    await save.click()
     const request = fetchMock.mock.calls.find(
-      ([input]) => input === ENABLE_SECOND,
+      ([input]) => input === SAVE_SECOND,
     )
     expect(request?.[1]?.method).toBe('POST')
     expect(JSON.parse(String(request?.[1]?.body))).toEqual({
-      enabled: true,
       credential: DUMMY_SECOND,
     })
   })
@@ -178,12 +181,12 @@ describe('DevicesView credential ownership', () => {
   it('clears the password when adding a connection and does not restore it on cancel', async () => {
     const fetchMock = installFetch()
     const screen = await render(DevicesView)
-    await screen.getByLabelText('Password', { exact: true }).fill(DUMMY_FIRST)
+    await screen.getByLabelText('Router password').fill(DUMMY_FIRST)
     await screen
       .getByRole('button', { name: 'Add a connection', exact: true })
       .click()
     await expect
-      .element(screen.getByLabelText('Password', { exact: true }))
+      .element(screen.getByLabelText('Router password'))
       .not.toBeInTheDocument()
     await screen.getByRole('button', { name: 'Cancel', exact: true }).click()
     await expect
@@ -192,14 +195,11 @@ describe('DevicesView credential ownership', () => {
       )
       .toBeVisible()
     await expect
-      .element(screen.getByLabelText('Password', { exact: true }))
+      .element(screen.getByLabelText('Router password'))
       .toHaveValue('')
     await expect
       .element(
-        screen.getByRole('button', {
-          name: 'Turn on automatic delivery',
-          exact: true,
-        }),
+        screen.getByRole('button', { name: 'Save password', exact: true }),
       )
       .toBeDisabled()
     expect(

@@ -118,15 +118,17 @@ describe('DevicesView prerequisite audit', () => {
     await screen
       .getByRole('button', { name: 'Add a connection', exact: true })
       .click()
-    await expect.element(screen.getByLabelText('What to connect')).toBeVisible()
+    await expect
+      .element(screen.getByLabelText('Format', { exact: true }))
+      .toBeVisible()
     // Automatic delivery cannot be offered while its requirements are unknown.
     await expect
       .element(
-        screen.getByRole('button', { name: 'Turn on automatic delivery' }),
+        screen.getByRole('switch', { name: 'Send new versions automatically' }),
       )
       .not.toBeInTheDocument()
 
-    await screen.getByLabelText('What to connect').click()
+    await screen.getByLabelText('Format', { exact: true }).click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
 
     // Nothing has been touched yet, so nothing is reported as missing.
@@ -135,7 +137,9 @@ describe('DevicesView prerequisite audit', () => {
       .not.toBeInTheDocument()
 
     await screen.getByLabelText('Connection name').fill('Draft router')
-    await screen.getByLabelText('Device address').fill('http://192.168.1.2')
+    await screen
+      .getByLabelText('Address', { exact: true })
+      .fill('http://192.168.1.2')
     const submit = screen.getByRole('button', { name: 'Save' })
     await expect.element(submit).toBeDisabled()
 
@@ -146,7 +150,7 @@ describe('DevicesView prerequisite audit', () => {
       .element(screen.getByLabelText('Connection name'))
       .toHaveValue('Draft router')
     await expect
-      .element(screen.getByLabelText('Device address'))
+      .element(screen.getByLabelText('Address', { exact: true }))
       .toHaveValue('http://192.168.1.2')
     // With the requirements read, the fields they ask for appear.
     const account = screen.getByLabelText('Router login')
@@ -157,8 +161,16 @@ describe('DevicesView prerequisite audit', () => {
     await deviceInterface.fill('Wireguard0')
     await account.click()
     await userEvent.tab()
-    await expect.element(submit).toBeDisabled()
     await expect.element(screen.getByText(MISSING_FIELD)).toBeVisible()
+
+    // Submitting stays possible: pressing it states what is missing and moves
+    // focus there instead of staying silent, and sends nothing.
+    await expect.element(submit).toBeEnabled()
+    await submit.click()
+    await expect.element(account).toHaveFocus()
+    expect(
+      fetchMock.mock.calls.filter(([, request]) => request?.method === 'POST'),
+    ).toHaveLength(0)
 
     await account.fill('admin')
     await expect.element(submit).toBeEnabled()
@@ -209,10 +221,12 @@ describe('DevicesView prerequisite audit', () => {
       .toHaveFocus()
 
     await add.click()
-    await screen.getByLabelText('What to connect').click()
+    await screen.getByLabelText('Format', { exact: true }).click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
     await screen.getByLabelText('Connection name').fill('Manual router')
-    await screen.getByLabelText('Device address').fill('file:///router.conf')
+    await screen
+      .getByLabelText('Address', { exact: true })
+      .fill('file:///router.conf')
 
     // A target with no deployer asks for nothing beyond a name and an address,
     // so no credential field is invented for it.
@@ -260,7 +274,7 @@ describe('DevicesView prerequisite audit', () => {
     await screen
       .getByRole('button', { name: 'Add a connection', exact: true })
       .click()
-    await screen.getByLabelText('What to connect').click()
+    await screen.getByLabelText('Format', { exact: true }).click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
 
     // The rule is stated under the field rather than only after a refusal.
@@ -271,15 +285,14 @@ describe('DevicesView prerequisite audit', () => {
     await screen.getByLabelText('Connection name').fill('Home router')
     await screen.getByLabelText('Router login').fill('admin')
     await screen.getByLabelText('Interface for routes').fill('Wireguard0')
-    const address = screen.getByLabelText('Device address')
+    const address = screen.getByLabelText('Address', { exact: true })
     await address.fill('192.168.1.1')
     // Leaving the field is what asks it to answer, as with a field left empty.
     await screen.getByLabelText('Connection name').click()
 
     await expect.element(screen.getByText(ADDRESS_EXPECTED)).toBeVisible()
-    await expect
-      .element(screen.getByRole('button', { name: 'Save' }))
-      .toBeDisabled()
+    await screen.getByRole('button', { name: 'Save' }).click()
+    await expect.element(address).toHaveFocus()
 
     await address.fill('http://192.168.1.1')
     await expect
@@ -316,18 +329,16 @@ describe('DevicesView prerequisite audit', () => {
     await expect
       .element(screen.getByRole('heading', { name: 'Home router' }))
       .toHaveFocus()
-    await screen
-      .getByLabelText('Password', { exact: true })
-      .fill('fixture-password')
+    await screen.getByLabelText('Router password').fill('fixture-password')
     await screen
       .getByRole('button', { name: 'Add a connection', exact: true })
       .click()
-    await screen.getByLabelText('What to connect').click()
+    await screen.getByLabelText('Format', { exact: true }).click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
     await screen.getByLabelText('Connection name').fill('Unfinished router')
     await connection.click()
     await expect
-      .element(screen.getByLabelText('Password', { exact: true }))
+      .element(screen.getByLabelText('Router password'))
       .toHaveValue('')
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
     const add = screen.getByRole('button', {
@@ -360,7 +371,7 @@ describe('DevicesView prerequisite audit', () => {
     await expect
       .element(screen.getByLabelText('Connection name'))
       .not.toBeInTheDocument()
-    await screen.getByLabelText('What to connect').click()
+    await screen.getByLabelText('Format', { exact: true }).click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
     await expect
       .element(screen.getByLabelText('Connection name'))
@@ -409,7 +420,7 @@ it.each([
     await screen
       .getByRole('button', { name: 'Add a connection', exact: true })
       .click()
-    await screen.getByLabelText('What to connect').click()
+    await screen.getByLabelText('Format', { exact: true }).click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
     await screen.getByLabelText('Connection name').fill('Unsaved connection')
     await screen
@@ -540,10 +551,12 @@ it('selects the created identity after a failed reread recovers without repeatin
   await screen
     .getByRole('button', { name: 'Add a connection', exact: true })
     .click()
-  await screen.getByLabelText('What to connect').click()
+  await screen.getByLabelText('Format', { exact: true }).click()
   await screen.getByRole('option', { name: /^Keenetic/ }).click()
   await screen.getByLabelText('Connection name').fill('Home router')
-  await screen.getByLabelText('Device address').fill('http://192.168.1.1')
+  await screen
+    .getByLabelText('Address', { exact: true })
+    .fill('http://192.168.1.1')
   await screen.getByLabelText('Router login').fill('admin')
   await screen.getByLabelText('Interface for routes').fill('Wireguard0')
   await screen.getByRole('button', { name: 'Save', exact: true }).click()
@@ -554,7 +567,7 @@ it('selects the created identity after a failed reread recovers without repeatin
     .element(screen.getByRole('heading', { name: 'Saved router' }))
     .toBeVisible()
   await expect
-    .element(screen.getByLabelText('Device address'))
+    .element(screen.getByLabelText('Address', { exact: true }))
     .toHaveValue('http://192.168.1.9')
   await expect
     .element(screen.getByRole('button', { name: 'Save', exact: true }))
@@ -597,6 +610,7 @@ const AUTO_DEVICE = {
   address: 'http://192.168.1.1',
   account: 'admin',
   interface: 'Wireguard0',
+  credential_stored: true,
   auto_deliver: true,
   deployable: true,
 }
@@ -613,13 +627,12 @@ describe('confirmed automatic-delivery changes', () => {
     vi.unstubAllGlobals()
   })
 
-  it.each([
-    { enabled: true, passwordAfterWrite: null },
-    { enabled: false, passwordAfterWrite: '' },
-  ])(
+  it.each([{ enabled: true }, { enabled: false }])(
     'keeps the confirmed enabled=$enabled state when the registry reread fails',
-    async ({ enabled, passwordAfterWrite }) => {
+    async ({ enabled }) => {
       const endpoint = `${DEVICES}/device-1/auto-delivery`
+      // The password is saved either way: delivery only follows it.
+      const before = { ...AUTO_DEVICE, auto_deliver: !enabled }
       const saved = { ...AUTO_DEVICE, auto_deliver: enabled }
       const fetchMock = installFetch(async (input, init) => {
         if (input === endpoint) return json({ device: saved })
@@ -627,9 +640,7 @@ describe('confirmed automatic-delivery changes', () => {
           const reads = callsTo(fetchMock, DEVICES).length
           if (reads === 2) return json({ error: 'unavailable' }, 503)
           return json({
-            devices: [
-              reads === 1 ? { ...saved, auto_deliver: !enabled } : saved,
-            ],
+            devices: [reads === 1 ? before : saved],
             secret_store_available: true,
           })
         }
@@ -639,35 +650,34 @@ describe('confirmed automatic-delivery changes', () => {
         throw new Error(`unexpected request ${input} ${init?.method}`)
       })
       const screen = await render(DevicesView)
-      const password = screen.getByLabelText('Password', { exact: true })
-      if (enabled) await password.fill('router-password')
-      await screen
-        .getByRole('button', {
-          name: enabled
-            ? 'Turn on automatic delivery'
-            : 'Turn off automatic delivery',
-        })
-        .click()
+      const toggle = screen.getByRole('switch', {
+        name: 'Send new versions automatically',
+      })
+      await expect
+        .element(toggle)
+        .toHaveAttribute('aria-checked', String(!enabled))
+      await toggle.click()
 
+      // The write was confirmed, so the switch says so, even though the read
+      // that follows it failed; it stays unavailable until the list is read.
       await expect
         .element(screen.getByText('Connections could not be refreshed'))
         .toBeVisible()
-      const nextAction = screen.getByRole('button', {
-        name: enabled
-          ? 'Turn off automatic delivery'
-          : 'Turn on automatic delivery',
-      })
-      await expect.element(nextAction).toBeDisabled()
-      const remainingPassword = password.query() as HTMLInputElement | null
-      expect(remainingPassword?.value ?? null).toBe(passwordAfterWrite)
+      await expect
+        .element(toggle)
+        .toHaveAttribute('aria-checked', String(enabled))
+      await expect.element(toggle).toBeDisabled()
 
       await screen.getByRole('button', { name: 'Retry', exact: true }).click()
-      const availableControl = enabled ? nextAction : password
-      await expect.element(availableControl).toBeEnabled()
+      await expect.element(toggle).toBeEnabled()
+      await expect
+        .element(toggle)
+        .toHaveAttribute('aria-checked', String(enabled))
+      await expect.element(screen.getByText('Password saved')).toBeVisible()
       const written = callsTo(fetchMock, endpoint)
       expect(written).toHaveLength(1)
       expect(JSON.parse(String((written[0]?.[1] as RequestInit).body))).toEqual(
-        enabled ? { enabled, credential: 'router-password' } : { enabled },
+        { enabled },
       )
       expect(callsTo(fetchMock, DEVICES)).toHaveLength(3)
     },
@@ -705,7 +715,9 @@ it('saves a renamed connection through the update endpoint and says nothing abou
   // The consent this connection gave names a destination and an account, and
   // its own name is neither of them.
   await expect
-    .element(screen.getByText('Saving turns automatic delivery off'))
+    .element(
+      screen.getByText('Saving ends the previous setup of this connection'),
+    )
     .not.toBeInTheDocument()
   await expect.element(save).toBeEnabled()
   await save.click()
@@ -748,7 +760,9 @@ it('keeps an updated same-device card through a failed reread and retry', async 
   })
   const screen = await render(DevicesView)
   await screen.getByLabelText('Connection name').fill('Study router')
-  await screen.getByLabelText('Device address').fill('http://192.168.1.9')
+  await screen
+    .getByLabelText('Address', { exact: true })
+    .fill('http://192.168.1.9')
   await screen.getByLabelText('Router login').fill('admin')
   await screen.getByLabelText('Interface for routes').fill('Wireguard0')
   await screen.getByRole('button', { name: 'Save', exact: true }).click()
@@ -760,7 +774,7 @@ it('keeps an updated same-device card through a failed reread and retry', async 
     .element(screen.getByRole('heading', { name: 'Study router' }))
     .toBeVisible()
   await expect
-    .element(screen.getByLabelText('Device address'))
+    .element(screen.getByLabelText('Address', { exact: true }))
     .toHaveValue('http://192.168.1.9')
   await expect
     .element(screen.getByRole('button', { name: 'Save', exact: true }))
@@ -775,13 +789,14 @@ it('keeps an updated same-device card through a failed reread and retry', async 
   vi.unstubAllGlobals()
 })
 
-it('states that a changed destination withdraws consent, then reports the state the service returned', async () => {
+it('states that a changed destination ends the setup, then reports the state the service returned', async () => {
   useLocale().setLocale('en')
   const fetchMock = installFetch(async (input, init) => {
     if (input === UPDATE) return json({ device: { id: 'device-1' } })
     if (input === DEVICES) {
-      // The service answers a changed destination by revoking the opt-in, so
-      // the registry read that follows the write says so.
+      // The service answers a changed destination by deleting the password and
+      // revoking the opt-in, so the registry read that follows the write says
+      // so.
       const written = callsTo(fetchMock, UPDATE).length === 1
       return json({
         devices: [
@@ -789,6 +804,7 @@ it('states that a changed destination withdraws consent, then reports the state 
             ...AUTO_DEVICE,
             address: written ? 'http://192.168.1.2' : 'http://192.168.1.1',
             auto_deliver: !written,
+            credential_stored: !written,
           },
         ],
         secret_store_available: true,
@@ -800,32 +816,32 @@ it('states that a changed destination withdraws consent, then reports the state 
     throw new Error(`unexpected request ${input} ${init?.method}`)
   })
   const screen = await render(DevicesView)
-  await expect
-    .element(
-      screen.getByRole('button', { name: 'Turn off automatic delivery' }),
-    )
-    .toBeVisible()
+  const toggle = screen.getByRole('switch', {
+    name: 'Send new versions automatically',
+  })
+  await expect.element(toggle).toHaveAttribute('aria-checked', 'true')
 
-  await screen.getByLabelText('Device address').fill('http://192.168.1.2')
+  await screen
+    .getByLabelText('Address', { exact: true })
+    .fill('http://192.168.1.2')
   // The warning stands beside Save, before it is pressed.
   await expect
-    .element(screen.getByText('Saving turns automatic delivery off'))
+    .element(
+      screen.getByText('Saving ends the previous setup of this connection'),
+    )
     .toBeVisible()
   await screen.getByRole('button', { name: 'Save', exact: true }).click()
 
   await expect
     .element(
       screen.getByText(
-        'Parameters saved and automatic delivery is off. Turn it on again when you are ready.',
+        'Parameters saved. The saved password was deleted. Automatic delivery was turned off.',
       ),
     )
     .toBeVisible()
-  await expect
-    .element(screen.getByLabelText('Password', { exact: true }))
-    .toBeVisible()
-  await expect
-    .element(screen.getByRole('button', { name: 'Turn on automatic delivery' }))
-    .toBeVisible()
+  await expect.element(screen.getByLabelText('Router password')).toBeVisible()
+  await expect.element(toggle).toHaveAttribute('aria-checked', 'false')
+  await expect.element(toggle).toBeDisabled()
   expect(callsTo(fetchMock, UPDATE)).toHaveLength(1)
   vi.unstubAllGlobals()
 })
@@ -852,7 +868,7 @@ it('opens each connection at its stored parameters while the creation draft surv
   await screen
     .getByRole('button', { name: 'Add a connection', exact: true })
     .click()
-  await screen.getByLabelText('What to connect').click()
+  await screen.getByLabelText('Format', { exact: true }).click()
   await screen.getByRole('option', { name: /^Keenetic/ }).click()
   await screen.getByLabelText('Connection name').fill('Unfinished router')
 
@@ -910,9 +926,14 @@ it('confirms forgetting a connection and writes nothing when that confirmation i
     .element(
       screen
         .getByRole('dialog')
-        .getByText(
-          'The stored password is removed and automatic delivery is turned off. Files already installed stay where they are.',
-        ),
+        .getByText('The saved password will be deleted.'),
+    )
+    .toBeVisible()
+  await expect
+    .element(
+      screen
+        .getByRole('dialog')
+        .getByText('Installed files stay where they are.'),
     )
     .toBeVisible()
   await screen

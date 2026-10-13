@@ -124,7 +124,7 @@ test('the server refresh setting cannot race while a write is pending', async ({
   const settings = page.getByRole('region', { name: 'Settings', exact: true })
   const readyHeight = (await settings.boundingBox())!.height
   await pressSegment(page, 'Daily')
-  await expect(page.getByText('Saving the rule…')).toBeVisible()
+  await expect(page.getByText('Saving the schedule…')).toBeVisible()
   expect((await settings.boundingBox())!.height).toBe(readyHeight)
   const refreshRadios = refreshInterval(page).getByRole('radio')
   await expect(refreshRadios).toHaveCount(3)
@@ -133,7 +133,7 @@ test('the server refresh setting cannot race while a write is pending', async ({
   await expect.poll(() => writes).toBe(1)
 
   release()
-  await expect(page.getByText('Saving the rule…')).toHaveCount(0)
+  await expect(page.getByText('Saving the schedule…')).toHaveCount(0)
   expect((await settings.boundingBox())!.height).toBe(readyHeight)
   await page.unroute('**/v1/settings/update')
   await pressSegment(page, 'Off')
@@ -191,7 +191,7 @@ for (const language of ['en', 'ru'] as const) {
           }),
         ).toBeVisible()
         await expect(
-          page.getByRole('button', { name: copy('devices.auto.enable') }),
+          page.getByRole('switch', { name: copy('devices.auto.switch') }),
         ).toHaveCount(0)
 
         expect(
