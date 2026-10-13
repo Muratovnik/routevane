@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue'
+import { computed, nextTick, onMounted, watch } from 'vue'
 
-import { useDeployment } from '@/features/send-artifact/model/useDeployment'
+import {
+  useDeployment,
+  type SendField,
+} from '@/features/send-artifact/model/useDeployment'
 import { MANUAL_CONNECTION } from '@/features/send-artifact/model/useDeploymentConnections'
+import { installationSteps } from '@/features/send-artifact/model/installationSteps'
 import { useLocale } from '@/shared/i18n/useLocale'
 import {
   localizedTargetHint,
@@ -12,18 +16,28 @@ import {
 import type { ChoiceOption, Fact, StatusTone } from '@/shared/ui/types'
 import RvCodeBlock from '@/shared/ui/RvCodeBlock.vue'
 import RvButton from '@/shared/ui/RvButton.vue'
+import RvDisclosure from '@/shared/ui/RvDisclosure.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import RvStatus from '@/shared/ui/RvStatus.vue'
+import RvSwitch from '@/shared/ui/RvSwitch.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
+/**
+ * Sending one published file of one format: to a saved connection, or with
+ * details entered for this send only, after a preview of what will change. The
+ * by-hand path — the file and how to install it — is always below.
+ */
 const props = defineProps<{
   artifactId: string
-  profileName: string
-  profileId: string
+  breadcrumbs: { label: string; to: string }[]
+  /** The name the format's groups carry on a router; empty when it has none. */
+  groupPrefix: string
+  heading: string
   target: TargetOption | null
   targetId: string
   preferredDeviceId?: string
@@ -35,9 +49,12 @@ const deployment = useDeployment(
   () => props.targetId,
   () => props.preferredDeviceId ?? '',
 )
+const connections = deployment.connections
 
+// A saved connection names itself; what it reaches is the note under its name,
+// which is the one place the screen states it.
 const connectionOptions = computed<ChoiceOption[]>(() => [
-  ...deployment.connections.compatible.value.map((connection) => ({
+  ...connections.compatible.value.map((connection) => ({
     value: connection.id,
     label: connection.name,
     note: [connection.address, connection.account, connection.interfaceName]
@@ -46,25 +63,31 @@ const connectionOptions = computed<ChoiceOption[]>(() => [
   })),
   { value: MANUAL_CONNECTION, label: t('send.connection.manual') },
 ])
+const noSavedConnections = computed(
+  () =>
+    connections.state.value === 'ready' &&
+    connections.compatible.value.length === 0,
+)
 
-// The catalog names the destination and says where its file belongs. Both are
-// catalog content, so both follow the reader's language only where the catalog
-// itself offers a second rendition.
 const targetTitle = computed(() =>
   localizedTargetTitle(props.target, locale.value, props.targetId),
 )
 const installationHint = computed(() =>
   localizedTargetHint(props.target, locale.value),
 )
+const steps = computed(() => installationSteps(installationHint.value))
 
-// The address field means a different thing per deployer — a router URL for
-// Keenetic, a configuration path for sing-box — so the dictionary names it per
-// target. A plugin target the dictionary does not know keeps its own caption.
+// The fields carry the words the Connections screen uses for the same thing,
+// per deployer: a router's address for Keenetic, a configuration path for
+// sing-box. A plugin target the dictionary does not know keeps its own caption.
 const addressLabel = computed(() =>
   tor(
     `deploy.field.address.${props.targetId}`,
     deployment.requirements.value?.addressLabel ?? t('send.field.address'),
   ),
+)
+const accountLabel = computed(() =>
+  tor(`deploy.field.account.${props.targetId}`, t('send.field.account')),
 )
 const interfaceLabel = computed(() =>
   tor(
@@ -72,36 +95,6 @@ const interfaceLabel = computed(() =>
     deployment.requirements.value?.interfaceLabel ?? t('send.field.interface'),
   ),
 )
-
-const connectionFacts = computed<Fact[]>(() => {
-  const selected = deployment.connections.selected.value
-  if (selected === null) return []
-  const facts: Fact[] = [
-    {
-      key: 'address',
-      label: addressLabel.value,
-      value: selected.address,
-      mono: true,
-    },
-  ]
-  if (deployment.requirements.value?.needsCredential) {
-    facts.push({
-      key: 'account',
-      label: t('send.field.account'),
-      value: selected.account,
-      mono: true,
-    })
-  }
-  if (deployment.requirements.value?.needsInterface) {
-    facts.push({
-      key: 'interface',
-      label: interfaceLabel.value,
-      value: selected.interfaceName,
-      mono: true,
-    })
-  }
-  return facts
-})
 
 const statusTone = computed<StatusTone>(() => {
   const state = deployment.state.value
@@ -128,6 +121,37 @@ const attemptVisible = computed(
     deployment.outcome.value !== null ||
     ['applying', 'outcome_unknown'].includes(deployment.state.value),
 )
+
+// Where the current form would send, in the shape an attempt remembers.
+const currentRecipient = computed(() => {
+  if (connections.manual.value)
+    return {
+      device: deployment.device.value.trim(),
+      username: deployment.username.value.trim(),
+      interfaceName: deployment.interfaceName.value.trim(),
+    }
+  const selected = connections.selected.value
+  return selected === null
+    ? null
+    : {
+        device: selected.address,
+        username: selected.account,
+        interfaceName: selected.interfaceName,
+      }
+})
+// The attempt's destination is stated only when it is not the one chosen now;
+// otherwise it repeats what the choice above already says.
+const recipientDiffers = computed(() => {
+  const recipient = deployment.attemptRecipient.value
+  const current = currentRecipient.value
+  if (recipient === null) return false
+  return (
+    current === null ||
+    recipient.device !== current.device ||
+    recipient.username !== current.username ||
+    recipient.interfaceName !== current.interfaceName
+  )
+})
 const recipientFacts = computed<Fact[]>(() => {
   const recipient = deployment.attemptRecipient.value
   if (recipient === null) return []
@@ -142,7 +166,7 @@ const recipientFacts = computed<Fact[]>(() => {
   if (recipient.username !== '')
     facts.push({
       key: 'account',
-      label: t('send.field.account'),
+      label: accountLabel.value,
       value: recipient.username,
       mono: true,
     })
@@ -187,11 +211,50 @@ const outcomeFacts = computed<Fact[]>(() => {
 })
 
 const downloadLabel = computed(() => {
-  const format = props.target?.fileExtension.toUpperCase() ?? ''
-  return format === ''
+  const extension = props.target?.fileExtension ?? ''
+  return extension === ''
     ? t('profile.download.plain')
-    : t('profile.download', { format })
+    : t('send.manual.download', { extension })
 })
+
+// A saved password is used unless the operator asks for another one; the
+// field appears for that send only.
+const savedPasswordInUse = computed(
+  () =>
+    !connections.manual.value &&
+    connections.storedCredential.value &&
+    !deployment.passwordNeeded.value,
+)
+const offerToSave = computed(
+  () =>
+    !connections.manual.value &&
+    !connections.storedCredential.value &&
+    connections.secretStoreAvailable.value,
+)
+
+// Each field's element is named by the field it holds, so a refused preview
+// can move the keyboard to the first field it names.
+const fieldID = (field: SendField): string => `send-${field}`
+const fieldError = (field: SendField): string | undefined => {
+  const key = deployment.fieldErrors.value[field]
+  if (key === null) return undefined
+  return t(key, {
+    example: deployment.requirements.value?.addressExample ?? '',
+  })
+}
+
+const review = async (): Promise<void> => {
+  const invalid = await deployment.review()
+  if (invalid === null) return
+  await nextTick()
+  document.getElementById(fieldID(invalid))?.focus()
+}
+
+const enterAnotherPassword = async (): Promise<void> => {
+  deployment.overridePassword.value = true
+  await nextTick()
+  document.getElementById(fieldID('password'))?.focus()
+}
 
 // A new artifact invalidates a plan made for the previous one.
 watch(
@@ -206,16 +269,18 @@ onMounted(() => {
 
 <template>
   <section aria-labelledby="send-title" class="send">
-    <header class="send__header">
-      <div class="send__identity">
-        <h1 id="send-title" class="send__title">{{ t('send.title') }}</h1>
-        <p class="send__for">{{ t('send.for', { name: profileName }) }}</p>
-      </div>
+    <RvPageHeader
+      :breadcrumb-label="t('profile.breadcrumb')"
+      :breadcrumbs="breadcrumbs"
+      :title="heading"
+      title-id="send-title"
+    >
       <RvStatus
+        v-if="deployment.state.value !== 'idle'"
         :label="t(`send.status.${deployment.state.value}`)"
         :tone="statusTone"
       />
-    </header>
+    </RvPageHeader>
 
     <RvStateNotice
       v-if="deployment.targetsState.value === 'loading'"
@@ -243,28 +308,38 @@ onMounted(() => {
     />
 
     <template v-if="deployment.targetsState.value === 'ready'">
-      <form class="send__form" @submit.prevent="deployment.review">
+      <form class="send__form" novalidate @submit.prevent="review">
         <RvStateNotice
-          v-if="deployment.connections.state.value === 'failed'"
+          v-if="connections.state.value === 'failed'"
           :body="t('send.connection.failed.body')"
           live
           :title="t('send.connection.failed')"
           tone="failed"
         >
           <template #action>
-            <RvButton @click="deployment.connections.initialize">
+            <RvButton @click="connections.initialize">
               {{ t('action.retry') }}
             </RvButton>
           </template>
         </RvStateNotice>
-        <RvField input-id="send-connection" :label="t('send.connection.label')">
+        <p v-if="noSavedConnections" class="send__none">
+          <span>{{ t('send.connection.none') }}</span>
+          <NuxtLink class="send__link" to="/connections">
+            {{ t('send.connection.add') }}
+          </NuxtLink>
+        </p>
+        <RvField
+          v-else
+          input-id="send-connection"
+          :label="t('send.connection.label')"
+        >
           <template #default="{ describedBy }">
             <RvSelect
-              v-model="deployment.connections.selectedID.value"
+              v-model="connections.selectedID.value"
               :described-by="describedBy"
               :disabled="deployment.busy.value"
               input-id="send-connection"
-              :loading="deployment.connections.state.value === 'loading'"
+              :loading="connections.state.value === 'loading'"
               :loading-label="t('send.connection.loading')"
               :options="connectionOptions"
               :placeholder="t('send.connection.choose')"
@@ -273,43 +348,17 @@ onMounted(() => {
         </RvField>
         <p
           v-if="
-            deployment.connections.preferredUnavailable.value ||
-            (!deployment.connections.manual.value &&
-              deployment.connections.selected.value === null)
+            connections.preferredUnavailable.value ||
+            (!connections.manual.value && connections.selected.value === null)
           "
           class="send__note"
         >
           {{ t('send.connection.unavailable') }}
         </p>
-        <p
-          v-else-if="
-            deployment.connections.state.value === 'ready' &&
-            deployment.connections.compatible.value.length === 0
-          "
-          class="send__note"
-        >
-          {{ t('send.connection.empty') }}
-        </p>
-        <section
-          v-if="deployment.connections.selected.value !== null"
-          aria-labelledby="send-connection-title"
-          class="send__connection"
-        >
-          <h2 id="send-connection-title" class="send__section-title">
-            {{ t('send.connection.selected') }}
-          </h2>
-          <RvFacts :items="connectionFacts" />
-        </section>
         <RvField
-          v-if="deployment.connections.manual.value"
-          :error="
-            deployment.addressError.value === null
-              ? undefined
-              : t(deployment.addressError.value, {
-                  example: deployment.requirements.value?.addressExample ?? '',
-                })
-          "
-          input-id="send-device"
+          v-if="connections.manual.value"
+          :error="fieldError('address')"
+          :input-id="fieldID('address')"
           :label="addressLabel"
         >
           <template #default="{ describedBy, invalid }">
@@ -317,7 +366,7 @@ onMounted(() => {
               v-model="deployment.device.value"
               :described-by="describedBy"
               :disabled="deployment.busy.value"
-              input-id="send-device"
+              :input-id="fieldID('address')"
               mono
               :invalid="invalid"
               :placeholder="deployment.requirements.value?.addressExample"
@@ -328,57 +377,91 @@ onMounted(() => {
 
         <template v-if="deployment.requirements.value?.needsCredential">
           <RvField
-            v-if="deployment.connections.manual.value"
-            input-id="send-user"
-            :label="t('send.field.account')"
+            v-if="connections.manual.value"
+            :error="fieldError('username')"
+            :input-id="fieldID('username')"
+            :label="accountLabel"
           >
-            <template #default="{ describedBy }">
+            <template #default="{ describedBy, invalid }">
               <RvTextInput
                 v-model="deployment.username.value"
                 autocomplete="username"
                 :described-by="describedBy"
                 :disabled="deployment.busy.value"
-                input-id="send-user"
+                :input-id="fieldID('username')"
+                :invalid="invalid"
                 mono
               />
             </template>
           </RvField>
-          <RvField
-            :hint="
-              deployment.connections.storedCredential.value
-                ? t('send.password.stored')
-                : t('send.password.once')
+          <div
+            v-if="
+              !connections.manual.value && connections.storedCredential.value
             "
-            input-id="send-password"
+            class="send__saved"
+          >
+            <span class="send__saved-fact">
+              <RvIcon name="check" />
+              {{ t('send.password.stored') }}
+            </span>
+            <RvButton
+              v-if="savedPasswordInUse"
+              :disabled="deployment.busy.value"
+              size="compact"
+              variant="quiet"
+              @click="enterAnotherPassword"
+            >
+              {{ t('send.password.override') }}
+            </RvButton>
+          </div>
+          <RvField
+            v-if="deployment.passwordNeeded.value"
+            :error="fieldError('password')"
+            :input-id="fieldID('password')"
             :label="t('send.field.password')"
           >
-            <template #default="{ describedBy }">
+            <template #default="{ describedBy, invalid }">
               <RvTextInput
                 v-model="deployment.password.value"
                 autocomplete="current-password"
                 :described-by="describedBy"
                 :disabled="deployment.busy.value"
-                input-id="send-password"
+                :input-id="fieldID('password')"
+                :invalid="invalid"
                 type="password"
               />
             </template>
           </RvField>
+          <RvSwitch
+            v-if="offerToSave"
+            v-model="deployment.savePassword.value"
+            :description="t('send.password.save.consequence')"
+            :disabled="deployment.busy.value"
+            :label="t('send.password.save')"
+          />
+          <RvStatus
+            v-if="deployment.passwordSaveFailed.value"
+            :label="t('send.password.save.failed')"
+            tone="failed"
+          />
         </template>
 
         <RvField
           v-if="
-            deployment.connections.manual.value &&
+            connections.manual.value &&
             deployment.requirements.value?.needsInterface
           "
-          input-id="send-interface"
+          :error="fieldError('interface')"
+          :input-id="fieldID('interface')"
           :label="interfaceLabel"
         >
-          <template #default="{ describedBy }">
+          <template #default="{ describedBy, invalid }">
             <RvTextInput
               v-model="deployment.interfaceName.value"
               :described-by="describedBy"
               :disabled="deployment.busy.value"
-              input-id="send-interface"
+              :input-id="fieldID('interface')"
+              :invalid="invalid"
               mono
             />
           </template>
@@ -386,15 +469,13 @@ onMounted(() => {
 
         <div class="send__submit">
           <RvButton
-            :disabled="!deployment.canSubmit.value"
+            :disabled="!deployment.available.value"
+            :loading="deployment.state.value === 'planning'"
+            :loading-label="t('send.review.busy')"
             type="submit"
-            variant="secondary"
+            :variant="deployment.plan.value === null ? 'primary' : 'secondary'"
           >
-            {{
-              deployment.state.value === 'planning'
-                ? t('send.review.busy')
-                : t('send.review')
-            }}
+            {{ t('send.review') }}
           </RvButton>
         </div>
       </form>
@@ -430,14 +511,12 @@ onMounted(() => {
         <p class="send__note">{{ t('send.plan.backup') }}</p>
         <RvButton
           :disabled="deployment.busy.value"
+          :loading="deployment.state.value === 'applying'"
+          :loading-label="t('send.apply.busy')"
           variant="primary"
           @click="deployment.apply"
         >
-          {{
-            deployment.state.value === 'applying'
-              ? t('send.apply.busy')
-              : t('send.apply')
-          }}
+          {{ t('send.apply') }}
         </RvButton>
       </section>
 
@@ -449,11 +528,14 @@ onMounted(() => {
         <h2 id="send-attempt-title" class="send__section-title">
           {{ t('send.attempt.title') }}
         </h2>
-        <template v-if="deployment.attemptRecipient.value !== null">
+        <template v-if="recipientDiffers">
           <p class="send__note">{{ t('send.attempt.recipient') }}</p>
           <RvFacts :items="recipientFacts" />
         </template>
-        <p v-else class="send__note">
+        <p
+          v-else-if="deployment.attemptRecipient.value === null"
+          class="send__note"
+        >
           {{ t('send.attempt.recipientUnknown') }}
         </p>
 
@@ -546,16 +628,22 @@ onMounted(() => {
           {{ downloadLabel }}
         </RvButton>
       </div>
-      <p v-if="installationHint !== ''" class="send__note">
-        {{ installationHint }}
-      </p>
+      <RvDisclosure
+        v-if="steps.length > 0"
+        borderless
+        :summary="t('send.manual.howto')"
+      >
+        <div class="send__howto">
+          <ol v-if="steps.length > 1" class="send__install-steps">
+            <li v-for="(step, index) in steps" :key="index">{{ step }}</li>
+          </ol>
+          <p v-else>{{ steps[0] }}</p>
+          <p v-if="groupPrefix !== ''" class="send__prefix">
+            {{ t('send.manual.prefix', { prefix: groupPrefix }) }}
+          </p>
+        </div>
+      </RvDisclosure>
     </section>
-
-    <div class="send__footer">
-      <RvButton size="compact" :to="`/profiles/${profileId}`" variant="quiet">
-        {{ t('send.back') }}
-      </RvButton>
-    </div>
   </section>
 </template>
 
@@ -564,31 +652,6 @@ onMounted(() => {
   display: grid;
   gap: var(--rv-space-8);
   width: 100%;
-}
-
-.send__header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-3) var(--rv-space-5);
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.send__identity {
-  display: grid;
-  gap: var(--rv-space-1);
-}
-
-.send__title {
-  font-size: var(--rv-text-page);
-  line-height: var(--rv-leading-tight);
-  letter-spacing: var(--rv-tracking-title);
-}
-
-.send__for {
-  color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-dense);
-  overflow-wrap: anywhere;
 }
 
 .send__section-title {
@@ -601,15 +664,41 @@ onMounted(() => {
   max-width: 32rem;
 }
 
+.send__none {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-1) var(--rv-space-3);
+  align-items: baseline;
+}
+
+.send__link {
+  color: var(--rv-color-accent-ink);
+  font-weight: 600;
+}
+
+.send__link:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: var(--rv-focus-offset);
+}
+
+.send__saved {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-2) var(--rv-space-4);
+  align-items: center;
+}
+
+.send__saved-fact {
+  display: inline-flex;
+  gap: var(--rv-space-2);
+  align-items: center;
+  font-weight: 600;
+}
+
 .send__submit {
   display: flex;
   gap: var(--rv-space-3);
   align-items: center;
-}
-
-.send__connection {
-  display: grid;
-  gap: var(--rv-space-3);
 }
 
 .send__plan {
@@ -667,7 +756,23 @@ onMounted(() => {
   gap: var(--rv-space-3);
 }
 
-.send__footer {
-  display: flex;
+.send__howto {
+  display: grid;
+  gap: var(--rv-space-3);
+  max-width: var(--rv-measure-prose);
+}
+
+/* The catalog numbers its steps in one line; they are read as a list. */
+.send__install-steps {
+  display: grid;
+  gap: var(--rv-space-2);
+  margin: 0;
+  padding-inline-start: var(--rv-space-5);
+  list-style: decimal;
+}
+
+.send__prefix {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
 }
 </style>

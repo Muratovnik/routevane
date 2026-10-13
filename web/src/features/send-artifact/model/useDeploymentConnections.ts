@@ -30,11 +30,22 @@ export const useDeploymentConnections = (
       compatible.value.find((device) => device.id === selectedID.value) ?? null,
   )
   const manual = computed(() => selectedID.value === MANUAL_CONNECTION)
-  // This says that the UI may request the existing consented credential. The
-  // server rechecks consent and availability for the exact access under its gate.
+  // A saved password is the connection's own fact (ADR 0050), independent of
+  // automatic delivery. A send that names this connection without a password
+  // uses it; the server rechecks the fact under its gate. A system without a
+  // store cannot hold one, whatever a card says.
   const storedCredential = computed(
-    () => selected.value?.autoDeliver === true && secretStoreAvailable.value,
+    () =>
+      selected.value?.credentialStored === true && secretStoreAvailable.value,
   )
+
+  // The server confirmed a password saved for this connection. The card is
+  // updated in place rather than read again, so the choice and any plan made
+  // for it stay exactly as they are.
+  const markCredentialStored = (id: string): void => {
+    const device = devices.value.find((candidate) => candidate.id === id)
+    if (device !== undefined) device.credentialStored = true
+  }
   const preferredUnavailable = computed(
     () =>
       state.value === 'ready' &&
@@ -74,7 +85,9 @@ export const useDeploymentConnections = (
     compatible,
     initialize,
     manual,
+    markCredentialStored,
     preferredUnavailable,
+    secretStoreAvailable,
     selected,
     selectedID,
     state,

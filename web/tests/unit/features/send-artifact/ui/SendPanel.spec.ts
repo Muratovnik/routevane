@@ -4,6 +4,14 @@ import { render } from 'vitest-browser-vue'
 import SendPanel from '@/features/send-artifact/ui/SendPanel.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
 
+const links = {
+  global: {
+    stubs: {
+      NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+    },
+  },
+}
+
 const json = (value: unknown) =>
   new Response(JSON.stringify(value), { status: 200 })
 afterEach(() => {
@@ -81,10 +89,12 @@ it.each([
     })
     vi.stubGlobal('fetch', fetchMock)
     const screen = await render(SendPanel, {
+      ...links,
       props: {
         artifactId: 'artifact',
-        profileId: 'profile',
-        profileName: 'Profile',
+        breadcrumbs: [],
+        groupPrefix: 'routevane',
+        heading: 'Send · Keenetic DNS',
         targetId: 'keenetic-dns',
         target: null,
       },
@@ -211,12 +221,13 @@ it.each(['dropped', 'mismatched'] as const)(
     vi.stubGlobal('fetch', fetchMock)
     const props = {
       artifactId: 'artifact',
-      profileId: 'profile',
-      profileName: 'Profile',
+      breadcrumbs: [],
+      groupPrefix: 'routevane',
+      heading: 'Send · Keenetic DNS',
       targetId: 'keenetic-dns',
       target: null,
     }
-    const screen = await render(SendPanel, { props })
+    const screen = await render(SendPanel, { props, ...links })
     await screen
       .getByRole('textbox', { name: t('deploy.field.address.keenetic-dns') })
       .fill('http://[fd00::1]')
@@ -241,7 +252,7 @@ it.each(['dropped', 'mismatched'] as const)(
 
     window.sessionStorage.setItem(`rv.deploy.attempt.artifact`, attemptID)
     await screen.unmount()
-    const reloaded = await render(SendPanel, { props })
+    const reloaded = await render(SendPanel, { props, ...links })
     await expect.element(reloaded.getByText(t('send.applied'))).toBeVisible()
     expect(applyCalls).toBe(1)
     expect(

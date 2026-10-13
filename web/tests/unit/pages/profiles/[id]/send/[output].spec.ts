@@ -16,6 +16,7 @@ const pageModel = () => ({
     { id: 'first', latest: { id: 'artifact-1' }, targetID: 'keenetic' },
     { id: 'chosen', latest: { id: 'artifact-2' }, targetID: 'keenetic' },
   ] as { id: string; latest: { id: string } | null; targetID: string }[]),
+  outputTitle: () => 'Keenetic',
   selectOutput: vi.fn(),
   state: ref('failed'),
 })
@@ -29,17 +30,18 @@ vi.mock('@/features/view-profile/model/useProfileView', () => ({
   useProfileView: () => HOST.model,
 }))
 
-const renderPage = () =>
+const PANEL = {
+  props: ['artifactId'],
+  template: '<section><h1>Send the file</h1><p>{{ artifactId }}</p></section>',
+}
+
+const renderPage = (panel: object = PANEL) =>
   render(SendPage, {
     global: {
       stubs: {
         AppShell: { template: '<main><slot /></main>' },
         NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
-        SendPanel: {
-          props: ['artifactId'],
-          template:
-            '<section><h1>Send the file</h1><p>{{ artifactId }}</p></section>',
-        },
+        SendPanel: panel,
       },
     },
   })
@@ -100,7 +102,7 @@ describe('send entry read states', () => {
     },
   )
 
-  it('names a missing format, not a missing profile, and returns to that profile', async () => {
+  it('names a missing format, not a missing profile, and returns to that profile by the trail', async () => {
     HOST.model.state.value = 'ready'
     HOST.model.outputs.value = []
     const screen = await renderPage()
@@ -109,9 +111,12 @@ describe('send entry read states', () => {
     await expect
       .element(screen.getByText('Profile not found'))
       .not.toBeInTheDocument()
+    // The way back is the trail above the title, not a second button below.
+    const trail = screen.getByRole('navigation', { name: 'Path' })
     await expect
-      .element(screen.getByRole('link'))
+      .element(trail.getByRole('link', { name: 'Example profile' }))
       .toHaveAttribute('href', PROFILE_LINK)
+    expect(screen.getByRole('button').all()).toHaveLength(0)
     expect(screen.getByRole('heading', { level: 1 }).all()).toHaveLength(1)
   })
 
@@ -121,13 +126,47 @@ describe('send entry read states', () => {
     const screen = await renderPage()
 
     await expect
-      .element(screen.getByRole('link'))
+      .element(screen.getByRole('heading', { level: 1 }))
+      .toHaveTextContent('Send · Keenetic')
+    await expect
+      .element(screen.getByRole('link', { name: 'Example profile' }))
       .toHaveAttribute('href', PROFILE_LINK)
+    expect(screen.getByRole('button').all()).toHaveLength(0)
     // Nothing is reported as absent: the connection exists, its file does not.
     await expect
       .element(screen.getByText('not found', { exact: false }))
       .not.toBeInTheDocument()
     await expect.element(screen.getByText('artifact-2')).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1 }).all()).toHaveLength(1)
+  })
+
+  it('puts the trail above the title and hands the panel the format it sends', async () => {
+    HOST.model.state.value = 'ready'
+    const screen = await renderPage({
+      props: ['artifactId', 'breadcrumbs', 'heading'],
+      template: `<section>
+        <nav aria-label="Path">
+          <a v-for="crumb in breadcrumbs" :key="crumb.to" :href="crumb.to">{{ crumb.label }}</a>
+        </nav>
+        <h1>{{ heading }}</h1><p>{{ artifactId }}</p>
+      </section>`,
+    })
+
+    const trail = screen.getByRole('navigation', { name: 'Path' })
+    expect(
+      trail
+        .getByRole('link')
+        .all()
+        .map((link) => [
+          link.element().textContent,
+          link.element().getAttribute('href'),
+        ]),
+    ).toEqual([
+      ['Profiles', '/'],
+      ['Example profile', PROFILE_LINK],
+    ])
+    await expect
+      .element(screen.getByRole('heading', { level: 1 }))
+      .toHaveTextContent('Send · Keenetic')
   })
 })

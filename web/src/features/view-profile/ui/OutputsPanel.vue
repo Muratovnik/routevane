@@ -1,27 +1,39 @@
 <script setup lang="ts">
-import RvTable from '@/shared/ui/RvTable.vue'
-import { targetIcon } from '@/shared/lib/targetIcon'
-import { computed, ref } from 'vue'
-import OutputPrefixEditor from '@/features/view-profile/ui/OutputPrefixEditor.vue'
-import type { AutomaticDeliveryCapability } from '@/features/view-profile/model/useProfileView'
+import { useElementSize } from '@vueuse/core'
+import { computed, nextTick, ref, useTemplateRef } from 'vue'
 
+import FormatSettingsDialog from '@/features/view-profile/ui/FormatSettingsDialog.vue'
+import type { AutomaticDeliveryCapability } from '@/features/view-profile/model/useProfileView'
 import { useLocale } from '@/shared/i18n/useLocale'
+import { targetIcon } from '@/shared/lib/targetIcon'
 import type { TargetOption } from '@/shared/api/catalog'
 import type { DeviceCard } from '@/shared/api/devices'
 import type { OutputCard } from '@/shared/api/outputs'
 import type { RefreshInterval, Schedule } from '@/shared/api/profiles'
-import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/types'
+import type {
+  ChoiceGroup,
+  ChoiceOption,
+  MenuItem,
+  StatusTone,
+} from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
+import RvField from '@/shared/ui/RvField.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
-import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
+import RvMenu from '@/shared/ui/RvMenu.vue'
+import RvSearchSelect from '@/shared/ui/RvSearchSelect.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import RvStatus from '@/shared/ui/RvStatus.vue'
+import RvTable from '@/shared/ui/RvTable.vue'
 
+/**
+ * Everything a profile publishes in, around one table: the profile's refresh
+ * rule and «Add format» above it, one row per format, and every act on a format
+ * in that row's menu. An archived profile keeps its formats and their files;
+ * what it no longer accepts is change, so the controls that would make one are
+ * withdrawn and the bound connection is stated rather than offered.
+ */
 const props = defineProps<{
-  // An archived profile keeps every output it has and every file they published;
-  // what it no longer accepts is a new one. The form is withdrawn rather than
-  // disabled, because a disabled control still promises the action exists here.
   archived: boolean
   automaticDelivery: (device: DeviceCard) => AutomaticDeliveryCapability
   busy: boolean
@@ -40,21 +52,41 @@ const props = defineProps<{
 const emit = defineEmits<{
   bind: [targetID: string]
   bindDevice: [outputID: string, deviceID: string]
+  rebuild: [outputID: string]
+  reissue: [outputID: string]
+  remove: [outputID: string]
   setSchedule: [interval: RefreshInterval]
 }>()
 
-const { dateTime, t } = useLocale()
-const chosenTarget = ref('')
+const { locale, t } = useLocale()
+
+// A table cell holds the whole moment on one line: the short date and the
+// minute, not the seconds a cell would have to cut.
+const compactTime = computed(
+  () =>
+    new Intl.DateTimeFormat(locale.value, {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }),
+)
+
+// Below this width the row's own buttons would stack under each other, so
+// they move into the row menu instead. Measured on the panel, not the window:
+// the sidebar and a docked card change the room the table has.
+const NARROW_REM = 60
+const root = useTemplateRef<HTMLElement>('root')
+const { width } = useElementSize(root)
+const narrow = computed(() => {
+  if (width.value === 0) return false
+  const rem = Number.parseFloat(
+    getComputedStyle(document.documentElement).fontSize,
+  )
+  return width.value < NARROW_REM * (Number.isNaN(rem) ? 16 : rem)
+})
 
 const formatTime = (value: string): string => {
   const parsed = new Date(value)
-  return Number.isNaN(parsed.valueOf()) ? '—' : dateTime.value.format(parsed)
-}
-
-const add = (): void => {
-  if (chosenTarget.value === '') return
-  emit('bind', chosenTarget.value)
-  chosenTarget.value = ''
+  return Number.isNaN(parsed.valueOf()) ? '—' : compactTime.value.format(parsed)
 }
 
 const outputTitle = (output: OutputCard): string =>
@@ -68,21 +100,38 @@ const deviceDeliveryState = (
   return device.autoDeliver ? 'ready' : 'disabled'
 }
 
-const deviceChoices = (output: OutputCard): ChoiceOption[] =>
-  props.devices
-    .filter(
-      (device) =>
-        device.targetID === output.targetID &&
-        (device.deployable || device.id === output.deviceID),
-    )
-    .map((device) => {
-      const state = t(`outputs.device.${deviceDeliveryState(device)}`)
-      return {
-        disabled: !device.deployable,
-        label: `${device.name} · ${state}`,
-        value: device.id,
-      }
-    })
+const boundDevice = (output: OutputCard): DeviceCard | null =>
+  props.devices.find(
+    (candidate) =>
+      candidate.id === output.deviceID &&
+      candidate.targetID === output.targetID,
+  ) ?? null
+
+const compatibleDevices = (output: OutputCard): DeviceCard[] =>
+  props.devices.filter(
+    (device) =>
+      device.targetID === output.targetID &&
+      (device.deployable || device.id === output.deviceID),
+  )
+
+// «None» is a choice like any other, so leaving a format without a connection
+// is done in the same place as giving it one. The connection's state is a
+// note under its name, never part of the name.
+const NO_DEVICE = 'none'
+const deviceChoices = (output: OutputCard): ChoiceOption[] => [
+  { label: t('outputs.device.none'), value: NO_DEVICE },
+  ...compatibleDevices(output).map((device) => ({
+    disabled: !device.deployable,
+    label: device.name,
+    note: t(`outputs.device.${deviceDeliveryState(device)}`),
+    value: device.id,
+  })),
+]
+
+const chooseDevice = (output: OutputCard, value: string): void => {
+  const deviceID = value === NO_DEVICE ? '' : value
+  if (deviceID !== output.deviceID) emit('bindDevice', output.id, deviceID)
+}
 
 const FOLLOW_SETTINGS = 'default'
 const scheduleOptions = computed<ChoiceOption[]>(() => [
@@ -105,16 +154,12 @@ const scheduleValue = computed<string>({
   },
 })
 
-const readiness = (
-  output: OutputCard,
-): 'choose' | 'auto' | 'refresh' | 'ready' | 'unavailable' | 'unknown' => {
-  if (output.deviceID === '') return 'choose'
-  const device = props.devices.find(
-    (candidate) =>
-      candidate.id === output.deviceID &&
-      candidate.targetID === output.targetID,
-  )
-  if (device === undefined) return 'choose'
+type Readiness =
+  'choose' | 'auto' | 'refresh' | 'ready' | 'unavailable' | 'unknown'
+
+const readiness = (output: OutputCard): Readiness => {
+  const device = output.deviceID === '' ? null : boundDevice(output)
+  if (device === null) return 'choose'
   const delivery = deviceDeliveryState(device)
   if (delivery === 'unavailable' || delivery === 'unknown') return delivery
   if (delivery === 'disabled') return 'auto'
@@ -130,6 +175,19 @@ const readinessLabel = (output: OutputCard): string => {
   return t(`outputs.readiness.${state}`)
 }
 
+const readinessTone = (output: OutputCard): StatusTone => {
+  const state = readiness(output)
+  if (state === 'ready') return 'ready'
+  return state === 'choose' ? 'waiting' : 'warning'
+}
+
+// The next step that happens on the Connections screen is stated once, with
+// the way there: the connection itself, selected.
+const opensConnection = (output: OutputCard): boolean =>
+  ['auto', 'unknown'].includes(readiness(output))
+const connectionLink = (output: OutputCard): string =>
+  `/connections#connection=${encodeURIComponent(output.deviceID)}`
+
 // Formats stay grouped by the kind of thing they feed: a reader looks for a
 // router or an application before looking for a name.
 const targetChoices = computed<ChoiceGroup[]>(() =>
@@ -144,10 +202,133 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
     })),
   })),
 )
+const addTrigger = useTemplateRef<HTMLElement>('addTrigger')
+
+/** Brings the operator to «Add format», as the profile menu promises. */
+const focusAdd = async (): Promise<void> => {
+  await nextTick()
+  addTrigger.value?.querySelector('button')?.focus()
+}
+defineExpose({ focusAdd })
+
+const settingsFor = ref<OutputCard | null>(null)
+const settingsOpen = ref(false)
+const hasSettings = (output: OutputCard): boolean =>
+  output.targetID === 'keenetic-dns'
+
+const rowMenu = (output: OutputCard): MenuItem[] => {
+  const items: MenuItem[] = []
+  if (narrow.value && output.latest !== null) {
+    items.push({
+      download: true,
+      href: `/v1/artifacts/${output.latest.id}`,
+      icon: 'download',
+      key: 'download',
+      label: t('outputs.download'),
+    })
+  }
+  if (narrow.value && props.deployable(output)) {
+    items.push({
+      icon: 'send',
+      key: 'send',
+      label: t('outputs.send'),
+      to: `/profiles/${props.profileId}/send/${output.id}`,
+    })
+  }
+  if (props.archived) return items
+  const separatorBefore = items.length > 0
+  if (hasSettings(output)) {
+    items.push({
+      disabled: props.busy,
+      icon: 'settings',
+      key: 'settings',
+      label: t('outputs.menu.settings'),
+      separatorBefore,
+    })
+  }
+  items.push({
+    disabled: props.busy,
+    icon: 'refresh',
+    key: 'rebuild',
+    label: t('outputs.menu.rebuild'),
+    separatorBefore: separatorBefore && !hasSettings(output),
+  })
+  if (output.latest !== null) {
+    items.push({
+      disabled: props.busy,
+      icon: 'external',
+      key: 'reissue',
+      label: t('outputs.menu.reissue'),
+    })
+  }
+  items.push({
+    disabled: props.busy,
+    icon: 'trash',
+    key: 'remove',
+    label: t('outputs.menu.remove'),
+    separatorBefore: true,
+  })
+  return items
+}
+
+const onRowMenu = (output: OutputCard, key: string): void => {
+  if (key === 'settings') {
+    settingsFor.value = output
+    settingsOpen.value = true
+  }
+  if (key === 'rebuild') emit('rebuild', output.id)
+  if (key === 'reissue') emit('reissue', output.id)
+  if (key === 'remove') emit('remove', output.id)
+}
 </script>
 
 <template>
-  <div class="outputs">
+  <div ref="root" class="outputs" :class="{ 'outputs--narrow': narrow }">
+    <div v-if="!props.archived" class="outputs__toolbar">
+      <div v-if="props.schedule !== null" class="outputs__schedule">
+        <RvField
+          input-id="profile-schedule-select"
+          :label="t('profile.schedule')"
+        >
+          <template #default="{ describedBy }">
+            <RvSelect
+              v-model="scheduleValue"
+              :described-by="describedBy"
+              :disabled="props.scheduleSaving"
+              input-id="profile-schedule-select"
+              :loading="props.scheduleSaving"
+              :options="scheduleOptions"
+              :placeholder="t('profile.schedule.default')"
+            />
+          </template>
+        </RvField>
+        <RvStatus
+          v-if="props.schedule.lastRefreshFailed"
+          :label="t('profile.schedule.failedNote')"
+          tone="warning"
+        />
+      </div>
+      <div ref="addTrigger" class="outputs__add">
+        <span id="outputs-add-label" class="rv-visually-hidden">
+          {{ t('outputs.add') }}
+        </span>
+        <span v-if="props.targetGroups.length === 0" class="outputs__note">
+          {{ t('outputs.add.none') }}
+        </span>
+        <RvSearchSelect
+          :disabled="props.busy"
+          :groups="targetChoices"
+          labelled-by="outputs-add-label"
+          :loading="props.busy"
+          model-value=""
+          :placeholder="t('outputs.add')"
+          size="compact"
+          :trigger-label="t('outputs.add')"
+          @update:model-value="emit('bind', $event)"
+        />
+      </div>
+    </div>
+
     <RvStateNotice
       v-if="props.outputs.length === 0"
       :body="t('outputs.empty.body')"
@@ -158,7 +339,6 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
       <thead>
         <tr>
           <th scope="col">{{ t('outputs.column.target') }}</th>
-          <th scope="col">{{ t('outputs.column.format') }}</th>
           <th scope="col">{{ t('outputs.column.device') }}</th>
           <th scope="col">{{ t('outputs.column.updated') }}</th>
           <th scope="col">
@@ -171,212 +351,133 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
       <tbody>
         <tr v-for="output in props.outputs" :key="output.id">
           <td class="outputs__cell-target">
-            <span class="outputs__name">
-              <!-- The format names its own row and nothing else: reading this
-                   table is not a choice, so no row is marked as the chosen
-                   one. What one file contains is asked for where that file is
-                   read, on its own tab. -->
-              <span class="outputs__format">
-                <RvIcon :name="targetIcon(output.targetID)" />
-                {{ outputTitle(output) }}
-              </span>
-              <span v-if="output.targetKind !== ''" class="outputs__kind">
-                {{ t(`kind.${output.targetKind}.one`) }}
+            <!-- The format names its own row and nothing else: reading this
+                 table is not a choice, so no row is marked as the chosen one. -->
+            <span class="outputs__format">
+              <RvIcon :name="targetIcon(output.targetID)" />
+              <span class="outputs__format-name">{{
+                outputTitle(output)
+              }}</span>
+              <span
+                v-if="output.fileExtension !== ''"
+                class="outputs__extension"
+              >
+                .{{ output.fileExtension }}
               </span>
             </span>
-          </td>
-          <td class="outputs__cell-format">
-            {{ output.fileExtension === '' ? '—' : `.${output.fileExtension}` }}
+            <span v-if="output.targetKind !== ''" class="outputs__kind">
+              {{ t(`kind.${output.targetKind}.one`) }}
+            </span>
           </td>
           <td class="outputs__cell-device">
-            <label
-              :id="`output-device-${output.id}-label`"
-              :for="`output-device-${output.id}`"
-              class="rv-visually-hidden"
-            >
-              {{ t('outputs.device.label', { target: outputTitle(output) }) }}
-            </label>
-            <template v-if="props.deployable(output)">
-              <div
-                v-if="deviceChoices(output).length > 0"
-                class="outputs__device"
-              >
-                <RvSelect
-                  :disabled="props.busy || props.archived"
-                  searchable
-                  :input-id="`output-device-${output.id}`"
-                  :label="
-                    t('outputs.device.label', { target: outputTitle(output) })
-                  "
-                  :labelled-by="`output-device-${output.id}-label`"
-                  :loading="props.busy"
-                  :model-value="output.deviceID"
-                  :options="deviceChoices(output)"
-                  :placeholder="t('outputs.device.none')"
-                  @update:model-value="emit('bindDevice', output.id, $event)"
-                />
-                <RvButton
-                  v-if="output.deviceID !== ''"
-                  :disabled="props.busy || props.archived"
-                  size="compact"
-                  variant="quiet"
-                  @click="emit('bindDevice', output.id, '')"
-                >
-                  {{ t('outputs.device.detach') }}
-                </RvButton>
-              </div>
-              <RvButton v-else size="compact" to="/connections" variant="quiet">
-                <RvIcon name="plus" />
-                {{ t('outputs.device.add') }}
-              </RvButton>
-              <RvStatus
-                v-if="!props.archived && deviceChoices(output).length > 0"
-                class="outputs__readiness"
-                :label="readinessLabel(output)"
-                :tone="
-                  readiness(output) === 'ready'
-                    ? 'ready'
-                    : readiness(output) === 'choose'
-                      ? 'waiting'
-                      : 'warning'
-                "
-              />
-            </template>
-            <span v-else class="outputs__manual">
+            <span v-if="!props.deployable(output)" class="outputs__muted">
               {{ t('outputs.device.manual') }}
             </span>
+            <span v-else-if="props.archived" class="outputs__bound">
+              {{ boundDevice(output)?.name ?? t('outputs.device.none') }}
+            </span>
+            <template v-else-if="compatibleDevices(output).length > 0">
+              <label
+                :id="`output-device-${output.id}-label`"
+                :for="`output-device-${output.id}`"
+                class="rv-visually-hidden"
+              >
+                {{ t('outputs.device.label', { target: outputTitle(output) }) }}
+              </label>
+              <RvSelect
+                :disabled="props.busy"
+                searchable
+                :input-id="`output-device-${output.id}`"
+                :label="
+                  t('outputs.device.label', { target: outputTitle(output) })
+                "
+                :labelled-by="`output-device-${output.id}-label`"
+                :loading="props.busy"
+                :model-value="
+                  output.deviceID === '' ? NO_DEVICE : output.deviceID
+                "
+                :options="deviceChoices(output)"
+                :placeholder="t('outputs.device.none')"
+                @update:model-value="chooseDevice(output, $event)"
+              />
+              <span class="outputs__readiness">
+                <RvStatus
+                  :label="readinessLabel(output)"
+                  :tone="readinessTone(output)"
+                />
+                <NuxtLink
+                  v-if="opensConnection(output)"
+                  class="outputs__link"
+                  :to="connectionLink(output)"
+                >
+                  {{ t('outputs.readiness.open') }}
+                </NuxtLink>
+              </span>
+            </template>
+            <RvButton v-else size="compact" to="/connections" variant="quiet">
+              {{ t('outputs.device.add') }}
+            </RvButton>
           </td>
           <td class="outputs__cell-updated">
-            <span class="outputs__updated">
-              <RvStatus
-                v-if="output.lastAttempt?.status === 'failed'"
-                :label="t('outputs.failed')"
-                tone="failed"
-              />
-              <span>
-                {{
-                  output.latest === null
-                    ? t('profiles.noArtifact')
-                    : formatTime(output.latest.contentCreatedAt)
-                }}
-              </span>
+            <RvStatus
+              v-if="output.lastAttempt?.status === 'failed'"
+              :label="t('outputs.failed')"
+              tone="failed"
+            />
+            <span class="outputs__date">
+              {{
+                output.latest === null
+                  ? t('profiles.noArtifact')
+                  : formatTime(output.latest.contentCreatedAt)
+              }}
             </span>
           </td>
           <td class="outputs__cell-actions">
             <div class="outputs__actions">
-              <RvButton
-                v-if="output.latest !== null"
-                :aria-label="
-                  t('outputs.download.aria', { target: outputTitle(output) })
-                "
-                :href="`/v1/artifacts/${output.latest.id}`"
-                size="compact"
-                variant="quiet"
-              >
-                <RvIcon name="download" />
-                {{ t('outputs.download') }}
-              </RvButton>
-              <RvButton
-                v-if="props.deployable(output)"
-                size="compact"
-                :to="`/profiles/${props.profileId}/send/${output.id}`"
-                variant="quiet"
-              >
-                <RvIcon name="send" />
-                {{ t('outputs.send') }}
-              </RvButton>
+              <template v-if="!narrow">
+                <RvButton
+                  v-if="output.latest !== null"
+                  :aria-label="
+                    t('outputs.download.aria', { target: outputTitle(output) })
+                  "
+                  :href="`/v1/artifacts/${output.latest.id}`"
+                  size="compact"
+                  variant="quiet"
+                >
+                  <RvIcon name="download" />
+                  {{ t('outputs.download') }}
+                </RvButton>
+                <RvButton
+                  v-if="props.deployable(output)"
+                  size="compact"
+                  :to="`/profiles/${props.profileId}/send/${output.id}`"
+                  variant="quiet"
+                >
+                  <RvIcon name="send" />
+                  {{ t('outputs.send') }}
+                </RvButton>
+              </template>
+              <RvMenu
+                v-if="rowMenu(output).length > 0"
+                :items="rowMenu(output)"
+                :label="t('outputs.menu', { target: outputTitle(output) })"
+                @select="onRowMenu(output, $event)"
+              />
             </div>
           </td>
         </tr>
       </tbody>
     </RvTable>
 
-    <section
-      v-for="output in props.outputs.filter(
-        (item) => item.targetID === 'keenetic-dns' && !props.archived,
-      )"
-      :key="output.id"
-      class="outputs__configuration"
-      :aria-label="outputTitle(output)"
-    >
-      <h2 class="outputs__section-title">
-        <RvIcon :name="targetIcon(output.targetID)" /> {{ outputTitle(output) }}
-      </h2>
-      <OutputPrefixEditor
-        :output-id="output.id"
-        :prefix="output.fqdnGroupPrefix ?? ''"
-        :disabled="props.busy"
-      />
-    </section>
-
-    <div v-if="!props.archived" class="outputs__settings">
-      <section
-        v-if="props.schedule !== null"
-        aria-labelledby="profile-schedule"
-        class="outputs__schedule"
-      >
-        <h2 id="profile-schedule" class="outputs__section-title">
-          {{ t('profile.schedule') }}
-        </h2>
-        <div class="outputs__schedule-field">
-          <RvSelect
-            v-model="scheduleValue"
-            :disabled="props.scheduleSaving"
-            input-id="profile-schedule-select"
-            labelled-by="profile-schedule"
-            :loading="props.scheduleSaving"
-            :options="scheduleOptions"
-            :placeholder="t('profile.schedule.default')"
-          />
-        </div>
-        <p
-          v-if="props.schedule.lastRefreshFailed"
-          class="outputs__schedule-note"
-          role="status"
-        >
-          {{ t('profile.schedule.failedNote') }}
-        </p>
-      </section>
-
-      <form class="outputs__add" @submit.prevent="add">
-        <div class="outputs__add-label">
-          <label id="outputs-target-label" for="outputs-target">{{
-            t('outputs.add')
-          }}</label>
-          <RvInfoTip
-            :label="t('outputs.add.info')"
-            :text="t('outputs.add.info.text')"
-          />
-        </div>
-        <div class="outputs__add-row">
-          <div class="outputs__target-field">
-            <RvSelect
-              v-model="chosenTarget"
-              :disabled="props.busy || props.targetGroups.length === 0"
-              :groups="targetChoices"
-              searchable
-              input-id="outputs-target"
-              :label="t('outputs.add')"
-              labelled-by="outputs-target-label"
-              :loading="props.busy"
-              :placeholder="t('outputs.add.placeholder')"
-            />
-          </div>
-          <RvButton
-            :disabled="props.busy || chosenTarget === ''"
-            :loading="props.busy"
-            type="submit"
-            variant="secondary"
-          >
-            <RvIcon name="plus" />
-            {{ t('outputs.add.submit') }}
-          </RvButton>
-        </div>
-        <p v-if="props.targetGroups.length === 0" class="outputs__note">
-          {{ t('outputs.add.none') }}
-        </p>
-      </form>
-    </div>
+    <FormatSettingsDialog
+      v-if="settingsFor !== null"
+      v-model:open="settingsOpen"
+      :busy="props.busy"
+      :output-id="settingsFor.id"
+      :prefix="settingsFor.fqdnGroupPrefix ?? ''"
+      :title="outputTitle(settingsFor)"
+      @rebuild="emit('rebuild', $event)"
+    />
   </div>
 </template>
 
@@ -384,189 +485,159 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
 .outputs {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--rv-space-6);
+  gap: var(--rv-space-4);
   min-width: 0;
 }
 
+/* The refresh rule is one field; «Add format» belongs to the table it adds a
+   row to, so it stands at the table's trailing edge, on the field's line. */
+.outputs__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-3) var(--rv-space-5);
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.outputs__schedule {
+  display: grid;
+  gap: var(--rv-space-2);
+  width: min(100%, var(--rv-measure-field));
+}
+
+.outputs__add {
+  display: flex;
+  gap: var(--rv-space-3);
+  align-items: center;
+  margin-inline-start: auto;
+}
+
+.outputs__note,
+.outputs__muted {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+  white-space: nowrap;
+}
+
 /* The table scrolls inside its own box on narrow screens; the page never
-   scrolls sideways. The box is also the containing block, so the hidden column
-   header cannot escape it and widen the document. */
+   scrolls sideways. Each cell keeps to one line and shortens a long name with
+   an ellipsis rather than growing the row. */
 .outputs__scroll {
   --rv-table-min-width: var(--rv-outputs-table-width);
   --rv-table-layout: fixed;
   --rv-table-cell-padding: var(--rv-space-3);
 }
 
-.outputs__cell-target {
-  overflow-wrap: anywhere;
+/* The format and the date keep the width their one line needs and the actions
+   the width of their buttons, so the «⋮» trigger is never squeezed below its
+   target size; the connection takes what is left. */
+.outputs__scroll th:nth-child(1) {
+  width: 28%;
 }
 
-/* The cell stays a table cell; the flex column lives inside it, or the name
-   column would fall out of the table's row grid. */
-.outputs__name {
-  display: inline-flex;
-  flex-direction: column;
-  gap: var(--rv-space-1);
-  align-items: flex-start;
+.outputs__scroll th:nth-child(3) {
+  width: 10rem;
+}
+
+.outputs__scroll th:nth-child(4) {
+  width: 17rem;
+}
+
+.outputs--narrow .outputs__scroll th:nth-child(1) {
+  width: 35%;
+}
+
+.outputs--narrow .outputs__scroll th:nth-child(4) {
+  width: calc(var(--rv-control-compact) + 2 * var(--rv-space-3));
+}
+
+.outputs__cell-target,
+.outputs__cell-updated {
+  overflow: hidden;
 }
 
 .outputs__format {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: var(--rv-space-2);
+  min-width: 0;
   min-height: var(--rv-control-compact);
   font-weight: 600;
+  white-space: nowrap;
 }
 
-.outputs__kind {
-  color: var(--rv-color-ink-tertiary);
-  font-size: var(--rv-text-meta);
+.outputs__format-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.outputs__cell-format {
+.outputs__extension {
+  flex-shrink: 0;
   color: var(--rv-color-ink-muted);
+  font-weight: 400;
   font-size: var(--rv-text-dense);
   font-family: var(--rv-font-mono);
 }
 
-.outputs__cell-updated {
-  color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-dense);
-  overflow-wrap: anywhere;
+.outputs__kind {
+  display: block;
+  color: var(--rv-color-ink-tertiary);
+  font-size: var(--rv-text-meta);
+  white-space: nowrap;
 }
 
 .outputs__cell-device {
   min-width: 0;
 }
 
-.outputs__device {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  place-items: center start;
-  gap: var(--rv-space-2);
+.outputs__bound {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .outputs__readiness {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-1) var(--rv-space-2);
+  align-items: baseline;
   margin-top: var(--rv-space-2);
-}
-
-.outputs__manual {
-  color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
 }
 
-.outputs__updated {
-  display: grid;
-  gap: var(--rv-space-1);
+.outputs__link {
+  color: var(--rv-color-accent-ink);
+  font-weight: 600;
 }
 
-.outputs__cell-actions {
+.outputs__link:focus-visible {
+  outline: var(--rv-border-mark) solid var(--rv-color-focus);
+  outline-offset: var(--rv-focus-offset);
+}
+
+.outputs__cell-updated {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
   white-space: nowrap;
+}
+
+.outputs__date {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .outputs__actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-2);
+  flex-wrap: nowrap;
+  gap: var(--rv-space-1);
   align-items: center;
   justify-content: flex-end;
 }
 
-.outputs__add {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--rv-space-3);
-  min-width: 0;
-  align-content: start;
-  padding: var(--rv-space-5);
-  background: var(--rv-color-surface);
-  border-radius: var(--rv-radius-lg);
-}
-
-.outputs__schedule {
-  display: grid;
-  gap: var(--rv-space-3);
-  min-width: 0;
-  align-content: start;
-  padding: var(--rv-space-5);
-  background: var(--rv-color-surface);
-  border-radius: var(--rv-radius-lg);
-}
-
-.outputs__section-title {
-  display: flex;
-  gap: var(--rv-space-2);
-  align-items: center;
-  font-size: var(--rv-text-section);
-}
-
-.outputs__schedule-field {
-  width: 100%;
-}
-
-.outputs__schedule-note {
-  color: var(--rv-color-status-warning);
-  font-size: var(--rv-text-dense);
-}
-
-.outputs__add-label {
-  display: flex;
-  gap: var(--rv-space-2);
-  align-items: center;
-  font-weight: 600;
-  font-size: var(--rv-text-section);
-}
-
-.outputs__add-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-2);
-  align-items: center;
-}
-
-.outputs__target-field {
-  flex: 1 1 14rem;
-  min-width: 0;
-}
-
-.outputs__note {
-  color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-dense);
-}
-
-.outputs__settings {
-  display: grid;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(min(100%, var(--rv-measure-field)), 1fr)
-  );
-  gap: var(--rv-space-4);
-}
-
-.outputs__configuration {
-  min-width: 0;
-  padding: var(--rv-space-5);
-  background: var(--rv-color-surface);
-  border-radius: var(--rv-radius-lg);
-}
-
-.outputs__scroll th:nth-child(1) {
-  width: 22%;
-}
-
-.outputs__scroll th:nth-child(2) {
-  width: 9%;
-}
-
-.outputs__scroll th:nth-child(3) {
-  width: 27%;
-}
-
-.outputs__scroll th:nth-child(4) {
-  width: 20%;
-}
-
-.outputs__scroll th:nth-child(5) {
-  width: 22%;
+.outputs__actions > * {
+  flex-shrink: 0;
 }
 </style>

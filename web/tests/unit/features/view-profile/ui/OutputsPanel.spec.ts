@@ -18,6 +18,17 @@ const OUTPUT = {
   lastAttempt: null,
 }
 
+const PUBLISHED = {
+  ...OUTPUT,
+  latest: {
+    id: 'artifact-1',
+    snapshotID: 'snapshot-1',
+    sizeBytes: 10,
+    contentType: 'text/plain',
+    contentCreatedAt: '2026-09-03T09:00:00Z',
+  },
+}
+
 const SCHEDULE: Schedule = {
   interval: '',
   effective: 'off' as const,
@@ -36,6 +47,7 @@ const CONNECTED_DEVICE = {
   account: 'admin',
   interfaceName: 'Wireguard0',
   autoDeliver: true,
+  credentialStored: true,
   deployable: true,
 }
 
@@ -50,7 +62,6 @@ const renderPanel = (overrides: Record<string, unknown> = {}) =>
       profileId: 'profile-1',
       outputs: [OUTPUT],
       schedule: SCHEDULE,
-      selectedId: '',
       targetGroups: [],
       targetTitle: (_id: string, fallback?: string) => fallback ?? 'Keenetic',
       ...overrides,
@@ -71,13 +82,9 @@ describe('OutputsPanel connection readiness', () => {
     await expect
       .element(screen.getByText('Add a connection', { exact: false }).first())
       .toBeVisible()
+    // The refresh rule is one field above the table, named by its own label.
     await expect
-      .element(screen.getByText('Connection for Keenetic —', { exact: false }))
-      .not.toBeInTheDocument()
-    // The refresh choice is named by the section heading above it, which is how
-    // a reader knows what the control changes.
-    await expect
-      .element(screen.getByRole('combobox', { name: 'Refresh' }))
+      .element(screen.getByRole('combobox', { name: 'Profile refresh' }))
       .toBeVisible()
   })
 
@@ -88,12 +95,12 @@ describe('OutputsPanel connection readiness', () => {
     })
 
     await expect
-      .element(screen.getByText('Turn on profile refresh', { exact: false }))
+      .element(screen.getByText('Profile refresh is off', { exact: true }))
       .toBeVisible()
   })
 
   it.each([false, true])(
-    'offers a manual send when automatic delivery is unavailable, stored consent %s',
+    'states a system without a password store as a fact, automatic delivery %s',
     async (autoDeliver) => {
       const screen = await renderPanel({
         automaticDelivery: () => 'unavailable',
@@ -102,13 +109,19 @@ describe('OutputsPanel connection readiness', () => {
         schedule: { ...SCHEDULE, effective: 'daily' },
       })
 
+      // The choice is named by the connection alone; its state is the
+      // option's note and the status line, never part of the name.
       await expect
         .element(screen.getByLabelText('Connection for Keenetic'))
-        .toHaveTextContent('Home router · manual send only')
+        .toHaveTextContent('Home router')
+      await expect
+        .element(screen.getByLabelText('Connection for Keenetic'))
+        .not.toHaveTextContent('·')
       await expect
         .element(
           screen.getByText(
-            'Automatic delivery is unavailable on this system. Use Send with a password for each delivery.',
+            'This system has no password store: manual sending only',
+            { exact: true },
           ),
         )
         .toBeVisible()
@@ -116,46 +129,61 @@ describe('OutputsPanel connection readiness', () => {
         .element(screen.getByRole('link', { name: 'Send', exact: true }))
         .toHaveAttribute('href', '/profiles/profile-1/send/output-1')
       await expect
-        .element(screen.getByText('Turn on automatic delivery in Connections'))
+        .element(screen.getByRole('link', { name: 'Open the connection' }))
         .not.toBeInTheDocument()
+    },
+  )
+
+  it.each([
+    ['unknown', true, 'Automatic delivery unconfirmed'],
+    ['available', false, 'Automatic delivery is off'],
+  ] as const)(
+    'states %s delivery once, with the way to that connection',
+    async (capability, autoDeliver, status) => {
+      const screen = await renderPanel({
+        automaticDelivery: () => capability,
+        devices: [{ ...CONNECTED_DEVICE, autoDeliver }],
+        outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
+        schedule: { ...SCHEDULE, effective: 'daily' },
+      })
+
+      await expect
+        .element(screen.getByLabelText('Connection for Keenetic'))
+        .toHaveTextContent('Home router')
+      await expect
+        .element(screen.getByLabelText('Connection for Keenetic'))
+        .not.toHaveTextContent('·')
+      await expect
+        .element(screen.getByText(status, { exact: true }))
+        .toBeVisible()
+      await expect
+        .element(screen.getByRole('link', { name: 'Open the connection' }))
+        .toHaveAttribute('href', '/connections#connection=device-1')
       await expect
         .element(screen.getByText('Ready: new versions', { exact: false }))
         .not.toBeInTheDocument()
     },
   )
 
-  it('does not declare stored consent ready when requirements are unknown', async () => {
-    const screen = await renderPanel({
-      automaticDelivery: () => 'unknown',
-      devices: [CONNECTED_DEVICE],
-      outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
-      schedule: { ...SCHEDULE, effective: 'daily' },
-    })
-
-    await expect
-      .element(screen.getByLabelText('Connection for Keenetic'))
-      .toHaveTextContent('Home router · automatic delivery unconfirmed')
-    await expect
-      .element(
-        screen.getByText(
-          'Automatic delivery is unconfirmed. Check the connection in Connections.',
-        ),
-      )
-      .toBeVisible()
-    await expect
-      .element(screen.getByText('Ready: new versions', { exact: false }))
-      .not.toBeInTheDocument()
-  })
-
-  it('offers consent when automatic delivery is available but still off', async () => {
+  it('offers None as the first choice and unbinds through it', async () => {
     const screen = await renderPanel({
       devices: [{ ...CONNECTED_DEVICE, autoDeliver: false }],
       outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
     })
 
     await expect
-      .element(screen.getByText('Turn on automatic delivery in Connections'))
-      .toBeVisible()
+      .element(screen.getByRole('button', { name: 'Detach' }))
+      .not.toBeInTheDocument()
+    await screen.getByLabelText('Connection for Keenetic').click()
+    const options = screen.getByRole('option').all()
+    expect(
+      options.map((option) => option.element().textContent?.trim()),
+    ).toEqual([
+      'None',
+      expect.stringMatching(/^Home router\s*automatic delivery off$/),
+    ])
+    await screen.getByRole('option', { name: 'None' }).click()
+    expect(screen.emitted('bindDevice')).toEqual([['output-1', '']])
   })
 
   it('reports a configured password-free local target without a router promise', async () => {
@@ -206,20 +234,88 @@ describe('OutputsPanel connection readiness', () => {
       .toBeVisible()
   })
 
-  it('does not report readiness on an archived profile', async () => {
+  it('states the bound connection of an archived profile instead of offering a choice', async () => {
     const screen = await renderPanel({
       archived: true,
       devices: [CONNECTED_DEVICE],
-      outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
+      outputs: [{ ...PUBLISHED, deviceID: 'device-1' }],
     })
 
+    await expect
+      .element(screen.getByRole('cell', { name: 'Home router' }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByLabelText('Connection for Keenetic'))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('combobox', { name: 'Profile refresh' }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: 'Add a format' }))
+      .not.toBeInTheDocument()
     await expect
       .element(
         screen.getByText('Automatic delivery configured', { exact: false }),
       )
       .not.toBeInTheDocument()
+    // Reading and downloading stay; nothing that changes the format is offered.
     await expect
-      .element(screen.getByText('Ready: new versions', { exact: false }))
+      .element(screen.getByRole('button', { name: 'Actions for Keenetic' }))
       .not.toBeInTheDocument()
+  })
+})
+
+describe('OutputsPanel row actions', () => {
+  beforeEach(() => useLocale().setLocale('en'))
+
+  it('puts the extension in the format cell and every act on a format in its menu', async () => {
+    const screen = await renderPanel({
+      outputs: [
+        {
+          ...PUBLISHED,
+          id: 'output-dns',
+          targetID: 'keenetic-dns',
+          targetTitle: 'Keenetic (domain-based)',
+          fileExtension: 'txt',
+        },
+      ],
+    })
+
+    const format = screen
+      .getByRole('cell', { name: /^Keenetic \(domain-based\)/ })
+      .first()
+    await expect.element(format).toBeVisible()
+    expect(format.element().textContent).toMatch(
+      /Keenetic \(domain-based\)\s*\.txt/,
+    )
+    expect(screen.getByRole('columnheader').all()).toHaveLength(4)
+    await screen
+      .getByRole('button', { name: 'Actions for Keenetic (domain-based)' })
+      .click()
+    expect(
+      screen
+        .getByRole('menuitem')
+        .all()
+        .map((item) => item.element().textContent?.trim()),
+    ).toEqual([
+      'Format settings…',
+      'Rebuild',
+      'Issue a new link…',
+      'Remove format…',
+    ])
+    await screen.getByRole('menuitem', { name: 'Remove format…' }).click()
+    expect(screen.emitted('remove')).toEqual([['output-dns']])
+  })
+
+  it('offers no new link for a format that never published', async () => {
+    const screen = await renderPanel()
+
+    await screen.getByRole('button', { name: 'Actions for Keenetic' }).click()
+    expect(
+      screen
+        .getByRole('menuitem')
+        .all()
+        .map((item) => item.element().textContent?.trim()),
+    ).toEqual(['Rebuild', 'Remove format…'])
   })
 })

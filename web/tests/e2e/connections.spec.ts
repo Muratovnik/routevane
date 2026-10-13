@@ -431,7 +431,11 @@ test('an output can be explicitly bound to and detached from a compatible device
     copyByStore[
       String(registry.secret_store_available) as keyof typeof copyByStore
     ]
-  const deviceLabel = `${deviceName} · ${englishCopy(expectedCopy.device)}`
+  // The option is named by the connection; its state is the option's note.
+  const deviceOption = page.getByRole('option', {
+    name: new RegExp(`^${escapeRegExp(deviceName)}`),
+  })
+  const none = englishCopy('outputs.device.none')
   const { profileId, outputId } = await buildProfile(page, origin)
 
   const publishingTab = page
@@ -445,30 +449,26 @@ test('an output can be explicitly bound to and detached from a compatible device
     englishCopy('outputs.device.label').replace('{target}', 'Keenetic'),
     { exact: true },
   )
-  await expect(binding).toHaveText('No automatic delivery')
+  await expect(binding).toHaveText(none)
 
   await binding.click()
+  await expect(deviceOption).toContainText(englishCopy(expectedCopy.device))
   const [boundResponse] = await Promise.all([
     page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
         new URL(response.url()).pathname === `/v1/outputs/${outputId}/device`,
     ),
-    page
-      .getByRole('option', {
-        name: deviceLabel,
-        exact: true,
-      })
-      .click(),
+    deviceOption.click(),
   ])
   expect(boundResponse.ok()).toBe(true)
   expect(boundResponse.request().postDataJSON()).toEqual({
     device_id: deviceID,
   })
-  await expect(binding).toHaveText(deviceLabel)
+  await expect(binding).toHaveText(deviceName)
   await page.reload()
   await publishingTab.click()
-  await expect(binding).toHaveText(deviceLabel)
+  await expect(binding).toHaveText(deviceName)
   await expect(
     publishing.getByText(englishCopy(expectedCopy.readiness), { exact: true }),
   ).toBeVisible()
@@ -490,17 +490,17 @@ test('an output can be explicitly bound to and detached from a compatible device
         response.request().method() === 'POST' &&
         new URL(response.url()).pathname === `/v1/outputs/${outputId}/device`,
     ),
-    publishing.getByRole('button', { name: 'Detach', exact: true }).click(),
+    (async () => {
+      await binding.click()
+      await page.getByRole('option', { name: none, exact: true }).click()
+    })(),
   ])
   expect(detachedResponse.ok()).toBe(true)
   expect(detachedResponse.request().postDataJSON()).toEqual({ device_id: '' })
-  await expect(binding).toHaveText('No automatic delivery')
+  await expect(binding).toHaveText(none)
   await page.reload()
   await publishingTab.click()
-  await expect(binding).toHaveText('No automatic delivery')
-  await expect(
-    publishing.getByRole('button', { name: 'Detach', exact: true }),
-  ).toHaveCount(0)
+  await expect(binding).toHaveText(none)
   await expect(
     publishing.getByText(englishCopy('outputs.readiness.choose'), {
       exact: true,
@@ -559,15 +559,13 @@ test('binding a device on Publishing keeps an unsaved rename on Contents', async
     ),
     page
       .getByRole('option', {
-        name: new RegExp(`^${escapeRegExp(deviceName)} · `),
+        name: new RegExp(`^${escapeRegExp(deviceName)}`),
       })
       .click(),
   ])
   expect(boundResponse.ok()).toBe(true)
-  await expect(binding).toContainText(deviceName)
-  await expect(
-    publishing.getByRole('button', { name: 'Detach', exact: true }),
-  ).toBeEnabled()
+  await expect(binding).toHaveText(deviceName)
+  await expect(binding).toBeEnabled()
 
   await sections.getByRole('tab', { name: 'Contents' }).click()
   await expect(name).toHaveValue('Unsaved rename')

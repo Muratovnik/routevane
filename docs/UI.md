@@ -209,17 +209,39 @@ Sections, addressable by URL:
    profile only once the profile is stored. «Открыть в библиотеке» leads to the
    other flow in a new tab, leaving the draft behind it untouched, and the
    composing screen re-reads the catalog when its window comes back.
-   Secondary actions — one-off export, send, refresh-and-rebuild, archive —
-   live in one overflow menu; format and maintenance choices drill into named
-   submenus instead of forming one long flat list.
-   Adding another format on the Publishing tab creates it and publishes it in
+   The header carries one profile menu: one-off export and send drill into
+   named submenus of formats, then «Добавить формат…», «Пересобрать файлы»
+   and, after a separator, «В архив»; an archived profile offers only export
+   and «Вернуть из архива». Profile facts keep their natural height; only the
+   composition workspace fills the window. A first build that published
+   nothing reads «Сборка не удалась», and its notice carries «Пересобрать
+   файлы».
+   The Publishing tab is one table and what sits around it. Above the table
+   stand one field, «Автообновление профиля» (Settings supplies only the
+   global default), and the «Добавить формат» action, which opens the
+   searchable format choice; adding a format creates it and publishes it in
    one move, because a format with no file is a promise the screen cannot keep.
-   The profile refresh rule is configured on this tab beside those formats;
-   Settings supplies only the global default. Each format names its next unmet
-   delivery condition — choose a connection, turn on automatic delivery, turn
-   on profile refresh, or ready — using the persisted format, connection, and
-   schedule facts. Automatic delivery is primary when a deployer exists;
-   subscription and manual download remain available ways to get the file.
+   Each row is one line: the format with its file extension, its connection,
+   and the content date. The connection choice names connections only, with
+   «Не выбрано» first; a connection's delivery state is the option's note and
+   one status line beneath the choice, which states the next unmet condition
+   once and links to that connection where it is changed. An archived profile
+   shows the bound connection as text and offers no changes. Each row's «⋮»
+   menu holds «Настройки формата…» (the FQDN group prefix of a domain-based
+   format: its rule appears only as a refused save, «Применится при следующей
+   сборке» beside Save, and «Пересобрать сейчас»), «Пересобрать», «Выпустить
+   новую ссылку…» once the format has published, and «Убрать формат…»; when
+   the panel is narrow, Download and Send move into the same menu. Issuing a
+   new link and removing a format each confirm with their consequence; the new
+   link is shown once (see «The one-time secret»). Once the page no longer
+   holds a published format's link, the tab says so above the table and offers
+   «Выпустить новую ссылку…», in every detail mode. Automatic delivery is
+   primary when a deployer exists; subscription and manual download remain
+   available ways to get the file.
+   The Diagnostics tab is one table of the rules of the shown file: a list
+   filter, a search field, columns for list, value and reason, and a state
+   column only when the file excluded something. The table fills the window
+   below its heading and scrolls beneath its header; per-list counts follow it.
 4. `/lists` — **Lists / Списки.** The library: what a list holds and which
    category holds it, for every profile at once (ADR 0029). It uses the same
    dense catalog table, search and category filter as the composer, with list
@@ -263,7 +285,19 @@ Sections, addressable by URL:
    the composer and the list card say the same.
 5. `/profiles/{profileId}/send/{outputId}` — **Send.** An action, not a step:
    automatic applying with a plan, a backup and an audit trail when the format
-   has a deployer, and the by-hand path always stated below it.
+   has a deployer, and the by-hand path always stated below it. The trail
+   «Профили › {profile}» stands above the title «Отправка · {format}»; a status
+   appears only once an attempt exists. The connection choice uses the field
+   labels of Connections and does not repeat the chosen connection's facts;
+   with no saved connection it reads «Нет сохранённых подключений» with a link
+   to add one. A connection whose password is saved shows «Пароль сохранён» and
+   «Ввести другой для этой отправки», which reveals the field for this send only;
+   otherwise the password field is shown, with «Сохранить пароль в подключении»
+   when the system has a credential store, stating that the password will be
+   kept in the Windows credential store. The password is saved only after a
+   preview or apply succeeds. «Показать изменения» is the primary action until a
+   plan exists. The by-hand path is «Скачать файл (.ext)» and a «Как установить
+   вручную» disclosure with the numbered catalog steps.
 6. `/connections` — **Connections / Подключения** (ADR 0027; `/devices`
    redirects here). One section answers «куда»: registered connections
    first, as two surfaces of the same level — the registered
@@ -809,6 +843,6 @@ reduced motion and unsupported browsers switch immediately.
 Native data tables share `RvTable`: one bordered scroll surface, rounded corners,
 a filled header, cell separators and optional dense rows/sticky headers. Callers
 own column geometry and slot content, including selection and menus. Long forms
-stay outside comparison rows; FQDN group prefixes are configured in a separate
-section below the format table. Format choices and connection names use the
+stay outside comparison rows; a format's FQDN group prefix is configured in
+the «Настройки формата…» dialog of its row menu. Format choices and connection names use the
 same decorative icons, with a generic device icon for an unknown plugin target.

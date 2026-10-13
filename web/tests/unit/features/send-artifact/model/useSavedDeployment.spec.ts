@@ -17,6 +17,7 @@ const devicesPayload = () => ({
       account: 'admin',
       interface: 'Wireguard0',
       auto_deliver: true,
+      credential_stored: true,
       deployable: true,
     },
     {
@@ -28,6 +29,7 @@ const devicesPayload = () => ({
       account: 'operator',
       interface: 'Wireguard1',
       auto_deliver: true,
+      credential_stored: true,
       deployable: true,
     },
   ],
@@ -257,7 +259,9 @@ it('clears the one-use password when the same saved identity acquires different 
   registry.devices[0] = {
     ...registry.devices[0]!,
     address: 'http://192.168.1.9',
+    // A changed address removes the saved password with the consent (ADR 0050).
     auto_deliver: false,
+    credential_stored: false,
   }
   await deployment.connections.initialize()
   expect(deployment.connections.selectedID.value).toBe('saved')
@@ -443,4 +447,123 @@ it('remembers only the canonical non-secret fields of a manual attempt', async (
   )
   deployment.device.value = 'http://192.168.1.9'
   expect(deployment.attemptRecipient.value?.device).toBe('http://192.168.1.8')
+})
+
+const unsavedPayload = () => {
+  const payload = devicesPayload()
+  payload.devices[0] = {
+    ...payload.devices[0]!,
+    auto_deliver: false,
+    credential_stored: false,
+  }
+  return payload
+}
+
+// The operator typed a password and asked to keep it in the connection; the
+// preview is answered with the given status.
+const reviewKeepingPassword = async (planStatus: number) => {
+  const fetchMock = vi.fn(
+    async (input: unknown, init?: RequestInit): Promise<Response> => {
+      const path = String(input)
+      if (path === '/v1/devices') return json(unsavedPayload())
+      if (path === '/v1/deployments/targets') return json(targetsPayload())
+      if (path === '/v1/devices/saved/credential')
+        return json({
+          device: { id: 'saved', credential_stored: true },
+          echo: JSON.parse(String(init?.body)),
+        })
+      return planStatus === 200
+        ? json(planPayload())
+        : json({ error: 'operation failed' }, planStatus)
+    },
+  )
+  vi.stubGlobal('fetch', fetchMock)
+  const { deployment } = harness()
+  await deployment.initialize()
+  expect(deployment.connections.storedCredential.value).toBe(false)
+  expect(deployment.passwordNeeded.value).toBe(true)
+  deployment.password.value = 'router-secret'
+  deployment.savePassword.value = true
+
+  await deployment.review()
+
+  const writes = fetchMock.mock.calls.filter(
+    ([input]) => String(input) === '/v1/devices/saved/credential',
+  )
+  return { deployment, writes }
+}
+
+it('saves the password the operator asked to keep once the preview worked', async () => {
+  const { deployment, writes } = await reviewKeepingPassword(200)
+
+  expect(writes).toHaveLength(1)
+  expect(JSON.parse(String(writes[0]![1]?.body))).toEqual({
+    credential: 'router-secret',
+  })
+  // The plan made with that password stands; the connection now says it
+  // holds one, and the field is no longer asked for.
+  expect(deployment.state.value).toBe('planned')
+  expect(deployment.connections.storedCredential.value).toBe(true)
+  expect(deployment.savePassword.value).toBe(false)
+  expect(deployment.passwordNeeded.value).toBe(false)
+})
+
+it('keeps no password when the preview was refused', async () => {
+  const { deployment, writes } = await reviewKeepingPassword(422)
+
+  expect(writes).toHaveLength(0)
+  expect(deployment.connections.storedCredential.value).toBe(false)
+})
+
+it('never saves a password the operator did not ask to keep, and states a refused save', async () => {
+  let refuse = false
+  const fetchMock = vi.fn(async (input: unknown): Promise<Response> => {
+    const path = String(input)
+    if (path === '/v1/devices') return json(unsavedPayload())
+    if (path === '/v1/deployments/targets') return json(targetsPayload())
+    if (path === '/v1/devices/saved/credential')
+      return refuse
+        ? json({ error: 'credential store unavailable' }, 503)
+        : json({ device: { id: 'saved', credential_stored: true } })
+    return json(planPayload())
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const { deployment } = harness()
+  await deployment.initialize()
+  deployment.password.value = 'router-secret'
+  await deployment.review()
+  expect(
+    fetchMock.mock.calls.some(([input]) =>
+      String(input).endsWith('/credential'),
+    ),
+  ).toBe(false)
+
+  refuse = true
+  deployment.savePassword.value = true
+  await deployment.review()
+  expect(deployment.state.value).toBe('planned')
+  expect(deployment.passwordSaveFailed.value).toBe(true)
+  expect(deployment.connections.storedCredential.value).toBe(false)
+})
+
+it('names the first missing field instead of sending, and keeps the review available', async () => {
+  const fetchMock = vi.fn(async (input: unknown): Promise<Response> => {
+    const path = String(input)
+    if (path === '/v1/devices') return json(unsavedPayload())
+    if (path === '/v1/deployments/targets') return json(targetsPayload())
+    return json(planPayload())
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const { deployment } = harness()
+  await deployment.initialize()
+  expect(deployment.available.value).toBe(true)
+  expect(deployment.fieldErrors.value.password).toBeNull()
+
+  await expect(deployment.review()).resolves.toBe('password')
+
+  expect(deployment.fieldErrors.value.password).toBe('send.field.required')
+  expect(deployment.available.value).toBe(true)
+  expect(
+    fetchMock.mock.calls.some(([input]) => String(input).endsWith('/deploy')),
+  ).toBe(false)
 })

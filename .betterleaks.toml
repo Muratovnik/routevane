@@ -60,6 +60,7 @@ paths = ['''web/src/shared/i18n/messages\.ts''']
 regexes = [
   ''''send\.field\.password': '(?:Пароль подключения|Connection password)',''',
   ''''send\.field\.password': '(?:Пароль устройства|Device password)',''',
+  ''''send\.field\.password': '(?:Пароль|Password)',''',
 ]
 
 [[allowlists]]

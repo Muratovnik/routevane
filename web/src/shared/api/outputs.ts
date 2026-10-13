@@ -128,6 +128,25 @@ export const setOutputFQDNPrefix = (
     parseCreatedOutput,
   )
 
+export type RemovedOutput = {
+  id: string
+  removedAt: string
+}
+
+// Retiring a format is permanent (ADR 0051): its links stop answering, its
+// files stay where they are, and nothing on a router is touched.
+export const removeOutput = (outputID: string): Promise<RemovedOutput> =>
+  postJSON(`/v1/outputs/${outputID}/remove`, {}, parseRemovedOutput)
+
+// A reissued link replaces the active one at once. The new address is a bearer
+// shown exactly once, held in memory by the caller and never read back.
+export const reissueSubscription = (outputID: string): Promise<string> =>
+  postJSON(
+    `/v1/outputs/${outputID}/subscription/reissue`,
+    {},
+    parseReissuedSubscription,
+  )
+
 const outputSchema = v.pipe(
   fields({
     id: text,
@@ -326,6 +345,24 @@ export const outputCardsSchema = v.array(outputCardSchema)
 const parseCreatedOutput: Decoder<CreatedOutput> = decode(createdOutputSchema)
 const parseBuild: Decoder<BuildResult> = decode(buildSchema)
 const parseStoredOutput: Decoder<StoredOutput> = decode(storedOutputSchema)
+const parseRemovedOutput: Decoder<RemovedOutput> = decode(
+  v.pipe(
+    fields({ id: text, removed_at: timestamp }),
+    v.transform((removed): RemovedOutput => ({
+      id: removed.id,
+      removedAt: removed.removed_at,
+    })),
+  ),
+)
+// The same admission a first build's link passes: this origin's own plain-HTTP
+// subscription path, and nothing else.
+const parseReissuedSubscription: Decoder<string> = decode(
+  v.pipe(
+    fields({ subscription_url: text }),
+    v.check((reply) => validSubscriptionURL(reply.subscription_url)),
+    v.transform((reply) => reply.subscription_url),
+  ),
+)
 
 const validSubscriptionURL = (value: string): boolean => {
   try {

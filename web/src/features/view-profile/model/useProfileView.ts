@@ -44,6 +44,8 @@ import {
 import {
   addOutput,
   buildOutput,
+  reissueSubscription,
+  removeOutput,
   setOutputDevice,
   type OutputCard,
 } from '@/shared/api/outputs'
@@ -61,7 +63,28 @@ export type WorkState =
   | 'binding'
   | 'rebuilding'
   | 'archiving'
+  | 'reissuing'
+  | 'removing'
   | 'failed'
+
+// Links reissued in this tab, keyed by output. A reissue answers with a link
+// and nothing else, so it cannot be filed as a build; it is the same one-time
+// secret, held in memory for the life of the tab and never anywhere else.
+const reissuedLinks = ref<Record<string, string>>({})
+
+/**
+ * The message a refused action on one format states. Server English never
+ * reaches the operator: a code the screen knows is named, an absent format is
+ * a fact, and everything else is the common failure of that request.
+ */
+export const outputActionError = (error: unknown): string => {
+  if (!(error instanceof RoutevaneAPIError)) return 'error.network'
+  if (error.code === 'profile_archived') return 'outputs.error.archived'
+  if (error.code === 'subscription_not_issued')
+    return 'outputs.reissue.error.notIssued'
+  if (error.status === 404) return 'outputs.error.missing'
+  return 'error.unexpected'
+}
 
 /**
  * One stored profile and the formats it publishes in. The server names its facts;
@@ -110,9 +133,15 @@ export const useProfileView = (profileID: () => string) => {
   const exportFailed = ref(false)
 
   const busy = computed(() =>
-    ['saving', 'adding', 'binding', 'rebuilding', 'archiving'].includes(
-      work.value,
-    ),
+    [
+      'saving',
+      'adding',
+      'binding',
+      'rebuilding',
+      'archiving',
+      'reissuing',
+      'removing',
+    ].includes(work.value),
   )
 
   // An archived profile is fully readable and fully downloadable; what it no
@@ -143,7 +172,12 @@ export const useProfileView = (profileID: () => string) => {
   const snapshotID = computed(
     () => fresh.value?.snapshotID ?? latest.value?.snapshotID ?? '',
   )
-  const subscriptionURL = computed(() => fresh.value?.subscriptionURL ?? '')
+  const subscriptionURL = computed(
+    () =>
+      reissuedLinks.value[selectedOutputID.value] ??
+      fresh.value?.subscriptionURL ??
+      '',
+  )
   watch(
     [selectedOutputID, subscriptionURL],
     () => {
@@ -468,6 +502,60 @@ export const useProfileView = (profileID: () => string) => {
     work.value = done ? 'idle' : 'failed'
   }
 
+  /** rebuildOutput refreshes the profile and rebuilds one format only. */
+  const rebuildOutput = async (outputID: string): Promise<boolean> => {
+    if (busy.value || archived.value) return false
+    work.value = 'rebuilding'
+    rebuildFailed.value = false
+    const done = await publish([outputID])
+    forgetLoadedDetail()
+    await initialize()
+    work.value = done ? 'idle' : 'failed'
+    return done
+  }
+
+  /**
+   * reissue withdraws a format's link and shows its replacement once, exactly
+   * as a first publication does. Its answer is a message key on refusal, or
+   * null once the new link is on screen.
+   */
+  const reissue = async (outputID: string): Promise<string | null> => {
+    if (busy.value) return 'error.unexpected'
+    work.value = 'reissuing'
+    try {
+      const link = await reissueSubscription(outputID)
+      reissuedLinks.value = { ...reissuedLinks.value, [outputID]: link }
+      selectOutput(outputID)
+      return null
+    } catch (error) {
+      return outputActionError(error)
+    } finally {
+      work.value = 'idle'
+    }
+  }
+
+  /**
+   * remove retires one format for good (ADR 0051). The profile is read again,
+   * because the format, its link and its binding are gone from the server.
+   */
+  const remove = async (outputID: string): Promise<string | null> => {
+    if (busy.value) return 'error.unexpected'
+    work.value = 'removing'
+    try {
+      await removeOutput(outputID)
+    } catch (error) {
+      work.value = 'idle'
+      return outputActionError(error)
+    }
+    reissuedLinks.value = Object.fromEntries(
+      Object.entries(reissuedLinks.value).filter(([id]) => id !== outputID),
+    )
+    forgetLoadedDetail()
+    await initialize()
+    work.value = 'idle'
+    return null
+  }
+
   /**
    * save stores a new name and composition and republishes every output, so a
    * saved profile and its files never quietly disagree.
@@ -664,6 +752,9 @@ export const useProfileView = (profileID: () => string) => {
     partialCoverageCount,
     rebuild,
     rebuildFailed,
+    rebuildOutput,
+    reissue,
+    remove,
     registerCatalog,
     rereadFailed,
     reveal,

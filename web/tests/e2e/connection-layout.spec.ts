@@ -3,7 +3,11 @@ import { join } from 'node:path'
 import { expect, type Page } from '@playwright/test'
 import { audit, auditWidths, reviewRoot } from './support/audits'
 import { copyFor, type Copy } from './support/copy'
-import { catalogDisclosure, deviceField } from './support/queries'
+import {
+  catalogDisclosure,
+  chooseFormatAction,
+  deviceField,
+} from './support/queries'
 import { test } from './support/served-product'
 
 test.use({ productData: 'connection-layout', productCatalog: 'catalog' })
@@ -27,6 +31,12 @@ const expectAlignedFields = async (page: Page, copy: Copy): Promise<void> => {
   expect(boxes[2]!.x).toBeLessThan(boxes[3]!.x)
   expect(boxes[2]!.y).toBeCloseTo(boxes[3]!.y, 0)
 }
+
+// The domain-based format's name, as the row menu announces it.
+const DNS_TITLE = {
+  en: 'Keenetic (domain-based)',
+  ru: 'Keenetic (по доменам)',
+} as const
 
 for (const locale of ['en', 'ru'] as const) {
   test.describe(`connection layout (${locale})`, () => {
@@ -200,15 +210,25 @@ for (const locale of ['en', 'ru'] as const) {
       await page
         .getByRole('tab', { name: copy('profile.tab.outputs'), exact: true })
         .click()
-      const prefix = page.getByRole('textbox', { name: copy('outputs.prefix') })
-      await expect(prefix).toBeVisible()
+      // The prefix lives in the format's settings dialog, not beside the table.
+      const dnsTitle = DNS_TITLE[locale]
+      await chooseFormatAction(page, dnsTitle, 'outputs.menu.settings', copy)
+      const settings = page.getByRole('dialog', {
+        name: copy('outputs.settings.title').replace('{target}', dnsTitle),
+      })
+      const prefix = settings.getByRole('textbox', {
+        name: copy('outputs.prefix'),
+      })
       await prefix.fill('home-vpn')
-      await page
-        .getByRole('button', { name: copy('outputs.prefix.save') })
+      await settings
+        .getByRole('button', { name: copy('outputs.prefix.save'), exact: true })
         .click()
-      await expect(page.getByText(copy('outputs.prefix.saved'))).toBeVisible()
+      await expect(settings).toBeHidden()
       await page.reload()
+      await chooseFormatAction(page, dnsTitle, 'outputs.menu.settings', copy)
       await expect(prefix).toHaveValue('home-vpn')
+      await page.keyboard.press('Escape')
+      await expect(settings).toBeHidden()
       await page.setViewportSize({ width: 1440, height: 900 })
       const table = page.getByRole('table')
       await expect(
@@ -238,15 +258,24 @@ for (const locale of ['en', 'ru'] as const) {
       expect(await auditWidths(page, `connections-profile-${locale}`)).toEqual(
         [],
       )
+      // The settings dialog keeps the prefix and its Save reachable in a short
+      // window and with enlarged text.
       await page.setViewportSize({ width: 1280, height: 640 })
-      await page
-        .getByRole('button', { name: copy('outputs.prefix.save') })
-        .scrollIntoViewIfNeeded()
+      await chooseFormatAction(page, dnsTitle, 'outputs.menu.settings', copy)
+      const save = settings.getByRole('button', {
+        name: copy('outputs.prefix.save'),
+        exact: true,
+      })
+      await save.scrollIntoViewIfNeeded()
+      await expect(save).toBeInViewport()
       await expect(prefix).toBeVisible()
       await page.evaluate(() => {
         document.documentElement.style.fontSize = '200%'
       })
       await prefix.scrollIntoViewIfNeeded()
+      await expect(prefix).toBeInViewport()
+      await save.scrollIntoViewIfNeeded()
+      await expect(save).toBeInViewport()
       expect(
         await audit(page, `connections-profile-${locale}-large-text`),
       ).toEqual([])
@@ -256,6 +285,8 @@ for (const locale of ['en', 'ru'] as const) {
       await page.evaluate(() => {
         document.documentElement.style.fontSize = ''
       })
+      await page.keyboard.press('Escape')
+      await expect(settings).toBeHidden()
       await page.goto(`${origin}/connections`)
       await catalogDisclosure(page, copy).click()
       await expect(page.getByRole('table')).toBeVisible()

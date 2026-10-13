@@ -23,6 +23,8 @@ import {
 } from './support/geometry'
 import {
   cardMembership,
+  chooseFormatAction,
+  formatMenu,
   linkTo,
   menuPanel,
   nameField,
@@ -114,10 +116,13 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   await expect(scheduleTrigger).toBeVisible()
   const scheduleGround = async (): Promise<string> =>
     scheduleTrigger.evaluate((node) => getComputedStyle(node).backgroundColor)
-  const scheduleHeading = page.getByRole('heading', {
-    name: englishCopy('profile.schedule'),
-    exact: true,
-  })
+  // The refresh rule is one field above the format table. Its caption is a
+  // label, which hovers the field it names, so the neutral ground is the
+  // table's own header.
+  const scheduleHeading = page
+    .getByRole('tabpanel', { name: 'Publishing' })
+    .getByRole('columnheader')
+    .first()
   await settleAnimations(page)
   const atRest = await scheduleGround()
   // A choice trigger is a field, and a field has no hover state (docs/UI.md):
@@ -184,9 +189,10 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   await tablist.getByRole('tab', { name: 'Diagnostics' }).click()
   expect((await snapshotResponse).status()).toBe(200)
   const diagnosticsPanel = page.getByRole('tabpanel', { name: 'Diagnostics' })
-  // The panel states the per-list counts first and the rules themselves after,
-  // so the first list it holds is what each list contributed.
-  const counts = diagnosticsPanel.getByRole('list').first()
+  // The rules are one table; what each list contributed follows it.
+  const counts = diagnosticsPanel
+    .getByRole('region', { name: englishCopy('profile.diagnostics.perList') })
+    .getByRole('list')
   await expect(counts).toContainText('Discord')
   await expect(counts).not.toContainText('YouTube')
   await expect(counts).toContainText('1 rule')
@@ -198,7 +204,7 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   await expect(diagnosticsPanel).not.toContainText('unsupported_by_target')
 
   // A reload restores the profile from the server. The one-time link does not
-  // come back, and in the default detail mode nothing even mentions it.
+  // come back; the format's own tab says so, in every detail mode.
   const requestsBeforeReload = requestURLs.length
   await page.reload()
   await expect(
@@ -214,11 +220,6 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   ).toHaveCount(0)
   await expect(
     page.getByRole('button', { name: 'Show', exact: true }),
-  ).toHaveCount(0)
-  await expect(
-    page.getByText(
-      'The subscription link was shown when the profile was created.',
-    ),
   ).toHaveCount(0)
   expect(await page.content()).not.toContain('rv1.')
   const storedAfterReload = await page.evaluate(() => ({
@@ -277,8 +278,8 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
     .click()
   await page.waitForURL(profileURL)
 
-  // The expert mode is what states the link's fate in words, and it is also
-  // the only mode that puts identifiers on the screen.
+  // The expert mode is the only mode that puts identifiers on the screen; the
+  // link's fate is stated in it too.
   await page
     .getByRole('navigation', { name: 'Sections' })
     .getByRole('link', { name: 'Settings' })
@@ -292,12 +293,13 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   await expect(
     page.getByRole('heading', { level: 1, name: 'Chat and video' }),
   ).toBeVisible()
+  await expect(page.getByText('Technical details')).toBeVisible()
+  await tablist.getByRole('tab', { name: 'Publishing' }).click()
   await expect(
     page.getByText(
-      'The subscription link was shown when the profile was created.',
+      englishCopy('profile.subscription.gone').replace('{target}', 'Keenetic'),
     ),
   ).toBeVisible()
-  await expect(page.getByText('Technical details')).toBeVisible()
 
   expect(pageErrors).toEqual([])
   assertProductAlive()
@@ -354,13 +356,21 @@ test('a failed first build remains retryable and exposes no subscription', async
   })
 
   await page.goto(`${origin}/profiles/${failedProfileID}`)
-  await expect(page.getByText('Refresh failed', { exact: true })).toBeVisible()
+  // Nothing was ever published: the header and the notice both say the build
+  // failed, and the notice carries the rebuild itself.
+  const buildFailed = page.getByText('Build failed', { exact: true })
+  await expect(buildFailed).toHaveCount(2)
+  const failureNotice = page
+    .getByRole('status')
+    .filter({ hasText: 'Build failed' })
+  await expect(
+    failureNotice.getByRole('button', { name: 'Rebuild files', exact: true }),
+  ).toBeVisible()
   // The editor says the same thing the build reported, before the operator
   // presses anything, and still lets the profile be saved.
   await expect(
     page.getByText('Limited fixture: ≈ 2 of 1 — will not fit'),
   ).toBeVisible()
-  await expect(page.getByText('Format not updated')).toBeVisible()
   await expect(
     page.getByText(
       'This needs 2 rules, but the format accepts at most 1. Remove some lists or choose another format.',
@@ -382,7 +392,7 @@ test('a failed first build remains retryable and exposes no subscription', async
   await page.getByRole('link', { name: 'Profiles' }).first().click()
   await page.waitForURL(`${origin}/`)
   await linkTo(page, `/profiles/${failedProfileID}`).click()
-  await expect(page.getByText('Format not updated')).toBeVisible()
+  await expect(buildFailed).toHaveCount(2)
   await page
     .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Publishing' })
@@ -393,7 +403,7 @@ test('a failed first build remains retryable and exposes no subscription', async
     .getByRole('button', { name: /Actions for profile/ })
     .click()
   await menuPanel(page).getByRole('menuitem', { name: 'Rebuild files' }).click()
-  await expect(page.getByText('Format not updated')).toBeVisible()
+  await expect(buildFailed).toHaveCount(2)
   await expect(
     page.getByRole('heading', { name: /^Subscription link/ }),
   ).toHaveCount(0)
@@ -407,10 +417,10 @@ test('send links navigate through the router for one and multiple published outp
   const menu = page.getByRole('button', {
     name: 'Actions for profile Discord, YouTube',
   })
+  // Send is one submenu of formats, even for one.
   await menu.click()
-  await page
-    .getByRole('menuitem', { name: 'Send to Keenetic', exact: true })
-    .click()
+  await page.getByRole('menuitem', { name: 'Send', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Keenetic', exact: true }).click()
   await expect(page).toHaveURL(
     `${origin}/profiles/${profileId}/send/${outputId}`,
   )
@@ -428,12 +438,8 @@ test('send links navigate through the router for one and multiple published outp
   expect(built.ok()).toBe(true)
   await page.goto(`${origin}/profiles/${profileId}`)
   await menu.click()
-  await page
-    .getByRole('menuitem', { name: 'Send the file', exact: true })
-    .click()
-  await page
-    .getByRole('menuitem', { name: 'Send to sing-box', exact: true })
-    .click()
+  await page.getByRole('menuitem', { name: 'Send', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'sing-box', exact: true }).click()
   await expect(page).toHaveURL(
     `${origin}/profiles/${profileId}/send/${output.id}`,
   )
@@ -618,4 +624,278 @@ test('a refused schedule change keeps the confirmed value and retries visibly', 
   const response = await page.request.get(`${origin}/v1/profiles/${profileId}`)
   const detail = (await response.json()) as { schedule: { interval: string } }
   expect(detail.schedule.interval).toBe('daily')
+})
+
+const publishingTab = (page: Page) =>
+  page
+    .getByRole('tablist', { name: 'Profile sections' })
+    .getByRole('tab', { name: 'Publishing' })
+
+/** The one-time link on screen, revealed and read as the operator copies it. */
+const revealedLink = async (page: Page, origin: string): Promise<string> => {
+  const secret = page.getByRole('region', { name: /^Subscription link/ })
+  await secret.getByRole('button', { name: 'Show', exact: true }).click()
+  const value = secret.getByText(`${origin}/v1/subscriptions/rv1.`)
+  await expect(value).toBeVisible()
+  return ((await value.textContent()) ?? '').trim()
+}
+
+test('the row menu issues a new link that withdraws the old one and shows it once', async ({
+  page,
+  origin,
+}) => {
+  const { outputId } = await buildProfile(page, origin)
+  const original = await revealedLink(page, origin)
+  expect((await page.request.get(original)).status()).toBe(200)
+
+  // Every act on a format is in its row's menu, in one order; a format that
+  // has published offers a new link.
+  await publishingTab(page).click()
+  await formatMenu(page, 'Keenetic').click()
+  await expect(menuPanel(page).getByRole('menuitem')).toHaveText([
+    'Rebuild',
+    'Issue a new link…',
+    'Remove format…',
+  ])
+  await page.keyboard.press('Escape')
+
+  await chooseFormatAction(page, 'Keenetic', 'outputs.menu.reissue')
+  const confirm = page.getByRole('dialog', {
+    name: 'Issue a new link for Keenetic?',
+  })
+  await expect(confirm).toContainText(
+    englishCopy('outputs.reissue.confirm.body'),
+  )
+  const [reissued] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname ===
+          `/v1/outputs/${outputId}/subscription/reissue`,
+    ),
+    confirm
+      .getByRole('button', { name: 'Issue a new link', exact: true })
+      .click(),
+  ])
+  expect(reissued.ok()).toBe(true)
+  await expect(confirm).toBeHidden()
+
+  const replacement = await revealedLink(page, origin)
+  expect(replacement).not.toBe(original)
+  // The old link stops working at that moment; the new one answers.
+  const withdrawn = await page.request.get(original)
+  expect(withdrawn.status()).toBe(410)
+  await expect(withdrawn.json()).resolves.toMatchObject({
+    code: 'subscription_revoked',
+  })
+  expect((await page.request.get(replacement)).status()).toBe(200)
+
+  // Shown once: a reload states that the link is gone and offers a new one.
+  const token = replacement.slice(replacement.indexOf('rv1.'))
+  await page.reload()
+  await expect(
+    page.getByRole('heading', { name: /^Subscription link/ }),
+  ).toHaveCount(0)
+  await publishingTab(page).click()
+  const publishing = page.getByRole('tabpanel', { name: 'Publishing' })
+  await expect(
+    publishing.getByText(
+      englishCopy('profile.subscription.gone').replace('{target}', 'Keenetic'),
+    ),
+  ).toBeVisible()
+  await expect(
+    publishing.getByRole('button', { name: 'Issue a new link…', exact: true }),
+  ).toBeVisible()
+  expect(await page.content()).not.toContain(token)
+  const stored = await page.evaluate(() =>
+    JSON.stringify({
+      local: { ...localStorage },
+      session: { ...sessionStorage },
+    }),
+  )
+  expect(stored).not.toContain(token)
+})
+
+test('the row menu removes a format after stating what removal does', async ({
+  page,
+  origin,
+}) => {
+  const { profileId } = await buildProfile(page, origin)
+  const headers = { Origin: origin, 'X-Routevane-Request': '1' }
+  const added = await page.request.post(
+    `${origin}/v1/profiles/${profileId}/outputs`,
+    { headers, data: { target_id: 'singbox' } },
+  )
+  expect(added.ok()).toBe(true)
+  const { output } = (await added.json()) as { output: { id: string } }
+  await page.reload()
+  await publishingTab(page).click()
+  const publishing = page.getByRole('tabpanel', { name: 'Publishing' })
+  const row = publishing.getByRole('row').filter({ hasText: 'sing-box' })
+  await expect(row).toHaveCount(1)
+
+  await chooseFormatAction(page, 'sing-box', 'outputs.menu.remove')
+  const confirm = page.getByRole('dialog', {
+    name: 'Remove the sing-box format?',
+  })
+  await expect(confirm).toContainText(
+    englishCopy('outputs.remove.confirm.body'),
+  )
+  // Cancelling changes nothing.
+  await confirm.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(confirm).toBeHidden()
+  await expect(row).toHaveCount(1)
+
+  await chooseFormatAction(page, 'sing-box', 'outputs.menu.remove')
+  const [removed] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === `/v1/outputs/${output.id}/remove`,
+    ),
+    confirm.getByRole('button', { name: 'Remove format', exact: true }).click(),
+  ])
+  expect(removed.ok()).toBe(true)
+  await expect(row).toHaveCount(0)
+  await expect(
+    publishing.getByRole('row').filter({ hasText: 'Keenetic' }),
+  ).toHaveCount(1)
+  const detail = (await (
+    await page.request.get(`${origin}/v1/profiles/${profileId}`)
+  ).json()) as { outputs: { id: string }[] }
+  expect(detail.outputs.map((candidate) => candidate.id)).not.toContain(
+    output.id,
+  )
+})
+
+test('diagnostics is one table of rules with a list filter and a search', async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await buildProfile(page, origin)
+  await page
+    .getByRole('tablist', { name: 'Profile sections' })
+    .getByRole('tab', { name: 'Diagnostics' })
+    .click()
+  const rules = page
+    .getByRole('tabpanel', { name: 'Diagnostics' })
+    .getByRole('region', {
+      name: englishCopy('profile.diagnostics.rules'),
+      exact: true,
+    })
+  const table = rules.getByRole('table')
+  // The file excluded something, so each rule states whether it entered.
+  await expect(table.getByRole('columnheader')).toHaveText([
+    'State',
+    'List',
+    'Value',
+    'Reason',
+  ])
+  // Body rows are the rows that hold cells; the header row holds column
+  // headers only.
+  const rows = table.getByRole('row').filter({ has: page.getByRole('cell') })
+  const total = await rows.count()
+  expect(total).toBeGreaterThan(1)
+  await expect(rows.filter({ hasText: 'Excluded' }).first()).toBeVisible()
+  await expect(table).toContainText('not supported by this format')
+
+  // The list filter keeps the rules of one list.
+  const listFilter = rules.getByRole('combobox', { name: 'List', exact: true })
+  await listFilter.click()
+  await page.getByRole('option', { name: 'YouTube', exact: true }).click()
+  await expect(listFilter).toHaveText('YouTube')
+  await expect(rows.first()).toBeVisible()
+  const youtube = await rows.count()
+  expect(youtube).toBeGreaterThan(0)
+  expect(youtube).toBeLessThan(total)
+  for (const row of await rows.all())
+    await expect(row.getByRole('cell').nth(1)).toHaveText('YouTube')
+
+  // The search narrows by value, and says when nothing is left.
+  await listFilter.click()
+  await page.getByRole('option', { name: 'All lists', exact: true }).click()
+  await expect(rows).toHaveCount(total)
+  const search = rules.getByRole('searchbox', { name: 'Find a rule' })
+  // The fixture's loopback observation was refused in both lists.
+  await search.fill('127.0.0.1')
+  await expect(rows).toHaveCount(2)
+  await expect(rows).toContainText(['127.0.0.1', '127.0.0.1'])
+  await search.fill('no-such-rule.invalid')
+  await expect(rows).toHaveCount(1)
+  await expect(rows.first()).toHaveText(englishCopy('choice.empty'))
+
+  // The table fills the window below its heading, as the composition does.
+  const height = (await rules.boundingBox())!.height
+  expect(height).toBeGreaterThan(900 * 0.6)
+})
+
+test('publishing cells stay on one line at 1024px and archived facts keep their height', async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 700 })
+  const { profileId } = await buildProfile(page, origin)
+  await publishingTab(page).click()
+  const publishing = page.getByRole('tabpanel', { name: 'Publishing' })
+  const table = publishing.getByRole('table')
+  await expect(table).toBeVisible()
+  // Every piece of text in the format and date cells is one line box: a long
+  // name is shortened, never wrapped.
+  const wrapped = await table.evaluate((node) => {
+    const found: string[] = []
+    for (const cell of node.querySelectorAll(
+      'tbody td:nth-child(1), tbody td:nth-child(3)',
+    )) {
+      const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT)
+      for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+        if ((text.textContent ?? '').trim() === '') continue
+        const range = document.createRange()
+        range.selectNodeContents(text)
+        const tops = new Set(
+          [...range.getClientRects()].map((rect) => Math.round(rect.top)),
+        )
+        if (tops.size > 1) found.push(text.textContent!.trim())
+      }
+    }
+    return found
+  })
+  expect(wrapped).toEqual([])
+  await expect(table).toContainText('.bat')
+  // A narrow panel moves Download and Send into the row's menu, and the
+  // trigger keeps its full target.
+  const menu = formatMenu(page, 'Keenetic')
+  const trigger = (await menu.boundingBox())!
+  expect(Math.min(trigger.width, trigger.height)).toBeGreaterThanOrEqual(24)
+  await menu.click()
+  await expect(menuPanel(page).getByRole('menuitem')).toHaveText([
+    'Download',
+    'Send',
+    'Rebuild',
+    'Issue a new link…',
+    'Remove format…',
+  ])
+  await page.keyboard.press('Escape')
+
+  // An archived profile states its facts at their own height instead of
+  // stretching them to the window the composition would fill.
+  const archived = await page.request.post(
+    `${origin}/v1/profiles/${profileId}/archive`,
+    { headers: { Origin: origin, 'X-Routevane-Request': '1' }, data: {} },
+  )
+  expect(archived.ok()).toBe(true)
+  await page.goto(`${origin}/profiles/${profileId}`)
+  const terms = page
+    .getByRole('tabpanel', { name: 'Contents' })
+    .getByRole('term')
+  await expect(terms.first()).toBeVisible()
+  // Each fact is a term and its value on one row of the ledger.
+  const rowHeights = await terms.evaluateAll((items) =>
+    items.map((term) => term.parentElement!.getBoundingClientRect().height),
+  )
+  expect(rowHeights.length).toBeGreaterThan(1)
+  for (const height of rowHeights) expect(height).toBeLessThan(64)
+  // The archived row offers no change to its formats.
+  await publishingTab(page).click()
+  await expect(formatMenu(page, 'Keenetic')).toHaveCount(0)
 })

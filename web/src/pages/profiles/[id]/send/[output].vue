@@ -4,8 +4,10 @@ import { computed, onMounted } from 'vue'
 import SendPanel from '@/features/send-artifact/ui/SendPanel.vue'
 import { useProfileView } from '@/features/view-profile/model/useProfileView'
 import { useLocale } from '@/shared/i18n/useLocale'
+import { legacyImportedOrdinal } from '@/shared/lib/legacyProfile'
 import AppShell from '@/widgets/app-shell/ui/AppShell.vue'
 import RvButton from '@/shared/ui/RvButton.vue'
+import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 
 const route = useRoute()
@@ -32,6 +34,37 @@ const target = computed(
     ) ?? null,
 )
 
+// The way back names the profile as its own page does, an imported one
+// included; a profile the page could not read is left out of the trail.
+const profileName = computed(() => {
+  const name = view.profile.value?.name ?? ''
+  const ordinal = legacyImportedOrdinal(name)
+  return ordinal === null
+    ? name
+    : t('profiles.imported.name', { number: ordinal })
+})
+const breadcrumbs = computed(() => [
+  { label: t('profiles.title'), to: '/' },
+  ...(profileName.value === ''
+    ? []
+    : [{ label: profileName.value, to: `/profiles/${profileId.value}` }]),
+])
+const formatTitle = computed(() =>
+  output.value === null ? '' : view.outputTitle(output.value),
+)
+const heading = computed(() =>
+  formatTitle.value === ''
+    ? t('send.title')
+    : t('send.heading', { format: formatTitle.value }),
+)
+// The name the format's FQDN groups carry on the router (ADR 0049); empty for a
+// format that has none.
+const groupPrefix = computed(() =>
+  output.value?.targetID === 'keenetic-dns'
+    ? output.value.fqdnGroupPrefix || 'routevane'
+    : '',
+)
+
 useHead({
   title: computed(
     () => `${t('shell.product')} · ${t('send.title').toLowerCase()}`,
@@ -55,12 +88,15 @@ onMounted(reload)
         output === null ||
         output.latest === null
       "
-      aria-labelledby="send-entry-title"
+      aria-labelledby="send-title"
       class="send-entry"
     >
-      <h1 id="send-entry-title" class="send-entry__title">
-        {{ t('send.title') }}
-      </h1>
+      <RvPageHeader
+        :breadcrumb-label="t('profile.breadcrumb')"
+        :breadcrumbs="breadcrumbs"
+        :title="heading"
+        title-id="send-title"
+      />
       <RvStateNotice
         v-if="view.state.value === 'loading'"
         live
@@ -84,39 +120,24 @@ onMounted(reload)
         live
         :title="t('profile.missing')"
         tone="failed"
-      >
-        <template #action>
-          <RvButton to="/" variant="secondary">{{ t('action.back') }}</RvButton>
-        </template>
-      </RvStateNotice>
+      />
       <RvStateNotice
         v-else-if="output === null"
         :body="t('send.connection.missing.body')"
         live
         :title="t('send.connection.missing')"
         tone="failed"
-      >
-        <template #action>
-          <RvButton :to="`/profiles/${profileId}`" variant="secondary">{{
-            t('send.back')
-          }}</RvButton>
-        </template>
-      </RvStateNotice>
-      <RvStateNotice v-else :title="t('profiles.noArtifact')" tone="waiting">
-        <template #action>
-          <RvButton :to="`/profiles/${profileId}`" variant="secondary">
-            {{ t('send.back') }}
-          </RvButton>
-        </template>
-      </RvStateNotice>
+      />
+      <RvStateNotice v-else :title="t('profiles.noArtifact')" tone="waiting" />
     </section>
     <SendPanel
       v-else-if="output !== null && output.latest !== null"
       :key="`${profileId}:${output.id}:${output.targetID}:${output.latest.id}`"
       :artifact-id="output.latest.id"
+      :breadcrumbs="breadcrumbs"
+      :group-prefix="groupPrefix"
+      :heading="heading"
       :preferred-device-id="output.deviceID"
-      :profile-id="profileId"
-      :profile-name="view.profile.value?.name ?? ''"
       :target="target"
       :target-id="output.targetID"
     />
@@ -127,11 +148,5 @@ onMounted(reload)
 .send-entry {
   display: grid;
   gap: var(--rv-space-6);
-}
-
-.send-entry__title {
-  font-weight: 700;
-  font-size: var(--rv-text-page);
-  line-height: var(--rv-leading-tight);
 }
 </style>

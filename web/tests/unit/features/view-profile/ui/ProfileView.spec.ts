@@ -214,13 +214,18 @@ describe('profile screen read boundaries', () => {
 
     await screen.getByRole('tab', { name: 'Publishing' }).click()
     const publishing = screen.getByRole('tabpanel', { name: 'Publishing' })
+    // The choice is named by the connection; what it can do is stated once.
     await expect
       .element(publishing.getByLabelText('Connection for Keenetic'))
-      .toHaveTextContent('Home router · manual send only')
+      .toHaveTextContent('Home router')
+    await expect
+      .element(publishing.getByLabelText('Connection for Keenetic'))
+      .not.toHaveTextContent('·')
     await expect
       .element(
         publishing.getByText(
-          'Automatic delivery is unavailable on this system. Use Send with a password for each delivery.',
+          'This system has no password store: manual sending only',
+          { exact: true },
         ),
       )
       .toBeVisible()
@@ -228,9 +233,7 @@ describe('profile screen read boundaries', () => {
       .element(publishing.getByRole('link', { name: 'Send', exact: true }))
       .toHaveAttribute('href', '/profiles/profile-1/send/output-1')
     await expect
-      .element(
-        publishing.getByText('Turn on automatic delivery in Connections'),
-      )
+      .element(publishing.getByText('Automatic delivery is off'))
       .not.toBeInTheDocument()
   })
 
@@ -341,7 +344,7 @@ it('keeps the saved schedule on refusal and retries the requested interval', asy
   const screen = await renderRoute(true)
   await screen.getByRole('tab', { name: 'Publishing' }).click()
   const schedule = screen.getByRole('combobox', {
-    name: 'Refresh',
+    name: 'Profile refresh',
     exact: true,
   })
   await schedule.click()
@@ -380,6 +383,18 @@ describe('profile re-read after a write', () => {
       },
     })
 
+  // Leaving a format without a connection is the «None» choice of its own
+  // connection field.
+  const unbind = async (
+    screen: Awaited<ReturnType<typeof renderWorkspace>>,
+  ): Promise<void> => {
+    await screen
+      .getByRole('tabpanel', { name: 'Publishing' })
+      .getByLabelText('Connection for Keenetic')
+      .click()
+    await screen.getByRole('option', { name: 'None', exact: true }).click()
+  }
+
   const profileReads = (fetchMock: ReturnType<typeof vi.fn>): number =>
     fetchMock.mock.calls.filter(
       ([input]) => String(input) === '/v1/profiles/profile-1',
@@ -396,9 +411,7 @@ describe('profile re-read after a write', () => {
     const publishing = screen.getByRole('tabpanel', { name: 'Publishing' })
     const reread = Promise.withResolvers<undefined>()
     scenario.holdRoute = reread.promise
-    await publishing
-      .getByRole('button', { name: 'Detach', exact: true })
-      .click()
+    await unbind(screen)
 
     await expect.poll(() => profileReads(fetchMock)).toBe(2)
     await expect
@@ -410,7 +423,7 @@ describe('profile re-read after a write', () => {
 
     reread.resolve(undefined)
     await expect
-      .element(publishing.getByRole('button', { name: 'Detach', exact: true }))
+      .element(publishing.getByText('Home router'))
       .not.toBeInTheDocument()
 
     await screen.getByRole('tab', { name: 'Contents' }).click()
@@ -427,9 +440,7 @@ describe('profile re-read after a write', () => {
     const publishing = screen.getByRole('tabpanel', { name: 'Publishing' })
 
     scenario.routeStatus = 503
-    await publishing
-      .getByRole('button', { name: 'Detach', exact: true })
-      .click()
+    await unbind(screen)
 
     await expect
       .element(screen.getByText('The page was not updated'))

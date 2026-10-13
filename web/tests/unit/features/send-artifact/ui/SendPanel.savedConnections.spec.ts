@@ -23,7 +23,7 @@ const outcome = (
 })
 
 const scenario = (
-  consent = true,
+  stored = true,
   status: 'succeeded' | 'outcome_unknown' = 'succeeded',
 ) => {
   const selected = {
@@ -34,7 +34,9 @@ const scenario = (
     address: 'http://192.168.1.1',
     account: 'home-admin',
     interface: 'Wireguard0',
-    auto_deliver: consent,
+    // A saved password is its own fact, apart from automatic delivery.
+    auto_deliver: false,
+    credential_stored: stored,
     deployable: true,
   }
   const alternate = {
@@ -44,7 +46,8 @@ const scenario = (
     address: 'http://192.168.1.2',
     account: 'office-admin',
     interface: 'Wireguard1',
-    auto_deliver: false,
+    auto_deliver: true,
+    credential_stored: false,
   }
   const fetchMock = vi.fn(async (input: unknown, init?: RequestInit) => {
     const path = String(input)
@@ -87,6 +90,10 @@ const scenario = (
         ],
       })
     }
+    if (path.endsWith('/credential'))
+      return json({
+        device: { id: path.split('/')[3], credential_stored: true },
+      })
     if (path.startsWith('/v1/deployment-attempts/'))
       return json(
         outcome(path.slice('/v1/deployment-attempts/'.length), status),
@@ -113,13 +120,22 @@ const scenario = (
   })
   const props = {
     artifactId: 'artifact',
-    profileId: 'profile',
-    profileName: 'Profile',
+    breadcrumbs: [],
+    groupPrefix: '',
+    heading: 'Send · Keenetic',
     targetId: 'keenetic',
     target: null,
     preferredDeviceId: selected.id,
   }
   return { selected, alternate, fetchMock, props }
+}
+
+const links = {
+  global: {
+    stubs: {
+      NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+    },
+  },
 }
 
 afterEach(() => {
@@ -128,101 +144,218 @@ afterEach(() => {
   window.sessionStorage.clear()
 })
 
-it.each([
-  { language: 'en', consent: true },
-  { language: 'ru', consent: true },
-  { language: 'en', consent: false },
-  { language: 'ru', consent: false },
-] as const)(
-  'shows the bound access and uses consent=$consent in $language',
-  async ({ language, consent }) => {
-    const { setLocale, t } = useLocale()
-    setLocale(language)
-    const credential = crypto.randomUUID()
-    const { selected, fetchMock, props } = scenario(consent)
-    vi.stubGlobal('fetch', fetchMock)
-    const screen = await render(SendPanel, { props })
-    const connection = screen.getByRole('combobox', {
-      name: t('send.connection.label'),
-    })
-    await expect.element(connection).toHaveTextContent(selected.name)
+// Opens the panel on the bound connection, whose password is saved or not,
+// and checks what both cases share before any preview.
+const openBound = async (language: 'en' | 'ru', stored: boolean) => {
+  const { setLocale, t } = useLocale()
+  setLocale(language)
+  const { selected, fetchMock, props } = scenario(stored)
+  vi.stubGlobal('fetch', fetchMock)
+  const screen = await render(SendPanel, { props, ...links })
+  await expect
+    .element(screen.getByRole('combobox', { name: t('send.connection.label') }))
+    .toHaveTextContent(selected.name)
+  await expect
+    .element(
+      screen.getByRole('textbox', { name: t('deploy.field.account.keenetic') }),
+    )
+    .not.toBeInTheDocument()
+  const review = screen.getByRole('button', {
+    name: t('send.review'),
+    exact: true,
+  })
+  await expect.element(review).toBeEnabled()
+  return {
+    fetchMock,
+    password: screen.getByLabelText(t('send.field.password')),
+    review,
+    screen,
+    selected,
+    t,
+  }
+}
+
+// Previews and applies, then returns the two deploy bodies after checking
+// that nothing was saved and the password stayed out of session storage.
+const applyAndRead = async (
+  opened: Awaited<ReturnType<typeof openBound>>,
+  credential: string,
+) => {
+  const { fetchMock, review, screen, t } = opened
+  await review.click()
+  await screen
+    .getByRole('button', { name: t('send.apply'), exact: true })
+    .click()
+  await expect
+    .element(screen.getByText(t('send.applied'), { exact: true }))
+    .toBeVisible()
+  // Sending never saves a password nobody asked to keep.
+  expect(
+    fetchMock.mock.calls.filter(([input]) =>
+      /\/(auto-delivery|credential|device)$/.test(String(input)),
+    ),
+  ).toHaveLength(0)
+  expect(JSON.stringify({ ...window.sessionStorage })).not.toContain(credential)
+  return fetchMock.mock.calls
+    .filter(([input]) => String(input).endsWith('/deploy'))
+    .map(
+      ([, init]) => JSON.parse(String(init?.body)) as Record<string, unknown>,
+    )
+}
+
+const expectedPreview = (
+  selected: ReturnType<typeof scenario>['selected'],
+  password: string,
+) => ({
+  device_id: selected.id,
+  expected_connection: {
+    device: selected.address,
+    username: selected.account,
+    interface: selected.interface,
+  },
+  password,
+  confirm: false,
+})
+
+const confirmed = (preview: Record<string, unknown>) => ({
+  ...preview,
+  confirm: true,
+  attempt_id: expect.stringMatching(/^[a-f0-9]{32}$/),
+})
+
+it.each(['en', 'ru'] as const)(
+  'sends with the saved password and asks for none (%s)',
+  async (language) => {
+    const opened = await openBound(language, true)
+    const { password, screen, selected, t } = opened
     await expect
-      .element(screen.getByText(selected.address, { exact: true }))
+      .element(screen.getByText(t('send.password.stored'), { exact: true }))
       .toBeVisible()
-    await expect
-      .element(screen.getByText(selected.account, { exact: true }))
-      .toBeVisible()
-    await expect
-      .element(screen.getByText(selected.interface, { exact: true }))
-      .toBeVisible()
-    await expect
-      .element(screen.getByRole('textbox', { name: t('send.field.account') }))
-      .not.toBeInTheDocument()
-    const password = screen.getByLabelText(t('send.field.password'))
-    const review = screen.getByRole('button', {
-      name: t('send.review'),
-      exact: true,
-    })
-    await expect.element(password).toHaveValue('')
     await expect
       .element(
-        screen.getByText(
-          t(consent ? 'send.password.stored' : 'send.password.once'),
-        ),
+        screen.getByRole('button', { name: t('send.password.override') }),
       )
       .toBeVisible()
-    expect(review.element()).toHaveProperty('disabled', !consent)
-    if (!consent) await password.fill(credential)
-    await review.click()
-    await screen
-      .getByRole('button', { name: t('send.apply'), exact: true })
-      .click()
-    await expect
-      .element(screen.getByText(t('send.applied'), { exact: true }))
-      .toBeVisible()
-    await expect.element(password).toHaveValue('')
-    const requests = fetchMock.mock.calls
-      .filter(([input]) => String(input).endsWith('/deploy'))
-      .map(
-        ([, init]) => JSON.parse(String(init?.body)) as Record<string, unknown>,
-      )
-    expect(requests).toHaveLength(2)
-    expect(requests[0]).toEqual({
-      device_id: selected.id,
-      expected_connection: {
-        device: selected.address,
-        username: selected.account,
-        interface: selected.interface,
-      },
-      password: consent ? '' : credential,
-      confirm: false,
-    })
-    expect(requests[1]).toMatchObject({
-      ...requests[0],
-      confirm: true,
-      attempt_id: expect.stringMatching(/^[a-f0-9]{32}$/),
-    })
-    expect(
-      fetchMock.mock.calls.filter(
-        ([input]) =>
-          String(input).includes('/auto-delivery') ||
-          String(input).includes('/device'),
-      ),
-    ).toHaveLength(1)
-    expect(JSON.stringify({ ...window.sessionStorage })).not.toContain(
-      credential,
-    )
+    await expect.element(password).not.toBeInTheDocument()
+
+    const requests = await applyAndRead(opened, 'unused')
+
+    expect(requests).toEqual([
+      expectedPreview(selected, ''),
+      confirmed(expectedPreview(selected, '')),
+    ])
   },
 )
+
+it.each(['en', 'ru'] as const)(
+  'asks for the password of a connection without one and names it when empty (%s)',
+  async (language) => {
+    const credential = crypto.randomUUID()
+    const opened = await openBound(language, false)
+    const { fetchMock, password, review, screen, selected, t } = opened
+    await expect.element(password).toHaveValue('')
+    await expect
+      .element(screen.getByText(t('send.password.stored'), { exact: true }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('switch', { name: t('send.password.save') }))
+      .not.toBeChecked()
+    // An empty password is named beside its field when the preview is asked
+    // for, and nothing is sent.
+    await review.click()
+    await expect
+      .element(screen.getByText(t('send.field.required')))
+      .toBeVisible()
+    await expect.element(password).toHaveFocus()
+    expect(
+      fetchMock.mock.calls.some(([input]) => String(input).endsWith('/deploy')),
+    ).toBe(false)
+    await password.fill(credential)
+
+    const requests = await applyAndRead(opened, credential)
+
+    await expect.element(password).toHaveValue('')
+    expect(requests).toEqual([
+      expectedPreview(selected, credential),
+      confirmed(expectedPreview(selected, credential)),
+    ])
+  },
+)
+
+it('keeps a typed password in the connection only when asked, once the preview worked', async () => {
+  const { setLocale, t } = useLocale()
+  setLocale('en')
+  const credential = crypto.randomUUID()
+  const { selected, fetchMock, props } = scenario(false)
+  vi.stubGlobal('fetch', fetchMock)
+  const screen = await render(SendPanel, { props, ...links })
+  const keep = screen.getByRole('switch', { name: t('send.password.save') })
+  await expect
+    .element(screen.getByText(t('send.password.save.consequence')))
+    .toBeVisible()
+  await screen.getByLabelText(t('send.field.password')).fill(credential)
+  await keep.click()
+  await screen
+    .getByRole('button', { name: t('send.review'), exact: true })
+    .click()
+  await expect
+    .element(screen.getByText(t('send.password.stored'), { exact: true }))
+    .toBeVisible()
+  const saves = fetchMock.mock.calls.filter(([input]) =>
+    String(input).endsWith('/credential'),
+  )
+  expect(saves.map(([input]) => String(input))).toEqual([
+    `/v1/devices/${selected.id}/credential`,
+  ])
+  expect(JSON.parse(String(saves[0]?.[1]?.body))).toEqual({ credential })
+  // The preview made with that password still stands.
+  await expect
+    .element(screen.getByRole('button', { name: t('send.apply'), exact: true }))
+    .toBeVisible()
+})
+
+it('takes another password for one send without saving it', async () => {
+  const { setLocale, t } = useLocale()
+  setLocale('en')
+  const credential = crypto.randomUUID()
+  const { fetchMock, props } = scenario(true)
+  vi.stubGlobal('fetch', fetchMock)
+  const screen = await render(SendPanel, { props, ...links })
+  await screen
+    .getByRole('button', { name: t('send.password.override') })
+    .click()
+  const password = screen.getByLabelText(t('send.field.password'))
+  await expect.element(password).toHaveFocus()
+  await password.fill(credential)
+  await screen
+    .getByRole('button', { name: t('send.review'), exact: true })
+    .click()
+  await expect
+    .element(screen.getByRole('button', { name: t('send.apply'), exact: true }))
+    .toBeVisible()
+  const preview = fetchMock.mock.calls.find(([input]) =>
+    String(input).endsWith('/deploy'),
+  )
+  expect(JSON.parse(String(preview?.[1]?.body))).toMatchObject({
+    password: credential,
+  })
+  expect(
+    fetchMock.mock.calls.some(([input]) =>
+      String(input).endsWith('/credential'),
+    ),
+  ).toBe(false)
+})
 
 it('offers only compatible connections and discards the prior preview and password on selection', async () => {
   const { t } = useLocale()
   const credential = crypto.randomUUID()
   const { alternate, fetchMock, props } = scenario()
   vi.stubGlobal('fetch', fetchMock)
-  const screen = await render(SendPanel, { props })
-  const password = screen.getByLabelText(t('send.field.password'))
-  await password.fill(credential)
+  const screen = await render(SendPanel, { props, ...links })
+  await screen
+    .getByRole('button', { name: t('send.password.override') })
+    .click()
+  await screen.getByLabelText(t('send.field.password')).fill(credential)
   await screen
     .getByRole('button', { name: t('send.review'), exact: true })
     .click()
@@ -240,24 +373,27 @@ it('offers only compatible connections and discards the prior preview and passwo
     .element(screen.getByRole('option', { name: /No adapter/ }))
     .not.toBeInTheDocument()
   await screen.getByRole('option', { name: /^Office router/ }).click()
+  await expect.element(connection).toHaveTextContent(alternate.name)
   await expect
-    .element(screen.getByText(alternate.address, { exact: true }))
-    .toBeVisible()
-  await expect.element(password).toHaveValue('')
+    .element(screen.getByLabelText(t('send.field.password')))
+    .toHaveValue('')
   await expect
     .element(screen.getByRole('button', { name: t('send.apply'), exact: true }))
     .not.toBeInTheDocument()
+  // A missing password never makes the preview unavailable.
   await expect
     .element(
       screen.getByRole('button', { name: t('send.review'), exact: true }),
     )
-    .toBeDisabled()
+    .toBeEnabled()
   await connection.click()
   await screen
     .getByRole('option', { name: t('send.connection.manual'), exact: true })
     .click()
   await expect
-    .element(screen.getByRole('textbox', { name: t('send.field.account') }))
+    .element(
+      screen.getByRole('textbox', { name: t('deploy.field.account.keenetic') }),
+    )
     .toBeVisible()
   expect(
     fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/deploy')),
@@ -275,7 +411,7 @@ it('keeps manual entry usable when the saved registry cannot be loaded', async (
       : healthyFetch(input, init),
   )
   vi.stubGlobal('fetch', fetchMock)
-  const screen = await render(SendPanel, { props })
+  const screen = await render(SendPanel, { props, ...links })
   await expect
     .element(screen.getByText(t('send.connection.failed')))
     .toBeVisible()
@@ -283,7 +419,7 @@ it('keeps manual entry usable when the saved registry cannot be loaded', async (
     .getByRole('textbox', { name: t('deploy.field.address.keenetic') })
     .fill('http://192.168.1.8')
   await screen
-    .getByRole('textbox', { name: t('send.field.account') })
+    .getByRole('textbox', { name: t('deploy.field.account.keenetic') })
     .fill('manual-admin')
   await screen.getByLabelText(t('send.field.password')).fill(credential)
   await screen
@@ -315,7 +451,7 @@ it.each(['succeeded', 'outcome_unknown'] as const)(
     const credential = crypto.randomUUID()
     const { selected, alternate, fetchMock, props } = scenario(true, status)
     vi.stubGlobal('fetch', fetchMock)
-    const screen = await render(SendPanel, { props })
+    const screen = await render(SendPanel, { props, ...links })
     const connection = screen.getByRole('combobox', {
       name: t('send.connection.label'),
     })
@@ -331,19 +467,16 @@ it.each(['succeeded', 'outcome_unknown'] as const)(
     const delivery = screen.getByRole('region', {
       name: t('send.attempt.title'),
     })
+    // While the attempt went where the form still points, the choice above
+    // already names it.
+    await expect.element(delivery).toBeVisible()
     await expect
       .element(delivery.getByText(alternate.address, { exact: true }))
-      .toBeVisible()
+      .not.toBeInTheDocument()
 
     await connection.click()
     await screen.getByRole('option', { name: /^Home router/ }).click()
-    await expect
-      .element(
-        screen
-          .getByRole('region', { name: t('send.connection.selected') })
-          .getByText(selected.address, { exact: true }),
-      )
-      .toBeVisible()
+    await expect.element(connection).toHaveTextContent(selected.name)
     await expect
       .element(delivery.getByText(alternate.address, { exact: true }))
       .toBeVisible()
@@ -377,7 +510,7 @@ it.each(['succeeded', 'outcome_unknown'] as const)(
       .toBeVisible()
     await screen.unmount()
 
-    const reloaded = await render(SendPanel, { props })
+    const reloaded = await render(SendPanel, { props, ...links })
     await expect
       .element(
         reloaded.getByRole('combobox', { name: t('send.connection.label') }),
@@ -410,9 +543,10 @@ it.each(['succeeded', 'outcome_unknown'] as const)(
         ),
       )
       .toBeVisible()
+    // The connection chosen now holds a saved password, so none is asked for.
     await expect
       .element(reloaded.getByLabelText(t('send.field.password')))
-      .toHaveValue('')
+      .not.toBeInTheDocument()
     expect(JSON.stringify({ ...window.sessionStorage })).not.toContain(
       credential,
     )
@@ -448,7 +582,7 @@ it.each(['en', 'ru'] as const)(
     const { selected, fetchMock, props } = scenario()
     window.sessionStorage.setItem('rv.deploy.attempt.artifact', 'e'.repeat(32))
     vi.stubGlobal('fetch', fetchMock)
-    const screen = await render(SendPanel, { props })
+    const screen = await render(SendPanel, { props, ...links })
     const delivery = screen.getByRole('region', {
       name: t('send.attempt.title'),
     })
@@ -463,11 +597,9 @@ it.each(['en', 'ru'] as const)(
       .not.toBeInTheDocument()
     await expect
       .element(
-        screen
-          .getByRole('region', { name: t('send.connection.selected') })
-          .getByText(selected.address, { exact: true }),
+        screen.getByRole('combobox', { name: t('send.connection.label') }),
       )
-      .toBeVisible()
+      .toHaveTextContent(selected.name)
     expect(
       fetchMock.mock.calls.some(([input]) => String(input).endsWith('/deploy')),
     ).toBe(false)

@@ -16,6 +16,7 @@ import {
   type DeployOutcome,
   type DeployPlan,
 } from '@/shared/api/deploy'
+import { saveDeviceCredential } from '@/shared/api/devices'
 import { decode, fields, RoutevaneAPIError, text } from '@/shared/api/http'
 import { validAddress } from '@/shared/lib/deviceAddress'
 
@@ -30,6 +31,15 @@ export type DeploymentState =
 
 export type TargetsState = 'loading' | 'ready' | 'unsupported' | 'failed'
 
+/** The fields a send can ask for, in the order the form shows them. */
+export type SendField = 'address' | 'username' | 'password' | 'interface'
+const FIELD_ORDER: SendField[] = [
+  'address',
+  'username',
+  'password',
+  'interface',
+]
+
 // The access used by one attempt, independent of the next connection selected
 // in the form. Only these non-secret fields may survive a reload.
 type DeploymentRecipient = Readonly<{
@@ -42,8 +52,11 @@ type DeploymentRecipient = Readonly<{
  * useDeployment applies one published artifact to one destination.
  *
  * The password lives in this model for the length of one attempt and is cleared
- * as soon as the attempt ends: never stored, never in the URL, never kept after
- * a success or a failure. The address, account and interface are different —
+ * as soon as the attempt ends: never in browser storage, never in the URL, never
+ * kept after a success or a failure. A registered connection may hold a saved
+ * password of its own (ADR 0050); the operator saves one here only by asking
+ * to, and it then goes to the server once, after a plan or an apply succeeded
+ * with it. The address, account and interface are different —
  * they are not secrets, and asking for them again after every build is the
  * redundant entry WCAG 2.2 asks products to stop doing — so they are remembered
  * for the tab and no longer.
@@ -68,6 +81,13 @@ export const useDeployment = (
     readRememberedRecipient(artifactID(), currentAttemptID.value),
   )
   const addressTouched = ref(false)
+  // Whether a review was asked for since the form was last reset: from then on
+  // every field that stops it says why, beside itself.
+  const attempted = ref(false)
+  // A saved password is used unless the operator asks to type another one.
+  const overridePassword = ref(false)
+  const savePassword = ref(false)
+  const passwordSaveFailed = ref(false)
   const connections = useDeploymentConnections(targetID, preferredDeviceID)
   let initializationRequest = 0
   let reviewRequest = 0
@@ -91,6 +111,10 @@ export const useDeployment = (
     () => {
       password.value = ''
       addressTouched.value = false
+      attempted.value = false
+      overridePassword.value = false
+      savePassword.value = false
+      passwordSaveFailed.value = false
     },
     { flush: 'sync' },
   )
@@ -120,34 +144,73 @@ export const useDeployment = (
   )
   const busy = computed(() => ['planning', 'applying'].includes(state.value))
   const addressValid = computed(() => validAddress(device.value.trim()))
-  const addressError = computed(() =>
-    addressTouched.value && device.value.trim() !== '' && !addressValid.value
-      ? 'send.address.invalid'
-      : null,
+  // Whether this send asks for a password: always for entered details, and for
+  // a registered connection unless it holds a saved one the operator keeps.
+  const passwordNeeded = computed(
+    () =>
+      requirements.value?.needsCredential === true &&
+      (connections.manual.value ||
+        !connections.storedCredential.value ||
+        overridePassword.value),
   )
-  const canSubmit = computed(() => {
+  // The message each field states, or null. A required field says so only once
+  // a review was asked for; a malformed address says so once it was left.
+  const fieldErrors = computed<Record<SendField, string | null>>(() => {
     const needed = requirements.value
-    if (needed === null || busy.value || state.value === 'outcome_unknown')
+    const manual = connections.manual.value
+    const address = device.value.trim()
+    const required = (missing: boolean): string | null =>
+      attempted.value && missing ? 'send.field.required' : null
+    let addressMessage: string | null = null
+    if (manual && address === '') addressMessage = required(true)
+    else if (
+      manual &&
+      (addressTouched.value || attempted.value) &&
+      !addressValid.value
+    )
+      addressMessage = 'send.address.invalid'
+    return {
+      address: addressMessage,
+      username: required(
+        manual &&
+          needed?.needsCredential === true &&
+          username.value.trim() === '',
+      ),
+      password: required(passwordNeeded.value && password.value === ''),
+      interface: required(
+        manual &&
+          needed?.needsInterface === true &&
+          interfaceName.value.trim() === '',
+      ),
+    }
+  })
+  const addressError = computed(() => fieldErrors.value.address)
+  // Whether a review can be asked for at all. A missing field never makes the
+  // button unavailable; it is named beside the field when the button is used.
+  const available = computed(() => {
+    if (
+      requirements.value === null ||
+      busy.value ||
+      state.value === 'outcome_unknown'
+    )
       return false
-    if (!connections.manual.value) {
-      if (
-        connections.state.value !== 'ready' ||
-        connections.selected.value === null
-      )
-        return false
-      return (
-        !needed.needsCredential ||
-        connections.storedCredential.value ||
-        password.value !== ''
-      )
-    }
+    return (
+      connections.manual.value ||
+      (connections.state.value === 'ready' &&
+        connections.selected.value !== null)
+    )
+  })
+  const complete = computed(() => {
+    const needed = requirements.value
+    if (needed === null) return false
+    if (passwordNeeded.value && password.value === '') return false
+    if (!connections.manual.value) return true
     if (!addressValid.value) return false
-    if (needed.needsCredential) {
-      if (username.value.trim() === '' || password.value === '') return false
-    }
+    if (needed.needsCredential && username.value.trim() === '') return false
     if (needed.needsInterface && interfaceName.value.trim() === '') return false
     return true
   })
+  const canSubmit = computed(() => available.value && complete.value)
 
   const initialize = async (): Promise<void> => {
     const request = ++initializationRequest
@@ -190,10 +253,50 @@ export const useDeployment = (
     }
   }
 
-  // Review may read the device to preview exact DNS changes; it never applies them.
-  const review = async (): Promise<void> => {
+  // A password the operator asked to keep goes to the connection once a plan or
+  // an apply has worked with it. A failure is stated and changes nothing else.
+  const persistPassword = async (
+    submitted: DeployConnection,
+  ): Promise<void> => {
+    if (
+      !savePassword.value ||
+      !('deviceID' in submitted) ||
+      submitted.password === ''
+    )
+      return
+    try {
+      const written = await saveDeviceCredential(
+        submitted.deviceID,
+        submitted.password,
+      )
+      if (written.credentialStored === false) throw new Error('not stored')
+      connections.markCredentialStored(submitted.deviceID)
+      if (connections.selectedID.value === submitted.deviceID) {
+        savePassword.value = false
+        passwordSaveFailed.value = false
+      }
+    } catch {
+      if (connections.selectedID.value === submitted.deviceID)
+        passwordSaveFailed.value = true
+    }
+  }
+
+  /**
+   * Review may read the device to preview exact DNS changes; it never applies
+   * them. A field that stops it is named: the answer is the first such field,
+   * for the form to move the keyboard to, or null.
+   */
+  const review = async (): Promise<SendField | null> => {
     addressTouched.value = true
-    if (!canSubmit.value) return
+    attempted.value = true
+    if (!available.value) return null
+    if (!complete.value)
+      return (
+        FIELD_ORDER.find((field) => fieldErrors.value[field] !== null) ?? null
+      )
+    // Every field was there; a field emptied later, by the end of an attempt,
+    // is not a mistake to report.
+    attempted.value = false
     state.value = 'planning'
     errorKey.value = null
     outcome.value = null
@@ -206,16 +309,18 @@ export const useDeployment = (
         submittedConnection,
       )
       if (request !== reviewRequest || artifactID() !== submittedArtifactID)
-        return
+        return null
       plan.value = result
       state.value = 'planned'
+      await persistPassword(submittedConnection)
     } catch (error) {
       if (request !== reviewRequest || artifactID() !== submittedArtifactID)
-        return
+        return null
       state.value = 'failed'
       plan.value = null
       errorKey.value = messageKey(error)
     }
+    return null
   }
 
   const apply = async (): Promise<void> => {
@@ -230,14 +335,15 @@ export const useDeployment = (
     attemptRecipient.value = recipient
     rememberAttempt(submittedArtifactID, attemptID, recipient)
     try {
-      consumeOutcome(
-        await applyDeployment(
-          submittedArtifactID,
-          submittedConnection,
-          attemptID,
-        ),
+      const result = await applyDeployment(
+        submittedArtifactID,
+        submittedConnection,
         attemptID,
       )
+      consumeOutcome(result, attemptID)
+      // Only an attempt this screen accepted as succeeded proves the password.
+      if (outcome.value === result && result.status === 'succeeded')
+        await persistPassword(submittedConnection)
     } catch (error) {
       if (
         artifactID() !== submittedArtifactID ||
@@ -338,6 +444,10 @@ export const useDeployment = (
     outcome.value = null
     errorKey.value = null
     checkingOutcome.value = false
+    attempted.value = false
+    overridePassword.value = false
+    savePassword.value = false
+    passwordSaveFailed.value = false
     currentAttemptID.value = readRememberedAttempt(artifactID())
     attemptRecipient.value = readRememberedRecipient(
       artifactID(),
@@ -357,6 +467,7 @@ export const useDeployment = (
     addressTouched,
     apply,
     attemptRecipient,
+    available,
     busy,
     canSubmit,
     checkOutcome,
@@ -364,15 +475,20 @@ export const useDeployment = (
     connections,
     device,
     errorKey,
+    fieldErrors,
     initialize,
     interfaceName,
     outcome,
+    overridePassword,
     password,
+    passwordNeeded,
+    passwordSaveFailed,
     plan,
     requirements,
     recoverOutcome,
     reset,
     review,
+    savePassword,
     state,
     target,
     targetsState,

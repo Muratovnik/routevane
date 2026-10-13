@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
+import DiagnosticsPanel from '@/features/view-profile/ui/DiagnosticsPanel.vue'
+import OutputConfirmDialog from '@/features/view-profile/ui/OutputConfirmDialog.vue'
 import ProfileEditor from '@/features/view-profile/ui/ProfileEditor.vue'
 import OutputsPanel from '@/features/view-profile/ui/OutputsPanel.vue'
 import { useProfileView } from '@/features/view-profile/model/useProfileView'
@@ -83,9 +85,23 @@ const buildFailure = computed(
       : view.failedOutputs.value[0]?.lastAttempt) ?? null,
 )
 
+// A format that never published has nothing to fall back on: its failure is a
+// build that did not happen, not a refresh of something already there.
+const firstBuildFailed = computed(
+  () =>
+    buildFailure.value !== null &&
+    !view.outputs.value.some(
+      (output) =>
+        output.lastAttempt === buildFailure.value && output.latest !== null,
+    ),
+)
+
 const statusLabel = computed(() => {
   if (view.archived.value) return t('profile.status.archived')
-  if (hasBuildFailure.value) return t('profile.status.failed')
+  if (hasBuildFailure.value)
+    return published.value
+      ? t('profile.status.failed')
+      : t('profile.status.buildFailed')
   if (!published.value) return t('profile.status.empty')
   return warned.value ? t('profile.status.warning') : t('profile.status.ready')
 })
@@ -248,6 +264,9 @@ const outputScope = computed<string>({
   get: () => view.selectedOutputID.value,
   set: (value) => view.selectOutput(value),
 })
+const diagnosticsShown = computed(
+  () => view.snapshotID.value !== '' && view.diagnosticsState.value === 'ready',
+)
 const setupTargetTitle = computed(() =>
   view.targetTitle(pageLocation.value.setup),
 )
@@ -351,65 +370,145 @@ const onArchive = async (next: boolean): Promise<void> => {
 const exportLabel = (format: ExportFormat): string =>
   tor(`export.format.${format.rendererID}`, format.fileExtension.toUpperCase())
 
+// The same acts, in the same order, as a profile's row on the shelf: one-off
+// export, sending each format, adding one, rebuilding, and the archive. An
+// archived profile is read and exported, or brought back, and nothing else.
 const profileMenuItems = computed<MenuItem[]>(() => {
-  const items: MenuItem[] = []
-  items.push({
-    children: view.exportFormats.value.map((format) => ({
-      disabled: view.exporting.value !== '',
-      icon: 'download' as const,
-      key: `export:${format.id}`,
-      label: exportLabel(format),
-    })),
-    icon: 'download',
-    key: 'downloads',
-    label: t('profiles.download.menu'),
-  })
-  const deployItems = view.outputs.value
-    .filter(view.deployable)
-    .map((output) => ({
-      icon: 'send' as const,
-      key: `send:${output.id}`,
-      label: t('profiles.sendTarget', { target: view.outputTitle(output) }),
-      to: `/profiles/${props.profileId}/send/${output.id}`,
-    }))
-  if (deployItems.length === 1) items.push(deployItems[0] as MenuItem)
-  if (deployItems.length > 1) {
+  const items: MenuItem[] = [
+    {
+      children: view.exportFormats.value.map((format) => ({
+        disabled: view.exporting.value !== '',
+        icon: 'download' as const,
+        key: `export:${format.id}`,
+        label: exportLabel(format),
+      })),
+      icon: 'download',
+      key: 'export',
+      label: t('profile.menu.export'),
+    },
+  ]
+  if (view.archived.value) {
     items.push({
-      children: deployItems,
+      disabled: view.busy.value,
+      icon: 'archive',
+      key: 'restore',
+      label: t('profile.restore'),
+      separatorBefore: true,
+    })
+    return items
+  }
+  const sendItems = view.outputs.value
+    .filter(view.deployable)
+    .map((output): MenuItem => {
+      const device = view.devices.value.find(
+        (candidate) => candidate.id === output.deviceID,
+      )
+      const format = view.outputTitle(output)
+      return {
+        icon: 'send',
+        key: `send:${output.id}`,
+        label:
+          device === undefined
+            ? format
+            : t('profile.menu.sendTo', { format, connection: device.name }),
+        to: `/profiles/${props.profileId}/send/${output.id}`,
+      }
+    })
+  if (sendItems.length > 0) {
+    items.push({
+      children: sendItems,
       icon: 'send',
       key: 'send',
-      label: t('profiles.send'),
+      label: t('profile.menu.send'),
     })
   }
-  if (!view.archived.value) {
-    items.push({
+  items.push(
+    {
+      disabled: view.busy.value || view.targetGroups.value.length === 0,
+      key: 'add-format',
+      label: t('profile.menu.addFormat'),
+    },
+    {
       disabled: view.busy.value || view.outputs.value.length === 0,
       icon: 'refresh',
       key: 'rebuild',
       label: t('profile.rebuild'),
-    })
-  }
-  items.push({
-    disabled: view.busy.value,
-    icon: 'archive',
-    key: view.archived.value ? 'restore' : 'archive',
-    label: view.archived.value ? t('profile.restore') : t('profile.archive'),
-    separatorBefore: true,
-  })
+    },
+    {
+      disabled: view.busy.value,
+      icon: 'archive',
+      key: 'archive',
+      label: t('profile.archive'),
+      separatorBefore: true,
+    },
+  )
   return items
 })
+
+const outputsPanel = ref<InstanceType<typeof OutputsPanel> | null>(null)
 
 const onProfileMenu = async (key: string): Promise<void> => {
   if (key.startsWith('export:')) {
     await view.download(key.slice('export:'.length))
     return
   }
-  if (key === 'rebuild') {
-    await view.rebuild()
-    emit('changed')
+  if (key === 'add-format') {
+    tab.value = 'outputs'
+    await nextTick()
+    await outputsPanel.value?.focusAdd()
   }
+  if (key === 'rebuild') await onRebuild()
   if (key === 'archive') await onArchive(true)
   if (key === 'restore') await onArchive(false)
+}
+
+const onRebuild = async (): Promise<void> => {
+  await view.rebuild()
+  emit('changed')
+}
+
+const onRebuildOutput = async (outputID: string): Promise<void> => {
+  if (await view.rebuildOutput(outputID)) emit('changed')
+}
+
+// Reissuing a link and removing a format cannot be undone, so each is asked
+// once more, with what will happen, and a refusal stays in that question.
+const confirming = ref<{
+  kind: 'reissue' | 'remove'
+  outputID: string
+} | null>(null)
+const confirmOpen = ref(false)
+const confirmError = ref<string | null>(null)
+const confirmTarget = computed(() => {
+  const output = view.outputs.value.find(
+    (candidate) => candidate.id === confirming.value?.outputID,
+  )
+  return output === undefined ? '' : view.outputTitle(output)
+})
+
+const askConfirmation = (
+  kind: 'reissue' | 'remove',
+  outputID: string,
+): void => {
+  confirming.value = { kind, outputID }
+  confirmError.value = null
+  confirmOpen.value = true
+}
+
+const onConfirm = async (): Promise<void> => {
+  const request = confirming.value
+  if (request === null) return
+  confirmError.value = null
+  const error =
+    request.kind === 'reissue'
+      ? await view.reissue(request.outputID)
+      : await view.remove(request.outputID)
+  if (error !== null) {
+    confirmError.value = error
+    return
+  }
+  confirmOpen.value = false
+  if (request.kind === 'remove') emit('changed')
 }
 </script>
 
@@ -559,9 +658,23 @@ const onProfileMenu = async (key: string): Promise<void> => {
         v-if="buildFailure !== null"
         :body="buildFailureBody"
         live
-        :title="t('profile.notice.build.failed')"
+        :title="
+          firstBuildFailed
+            ? t('profile.notice.build.firstFailed')
+            : t('profile.notice.build.failed')
+        "
         tone="failed"
-      />
+      >
+        <template v-if="!view.archived.value" #action>
+          <RvButton
+            :disabled="view.busy.value"
+            :loading="view.work.value === 'rebuilding'"
+            :loading-label="t('profile.rebuild.busy')"
+            @click="onRebuild"
+            >{{ t('profile.rebuild') }}</RvButton
+          >
+        </template>
+      </RvStateNotice>
       <RvStateNotice
         v-if="view.partialCoverageCount.value > 0"
         :body="
@@ -605,7 +718,7 @@ const onProfileMenu = async (key: string): Promise<void> => {
         <div class="profile__secret-actions">
           <RvButton
             v-if="!view.revealed.value"
-            size="compact"
+            variant="secondary"
             @click="view.reveal"
           >
             {{ t('profile.subscription.reveal') }}
@@ -618,16 +731,15 @@ const onProfileMenu = async (key: string): Promise<void> => {
           />
         </div>
       </section>
-      <p
-        v-else-if="expert && view.latest.value !== null"
-        class="profile__secret-gone"
-      >
-        {{ t('profile.subscription.gone') }}
-      </p>
-
       <RvTabs v-model="tab" :label="t('profile.tabs')" :tabs="tabs">
         <template #overview>
-          <div class="profile__panel profile__panel--composition">
+          <div
+            class="profile__panel"
+            :class="{
+              'profile__panel--composition':
+                !view.archived.value && view.profile.value !== null,
+            }"
+          >
             <ProfileEditor
               v-if="!view.archived.value && view.profile.value !== null"
               :busy="view.busy.value"
@@ -658,7 +770,33 @@ const onProfileMenu = async (key: string): Promise<void> => {
 
         <template #outputs>
           <div class="profile__panel">
+            <!-- A link is shown once. Once this page no longer holds it, the
+                 format's own tab says so and offers the one way to have a
+                 working link on screen again: a new one, which withdraws the
+                 old. It stands here rather than above the tabs, so the
+                 composition keeps the window it fills. -->
+            <div
+              v-if="
+                view.subscriptionURL.value === '' &&
+                view.selectedOutput.value?.latest != null
+              "
+              class="profile__secret-gone"
+            >
+              <p>
+                {{ t('profile.subscription.gone', { target: selectedTitle }) }}
+              </p>
+              <RvButton
+                v-if="!view.archived.value"
+                :disabled="view.busy.value"
+                size="compact"
+                variant="secondary"
+                @click="askConfirmation('reissue', view.selectedOutputID.value)"
+              >
+                {{ t('outputs.menu.reissue') }}
+              </RvButton>
+            </div>
             <OutputsPanel
+              ref="outputsPanel"
               :archived="view.archived.value"
               :automatic-delivery="view.automaticDelivery"
               :busy="view.busy.value"
@@ -672,6 +810,9 @@ const onProfileMenu = async (key: string): Promise<void> => {
               :target-title="view.targetTitle"
               @bind="onBind"
               @bind-device="view.bindDevice"
+              @rebuild="onRebuildOutput"
+              @reissue="askConfirmation('reissue', $event)"
+              @remove="askConfirmation('remove', $event)"
               @set-schedule="view.setSchedule"
             />
             <RvStateNotice
@@ -757,7 +898,7 @@ const onProfileMenu = async (key: string): Promise<void> => {
         <template #diagnostics>
           <div class="profile__panel">
             <div
-              v-if="view.outputs.value.length > 1"
+              v-if="view.outputs.value.length > 1 && !diagnosticsShown"
               class="profile__panel-scope"
             >
               <label
@@ -799,52 +940,47 @@ const onProfileMenu = async (key: string): Promise<void> => {
                 }}</RvButton></template
               >
             </RvStateNotice>
-            <template v-else-if="view.diagnosticsState.value === 'ready'">
-              <p class="profile__prose">
-                {{ t('profile.diagnostics.perList') }}
-              </p>
-              <ul class="profile__counts">
-                <li
-                  v-for="entry in view.rulesByList.value"
-                  :key="entry.id"
-                  class="profile__count"
-                >
-                  <span>{{ view.listTitle(entry.id) }}</span>
-                  <strong>{{ tc('profile.rules', entry.count) }}</strong>
-                </li>
-              </ul>
-              <p
-                v-if="view.diagnostics.value.every((rule) => !rule.excluded)"
-                class="profile__prose"
-              >
-                {{ t('profile.diagnostics.empty') }}
-              </p>
-              <ul class="profile__rules">
-                <li
-                  v-for="rule in view.diagnostics.value"
-                  :key="`${rule.excluded}-${rule.listID}-${rule.value}`"
-                  class="profile__rule"
-                >
-                  <span class="profile__rule-state">
-                    {{
-                      rule.excluded
-                        ? t('profile.diagnostics.excluded')
-                        : t('profile.diagnostics.included')
-                    }}
-                  </span>
-                  <span class="profile__rule-list">
-                    {{ view.listTitle(rule.listID) }}
-                  </span>
-                  <span class="profile__rule-value">{{ rule.value }}</span>
-                  <span class="profile__rule-reason">
-                    {{ rule.reasons.map(reasonLabel).join(', ') }}
-                  </span>
-                </li>
-              </ul>
-            </template>
+            <DiagnosticsPanel
+              v-else-if="view.diagnosticsState.value === 'ready'"
+              :key="view.snapshotID.value"
+              :list-title="view.listTitle"
+              :reason-label="reasonLabel"
+              :rules="view.diagnostics.value"
+            >
+              <template v-if="view.outputs.value.length > 1" #scope>
+                <div class="profile__panel-scope">
+                  <label
+                    id="profile-diagnostics-scope-label"
+                    class="profile__panel-scope-label"
+                    for="profile-diagnostics-scope"
+                  >
+                    {{ t('profile.panel.scope') }}
+                  </label>
+                  <RvSelect
+                    v-model="outputScope"
+                    input-id="profile-diagnostics-scope"
+                    labelled-by="profile-diagnostics-scope-label"
+                    :options="outputChoices"
+                    :placeholder="t('outputs.column.target')"
+                  />
+                </div>
+              </template>
+            </DiagnosticsPanel>
           </div>
         </template>
       </RvTabs>
+
+      <OutputConfirmDialog
+        v-if="confirming !== null"
+        v-model:open="confirmOpen"
+        :busy="
+          view.work.value === 'reissuing' || view.work.value === 'removing'
+        "
+        :error="confirmError"
+        :kind="confirming.kind"
+        :target="confirmTarget"
+        @confirm="onConfirm"
+      />
     </template>
   </section>
 </template>
@@ -977,17 +1113,6 @@ const onProfileMenu = async (key: string): Promise<void> => {
   font-size: var(--rv-text-section);
 }
 
-.profile__section {
-  display: grid;
-  gap: var(--rv-space-4);
-  padding-top: var(--rv-space-4);
-  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
-}
-
-.profile__section--drawer {
-  padding-top: var(--rv-space-4);
-}
-
 .profile__secret {
   display: grid;
   gap: var(--rv-space-4);
@@ -1017,86 +1142,31 @@ const onProfileMenu = async (key: string): Promise<void> => {
 }
 
 .profile__secret-gone {
-  color: var(--rv-color-ink-tertiary);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-2) var(--rv-space-4);
+  align-items: center;
+  color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
 }
 
+/* Outside the composition editor, which fills its standing height, rows keep
+   their natural height and start at the top, so a short fact ledger stays a
+   ledger rather than stretching to the window. */
 .profile__panel {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--rv-space-6);
 }
 
+.profile__panel:not(.profile__panel--composition) {
+  grid-auto-rows: max-content;
+  align-content: start;
+}
+
 .profile__technical {
   display: grid;
   gap: var(--rv-space-3);
-}
-
-.profile__prose {
-  max-width: var(--rv-measure-prose);
-  color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-interface);
-}
-
-.profile__counts {
-  display: grid;
-  gap: var(--rv-space-1);
-}
-
-.profile__count {
-  display: flex;
-  gap: var(--rv-space-3);
-  justify-content: space-between;
-  padding: var(--rv-space-2) 0;
-  font-size: var(--rv-text-dense);
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
-}
-
-/* A profile can carry hundreds of rules. The ledger scrolls inside its own box so
-   opening diagnostics does not turn the page into a mile of rows. */
-.profile__rules {
-  display: grid;
-  gap: var(--rv-space-2);
-  max-height: 24rem;
-  padding-right: var(--rv-space-1);
-  overflow-y: auto;
-}
-
-.profile__rule {
-  display: grid;
-  grid-template-columns: minmax(6rem, auto) minmax(6rem, auto) minmax(0, 1fr);
-  gap: var(--rv-space-1) var(--rv-space-3);
-  padding: var(--rv-space-2) var(--rv-space-3);
-  font-size: var(--rv-text-dense);
-  background: var(--rv-color-surface);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-sm);
-}
-
-.profile__rule-state {
-  font-weight: 600;
-}
-
-.profile__rule-list {
-  color: var(--rv-color-ink-muted);
-}
-
-.profile__rule-value {
-  font-family: var(--rv-font-mono);
-  overflow-wrap: anywhere;
-}
-
-.profile__rule-reason {
-  grid-column: 1 / -1;
-  color: var(--rv-color-ink-tertiary);
-  font-family: var(--rv-font-mono);
-  overflow-wrap: anywhere;
-}
-
-@container route (width <= 44rem) {
-  .profile__rule {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* A panel that reads one published file asks which one, but only when the
@@ -1110,22 +1180,6 @@ const onProfileMenu = async (key: string): Promise<void> => {
 
 .profile__panel-scope-label {
   font-weight: 600;
-  font-size: var(--rv-text-dense);
-}
-
-/* The schedule is four labelled choices, named by the section heading above
-   them. The control is as wide as its longest option unless it is told
-   otherwise,
-   and in a grid that intrinsic width becomes the container's minimum. */
-.profile__schedule-field {
-  width: 100%;
-  max-width: var(--rv-measure-field);
-  min-width: 0;
-}
-
-.profile__schedule-note {
-  margin-top: var(--rv-space-2);
-  color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
 }
 

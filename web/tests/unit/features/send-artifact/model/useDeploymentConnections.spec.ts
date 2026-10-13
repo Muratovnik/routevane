@@ -16,7 +16,9 @@ const registry = () => ({
       address: 'http://192.168.1.1',
       account: 'admin',
       interface: 'Wireguard0',
-      auto_deliver: false,
+      // Automatic delivery on is not a saved password (ADR 0050).
+      auto_deliver: true,
+      credential_stored: false,
       deployable: true,
     },
     {
@@ -27,7 +29,8 @@ const registry = () => ({
       address: 'http://192.168.1.2',
       account: 'operator',
       interface: 'Wireguard1',
-      auto_deliver: true,
+      auto_deliver: false,
+      credential_stored: true,
       deployable: true,
     },
     {
@@ -97,6 +100,22 @@ it('selects the bound compatible access and only reads the registry', async () =
   })
   connections.selectedID.value = 'first'
   expect(connections.storedCredential.value).toBe(false)
+})
+
+it('records a password saved for a connection without replacing the chosen card', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => json(registry())),
+  )
+  const connections = selection('first')
+  await connections.initialize()
+  const chosen = connections.selected.value
+
+  connections.markCredentialStored('first')
+
+  expect(connections.storedCredential.value).toBe(true)
+  expect(connections.selected.value).toBe(chosen)
+  expect(connections.secretStoreAvailable.value).toBe(true)
 })
 
 it.each(['', 'deleted', 'other-target', 'unsupported'])(

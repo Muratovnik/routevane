@@ -356,3 +356,27 @@ export const openList = (
   scope.getByRole('button', {
     name: copy('listDetail.open.aria').replace('{list}', list),
   })
+
+/** The «⋮» menu of one format row on the Publishing tab, named by its format. */
+export const formatMenu = (
+  scope: Scope,
+  target: string,
+  copy: Copy = englishCopy,
+): Locator =>
+  scope.getByRole('button', {
+    name: copy('outputs.menu').replace('{target}', target),
+    exact: true,
+  })
+
+/** Opens one format row's menu and chooses the action named by `key`. */
+export const chooseFormatAction = async (
+  page: Page,
+  target: string,
+  key: string,
+  copy: Copy = englishCopy,
+): Promise<void> => {
+  await formatMenu(page, target, copy).click()
+  await menuPanel(page)
+    .getByRole('menuitem', { name: copy(key), exact: true })
+    .click()
+}

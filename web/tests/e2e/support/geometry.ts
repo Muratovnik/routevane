@@ -54,6 +54,10 @@ export const releaseCatalog = async (page: Page): Promise<void> => {
  * A box inside a scroller of its own belongs to that frame rather than to the
  * page — a table's rows run far past the frame that clips them — so the walk
  * counts the scroller and stops there.
+ *
+ * A scroll offset is a whole pixel while a page's height may not be, so at
+ * full scroll up to one pixel of the page can stay below the window. The
+ * inset is read in whole pixels, rounding that remainder up.
  */
 export const pageFoot = (
   page: Page,
@@ -77,7 +81,7 @@ export const pageFoot = (
       lowest = Math.max(lowest, box.bottom)
     }
     return {
-      inset: main.getBoundingClientRect().bottom - lowest,
+      inset: Math.ceil(main.getBoundingClientRect().bottom - lowest),
       overflow: main.scrollHeight - main.clientHeight,
     }
   })

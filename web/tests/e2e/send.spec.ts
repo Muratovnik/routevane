@@ -29,7 +29,11 @@ import {
   stopOwnedProductData,
   type SpawnedProduct,
 } from './support/product'
-import { listMembership, menuPanel } from './support/queries'
+import {
+  chooseFormatAction,
+  listMembership,
+  menuPanel,
+} from './support/queries'
 
 const testDirectory = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(testDirectory, '..', '..', '..')
@@ -379,19 +383,15 @@ savedTest(
     const artifactBytes = await artifact.text()
     const endpoint = `${origin}/v1/artifacts/${output.latest_artifact_id}/deploy`
     await page.goto(`${origin}/profiles/${profileId}/send/${outputId}`)
-    const sendPanel = page.getByRole('region', {
-      name: message('en', 'send.title'),
-      exact: true,
-    })
     const connection = page.getByRole('combobox', {
       name: message('en', 'send.connection.label'),
     })
+    // The choice is named by the connection; its address is the option's note
+    // and is not repeated beside the choice.
     await expect(connection).toHaveText('Bound local rules')
     await expect(
-      sendPanel.getByText(fileURL(savedDestinations.boundConfig), {
-        exact: true,
-      }),
-    ).toBeVisible()
+      page.getByText(fileURL(savedDestinations.boundConfig), { exact: true }),
+    ).toHaveCount(0)
     await expect(
       page.getByLabel(message('en', 'send.field.password')),
     ).toHaveCount(0)
@@ -416,6 +416,9 @@ savedTest(
     await expect(
       page.getByRole('option', { name: /Other format router/ }),
     ).toHaveCount(0)
+    await expect(
+      page.getByRole('option', { name: /^Bound local rules/ }),
+    ).toContainText(fileURL(savedDestinations.boundConfig))
     await page.getByRole('option', { name: /^Chosen local rules/ }).click()
     await expect(
       page.getByRole('button', {
@@ -423,11 +426,7 @@ savedTest(
         exact: true,
       }),
     ).toHaveCount(0)
-    await expect(
-      sendPanel.getByText(fileURL(savedDestinations.chosenConfig), {
-        exact: true,
-      }),
-    ).toBeVisible()
+    await expect(connection).toHaveText('Chosen local rules')
     const previewResponse = page.waitForResponse(
       (response) =>
         response.url() === endpoint && response.request().method() === 'POST',
@@ -463,11 +462,15 @@ savedTest(
     const delivery = page.getByRole('region', {
       name: message('en', 'send.attempt.title'),
     })
+    // The delivery went to the connection still chosen above it, so it does
+    // not repeat that connection's address.
+    await expect(delivery).toBeVisible()
+    await expect(connection).toHaveText('Chosen local rules')
     await expect(
       delivery.getByText(fileURL(savedDestinations.chosenConfig), {
         exact: true,
       }),
-    ).toBeVisible()
+    ).toHaveCount(0)
     await expect(
       delivery.getByText(fileURL(savedDestinations.boundConfig), {
         exact: true,
@@ -510,13 +513,6 @@ savedTest(
       page.getByText(message('en', 'send.applied'), { exact: true }),
     ).toBeVisible()
     await expect(connection).toHaveText('Bound local rules')
-    await expect(
-      page
-        .getByRole('region', {
-          name: message('en', 'send.connection.selected'),
-        })
-        .getByText(fileURL(savedDestinations.boundConfig), { exact: true }),
-    ).toBeVisible()
     await expect(
       delivery.getByText(fileURL(savedDestinations.chosenConfig), {
         exact: true,
@@ -562,14 +558,26 @@ test('the send screen builds its form from the deployer and applies the file loc
     .getByRole('button', { name: 'Actions for profile YouTube', exact: true })
     .click()
   await menuPanel(page)
-    .getByRole('menuitem', { name: 'Send to sing-box' })
+    .getByRole('menuitem', { name: 'Send', exact: true })
+    .click()
+  await menuPanel(page)
+    .getByRole('menuitem', { name: 'sing-box', exact: true })
     .click()
   await page.waitForURL(`${profileURL}/send/${outputId}`)
-  await expect(
-    page.getByRole('heading', { level: 1, name: 'Send the file' }),
-  ).toBeVisible()
-  await expect(page.getByText('Profile: YouTube')).toBeVisible()
-  await expect(page.getByText('Not applied', { exact: true })).toBeVisible()
+  // The trail to the profile stands above the title, which names the format;
+  // no state is claimed before anything was attempted.
+  const title = page.getByRole('heading', { level: 1, name: 'Send · sing-box' })
+  await expect(title).toBeVisible()
+  const trail = page.getByRole('navigation', { name: 'Path' })
+  await expect(trail.getByRole('link')).toHaveText(['Profiles', 'YouTube'])
+  await expect(trail.getByRole('link', { name: 'YouTube' })).toHaveAttribute(
+    'href',
+    `/profiles/${profileId}`,
+  )
+  expect((await trail.boundingBox())!.y).toBeLessThan(
+    (await title.boundingBox())!.y,
+  )
+  await expect(page.getByText('Not applied', { exact: true })).toHaveCount(0)
 
   // A destination on this machine has nowhere to send a credential, so the
   // form the deployer describes is the form the screen renders — no more. The
@@ -587,7 +595,10 @@ test('the send screen builds its form from the deployer and applies the file loc
     'send.field.interface',
   ])
     await expect(page.getByLabel(message('en', absent))).toHaveCount(0)
-  const review = page.getByRole('button', { name: 'Check the details' })
+  const review = page.getByRole('button', {
+    name: message('en', 'send.review'),
+    exact: true,
+  })
   await expect(review).toBeVisible()
 
   // Installing by hand is the other supported path, present on this screen
@@ -595,16 +606,22 @@ test('the send screen builds its form from the deployer and applies the file loc
   await expect(
     page.getByRole('heading', { level: 2, name: 'By hand' }),
   ).toBeVisible()
+  const manual = page.getByRole('region', {
+    name: message('en', 'send.manual'),
+    exact: true,
+  })
   await expect(
-    page
-      .getByRole('region', { name: message('en', 'send.manual') })
-      .getByRole('link', { name: 'Download JSON' }),
+    manual.getByRole('link', { name: 'Download the file (.json)' }),
   ).toHaveAttribute('href', /^\/v1\/artifacts\/[a-f0-9]{32}$/)
-  await expect(
-    page.getByText(
-      'Save the file as a local sing-box source rule-set, then reference it from a rule_set entry with type local and format source.',
-    ),
-  ).toBeVisible()
+  const instruction = page.getByText(
+    'Save the file as a local sing-box source rule-set, then reference it from a rule_set entry with type local and format source.',
+  )
+  // The steps wait behind their disclosure.
+  await expect(instruction).toBeHidden()
+  await manual
+    .getByRole('button', { name: message('en', 'send.manual.howto') })
+    .click()
+  await expect(instruction).toBeVisible()
 
   // The address form a destination accepts is the destination's own statement:
   // the screen offers this example as the placeholder, so it must accept it.
@@ -672,15 +689,16 @@ test('the send screen builds its form from the deployer and applies the file loc
     )
       identityWrites.push(path)
   })
-  await page
-    .getByRole('link', { name: message('en', 'send.back'), exact: true })
-    .click()
+  await trail.getByRole('link', { name: 'YouTube' }).click()
   await page
     .getByRole('main')
     .getByRole('button', { name: 'Actions for profile YouTube', exact: true })
     .click()
   await menuPanel(page)
-    .getByRole('menuitem', { name: 'Send to sing-box' })
+    .getByRole('menuitem', { name: 'Send', exact: true })
+    .click()
+  await menuPanel(page)
+    .getByRole('menuitem', { name: 'sing-box', exact: true })
     .click()
   await page.waitForURL(`${profileURL}/send/${outputId}`)
   await expect(address).toHaveValue(fileURL(configPath))
@@ -777,9 +795,10 @@ for (const language of ['en', 'ru'] as const) {
         })
         .click()
       await menuPanel(page)
-        .getByRole('menuitem', {
-          name: copy('profiles.sendTarget').replace('{target}', 'sing-box'),
-        })
+        .getByRole('menuitem', { name: copy('profile.menu.send'), exact: true })
+        .click()
+      await menuPanel(page)
+        .getByRole('menuitem', { name: 'sing-box', exact: true })
         .click()
       await page.waitForURL(`${profileURL}/send/${outputId}`)
       await expect(
@@ -811,10 +830,12 @@ for (const language of ['en', 'ru'] as const) {
       await expect(
         page.getByText(copy('send.connection.missing'), { exact: true }),
       ).toBeVisible()
-      await expect(page.getByRole('main').getByRole('link')).toHaveAttribute(
-        'href',
-        `/profiles/${profileId}`,
-      )
+      // The way back is the trail above the title.
+      await expect(
+        page
+          .getByRole('navigation', { name: copy('profile.breadcrumb') })
+          .getByRole('link', { name: 'YouTube', exact: true }),
+      ).toHaveAttribute('href', `/profiles/${profileId}`)
       await expect(
         page.getByText(copy('profile.missing'), { exact: true }),
       ).toHaveCount(0)
@@ -892,11 +913,25 @@ test('a target without a deployer is offered the manual path only', async ({
   await expect(
     page.getByRole('tablist', { name: message('en', 'profile.tabs') }),
   ).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Send the file' })).toHaveCount(0)
+  await page
+    .getByRole('tab', { name: message('en', 'profile.tab.outputs') })
+    .click()
+  const publishing = page.getByRole('tabpanel', {
+    name: message('en', 'profile.tab.outputs'),
+  })
+  await expect(
+    publishing.getByRole('row').filter({ hasText: 'MikroTik' }),
+  ).toBeVisible()
+  await expect(
+    publishing.getByRole('link', {
+      name: message('en', 'outputs.send'),
+      exact: true,
+    }),
+  ).toHaveCount(0)
 
   await page.goto(`${profileURL}/send/${outputId}`)
   await expect(
-    page.getByRole('heading', { level: 1, name: 'Send the file' }),
+    page.getByRole('heading', { level: 1, name: 'Send · MikroTik' }),
   ).toBeVisible()
   await expect(
     page.getByText('Automatic delivery to MikroTik is unavailable'),
@@ -905,7 +940,7 @@ test('a target without a deployer is offered the manual path only', async ({
   // use one.
   await expect(page.getByRole('textbox')).toHaveCount(0)
   await expect(
-    page.getByRole('button', { name: 'Check the details' }),
+    page.getByRole('button', { name: message('en', 'send.review') }),
   ).toHaveCount(0)
 
   // The manual section carries the file and the catalog's own instruction.
@@ -914,6 +949,7 @@ test('a target without a deployer is offered the manual path only', async ({
   ).toBeVisible()
   const manual = page.getByRole('region', {
     name: message('en', 'send.manual'),
+    exact: true,
   })
   await expect(manual.getByRole('link')).toHaveAttribute(
     'href',
@@ -921,6 +957,9 @@ test('a target without a deployer is offered the manual path only', async ({
   )
   // The instruction is the catalog's own, and the catalog may state it in one
   // language or two. What must reach the screen is the instruction itself.
+  await manual
+    .getByRole('button', { name: message('en', 'send.manual.howto') })
+    .click()
   await expect(manual).toContainText('/import')
 })
 
@@ -952,7 +991,10 @@ test('a destination the configuration cannot accept is refused before writing', 
   const address = sendAddress(page, 'en')
   await expect(address).toBeVisible()
   await address.fill(fileURL(foreignConfig))
-  const review = page.getByRole('button', { name: 'Check the details' })
+  const review = page.getByRole('button', {
+    name: message('en', 'send.review'),
+    exact: true,
+  })
   await expect(
     review,
     'the address the deployer itself declares must be accepted',
@@ -978,6 +1020,12 @@ test('a destination the configuration cannot accept is refused before writing', 
   ).resolves.toBe('absent')
 })
 
+// The domain-based format's name, as its row menu announces it.
+const DNS_TITLES = {
+  en: 'Keenetic (domain-based)',
+  ru: 'Keenetic (по доменам)',
+} as const
+
 for (const language of ['en', 'ru'] as const) {
   test.describe(`FQDN output settings (${language})`, () => {
     test.use({ locale: language === 'ru' ? 'ru-RU' : 'en-US' })
@@ -992,15 +1040,29 @@ for (const language of ['en', 'ru'] as const) {
         language,
       )
       const copy = (key: string) => message(language, key)
+      const dnsTitle = DNS_TITLES[language]
       await page
         .getByRole('tab', { name: copy('profile.tab.outputs'), exact: true })
         .click()
-      const prefix = page.getByRole('textbox', { name: copy('outputs.prefix') })
-      const save = page.getByRole('button', {
-        name: copy('outputs.prefix.save'),
+      // The prefix is a setting of the format, in its row's settings dialog.
+      const openSettings = () =>
+        chooseFormatAction(page, dnsTitle, 'outputs.menu.settings', copy)
+      const settings = page.getByRole('dialog', {
+        name: copy('outputs.settings.title').replace('{target}', dnsTitle),
       })
+      const prefix = settings.getByRole('textbox', {
+        name: copy('outputs.prefix'),
+      })
+      const save = settings.getByRole('button', {
+        name: copy('outputs.prefix.save'),
+        exact: true,
+      })
+      await openSettings()
       await expect(prefix).toHaveValue('')
       await expect(prefix).toHaveAttribute('placeholder', 'routevane')
+      await expect(
+        settings.getByText(copy('outputs.settings.nextBuild'), { exact: true }),
+      ).toBeVisible()
       const before = await page.request.get(`${origin}/v1/outputs/${outputId}`)
       const original = (await before.json()) as { latest_artifact_id: string }
       const originalFile = await page.request.get(
@@ -1008,14 +1070,21 @@ for (const language of ['en', 'ru'] as const) {
       )
       const originalBytes = await originalFile.text()
       expect(originalBytes).toMatch(/^object-group fqdn routevane-/m)
+      // Save stays available; the rule is stated only as the answer to a
+      // refused save, and the field takes the focus.
       await prefix.fill('1-invalid')
-      await expect(save).toBeDisabled()
       await expect(
-        page.getByText(copy('outputs.prefix.invalid'), { exact: true }),
+        settings.getByText(copy('outputs.prefix.invalid'), { exact: true }),
+      ).toHaveCount(0)
+      await expect(save).toBeEnabled()
+      await save.click()
+      await expect(
+        settings.getByText(copy('outputs.prefix.invalid'), { exact: true }),
       ).toBeVisible()
+      await expect(prefix).toBeFocused()
       await prefix.fill('web-demo')
       await save.click()
-      await expect(page.getByText(copy('outputs.prefix.saved'))).toBeVisible()
+      await expect(settings).toBeHidden()
       const saved = await page.request.get(`${origin}/v1/outputs/${outputId}`)
       expect(await saved.json()).toMatchObject({
         fqdn_group_prefix: 'web-demo',
@@ -1050,10 +1119,11 @@ for (const language of ['en', 'ru'] as const) {
         `${origin}/v1/artifacts/${original.latest_artifact_id}`,
       )
       expect(await retained.text()).toBe(originalBytes)
+      await openSettings()
       await expect(prefix).toHaveValue('web-demo')
       await prefix.fill('')
       await save.click()
-      await expect(page.getByText(copy('outputs.prefix.saved'))).toBeVisible()
+      await expect(settings).toBeHidden()
       const reset = await page.request.get(`${origin}/v1/outputs/${outputId}`)
       const resetOutput = await reset.json()
       expect(resetOutput.fqdn_group_prefix ?? '').toBe('')
@@ -1064,9 +1134,190 @@ for (const language of ['en', 'ru'] as const) {
       await page
         .getByRole('tab', { name: copy('profile.tab.outputs'), exact: true })
         .click()
+      await openSettings()
       await expect(prefix).toHaveValue('')
       expect(new URL(page.url()).pathname).toBe(`/profiles/${profileId}`)
       expect((await analyze(page)).violations).toEqual([])
     })
   })
 }
+
+/**
+ * A saved password on the send screen.
+ *
+ * No router is contacted and no system store is written: the registry answer
+ * states whether the password is saved, and the preview and the saved
+ * password are answered in the browser. What is under test is what the screen
+ * asks for and what it sends.
+ */
+const sendToSavedRouter = async (
+  page: Page,
+  request: APIRequestContext,
+  owned: SavedDestinations,
+  stored: boolean,
+) => {
+  const { profileId, outputId } = await publishProfile(page, 'keenetic')
+  const deviceID = await registerSavedDestination(
+    request,
+    owned,
+    'keenetic',
+    'Home Keenetic',
+    'http://192.168.1.1',
+    'admin',
+    'Wireguard0',
+  )
+  const bound = await request.post(`${origin}/v1/outputs/${outputId}/device`, {
+    data: { device_id: deviceID },
+    headers: { 'X-Routevane-Request': '1' },
+  })
+  expect(bound.ok()).toBe(true)
+  await page.route(`${origin}/v1/devices`, async (route) => {
+    const response = await route.fetch()
+    const registry = (await response.json()) as {
+      devices: { id: string; credential_stored?: boolean }[]
+      secret_store_available: boolean
+    }
+    for (const device of registry.devices)
+      if (device.id === deviceID) device.credential_stored = stored
+    registry.secret_store_available = true
+    await route.fulfill({ response, json: registry })
+  })
+  const previews: Record<string, unknown>[] = []
+  await page.route(/\/v1\/artifacts\/[a-f0-9]{32}\/deploy$/, async (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>
+    previews.push(body)
+    expect(body.confirm).toBe(false)
+    await route.fulfill({
+      json: {
+        plan: {
+          artifact_id: 'a'.repeat(32),
+          artifact_hash: 'f'.repeat(64),
+          target_id: 'keenetic',
+          title: 'Keenetic',
+          deployer_id: 'keenetic-route-bat',
+          size_bytes: 10,
+        },
+      },
+    })
+  })
+  const saves: Record<string, unknown>[] = []
+  await page.route(`${origin}/v1/devices/${deviceID}/credential`, (route) => {
+    saves.push(route.request().postDataJSON() as Record<string, unknown>)
+    return route.fulfill({
+      json: { device: { id: deviceID, credential_stored: true } },
+    })
+  })
+  await page.goto(`${origin}/profiles/${profileId}/send/${outputId}`)
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Send · Keenetic' }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('combobox', {
+      name: message('en', 'send.connection.label'),
+    }),
+  ).toHaveText('Home Keenetic')
+  return {
+    deviceID,
+    password: page.getByLabel(message('en', 'send.field.password'), {
+      exact: true,
+    }),
+    previews,
+    review: page.getByRole('button', {
+      name: message('en', 'send.review'),
+      exact: true,
+    }),
+    saves,
+  }
+}
+
+savedTest(
+  'a saved password is used without asking, and another one is taken for one send only',
+  async ({ page, request, savedDestinations }) => {
+    savedTest.setTimeout(120000)
+    const { deviceID, password, previews, review, saves } =
+      await sendToSavedRouter(page, request, savedDestinations, true)
+    await expect(
+      page.getByText(message('en', 'send.password.stored'), { exact: true }),
+    ).toBeVisible()
+    await expect(password).toHaveCount(0)
+    await expect(
+      page.getByRole('switch', { name: message('en', 'send.password.save') }),
+    ).toHaveCount(0)
+
+    await review.click()
+    await expect(
+      page.getByRole('button', { name: message('en', 'send.apply') }),
+    ).toBeVisible()
+    expect(previews).toEqual([
+      {
+        device_id: deviceID,
+        expected_connection: {
+          device: 'http://192.168.1.1',
+          username: 'admin',
+          interface: 'Wireguard0',
+        },
+        password: '',
+        confirm: false,
+      },
+    ])
+
+    await page
+      .getByRole('button', { name: message('en', 'send.password.override') })
+      .click()
+    await expect(password).toBeFocused()
+    const oneSend = crypto.randomUUID()
+    await password.fill(oneSend)
+    await review.click()
+    await expect.poll(() => previews.length).toBe(2)
+    expect(previews[1]).toMatchObject({ password: oneSend })
+    expect(saves).toEqual([])
+  },
+)
+
+savedTest(
+  'a password typed for a connection is saved in it only when asked, after the preview worked',
+  async ({ page, request, savedDestinations }) => {
+    savedTest.setTimeout(120000)
+    const { password, previews, review, saves } = await sendToSavedRouter(
+      page,
+      request,
+      savedDestinations,
+      false,
+    )
+    const keep = page.getByRole('switch', {
+      name: message('en', 'send.password.save'),
+    })
+    await expect(password).toHaveValue('')
+    await expect(keep).not.toBeChecked()
+    await expect(
+      page.getByText(message('en', 'send.password.save.consequence')),
+    ).toBeVisible()
+
+    // An empty password is named beside its field and nothing is sent.
+    await expect(review).toBeEnabled()
+    await review.click()
+    await expect(
+      page.getByText(message('en', 'send.field.required'), { exact: true }),
+    ).toBeVisible()
+    await expect(password).toBeFocused()
+    expect(previews).toEqual([])
+
+    const kept = crypto.randomUUID()
+    await password.fill(kept)
+    await keep.click()
+    await review.click()
+    await expect(
+      page.getByText(message('en', 'send.password.stored'), { exact: true }),
+    ).toBeVisible()
+    expect(previews).toHaveLength(1)
+    expect(previews[0]).toMatchObject({ password: kept })
+    expect(saves).toEqual([{ credential: kept }])
+    const stored = await page.evaluate(() =>
+      JSON.stringify({
+        local: { ...localStorage },
+        session: { ...sessionStorage },
+      }),
+    )
+    expect(stored).not.toContain(kept)
+  },
+)
