@@ -43,7 +43,8 @@ decision is meant to stop owning.
   them with tokens, outside the library's cascade layer, so no utility class
   sets their look; the panel takes no library close button (its own close
   control sits in the header actions) and no library transition, keeping its
-  own entrance keyframe, which Reka's presence handling waits on.
+  own entrance keyframe and has no exit transition: the animation name does
+  not change on close, so Reka's presence handling unmounts it at once.
 - The current Nuxt UI 4.11.1 / Reka UI 2.10.4 sheet uses the library's stateful
   keyframes. Reka assigns `animationFillMode` through CSSOM; that assignment is
   permitted by the application's `style-src 'self'` policy. The former rationale
