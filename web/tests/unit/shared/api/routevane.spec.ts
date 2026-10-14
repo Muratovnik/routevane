@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   loadCatalog,
   localizedInstallationSteps,
-  localizedTargetHint,
   localizedTargetTitle,
   previewList,
 } from '@/shared/api/catalog'
@@ -655,12 +654,6 @@ describe('catalog wording per locale', () => {
   it('prefers the English rendition only when English is being read', () => {
     expect(localizedTargetTitle(mikrotik, 'en')).toBe('MikroTik router')
     expect(localizedTargetTitle(mikrotik, 'ru')).toBe('MikroTik')
-    expect(localizedTargetHint(mikrotik, 'en')).toBe(
-      'upload the file run /import',
-    )
-    expect(localizedTargetHint(mikrotik, 'ru')).toBe(
-      'загрузите файл выполните /import',
-    )
   })
 
   it('reads the steps in the locale being read, with the catalog steps as the fallback', () => {
@@ -681,7 +674,6 @@ describe('catalog wording per locale', () => {
   // A catalog that names an entry once names it correctly in both locales.
   it('falls back to the catalog wording when there is no rendition', () => {
     expect(localizedTargetTitle(keenetic, 'en')).toBe('Keenetic')
-    expect(localizedTargetHint(keenetic, 'en')).toBe('Импортируйте файл.')
   })
 
   // An output whose target has left the catalog keeps the title stored with
@@ -691,7 +683,6 @@ describe('catalog wording per locale', () => {
       'Retired device',
     )
     expect(localizedTargetTitle(undefined, 'ru')).toBe('')
-    expect(localizedTargetHint(null, 'en')).toBe('')
   })
 })
 

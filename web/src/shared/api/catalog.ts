@@ -136,19 +136,6 @@ export const localizedTargetTitle = (
   return target.title === '' ? fallback : target.title
 }
 
-export const localizedTargetHint = (
-  target:
-    | Pick<TargetOption, 'manualInstallationHint' | 'manualInstallationHintEn'>
-    | null
-    | undefined,
-  locale: string,
-): string => {
-  if (target === null || target === undefined) return ''
-  if (locale === 'en' && target.manualInstallationHintEn !== '')
-    return target.manualInstallationHintEn
-  return target.manualInstallationHint
-}
-
 // The steps the operator reads: the English rendition when English is read and
 // the catalog has one, the catalog's own steps otherwise.
 export const localizedInstallationSteps = (

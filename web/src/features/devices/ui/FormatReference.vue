@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 
 import {
-  localizedTargetHint,
+  localizedInstallationSteps,
   localizedTargetTitle,
   type TargetOption,
 } from '@/shared/api/catalog'
@@ -40,8 +40,17 @@ const { locale, t } = useLocale()
 const title = (target: TargetOption): string =>
   localizedTargetTitle(target, locale.value, target.id)
 
-const hint = (target: TargetOption): string =>
-  localizedTargetHint(target, locale.value)
+// What the operator does with the file. Several steps are read in order, as the
+// Send screen reads them; a target that gives one sentence has one step, which
+// is that sentence on its own.
+const explanation = (
+  target: TargetOption,
+): { items?: string[]; text: string } => {
+  const steps = localizedInstallationSteps(target, locale.value)
+  return steps.length > 1
+    ? { items: steps, text: t('send.manual.howto') }
+    : { text: steps[0] ?? '' }
+}
 
 // What the collapsed section already answers: which formats this build
 // carries. The catalog states them, so a build that gains or loses one says
@@ -94,8 +103,10 @@ const delivery = (target: TargetOption): string => {
                 <RvIcon :name="targetIcon(target.id)" />
                 {{ title(target) }}
                 <RvInfoTip
+                  v-if="explanation(target).text !== ''"
+                  v-bind="explanation(target)"
                   :label="t('targets.hint', { target: title(target) })"
-                  :text="hint(target)"
+                  ordered
                 />
               </span>
             </td>

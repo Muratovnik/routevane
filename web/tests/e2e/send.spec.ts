@@ -29,7 +29,9 @@ import {
   type SpawnedProduct,
 } from './support/product'
 import {
+  catalogDisclosure,
   chooseFormatAction,
+  infoPanel,
   listMembership,
   menuPanel,
 } from './support/queries'
@@ -961,6 +963,12 @@ test('a target without a deployer is offered the manual path only', async ({
   await expect(manual).toContainText('/import')
 })
 
+// The domain-based format's name, as its row menu announces it.
+const DNS_TITLES = {
+  en: 'Keenetic (domain-based)',
+  ru: 'Keenetic (по доменам)',
+} as const
+
 // The catalog lists the steps of a format that has several, and the screen
 // numbers them as a list: a step carries no number of its own.
 test('a format with several installation steps shows them as a numbered list', async ({
@@ -985,6 +993,24 @@ test('a format with several installation steps shows them as a numbered list', a
     /^On the Routing — DNS-Based Routes page/,
   )
   await expect(steps.nth(3)).toHaveText(/^The commands never delete anything/)
+
+  // The reference of supported formats reads the same steps, as a list in the
+  // format's informer, not as the one-line hint they are joined into.
+  await page.goto(`${origin}/connections`)
+  await catalogDisclosure(page).click()
+  const informer = message('en', 'targets.hint').replace(
+    '{target}',
+    DNS_TITLES.en,
+  )
+  await page.getByRole('button', { name: informer }).click()
+  const referenceSteps = infoPanel(page, informer).getByRole('listitem')
+  await expect(referenceSteps).toHaveCount(4)
+  await expect(referenceSteps.first()).toHaveText(
+    /^KeeneticOS 5\.0 or newer is required\./,
+  )
+  await expect(referenceSteps.nth(3)).toHaveText(
+    /^The commands never delete anything/,
+  )
 })
 
 test('a destination the configuration cannot accept is refused before writing', async ({
@@ -1043,12 +1069,6 @@ test('a destination the configuration cannot accept is refused before writing', 
     ),
   ).resolves.toBe('absent')
 })
-
-// The domain-based format's name, as its row menu announces it.
-const DNS_TITLES = {
-  en: 'Keenetic (domain-based)',
-  ru: 'Keenetic (по доменам)',
-} as const
 
 for (const language of ['en', 'ru'] as const) {
   test.describe(`FQDN output settings (${language})`, () => {

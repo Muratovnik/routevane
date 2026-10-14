@@ -28,8 +28,11 @@ defineProps<{
   numeric?: boolean
   /** The accessible name of the trigger: what this explains. */
   label: string
+  /** The explanation, or the heading over `items` when there are some. */
   text: string
   items?: string[]
+  /** `items` are steps to be read in order, so the panel numbers them. */
+  ordered?: boolean
 }>()
 </script>
 
@@ -54,9 +57,13 @@ defineProps<{
       >
         <template v-if="items"
           ><strong>{{ text }}</strong>
-          <ul class="rv-infotip__items">
-            <li v-for="item in items" :key="item">{{ item }}</li>
-          </ul></template
+          <component
+            :is="ordered ? 'ol' : 'ul'"
+            class="rv-infotip__items"
+            :class="{ 'rv-infotip__items--ordered': ordered }"
+          >
+            <li v-for="(item, index) in items" :key="index">{{ item }}</li>
+          </component></template
         >
         <template v-else>{{ text }}</template>
       </PopoverContent>
@@ -143,5 +150,11 @@ defineProps<{
   margin: var(--rv-space-3) 0 0;
   padding: 0;
   list-style: none;
+}
+
+/* Steps are read in order, and a step carries no number of its own. */
+.rv-infotip__items--ordered {
+  padding-inline-start: var(--rv-space-5);
+  list-style: decimal;
 }
 </style>
