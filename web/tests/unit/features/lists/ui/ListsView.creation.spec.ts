@@ -122,7 +122,7 @@ describe('creating categories and lists', () => {
       .element(sheet.getByRole('textbox', { name: 'Domains' }))
       .toHaveAttribute('placeholder', 'example.com\nvideo.example.net')
     await expect
-      .element(sheet.getByRole('button', { name: 'About Domains' }))
+      .element(sheet.getByRole('button', { name: 'More information' }))
       .toBeVisible()
     await fillField(screen, CATEGORY_NAME_FIELD, created.title)
     await fillField(screen, 'Domains', created.domains.join('\n'))

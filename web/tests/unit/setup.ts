@@ -278,9 +278,15 @@ const UFormFieldDouble = defineComponent({
       })) as never,
     )
     return () => {
+      // The library draws the error's element for a non-empty error and also
+      // whenever the field is given an error slot, empty or not.
       const error =
-        typeof props.error === 'string' && props.error !== ''
-          ? h('div', { id: `${ariaId}-error` }, slots.error?.() ?? props.error)
+        (typeof props.error === 'string' && props.error !== '') || slots.error
+          ? h(
+              'div',
+              { id: `${ariaId}-error` },
+              slots.error?.({ error: props.error }) ?? props.error,
+            )
           : undefined
       return h(
         'div',
@@ -606,6 +612,8 @@ const UPopoverDouble = defineComponent({
       default: () => ({}),
     },
     open: Boolean,
+    // Class overrides have no rendered form here.
+    ui: Object,
   },
   emits: { 'update:open': null },
   setup(props, { emit, slots }) {

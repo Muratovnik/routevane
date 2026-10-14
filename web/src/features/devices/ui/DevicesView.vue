@@ -490,15 +490,11 @@ const submit = async (): Promise<void> => {
             <RvButton :disabled="devices.busy.value" @click="cancelCreation">{{
               t('action.cancel')
             }}</RvButton>
-            <!-- Pressing the button must not take focus from the field being
-                 left: leaving it states its problem, the line that appears
-                 moves this button, and the click would then land beside it. -->
             <RvButton
               :disabled="!canSubmit"
               form="device-create"
               type="submit"
               variant="primary"
-              @mousedown.prevent
               >{{ t('action.save') }}</RvButton
             >
           </div>

@@ -729,10 +729,17 @@ value on screen while it is busy; a field's label and the value it holds name
 it, and its panel is named by that label rather than by its placeholder.
 `RvField` names its control by the caller's id whether or not the control is a
 library input. An example of the input's format is its placeholder, drawn in
-a muted ink that passes the contrast gate, and an explanation is an `info`
-informer beside the label, outside the label so the control keeps the label's
-words as its name. Under the control there is only the error, and the control
-is described by the error that is actually shown. The older `hint` — the
+a muted ink that passes the contrast gate, and an explanation is the field's
+`info`: an informer in the label's row, outside the label so the control keeps
+the label's words as its name, and named by what it is ("More information"),
+never by the label, so a query by label finds the field alone. The explanation's
+text is also kept in the field, visually hidden, and the control is described by
+it together with the error that is actually shown, so a reader hears it without
+opening the informer. Under the control there is only the error. The `label-aside`
+slot is the label row's place for any other small control. The field keeps one line for
+that error whether or not it is shown, so a refused value stated on leaving the
+field never moves the controls below it: a press aimed at the button under the
+field, made in the same motion that leaves it, still lands on the button. The older `hint` — the
 library's description between the label and the control — remains only on the
 connection and send fields that have not moved yet. A disabled text field takes the
 library's disabled look, reduced opacity, rather than a colour of its own. A

@@ -774,23 +774,21 @@ describe('ListDetailDialog', () => {
     await expect
       .element(domains)
       .toHaveAttribute('placeholder', 'example.com\nvideo.example.net')
+    // The explanation is the field's description, heard without opening the
+    // informer, and it is not a sentence drawn under the label.
+    const described = (domains.element().getAttribute('aria-describedby') ?? '')
+      .split(' ')
+      .map((id) => document.getElementById(id)?.textContent?.trim())
+    expect(described).toEqual([
+      'One domain per line. Subdomains are covered automatically.',
+    ])
+    await screen.getByRole('button', { name: 'More information' }).click()
     await expect
       .element(
-        screen.getByText('Subdomains are covered automatically.', {
-          exact: false,
-        }),
-      )
-      .not.toBeInTheDocument()
-
-    await screen.getByRole('button', { name: 'About Domains' }).click()
-    await expect
-      .element(
-        screen.getByText('Subdomains are covered automatically.', {
-          exact: false,
-        }),
+        screen
+          .getByText('Subdomains are covered automatically.', { exact: false })
+          .last(),
       )
       .toBeVisible()
-    // The informer is not part of the control's description.
-    expect(domains.element().getAttribute('aria-describedby')).toBeNull()
   })
 })

@@ -38,7 +38,7 @@ const ru: Dictionary = {
   'forecast.recalculate': 'Пересчитать',
   'choice.search': 'Найти',
   'choice.empty': 'Ничего не найдено',
-  'field.info': 'О поле «{field}»',
+  'field.info': 'Подробнее',
   'listPicker.selectVisible': 'Выбрать или убрать все видимые списки',
   'profile.priority.unselected':
     'Приоритет списка {list}: сначала добавьте его в профиль',
@@ -1036,7 +1036,7 @@ const en: Dictionary = {
   'forecast.recalculate': 'Recalculate',
   'choice.search': 'Search',
   'choice.empty': 'Nothing found',
-  'field.info': 'About {field}',
+  'field.info': 'More information',
   'listPicker.selectVisible': 'Select or clear all visible lists',
   'profile.priority.unselected':
     'Priority of {list}: add it to the profile first',

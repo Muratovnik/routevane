@@ -1,6 +1,12 @@
 <script lang="ts">
 import { useFormField } from '@nuxt/ui/composables/useFormField'
-import { computed, defineComponent, provide, type SlotsType } from 'vue'
+import {
+  computed,
+  defineComponent,
+  provide,
+  useSlots,
+  type SlotsType,
+} from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
 import { fieldLabelId, fieldLabelKey } from '@/shared/lib/fieldLabel'
@@ -52,11 +58,15 @@ const FieldBinding = defineComponent({
  * One form field: label, the control, and — while there is one — the error the
  * control caused, under it. Nuxt UI draws the field. An example of the format
  * belongs in the control's placeholder and an explanation in `info`, which
- * opens from an informer beside the label; neither is a line under the label.
- * `hint` is the older form of the same thing — the library's description
- * between the label and the control — and stays only for the fields that have
- * not moved to an informer. The slot receives the ids to point
- * `aria-describedby` at, so the wiring cannot drift from what is rendered.
+ * opens from an informer in the label's row; neither is a line under the label.
+ * The explanation is also the control's description: its text is kept in the
+ * field, visually hidden, and named in the `describedBy` the slot receives
+ * beside the error, so a reader hears it without opening the informer. The
+ * `label-aside` slot is the label row's own place for any other small control.
+ * `hint` is the older form — the library's description between the label and
+ * the control — and stays only for the fields that have not moved to an
+ * informer. The slot receives the ids to point `aria-describedby` at, so the
+ * wiring cannot drift from what is rendered.
  */
 const props = defineProps<{
   /** Share caption and control rows with adjacent fields in a parent grid. */
@@ -72,6 +82,17 @@ const props = defineProps<{
 }>()
 
 const { t } = useLocale()
+const slots = useSlots()
+
+// The informer's text is kept as the control's description, whether or not its
+// panel is open, under an id the caller's own id fixes.
+const infoId = computed(() => `${props.inputId}-info`)
+const describedByWith = (ids: string | undefined): string | undefined => {
+  const named = [props.info === undefined ? undefined : infoId.value, ids]
+  return (
+    named.filter((id) => id !== undefined && id !== '').join(' ') || undefined
+  )
+}
 
 const failure = computed(() =>
   props.error === undefined || props.error === '' ? undefined : props.error,
@@ -85,20 +106,21 @@ const description = computed(() => (props.hint === '' ? undefined : props.hint))
     :description="description"
     :error="failure"
     :label="label"
-    :ui="{ labelWrapper: 'justify-start' }"
+    :ui="{ error: 'mt-1', labelWrapper: 'justify-start' }"
   >
     <!-- The label's text carries the id a choice button names itself by. -->
     <template #label>
       <span :id="fieldLabelId(inputId)">{{ label }}</span>
     </template>
-    <!-- Beside the label and outside it, so the label's own text stays what
-         names the control. -->
-    <template v-if="info !== undefined" #hint>
-      <RvInfoTip
-        inline
-        :label="t('field.info', { field: label })"
-        :text="info"
-      />
+    <!-- In the label's row and outside the label, so the label's own text stays
+         what names the control. The informer is named by what it is, never by
+         the label, so a label query finds the field alone. -->
+    <template v-if="info !== undefined || slots['label-aside']" #hint>
+      <template v-if="info !== undefined">
+        <span :id="infoId" class="rv-visually-hidden">{{ info }}</span>
+        <RvInfoTip inline :label="t('field.info')" :text="info" />
+      </template>
+      <slot name="label-aside" />
     </template>
     <!-- A new id is a new registration, so the binding is keyed by it. -->
     <FieldBinding
@@ -107,15 +129,33 @@ const description = computed(() => (props.hint === '' ? undefined : props.hint))
       :input-id="inputId"
       :label="label"
     >
-      <slot :described-by="binding.describedBy" :invalid="binding.invalid" />
+      <slot
+        :described-by="describedByWith(binding.describedBy)"
+        :invalid="binding.invalid"
+      />
     </FieldBinding>
-    <template v-if="announceError === true && failure !== undefined" #error>
-      <span role="alert">{{ failure }}</span>
+    <!-- The library draws the error's line whenever this slot exists, so the
+         slot is always given and the line it keeps is one line tall whether or
+         not an error is in it: leaving a field with a refused value must not
+         move what is under it, or a click aimed there lands beside it. -->
+    <template #error>
+      <span
+        class="rv-field__error"
+        :role="
+          announceError === true && failure !== undefined ? 'alert' : undefined
+        "
+        >{{ failure }}</span
+      >
     </template>
   </UFormField>
 </template>
 
 <style scoped>
+.rv-field__error {
+  display: block;
+  min-height: 1lh;
+}
+
 .rv-field--aligned {
   display: grid;
   grid-row: span 2;

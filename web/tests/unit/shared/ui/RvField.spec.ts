@@ -112,30 +112,34 @@ describe('RvField', () => {
     expect(describedTexts(field.element())).toEqual(['An address and a port.'])
   })
 
-  // An explanation is offered from an informer beside the label, not drawn as
+  // An explanation is offered from an informer in the label's row, not drawn as
   // a line under it. The informer is outside the label, so the control keeps
-  // the label's own words as its name, and the explanation is not announced
-  // with every visit to the field.
-  it('offers an explanation from an informer beside the label', async () => {
-    const screen = await render(TextField, {
-      props: { info: 'Subdomains are covered automatically.' },
-    })
+  // the label's own words as its name; the explanation is the control's
+  // description all the same, kept in the field and visually hidden, so it is
+  // heard without opening the informer. The informer's own name never repeats
+  // the label, so a query by label finds the field alone.
+  it('offers an explanation from an informer in the label row and describes the control by it', async () => {
+    const explanation = 'Subdomains are covered automatically.'
+    const screen = await render(TextField, { props: { info: explanation } })
 
     const field = screen.getByLabelText('Address', { exact: true })
     await expect.element(field).toBeVisible()
+    expect(screen.getByLabelText('Address').all()).toHaveLength(1)
+    expect(describedTexts(field.element())).toEqual([explanation])
+    // Kept in the field under the product's one visually-hidden role, so it is
+    // in the description and not on the screen.
     await expect
-      .element(screen.getByText('Subdomains are covered automatically.'))
-      .not.toBeInTheDocument()
-    expect(field.element().getAttribute('aria-describedby')).toBeNull()
+      .element(screen.getByText(explanation))
+      .toHaveClass('rv-visually-hidden')
 
-    await screen.getByRole('button', { name: 'About Address' }).click()
+    const informer = screen.getByRole('button', { name: 'More information' })
+    await informer.click()
     await expect
-      .element(screen.getByText('Subdomains are covered automatically.'))
+      .element(screen.getByText(explanation, { exact: true }).last())
       .toBeVisible()
-    // Beside the label: the informer is not inside it, and it shares the
-    // label's line rather than adding one.
+    // In the label's row: the informer is not inside the label, and it shares
+    // the label's line rather than adding one.
     const label = screen.container.querySelector('label')!
-    const informer = screen.getByRole('button', { name: 'About Address' })
     expect(label.contains(informer.element())).toBe(false)
     const [labelBox, informerBox] = [
       label.getBoundingClientRect(),
@@ -146,11 +150,28 @@ describe('RvField', () => {
     expect(informerBox.bottom).toBeLessThanOrEqual(labelBox.bottom + 4)
   })
 
+  it('describes the control by the explanation and the error together', async () => {
+    const screen = await render(TextField, {
+      props: {
+        error: 'Enter the address.',
+        info: 'An address and a port.',
+      },
+    })
+
+    const field = screen.getByLabelText('Address', { exact: true })
+    expect(describedTexts(field.element()).toSorted()).toEqual([
+      'An address and a port.',
+      'Enter the address.',
+    ])
+    await screen.rerender({ error: undefined })
+    expect(describedTexts(field.element())).toEqual(['An address and a port.'])
+  })
+
   it('draws no informer when there is nothing to explain', async () => {
     const screen = await render(TextField)
 
     await expect
-      .element(screen.getByRole('button', { name: 'About Address' }))
+      .element(screen.getByRole('button', { name: 'More information' }))
       .not.toBeInTheDocument()
   })
 
