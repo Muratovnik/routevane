@@ -71,10 +71,6 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
 		return 1
 	}
-	// Operator-defined lists and standing list corrections are part of
-	// the catalog this process serves. Serving lists without them would
-	// silently publish something else than stored, so a registry that cannot
-	// be read is a startup failure, not a degraded mode.
 	// Outputs created before ADR 0054 carry the retired catalog-wide target
 	// revision. They move to their own target's revision before anything can
 	// build them; a database that cannot do so is not served half-upgraded.
@@ -83,6 +79,10 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		logResult(logger, "serve", "", "", "failed", 0, started, "target_revisions_unavailable")
 		return 1
 	}
+	// Operator-defined lists and standing list corrections are part of
+	// the catalog this process serves. Serving lists without them would
+	// silently publish something else than stored, so a registry that cannot
+	// be read is a startup failure, not a degraded mode.
 	if err := publication.LoadCustomLists(deps.Context); err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "custom_lists_unavailable")
 		return 1
