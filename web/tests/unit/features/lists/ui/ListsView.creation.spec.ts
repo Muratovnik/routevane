@@ -116,6 +116,14 @@ describe('creating categories and lists', () => {
 
     const sheet = screen.getByRole('dialog', { name: NEW_LIST })
     await expect.element(sheet).toHaveClass('rv-dialog--panel')
+    // The format is the example in the field; what it means is behind an
+    // informer beside the label, not a sentence under it.
+    await expect
+      .element(sheet.getByRole('textbox', { name: 'Domains' }))
+      .toHaveAttribute('placeholder', 'example.com\nvideo.example.net')
+    await expect
+      .element(sheet.getByRole('button', { name: 'About Domains' }))
+      .toBeVisible()
     await fillField(screen, CATEGORY_NAME_FIELD, created.title)
     await fillField(screen, 'Domains', created.domains.join('\n'))
     await sheet.getByRole('button', { name: 'Create' }).click()

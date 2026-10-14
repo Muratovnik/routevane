@@ -14,13 +14,14 @@ const TextField = defineComponent({
     announceError: Boolean,
     error: { type: String, default: undefined },
     hint: { type: String, default: undefined },
+    info: { type: String, default: undefined },
     inputId: { type: String, default: 'device-address' },
   },
   setup() {
     return { value: ref('') }
   },
   template: `
-    <RvField :announce-error="announceError" :error="error" :hint="hint" :input-id="inputId" label="Address">
+    <RvField :announce-error="announceError" :error="error" :hint="hint" :info="info" :input-id="inputId" label="Address">
       <template #default="{ describedBy, invalid }">
         <RvTextInput
           v-model="value"
@@ -109,6 +110,48 @@ describe('RvField', () => {
     await screen.rerender({ error: undefined })
     await expect.element(field).not.toHaveAttribute('aria-invalid')
     expect(describedTexts(field.element())).toEqual(['An address and a port.'])
+  })
+
+  // An explanation is offered from an informer beside the label, not drawn as
+  // a line under it. The informer is outside the label, so the control keeps
+  // the label's own words as its name, and the explanation is not announced
+  // with every visit to the field.
+  it('offers an explanation from an informer beside the label', async () => {
+    const screen = await render(TextField, {
+      props: { info: 'Subdomains are covered automatically.' },
+    })
+
+    const field = screen.getByLabelText('Address', { exact: true })
+    await expect.element(field).toBeVisible()
+    await expect
+      .element(screen.getByText('Subdomains are covered automatically.'))
+      .not.toBeInTheDocument()
+    expect(field.element().getAttribute('aria-describedby')).toBeNull()
+
+    await screen.getByRole('button', { name: 'About Address' }).click()
+    await expect
+      .element(screen.getByText('Subdomains are covered automatically.'))
+      .toBeVisible()
+    // Beside the label: the informer is not inside it, and it shares the
+    // label's line rather than adding one.
+    const label = screen.container.querySelector('label')!
+    const informer = screen.getByRole('button', { name: 'About Address' })
+    expect(label.contains(informer.element())).toBe(false)
+    const [labelBox, informerBox] = [
+      label.getBoundingClientRect(),
+      informer.element().getBoundingClientRect(),
+    ]
+    expect(informerBox.left).toBeGreaterThanOrEqual(labelBox.right)
+    expect(informerBox.top).toBeGreaterThanOrEqual(labelBox.top - 4)
+    expect(informerBox.bottom).toBeLessThanOrEqual(labelBox.bottom + 4)
+  })
+
+  it('draws no informer when there is nothing to explain', async () => {
+    const screen = await render(TextField)
+
+    await expect
+      .element(screen.getByRole('button', { name: 'About Address' }))
+      .not.toBeInTheDocument()
   })
 
   it('treats an empty error as no error', async () => {

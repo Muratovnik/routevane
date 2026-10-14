@@ -758,4 +758,39 @@ describe('ListDetailDialog', () => {
     await expect.element(panel).toMatchTextContent('itdoginfo')
     expect(screen.getByRole('checkbox').all()).toHaveLength(2)
   })
+
+  // The format of an entry is shown by the example in the field and explained
+  // from an informer beside its label; under the label there is no sentence,
+  // and under the field only an error would be.
+  it('shows an example in the creation field and explains it from an informer', async () => {
+    stubAPI({})
+    const screen = await renderCard({
+      creating: true,
+      list: null,
+      mode: 'library',
+    })
+
+    const domains = screen.getByRole('textbox', { name: 'Domains' })
+    await expect
+      .element(domains)
+      .toHaveAttribute('placeholder', 'example.com\nvideo.example.net')
+    await expect
+      .element(
+        screen.getByText('Subdomains are covered automatically.', {
+          exact: false,
+        }),
+      )
+      .not.toBeInTheDocument()
+
+    await screen.getByRole('button', { name: 'About Domains' }).click()
+    await expect
+      .element(
+        screen.getByText('Subdomains are covered automatically.', {
+          exact: false,
+        }),
+      )
+      .toBeVisible()
+    // The informer is not part of the control's description.
+    expect(domains.element().getAttribute('aria-describedby')).toBeNull()
+  })
 })

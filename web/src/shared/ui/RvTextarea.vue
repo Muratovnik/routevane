@@ -13,6 +13,7 @@ defineProps<{
   inputId: string
   invalid?: boolean
   mono?: boolean
+  placeholder?: string
   rows?: number
 }>()
 
@@ -30,6 +31,7 @@ const model = defineModel<string>({ required: true })
     :color="invalid === true ? 'error' : 'primary'"
     :disabled="disabled === true"
     :highlight="invalid === true"
+    :placeholder="placeholder"
     :rows="rows ?? 9"
     size="xl"
     spellcheck="false"

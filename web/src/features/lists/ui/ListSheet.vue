@@ -164,7 +164,7 @@ const submit = async (): Promise<void> => {
         </RvField>
         <RvField
           :error="domainsError"
-          :hint="t('listCard.new.domains.hint')"
+          :info="t('listCard.new.domains.hint')"
           input-id="library-list-domains"
           :label="t('listCard.new.domains.field')"
         >
@@ -176,6 +176,7 @@ const submit = async (): Promise<void> => {
               input-id="library-list-domains"
               :invalid="invalid"
               mono
+              :placeholder="t('listCard.new.domains.placeholder')"
             />
           </template>
         </RvField>

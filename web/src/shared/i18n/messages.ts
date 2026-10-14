@@ -38,6 +38,7 @@ const ru: Dictionary = {
   'forecast.recalculate': 'Пересчитать',
   'choice.search': 'Найти',
   'choice.empty': 'Ничего не найдено',
+  'field.info': 'О поле «{field}»',
   'listPicker.selectVisible': 'Выбрать или убрать все видимые списки',
   'profile.priority.unselected':
     'Приоритет списка {list}: сначала добавьте его в профиль',
@@ -510,6 +511,8 @@ const ru: Dictionary = {
   'listCard.membership.inactive': 'Неактивен',
   'listCard.openLibrary': 'Открыть в библиотеке',
   'listCard.remove': 'Удалить список',
+  'listCard.new.domains.placeholder': 'example.com\nvideo.example.net',
+  'listCard.domains.placeholder': 'example.com\n203.0.113.0/24',
   'listDetail.open.aria': 'Открыть состав списка {list}',
   'listDetail.source.http': 'Внешний фид',
   'listDetail.source.dns': 'DNS-наблюдение',
@@ -1033,6 +1036,7 @@ const en: Dictionary = {
   'forecast.recalculate': 'Recalculate',
   'choice.search': 'Search',
   'choice.empty': 'Nothing found',
+  'field.info': 'About {field}',
   'listPicker.selectVisible': 'Select or clear all visible lists',
   'profile.priority.unselected':
     'Priority of {list}: add it to the profile first',
@@ -1490,6 +1494,8 @@ const en: Dictionary = {
   'listCard.membership.inactive': 'Inactive',
   'listCard.openLibrary': 'Open in the library',
   'listCard.remove': 'Delete the list',
+  'listCard.new.domains.placeholder': 'example.com\nvideo.example.net',
+  'listCard.domains.placeholder': 'example.com\n203.0.113.0/24',
   'listDetail.open.aria': 'Open the contents of list {list}',
   'listDetail.source.http': 'External feed',
   'listDetail.source.dns': 'DNS observation',

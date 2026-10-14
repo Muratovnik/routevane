@@ -18,8 +18,15 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
  * stretching whatever the trigger sits in.
  */
 defineProps<{
-  /** The accessible name of the trigger: what this explains. */
+  /**
+   * The trigger stands in a line of text, as beside a field's label: it is
+   * the smallest target the platform asks for and takes no height of its own,
+   * so a label with an informer stands on the same line as one without.
+   */
+  inline?: boolean
+  /** The trigger is a count that explains itself, set as a figure. */
   numeric?: boolean
+  /** The accessible name of the trigger: what this explains. */
   label: string
   text: string
   items?: string[]
@@ -31,7 +38,10 @@ defineProps<{
     <PopoverTrigger
       :aria-label="label"
       class="rv-infotip__trigger"
-      :class="{ 'rv-infotip__trigger--numeric': numeric }"
+      :class="{
+        'rv-infotip__trigger--inline': inline,
+        'rv-infotip__trigger--numeric': numeric,
+      }"
     >
       <slot><RvIcon name="info" /></slot>
     </PopoverTrigger>
@@ -68,6 +78,12 @@ defineProps<{
   border: 0;
   border-radius: var(--rv-radius-sm);
   cursor: pointer;
+}
+
+.rv-infotip__trigger--inline {
+  width: var(--rv-control-inline);
+  height: var(--rv-control-inline);
+  margin-block: calc((1lh - var(--rv-control-inline)) / 2);
 }
 
 .rv-infotip__trigger--numeric {

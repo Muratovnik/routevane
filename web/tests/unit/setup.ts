@@ -242,6 +242,7 @@ const UTextareaDouble = defineComponent({
           class: undefined,
           id: props.id,
           disabled: props.disabled,
+          placeholder: props.placeholder,
           rows: props.rows,
           value: props.modelValue,
           onInput: (event: Event) =>
@@ -259,6 +260,8 @@ const UFormFieldDouble = defineComponent({
     description: String,
     error: { type: [String, Boolean], default: undefined },
     label: String,
+    // Class overrides have no rendered form here.
+    ui: Object,
   },
   setup(props, { slots }) {
     const id = ref<string | undefined>(useId())
@@ -283,11 +286,15 @@ const UFormFieldDouble = defineComponent({
         'div',
         children([
           props.label
-            ? h(
-                'label',
-                { for: id.value },
-                slots.label?.({ label: props.label }) ?? props.label,
-              )
+            ? h('div', { 'data-slot': 'labelWrapper' }, [
+                h(
+                  'label',
+                  { for: id.value },
+                  slots.label?.({ label: props.label }) ?? props.label,
+                ),
+                // Beside the label and outside it, as the library draws it.
+                slots.hint ? h('span', slots.hint({})) : undefined,
+              ])
             : undefined,
           props.description
             ? h('p', { id: `${ariaId}-description` }, props.description)

@@ -175,7 +175,7 @@ watch(contentsState, async (state) => {
       </RvField>
       <RvField
         :error="domainsError"
-        :hint="t('listCard.new.domains.hint')"
+        :info="t('listCard.new.domains.hint')"
         input-id="list-domains"
         :label="t('listCard.new.domains.field')"
       >
@@ -187,6 +187,7 @@ watch(contentsState, async (state) => {
             input-id="list-domains"
             :invalid="invalid"
             mono
+            :placeholder="t('listCard.new.domains.placeholder')"
           />
         </template>
       </RvField>
@@ -569,7 +570,7 @@ watch(contentsState, async (state) => {
       <RvField
         announce-error
         :error="addError"
-        :hint="t('listCard.domains.hint')"
+        :info="t('listCard.domains.hint')"
         input-id="list-add-entries"
         :label="t('listCard.domains.field')"
       >
@@ -581,6 +582,7 @@ watch(contentsState, async (state) => {
             input-id="list-add-entries"
             :invalid="invalid"
             mono
+            :placeholder="t('listCard.domains.placeholder')"
           />
         </template>
       </RvField>
@@ -712,7 +714,7 @@ watch(contentsState, async (state) => {
       <form v-else class="list-card__inline-form" @submit.prevent="onAddFeed">
         <RvField
           :error="feedError"
-          :hint="t('listCard.feed.hint')"
+          :info="t('listCard.feed.hint')"
           input-id="list-feed-url"
           :label="t('listCard.feed.url')"
         >

@@ -496,8 +496,9 @@ Keep a concise explanation visible when it is needed to choose safely, understan
 an empty state, or recover from failure.
 Disclosures are for long secondary content, not for hints. A label or a heading
 never gets a sentence under it that restates the label, the placeholder or the
-obvious next step; a hint at a field, above its control, states an input
-format or a consequence, or it does not exist. Keep edits on the surface that owns their
+obvious next step. A field's example is its placeholder, its explanation sits
+behind an informer beside its label, and under a field there is only its error.
+Keep edits on the surface that owns their
 scope: composing a profile writes only that profile; the library writes the
 library (ADR 0029). Explain shared effects beside an action when they affect
 the operator's decision, such as a library edit used by several profiles. A
@@ -727,9 +728,13 @@ from its leading edge on one line, cut by an ellipsis, and keeps the chosen
 value on screen while it is busy; a field's label and the value it holds name
 it, and its panel is named by that label rather than by its placeholder.
 `RvField` names its control by the caller's id whether or not the control is a
-library input. Its hint is the library's description between the label and
-the control, and it stays on screen while an error is shown under the control;
-the control is described by the hint and the error that are actually shown. A disabled text field takes the
+library input. An example of the input's format is its placeholder, drawn in
+a muted ink that passes the contrast gate, and an explanation is an `info`
+informer beside the label, outside the label so the control keeps the label's
+words as its name. Under the control there is only the error, and the control
+is described by the error that is actually shown. The older `hint` — the
+library's description between the label and the control — remains only on the
+connection and send fields that have not moved yet. A disabled text field takes the
 library's disabled look, reduced opacity, rather than a colour of its own. A
 panel opened from a field is aligned to its leading edge and never narrower
 than it; a single choice or name field is `--rv-measure-field` wide; a stack of
