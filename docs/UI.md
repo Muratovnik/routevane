@@ -354,10 +354,12 @@ Sections, addressable by URL:
    is stated beside the address, in the words of the format's own kind of
    address, until the address changes, and the generic failure notice is not
    drawn beside it. A refusal that names no field is not pinned on one. The same
-   holds for the address typed on Send. Pressing Save with a pointer does not take focus from
-   the field being left, because the problem that field then states would move
-   the button from under the click. After a write, focus stays where the
-   operator was, or returns to the first field when the control that held it has
+   holds for the address typed on Send. Pressing Save with a pointer is an
+   ordinary press that takes focus to the button: the field being left states
+   its problem in the line it keeps for its error (see the field's paragraph
+   under Components), so nothing moves the button from under the click. After a
+   write, `keepFocus` puts focus back where the operator was, or on the first
+   field when the control that held it — Save, with nothing left to save — has
    nothing left to offer. «Отменить» and opening another connection both return
    the stored values. Because a password and consent name one exact destination
    and account, changing the address, account or interface turns automatic
