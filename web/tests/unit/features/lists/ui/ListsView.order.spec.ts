@@ -41,26 +41,47 @@ describe('the library default order', () => {
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('keeps a failed default order available to retry', async () => {
-    const { calls } = stubAPI({
-      ...catalogRoutes(),
-      'POST /v1/lists/priority': () =>
-        json({ error: 'controlled failure' }, 503),
-    })
-    const screen = await renderLibrary()
-    await expect.element(screen.getByRole('table')).toBeVisible()
+  // The service answering with an error and the service not answering ask for
+  // different things, so the notice says which one happened.
+  it.each([
+    [
+      'an error answer',
+      () => Promise.resolve(json({ error: 'controlled failure' }, 500)),
+      'The service received the request but answered with an error. Try again.',
+      'The local service did not answer.',
+    ],
+    [
+      'a lost request',
+      () => Promise.reject(new TypeError('Failed to fetch')),
+      'The local service did not answer. Check that Routevane is running.',
+      'The service received the request',
+    ],
+  ])(
+    'keeps a failed default order available to retry: %s',
+    async (_case, respond, said, notSaid) => {
+      const { calls } = stubAPI({
+        ...catalogRoutes(),
+        'POST /v1/lists/priority': respond,
+      })
+      const screen = await renderLibrary()
+      await expect.element(screen.getByRole('table')).toBeVisible()
 
-    const handle = screen.getByRole('button', {
-      name: 'Change priority of list Discord, position 1',
-    })
-    handle.element().focus()
-    await userEvent.keyboard('{ArrowDown}')
-    await screen.getByRole('button', { name: 'Save order' }).click()
+      const handle = screen.getByRole('button', {
+        name: 'Change priority of list Discord, position 1',
+      })
+      handle.element().focus()
+      await userEvent.keyboard('{ArrowDown}')
+      await screen.getByRole('button', { name: 'Save order' }).click()
 
-    await expect.element(screen.getByText('Order not saved')).toBeVisible()
-    await expect.element(screen.getByRole('table')).toBeVisible()
-    expect(
-      calls.filter((call) => call.key.includes('/v1/profiles')),
-    ).toHaveLength(0)
-  })
+      await expect.element(screen.getByText('Order not saved')).toBeVisible()
+      await expect.element(screen.getByText(said)).toBeVisible()
+      await expect
+        .element(screen.getByText(notSaid, { exact: false }))
+        .not.toBeInTheDocument()
+      await expect.element(screen.getByRole('table')).toBeVisible()
+      expect(
+        calls.filter((call) => call.key.includes('/v1/profiles')),
+      ).toHaveLength(0)
+    },
+  )
 })

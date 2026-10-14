@@ -17,6 +17,7 @@ import type {
   CategoryLists,
   ListDetail,
 } from '@/shared/api/catalog'
+import type { FailureKind } from '@/shared/api/http'
 import { useLocale } from '@/shared/i18n/useLocale'
 import { libraryPageHash, parseLibraryPageHash } from '@/shared/lib/listsHash'
 import type { ChoiceOption, MenuItem, SegmentOption } from '@/shared/ui/types'
@@ -162,10 +163,14 @@ const categoryActions = (entry: CategoryRow): MenuItem[] => {
 
 // A write that failed says whether the service answered, because what to do
 // next differs: start it, or repeat the request.
+const refusalFailure = (result: { refusal?: LibraryRefusal }): FailureKind =>
+  result.refusal?.kind === 'failed' ? result.refusal.failure : 'unreachable'
+
+const saveFailed = (kind: FailureKind): string =>
+  [t('listCard.save.failed'), t(`failure.${kind}.body`)].join(' ')
+
 const failureBody = (refusal: LibraryRefusal): string =>
-  refusal.kind === 'failed' && refusal.failure === 'refused'
-    ? t('failure.refused.body')
-    : t('lists.category.failed.body')
+  refusal.kind === 'failed' ? t(`failure.${refusal.failure}.body`) : ''
 
 const profileActions = (list: ListDetail): MenuItem[] => {
   const items: MenuItem[] = []
@@ -473,7 +478,7 @@ const createList = async (draft: {
   const created = await library.addCustomList(draft.title, draft.domains)
   if (created.status !== 'saved' || created.value === undefined) {
     if (created.status === 'failed')
-      listSheetError.value = t('listCard.save.failed')
+      listSheetError.value = saveFailed(refusalFailure(created))
     return
   }
   const category = activeRow.value?.category ?? null
@@ -603,7 +608,7 @@ const submitPriority = async (): Promise<void> => {
     return
   }
   if (result.status === 'failed')
-    priorityError.value = t('lists.priority.failed.body')
+    priorityError.value = t(`failure.${refusalFailure(result)}.body`)
 }
 </script>
 

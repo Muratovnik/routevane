@@ -425,8 +425,6 @@ const ru: Dictionary = {
   'lists.category.pick.toggle': 'Показать списки',
   'lists.category.pick.none': 'Все списки уже в этой категории.',
   'lists.category.failed': 'Изменение не сохранено',
-  'lists.category.failed.body':
-    'Проверьте, что локальный сервис Routevane запущен, и повторите.',
   'lists.category.inUse': 'Категория не удалена',
   'lists.list.menu': 'Действия со списком {list}',
   'lists.list.new': 'Новый список',
@@ -449,8 +447,6 @@ const ru: Dictionary = {
     'Этот порядок получают новые профили. Уже сохранённые профили не изменятся.',
   'lists.priority.save': 'Сохранить порядок',
   'lists.priority.failed': 'Порядок не сохранён',
-  'lists.priority.failed.body':
-    'Проверьте, что Routevane запущен, и повторите сохранение.',
 
   // Библиотека и составление профиля: разбор интерфейса 2026-10.
   'failure.unreachable.body':
@@ -490,8 +486,7 @@ const ru: Dictionary = {
   'listCard.title.save': 'Переименовать',
   'listCard.saving': 'Сохраняем…',
   'listCard.create': 'Создать и добавить',
-  'listCard.save.failed':
-    'Не удалось сохранить. Проверьте, что локальный сервис Routevane запущен, и повторите.',
+  'listCard.save.failed': 'Не удалось сохранить.',
   'listCard.sources': 'Автоматические источники',
   'listCard.sources.none': 'У списка нет автоматических источников.',
   'listCard.sources.open': 'Источники · {count}',
@@ -1461,8 +1456,6 @@ const en: Dictionary = {
   'lists.category.pick.toggle': 'Show the lists',
   'lists.category.pick.none': 'Every list is already in this category.',
   'lists.category.failed': 'The change was not saved',
-  'lists.category.failed.body':
-    'Check that the local Routevane service is running and try again.',
   'lists.category.inUse': 'The category was not deleted',
   'lists.list.menu': 'Actions for list {list}',
   'lists.list.new': 'New list',
@@ -1485,8 +1478,6 @@ const en: Dictionary = {
     'New profiles start with this order. Existing saved profiles do not change.',
   'lists.priority.save': 'Save order',
   'lists.priority.failed': 'Order not saved',
-  'lists.priority.failed.body':
-    'Check that Routevane is running and retry the save.',
 
   // The library and composing a profile: interface review, 2026-10.
   'failure.unreachable.body':
@@ -1526,8 +1517,7 @@ const en: Dictionary = {
   'listCard.title.save': 'Rename',
   'listCard.saving': 'Saving…',
   'listCard.create': 'Create and add',
-  'listCard.save.failed':
-    'The change could not be saved. Check that the local Routevane service is running and try again.',
+  'listCard.save.failed': 'The change could not be saved.',
   'listCard.sources': 'Automatic sources',
   'listCard.sources.none': 'This list has no automatic sources.',
   'listCard.sources.open': 'Sources · {count}',

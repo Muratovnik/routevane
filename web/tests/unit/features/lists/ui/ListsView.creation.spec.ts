@@ -128,6 +128,41 @@ describe('creating categories and lists', () => {
     expect(rowNames(screen)).toContain(created.title)
   })
 
+  it.each([
+    [
+      'an error answer',
+      () => Promise.resolve(json({ error: 'refused' }, 500)),
+      'The service received the request but answered with an error. Try again.',
+    ],
+    [
+      'a lost request',
+      () => Promise.reject(new TypeError('Failed to fetch')),
+      'The local service did not answer. Check that Routevane is running.',
+    ],
+  ])(
+    'words a list that could not be created by what happened: %s',
+    async (_case, respond, said) => {
+      stubAPI({ ...catalogRoutes(), 'POST /v1/lists': respond })
+      const screen = await renderLibrary()
+      await expect.element(screen.getByRole('table')).toBeVisible()
+      await openCategory(screen, 'Video')
+      await screen.getByRole('button', { name: NEW_LIST }).click()
+
+      const sheet = screen.getByRole('dialog', { name: NEW_LIST })
+      await fillField(sheet, CATEGORY_NAME_FIELD, 'Home hosts')
+      await fillField(sheet, 'Domains', 'local.example')
+      await sheet.getByRole('button', { name: 'Create' }).click()
+
+      await expect
+        .element(
+          sheet.getByText(`The change could not be saved. ${said}`, {
+            exact: true,
+          }),
+        )
+        .toBeVisible()
+    },
+  )
+
   it('retries only category attachment after a list was already created', async () => {
     const created = {
       domains: ['local.example'],

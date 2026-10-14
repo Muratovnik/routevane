@@ -662,6 +662,13 @@ export const useListDetail = (
     }
   }
 
+  // A save that did not land says whether the service answered at all: start
+  // it, or repeat the request.
+  const saveFailed = (reason: unknown): string =>
+    [t('listCard.save.failed'), t(`failure.${failureKind(reason)}.body`)].join(
+      ' ',
+    )
+
   const onRenameCustom = async (): Promise<void> => {
     const list = props.list
     if (list === null || list.custom !== true || interactionBusy.value) return
@@ -680,9 +687,8 @@ export const useListDetail = (
         (list.domains ?? []).map((domain) => domain.value),
       )
       if (request === contentsRequest) report.updated(asListDetail(record))
-    } catch {
-      if (request === contentsRequest)
-        titleError.value = t('listCard.save.failed')
+    } catch (reason) {
+      if (request === contentsRequest) titleError.value = saveFailed(reason)
     } finally {
       if (request === contentsRequest) saving.value = false
     }
@@ -712,9 +718,8 @@ export const useListDetail = (
       saving.value = false
       report.created(asListDetail(record))
       requestClose()
-    } catch {
-      if (request === contentsRequest)
-        domainsError.value = t('listCard.save.failed')
+    } catch (reason) {
+      if (request === contentsRequest) domainsError.value = saveFailed(reason)
     } finally {
       if (request === contentsRequest) saving.value = false
     }

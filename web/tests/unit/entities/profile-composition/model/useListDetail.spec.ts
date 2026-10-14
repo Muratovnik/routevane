@@ -273,3 +273,66 @@ it('does not emit a late creation result into an unmounted card', async () => {
   expect(report.created).not.toHaveBeenCalled()
   expect(report.close).not.toHaveBeenCalled()
 })
+
+// A write that did not land says what happened: the service answered with an
+// error, or nothing answered and the service is the thing to check.
+const NO_ANSWER =
+  'The change could not be saved. The local service did not answer. Check that Routevane is running.'
+const ERROR_ANSWER =
+  'The change could not be saved. The service received the request but answered with an error. Try again.'
+
+const failedWrite = {
+  'an error answer': () => Promise.resolve(json({ error: 'refused' }, 500)),
+  'a lost request': () => Promise.reject(new TypeError('Failed to fetch')),
+} as const
+
+it.each([
+  ['an error answer', ERROR_ANSWER],
+  ['a lost request', NO_ANSWER],
+] as const)(
+  'words a failed creation by what happened: %s',
+  async (kind, words) => {
+    vi.stubGlobal('fetch', vi.fn(failedWrite[kind]))
+    const { model, report } = await mount({
+      mode: 'library',
+      creating: true,
+      list: null,
+    })
+    model.titleDraft.value = 'My list'
+    model.domainsDraft.value = 'example.test'
+
+    await model.onCreate()
+
+    expect(model.domainsError.value).toBe(words)
+    expect(report.created).not.toHaveBeenCalled()
+    expect(model.saving.value).toBe(false)
+  },
+)
+
+it.each([
+  ['an error answer', ERROR_ANSWER],
+  ['a lost request', NO_ANSWER],
+] as const)(
+  'words a failed rename by what happened: %s',
+  async (kind, words) => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: unknown, init?: RequestInit) =>
+        init?.method === 'POST'
+          ? failedWrite[kind]()
+          : Promise.resolve(json(contents())),
+      ),
+    )
+    const { model, report } = await mount({
+      mode: 'library',
+      list: { id: 'mine', title: 'Mine', categories: [], custom: true },
+    })
+    await vi.waitFor(() => expect(model.contentsState.value).toBe('ready'))
+    model.titleDraft.value = 'Renamed'
+
+    await model.onRenameCustom()
+
+    expect(model.titleError.value).toBe(words)
+    expect(report.updated).not.toHaveBeenCalled()
+  },
+)

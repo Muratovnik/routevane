@@ -126,6 +126,33 @@ describe('recovering an interrupted library write', () => {
     await expect.element(screen.getByText(STALE)).not.toBeInTheDocument()
   })
 
+  it.each([
+    [
+      'an error answer',
+      () => Promise.resolve(json({ error: 'refused' }, 500)),
+      'The service received the request but answered with an error. Try again.',
+    ],
+    [
+      'a lost request',
+      () => Promise.reject(new TypeError('Failed to fetch')),
+      'The local service did not answer. Check that Routevane is running.',
+    ],
+  ])(
+    'words a failed category write by what happened: %s',
+    async (_case, respond, said) => {
+      stubAPI({ ...catalogRoutes(), 'POST /v1/categories': respond })
+      const screen = await renderLibrary()
+      await expect.element(screen.getByRole('table')).toBeVisible()
+
+      await screen.getByRole('button', { name: NEW_CATEGORY }).click()
+      const dialog = screen.getByRole('dialog', { name: NEW_CATEGORY })
+      await fillField(dialog, CATEGORY_NAME_FIELD, 'Anything')
+      await dialog.getByRole('button', { name: 'Create' }).click()
+
+      await expect.element(dialog.getByText(said)).toBeVisible()
+    },
+  )
+
   it('library audit: closes a committed stale rename and updates it on GET retry', async () => {
     const renamed = CATEGORIES.map((category) =>
       category.id === 'custom-home'

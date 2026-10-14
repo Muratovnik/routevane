@@ -89,6 +89,14 @@ const holdingProfiles = async (
  * The cached catalog is dropped with each write, so a composing screen returning
  * to focus reads the same thing.
  */
+// A write the screen words itself, such as a new list or the default order,
+// does not set the library's refusal; the result still says whether the service
+// answered, so the screen can say what to do next.
+const failedWrite = (reason: unknown): LibraryWriteResult<never> => ({
+  refusal: { failure: failureKind(reason), kind: 'failed', profiles: [] },
+  status: 'failed',
+})
+
 export const useLists = () => {
   const catalog = ref<Catalog | null>(null)
   const state = ref<LibraryState>('loading')
@@ -169,8 +177,8 @@ export const useLists = () => {
         }
       }
       return { status: 'saved', value: detail }
-    } catch {
-      return { status: 'failed' }
+    } catch (reason) {
+      return failedWrite(reason)
     } finally {
       mutating.value = false
     }
@@ -212,8 +220,8 @@ export const useLists = () => {
       if (current !== null)
         catalog.value = { ...current, defaultPriority: saved }
       return { status: 'saved', value: saved }
-    } catch {
-      return { status: 'failed' }
+    } catch (reason) {
+      return failedWrite(reason)
     } finally {
       mutating.value = false
     }
