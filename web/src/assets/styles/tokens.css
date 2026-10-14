@@ -281,6 +281,11 @@
   --rv-field-error-line: 1.25rem;
   --rv-field-error-space: calc(var(--rv-field-error-line) + var(--rv-space-1));
   --rv-disabled-opacity: 0.5;
+
+  /* The edge of a control that cannot be used now: the faint rule, drawn inside
+     the box the way a field's own ring is. With the disabled ink and no ground
+     it is the whole of the one disabled look; no control lowers its opacity. */
+  --rv-edge-disabled: inset 0 0 0 var(--rv-border-hair) var(--rv-color-rule);
   --rv-sidebar-width: 15rem;
   --rv-sidebar-collapsed-width: 4rem;
   --rv-sidebar-collapsed-inset: var(--rv-space-2);

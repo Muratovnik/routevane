@@ -360,6 +360,18 @@ const choosePalette = (value: unknown): void => {
   min-height: var(--rv-control-compact);
 }
 
+/* A trigger that cannot be used now is flat, dimmer and drawn with the faint
+   rule, as an unavailable button is; the library only lowers its opacity a
+   quarter. Both sizes, the field's and the compact one. */
+.rv-search-select:disabled,
+.rv-search-select__trigger:disabled {
+  color: var(--rv-color-ink-disabled);
+  background: transparent;
+  box-shadow: var(--rv-edge-disabled);
+  opacity: 1;
+  cursor: not-allowed;
+}
+
 .rv-search-select__palette {
   width: var(--rv-panel-width);
   /* stylelint-disable custom-property-pattern -- Reka measures the trigger and the room. */

@@ -191,13 +191,24 @@ const chosen = computed<string | undefined>({
   </USelect>
 </template>
 
-<!-- Layout of the root only: the library's trigger is an inline box, and a
-     field fills the column it is given. The trigger is the library's own
-     element, which this file's scope attribute does not reach, so the rule is
-     written against the facade's unique class. -->
+<!-- Layout of the root, and the unavailable look of the trigger: the library's
+     trigger is an inline box, and a field fills the column it is given. The
+     trigger is the library's own element, which this file's scope attribute
+     does not reach, so the rules are written against the facade's unique class.
+     An unavailable trigger is flat, dimmer and drawn with the faint rule, as an
+     unavailable button is; the library only lowers its opacity a quarter, which
+     leaves it looking like the enabled trigger beside it. -->
 <style>
 .rv-select {
   width: 100%;
   min-width: 0;
+}
+
+.rv-select:disabled {
+  color: var(--rv-color-ink-disabled);
+  background: transparent;
+  box-shadow: var(--rv-edge-disabled);
+  opacity: 1;
+  cursor: not-allowed;
 }
 </style>
