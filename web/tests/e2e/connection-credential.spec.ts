@@ -23,11 +23,53 @@ import {
   type FakeDevice,
 } from './support/fakeDevices'
 import { deviceField } from './support/queries'
-import { test } from './support/served-product'
+import { test as served } from './support/served-product'
 
-test.use({ locale: 'en-US', productData: 'connection-credential' })
+served.use({ locale: 'en-US', productData: 'connection-credential' })
+
+const MUTATION_HEADERS = { 'X-Routevane-Request': '1' }
+const CREDENTIAL_FREE_NAME = 'Credential-free client'
+
+// The product behind this suite is one process for every test in the file, so
+// a connection one test writes into it is still there for the next. A test
+// that registers one owns it and takes it away again, whether it passed or not.
+const test = served.extend<{ credentialFreeClient: string }>({
+  credentialFreeClient: async ({ origin, request }, use) => {
+    const created = await request.post(`${origin}/v1/devices`, {
+      data: {
+        address: localConfigAddress('credential-free.json'),
+        name: CREDENTIAL_FREE_NAME,
+        target_id: 'singbox',
+      },
+      headers: { ...MUTATION_HEADERS, Origin: origin },
+    })
+    expect(created.ok()).toBe(true)
+    const { device } = (await created.json()) as { device: { id: string } }
+    try {
+      await use(CREDENTIAL_FREE_NAME)
+    } finally {
+      const forgotten = await request.post(
+        `${origin}/v1/devices/${device.id}/forget`,
+        { data: {}, headers: { ...MUTATION_HEADERS, Origin: origin } },
+      )
+      expect(forgotten.ok()).toBe(true)
+    }
+  },
+})
 
 const TYPED = 'dummy-router-value'
+
+// A page that starts from a registry of its own, empty: what the product behind
+// the suite holds does not decide the layout under test. The empty registry
+// states itself, so a page that is not in that state fails here, by name,
+// instead of at a control it was never going to reach.
+const openEmptyRegistry = async (page: Page, origin: string) => {
+  await routeFakeDevices(page, [])
+  await page.goto(`${origin}/connections`)
+  await expect(
+    page.getByRole('heading', { name: copy('devices.empty') }),
+  ).toBeVisible()
+}
 
 const openConnection = async (
   page: Page,
@@ -241,7 +283,7 @@ test('an address the service would refuse is answered beside the field before it
     if (request.method() === 'POST' && request.url().endsWith('/v1/devices'))
       writes.push(request.url())
   })
-  await page.goto(`${origin}/connections`)
+  await openEmptyRegistry(page, origin)
   await page
     .getByRole('button', { name: 'Add a connection', exact: true })
     .click()
@@ -279,7 +321,7 @@ test('the submit button stays enabled and a missing field is stated beside it on
   page,
   origin,
 }) => {
-  await page.goto(`${origin}/connections`)
+  await openEmptyRegistry(page, origin)
   await page
     .getByRole('button', { name: 'Add a connection', exact: true })
     .click()
@@ -300,21 +342,13 @@ test('the submit button stays enabled and a missing field is stated beside it on
 })
 
 test('a credential-free format shows no password section and its switch states the server fact', async ({
+  credentialFreeClient,
   page,
   origin,
 }) => {
-  const created = await page.request.post(`${origin}/v1/devices`, {
-    data: {
-      address: localConfigAddress('credential-free.json'),
-      name: 'Credential-free client',
-      target_id: 'singbox',
-    },
-    headers: { Origin: origin, 'X-Routevane-Request': '1' },
-  })
-  expect(created.ok()).toBe(true)
   await page.goto(`${origin}/connections`)
   const detail = page.getByRole('region', {
-    name: 'Credential-free client',
+    name: credentialFreeClient,
     exact: true,
   })
   await expect(detail).toBeVisible()
