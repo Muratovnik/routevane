@@ -115,6 +115,11 @@ export type TargetOption = {
   fileExtension: string
   manualInstallationHint: string
   manualInstallationHintEn: string
+  // What the operator does with the file, one entry per step and without
+  // numbers: the screen numbers the list. A target that gives one sentence has
+  // one step; an English rendition is empty when the catalog has none.
+  manualInstallationSteps: string[]
+  manualInstallationStepsEn: string[]
 }
 
 // One rule for every surface that prints a device or format name: the English
@@ -142,6 +147,24 @@ export const localizedTargetHint = (
   if (locale === 'en' && target.manualInstallationHintEn !== '')
     return target.manualInstallationHintEn
   return target.manualInstallationHint
+}
+
+// The steps the operator reads: the English rendition when English is read and
+// the catalog has one, the catalog's own steps otherwise.
+export const localizedInstallationSteps = (
+  target:
+    | Pick<
+        TargetOption,
+        'manualInstallationSteps' | 'manualInstallationStepsEn'
+      >
+    | null
+    | undefined,
+  locale: string,
+): string[] => {
+  if (target === null || target === undefined) return []
+  if (locale === 'en' && target.manualInstallationStepsEn.length > 0)
+    return target.manualInstallationStepsEn
+  return target.manualInstallationSteps
 }
 
 export type Catalog = {
@@ -670,6 +693,8 @@ const targetSchema = v.pipe(
     file_extension: text,
     manual_installation_hint: text,
     manual_installation_hint_en: optionalText,
+    manual_installation_steps: texts,
+    manual_installation_steps_en: v.optional(texts, []),
   }),
   v.transform((target): TargetOption => ({
     id: target.id,
@@ -681,6 +706,8 @@ const targetSchema = v.pipe(
     fileExtension: target.file_extension,
     manualInstallationHint: target.manual_installation_hint,
     manualInstallationHintEn: target.manual_installation_hint_en,
+    manualInstallationSteps: target.manual_installation_steps,
+    manualInstallationStepsEn: target.manual_installation_steps_en,
   })),
 )
 

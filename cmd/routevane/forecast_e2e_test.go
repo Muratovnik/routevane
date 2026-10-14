@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -33,8 +34,12 @@ constraints:
   max_rules: 1
   max_artifact_size: 131072
 renderer_options: []
-manual_installation_hint: Одно правило и ни одним больше.
-manual_installation_hint_en: One rule and not a single one more.
+manual_installation_steps:
+  - Одно правило.
+  - И ни одним больше.
+manual_installation_steps_en:
+  - One rule.
+  - Not a single one more.
 `
 
 // A composition is forecast over real HTTP, against a real store and a real
@@ -66,11 +71,13 @@ func TestServeForecastsACompositionBeforeItIsCreated(t *testing.T) {
 	}
 	var listing struct {
 		Targets []struct {
-			ID                       string `json:"id"`
-			Title                    string `json:"title"`
-			TitleEN                  string `json:"title_en"`
-			ManualInstallationHint   string `json:"manual_installation_hint"`
-			ManualInstallationHintEN string `json:"manual_installation_hint_en"`
+			ID                        string   `json:"id"`
+			Title                     string   `json:"title"`
+			TitleEN                   string   `json:"title_en"`
+			ManualInstallationHint    string   `json:"manual_installation_hint"`
+			ManualInstallationHintEN  string   `json:"manual_installation_hint_en"`
+			ManualInstallationSteps   []string `json:"manual_installation_steps"`
+			ManualInstallationStepsEN []string `json:"manual_installation_steps_en"`
 		} `json:"targets"`
 	}
 	if err := json.Unmarshal(targets.body, &listing); err != nil {
@@ -81,15 +88,26 @@ func TestServeForecastsACompositionBeforeItIsCreated(t *testing.T) {
 		switch target.ID {
 		case "pocket":
 			seen++
-			if target.Title != "Карманный роутер" || target.TitleEN != "Pocket router" || target.ManualInstallationHintEN != "One rule and not a single one more." {
+			if target.Title != "Карманный роутер" || target.TitleEN != "Pocket router" {
 				t.Fatalf("translated target = %#v", target)
+			}
+			// A target that lists its steps serves them as a list, in both
+			// languages, and its one-line hint is the same steps joined.
+			if !reflect.DeepEqual(target.ManualInstallationSteps, []string{"Одно правило.", "И ни одним больше."}) ||
+				!reflect.DeepEqual(target.ManualInstallationStepsEN, []string{"One rule.", "Not a single one more."}) ||
+				target.ManualInstallationHint != "Одно правило. И ни одним больше." || target.ManualInstallationHintEN != "One rule. Not a single one more." {
+				t.Fatalf("installation steps = %#v", target)
 			}
 		case "keenetic":
 			seen++
 			// This fixture names no title at all, so the id is the honest
 			// fallback and there is no English name to invent from it.
-			if target.Title != "keenetic" || target.TitleEN != "" || target.ManualInstallationHintEN != "" {
+			if target.Title != "keenetic" || target.TitleEN != "" || target.ManualInstallationHintEN != "" || len(target.ManualInstallationStepsEN) != 0 {
 				t.Fatalf("untranslated target = %#v", target)
+			}
+			// One sentence is one step.
+			if !reflect.DeepEqual(target.ManualInstallationSteps, []string{target.ManualInstallationHint}) || target.ManualInstallationHint == "" {
+				t.Fatalf("single-sentence target served steps %#v", target.ManualInstallationSteps)
 			}
 		}
 	}

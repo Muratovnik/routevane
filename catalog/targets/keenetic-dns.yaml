@@ -16,13 +16,13 @@ constraints:
   max_entries_per_list: 300
   max_lists: 128
 renderer_options: []
-manual_installation_hint: >-
-  1. Нужна KeeneticOS 5.0 или новее. Откройте командную строку роутера и выполните команды из файла: они создают и обновляют группы имён этого формата.
-  2. На странице «Маршрутизация — DNS-Based Routes» выберите интерфейс для каждой группы.
-  3. Настройте клиентов так, чтобы DNS-сервером для них был роутер.
-  4. Команды из файла ничего не удаляют: группу, которой больше нет в профиле, удалите на роутере сами или отправьте файл из Routevane, и отправка уберёт её.
-manual_installation_hint_en: >-
-  1. KeeneticOS 5.0 or newer is required. Open the router command line and run the commands from the file: they create and update the name groups of this format.
-  2. On the Routing — DNS-Based Routes page choose the interface for each group.
-  3. Make the router the DNS server of your clients.
-  4. The commands never delete anything: remove a group that is no longer in the profile on the router yourself, or send the file from Routevane and the send removes it.
+manual_installation_steps:
+  - "Нужна KeeneticOS 5.0 или новее. Откройте командную строку роутера и выполните команды из файла: они создают и обновляют группы имён этого формата."
+  - "На странице «Маршрутизация — DNS-Based Routes» выберите интерфейс для каждой группы."
+  - "Настройте клиентов так, чтобы DNS-сервером для них был роутер."
+  - "Команды из файла ничего не удаляют: группу, которой больше нет в профиле, удалите на роутере сами или отправьте файл из Routevane, и отправка уберёт её."
+manual_installation_steps_en:
+  - "KeeneticOS 5.0 or newer is required. Open the router command line and run the commands from the file: they create and update the name groups of this format."
+  - "On the Routing — DNS-Based Routes page choose the interface for each group."
+  - "Make the router the DNS server of your clients."
+  - "The commands never delete anything: remove a group that is no longer in the profile on the router yourself, or send the file from Routevane and the send removes it."

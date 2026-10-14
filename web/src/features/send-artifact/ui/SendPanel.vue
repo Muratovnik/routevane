@@ -6,10 +6,9 @@ import {
   type SendField,
 } from '@/features/send-artifact/model/useDeployment'
 import { MANUAL_CONNECTION } from '@/features/send-artifact/model/useDeploymentConnections'
-import { installationSteps } from '@/features/send-artifact/model/installationSteps'
 import { useLocale } from '@/shared/i18n/useLocale'
 import {
-  localizedTargetHint,
+  localizedInstallationSteps,
   localizedTargetTitle,
   type TargetOption,
 } from '@/shared/api/catalog'
@@ -73,10 +72,9 @@ const noSavedConnections = computed(
 const targetTitle = computed(() =>
   localizedTargetTitle(props.target, locale.value, props.targetId),
 )
-const installationHint = computed(() =>
-  localizedTargetHint(props.target, locale.value),
+const steps = computed(() =>
+  localizedInstallationSteps(props.target, locale.value),
 )
-const steps = computed(() => installationSteps(installationHint.value))
 
 // The fields carry the words the Connections screen uses for the same thing,
 // per deployer: a router's address for Keenetic, a configuration path for

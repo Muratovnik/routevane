@@ -37,6 +37,7 @@ const stubService = () => {
               renderer_id: 'keenetic-route-bat',
               file_extension: 'bat',
               manual_installation_hint: 'Install it by hand.',
+              manual_installation_steps: ['Install it by hand.'],
             },
           ],
         }),

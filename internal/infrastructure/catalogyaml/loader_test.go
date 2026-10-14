@@ -292,6 +292,9 @@ func TestTargetCatalogCarriesAnOptionalEnglishNameAndHint(t *testing.T) {
 			if target.TitleEN == "" || target.ManualInstallationHintEN == "" {
 				t.Errorf("shipped target %q has no English name or hint: %q / %q", id, target.TitleEN, target.ManualInstallationHintEN)
 			}
+			if len(target.ManualInstallationSteps) == 0 || len(target.ManualInstallationStepsEN) != len(target.ManualInstallationSteps) {
+				t.Errorf("shipped target %q has %d steps and %d English steps", id, len(target.ManualInstallationSteps), len(target.ManualInstallationStepsEN))
+			}
 		}
 	})
 }

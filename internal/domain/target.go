@@ -58,20 +58,30 @@ type TargetDefinition struct {
 	// Title is what an operator calls this device. The catalog owns it, so a
 	// screen never has to keep a list of names in step with the catalog, and a
 	// target added by a plugin can name itself.
-	Title                  string
-	Kind                   string
-	RendererID             string
-	Constraints            TargetConstraints
-	RendererOptions        []string
-	ManualInstallationHint string
-	// TitleEN and ManualInstallationHintEN are the same name and the same
+	Title           string
+	Kind            string
+	RendererID      string
+	Constraints     TargetConstraints
+	RendererOptions []string
+	// ManualInstallationSteps is what the operator does with the file, one
+	// entry per step and never empty: a target that gives one sentence has one
+	// step. A step carries no number of its own, because the screen numbers the
+	// list. ManualInstallationHint is the same instruction as one line for a
+	// caller that wants text rather than a list: the sentence a target gave, or
+	// its steps joined by a space.
+	ManualInstallationHint  string
+	ManualInstallationSteps []string
+	// TitleEN and the English instruction are the same name and the same
 	// instruction in English. English is the product's primary language while
 	// the shipped catalog is authored in Russian, so the translation travels
 	// with the target rather than in a table a screen keeps in step by hand.
 	// Empty means this target has no translation: absent, not blank, and a
-	// caller reports it as absent instead of rendering an empty name.
-	TitleEN                  string
-	ManualInstallationHintEN string
+	// caller reports it as absent instead of rendering an empty name. When
+	// present the English steps are as many as the base steps: a translation is
+	// the same instruction, not a second one.
+	TitleEN                   string
+	ManualInstallationHintEN  string
+	ManualInstallationStepsEN []string
 }
 
 // RawJSONTargetDefinition is the diagnostic profile: every rule shape is

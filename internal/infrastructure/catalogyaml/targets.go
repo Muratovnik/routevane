@@ -3,6 +3,7 @@ package catalogyaml
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/Muratovnik/routevane/internal/domain"
@@ -22,14 +23,28 @@ type rawTarget struct {
 	Constraints            rawConstraints `yaml:"constraints"`
 	RendererOptions        []string       `yaml:"renderer_options"`
 	ManualInstallationHint string         `yaml:"manual_installation_hint"`
+	// A target gives its installation instruction as one sentence or as a list
+	// of steps, never both. The list is a sequence rather than text with
+	// numbers in it, so no reader has to take a line apart to number it.
+	ManualInstallationSteps []string `yaml:"manual_installation_steps"`
 	// The English pair is a pointer because absent and blank are different
 	// states here. A target file written before these fields, or by a plugin
 	// author who ships one language, is still valid; a key written with
 	// nothing behind it is a mistake in the file and is refused rather than
 	// normalized into the same silence.
-	TitleEN                  *string `yaml:"title_en"`
-	ManualInstallationHintEN *string `yaml:"manual_installation_hint_en"`
+	TitleEN                   *string  `yaml:"title_en"`
+	ManualInstallationHintEN  *string  `yaml:"manual_installation_hint_en"`
+	ManualInstallationStepsEN []string `yaml:"manual_installation_steps_en"`
 }
+
+// The bounds of an installation instruction. A sentence keeps the one-line
+// bound it always had; a list is bounded by its steps, because a step is one
+// thing to do and a long one is two.
+const (
+	maxInstallationHint  = 1024
+	maxInstallationSteps = 12
+	maxInstallationStep  = 512
+)
 
 type rawConstraints struct {
 	SupportsDomainExact   bool `yaml:"supports_domain_exact"`
@@ -114,20 +129,27 @@ func normalizeTarget(raw rawTarget) (domain.TargetDefinition, error) {
 	if len(title) > 64 || containsControl(title) {
 		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid target title", ErrInvalidCatalog)
 	}
-	hint := strings.TrimSpace(raw.ManualInstallationHint)
-	if hint == "" || len(hint) > 1024 || containsControl(hint) {
-		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid manual installation hint", ErrInvalidCatalog)
+	steps, ok := installationSteps(raw.ManualInstallationHint, raw.ManualInstallationSteps)
+	if !ok {
+		return domain.TargetDefinition{}, fmt.Errorf("%w: a target gives its manual installation as one hint or as steps, and every one is a single line", ErrInvalidCatalog)
 	}
 	// The English name and instruction hold to the same bounds as the catalog's
-	// own language: a translation is the same sentence, not a second field with
-	// its own budget.
+	// own language: a translation is the same instruction, not a second field
+	// with its own budget. Its steps are as many as the base steps.
 	titleEN, ok := optionalTargetText(raw.TitleEN, 64)
 	if !ok {
 		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid English target title", ErrInvalidCatalog)
 	}
-	hintEN, ok := optionalTargetText(raw.ManualInstallationHintEN, 1024)
-	if !ok {
-		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid English manual installation hint", ErrInvalidCatalog)
+	var stepsEN []string
+	if raw.ManualInstallationHintEN != nil || raw.ManualInstallationStepsEN != nil {
+		hintEN := ""
+		if raw.ManualInstallationHintEN != nil {
+			hintEN = *raw.ManualInstallationHintEN
+		}
+		stepsEN, ok = installationSteps(hintEN, raw.ManualInstallationStepsEN)
+		if !ok || len(stepsEN) != len(steps) {
+			return domain.TargetDefinition{}, fmt.Errorf("%w: invalid English manual installation", ErrInvalidCatalog)
+		}
 	}
 	// The kind is required and closed: a screen groups routers apart from
 	// applications, and there is no honest fallback to guess from.
@@ -159,8 +181,41 @@ func normalizeTarget(raw rawTarget) (domain.TargetDefinition, error) {
 	if (!constraints.SupportsDomainExact && !constraints.SupportsDomainSuffix && !constraints.SupportsIPv4 && !constraints.SupportsIPv6) || constraints.MaxRules <= 0 || constraints.MaxRules > 100000 || constraints.MaxArtifactSize <= 0 || constraints.MaxArtifactSize > 16<<20 {
 		return domain.TargetDefinition{}, fmt.Errorf("%w: invalid target constraints", ErrInvalidCatalog)
 	}
-	return domain.TargetDefinition{ID: raw.ID, FormatKey: formatKey, Title: title, TitleEN: titleEN, Kind: kind, RendererID: raw.Renderer, Constraints: constraints, RendererOptions: []string{}, ManualInstallationHint: hint, ManualInstallationHintEN: hintEN}, nil
+	return domain.TargetDefinition{ID: raw.ID, FormatKey: formatKey, Title: title, TitleEN: titleEN, Kind: kind, RendererID: raw.Renderer, Constraints: constraints, RendererOptions: []string{}, ManualInstallationHint: strings.Join(steps, " "), ManualInstallationSteps: steps, ManualInstallationHintEN: strings.Join(stepsEN, " "), ManualInstallationStepsEN: stepsEN}, nil
 }
+
+// installationSteps reads one language of a target's manual installation: a
+// single sentence or a list of steps, exactly one of them. Each entry is
+// trimmed and holds one line. A step does not carry its own number, since the
+// screen numbers the list and a second number would read as a nested one.
+func installationSteps(hint string, steps []string) ([]string, bool) {
+	hint = strings.TrimSpace(hint)
+	if (hint == "") == (steps == nil) {
+		return nil, false
+	}
+	if steps == nil {
+		if len(hint) > maxInstallationHint || containsControl(hint) {
+			return nil, false
+		}
+		return []string{hint}, true
+	}
+	if len(steps) == 0 || len(steps) > maxInstallationSteps {
+		return nil, false
+	}
+	cleaned := make([]string, len(steps))
+	for i, step := range steps {
+		step = strings.TrimSpace(step)
+		if step == "" || len(step) > maxInstallationStep || containsControl(step) || numberedStep.MatchString(step) {
+			return nil, false
+		}
+		cleaned[i] = step
+	}
+	return cleaned, true
+}
+
+// numberedStep matches a step that begins with its own ordinal, such as «2. »,
+// and not a number that belongs to the sentence, such as «5.0».
+var numberedStep = regexp.MustCompile(`^\d+[.)]\s`)
 
 // optionalTargetText normalizes one catalog field a file may omit entirely.
 // A nil pointer is the absent state and answers with the empty string; a key

@@ -758,8 +758,8 @@ and both are equal layout cases. Interface copy lives in
 component is a defect. Catalog data — list titles, format titles,
 installation sentences — is data and is never translated in the interface; the
 catalog itself may carry per-language variants (`title_en`,
-`manual_installation_hint_en`, ADR 0027), and one accessor picks by locale
-with the base string as fallback. `document.documentElement.lang` follows the
+`manual_installation_hint_en`, `manual_installation_steps_en`, ADR 0027), and
+one accessor picks by locale with the base string as fallback. `document.documentElement.lang` follows the
 choice.
 
 ## Accessibility

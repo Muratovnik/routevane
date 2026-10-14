@@ -80,15 +80,20 @@ type TargetOption struct {
 	FormatKey     string `json:"format_key"`
 	RendererID    string `json:"renderer_id"`
 	FileExtension string `json:"file_extension"`
-	// ManualInstallationHint is what the operator does with the file. It is
-	// catalog text, so it is the same sentence the command line prints.
+	// ManualInstallationSteps is what the operator does with the file, one
+	// entry per step, never empty and without numbers: a screen numbers the
+	// list. A target that gives one sentence has one step. It is catalog text.
+	ManualInstallationSteps []string `json:"manual_installation_steps"`
+	// ManualInstallationHint is the same instruction as one line: the target's
+	// sentence, or its steps joined by a space.
 	ManualInstallationHint string `json:"manual_installation_hint"`
 	// The English pair is omitted when the catalog carries no translation, so a
 	// caller falls back to the catalog's own language rather than showing an
 	// empty name. Title has an honest fallback in the target id and takes it;
 	// an English title has none, because an id is not a translation.
-	TitleEN                  string `json:"title_en,omitempty"`
-	ManualInstallationHintEN string `json:"manual_installation_hint_en,omitempty"`
+	TitleEN                   string   `json:"title_en,omitempty"`
+	ManualInstallationHintEN  string   `json:"manual_installation_hint_en,omitempty"`
+	ManualInstallationStepsEN []string `json:"manual_installation_steps_en,omitempty"`
 }
 
 // OutputArtifact is the latest publication of one output. The snapshot
@@ -269,13 +274,29 @@ func (s *PublicationService) Targets() []TargetOption {
 		}
 		options = append(options, TargetOption{
 			ID: target.ID, Title: title, Kind: target.Kind, FormatKey: target.FormatKey, RendererID: target.RendererID,
-			FileExtension:            descriptor.FileExtension,
-			ManualInstallationHint:   target.ManualInstallationHint,
-			TitleEN:                  target.TitleEN,
-			ManualInstallationHintEN: target.ManualInstallationHintEN,
+			FileExtension:             descriptor.FileExtension,
+			ManualInstallationHint:    target.ManualInstallationHint,
+			ManualInstallationSteps:   installationSteps(target.ManualInstallationSteps, target.ManualInstallationHint),
+			TitleEN:                   target.TitleEN,
+			ManualInstallationHintEN:  target.ManualInstallationHintEN,
+			ManualInstallationStepsEN: installationSteps(target.ManualInstallationStepsEN, target.ManualInstallationHintEN),
 		})
 	}
 	return options
+}
+
+// installationSteps answers a target's instruction as a list. A target built
+// without steps, such as a plugin definition assembled in code, still has one
+// step: its sentence. No sentence is no instruction at all, and the list is
+// empty rather than holding an empty step.
+func installationSteps(steps []string, hint string) []string {
+	if len(steps) > 0 {
+		return slices.Clone(steps)
+	}
+	if hint == "" {
+		return []string{}
+	}
+	return []string{hint}
 }
 
 // ProfileCards keeps the original first-page read for application consumers

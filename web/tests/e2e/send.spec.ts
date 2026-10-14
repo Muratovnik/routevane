@@ -961,6 +961,32 @@ test('a target without a deployer is offered the manual path only', async ({
   await expect(manual).toContainText('/import')
 })
 
+// The catalog lists the steps of a format that has several, and the screen
+// numbers them as a list: a step carries no number of its own.
+test('a format with several installation steps shows them as a numbered list', async ({
+  page,
+}) => {
+  test.setTimeout(120000)
+  const { profileId, outputId } = await publishProfile(page, 'keenetic-dns')
+  await page.goto(`${origin}/profiles/${profileId}/send/${outputId}`)
+  const manual = page.getByRole('region', {
+    name: message('en', 'send.manual'),
+    exact: true,
+  })
+  await manual
+    .getByRole('button', { name: message('en', 'send.manual.howto') })
+    .click()
+  const steps = manual.getByRole('listitem')
+  await expect(steps).toHaveCount(4)
+  await expect(steps.first()).toHaveText(
+    /^KeeneticOS 5\.0 or newer is required\./,
+  )
+  await expect(steps.nth(1)).toHaveText(
+    /^On the Routing — DNS-Based Routes page/,
+  )
+  await expect(steps.nth(3)).toHaveText(/^The commands never delete anything/)
+})
+
 test('a destination the configuration cannot accept is refused before writing', async ({
   page,
 }) => {

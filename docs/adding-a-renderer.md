@@ -48,6 +48,12 @@ express: `renderableTarget` drops such a target instead of letting it be
 selected. Add a `frozenFormats` entry pinning the device-specific truth a
 catalog file must not widen.
 
+A target tells the operator how to install the file by hand with exactly one
+of `manual_installation_hint`, one line, or `manual_installation_steps`, a list
+of up to 12 single-line steps without numbers of their own, which the Send screen
+numbers. Add `manual_installation_hint_en` or `manual_installation_steps_en`
+for English; an English list has as many steps as the base list.
+
 Several targets may share one renderer. The target catalog and the renderer
 registry are separate maps for exactly that reason.
 

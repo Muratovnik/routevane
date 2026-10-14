@@ -55,6 +55,15 @@ Russian under an English-first product.
 - **The target catalog is bilingual.** Targets carry optional `title_en` and
   `manual_installation_hint_en`; the surface picks by locale and falls back to
   the base strings, so an English surface stops quoting Russian instructions.
+  A target gives its manual installation as one sentence
+  (`manual_installation_hint`) or as a list of steps
+  (`manual_installation_steps`), never both, each language in its own key
+  (`…_en`). The loader refuses an empty list, a blank step, a step with a line
+  break or its own number, more than 12 steps or a step over 512 bytes, and an
+  English list of a different length. The API serves every target's
+  instruction as `manual_installation_steps`, a one-sentence target having one
+  step, with `manual_installation_hint` as the same text on one line; the Send
+  screen numbers the list, and nothing in the interface takes a line apart.
 
 ## Consequences
 

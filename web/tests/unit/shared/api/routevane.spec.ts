@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   loadCatalog,
+  localizedInstallationSteps,
   localizedTargetHint,
   localizedTargetTitle,
   previewList,
@@ -138,6 +139,7 @@ describe('Routevane local API decoders', () => {
             renderer_id: 'keenetic-route-bat',
             file_extension: 'bat',
             manual_installation_hint: 'Import the file.',
+            manual_installation_steps: ['Import the file.'],
           },
           {
             id: 'mikrotik',
@@ -147,8 +149,10 @@ describe('Routevane local API decoders', () => {
             format_key: 'mikrotik-address-list-v1',
             renderer_id: 'mikrotik-address-list-rsc',
             file_extension: 'rsc',
-            manual_installation_hint: 'выполните /import',
-            manual_installation_hint_en: 'run /import',
+            manual_installation_hint: 'загрузите файл выполните /import',
+            manual_installation_steps: ['загрузите файл', 'выполните /import'],
+            manual_installation_hint_en: 'upload the file run /import',
+            manual_installation_steps_en: ['upload the file', 'run /import'],
           },
         ],
       }),
@@ -204,6 +208,8 @@ describe('Routevane local API decoders', () => {
           fileExtension: 'bat',
           manualInstallationHint: 'Import the file.',
           manualInstallationHintEn: '',
+          manualInstallationSteps: ['Import the file.'],
+          manualInstallationStepsEn: [],
         },
         {
           id: 'mikrotik',
@@ -213,8 +219,10 @@ describe('Routevane local API decoders', () => {
           formatKey: 'mikrotik-address-list-v1',
           rendererID: 'mikrotik-address-list-rsc',
           fileExtension: 'rsc',
-          manualInstallationHint: 'выполните /import',
-          manualInstallationHintEn: 'run /import',
+          manualInstallationHint: 'загрузите файл выполните /import',
+          manualInstallationHintEn: 'upload the file run /import',
+          manualInstallationSteps: ['загрузите файл', 'выполните /import'],
+          manualInstallationStepsEn: ['upload the file', 'run /import'],
         },
       ],
     })
@@ -630,12 +638,16 @@ describe('catalog wording per locale', () => {
   const keenetic = {
     manualInstallationHint: 'Импортируйте файл.',
     manualInstallationHintEn: '',
+    manualInstallationSteps: ['Импортируйте файл.'],
+    manualInstallationStepsEn: [],
     title: 'Keenetic',
     titleEn: '',
   }
   const mikrotik = {
-    manualInstallationHint: 'выполните /import',
-    manualInstallationHintEn: 'run /import',
+    manualInstallationHint: 'загрузите файл выполните /import',
+    manualInstallationHintEn: 'upload the file run /import',
+    manualInstallationSteps: ['загрузите файл', 'выполните /import'],
+    manualInstallationStepsEn: ['upload the file', 'run /import'],
     title: 'MikroTik',
     titleEn: 'MikroTik router',
   }
@@ -643,8 +655,27 @@ describe('catalog wording per locale', () => {
   it('prefers the English rendition only when English is being read', () => {
     expect(localizedTargetTitle(mikrotik, 'en')).toBe('MikroTik router')
     expect(localizedTargetTitle(mikrotik, 'ru')).toBe('MikroTik')
-    expect(localizedTargetHint(mikrotik, 'en')).toBe('run /import')
-    expect(localizedTargetHint(mikrotik, 'ru')).toBe('выполните /import')
+    expect(localizedTargetHint(mikrotik, 'en')).toBe(
+      'upload the file run /import',
+    )
+    expect(localizedTargetHint(mikrotik, 'ru')).toBe(
+      'загрузите файл выполните /import',
+    )
+  })
+
+  it('reads the steps in the locale being read, with the catalog steps as the fallback', () => {
+    expect(localizedInstallationSteps(mikrotik, 'en')).toEqual([
+      'upload the file',
+      'run /import',
+    ])
+    expect(localizedInstallationSteps(mikrotik, 'ru')).toEqual([
+      'загрузите файл',
+      'выполните /import',
+    ])
+    expect(localizedInstallationSteps(keenetic, 'en')).toEqual([
+      'Импортируйте файл.',
+    ])
+    expect(localizedInstallationSteps(null, 'en')).toEqual([])
   })
 
   // A catalog that names an entry once names it correctly in both locales.
