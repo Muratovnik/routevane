@@ -232,8 +232,9 @@ test('page inspection preserves primary actions and full-height geometry in ever
     bodyRows(page).first(),
   ).boundingBox())!.width
   // The two fields of the settings form sit on one line, and the act it
-  // carries sits under both. A field is measured from its own caption, which
-  // is where the field starts in both the composer and the editor.
+  // carries stands above both, where it stays in reach while the fields
+  // scroll. A field is measured from its own caption, which is where the
+  // field starts in both the composer and the editor.
   const fieldTop = async (caption: string): Promise<number> =>
     (await composerSettings(page)
       .getByText(caption, { exact: true })
@@ -244,7 +245,9 @@ test('page inspection preserves primary actions and full-height geometry in ever
   const actionRow = (await page
     .getByRole('button', { name: 'Create and prepare', exact: true })
     .boundingBox())!
-  expect(actionRow.y).toBeGreaterThanOrEqual(Math.max(firstField, secondField))
+  expect(actionRow.y + actionRow.height).toBeLessThanOrEqual(
+    Math.min(firstField, secondField),
+  )
   const libraryLink = card.getByRole('link', { name: 'Open in the library' })
   await expect(libraryLink).toBeVisible()
   expect((await libraryLink.boundingBox())!.x).toBeGreaterThan(
