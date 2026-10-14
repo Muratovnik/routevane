@@ -29,7 +29,9 @@ const hasArchived = computed(() =>
     <ul class="in-use__profiles">
       <li v-for="entry in profiles" :key="entry.id">
         <NuxtLink :to="`/profiles/${entry.id}`">{{ entry.title }}</NuxtLink>
-        <span v-if="entry.archived"> {{ t('lists.inUse.archived') }}</span>
+        <span v-if="entry.archived" class="in-use__archived">{{
+          t('lists.inUse.archived')
+        }}</span>
       </li>
     </ul>
     <p v-if="hasLive">{{ t(`lists.${subject}.inUse.next`) }}</p>
@@ -45,5 +47,10 @@ const hasArchived = computed(() =>
 
 .in-use__profiles a {
   color: var(--rv-color-accent-ink);
+}
+
+/* A template drops the space before the mark, so the gap is stated here. */
+.in-use__archived {
+  margin-inline-start: var(--rv-space-1);
 }
 </style>
