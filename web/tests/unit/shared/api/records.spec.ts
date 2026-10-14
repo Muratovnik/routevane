@@ -374,7 +374,7 @@ describe('the server states its fields, the screen reads its own', () => {
         error: 'category in use',
         profiles: [
           { id: profileID, title: 'Дом' },
-          { id: outputID, title: 'Офис' },
+          { archived_at: '2026-02-01T00:00:00Z', id: outputID, title: 'Офис' },
         ],
       },
       409,
@@ -383,9 +383,10 @@ describe('the server states its fields, the screen reads its own', () => {
       (reason: unknown) => reason,
     )
     expect(refused).toBeInstanceOf(RoutevaneAPIError)
+    // A live profile carries no archive date; an archived one carries its own.
     expect(categoryInUse(refused)).toEqual([
-      { id: profileID, title: 'Дом' },
-      { id: outputID, title: 'Офис' },
+      { archivedAt: '', id: profileID, title: 'Дом' },
+      { archivedAt: '2026-02-01T00:00:00Z', id: outputID, title: 'Офис' },
     ])
 
     // Anything that is not that refusal names nobody rather than guessing.
@@ -428,7 +429,9 @@ describe('the server states its fields, the screen reads its own', () => {
       (reason: unknown) => reason,
     )
     expect(refused).toBeInstanceOf(RoutevaneAPIError)
-    expect(listInUse(refused)).toEqual([{ id: profileID, title: 'Дом' }])
+    expect(listInUse(refused)).toEqual([
+      { archivedAt: '', id: profileID, title: 'Дом' },
+    ])
     // The two refusals are not interchangeable: each reads only its own.
     expect(categoryInUse(refused)).toBeNull()
 

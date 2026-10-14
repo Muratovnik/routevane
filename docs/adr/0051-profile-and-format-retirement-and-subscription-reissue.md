@@ -66,6 +66,12 @@ reissued.
   or deploy a live format's file. Keeping them open would leave a deleted profile
   deployable by anyone who still had an artifact identity. The bytes and rows
   remain on disk.
+- **The in-use refusal says which profiles are archived.** Deleting a list or a
+  category that profiles still name answers `409`, and each profile in the body
+  carries `archived_at`, the moment it was archived, omitted while it is live.
+  An archived profile cannot be edited and is removed from the archive, so the
+  screen chooses each profile's next step from the refusal itself and reads no
+  profile to find out.
 - **A subscription is one token among several over time.** `subscriptions` is
   keyed by token, and every token issued before this change is carried across
   unchanged. `subscription_revocations` records when a token stopped working and

@@ -9,7 +9,6 @@ import {
   json,
   openCategory,
   openMenu,
-  profileResponse,
   renderLibrary,
   resetLibrary,
   restoreGlobals,
@@ -60,7 +59,7 @@ describe('deleting and detaching', () => {
   // A category a profile still names is kept, and the refusal names the profiles
   // standing in the way — beside the act that was refused.
   it('keeps a category a profile still holds and names those profiles', async () => {
-    stubAPI({
+    const { keys } = stubAPI({
       ...catalogRoutes(),
       'POST /v1/categories/custom-home/remove': () =>
         json(
@@ -68,15 +67,15 @@ describe('deleting and detaching', () => {
             error: 'category in use',
             profiles: [
               { id: 'a'.repeat(32), title: 'Дом' },
-              { id: 'b'.repeat(32), title: 'Офис' },
+              {
+                archived_at: '2026-02-01T00:00:00Z',
+                id: 'b'.repeat(32),
+                title: 'Офис',
+              },
             ],
           },
           409,
         ),
-      [`GET /v1/profiles/${'a'.repeat(32)}`]: () =>
-        profileResponse('a'.repeat(32)),
-      [`GET /v1/profiles/${'b'.repeat(32)}`]: () =>
-        profileResponse('b'.repeat(32), '2026-02-01T00:00:00Z'),
     })
     const screen = await renderLibrary()
     await expect.element(screen.getByRole('table')).toBeVisible()
@@ -107,6 +106,9 @@ describe('deleting and detaching', () => {
     await expect
       .element(dialog.getByText('delete it permanently', { exact: false }))
       .toBeVisible()
+    // The refusal itself says which profile is archived: nothing reads a
+    // profile to find out.
+    expect(keys().some((key) => key.startsWith('GET /v1/profiles'))).toBe(false)
     await screen
       .getByRole('dialog')
       .getByRole('button', { name: 'Cancel' })
@@ -181,11 +183,8 @@ describe('deleting and detaching', () => {
     await expect
       .element(screen.getByRole('dialog').getByText('Дом', { exact: false }))
       .toBeVisible()
-    expect(
-      keys()
-        .filter((key) => !key.startsWith('GET /v1/profiles/'))
-        .at(-1),
-    ).toBe('POST /v1/lists/telegram/remove')
+    expect(keys().at(-1)).toBe('POST /v1/lists/telegram/remove')
+    expect(keys().some((key) => key.startsWith('GET /v1/profiles'))).toBe(false)
 
     // The one nothing holds goes, and the catalog is read back after it.
     await screen

@@ -443,7 +443,21 @@ func TestSchedulerAndReferenceQueriesSeeProfilesBeyondTheShelfLimit(t *testing.T
 			if err != nil || len(references) != 1 || references[0].ID != oldestID || references[0].Title != "profile-1" {
 				t.Fatalf("references = %#v, err = %v", references, err)
 			}
+			// A refusal names whether the profile is archived, so the screen needs
+			// no read of the profile to choose its next step.
+			if !references[0].ArchivedAt.Equal(now.Add(2 * time.Hour)) {
+				t.Fatalf("the archived profile's reference carries archived_at=%v", references[0].ArchivedAt)
+			}
 		})
+	}
+	live, err := store.ProfileReferences(context.Background(), nil, []string{"unused"})
+	if err != nil || len(live) != profileLimit {
+		t.Fatalf("live references = %d, err = %v", len(live), err)
+	}
+	for _, reference := range live {
+		if !reference.ArchivedAt.IsZero() {
+			t.Fatalf("a live profile's reference is marked archived: %#v", reference)
+		}
 	}
 	references, err := store.ProfileReferences(context.Background(), nil, []string{"unreferenced"})
 	if err != nil || len(references) != 0 {

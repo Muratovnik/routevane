@@ -1942,12 +1942,12 @@ func TestCategoryRoutesAnswerTheirFrozenContract(t *testing.T) {
 	}
 	backend.categoryInUse = []application.ProfileReference{
 		{ID: strings.Repeat("a", 32), Title: "Дом"},
-		{ID: strings.Repeat("b", 32), Title: "Офис"},
+		{ID: strings.Repeat("b", 32), Title: "Офис", ArchivedAt: time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)},
 	}
 	inUse := send("/v1/categories/custom-1234567890abcdef/remove", `{"lists":"delete"}`)
 	wantInUse := `{"error":"category in use","profiles":[` +
 		`{"id":"` + strings.Repeat("a", 32) + `","title":"Дом"},` +
-		`{"id":"` + strings.Repeat("b", 32) + `","title":"Офис"}]}` + "\n"
+		`{"id":"` + strings.Repeat("b", 32) + `","title":"Офис","archived_at":"2026-09-01T12:00:00Z"}]}` + "\n"
 	if inUse.Code != http.StatusConflict || inUse.Body.String() != wantInUse {
 		t.Fatalf("in-use deletion code=%d body=%s want=%s", inUse.Code, inUse.Body.String(), wantInUse)
 	}
@@ -2005,12 +2005,12 @@ func TestRemoveListRouteAnswersItsFrozenContract(t *testing.T) {
 	}
 	backend.listInUse = []application.ProfileReference{
 		{ID: strings.Repeat("a", 32), Title: "Дом"},
-		{ID: strings.Repeat("b", 32), Title: "Офис"},
+		{ID: strings.Repeat("b", 32), Title: "Офис", ArchivedAt: time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)},
 	}
 	inUse := send("/v1/lists/example/remove", `{}`)
 	wantInUse := `{"error":"list in use","profiles":[` +
 		`{"id":"` + strings.Repeat("a", 32) + `","title":"Дом"},` +
-		`{"id":"` + strings.Repeat("b", 32) + `","title":"Офис"}]}` + "\n"
+		`{"id":"` + strings.Repeat("b", 32) + `","title":"Офис","archived_at":"2026-09-01T12:00:00Z"}]}` + "\n"
 	if inUse.Code != http.StatusConflict || inUse.Body.String() != wantInUse {
 		t.Fatalf("in-use deletion code=%d body=%s want=%s", inUse.Code, inUse.Body.String(), wantInUse)
 	}

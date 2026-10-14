@@ -10,6 +10,7 @@ import {
   getJSON,
   optionalFlag,
   optionalText,
+  optionalTimestamp,
   postJSON,
   postNoContent,
   RoutevaneAPIError,
@@ -87,8 +88,12 @@ export type CategoryEdit = {
   lists?: string[]
 }
 
-// A list named by a refusal — its identity and the words the operator gave it.
+// A profile named by a refusal — its identity, the words the operator gave it and
+// the moment it was archived, empty while it is live. The refusal carries the
+// archived state because an archived profile cannot be edited and so needs a
+// different next step than a live one; no second read of the profile is needed.
 export type ProfileReference = {
+  archivedAt: string
   id: string
   title: string
 }
@@ -607,9 +612,17 @@ const inUseSchema = (error: string) =>
   v.pipe(
     fields({
       error: v.literal(error),
-      profiles: v.array(fields({ id: text, title: text })),
+      profiles: v.array(
+        fields({ id: text, title: text, archived_at: optionalTimestamp }),
+      ),
     }),
-    v.transform((refused): ProfileReference[] => refused.profiles),
+    v.transform((refused): ProfileReference[] =>
+      refused.profiles.map((profile) => ({
+        archivedAt: profile.archived_at,
+        id: profile.id,
+        title: profile.title,
+      })),
+    ),
   )
 
 const listsSchema = v.pipe(

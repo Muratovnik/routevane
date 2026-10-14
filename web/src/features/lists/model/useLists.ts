@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 
 import { failureKind, type FailureKind } from '@/shared/api/http'
-import { isArchived, loadProfile } from '@/shared/api/profiles'
+import { isArchived } from '@/shared/api/profiles'
 import {
   asListDetail,
   categoryInUse,
@@ -38,14 +38,20 @@ export type LibraryWriteResult<T = void> = {
 
 /**
  * A profile standing in the way of a deletion. The refusal names it by title and
- * identity; whether it is archived is read afterwards, because an archived
- * profile cannot be edited and so needs a different next step than a live one.
+ * identity and says whether it is archived, because an archived profile cannot
+ * be edited and so needs a different next step than a live one.
  */
 export type HoldingProfile = {
   archived: boolean
   id: string
   title: string
 }
+
+const holdingProfile = (holder: ProfileReference): HoldingProfile => ({
+  archived: isArchived(holder),
+  id: holder.id,
+  title: holder.title,
+})
 
 /**
  * What a write had to say when it did not go through. A refusal that names the
@@ -55,29 +61,6 @@ export type HoldingProfile = {
 export type LibraryRefusal =
   | { kind: 'failed'; failure: FailureKind; profiles: [] }
   | { kind: 'inUse'; profiles: HoldingProfile[] }
-
-// Enough profiles to name without turning a refusal into a crawl: past this the
-// rest are named unmarked.
-const ARCHIVE_LOOKUPS = 20
-
-const holdingProfiles = async (
-  holders: ProfileReference[],
-): Promise<HoldingProfile[]> =>
-  Promise.all(
-    holders.map(async (holder, index) => {
-      if (index >= ARCHIVE_LOOKUPS) return { ...holder, archived: false }
-      try {
-        return {
-          ...holder,
-          archived: isArchived((await loadProfile(holder.id)).profile),
-        }
-      } catch {
-        // The names are the refusal; whether one is archived is a refinement,
-        // and a read that did not land leaves the name unmarked.
-        return { ...holder, archived: false }
-      }
-    }),
-  )
 
 /**
  * The library of lists and the categories that hold them (ADR 0029).
@@ -272,7 +255,7 @@ export const useLists = () => {
       const nextRefusal: LibraryRefusal =
         holders === null
           ? { kind: 'failed', failure: failureKind(reason), profiles: [] }
-          : { kind: 'inUse', profiles: await holdingProfiles(holders) }
+          : { kind: 'inUse', profiles: holders.map(holdingProfile) }
       refusal.value = nextRefusal
       mutating.value = false
       return { refusal: nextRefusal, status: 'failed' }

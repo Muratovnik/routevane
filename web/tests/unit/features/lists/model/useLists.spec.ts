@@ -283,7 +283,14 @@ describe('library audit: write/read reconciliation', () => {
             json(
               {
                 error: 'category in use',
-                profiles: [{ id: 'profile-a', title: 'Office' }],
+                profiles: [
+                  { id: 'profile-a', title: 'Office' },
+                  {
+                    archived_at: '2026-02-01T00:00:00Z',
+                    id: 'profile-b',
+                    title: 'Archive',
+                  },
+                ],
               },
               409,
             ),
@@ -298,10 +305,17 @@ describe('library audit: write/read reconciliation', () => {
     expect(result.status).toBe('failed')
     expect(library.refusal.value).toEqual({
       kind: 'inUse',
-      profiles: [{ archived: false, id: 'profile-a', title: 'Office' }],
+      profiles: [
+        { archived: false, id: 'profile-a', title: 'Office' },
+        { archived: true, id: 'profile-b', title: 'Archive' },
+      ],
     })
     expect(library.categories.value[0]?.title).toBe('Communication')
     expect(calls.filter((call) => call.includes('/v1/lists'))).toHaveLength(1)
+    // The refusal carries the archived state itself, so no profile is read.
+    expect(calls.filter((call) => call.includes('/v1/profiles'))).toHaveLength(
+      0,
+    )
   })
 
   it('saves only the complete library default order and updates it locally', async () => {

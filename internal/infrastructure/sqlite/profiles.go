@@ -555,7 +555,7 @@ func (s *Store) ProfileReferences(ctx context.Context, categoryIDs, listIDs []st
 	}
 	ctx, cancel := bounded(ctx)
 	defer cancel()
-	rows, err := s.db.QueryContext(ctx, `SELECT id,name FROM profiles WHERE deleted_at_ns=0 AND (
+	rows, err := s.db.QueryContext(ctx, `SELECT id,name,archived_at_ns FROM profiles WHERE deleted_at_ns=0 AND (
 		EXISTS (SELECT 1 FROM profile_categories WHERE profile_id=profiles.id AND category_id IN (SELECT value FROM json_each(?)))
 		OR EXISTS (SELECT 1 FROM profile_lists WHERE profile_id=profiles.id AND list_id IN (SELECT value FROM json_each(?))))
 		ORDER BY id ASC`, string(categories), string(lists))
@@ -566,8 +566,12 @@ func (s *Store) ProfileReferences(ctx context.Context, categoryIDs, listIDs []st
 	references := make([]application.ProfileReference, 0)
 	for rows.Next() {
 		var reference application.ProfileReference
-		if err := rows.Scan(&reference.ID, &reference.Title); err != nil {
+		var archivedAt int64
+		if err := rows.Scan(&reference.ID, &reference.Title, &archivedAt); err != nil {
 			return nil, fmt.Errorf("read profile reference: %w", err)
+		}
+		if archivedAt > 0 {
+			reference.ArchivedAt = unixNanos(archivedAt)
 		}
 		references = append(references, reference)
 	}

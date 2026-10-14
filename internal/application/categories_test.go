@@ -273,7 +273,7 @@ func TestRemovingACategoryARouteNamesIsRefusedWithTheRoutes(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 	want := []ProfileReference{
-		{ID: strings.Repeat("a", 32), Title: "Офис"},
+		{ID: strings.Repeat("a", 32), Title: "Офис", ArchivedAt: time.Unix(0, 1).UTC()},
 		{ID: strings.Repeat("b", 32), Title: "Дом"},
 	}
 	if inUse.CategoryID != created.ID || !reflect.DeepEqual(inUse.Profiles, want) {

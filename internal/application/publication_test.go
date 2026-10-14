@@ -392,7 +392,7 @@ func (s *publicationFakeStore) ProfileReferences(_ context.Context, categoryIDs,
 	}
 	for _, profile := range stored {
 		if namesAnyReference(profile.Categories, categories) || namesAnyReference(profile.Lists, lists) {
-			references = append(references, ProfileReference{ID: profile.ID, Title: profile.Name})
+			references = append(references, ProfileReference{ID: profile.ID, Title: profile.Name, ArchivedAt: profile.ArchivedAt})
 		}
 	}
 	slices.SortFunc(references, func(a, b ProfileReference) int { return cmp.Compare(a.ID, b.ID) })

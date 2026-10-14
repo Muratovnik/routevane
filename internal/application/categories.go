@@ -122,11 +122,15 @@ type CategoryUpdate struct {
 }
 
 // ProfileReference names one profile that still holds a reference. It carries the
-// profile's own words rather than its identity alone, so a refusal can be read
-// without a second request.
+// profile's own words and whether it is archived rather than its identity alone,
+// so a refusal can be read, and the next step for each profile chosen, without a
+// second request. An archived profile cannot be edited, so its next step is not
+// the one a live profile's is. ArchivedAt follows the profile record: the moment
+// it was archived, omitted while it is live.
 type ProfileReference struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
+	ID         string    `json:"id"`
+	Title      string    `json:"title"`
+	ArchivedAt time.Time `json:"archived_at,omitzero"`
 }
 
 // CategoryInUseError refuses to delete a category a profile still names. It
