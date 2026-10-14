@@ -19,7 +19,6 @@ import RvDisclosure from '@/shared/ui/RvDisclosure.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
-import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
@@ -398,28 +397,22 @@ onMounted(() => {
         <RvField
           v-if="connections.manual.value"
           :error="fieldError('address')"
+          :info="addressInfo === '' ? undefined : addressInfo"
+          :info-label="t('devices.field.address.info')"
           :input-id="fieldID('address')"
           :label="addressLabel"
         >
           <template #default="{ describedBy, invalid }">
-            <div class="send__control">
-              <RvTextInput
-                v-model="deployment.device.value"
-                :described-by="describedBy"
-                :disabled="deployment.busy.value"
-                :input-id="fieldID('address')"
-                mono
-                :invalid="invalid"
-                :placeholder="deployment.requirements.value?.addressExample"
-                @blur="deployment.addressTouched.value = true"
-              />
-              <span v-if="addressInfo !== ''" class="send__info">
-                <RvInfoTip
-                  :label="t('devices.field.address.info')"
-                  :text="addressInfo"
-                />
-              </span>
-            </div>
+            <RvTextInput
+              v-model="deployment.device.value"
+              :described-by="describedBy"
+              :disabled="deployment.busy.value"
+              :input-id="fieldID('address')"
+              mono
+              :invalid="invalid"
+              :placeholder="deployment.requirements.value?.addressExample"
+              @blur="deployment.addressTouched.value = true"
+            />
           </template>
         </RvField>
 
@@ -500,27 +493,21 @@ onMounted(() => {
             deployment.requirements.value?.needsInterface
           "
           :error="fieldError('interface')"
+          :info="interfaceInfo === '' ? undefined : interfaceInfo"
+          :info-label="t('devices.field.interface.info')"
           :input-id="fieldID('interface')"
           :label="interfaceLabel"
         >
           <template #default="{ describedBy, invalid }">
-            <div class="send__control">
-              <RvTextInput
-                v-model="deployment.interfaceName.value"
-                :described-by="describedBy"
-                :disabled="deployment.busy.value"
-                :input-id="fieldID('interface')"
-                :invalid="invalid"
-                mono
-                :placeholder="interfacePlaceholder"
-              />
-              <span v-if="interfaceInfo !== ''" class="send__info">
-                <RvInfoTip
-                  :label="t('devices.field.interface.info')"
-                  :text="interfaceInfo"
-                />
-              </span>
-            </div>
+            <RvTextInput
+              v-model="deployment.interfaceName.value"
+              :described-by="describedBy"
+              :disabled="deployment.busy.value"
+              :input-id="fieldID('interface')"
+              :invalid="invalid"
+              mono
+              :placeholder="interfacePlaceholder"
+            />
           </template>
         </RvField>
 
@@ -731,20 +718,6 @@ onMounted(() => {
   display: grid;
   gap: var(--rv-space-5);
   max-width: 32rem;
-}
-
-/* The informer of a field stands at the end of its label row, where the
-   library draws a field's own hint. The control's own box is the positioning
-   context, so the informer rises from the top of the control to the row above
-   it and takes no room from the label or the control. */
-.send__control {
-  position: relative;
-}
-
-.send__info {
-  position: absolute;
-  inset-block-end: 100%;
-  inset-inline-end: 0;
 }
 
 .send__none {

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
@@ -325,12 +325,16 @@ describe('DevicesView prerequisite audit', () => {
     // The rule is explained behind the informer beside the label, not under the
     // field, and the shape of a value is the placeholder: the label, the
     // informer and the placeholder carry the meaning, and only an error stands
-    // under the field.
+    // under the field. The rule is still the field's description, so a reader
+    // hears it without opening the informer.
+    const field = screen.getByLabelText('Router address', { exact: true })
     await expect
-      .element(screen.getByText(ADDRESS_RULE, { exact: false }))
-      .not.toBeInTheDocument()
+      .element(field)
+      .toHaveAccessibleDescription(expect.stringContaining(ADDRESS_RULE))
+    // The informer's panel is portalled to the document, outside the view.
+    await expect.element(page.getByRole('dialog')).not.toBeInTheDocument()
     await expect
-      .element(screen.getByLabelText('Router address', { exact: true }))
+      .element(field)
       .toHaveAttribute('placeholder', 'http://10.255.0.1')
     await expect
       .element(screen.getByLabelText('Interface for routes', { exact: true }))
@@ -339,8 +343,8 @@ describe('DevicesView prerequisite audit', () => {
       .getByRole('button', { name: 'What the address field takes' })
       .click()
     await expect
-      .element(screen.getByText(ADDRESS_RULE, { exact: false }))
-      .toBeVisible()
+      .element(page.getByRole('dialog'))
+      .toHaveTextContent(`${ADDRESS_RULE}.`)
     await userEvent.keyboard('{Escape}')
 
     await screen.getByLabelText('Connection name').fill('Home router')

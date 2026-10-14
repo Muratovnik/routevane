@@ -63,10 +63,8 @@ const FieldBinding = defineComponent({
  * field, visually hidden, and named in the `describedBy` the slot receives
  * beside the error, so a reader hears it without opening the informer. The
  * `label-aside` slot is the label row's own place for any other small control.
- * `hint` is the older form — the library's description between the label and
- * the control — and stays only for the fields that have not moved to an
- * informer. The slot receives the ids to point `aria-describedby` at, so the
- * wiring cannot drift from what is rendered.
+ * The slot receives the ids to point `aria-describedby` at, so the wiring
+ * cannot drift from what is rendered.
  */
 const props = defineProps<{
   /** Share caption and control rows with adjacent fields in a parent grid. */
@@ -74,9 +72,13 @@ const props = defineProps<{
   /** Announce an asynchronous error while focus remains on another control. */
   announceError?: boolean
   error?: string
-  hint?: string
   /** What the field means or how it is read, offered from an informer. */
   info?: string
+  /**
+   * The informer's name, when a form holds more than one and a reader must
+   * tell them apart. It names the explanation, never repeats the label.
+   */
+  infoLabel?: string
   inputId: string
   label: string
 }>()
@@ -97,13 +99,11 @@ const describedByWith = (ids: string | undefined): string | undefined => {
 const failure = computed(() =>
   props.error === undefined || props.error === '' ? undefined : props.error,
 )
-const description = computed(() => (props.hint === '' ? undefined : props.hint))
 </script>
 
 <template>
   <UFormField
     :class="{ 'rv-field--aligned': aligned }"
-    :description="description"
     :error="failure"
     :label="label"
     :ui="{ error: 'mt-1', labelWrapper: 'justify-start' }"
@@ -118,7 +118,7 @@ const description = computed(() => (props.hint === '' ? undefined : props.hint))
     <template v-if="info !== undefined || slots['label-aside']" #hint>
       <template v-if="info !== undefined">
         <span :id="infoId" class="rv-visually-hidden">{{ info }}</span>
-        <RvInfoTip inline :label="t('field.info')" :text="info" />
+        <RvInfoTip inline :label="infoLabel ?? t('field.info')" :text="info" />
       </template>
       <slot name="label-aside" />
     </template>

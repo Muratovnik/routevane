@@ -13,15 +13,15 @@ const TextField = defineComponent({
   props: {
     announceError: Boolean,
     error: { type: String, default: undefined },
-    hint: { type: String, default: undefined },
     info: { type: String, default: undefined },
+    infoLabel: { type: String, default: undefined },
     inputId: { type: String, default: 'device-address' },
   },
   setup() {
     return { value: ref('') }
   },
   template: `
-    <RvField :announce-error="announceError" :error="error" :hint="hint" :info="info" :input-id="inputId" label="Address">
+    <RvField :announce-error="announceError" :error="error" :info="info" :info-label="infoLabel" :input-id="inputId" label="Address">
       <template #default="{ describedBy, invalid }">
         <RvTextInput
           v-model="value"
@@ -79,39 +79,6 @@ describe('RvField', () => {
     await expect.element(field).not.toHaveAttribute('aria-invalid')
   })
 
-  it('describes the control by its hint while nothing is wrong', async () => {
-    const screen = await render(TextField, {
-      props: { hint: 'An address and a port.' },
-    })
-
-    const field = screen.getByLabelText('Address', { exact: true })
-    expect(describedTexts(field.element())).toEqual(['An address and a port.'])
-  })
-
-  // The hint is the library's description, drawn between the label and the
-  // control, so it stays on screen while an error is shown under the control:
-  // the format is what a refused value needs most. The description follows
-  // what is on the screen, never an id that is not rendered.
-  it('keeps the hint beside an error and points at both', async () => {
-    const screen = await render(TextField, {
-      props: { error: 'Enter the address.', hint: 'An address and a port.' },
-    })
-
-    const field = screen.getByLabelText('Address', { exact: true })
-    await expect.element(field).toHaveAttribute('aria-invalid', 'true')
-    expect(describedTexts(field.element()).toSorted()).toEqual([
-      'An address and a port.',
-      'Enter the address.',
-    ])
-    await expect
-      .element(screen.getByText('An address and a port.'))
-      .toBeVisible()
-
-    await screen.rerender({ error: undefined })
-    await expect.element(field).not.toHaveAttribute('aria-invalid')
-    expect(describedTexts(field.element())).toEqual(['An address and a port.'])
-  })
-
   // An explanation is offered from an informer in the label's row, not drawn as
   // a line under it. The informer is outside the label, so the control keeps
   // the label's own words as its name; the explanation is the control's
@@ -165,6 +132,24 @@ describe('RvField', () => {
     ])
     await screen.rerender({ error: undefined })
     expect(describedTexts(field.element())).toEqual(['An address and a port.'])
+  })
+
+  // A form with two informers names each by what it explains, so a reader
+  // moving between them can tell which is which.
+  it('names its informer as the caller asks', async () => {
+    const screen = await render(TextField, {
+      props: {
+        info: 'An address and a port.',
+        infoLabel: 'What the address takes',
+      },
+    })
+
+    await expect
+      .element(screen.getByRole('button', { name: 'What the address takes' }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('button', { name: 'More information' }))
+      .not.toBeInTheDocument()
   })
 
   it('draws no informer when there is nothing to explain', async () => {

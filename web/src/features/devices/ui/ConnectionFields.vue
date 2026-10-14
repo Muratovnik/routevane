@@ -11,7 +11,6 @@ import {
 import type { ConnectionRequirements } from '@/shared/api/deploy'
 import { useLocale } from '@/shared/i18n/useLocale'
 import RvField from '@/shared/ui/RvField.vue'
-import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
 /**
@@ -145,31 +144,25 @@ defineExpose({
     <RvField
       aligned
       :error="errorOf('address')"
+      :info="addressInfo === '' ? undefined : addressInfo"
+      :info-label="t('devices.field.address.info')"
       :input-id="`${idPrefix}-address`"
       :label="addressLabel"
     >
       <template #default="{ describedBy, invalid }">
-        <div class="connection-fields__control">
-          <RvTextInput
-            ref="addressInput"
-            v-model="address"
-            aria-required="true"
-            :described-by="describedBy"
-            :disabled="disabled"
-            :input-id="`${idPrefix}-address`"
-            :invalid="invalid"
-            maxlength="512"
-            mono
-            :placeholder="addressPlaceholder"
-            @blur="visited.address = true"
-          />
-          <span v-if="addressInfo !== ''" class="connection-fields__info">
-            <RvInfoTip
-              :label="t('devices.field.address.info')"
-              :text="addressInfo"
-            />
-          </span>
-        </div>
+        <RvTextInput
+          ref="addressInput"
+          v-model="address"
+          aria-required="true"
+          :described-by="describedBy"
+          :disabled="disabled"
+          :input-id="`${idPrefix}-address`"
+          :invalid="invalid"
+          maxlength="512"
+          mono
+          :placeholder="addressPlaceholder"
+          @blur="visited.address = true"
+        />
       </template>
     </RvField>
 
@@ -200,51 +193,31 @@ defineExpose({
       v-if="needsInterface"
       aligned
       :error="errorOf('interfaceName')"
+      :info="interfaceInfo === '' ? undefined : interfaceInfo"
+      :info-label="t('devices.field.interface.info')"
       :input-id="`${idPrefix}-interface`"
       :label="interfaceLabel"
     >
       <template #default="{ describedBy, invalid }">
-        <div class="connection-fields__control">
-          <RvTextInput
-            ref="interfaceInput"
-            v-model="interfaceName"
-            aria-required="true"
-            :described-by="describedBy"
-            :disabled="disabled"
-            :input-id="`${idPrefix}-interface`"
-            :invalid="invalid"
-            mono
-            maxlength="120"
-            :placeholder="interfacePlaceholder"
-            @blur="visited.interfaceName = true"
-          />
-          <span v-if="interfaceInfo !== ''" class="connection-fields__info">
-            <RvInfoTip
-              :label="t('devices.field.interface.info')"
-              :text="interfaceInfo"
-            />
-          </span>
-        </div>
+        <RvTextInput
+          ref="interfaceInput"
+          v-model="interfaceName"
+          aria-required="true"
+          :described-by="describedBy"
+          :disabled="disabled"
+          :input-id="`${idPrefix}-interface`"
+          :invalid="invalid"
+          mono
+          maxlength="120"
+          :placeholder="interfacePlaceholder"
+          @blur="visited.interfaceName = true"
+        />
       </template>
     </RvField>
   </div>
 </template>
 
 <style scoped>
-/* The informer of a field stands at the end of its label row, where the
-   library draws a field's own hint. The control's own box is the positioning
-   context, so the informer rises from the top of the control to the row above
-   it and takes no room from the label or the control. */
-.connection-fields__control {
-  position: relative;
-}
-
-.connection-fields__info {
-  position: absolute;
-  inset-block-end: 100%;
-  inset-inline-end: 0;
-}
-
 /* Two columns where the pane has room for two reading widths, one where it
    does not. A lone remaining field keeps its own column rather than stretching
    across the pane. */
