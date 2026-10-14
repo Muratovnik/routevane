@@ -200,9 +200,21 @@ const panelPaint = (panel: Locator) =>
   panel.evaluate((element) => {
     const host = element.closest('.rv-overlay, .rv-menu__panel') ?? element
     const style = getComputedStyle(host)
+    // A menu draws its hairline as a border; a library panel draws it as the
+    // first ring of its shadow, outside the box, so the panel keeps the width
+    // of the field it opens from.
+    // The browser writes a shadow as its colour, then offset, blur and spread.
+    const colourEnd = style.boxShadow.indexOf(')') + 1
+    const ring = {
+      colour: style.boxShadow.slice(0, colourEnd),
+      spread: Number.parseFloat(
+        style.boxShadow.slice(colourEnd).trim().split(' ')[3] ?? '0',
+      ),
+    }
+    const border = Number.parseFloat(style.borderTopWidth)
     return {
-      edge: style.borderTopColor,
-      edgeWidth: Number.parseFloat(style.borderTopWidth),
+      edge: border > 0 ? style.borderTopColor : ring.colour,
+      edgeWidth: border > 0 ? border : ring.spread,
       ground: style.backgroundColor,
       isPanel: host.matches('.rv-overlay, .rv-menu__panel'),
     }

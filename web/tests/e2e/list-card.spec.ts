@@ -120,7 +120,7 @@ test('the list card takes domains, addresses and networks, typed or imported', a
     ).toHaveLength(1)
 
     await entries
-      .getByLabel('Entries')
+      .getByLabel('Entries', { exact: true })
       .fill('corp.example\n203.0.113.7\n203.0.113.0/29')
     await entries.getByRole('button', { exact: true, name: 'Add' }).click()
     await expect(entries).toBeHidden()
@@ -527,7 +527,7 @@ test('the list card fills the sheet rather than leaving a band above its footer'
   const newProfile = page.getByRole('dialog', { name: 'New list' })
   await newProfile.getByLabel('Name').fill('Tall fixture')
   await newProfile
-    .getByLabel('Domains')
+    .getByLabel('Domains', { exact: true })
     .fill(
       Array.from({ length: 40 }, (_, index) => `row${index}.example`).join(
         '\n',

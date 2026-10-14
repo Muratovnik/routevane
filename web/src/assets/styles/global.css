@@ -74,11 +74,14 @@ ol {
  * is a raised surface like a menu: its ground and hairline are the overlay
  * roles, which keeps it apart from the canvas in dark, where the library's own
  * ground is the canvas itself. The facade passes this class to the library's
- * content slot; an unlayered rule outranks the library's utilities. */
+ * content slot; an unlayered rule outranks the library's utilities. The
+ * hairline is a ring drawn outside the box, as the library's own is, because a
+ * panel is measured against its field and a border would add its width. */
 .rv-overlay {
   background: var(--rv-color-surface-raised);
-  border: var(--rv-border-hair) solid var(--rv-color-rule-raised);
-  box-shadow: var(--rv-shadow-raised);
+  box-shadow:
+    0 0 0 var(--rv-border-hair) var(--rv-color-rule-raised),
+    var(--rv-shadow-raised);
 }
 
 /* The focus ring is a role, not a per-component decision: two device pixels of

@@ -347,7 +347,7 @@ test('the library deletes a category with its lists, and composing offers none o
   await page.getByRole('button', { name: 'New list' }).click()
   const newProfile = page.getByRole('dialog', { name: 'New list' })
   await newProfile.getByLabel('Name').fill('Draft fixture')
-  await newProfile.getByLabel('Domains').fill('draft.example')
+  await newProfile.getByLabel('Domains', { exact: true }).fill('draft.example')
   await newProfile.getByRole('button', { exact: true, name: 'Create' }).click()
   await expect(newProfile).toBeHidden()
   await expect(libraryRegion(page)).toContainText('Draft fixture')
