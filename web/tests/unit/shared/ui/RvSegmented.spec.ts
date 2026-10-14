@@ -5,6 +5,8 @@ import RvSegmented from '@/shared/ui/RvSegmented.vue'
 
 import { contrast, inTheme, paintedToken } from './support/contrast'
 
+const TRANSPARENT = 'rgba(0, 0, 0, 0)'
+
 const OPTIONS = [
   { label: 'Automatic', value: 'auto' },
   { label: 'By hand', value: 'manual' },
@@ -121,6 +123,70 @@ describe('RvSegmented', () => {
         await expect
           .element(screen.getByTestId('rv-segmented-mark-auto'))
           .toBeVisible()
+      })
+    },
+  )
+
+  // A choice that cannot be changed now reads as unavailable beside the same
+  // one when it can: flat, the words in the disabled ink and the faint rule for
+  // every edge, no lowered opacity. The chosen option still carries its mark,
+  // so the choice does not rest on colour.
+  it.each(['dark', 'light'] as const)(
+    'draws a disabled choice apart from an enabled one in the %s theme',
+    async (theme) => {
+      await inTheme(theme, async () => {
+        const screen = await renderSegmented({ name: 'open' })
+        await renderSegmented({
+          disabled: true,
+          label: 'Frozen delivery',
+          name: 'frozen',
+        })
+        const group = (caption: string): Element =>
+          screen.getByRole('group', { exact: true, name: caption }).element()
+        const optionBox = (caption: string, label: string): Element =>
+          [...group(caption).querySelectorAll('label')].find((candidate) =>
+            candidate.textContent?.includes(label),
+          )!
+        // The track is the options' own container; the marks are aria-hidden
+        // and are read by their test hook, the first of each being the enabled
+        // choice's and the second the disabled one's.
+        const track = (caption: string): HTMLElement =>
+          optionBox(caption, 'Automatic').parentElement!
+        const marks = (value: string): Element[] =>
+          screen.getByTestId(`rv-segmented-mark-${value}`).elements()
+        expect(getComputedStyle(track('Frozen delivery')).backgroundColor).toBe(
+          TRANSPARENT,
+        )
+        expect(getComputedStyle(track('Delivery')).backgroundColor).not.toBe(
+          TRANSPARENT,
+        )
+
+        const chosenBox = optionBox('Frozen delivery', 'Automatic')
+        const otherBox = optionBox('Frozen delivery', 'By hand')
+        const chosen = getComputedStyle(chosenBox)
+        const other = getComputedStyle(otherBox)
+        const enabledChosen = getComputedStyle(
+          optionBox('Delivery', 'Automatic'),
+        )
+        for (const style of [chosen, other]) {
+          expect(style.color).toBe(paintedToken('--rv-color-ink-disabled'))
+          expect(style.opacity).toBe('1')
+          expect(style.cursor).toBe('not-allowed')
+          expect(
+            contrast(style.color, paintedToken('--rv-color-canvas')),
+          ).toBeGreaterThanOrEqual(3)
+        }
+        expect(chosen.color).not.toBe(enabledChosen.color)
+        expect(chosen.backgroundColor).toBe(TRANSPARENT)
+        expect(enabledChosen.backgroundColor).not.toBe(TRANSPARENT)
+        expect(chosen.borderTopColor).toBe(paintedToken('--rv-color-rule'))
+        expect(chosen.boxShadow).toBe('none')
+        expect(enabledChosen.boxShadow).not.toBe('none')
+        // The chosen option is still told from the other by its mark.
+        const chosenMark = getComputedStyle(marks('auto')[1]!)
+        expect(chosenMark.visibility).toBe('visible')
+        expect(chosenMark.color).toBe(paintedToken('--rv-color-ink-disabled'))
+        expect(getComputedStyle(marks('manual')[1]!).visibility).toBe('hidden')
       })
     },
   )

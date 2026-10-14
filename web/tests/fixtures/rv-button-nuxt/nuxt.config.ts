@@ -5,6 +5,9 @@ const fixtureRoot = dirname(fileURLToPath(import.meta.url))
 const webRoot = resolve(fixtureRoot, '..', '..', '..')
 
 export default defineNuxtConfig({
+  // The components import one another by the product's own alias, which in the
+  // fixture's source layer would otherwise point at the fixture.
+  alias: { '@': resolve(webRoot, 'src') },
   ssr: false,
   compatibilityDate: '2026-08-20',
   css: [

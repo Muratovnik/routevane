@@ -65,12 +65,27 @@ defineExpose({
   />
 </template>
 
-<!-- Layout of the root only. The library's root is an inline box, which would
-     shrink a field to its text; a field fills the column it is given, and a
-     host that wants it narrower sets a width on its own class. -->
+<!-- Layout of the root, and the unavailable look of the input it draws. The
+     library's root is an inline box, which would shrink a field to its text; a
+     field fills the column it is given, and a host that wants it narrower sets a
+     width on its own class. An unavailable field is flat and dimmer, drawn with
+     the faint rule, as an unavailable button is. The library only lowers its
+     opacity three quarters, and an unlayered rule outranks its utilities. -->
 <style scoped>
 .rv-text-input {
   display: flex;
   min-width: 0;
+}
+
+.rv-text-input :deep(input:disabled) {
+  color: var(--rv-color-ink-disabled);
+  background: transparent;
+  box-shadow: var(--rv-edge-disabled);
+  opacity: 1;
+  cursor: not-allowed;
+}
+
+.rv-text-input :deep(input:disabled::placeholder) {
+  color: var(--rv-color-ink-disabled);
 }
 </style>

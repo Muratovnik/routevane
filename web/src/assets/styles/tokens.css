@@ -284,7 +284,8 @@
 
   /* The edge of a control that cannot be used now: the faint rule, drawn inside
      the box the way a field's own ring is. With the disabled ink and no ground
-     it is the whole of the one disabled look; no control lowers its opacity. */
+     it is the whole of the one disabled look, and a control that draws it never
+     lowers its opacity as well. */
   --rv-edge-disabled: inset 0 0 0 var(--rv-border-hair) var(--rv-color-rule);
   --rv-sidebar-width: 15rem;
   --rv-sidebar-collapsed-width: 4rem;

@@ -4,6 +4,10 @@ import { render } from 'vitest-browser-vue'
 
 import RvTextarea from '@/shared/ui/RvTextarea.vue'
 
+import { contrast, inTheme, paintedToken } from './support/contrast'
+
+const TRANSPARENT = 'rgba(0, 0, 0, 0)'
+
 // The mono face as the browser resolves it, read off a probe rather than from
 // the token's text, whose quoting the computed style rewrites.
 const monoFace = (): string => {
@@ -56,6 +60,48 @@ describe('RvTextarea', () => {
     await expect.element(editor).toBeDisabled()
     expect(editor.element().parentElement!.dataset.color).toBe('error')
   })
+
+  // An editor that cannot be used now reads as unavailable beside the same one
+  // when it can: flat, dimmer, drawn with the faint rule, and never with a
+  // lowered opacity.
+  it.each(['dark', 'light'] as const)(
+    'draws a disabled editor apart from an enabled one in the %s theme',
+    async (theme) => {
+      await inTheme(theme, async () => {
+        const screen = await render(RvTextarea, {
+          attrs: { 'aria-label': 'Open' },
+          props: { inputId: 'open', modelValue: 'typed', placeholder: 'Hint' },
+        })
+        await render(RvTextarea, {
+          attrs: { 'aria-label': 'Closed' },
+          props: {
+            disabled: true,
+            inputId: 'closed',
+            modelValue: 'typed',
+            placeholder: 'Hint',
+          },
+        })
+
+        const on = screen.getByRole('textbox', { name: 'Open' }).element()
+        const off = screen.getByRole('textbox', { name: 'Closed' }).element()
+        const [open, closed] = [getComputedStyle(on), getComputedStyle(off)]
+        expect(closed.color).not.toBe(open.color)
+        expect(closed.color).toBe(paintedToken('--rv-color-ink-disabled'))
+        expect(closed.backgroundColor).toBe(TRANSPARENT)
+        expect(open.backgroundColor).not.toBe(TRANSPARENT)
+        expect(closed.boxShadow).not.toBe(open.boxShadow)
+        expect(closed.boxShadow).toContain(paintedToken('--rv-color-rule'))
+        expect(closed.opacity).toBe('1')
+        expect(closed.cursor).toBe('not-allowed')
+        expect(
+          contrast(closed.color, paintedToken('--rv-color-canvas')),
+        ).toBeGreaterThanOrEqual(3)
+        expect(getComputedStyle(off, '::placeholder').color).toBe(
+          paintedToken('--rv-color-ink-disabled'),
+        )
+      })
+    },
+  )
 
   it('sets list contents in the mono role when asked to', async () => {
     const screen = await renderEditor({ mono: true })

@@ -12,7 +12,9 @@ import {
   writeFile,
 } from 'node:fs/promises'
 
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
+
+import { contrast } from '../unit/shared/ui/support/contrast'
 
 import {
   assertPortBindable,
@@ -248,3 +250,86 @@ test('real Nuxt UI blocks disabled native and router links', async ({
 
   expect(attemptedPaths).toEqual([])
 })
+
+// What the browser paints for one element and a token as it paints it, read the
+// way the unit specs read them, but here from the real library's own markup and
+// utilities, which the unit suite replaces with doubles.
+const paint = (control: Locator) =>
+  control.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return {
+      backgroundColor: style.backgroundColor,
+      boxShadow: style.boxShadow,
+      color: style.color,
+      cursor: style.cursor,
+      opacity: style.opacity,
+    }
+  })
+
+const paintedToken = (page: Page, name: string) =>
+  page.evaluate((token) => {
+    const probe = document.createElement('span')
+    probe.style.background = `var(${token})`
+    document.body.append(probe)
+    const painted = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return painted
+  }, name)
+
+const TRANSPARENT = 'rgba(0, 0, 0, 0)'
+
+for (const colorScheme of ['dark', 'light'] as const) {
+  // One disabled look for everything that takes input: the library lowers a
+  // disabled control's opacity, and every one of these gives that up for the
+  // flat look of an unavailable button — the disabled ink, no ground, the faint
+  // rule, a not-allowed cursor and full opacity.
+  test(`draws a disabled library control flat and legible in the ${colorScheme} theme`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme })
+    await page.goto(origin)
+    const ink = await paintedToken(page, '--rv-color-ink-disabled')
+    const rule = await paintedToken(page, '--rv-color-rule')
+    const canvas = await paintedToken(page, '--rv-color-canvas')
+    // A field and a choice draw their edge as a ring; a button as a border.
+    const controls = [
+      {
+        role: 'button',
+        open: 'Open button',
+        closed: 'Closed button',
+        ring: false,
+      },
+      {
+        role: 'textbox',
+        open: 'Open field',
+        closed: 'Closed field',
+        ring: true,
+      },
+      {
+        role: 'textbox',
+        open: 'Open editor',
+        closed: 'Closed editor',
+        ring: true,
+      },
+      {
+        role: 'combobox',
+        open: 'Open select',
+        closed: 'Closed select',
+        ring: true,
+      },
+    ] as const
+
+    for (const { closed, open, ring, role } of controls) {
+      const enabled = await paint(page.getByRole(role, { name: open }))
+      const disabled = await paint(page.getByRole(role, { name: closed }))
+      expect(disabled.opacity, closed).toBe('1')
+      expect(disabled.color, closed).toBe(ink)
+      expect(disabled.backgroundColor, closed).toBe(TRANSPARENT)
+      expect(disabled.cursor, closed).toBe('not-allowed')
+      expect(disabled.backgroundColor, closed).not.toBe(enabled.backgroundColor)
+      expect(disabled.color, closed).not.toBe(enabled.color)
+      expect(contrast(disabled.color, canvas), closed).toBeGreaterThanOrEqual(3)
+      expect(disabled.boxShadow.includes(rule), closed).toBe(ring)
+    }
+  })
+}

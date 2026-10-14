@@ -124,8 +124,13 @@ const onDrop = (event: DragEvent): void => {
     border-color var(--rv-motion-fast) var(--rv-motion-ease-out);
 }
 
+/* An unavailable surface is flat, as an unavailable button is: no ground, the
+   disabled ink for every word and glyph on it, and the faint rule for its edge
+   (still dashed, which is what makes it a drop target). */
 .rv-file-picker__surface:disabled {
-  opacity: var(--rv-disabled-opacity);
+  color: var(--rv-color-ink-disabled);
+  background: transparent;
+  border-color: var(--rv-color-rule);
   cursor: not-allowed;
 }
 
@@ -162,6 +167,13 @@ const onDrop = (event: DragEvent): void => {
   font-weight: 600;
   font-size: var(--rv-text-dense);
   white-space: nowrap;
+}
+
+/* Every word and glyph on an unavailable surface takes the disabled ink. */
+.rv-file-picker__surface:disabled .rv-file-picker__icon,
+.rv-file-picker__surface:disabled .rv-file-picker__copy small,
+.rv-file-picker__surface:disabled .rv-file-picker__action {
+  color: var(--rv-color-ink-disabled);
 }
 
 @container file-picker (width <= 30rem) {

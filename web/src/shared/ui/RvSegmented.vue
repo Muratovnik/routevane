@@ -146,7 +146,7 @@ const select = (value: string, event: Event): void => {
 
 .rv-segmented:disabled .rv-segmented__option {
   position: relative;
-  opacity: var(--rv-disabled-opacity);
+  color: var(--rv-color-ink-disabled);
   cursor: not-allowed;
 }
 
@@ -192,5 +192,22 @@ const select = (value: string, event: Event): void => {
 .rv-segmented__input:focus-visible + .rv-segmented__body {
   outline: var(--rv-border-mark) solid var(--rv-color-focus);
   outline-offset: 0.1875rem;
+}
+
+/* An unavailable choice is flat, as an unavailable button is: no grounds, the
+   disabled ink and the faint rule. The chosen option keeps its edge and its
+   check mark, so the choice still does not rest on colour. */
+.rv-segmented:disabled .rv-segmented__track {
+  background: transparent;
+}
+
+.rv-segmented:disabled .rv-segmented__option--active {
+  background: transparent;
+  border-color: var(--rv-color-rule);
+  box-shadow: none;
+}
+
+.rv-segmented:disabled .rv-segmented__mark {
+  color: var(--rv-color-ink-disabled);
 }
 </style>

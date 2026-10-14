@@ -75,8 +75,18 @@ const id = useId()
 }
 
 .rv-switch__control:disabled {
-  opacity: var(--rv-disabled-opacity);
+  background: transparent;
+  border-color: var(--rv-color-rule);
   cursor: not-allowed;
+}
+
+/* An unavailable switch is flat, as an unavailable button is: no ground and the
+   faint rule for an edge. Its position still says whether it is on, and an
+   unavailable one that is on keeps the accent at low emphasis, as an
+   unavailable primary button does. */
+.rv-switch__control[data-state='checked']:disabled {
+  background: var(--rv-color-accent-quiet);
+  border-color: var(--rv-color-rule);
 }
 
 .rv-switch__thumb {
@@ -96,6 +106,10 @@ const id = useId()
   transform: translateX(calc(2.25rem - 0.875rem - 0.375rem));
 }
 
+.rv-switch__control:disabled .rv-switch__thumb {
+  background: var(--rv-color-ink-disabled);
+}
+
 .rv-switch__copy {
   display: grid;
   gap: var(--rv-space-1);
@@ -106,6 +120,10 @@ const id = useId()
   font-weight: 600;
   cursor: pointer;
   overflow-wrap: anywhere;
+}
+
+.rv-switch__control:disabled ~ .rv-switch__copy .rv-switch__label {
+  cursor: not-allowed;
 }
 
 .rv-switch__copy small {

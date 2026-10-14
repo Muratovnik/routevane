@@ -754,8 +754,9 @@ error that arrives while focus is elsewhere is announced by a live region that
 stands from the first draw of the field and only receives the text; a region
 that appears together with its text is not reliably announced. A file
 picker is the one control with a line of its own under the label: which files it
-takes is a fact needed before one is chosen, not an explanation. A disabled text field takes the
-library's disabled look, reduced opacity, rather than a colour of its own. A
+takes is a fact needed before one is chosen, not an explanation. A disabled field
+takes the one disabled look stated under the button below, not a colour or an
+opacity of its own. A
 panel opened from a field is aligned to its leading edge and never narrower
 than it; a single choice or name field is `--rv-measure-field` wide; a stack of
 dialogs dims the page once.
@@ -777,10 +778,18 @@ issuing a new link that ends the old one — is the `danger` variant of
 at 4.5:1 or better in both themes. A reversible act, such as archiving or
 restoring, and an additive one, such as applying a reviewed import, keeps the
 primary look.
-An unavailable button or choice trigger is flat and dimmer than an available one:
-it gives up its ground, its words take the disabled ink — legible at 3:1 or
-better in both themes, though a disabled control is exempt from 4.5:1 — and its
-edge is the faint rule. It never keeps the look of the enabled control beside it.
+One disabled look serves every control that takes input: a button, a choice
+trigger, a text field, an editor, a switch, a segmented choice and a file
+picker. An unavailable control is flat and dimmer than an available one: it gives
+up its ground, its words and glyphs take the disabled ink — legible at 3:1 or
+better in both themes, though a disabled control is exempt from 4.5:1 — its edge
+is the faint rule (`--rv-edge-disabled` where the edge is a ring), its cursor says
+it is unavailable, and its opacity stays whole: no such control is dimmed by
+lowering opacity, which would leave it looking like the enabled control beside
+it. The control keeps what states its value without colour: a switch its
+position, with the accent at low emphasis while it is on, a segmented choice its
+check mark and edge, a file picker its dashed edge. Each component owns its own
+disabled rule and the library's lowered opacity is overridden there.
 Icons are hand-set 16-unit strokes, always decorative, always beside or behind an accessible name
 — navigation and menus never go icon-only. A feature that needs a different
 look asks for a role or a variant, never a parallel class. A component is a

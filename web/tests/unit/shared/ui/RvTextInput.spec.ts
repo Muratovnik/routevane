@@ -5,6 +5,10 @@ import { defineComponent, ref } from 'vue'
 
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
+import { contrast, inTheme, paintedToken } from './support/contrast'
+
+const TRANSPARENT = 'rgba(0, 0, 0, 0)'
+
 // The mono face as the browser resolves it, read off a probe rather than from
 // the token's text, whose quoting the computed style rewrites.
 const monoFace = (): string => {
@@ -89,6 +93,44 @@ describe('RvTextInput', () => {
     const glyph = field.element().parentElement!.querySelector('svg')
     expect(glyph?.getAttribute('aria-hidden')).toBe('true')
   })
+
+  // A field that cannot be used now has to read as unavailable beside the same
+  // field when it can: flat, dimmer, drawn with the faint rule and never with a
+  // lowered opacity, which leaves it looking like the enabled field beside it.
+  it.each(['dark', 'light'] as const)(
+    'draws a disabled field apart from an enabled one in the %s theme',
+    async (theme) => {
+      await inTheme(theme, async () => {
+        const screen = await render(RvTextInput, {
+          attrs: { 'aria-label': 'Open' },
+          props: { modelValue: 'typed', placeholder: 'Hint' },
+        })
+        await render(RvTextInput, {
+          attrs: { 'aria-label': 'Closed' },
+          props: { disabled: true, modelValue: 'typed', placeholder: 'Hint' },
+        })
+
+        const on = screen.getByRole('textbox', { name: 'Open' }).element()
+        const off = screen.getByRole('textbox', { name: 'Closed' }).element()
+        const [open, closed] = [getComputedStyle(on), getComputedStyle(off)]
+        expect(closed.color).not.toBe(open.color)
+        expect(closed.color).toBe(paintedToken('--rv-color-ink-disabled'))
+        expect(closed.backgroundColor).toBe(TRANSPARENT)
+        expect(open.backgroundColor).not.toBe(TRANSPARENT)
+        expect(closed.boxShadow).not.toBe(open.boxShadow)
+        expect(closed.boxShadow).toContain(paintedToken('--rv-color-rule'))
+        expect(closed.opacity).toBe('1')
+        expect(closed.cursor).toBe('not-allowed')
+        // Legible against the surface it stands on, at 3:1, placeholder too.
+        expect(
+          contrast(closed.color, paintedToken('--rv-color-canvas')),
+        ).toBeGreaterThanOrEqual(3)
+        expect(getComputedStyle(off, '::placeholder').color).toBe(
+          paintedToken('--rv-color-ink-disabled'),
+        )
+      })
+    },
+  )
 
   it('hands a host the input to move focus into', async () => {
     const screen = await render(
