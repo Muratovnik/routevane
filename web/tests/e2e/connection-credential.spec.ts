@@ -221,9 +221,10 @@ test('changing the address states the consequence beside Save and then clears th
     ),
   ).toBeVisible()
   expect(await form!.evaluate((element) => element.isConnected)).toBe(true)
-  // Pressing Save with the pointer leaves the operator in the field they were
-  // typing in; it is not a reason to move them.
-  await expect(address).toBeFocused()
+  // Pressing Save with the pointer puts focus on Save, as it does for any
+  // button, and the write ends with nothing left to save. Focus does not fall
+  // to the page: it goes to the first field, the explicit fallback.
+  await expect(name).toBeFocused()
 
   // Saved from the keyboard, the button itself has nothing left to save and
   // becomes unavailable, so focus returns to the first field instead of the
@@ -272,8 +273,13 @@ test('a refused save names the address when the service named it', async ({
 
   registry.refuseNextUpdate()
   await address.fill('http://10.255.0.79')
-  await detail.getByRole('button', { name: 'Save', exact: true }).click()
+  const save = detail.getByRole('button', { name: 'Save', exact: true })
+  await save.click()
   await expect(detail.getByText(copy('devices.work.failed'))).toBeVisible()
+  // The write ended and there is still something to save, so the button the
+  // operator pressed is available again and holds focus.
+  await expect(save).toBeEnabled()
+  await expect(save).toBeFocused()
   await expect(
     detail.getByText(copy('deploy.field.address.keenetic.rejected')),
   ).toHaveCount(0)

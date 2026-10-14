@@ -209,18 +209,25 @@ const onSave = async (): Promise<void> => {
   const endedDelivery = connectionChanged.value && props.connection.autoDeliver
   saving.value = true
   refusedAddress.value = false
+  // The button stops saying it is working when the write ends, before focus
+  // is returned: a Save that is still waiting on its own label would be passed
+  // over for the fallback, though it is available again as soon as it renders.
   const saved = await keepFocus(
-    () =>
-      props.devices.update(
-        props.connection.id,
-        trimmed.value.name,
-        trimmed.value.address,
-        trimmed.value.account,
-        trimmed.value.interfaceName,
-      ),
+    async () => {
+      try {
+        return await props.devices.update(
+          props.connection.id,
+          trimmed.value.name,
+          trimmed.value.address,
+          trimmed.value.account,
+          trimmed.value.interfaceName,
+        )
+      } finally {
+        saving.value = false
+      }
+    },
     () => fields.value?.element('name'),
   )
-  saving.value = false
   if (!saved) {
     // The service names the field it refused, so the words go beside it; a
     // refusal that names none is stated once, below.
@@ -348,7 +355,6 @@ const onForget = async (): Promise<void> => {
             :loading-label="t('action.save')"
             type="submit"
             variant="primary"
-            @mousedown.prevent
             >{{ t('action.save') }}</RvButton
           >
         </div>
