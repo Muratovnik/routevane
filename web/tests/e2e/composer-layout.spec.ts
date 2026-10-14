@@ -9,7 +9,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
 import { englishCopy } from './support/copy'
-import { buildProfile, chooseFormat } from './support/flows'
+import { buildProfile, chooseFormat, settleAnimations } from './support/flows'
 import {
   bodyRows,
   composerSettings,
@@ -96,7 +96,14 @@ test('the editor keeps save in the window and says the draft is unsaved', async 
   origin,
 }) => {
   await buildProfile(page, origin)
-  await page.setViewportSize({ width: 1024, height: 700 })
+  // Below 1100px the window collapses the rail by itself, which at 1024px
+  // leaves the composer wide enough to stand side by side. The stacked band,
+  // where save has to stay in reach, now belongs to a 900px window.
+  await page.setViewportSize({ width: 900, height: 700 })
+  await expect(
+    page.getByRole('button', { name: 'Expand sidebar', exact: true }),
+  ).toBeVisible()
+  await settleAnimations(page)
   const save = page.getByRole('button', {
     name: 'Save and rebuild',
     exact: true,
