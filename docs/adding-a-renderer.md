@@ -57,6 +57,14 @@ for English; an English list has as many steps as the base list.
 Several targets may share one renderer. The target catalog and the renderer
 registry are separate maps for exactly that reason.
 
+An output records the revision of its own target when it is created. Only
+`format_key`, `renderer`, `renderer_options` and `constraints` make up that
+revision. Editing `title`, `kind` or an installation hint or step later leaves
+existing outputs and their subscription links working. Changing one of the
+revision fields makes the next build of every output of that target fail as a
+changed format, and the operator has to add the format again
+([ADR 0054](adr/0054-per-target-revision-from-artifact-fields.md)).
+
 The built-in Keenetic FQDN renderer currently fixes its group bounds at 300
 entries and 128 groups, with a 256 KiB artifact bound. A target alias using
 `keenetic-fqdn-group` must declare those same `max_entries_per_list` and

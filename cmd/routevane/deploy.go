@@ -127,8 +127,8 @@ func runDeploy(ctx context.Context, stdout io.Writer, logger *slog.Logger, optio
 	defer store.Close()
 	publication, err := application.NewPublicationService(application.PublicationConfig{
 		Definitions: catalog.Lists, Categories: catalog.Categories,
-		Targets: catalogTargets(catalog, resolved.renderers), TargetRevision: catalog.TargetRevision,
-		Store: store, Files: filesystem.PublishedStore{DataRoot: root},
+		Targets: catalogTargets(catalog, resolved.renderers),
+		Store:   store, Files: filesystem.PublishedStore{DataRoot: root},
 		Renderers: resolved.renderers, Sources: resolved.sources, Clock: application.ClockFunc(deps.Now),
 	})
 	if err != nil {

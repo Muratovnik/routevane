@@ -60,8 +60,8 @@ func forecastTestService(t *testing.T, store interface {
 	publication, err := NewPublicationService(PublicationConfig{
 		Definitions: definitions,
 		Categories:  map[string]domain.CategoryDefinition{"video": {ID: "video", Title: "Видео", Lists: []string{"youtube"}}},
-		Targets:     targets, TargetRevision: strings.Repeat("t", 64),
-		Store: store, Files: files,
+		Targets:     targets,
+		Store:       store, Files: files,
 		Renderers: RendererRegistry{keenetic.ID: keenetic.Renderer{}},
 		Sources:   SourceRegistry{domain.SourceDNS: publicationFakeSource{}},
 		Clock:     ClockFunc(func() time.Time { return time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC) }),

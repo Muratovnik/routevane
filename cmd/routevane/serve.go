@@ -66,7 +66,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		return 1
 	}
 	defer store.Close()
-	publication, err := application.NewPublicationService(application.PublicationConfig{Definitions: catalog.Lists, LocalListIDs: catalog.LocalListIDs, Categories: catalog.Categories, Targets: targets, TargetRevision: catalog.TargetRevision, FeedURL: httpfeed.ValidateURL, Store: store, Files: filesystem.PublishedStore{DataRoot: root}, Renderers: resolved.renderers, Sources: resolved.sources, Clock: application.ClockFunc(deps.Now)})
+	publication, err := application.NewPublicationService(application.PublicationConfig{Definitions: catalog.Lists, LocalListIDs: catalog.LocalListIDs, Categories: catalog.Categories, Targets: targets, FeedURL: httpfeed.ValidateURL, Store: store, Files: filesystem.PublishedStore{DataRoot: root}, Renderers: resolved.renderers, Sources: resolved.sources, Clock: application.ClockFunc(deps.Now)})
 	if err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
 		return 1
@@ -75,6 +75,14 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	// the catalog this process serves. Serving lists without them would
 	// silently publish something else than stored, so a registry that cannot
 	// be read is a startup failure, not a degraded mode.
+	// Outputs created before ADR 0054 carry the retired catalog-wide target
+	// revision. They move to their own target's revision before anything can
+	// build them; a database that cannot do so is not served half-upgraded.
+	if _, err := application.RebaseLegacyTargetRevisions(deps.Context, store, targets, resolved.renderers); err != nil {
+		logger.Warn("serve failed", "operation", "serve", "error", err.Error())
+		logResult(logger, "serve", "", "", "failed", 0, started, "target_revisions_unavailable")
+		return 1
+	}
 	if err := publication.LoadCustomLists(deps.Context); err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "custom_lists_unavailable")
 		return 1

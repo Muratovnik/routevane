@@ -84,3 +84,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0051: retiring a profile or a format, and reissuing a subscription link](./0051-profile-and-format-retirement-and-subscription-reissue.md) | adopted |
 | [ADR 0052: a test build for the device and credential suites](./0052-test-build-for-device-suites.md) | adopted |
 | [ADR 0053: a refused build names the lists it could not cover](./0053-a-refused-build-names-the-lists-it-could-not-cover.md) | adopted |
+| [ADR 0054: an output follows the revision of its own target's artifact fields](./0054-per-target-revision-from-artifact-fields.md) | adopted |

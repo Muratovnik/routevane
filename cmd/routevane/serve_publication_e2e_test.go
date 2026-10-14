@@ -277,7 +277,7 @@ func TestCorruptLatestFallsBackToIndependentlyVerifiedPrevious(t *testing.T) {
 	resolver := &changingResolver{address: "192.0.2.10"}
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	clock := application.ClockFunc(func() time.Time { return now })
-	publication, err := application.NewPublicationService(application.PublicationConfig{Definitions: catalog.Lists, Targets: map[string]domain.TargetDefinition{target.ID: target}, TargetRevision: catalog.TargetRevision, Store: store, Files: filesystem.PublishedStore{DataRoot: root}, Renderers: application.RendererRegistry{keenetic.ID: keenetic.Renderer{}}, Sources: application.SourceRegistry{domain.SourceDNS: dns.Source{Observer: dns.NewObserver(resolver)}}, Clock: clock})
+	publication, err := application.NewPublicationService(application.PublicationConfig{Definitions: catalog.Lists, Targets: map[string]domain.TargetDefinition{target.ID: target}, Store: store, Files: filesystem.PublishedStore{DataRoot: root}, Renderers: application.RendererRegistry{keenetic.ID: keenetic.Renderer{}}, Sources: application.SourceRegistry{domain.SourceDNS: dns.Source{Observer: dns.NewObserver(resolver)}}, Clock: clock})
 	if err != nil {
 		t.Fatal(err)
 	}

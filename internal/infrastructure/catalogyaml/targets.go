@@ -59,38 +59,31 @@ type rawConstraints struct {
 	MaxLists              int  `yaml:"max_lists"`
 }
 
-func loadTargets(ctx context.Context, root string) (map[string]domain.TargetDefinition, string, error) {
+func loadTargets(ctx context.Context, root string) (map[string]domain.TargetDefinition, error) {
 	paths, err := targetFiles(ctx, root)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	targets := make(map[string]domain.TargetDefinition, len(paths))
 	total := int64(0)
 	for _, path := range paths {
 		if err := ctx.Err(); err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		payload, err := boundedCatalogRead(path, MaxTargetFileBytes, &total, MaxTargetTotalBytes, "target", "target catalog")
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		target, err := decodeTarget(payload)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		if _, collision := targets[target.ID]; collision {
-			return nil, "", fmt.Errorf("%w: duplicate target id %q", ErrInvalidCatalog, target.ID)
+			return nil, fmt.Errorf("%w: duplicate target id %q", ErrInvalidCatalog, target.ID)
 		}
 		targets[target.ID] = target
 	}
-	if len(targets) == 0 {
-		return targets, "", nil
-	}
-	revision, err := targetCatalogRevision(targets)
-	if err != nil {
-		return nil, "", fmt.Errorf("%w: canonical target revision", ErrInvalidCatalog)
-	}
-	return targets, revision, nil
+	return targets, nil
 }
 
 func targetFiles(ctx context.Context, root string) ([]string, error) {

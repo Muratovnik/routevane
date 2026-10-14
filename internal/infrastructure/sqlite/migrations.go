@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 18
+const CurrentSchemaVersion = 19
 
 type migration struct {
 	version int
@@ -781,6 +781,40 @@ END;
 ALTER TABLE output_attempts ADD COLUMN uncovered_lists_json TEXT NOT NULL DEFAULT '[]'
     CHECK (json_valid(uncovered_lists_json) AND json_type(uncovered_lists_json) = 'array'
            AND (uncovered_lists_json = '[]' OR code = 'partial_coverage'));
+`}, {version: 19, sql: `
+-- ADR 0054: an output records the revision of its own target's artifact fields
+-- instead of one hash of the whole target catalog. The revision every output
+-- holds so far is that catalog hash, which SQL cannot recompute: the catalog is
+-- loaded by the running process. Each live output is therefore marked here, and
+-- the process moves a marked output to its target's revision once it has
+-- checked that the format and renderer are still the ones it was created with.
+--
+-- The set is closed when this migration commits: no row can be added later, so
+-- an output created under the new rule can never be rebased, and a removed row
+-- is gone for good.
+CREATE TABLE legacy_target_revisions (
+    output_id TEXT PRIMARY KEY REFERENCES outputs(id)
+) WITHOUT ROWID, STRICT;
+INSERT INTO legacy_target_revisions(output_id) SELECT id FROM outputs WHERE removed_at_ns = 0;
+CREATE TRIGGER legacy_target_revisions_closed BEFORE INSERT ON legacy_target_revisions BEGIN
+    SELECT RAISE(ABORT, 'legacy target revisions are closed');
+END;
+CREATE TRIGGER legacy_target_revisions_no_update BEFORE UPDATE ON legacy_target_revisions BEGIN
+    SELECT RAISE(ABORT, 'immutable legacy target revision');
+END;
+
+-- The identity of an output stays immutable. The revision leaves the general
+-- trigger and gets one of its own with a single exception: an output that is
+-- still marked above. Every other output, including each one created from now
+-- on, keeps the revision it was written with.
+DROP TRIGGER outputs_identity_immutable;
+CREATE TRIGGER outputs_identity_immutable BEFORE UPDATE OF id,profile_id,target_id,format_key,renderer_id,renderer_version,created_at_ns ON outputs BEGIN
+    SELECT RAISE(ABORT, 'immutable output identity');
+END;
+CREATE TRIGGER outputs_target_revision_immutable BEFORE UPDATE OF target_revision ON outputs
+WHEN NOT EXISTS (SELECT 1 FROM legacy_target_revisions WHERE output_id = OLD.id) BEGIN
+    SELECT RAISE(ABORT, 'immutable output identity');
+END;
 `}}
 
 var requiredTables = []string{
@@ -788,6 +822,7 @@ var requiredTables = []string{
 	"managed_fqdn_groups",
 	"settings",
 	"devices",
+	"legacy_target_revisions",
 	"catalog_removals",
 	"custom_categories",
 	"custom_lists",
@@ -852,6 +887,7 @@ var requiredColumns = map[string][]string{
 	"plan_snapshots":           {"id", "output_id", "routing_plan_hash", "routing_plan_json", "policy_version", "catalog_revision", "observation_cutoff_ns", "created_at_ns", "status"},
 	"artifact_builds":          {"id", "output_id", "plan_snapshot_id", "renderer_id", "renderer_version", "artifact_hash", "artifact_path", "size_bytes", "content_type", "content_created_at_ns", "validation_status", "status"},
 	"subscriptions":            {"token_id", "output_id", "token_hash", "created_at_ns"},
+	"legacy_target_revisions":  {"output_id"},
 	"subscription_revocations": {"token_id", "revoked_at_ns"},
 }
 
@@ -873,6 +909,7 @@ var requiredForeignKeys = map[string][]string{
 	"managed_routes":           {"managed_route_scopes"},
 	"managed_route_claims":     {"managed_routes", "outputs"},
 	"managed_fqdn_groups":      {"outputs"},
+	"legacy_target_revisions":  {"outputs"},
 }
 
 var requiredTriggers = []string{
@@ -885,10 +922,13 @@ var requiredTriggers = []string{
 	"deployment_attempts_identity_immutable",
 	"deployment_attempts_no_delete",
 	"deployment_attempts_terminal_immutable",
+	"legacy_target_revisions_closed",
+	"legacy_target_revisions_no_update",
 	"outputs_identity_immutable",
 	"outputs_no_delete",
 	"outputs_live_profile",
 	"outputs_removal_permanent",
+	"outputs_target_revision_immutable",
 	"outputs_pointer_integrity_insert",
 	"outputs_pointer_integrity_update",
 	"output_attempts_no_delete",

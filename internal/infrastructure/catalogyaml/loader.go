@@ -39,12 +39,14 @@ const (
 var ErrInvalidCatalog = errors.New("invalid catalog")
 
 type Catalog struct {
-	Root           string
-	Revision       string
-	TargetRevision string
-	Lists          map[string]domain.ListDefinition
-	Categories     map[string]domain.CategoryDefinition
-	Targets        map[string]domain.TargetDefinition
+	Root       string
+	Revision   string
+	Lists      map[string]domain.ListDefinition
+	Categories map[string]domain.CategoryDefinition
+	// Targets carry no catalog-wide revision. Each output compares the
+	// revision of its own target's artifact fields (ADR 0054), so editing one
+	// target's text, or another target, leaves the output buildable.
+	Targets map[string]domain.TargetDefinition
 	// LocalListIDs names entries loaded from catalog/local.  Those entries
 	// are intentionally workstation-local discoveries, so a portable settings
 	// transfer must never make a destination depend on one being present.
@@ -106,11 +108,11 @@ func Load(ctx context.Context, rootPath string) (Catalog, error) {
 		list.CatalogRevision = revision
 		lists[id] = list
 	}
-	targets, targetRevision, err := loadTargets(ctx, root)
+	targets, err := loadTargets(ctx, root)
 	if err != nil {
 		return Catalog{}, err
 	}
-	return Catalog{Root: root, Revision: revision, TargetRevision: targetRevision, Lists: lists, Categories: categories, Targets: targets, LocalListIDs: localListIDs}, nil
+	return Catalog{Root: root, Revision: revision, Lists: lists, Categories: categories, Targets: targets, LocalListIDs: localListIDs}, nil
 }
 
 // optionalYAMLFiles lists one bounded catalog subdirectory. A missing directory
@@ -301,20 +303,6 @@ func catalogRevision(lists map[string]domain.ListDefinition, categories map[stri
 		Lists      []domain.ListDefinition
 		Categories []domain.CategoryDefinition
 	}{ordered, orderedCategories})
-	if err != nil {
-		return "", err
-	}
-	hash := sha256.Sum256(encoded)
-	return hex.EncodeToString(hash[:]), nil
-}
-
-func targetCatalogRevision(targets map[string]domain.TargetDefinition) (string, error) {
-	ids := slices.Sorted(maps.Keys(targets))
-	ordered := make([]domain.TargetDefinition, 0, len(ids))
-	for _, id := range ids {
-		ordered = append(ordered, targets[id])
-	}
-	encoded, err := json.Marshal(ordered)
 	if err != nil {
 		return "", err
 	}

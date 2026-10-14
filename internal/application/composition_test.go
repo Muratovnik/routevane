@@ -29,8 +29,8 @@ func categoryTestService(t *testing.T) *PublicationService {
 	target := domain.TargetDefinition{ID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID, Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: keenetic.MaxLines, MaxArtifactSize: keenetic.MaxArtifactSize}}
 	publication, err := NewPublicationService(PublicationConfig{
 		Definitions: definitions, Categories: categories,
-		Targets: map[string]domain.TargetDefinition{target.ID: target}, TargetRevision: strings.Repeat("t", 64),
-		Store: &publicationFakeStore{}, Files: &publicationFakeFiles{},
+		Targets: map[string]domain.TargetDefinition{target.ID: target},
+		Store:   &publicationFakeStore{}, Files: &publicationFakeFiles{},
 		Renderers: RendererRegistry{keenetic.ID: keenetic.Renderer{}},
 		Sources:   SourceRegistry{domain.SourceDNS: publicationFakeSource{}},
 		Clock:     ClockFunc(func() time.Time { return time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC) }),
@@ -160,8 +160,8 @@ func TestCompositionRootRefusesACategoryWithAnUnknownList(t *testing.T) {
 	_, err := NewPublicationService(PublicationConfig{
 		Definitions: map[string]domain.ListDefinition{"youtube": {ID: "youtube", CatalogRevision: strings.Repeat("c", 64)}},
 		Categories:  map[string]domain.CategoryDefinition{"games": {ID: "games", Title: "Игры", Lists: []string{"absent"}}},
-		Targets:     map[string]domain.TargetDefinition{target.ID: target}, TargetRevision: strings.Repeat("t", 64),
-		Store: &publicationFakeStore{}, Files: &publicationFakeFiles{},
+		Targets:     map[string]domain.TargetDefinition{target.ID: target},
+		Store:       &publicationFakeStore{}, Files: &publicationFakeFiles{},
 		Renderers: RendererRegistry{keenetic.ID: keenetic.Renderer{}},
 		Sources:   SourceRegistry{domain.SourceDNS: publicationFakeSource{}},
 		Clock:     ClockFunc(func() time.Time { return time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC) }),

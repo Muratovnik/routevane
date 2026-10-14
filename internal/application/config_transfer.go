@@ -1598,7 +1598,7 @@ func (s *PublicationService) prepareApply(d ConfigTransferDocument) (ConfigTrans
 		if err != nil {
 			return a, transferError("target_missing", "outputs")
 		}
-		a.Outputs[v.Ref] = Output{ID: id, ProfileID: a.ProfileIDs[v.ProfileRef], TargetID: v.TargetID, DeviceID: a.DeviceIDs[v.DeviceRef], FQDNGroupPrefix: v.FQDNGroupPrefix, FormatKey: target.FormatKey, RendererID: target.RendererID, RendererVersion: renderer.Version(), TargetRevision: s.config.TargetRevision, CreatedAt: now}
+		a.Outputs[v.Ref] = Output{ID: id, ProfileID: a.ProfileIDs[v.ProfileRef], TargetID: v.TargetID, DeviceID: a.DeviceIDs[v.DeviceRef], FQDNGroupPrefix: v.FQDNGroupPrefix, FormatKey: target.FormatKey, RendererID: target.RendererID, RendererVersion: renderer.Version(), TargetRevision: domain.TargetRevision(target), CreatedAt: now}
 	}
 	return a, nil
 }

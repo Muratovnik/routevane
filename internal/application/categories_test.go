@@ -45,8 +45,8 @@ func overlayTestService(t *testing.T) (*PublicationService, *publicationFakeStor
 	store := &publicationFakeStore{}
 	publication, err := NewPublicationService(PublicationConfig{
 		Definitions: definitions, Categories: categories,
-		Targets: map[string]domain.TargetDefinition{target.ID: target}, TargetRevision: strings.Repeat("t", 64),
-		Store: store, Files: &publicationFakeFiles{},
+		Targets: map[string]domain.TargetDefinition{target.ID: target},
+		Store:   store, Files: &publicationFakeFiles{},
 		Renderers: RendererRegistry{keenetic.ID: keenetic.Renderer{}},
 		Sources:   SourceRegistry{domain.SourceDNS: publicationFakeSource{}},
 		Clock:     ClockFunc(func() time.Time { return time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC) }),

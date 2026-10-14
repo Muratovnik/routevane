@@ -117,12 +117,12 @@ func newPublicationConsistencyFixtureForTarget(t *testing.T, target domain.Targe
 	}
 	service, err := application.NewPublicationService(application.PublicationConfig{
 		Definitions: definitions, Targets: map[string]domain.TargetDefinition{target.ID: target},
-		Categories:     map[string]domain.CategoryDefinition{"group": {ID: "group", Title: "Group", Lists: []string{"alpha"}}},
-		TargetRevision: strings.Repeat("t", 64), Store: store,
-		Files:     filesystem.PublishedStore{DataRoot: dataRoot, Writer: filesystem.PublishedWriter{BeforeCommit: barrier.beforeCommit}},
-		Renderers: application.RendererRegistry{renderer.ID(): renderer},
-		Sources:   application.SourceRegistry{domain.SourceDNS: unusedPublicationSource{}},
-		Clock:     application.ClockFunc(clock.read),
+		Categories: map[string]domain.CategoryDefinition{"group": {ID: "group", Title: "Group", Lists: []string{"alpha"}}},
+		Store:      store,
+		Files:      filesystem.PublishedStore{DataRoot: dataRoot, Writer: filesystem.PublishedWriter{BeforeCommit: barrier.beforeCommit}},
+		Renderers:  application.RendererRegistry{renderer.ID(): renderer},
+		Sources:    application.SourceRegistry{domain.SourceDNS: unusedPublicationSource{}},
+		Clock:      application.ClockFunc(clock.read),
 	})
 	if err != nil {
 		t.Fatal(err)

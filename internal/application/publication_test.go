@@ -782,8 +782,8 @@ func TestProfileCardsResolveTargetsAndTolerateMissingPieces(t *testing.T) {
 func newPublicationTestService(t *testing.T, store *publicationFakeStore, files *publicationFakeFiles, renderer Renderer, entropy *bytes.Reader) *PublicationService {
 	t.Helper()
 	definition := domain.ListDefinition{ID: "example", CatalogRevision: strings.Repeat("c", 64), Components: []domain.ComponentDefinition{{ID: "web", Required: true}}, Seeds: []domain.Seed{{Kind: domain.RuleIPv4, Value: "192.0.2.1", ComponentID: "web", SourceID: "manual:seed", SourceClass: domain.SourceManual}, {Kind: domain.RuleDomainSuffix, Value: "example.com", ComponentID: "web", SourceID: "manual:domain", SourceClass: domain.SourceManual}}}
-	target := domain.TargetDefinition{ID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID, Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: keenetic.MaxLines, MaxArtifactSize: keenetic.MaxArtifactSize}}
-	publication, err := NewPublicationService(PublicationConfig{Definitions: map[string]domain.ListDefinition{"example": definition}, Targets: map[string]domain.TargetDefinition{target.ID: target}, TargetRevision: strings.Repeat("t", 64), FeedURL: func(string) error { return nil }, Store: store, Files: files, Renderers: RendererRegistry{renderer.ID(): renderer}, Sources: SourceRegistry{domain.SourceDNS: publicationFakeSource{}}, Clock: ClockFunc(func() time.Time { return time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC) }), Entropy: entropy})
+	target := publicationTestTarget()
+	publication, err := NewPublicationService(PublicationConfig{Definitions: map[string]domain.ListDefinition{"example": definition}, Targets: map[string]domain.TargetDefinition{target.ID: target}, FeedURL: func(string) error { return nil }, Store: store, Files: files, Renderers: RendererRegistry{renderer.ID(): renderer}, Sources: SourceRegistry{domain.SourceDNS: publicationFakeSource{}}, Clock: ClockFunc(func() time.Time { return time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC) }), Entropy: entropy})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -875,8 +875,13 @@ func TestProfileListDomainOverridesAreNormalizedAndAppliedOnlyToStaticDomains(t 
 func testProfileAndOutput() (Profile, Output) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	profile := Profile{ID: strings.Repeat("1", 32), Name: "example profile", Lists: []string{"example"}, CreatedAt: now, UpdatedAt: now}
-	output := Output{ID: strings.Repeat("2", 32), ProfileID: profile.ID, TargetID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID, RendererVersion: keenetic.Version, TargetRevision: strings.Repeat("t", 64), CreatedAt: now}
+	output := Output{ID: strings.Repeat("2", 32), ProfileID: profile.ID, TargetID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID, RendererVersion: keenetic.Version, TargetRevision: domain.TargetRevision(publicationTestTarget()), CreatedAt: now}
 	return profile, output
+}
+
+// publicationTestTarget is the one format newPublicationTestService serves.
+func publicationTestTarget() domain.TargetDefinition {
+	return domain.TargetDefinition{ID: "keenetic", FormatKey: keenetic.Version, RendererID: keenetic.ID, Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: keenetic.MaxLines, MaxArtifactSize: keenetic.MaxArtifactSize}}
 }
 
 func FuzzParseSubscriptionToken(f *testing.F) {
@@ -891,4 +896,42 @@ func FuzzParseSubscriptionToken(f *testing.F) {
 			}
 		}
 	})
+}
+
+// ADR 0054: an output is refused as a changed format only when its own
+// target's artifact fields changed. Renaming the format or rewording its
+// installation leaves the output buildable; a different limit does not.
+func TestBuildComparesTheRevisionOfTheOutputsOwnTarget(t *testing.T) {
+	profile, output := testProfileAndOutput()
+	build := func(edit func(*domain.TargetDefinition)) error {
+		store := &publicationFakeStore{profile: profile, output: output}
+		publication := newPublicationTestService(t, store, &publicationFakeFiles{}, mutatingRenderer{}, bytes.NewReader(bytes.Repeat([]byte{0x61}, 256)))
+		target := publication.config.Targets["keenetic"]
+		edit(&target)
+		publication.config.Targets["keenetic"] = target
+		_, err := publication.Build(context.Background(), output.ID)
+		return err
+	}
+	for name, edit := range map[string]func(*domain.TargetDefinition){
+		"unchanged": func(*domain.TargetDefinition) {},
+		"retitled":  func(d *domain.TargetDefinition) { d.Title, d.TitleEN = "Роутер", "Router" },
+		"reworded steps": func(d *domain.TargetDefinition) {
+			d.ManualInstallationSteps = []string{"Откройте панель.", "Загрузите файл."}
+		},
+		"reworded hint":  func(d *domain.TargetDefinition) { d.ManualInstallationHint = "Загрузите файл." },
+		"regrouped kind": func(d *domain.TargetDefinition) { d.Kind = domain.TargetKindApp },
+	} {
+		if err := build(edit); err != nil {
+			t.Errorf("%s target: build err=%v", name, err)
+		}
+	}
+	for name, edit := range map[string]func(*domain.TargetDefinition){
+		"smaller artifact limit": func(d *domain.TargetDefinition) { d.Constraints.MaxArtifactSize-- },
+		"another rule limit":     func(d *domain.TargetDefinition) { d.Constraints.MaxRules-- },
+		"new capability":         func(d *domain.TargetDefinition) { d.Constraints.SupportsIPv6 = true },
+	} {
+		if err := build(edit); !errors.Is(err, ErrTargetChanged) {
+			t.Errorf("%s: build err=%v, want ErrTargetChanged", name, err)
+		}
+	}
 }

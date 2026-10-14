@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Muratovnik/routevane/internal/domain"
 )
 
 const validCatalogYAML = `id: example
@@ -190,28 +192,73 @@ func TestTargetCatalogIsOptionalStrictAndSeparatelyRevisioned(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(catalog.Targets) != 0 || catalog.TargetRevision != "" {
+		if len(catalog.Targets) != 0 {
 			t.Fatalf("unexpected optional target catalog: %#v", catalog)
 		}
 	})
-	t.Run("separate revisions", func(t *testing.T) {
-		root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
-		writeTargetFile(t, root, "keenetic.yaml", []byte(validTargetYAML))
-		first, err := Load(context.Background(), root)
-		if err != nil {
-			t.Fatal(err)
+	t.Run("per-target artifact revisions", func(t *testing.T) {
+		// ADR 0054: a target's revision is computed from its own artifact
+		// fields. The catalog file is edited the way a release edits it, and
+		// the loaded definition is what an output is compared against.
+		const otherTargetYAML = `id: other
+format_key: other-v1
+kind: app
+renderer: other-renderer
+constraints:
+  supports_ipv4: true
+  max_rules: 10
+  max_artifact_size: 4096
+manual_installation_hint: Open the file in the application.
+`
+		load := func(t *testing.T, keenetic string) Catalog {
+			t.Helper()
+			root := writeCatalogFile(t, "builtin", "list.yaml", []byte(validCatalogYAML))
+			writeTargetFile(t, root, "keenetic.yaml", []byte(keenetic))
+			writeTargetFile(t, root, "other.yaml", []byte(otherTargetYAML))
+			catalog, err := Load(context.Background(), root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return catalog
 		}
-		target, ok := first.Target("keenetic")
+		revision := func(catalog Catalog, id string) string {
+			target, ok := catalog.Target(id)
+			if !ok {
+				t.Fatalf("target %s missing", id)
+			}
+			return domain.TargetRevision(target)
+		}
+		base := load(t, validTargetYAML)
+		target, ok := base.Target("keenetic")
 		if !ok || target.FormatKey != "keenetic-bat-ipv4-v1" || target.Constraints.MaxRules != 1024 || len(target.RendererOptions) != 0 {
 			t.Fatalf("loaded target = %#v", target)
 		}
-		writeTargetFile(t, root, "keenetic.yaml", []byte(strings.Replace(validTargetYAML, "max_artifact_size: 131072", "max_artifact_size: 131073", 1)))
-		second, err := Load(context.Background(), root)
-		if err != nil {
-			t.Fatal(err)
+		hint := "manual_installation_hint: Import from the user-defined routes page and select an existing interface."
+		for name, payload := range map[string]string{
+			"hint":         strings.Replace(validTargetYAML, hint, "manual_installation_hint: Import the file on the routes page.", 1),
+			"steps":        strings.Replace(validTargetYAML, hint, "manual_installation_steps:\n  - Open the routes page.\n  - Import the file.", 1),
+			"title":        validTargetYAML + "title: Keenetic\ntitle_en: Keenetic router\n",
+			"english hint": validTargetYAML + "manual_installation_hint_en: Import the file.\n",
+			"kind":         strings.Replace(validTargetYAML, "kind: router", "kind: app", 1),
+		} {
+			edited := load(t, payload)
+			if revision(edited, "keenetic") != revision(base, "keenetic") {
+				t.Errorf("editing the %s changed the target revision", name)
+			}
 		}
-		if first.Revision != second.Revision || first.TargetRevision == second.TargetRevision {
-			t.Fatalf("list/target revisions are not separate: %q/%q vs %q/%q", first.Revision, first.TargetRevision, second.Revision, second.TargetRevision)
+		edited := load(t, strings.Replace(validTargetYAML, "max_artifact_size: 131072", "max_artifact_size: 131073", 1))
+		if revision(edited, "keenetic") == revision(base, "keenetic") {
+			t.Fatal("an artifact limit edit kept the target revision")
+		}
+		if revision(edited, "other") != revision(base, "other") {
+			t.Fatal("editing one target changed another target's revision")
+		}
+		if edited.Revision != base.Revision {
+			t.Fatalf("a target edit changed the list revision: %q vs %q", base.Revision, edited.Revision)
+		}
+		renamed := load(t, strings.Replace(validTargetYAML, "ipv4-v1", "ipv4-v2", 1))
+		if revision(renamed, "keenetic") == revision(base, "keenetic") {
+			t.Fatal("a format key edit kept the target revision")
 		}
 	})
 	for _, test := range []struct {

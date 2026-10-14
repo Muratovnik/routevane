@@ -63,8 +63,8 @@ func TestShippedListReadinessAndCatalogUpgradePersisted(t *testing.T) {
 	target, _ := catalog.Target("keenetic")
 	config := application.PublicationConfig{
 		Definitions: map[string]domain.ListDefinition{"grok": definition},
-		Targets:     map[string]domain.TargetDefinition{target.ID: target}, TargetRevision: catalog.TargetRevision,
-		Store: store, Files: filesystem.PublishedStore{DataRoot: root},
+		Targets:     map[string]domain.TargetDefinition{target.ID: target},
+		Store:       store, Files: filesystem.PublishedStore{DataRoot: root},
 		Renderers: application.RendererRegistry{keenetic.ID: keenetic.Renderer{}},
 		Sources:   application.SourceRegistry{domain.SourceHTTP: source},
 		Clock:     application.ClockFunc(func() time.Time { return now }),

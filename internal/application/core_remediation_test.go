@@ -37,7 +37,7 @@ func TestProfileBuildAppliesRuleLimitAfterPriorityOmission(t *testing.T) {
 	output := Output{
 		ID: strings.Repeat("2", 32), ProfileID: profile.ID, TargetID: "bounded",
 		FormatKey: keenetic.Version, RendererID: keenetic.ID, RendererVersion: keenetic.Version,
-		TargetRevision: strings.Repeat("t", 64), CreatedAt: now,
+		CreatedAt: now,
 	}
 	base := &publicationFakeStore{profile: profile, output: output}
 	store := &seedOnlyStore{publicationFakeStore: base}
@@ -53,11 +53,11 @@ func TestProfileBuildAppliesRuleLimitAfterPriorityOmission(t *testing.T) {
 	singboxTarget := domain.TargetDefinition{ID: "bounded-singbox", FormatKey: singbox.Version, RendererID: singbox.ID, Constraints: domain.TargetConstraints{
 		SupportsIPv4: true, SupportsPrefixes: true, MaxRules: 1, MaxArtifactSize: singbox.MaxArtifactSize,
 	}}
-	output.TargetID = target.ID
+	output.TargetID, output.TargetRevision = target.ID, domain.TargetRevision(target)
 	base.output = output
 	publication, err := NewPublicationService(PublicationConfig{
 		Definitions: definitions, Targets: map[string]domain.TargetDefinition{target.ID: target, singboxTarget.ID: singboxTarget},
-		TargetRevision: strings.Repeat("t", 64), Store: store, Files: files,
+		Store: store, Files: files,
 		Renderers: RendererRegistry{keenetic.ID: keenetic.Renderer{}, singbox.ID: singbox.Renderer{}},
 		Sources:   SourceRegistry{domain.SourceDNS: publicationFakeSource{}},
 		Clock:     ClockFunc(func() time.Time { return now }), Entropy: bytes.NewReader(bytes.Repeat([]byte{0x51}, 128)),

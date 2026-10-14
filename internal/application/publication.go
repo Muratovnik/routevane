@@ -353,9 +353,8 @@ type PublicationConfig struct {
 	// They are usable by this process, but cannot be named by an exported
 	// portable configuration because another machine has no matching catalog
 	// entry by definition.
-	LocalListIDs   map[string]struct{}
-	Target         domain.TargetDefinition
-	TargetRevision string
+	LocalListIDs map[string]struct{}
+	Target       domain.TargetDefinition
 	// FeedURL validates an operator-supplied feed URL with the same boundary
 	// the catalog loader applies. It is injected by the composition so this
 	// package stays below the network layer; without it, adding feeds is
@@ -419,7 +418,7 @@ func (s *PublicationService) publishCurrent(ctx context.Context, generation uint
 }
 
 func NewPublicationService(config PublicationConfig) (*PublicationService, error) {
-	if len(config.Definitions) == 0 || config.Store == nil || config.Files == nil || len(config.Targets) == 0 || len(config.Sources) == 0 || config.Clock == nil || config.TargetRevision == "" {
+	if len(config.Definitions) == 0 || config.Store == nil || config.Files == nil || len(config.Targets) == 0 || len(config.Sources) == 0 || config.Clock == nil {
 		return nil, fmt.Errorf("invalid publication composition")
 	}
 	if err := config.Renderers.Validate(); err != nil {
@@ -968,7 +967,7 @@ func (s *PublicationService) AddOutput(ctx context.Context, profileID, targetID 
 		if err != nil {
 			return CreatedOutput{}, fmt.Errorf("generate output identity: %w", err)
 		}
-		output := Output{ID: outputID, ProfileID: profile.ID, TargetID: target.ID, FormatKey: target.FormatKey, RendererID: target.RendererID, RendererVersion: renderer.Version(), TargetRevision: s.config.TargetRevision, CreatedAt: now}
+		output := Output{ID: outputID, ProfileID: profile.ID, TargetID: target.ID, FormatKey: target.FormatKey, RendererID: target.RendererID, RendererVersion: renderer.Version(), TargetRevision: domain.TargetRevision(target), CreatedAt: now}
 		if err := s.config.Store.CreateOutput(ctx, NewOutput{Output: output}); err != nil {
 			if errors.Is(err, ErrIdentityCollision) {
 				continue
@@ -1097,13 +1096,16 @@ func (s *PublicationService) TargetDefinition(id string) (domain.TargetDefinitio
 }
 
 // verifyTarget refuses an output whose stored target mapping no longer matches
-// the catalog it was created from.
+// the catalog it was created from. The revision compared is that of the
+// output's own target and covers only the fields that decide the artifact
+// (ADR 0054): a renamed format or a reworded installation step is the same
+// format, while a different format key, renderer or limit is not.
 func (s *PublicationService) verifyTarget(output Output) (domain.TargetDefinition, Renderer, error) {
 	target, renderer, err := s.target(output.TargetID)
 	if err != nil {
 		return domain.TargetDefinition{}, nil, ErrTargetChanged
 	}
-	if output.FormatKey != target.FormatKey || output.RendererID != target.RendererID || output.RendererVersion != renderer.Version() || output.TargetRevision != s.config.TargetRevision {
+	if output.FormatKey != target.FormatKey || output.RendererID != target.RendererID || output.RendererVersion != renderer.Version() || output.TargetRevision != domain.TargetRevision(target) {
 		return domain.TargetDefinition{}, nil, ErrTargetChanged
 	}
 	return target, renderer, nil

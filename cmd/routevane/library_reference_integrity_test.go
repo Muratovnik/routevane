@@ -259,7 +259,7 @@ func newLibraryReferenceService(t *testing.T, dataRoot string, store *sqlite.Sto
 	target := domain.RawJSONTargetDefinition()
 	service, err := application.NewPublicationService(application.PublicationConfig{
 		Definitions: map[string]domain.ListDefinition{"alpha": {ID: "alpha", CatalogRevision: strings.Repeat("c", 64), Components: []domain.ComponentDefinition{{ID: "web", Required: true}}, Seeds: []domain.Seed{{Kind: domain.RuleIPv4, Value: "192.0.2.1", ComponentID: "web", SourceID: "manual:alpha", SourceClass: domain.SourceManual}}}},
-		Targets:     map[string]domain.TargetDefinition{target.ID: target}, TargetRevision: strings.Repeat("t", 64), Store: store,
+		Targets:     map[string]domain.TargetDefinition{target.ID: target}, Store: store,
 		Files: filesystem.PublishedStore{DataRoot: dataRoot}, Renderers: application.RendererRegistry{rawjson.ID: rawjson.Renderer{}},
 		Sources: application.SourceRegistry{domain.SourceDNS: unusedPublicationSource{}}, Clock: clock,
 	})
