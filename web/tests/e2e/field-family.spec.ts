@@ -2,8 +2,7 @@
  * The text field family as the built product draws it. The unit suite renders
  * the facades over doubles of the library's components; this suite is where
  * the library itself is shown to keep the contract the facades promise: a
- * label that names its control, a hint above the control that stays beside
- * the error, the standard field height, no hover, a visible focus ring, the mono
+ * label that names its control, the one error under it, the standard field height, no hover, a visible focus ring, the mono
  * role only where a value is compared character by character, and the same
  * behaviour for a library choice inside the same field.
  */
@@ -114,10 +113,14 @@ for (const colorScheme of ['dark', 'light'] as const) {
       .hover()
     expect(await paint(address)).toEqual(rest)
 
-    // The hint describes the field while nothing is wrong.
-    const hint = englishCopy('deploy.field.interface.keenetic.hint')
-    expect(await described(routes)).toEqual([hint])
+    // Nothing stands under the field while nothing is wrong: the explanation is
+    // the informer's, the example is the placeholder.
+    expect(await described(routes)).toEqual([])
     await expect(routes).not.toHaveAttribute('aria-invalid')
+    await expect(routes).toHaveAttribute(
+      'placeholder',
+      englishCopy('deploy.field.interface.keenetic.placeholder'),
+    )
 
     // Keyboard traversal reaches the field and draws a ring of at least two
     // pixels (docs/UI.md, Accessibility).
@@ -133,21 +136,16 @@ for (const colorScheme of ['dark', 'light'] as const) {
       .poll(async () => (await paint(routes)).outlineColor)
       .toBe(focusColor)
 
-    // Leaving the field empty states the omission under the control while the
-    // hint above it stays: the hint is the field's description (docs/UI.md,
-    // Components), and a refused value is when its format matters most. The
-    // description names both, and only what is on the screen.
+    // Leaving the field empty states the omission under the control, and the
+    // description names only what is on the screen.
     await page.keyboard.press('Shift+Tab')
     const required = englishCopy('devices.validation.required')
     await expect(routes).toHaveAttribute('aria-invalid', 'true')
-    expect((await described(routes)).toSorted()).toEqual(
-      [hint, required].toSorted(),
-    )
-    await expect(page.getByText(hint, { exact: true })).toBeVisible()
+    expect(await described(routes)).toEqual([required])
 
     await routes.fill('Wireguard0')
     await expect(routes).not.toHaveAttribute('aria-invalid')
-    expect(await described(routes)).toEqual([hint])
+    expect(await described(routes)).toEqual([])
 
     expect(await audit(page, `field-family-${colorScheme}`)).toEqual([])
     assertProductAlive()

@@ -321,10 +321,26 @@ describe('DevicesView prerequisite audit', () => {
     await screen.getByLabelText('Format', { exact: true }).click()
     await screen.getByRole('option', { name: /^Keenetic/ }).click()
 
-    // The rule is stated under the field rather than only after a refusal.
+    // The rule is explained behind the informer beside the label, not under the
+    // field, and the shape of a value is the placeholder: the label, the
+    // informer and the placeholder carry the meaning, and only an error stands
+    // under the field.
+    await expect
+      .element(screen.getByText(ADDRESS_RULE, { exact: false }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByLabelText('Router address', { exact: true }))
+      .toHaveAttribute('placeholder', 'http://10.255.0.1')
+    await expect
+      .element(screen.getByLabelText('Interface for routes', { exact: true }))
+      .toHaveAttribute('placeholder', 'Wireguard0')
+    await screen
+      .getByRole('button', { name: 'What the address field takes' })
+      .click()
     await expect
       .element(screen.getByText(ADDRESS_RULE, { exact: false }))
       .toBeVisible()
+    await userEvent.keyboard('{Escape}')
 
     await screen.getByLabelText('Connection name').fill('Home router')
     await screen.getByLabelText('Router login').fill('admin')
@@ -354,6 +370,59 @@ describe('DevicesView prerequisite audit', () => {
           (request as RequestInit | undefined)?.method === 'POST',
       ),
     ).toHaveLength(0)
+  })
+
+  // Which networks a router may live on is the service's policy, so the form
+  // sends an address whose shape is right and states the service's refusal at
+  // the address field, in the words of this format's own kind of address.
+  it('states the service refusal of an address at the address field when registering', async () => {
+    const fetchMock = installFetch((input: string, init?: RequestInit) => {
+      if (input === DEVICES && init?.method === 'POST')
+        return Promise.resolve(
+          json({ error: 'address_rejected', field: 'address' }, 422),
+        )
+      if (input === DEVICES)
+        return Promise.resolve(
+          json({ devices: [], secret_store_available: true }),
+        )
+      if (input === LISTS) return Promise.resolve(json(CATALOG_PAYLOAD))
+      if (input === TARGETS) return Promise.resolve(json(TARGETS_PAYLOAD))
+      if (input === REQUIREMENTS)
+        return Promise.resolve(json(REQUIREMENTS_PAYLOAD))
+      return Promise.reject(new Error(`unexpected request ${input}`))
+    })
+    const screen = await render(DevicesView)
+    await screen
+      .getByRole('button', { name: 'Add a connection', exact: true })
+      .click()
+    await screen.getByLabelText('Format', { exact: true }).click()
+    await screen.getByRole('option', { name: /^Keenetic/ }).click()
+    await screen.getByLabelText('Connection name').fill('Home router')
+    await screen.getByLabelText('Router login').fill('admin')
+    await screen.getByLabelText('Interface for routes').fill('Wireguard0')
+    const address = screen.getByLabelText('Router address', { exact: true })
+    await address.fill('http://8.8.8.8')
+
+    await screen.getByRole('button', { name: 'Save' }).click()
+
+    const refusal =
+      'Use a local network IP address, not a host name or a public address.'
+    await expect.element(screen.getByText(refusal)).toBeVisible()
+    await expect.element(address).toHaveFocus()
+    await expect
+      .element(screen.getByText('That did not go through'))
+      .not.toBeInTheDocument()
+    // The form sent the address: the shape was right and nothing here judged it.
+    expect(
+      fetchMock.mock.calls.filter(
+        ([input, request]) =>
+          input === DEVICES &&
+          (request as RequestInit | undefined)?.method === 'POST',
+      ),
+    ).toHaveLength(1)
+
+    await address.fill('http://10.255.0.2')
+    await expect.element(screen.getByText(refusal)).not.toBeInTheDocument()
   })
 
   it('keeps a draft across list selection, and cancel reopens the replaced connection without it', async () => {

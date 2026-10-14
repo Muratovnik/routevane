@@ -20,6 +20,7 @@ import RvDisclosure from '@/shared/ui/RvDisclosure.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
@@ -97,6 +98,19 @@ const interfaceLabel = computed(() =>
     `deploy.field.interface.${props.targetId}`,
     deployment.requirements.value?.interfaceLabel ?? t('send.field.interface'),
   ),
+)
+
+// What each field takes sits behind the informer beside its label, in the words
+// the Connections screen uses for the same field; the shape of a value is its
+// placeholder. A plugin target the dictionary does not know has neither.
+const addressInfo = computed(() =>
+  tor(`deploy.field.address.${props.targetId}.hint`, ''),
+)
+const interfaceInfo = computed(() =>
+  tor(`deploy.field.interface.${props.targetId}.hint`, ''),
+)
+const interfacePlaceholder = computed(() =>
+  tor(`deploy.field.interface.${props.targetId}.placeholder`, ''),
 )
 
 const statusTone = computed<StatusTone>(() => {
@@ -259,6 +273,13 @@ const fieldID = (field: SendField): string => `send-${field}`
 const fieldError = (field: SendField): string | undefined => {
   const key = deployment.fieldErrors.value[field]
   if (key === null) return undefined
+  // The service refused the address, and says so in the words of this format's
+  // own kind of address, the same words the Connections screen uses.
+  if (key === 'send.address.rejected')
+    return tor(
+      `deploy.field.address.${props.targetId}.rejected`,
+      t('send.address.rejected'),
+    )
   return t(key, {
     example: deployment.requirements.value?.addressExample ?? '',
   })
@@ -383,16 +404,24 @@ onMounted(() => {
           :label="addressLabel"
         >
           <template #default="{ describedBy, invalid }">
-            <RvTextInput
-              v-model="deployment.device.value"
-              :described-by="describedBy"
-              :disabled="deployment.busy.value"
-              :input-id="fieldID('address')"
-              mono
-              :invalid="invalid"
-              :placeholder="deployment.requirements.value?.addressExample"
-              @blur="deployment.addressTouched.value = true"
-            />
+            <div class="send__control">
+              <RvTextInput
+                v-model="deployment.device.value"
+                :described-by="describedBy"
+                :disabled="deployment.busy.value"
+                :input-id="fieldID('address')"
+                mono
+                :invalid="invalid"
+                :placeholder="deployment.requirements.value?.addressExample"
+                @blur="deployment.addressTouched.value = true"
+              />
+              <span v-if="addressInfo !== ''" class="send__info">
+                <RvInfoTip
+                  :label="t('devices.field.address.info')"
+                  :text="addressInfo"
+                />
+              </span>
+            </div>
           </template>
         </RvField>
 
@@ -462,7 +491,7 @@ onMounted(() => {
           />
           <RvStatus
             v-if="deployment.passwordSaveFailed.value"
-            :label="t('send.password.save.failed')"
+            :label="t(deployment.passwordSaveFailure.value)"
             tone="failed"
           />
         </template>
@@ -477,14 +506,23 @@ onMounted(() => {
           :label="interfaceLabel"
         >
           <template #default="{ describedBy, invalid }">
-            <RvTextInput
-              v-model="deployment.interfaceName.value"
-              :described-by="describedBy"
-              :disabled="deployment.busy.value"
-              :input-id="fieldID('interface')"
-              :invalid="invalid"
-              mono
-            />
+            <div class="send__control">
+              <RvTextInput
+                v-model="deployment.interfaceName.value"
+                :described-by="describedBy"
+                :disabled="deployment.busy.value"
+                :input-id="fieldID('interface')"
+                :invalid="invalid"
+                mono
+                :placeholder="interfacePlaceholder"
+              />
+              <span v-if="interfaceInfo !== ''" class="send__info">
+                <RvInfoTip
+                  :label="t('devices.field.interface.info')"
+                  :text="interfaceInfo"
+                />
+              </span>
+            </div>
           </template>
         </RvField>
 
@@ -695,6 +733,20 @@ onMounted(() => {
   display: grid;
   gap: var(--rv-space-5);
   max-width: 32rem;
+}
+
+/* The informer of a field stands at the end of its label row, where the
+   library draws a field's own hint. The control's own box is the positioning
+   context, so the informer rises from the top of the control to the row above
+   it and takes no room from the label or the control. */
+.send__control {
+  position: relative;
+}
+
+.send__info {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-end: 0;
 }
 
 .send__none {

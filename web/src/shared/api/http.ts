@@ -239,6 +239,31 @@ export const requestFile = async <T>(
 
 export const readError = (value: unknown): string | null => readMessage(value)
 
+// The stable code a refusal carries. The service states it in one of two
+// places: beside the message in `code`, or as the message itself, which is how
+// the device and deployment routes answer. A message in words is no code, so
+// only a snake_case token counts, and an answer that states neither is ''.
+const STABLE_CODE = /^[a-z][a-z_]*$/
+
+export const refusalCode = (error: unknown): string => {
+  if (!(error instanceof RoutevaneAPIError)) return ''
+  if (error.code !== '') return error.code
+  return STABLE_CODE.test(error.message) ? error.message : ''
+}
+
+const readField = decode(
+  v.pipe(
+    fields({ field: text }),
+    v.transform((record) => record.field),
+  ),
+)
+
+// The field a refusal is about, when the service names one; '' otherwise. The
+// value is the service's own vocabulary (`address`, `credential`), never text
+// the operator typed.
+export const refusalField = (error: unknown): string =>
+  error instanceof RoutevaneAPIError ? (readField(error.payload) ?? '') : ''
+
 // A refused reply is read as far as it can be read. Not every refusal answers
 // in JSON — a proxy or a crash may answer in anything — and a bounded generic
 // message beats leaking a raw response, so an unreadable body becomes no body.

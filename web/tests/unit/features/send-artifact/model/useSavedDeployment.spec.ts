@@ -603,3 +603,119 @@ it('names the first missing field instead of sending, and keeps the review avail
     fetchMock.mock.calls.some(([input]) => String(input).endsWith('/deploy')),
   ).toBe(false)
 })
+
+// The service owns the destination policy and names the field it refused
+// (ADR 0050). The send says it at the address typed for this send, and a send
+// that was refused for its address has not started anything.
+const refusingAddress = () =>
+  vi.fn(async (input: unknown): Promise<Response> => {
+    const path = String(input)
+    if (path === '/v1/devices') return json(devicesPayload())
+    if (path === '/v1/deployments/targets') return json(targetsPayload())
+    return json({ error: 'address_rejected', field: 'address' }, 400)
+  })
+
+it('states the refusal of a typed address at the address and starts nothing', async () => {
+  vi.stubGlobal('fetch', refusingAddress())
+  const { deployment } = harness()
+  await deployment.initialize()
+  deployment.connections.selectedID.value = 'manual'
+  deployment.device.value = 'http://8.8.8.8'
+  deployment.username.value = 'admin'
+  deployment.interfaceName.value = 'Wireguard0'
+  deployment.password.value = 'one-use-secret'
+
+  await expect(deployment.review()).resolves.toBe('address')
+
+  expect(deployment.fieldErrors.value.address).toBe('send.address.rejected')
+  expect(deployment.state.value).toBe('idle')
+  expect(deployment.errorKey.value).toBeNull()
+  expect(deployment.plan.value).toBeNull()
+  // The refusal was about the address as typed; another one is a new question.
+  deployment.device.value = 'http://10.255.0.2'
+  expect(deployment.fieldErrors.value.address).toBeNull()
+})
+
+it('does not blame a field the operator did not type when a saved connection is refused', async () => {
+  vi.stubGlobal('fetch', refusingAddress())
+  const { deployment } = harness()
+  await deployment.initialize()
+
+  await expect(deployment.review()).resolves.toBeNull()
+
+  expect(deployment.fieldErrors.value.address).toBeNull()
+  expect(deployment.state.value).toBe('failed')
+  expect(deployment.errorKey.value).toBe('error.address_rejected')
+})
+
+it('states the refusal at the address when a confirmed send stopped before any attempt', async () => {
+  let planned = false
+  const fetchMock = vi.fn(
+    async (input: unknown, init?: RequestInit): Promise<Response> => {
+      const path = String(input)
+      if (path === '/v1/devices') return json(devicesPayload())
+      if (path === '/v1/deployments/targets') return json(targetsPayload())
+      const body = JSON.parse(String(init?.body)) as { confirm: boolean }
+      if (!body.confirm) {
+        planned = true
+        return json(planPayload())
+      }
+      return json(
+        { error: 'address_rejected', field: 'address', attempt_started: false },
+        400,
+      )
+    },
+  )
+  vi.stubGlobal('fetch', fetchMock)
+  const { deployment } = harness()
+  await deployment.initialize()
+  deployment.connections.selectedID.value = 'manual'
+  deployment.device.value = 'http://10.255.0.2'
+  deployment.username.value = 'admin'
+  deployment.interfaceName.value = 'Wireguard0'
+  deployment.password.value = 'one-use-secret'
+  await deployment.review()
+  expect(planned).toBe(true)
+
+  await deployment.apply()
+
+  expect(deployment.fieldErrors.value.address).toBe('send.address.rejected')
+  expect(deployment.state.value).toBe('idle')
+  expect(deployment.errorKey.value).toBeNull()
+})
+
+it.each([
+  ['secret_store_unavailable', 503, 'devices.credential.unavailable'],
+  ['credential_invalid', 422, 'devices.credential.invalid'],
+  ['something_else', 422, 'send.password.save.failed'],
+])(
+  'reads the refusal %s of a password kept after a send',
+  async (code, status, shown) => {
+    const fetchMock = vi.fn(
+      async (input: unknown, init?: RequestInit): Promise<Response> => {
+        const path = String(input)
+        if (path === '/v1/devices') return json(unsavedPayload())
+        if (path === '/v1/deployments/targets') return json(targetsPayload())
+        if (path === '/v1/devices/saved/credential')
+          return json({ error: code }, status)
+        const body = JSON.parse(String(init?.body)) as {
+          confirm: boolean
+          attempt_id: string
+        }
+        return body.confirm
+          ? json(outcomePayload(body.attempt_id, 'succeeded'))
+          : json(planPayload())
+      },
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const { deployment } = harness()
+    await deployment.initialize()
+    deployment.savePassword.value = true
+    deployment.password.value = 'router-secret'
+    await deployment.review()
+    await deployment.apply()
+
+    expect(deployment.state.value).toBe('applied')
+    expect(deployment.passwordSaveFailure.value).toBe(shown)
+  },
+)

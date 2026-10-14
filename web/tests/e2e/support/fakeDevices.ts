@@ -38,8 +38,11 @@ export interface FakeRegistry {
   /** Every write the page made, in order. */
   readonly writes: FakeDeviceCall[]
   device(id: string): FakeDevice
-  /** Answer the next update with the generic refusal the product gives. */
-  refuseNextUpdate(): void
+  /**
+   * Answer the next update with a refusal: the generic one the product gives
+   * for what no code names, or the body it states for one it does.
+   */
+  refuseNextUpdate(body?: Record<string, string>): void
 }
 
 export const routerDevice = (
@@ -72,7 +75,7 @@ export const routeFakeDevices = async (
 ): Promise<FakeRegistry> => {
   const devices = new Map(seed.map((device) => [device.id, { ...device }]))
   const writes: FakeDeviceCall[] = []
-  let refuseUpdate = false
+  let refusal: Record<string, string> | null = null
 
   const answer = async (route: Route, request: Request) => {
     const [, , scope, id, ...rest] = new URL(request.url()).pathname.split('/')
@@ -104,9 +107,10 @@ export const routeFakeDevices = async (
         device.auto_deliver = false
       }
     } else if (action === 'update') {
-      if (refuseUpdate) {
-        refuseUpdate = false
-        return json(route, 422, { error: 'operation failed' })
+      if (refusal !== null) {
+        const body = refusal
+        refusal = null
+        return json(route, 422, body)
       }
       const changed =
         body.address !== device.address ||
@@ -134,8 +138,8 @@ export const routeFakeDevices = async (
       if (device === undefined) throw new Error(`no fake device ${id}`)
       return device
     },
-    refuseNextUpdate: () => {
-      refuseUpdate = true
+    refuseNextUpdate: (body = { error: 'operation failed' }) => {
+      refusal = body
     },
   }
 }

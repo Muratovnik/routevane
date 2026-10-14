@@ -218,11 +218,18 @@ test('the device form asks only for fields the selected target needs', async ({
   await expect(
     deviceField(page, 'deploy.field.interface.keenetic'),
   ).toBeVisible()
+  // The example is the placeholder; the explanation is behind the informer at
+  // the label, and nothing stands under the field.
   await expect(
-    page.getByText(
-      'For example, Wireguard0 — the Keenetic connection/interface ID.',
-    ),
+    deviceField(page, 'deploy.field.interface.keenetic'),
+  ).toHaveAttribute('placeholder', 'Wireguard0')
+  await page
+    .getByRole('button', { name: 'What the interface field takes' })
+    .click()
+  await expect(
+    page.getByText('The ID of the Keenetic connection or interface.'),
   ).toBeVisible()
+  await page.keyboard.press('Escape')
   await keeneticAddress.fill('http://10.255.0.1')
   await deviceField(page, 'deploy.field.account.keenetic').fill('admin')
   await page

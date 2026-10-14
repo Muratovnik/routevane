@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useId, useTemplateRef } from 'vue'
+import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue'
 
+import { passwordRefused } from '@/features/devices/lib/deviceFailure'
 import { keepFocus } from '@/features/devices/lib/keepFocus'
 import type { DevicesModel } from '@/features/devices/model/useDevices'
 import type { DeviceCard } from '@/shared/api/devices'
@@ -33,6 +34,12 @@ const { t } = useLocale()
 const headingID = useId()
 const fieldID = useId()
 const password = ref('')
+// The service refused the password it was given and said so: the words go at
+// the field until the operator types another.
+const refused = ref(false)
+watch(password, () => {
+  refused.value = false
+})
 // A saved password is replaced by saying so, not by editing a stand-in for it.
 const replacing = ref(false)
 const field = useTemplateRef<InstanceType<typeof RvTextInput>>('field')
@@ -60,8 +67,17 @@ const onSave = async (): Promise<void> => {
     () => props.devices.saveCredential(props.connection.id, submitted),
     focusReplace,
   )
-  if (done) replacing.value = false
-  else password.value = ''
+  if (done) {
+    replacing.value = false
+    return
+  }
+  password.value = ''
+  if (passwordRefused(props.devices.failure.value)) {
+    await nextTick()
+    // Clearing the field above is a change too; the refusal is stated after it.
+    refused.value = true
+    field.value?.element()?.focus()
+  }
 }
 
 const onRemove = async (): Promise<void> => {
@@ -98,7 +114,12 @@ const stopReplacing = async (): Promise<void> => {
 
     <form v-else-if="editing" class="credential__form" @submit.prevent="onSave">
       <div class="credential__row">
-        <RvField class="credential__field" :input-id="fieldID" :label="label">
+        <RvField
+          class="credential__field"
+          :error="refused ? t('devices.credential.invalid') : undefined"
+          :input-id="fieldID"
+          :label="label"
+        >
           <template #default="{ describedBy, invalid }">
             <RvTextInput
               ref="field"

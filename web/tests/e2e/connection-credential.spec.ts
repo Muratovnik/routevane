@@ -208,7 +208,7 @@ test('changing the address states the consequence beside Save and then clears th
     detail.getByText(copy('devices.consequence.autoDelivery')),
   ).toBeVisible()
   await expect(
-    detail.getByText(copy('devices.consequence.routes')),
+    detail.getByText(copy('devices.consequence.routes.edit')),
   ).toBeVisible()
 
   // The form stays the same element across the write, and focus stays inside
@@ -247,7 +247,7 @@ test('changing the address states the consequence beside Save and then clears th
   await expect(detail.getByText(warning)).toHaveCount(0)
 })
 
-test('a refused save names the address when the address was what changed', async ({
+test('a refused save names the address when the service named it', async ({
   page,
   origin,
 }) => {
@@ -258,30 +258,38 @@ test('a refused save names the address when the address was what changed', async
   )
   const address = deviceField(detail, 'deploy.field.address.keenetic')
 
-  // The refusal carries no field, so it is attributed to the address only
-  // when the address is the thing that changed.
-  registry.refuseNextUpdate()
+  // The service says which field it refused, so the words go beside it and the
+  // generic notice stays out; a refusal that names no field is not pinned on
+  // the address even though the address is what changed.
+  registry.refuseNextUpdate({ error: 'address_rejected', field: 'address' })
   await address.fill('http://10.255.0.78')
   await detail.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(detail.getByText(copy('devices.address.refused'))).toBeVisible()
+  await expect(
+    detail.getByText(copy('deploy.field.address.keenetic.rejected')),
+  ).toBeVisible()
   await expect(address).toBeFocused()
+  await expect(detail.getByText(copy('devices.work.failed'))).toHaveCount(0)
 
   registry.refuseNextUpdate()
-  await address.fill('http://10.255.0.1')
-  await deviceField(detail, 'devices.field.name').fill('Renamed router')
+  await address.fill('http://10.255.0.79')
   await detail.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(detail.getByText(copy('devices.work.failed'))).toBeVisible()
-  await expect(detail.getByText(copy('devices.address.refused'))).toHaveCount(0)
+  await expect(
+    detail.getByText(copy('deploy.field.address.keenetic.rejected')),
+  ).toHaveCount(0)
 })
 
-test('an address the service would refuse is answered beside the field before it is sent', async ({
+test('an address the service refuses is answered beside the field', async ({
   page,
   origin,
 }) => {
-  const writes: string[] = []
-  page.on('request', (request) => {
-    if (request.method() === 'POST' && request.url().endsWith('/v1/devices'))
-      writes.push(request.url())
+  const answers: number[] = []
+  page.on('response', (response) => {
+    if (
+      response.request().method() === 'POST' &&
+      response.url().endsWith('/v1/devices')
+    )
+      answers.push(response.status())
   })
   await openEmptyRegistry(page, origin)
   await page
@@ -295,26 +303,26 @@ test('an address the service would refuse is answered beside the field before it
   const address = deviceField(page, 'deploy.field.address.keenetic')
   const save = page.getByRole('button', { name: 'Save', exact: true })
 
-  // Valid in shape, but not a local network address.
+  // Valid in shape, but not a local network address: the form sends it and the
+  // service's own refusal is what the field states.
+  const rejected = page.getByText(
+    copy('deploy.field.address.keenetic.rejected'),
+  )
   for (const refused of [
-    'http://192.0.2.1/',
     'http://router.local',
+    'http://8.8.8.8',
     'http://169.254.169.254',
   ]) {
     await address.fill(refused)
     await expect(save).toBeEnabled()
     await save.click()
-    await expect(
-      page.getByText(copy('devices.validation.address.local')),
-    ).toBeVisible()
+    await expect(rejected).toBeVisible()
     await expect(address).toBeFocused()
   }
-  expect(writes).toEqual([])
+  expect(answers).toEqual([422, 422, 422])
 
   await address.fill('http://10.255.0.201')
-  await expect(
-    page.getByText(copy('devices.validation.address.local')),
-  ).toHaveCount(0)
+  await expect(rejected).toHaveCount(0)
 })
 
 test('the submit button stays enabled and a missing field is stated beside it on submit', async ({

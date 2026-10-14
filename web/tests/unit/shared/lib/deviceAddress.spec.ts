@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { localDeviceAddress, validAddress } from '@/shared/lib/deviceAddress'
+import { validAddress } from '@/shared/lib/deviceAddress'
 
 describe('destination address shape', () => {
   it('accepts what a deployer is actually addressed by', () => {
@@ -45,6 +45,20 @@ describe('destination address shape', () => {
     },
   )
 
+  // Which networks a router may live on is the service's policy, stated at the
+  // field from its `address_rejected` answer. The shape check says nothing of it.
+  it('leaves the choice of network to the service', () => {
+    for (const value of [
+      'http://127.0.0.1',
+      'http://8.8.8.8',
+      'https://my.keenetic.net',
+      'http://router.local',
+      'http://169.254.169.254',
+    ]) {
+      expect(validAddress(value), value).toBe(true)
+    }
+  })
+
   it('rejects a malformed address before a request is made', () => {
     for (const value of [
       '',
@@ -64,59 +78,6 @@ describe('destination address shape', () => {
       'ssh://10.255.0.1',
     ]) {
       expect(validAddress(value), value).toBe(false)
-    }
-  })
-})
-
-// Mirrors the destination policy the service applies to a router address
-// (`netpolicy.ValidateDeviceURL`): an http or https address whose host is a
-// private or link-local IP literal. A name is refused on purpose.
-describe('local device address', () => {
-  it('accepts private and link-local unicast literals', () => {
-    for (const value of [
-      'http://192.168.100.7',
-      'https://10.0.0.1:8080',
-      'http://172.16.0.1/',
-      'http://172.31.255.254',
-      'http://169.254.10.20',
-      'http://[fe80::1]',
-      'http://[fd00::1]:8443',
-    ]) {
-      expect(localDeviceAddress(value), value).toBe(true)
-    }
-  })
-
-  it('refuses what the service refuses even though its shape is fine', () => {
-    for (const value of [
-      // Documentation, loopback, public, carrier-grade NAT, metadata, range
-      // edges and unspecified addresses are not a router on this network.
-      'http://192.0.2.1/',
-      'http://127.0.0.1',
-      'http://8.8.8.8',
-      'http://100.64.0.1',
-      'http://169.254.169.254',
-      'http://172.15.0.1',
-      'http://172.32.0.1',
-      'http://0.0.0.0',
-      'http://[::1]',
-      'http://[2001:db8::1]',
-      // A name would make the destination depend on a name server.
-      'http://router.local',
-      'https://my.keenetic.net',
-    ]) {
-      expect(localDeviceAddress(value), value).toBe(false)
-    }
-  })
-
-  it('keeps the shape rules in force', () => {
-    for (const value of [
-      '10.255.0.1',
-      'http://10.255.0.1/admin',
-      'http://admin@10.255.0.1',
-      'http://10.255.0.1?x=1',
-      ' http://10.255.0.1',
-    ]) {
-      expect(localDeviceAddress(value), value).toBe(false)
     }
   })
 })

@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue'
 
+import {
+  addressRefused,
+  failureBodyKey,
+} from '@/features/devices/lib/deviceFailure'
 import { keepFocus } from '@/features/devices/lib/keepFocus'
 import { useConnectionFields } from '@/features/devices/model/useConnectionFields'
 import type { DevicesModel } from '@/features/devices/model/useDevices'
@@ -84,6 +88,9 @@ const reveal = ref(false)
 const refusedAddress = ref(false)
 const forgetting = ref(false)
 const saving = ref(false)
+// The words under the failure notice, or null when the refusal is stated at its
+// own field instead.
+const workBodyKey = computed(() => failureBodyKey(props.devices.failure.value))
 
 const restore = (): void => {
   draft.value = {
@@ -127,22 +134,29 @@ const dirty = computed(
 )
 
 // What a changed destination ends, from what this connection actually holds.
-// The words are the same ones the confirmation of forgetting uses, because the
-// facts are the same ones.
-const consequences = computed(() => [
+// The password and the delivery are the same facts the confirmation of
+// forgetting states, so they share its words. What happens to the groups on
+// the router differs: forgetting only stops managing them, while a changed
+// destination also means the next send creates them again, so the old ones are
+// the operator's to remove (ADR 0040).
+const heldConsequences = computed(() => [
   ...(props.connection.credentialStored
     ? ['devices.consequence.credential']
     : []),
   ...(props.connection.autoDeliver ? ['devices.consequence.autoDelivery'] : []),
-  ...(isRouter.value ? ['devices.consequence.routes'] : []),
 ])
 const warning = computed(() =>
-  connectionChanged.value && consequences.value.length > 0
-    ? consequences.value.map((key) => t(key))
+  connectionChanged.value &&
+  (heldConsequences.value.length > 0 || isRouter.value)
+    ? [
+        ...heldConsequences.value,
+        ...(isRouter.value ? ['devices.consequence.routes.edit'] : []),
+      ].map((key) => t(key))
     : [],
 )
 const forgetConsequences = computed(() => [
-  ...consequences.value,
+  ...heldConsequences.value,
+  ...(isRouter.value ? ['devices.consequence.routes'] : []),
   'devices.consequence.files',
 ])
 
@@ -193,7 +207,6 @@ const onSave = async (): Promise<void> => {
   const endedPassword =
     connectionChanged.value && props.connection.credentialStored
   const endedDelivery = connectionChanged.value && props.connection.autoDeliver
-  const addressChanged = trimmed.value.address !== props.connection.address
   saving.value = true
   refusedAddress.value = false
   const saved = await keepFocus(
@@ -209,10 +222,9 @@ const onSave = async (): Promise<void> => {
   )
   saving.value = false
   if (!saved) {
-    // The refusal names no field. It is put beside the address only when the
-    // address is what this draft changed; a refused rename says nothing of the
-    // kind and is stated once, below.
-    if (props.devices.failure.value?.status === 422 && addressChanged) {
+    // The service names the field it refused, so the words go beside it; a
+    // refusal that names none is stated once, below.
+    if (addressRefused(props.devices.failure.value)) {
       refusedAddress.value = true
       await nextTick()
       fields.value?.focus('address')
@@ -361,8 +373,8 @@ const onForget = async (): Promise<void> => {
     />
 
     <RvStateNotice
-      v-if="devices.work.value === 'failed'"
-      :body="t('devices.work.failed.body')"
+      v-if="devices.work.value === 'failed' && workBodyKey !== null"
+      :body="t(workBodyKey)"
       live
       :title="t('devices.work.failed')"
       tone="failed"

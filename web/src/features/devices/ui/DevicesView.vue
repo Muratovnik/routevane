@@ -9,6 +9,10 @@ import {
   watch,
 } from 'vue'
 
+import {
+  addressRefused,
+  failureBodyKey,
+} from '@/features/devices/lib/deviceFailure'
 import { useConnectionFields } from '@/features/devices/model/useConnectionFields'
 import { useDevices } from '@/features/devices/model/useDevices'
 import ConnectionDetail from '@/features/devices/ui/ConnectionDetail.vue'
@@ -58,6 +62,9 @@ const targetChoices = computed<ChoiceOption[]>(() =>
 
 const draft = ref({ account: '', address: '', interfaceName: '', name: '' })
 const reveal = ref(false)
+// The service refused this draft's address and named the field; the words stay
+// at the field until the address or the format changes.
+const refusedAddress = ref(false)
 const confirmation = ref('')
 const selectedID = ref('')
 // The connection the form replaced, so that leaving the form by its own action
@@ -136,7 +143,19 @@ const { problems: problemsOf } = useConnectionFields(
 watch(targetID, () => {
   draft.value = { ...draft.value, account: '', address: '', interfaceName: '' }
   reveal.value = false
+  refusedAddress.value = false
 })
+// A refusal was about the address as it was typed; a new address is a new
+// question.
+watch(
+  () => draft.value.address,
+  () => {
+    refusedAddress.value = false
+  },
+)
+// The words under the failure notice, or null when the refusal is stated at its
+// own field instead.
+const workBodyKey = computed(() => failureBodyKey(devices.failure.value))
 
 watch(selectedID, () => {
   confirmation.value = ''
@@ -180,18 +199,31 @@ const addDisabled = computed(
 
 // A named connection that is not registered — removed since the link was made —
 // falls back to the default, and the keyboard goes only where the link pointed.
-onMounted(async () => {
-  await devices.initialize()
+// The first successful read of the registry applies this rule, whether it is
+// the one made on arrival or the one a retry makes after that failed.
+const selectInitial = async (): Promise<void> => {
   const requested = props.initialConnection ?? ''
   const named = devices.devices.value.some((device) => device.id === requested)
   selectedID.value = named ? requested : (devices.devices.value[0]?.id ?? '')
   if (named) await focusSelection()
+}
+
+onMounted(async () => {
+  await devices.initialize()
+  await selectInitial()
 })
+
+const retryRead = async (): Promise<void> => {
+  await devices.initialize()
+  if (devices.state.value !== 'failed' && selectedID.value === '')
+    await selectInitial()
+}
 
 const clearDraft = (): void => {
   targetID.value = ''
   draft.value = { account: '', address: '', interfaceName: '', name: '' }
   reveal.value = false
+  refusedAddress.value = false
 }
 
 // Cancel is the form's own exit: it discards the draft and puts back whatever
@@ -224,7 +256,14 @@ const submit = async (): Promise<void> => {
     trimmed.value.account,
     trimmed.value.interfaceName,
   )
-  if (!done) return
+  if (!done) {
+    if (addressRefused(devices.failure.value)) {
+      refusedAddress.value = true
+      await nextTick()
+      fields.value?.focus('address')
+    }
+    return
+  }
   const requirements = selectedRequirements.value
   // A connection whose deployer is unknown, or that needs a password this
   // system has nowhere to keep, is delivered to by hand. Otherwise what remains
@@ -261,7 +300,7 @@ const submit = async (): Promise<void> => {
       tone="failed"
     >
       <template #action>
-        <RvButton @click="devices.initialize">{{ t('action.retry') }}</RvButton>
+        <RvButton @click="retryRead">{{ t('action.retry') }}</RvButton>
       </template>
     </RvStateNotice>
 
@@ -433,6 +472,7 @@ const submit = async (): Promise<void> => {
               :disabled="devices.busy.value || devices.state.value === 'stale'"
               id-prefix="device-create"
               :problems="problems"
+              :refused-address="refusedAddress"
               :requirements="selectedRequirements"
               :reveal="reveal"
               :target-id="targetID"
@@ -440,8 +480,8 @@ const submit = async (): Promise<void> => {
           </form>
 
           <RvStateNotice
-            v-if="devices.work.value === 'failed'"
-            :body="t('devices.work.failed.body')"
+            v-if="devices.work.value === 'failed' && workBodyKey !== null"
+            :body="t(workBodyKey)"
             live
             :title="t('devices.work.failed')"
             tone="failed"

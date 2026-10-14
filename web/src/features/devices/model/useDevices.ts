@@ -19,6 +19,8 @@ import {
 } from '@/shared/api/devices'
 import {
   failureKind,
+  refusalCode,
+  refusalField,
   RoutevaneAPIError,
   type FailureKind,
 } from '@/shared/api/http'
@@ -27,11 +29,13 @@ export type DevicesState = 'loading' | 'ready' | 'stale' | 'failed'
 export type DevicesWork = 'idle' | 'working' | 'failed'
 export type RequirementsState = 'unknown' | 'loading' | 'ready' | 'failed'
 /**
- * What a refused write was. The service names no field, so a screen can only
- * say where it suspects the refusal from what it submitted; the status is what
- * tells a refusal (422) from a conflict (409) from no answer at all (0).
+ * What a refused write was. The service states a stable code and, when the
+ * refusal is about one field, that field (ADR 0050), so a screen says it where
+ * it belongs instead of guessing from what it submitted. The status still tells
+ * a refusal from a conflict from no answer at all (0); a refusal that predates
+ * the codes has an empty code and an empty field.
  */
-export type DeviceFailure = { status: number; code: string }
+export type DeviceFailure = { status: number; code: string; field: string }
 
 /**
  * The devices this operator installed, as opposed to the formats this product
@@ -209,7 +213,8 @@ export const useDevices = () => {
       work.value = 'failed'
       failure.value = {
         status: error instanceof RoutevaneAPIError ? error.status : 0,
-        code: error instanceof RoutevaneAPIError ? error.code : '',
+        code: refusalCode(error),
+        field: refusalField(error),
       }
       // The refusal says the registry moved on without this tab: another
       // window removed the password. Read it again so the screen states what

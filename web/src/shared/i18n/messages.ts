@@ -137,8 +137,6 @@ const ru: Dictionary = {
     'Routevane перестанет управлять маршрутами и FQDN-группами, которые создал на роутере; они останутся на нём.',
   'devices.consequence.files': 'Установленные файлы останутся на месте.',
   'devices.updated.autoDelivery': 'Автоотправка выключена.',
-  'devices.validation.address.local':
-    'Нужен локальный IP-адрес, а не имя хоста или публичный адрес.',
   'devices.address.refused': 'Сервис не принял этот адрес.',
   'deploy.field.password.keenetic': 'Пароль роутера',
   'deploy.field.password.keenetic-dns': 'Пароль роутера',
@@ -763,15 +761,15 @@ const ru: Dictionary = {
   'deploy.field.address.keenetic-dns.hint':
     'Начните с http:// или https://, затем локальный IP-адрес роутера.',
   'deploy.field.address.singbox.hint':
-    'Путь к файлу в виде file-адреса, например file:///C:/sing-box/config.json.',
+    'Путь к файлу конфигурации в виде file-адреса.',
   'deploy.field.account.keenetic': 'Логин роутера',
   'deploy.field.account.keenetic-dns': 'Логин роутера',
   'deploy.field.interface.keenetic': 'Интерфейс для маршрутов',
   'deploy.field.interface.keenetic-dns': 'Интерфейс для маршрутов',
   'deploy.field.interface.keenetic.hint':
-    'Например, Wireguard0 — ID подключения/интерфейса Keenetic.',
+    'ID подключения или интерфейса Keenetic.',
   'deploy.field.interface.keenetic-dns.hint':
-    'Например, Wireguard0 — ID подключения/интерфейса Keenetic.',
+    'ID подключения или интерфейса Keenetic.',
   'send.address.invalid': 'Ожидается адрес вида {example}.',
   'send.review': 'Показать изменения',
   'send.review.busy': 'Готовим изменения…',
@@ -997,6 +995,26 @@ const ru: Dictionary = {
   'action.cancel': 'Отменить',
   'action.save': 'Сохранить',
   'action.close': 'Закрыть',
+
+  // Отказы сервиса в подключениях и отправке: поле, которое он назвал, и код.
+  'deploy.field.address.keenetic.rejected':
+    'Нужен локальный IP-адрес, а не имя хоста или публичный адрес.',
+  'deploy.field.address.keenetic-dns.rejected':
+    'Нужен локальный IP-адрес, а не имя хоста или публичный адрес.',
+  'deploy.field.address.singbox.rejected':
+    'Нужен абсолютный путь к файлу в виде file-адреса.',
+  'send.address.rejected': 'Сервис не принял этот адрес.',
+  'error.address_rejected': 'Сервис не принял адрес этого подключения.',
+  'devices.work.credentialRequired': 'Автоотправке нужен сохранённый пароль.',
+  'devices.work.connectionInvalid':
+    'Параметры подключения не подходят этому формату.',
+  'devices.credential.invalid': 'Пароль пустой или слишком длинный.',
+  'deploy.field.interface.keenetic.placeholder': 'Wireguard0',
+  'deploy.field.interface.keenetic-dns.placeholder': 'Wireguard0',
+  'devices.field.address.info': 'Что принимает поле адреса',
+  'devices.field.interface.info': 'Что принимает поле интерфейса',
+  'devices.consequence.routes.edit':
+    'При следующей отправке Routevane создаст свои маршруты и FQDN-группы на роутере заново. Прежние останутся на нём, удалите их вручную.',
 }
 
 const en: Dictionary = {
@@ -1110,8 +1128,6 @@ const en: Dictionary = {
     'Routevane will stop managing the routes and FQDN groups it created on the router; they stay there.',
   'devices.consequence.files': 'Installed files stay where they are.',
   'devices.updated.autoDelivery': 'Automatic delivery was turned off.',
-  'devices.validation.address.local':
-    'Use a local network IP address, not a host name or a public address.',
   'devices.address.refused': 'The service did not accept this address.',
   'deploy.field.password.keenetic': 'Router password',
   'deploy.field.password.keenetic-dns': 'Router password',
@@ -1714,15 +1730,15 @@ const en: Dictionary = {
   'deploy.field.address.keenetic-dns.hint':
     'Start with http:// or https://, then the router’s local IP address.',
   'deploy.field.address.singbox.hint':
-    'The path to the file as a file address, such as file:///C:/sing-box/config.json.',
+    'The path to the configuration file as a file address.',
   'deploy.field.account.keenetic': 'Router login',
   'deploy.field.account.keenetic-dns': 'Router login',
   'deploy.field.interface.keenetic': 'Interface for routes',
   'deploy.field.interface.keenetic-dns': 'Interface for routes',
   'deploy.field.interface.keenetic.hint':
-    'For example, Wireguard0 — the Keenetic connection/interface ID.',
+    'The ID of the Keenetic connection or interface.',
   'deploy.field.interface.keenetic-dns.hint':
-    'For example, Wireguard0 — the Keenetic connection/interface ID.',
+    'The ID of the Keenetic connection or interface.',
   'send.address.invalid': 'Expected an address like {example}.',
   'send.review': 'Preview changes',
   'send.review.busy': 'Preparing the changes…',
@@ -1936,6 +1952,28 @@ const en: Dictionary = {
   'action.cancel': 'Cancel',
   'action.save': 'Save',
   'action.close': 'Close',
+
+  // Service refusals in connections and sending: the field it named, and its code.
+  'deploy.field.address.keenetic.rejected':
+    'Use a local network IP address, not a host name or a public address.',
+  'deploy.field.address.keenetic-dns.rejected':
+    'Use a local network IP address, not a host name or a public address.',
+  'deploy.field.address.singbox.rejected':
+    'Use the absolute path to a file, as a file address.',
+  'send.address.rejected': 'The service did not accept this address.',
+  'error.address_rejected':
+    'The service did not accept the address of this connection.',
+  'devices.work.credentialRequired':
+    'Automatic delivery needs a saved password.',
+  'devices.work.connectionInvalid':
+    'These connection details do not suit this format.',
+  'devices.credential.invalid': 'The password is empty or too long.',
+  'deploy.field.interface.keenetic.placeholder': 'Wireguard0',
+  'deploy.field.interface.keenetic-dns.placeholder': 'Wireguard0',
+  'devices.field.address.info': 'What the address field takes',
+  'devices.field.interface.info': 'What the interface field takes',
+  'devices.consequence.routes.edit':
+    'On the next send Routevane creates its routes and FQDN groups on the router again. The earlier ones stay on the router; remove them by hand.',
 }
 
 export const dictionaries: Record<Locale, Dictionary> = { en, ru }

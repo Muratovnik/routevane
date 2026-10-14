@@ -184,8 +184,51 @@ describe('useDevices saved password', () => {
     ).resolves.toBe(false)
 
     expect(devices.work.value).toBe('failed')
-    expect(devices.failure.value).toEqual({ status: 422, code: '' })
+    expect(devices.failure.value).toEqual({
+      status: 422,
+      code: '',
+      field: '',
+    })
   })
+
+  it.each([
+    {
+      status: 422,
+      body: { error: 'address_rejected', field: 'address' },
+      want: { status: 422, code: 'address_rejected', field: 'address' },
+    },
+    {
+      status: 422,
+      body: { error: 'credential_invalid', field: 'credential' },
+      want: { status: 422, code: 'credential_invalid', field: 'credential' },
+    },
+    {
+      status: 503,
+      body: { error: 'secret_store_unavailable' },
+      want: { status: 503, code: 'secret_store_unavailable', field: '' },
+    },
+    {
+      status: 409,
+      body: { error: 'credential_required' },
+      want: { status: 409, code: 'credential_required', field: '' },
+    },
+  ])(
+    'reads the code $want.code and the field it names (ADR 0050)',
+    async (refusal) => {
+      install(
+        () => json({ devices: [wire()], secret_store_available: true }),
+        () => json(refusal.body, refusal.status),
+      )
+      const devices = useDevices()
+      await devices.initialize()
+
+      await expect(
+        devices.update('device-1', 'Home router', 'x', 'a', 'b'),
+      ).resolves.toBe(false)
+
+      expect(devices.failure.value).toEqual(refusal.want)
+    },
+  )
 
   it('reads the registry again when delivery was refused for a missing password', async () => {
     let reads = 0

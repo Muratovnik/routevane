@@ -110,7 +110,8 @@ type Registry = {
   /** Settles a write after the test releases it, so a pending state can be read. */
   hold?: Promise<unknown>
   writes: { path: string; body: unknown }[]
-  refuseUpdate: boolean
+  /** The answer the service gives to one action instead of performing it. */
+  refusal: { action: string; status: number; body: unknown } | null
 }
 
 /** The registry's routes as ADR 0050 states them, kept in memory per case. */
@@ -119,7 +120,7 @@ const installRegistry = (seed: Wire[], secretStore = true): Registry => {
     devices: seed.map((device) => ({ ...device })),
     secretStore,
     writes: [],
-    refuseUpdate: false,
+    refusal: null,
   }
   vi.stubGlobal(
     'fetch',
@@ -142,6 +143,9 @@ const installRegistry = (seed: Wire[], secretStore = true): Registry => {
       >
       state.writes.push({ path: `${id}/${action}`, body })
       await state.hold
+      const { refusal } = state
+      if (refusal !== null && refusal.action === action)
+        return json(refusal.body, refusal.status)
       const device = state.devices.find((candidate) => candidate.id === id)!
       const needsPassword = device.target_id === 'keenetic'
       if (action === 'credential') device.credential_stored = true
@@ -151,7 +155,6 @@ const installRegistry = (seed: Wire[], secretStore = true): Registry => {
       } else if (action === 'auto-delivery')
         device.auto_deliver = body.enabled === true
       else if (action === 'update') {
-        if (state.refuseUpdate) return json({ error: 'operation failed' }, 422)
         device.name = String(body.name)
         device.address = String(body.address)
       } else throw new Error(`unexpected write ${input}`)
@@ -354,35 +357,145 @@ describe('changing a saved connection', () => {
     await expect
       .element(
         screen.getByText(
-          /stop managing the routes and FQDN groups it created on the router/,
+          /creates its routes and FQDN groups on the router again\. The earlier ones stay on the router; remove them by hand\./,
         ),
       )
       .toBeVisible()
   })
 
-  it('names the address beside its field when a refused save changed the address', async () => {
+  it('says beside the address that the service refused it, and keeps the notice for what has no field', async () => {
     const registry = installRegistry([router()])
-    registry.refuseUpdate = true
+    registry.refusal = {
+      action: 'update',
+      status: 422,
+      body: { error: 'address_rejected', field: 'address' },
+    }
     const screen = await render(DevicesView)
     const address = screen.getByLabelText('Router address', { exact: true })
 
-    await address.fill('http://10.255.0.60')
+    await address.fill('http://10.255.0.9')
     await screen.getByRole('button', { name: 'Save', exact: true }).click()
     await expect
-      .element(screen.getByText('The service did not accept this address.'))
+      .element(
+        screen.getByText(
+          'Use a local network IP address, not a host name or a public address.',
+        ),
+      )
       .toBeVisible()
     expect(document.activeElement).toBe(address.element())
+    // A refusal that is stated at its field is not stated a second time.
+    await expect
+      .element(screen.getByText('That did not go through'))
+      .not.toBeInTheDocument()
 
-    // Only the name changed: nothing points at the address.
-    await address.fill('http://10.255.0.1')
-    await screen.getByLabelText('Connection name').fill('Study router')
+    // Another address is another question.
+    await address.fill('http://10.255.0.2')
+    await expect
+      .element(
+        screen.getByText(
+          'Use a local network IP address, not a host name or a public address.',
+        ),
+      )
+      .not.toBeInTheDocument()
+  })
+
+  // The old screen guessed the field from the status and from what had changed,
+  // so a 422 that names nothing, met with a changed address, was pinned on the
+  // address.
+  it('does not pin an unnamed refusal on the address', async () => {
+    const registry = installRegistry([router()])
+    registry.refusal = {
+      action: 'update',
+      status: 422,
+      body: { error: 'operation failed' },
+    }
+    const screen = await render(DevicesView)
+
+    await screen
+      .getByLabelText('Router address', { exact: true })
+      .fill('http://10.255.0.2')
     await screen.getByRole('button', { name: 'Save', exact: true }).click()
     await expect
       .element(screen.getByText('That did not go through'))
       .toBeVisible()
     await expect
+      .element(
+        screen.getByText(
+          'Use a local network IP address, not a host name or a public address.',
+        ),
+      )
+      .not.toBeInTheDocument()
+    await expect
       .element(screen.getByText('The service did not accept this address.'))
       .not.toBeInTheDocument()
+  })
+
+  it('says beside the password field that the service could not take the password', async () => {
+    const registry = installRegistry([router()])
+    registry.refusal = {
+      action: 'credential',
+      status: 422,
+      body: { error: 'credential_invalid', field: 'credential' },
+    }
+    const screen = await render(DevicesView)
+    const field = screen.getByLabelText('Router password')
+
+    await field.fill(TYPED)
+    await screen.getByRole('button', { name: 'Save password' }).click()
+    await expect
+      .element(screen.getByText('The password is empty or too long.'))
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('That did not go through'))
+      .not.toBeInTheDocument()
+    // Typing another is a new attempt.
+    await field.fill(`${TYPED}2`)
+    await expect
+      .element(screen.getByText('The password is empty or too long.'))
+      .not.toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      name: 'a platform without a credential store',
+      action: 'credential',
+      status: 503,
+      body: { error: 'secret_store_unavailable' },
+      shown: 'This system has no credential store',
+    },
+    {
+      name: 'automatic delivery asked for without a saved password',
+      action: 'auto-delivery',
+      status: 409,
+      body: { error: 'credential_required' },
+      shown: 'Automatic delivery needs a saved password.',
+    },
+  ])('states $name in words of its own', async (refused) => {
+    const registry = installRegistry([
+      router({ credential_stored: refused.action === 'auto-delivery' }),
+    ])
+    registry.refusal = {
+      action: refused.action,
+      status: refused.status,
+      body: refused.body,
+    }
+    const screen = await render(DevicesView)
+
+    if (refused.action === 'credential') {
+      await screen.getByLabelText('Router password').fill(TYPED)
+      await screen.getByRole('button', { name: 'Save password' }).click()
+    } else {
+      await screen
+        .getByRole('switch', { name: 'Send new versions automatically' })
+        .click()
+    }
+
+    await expect
+      .element(screen.getByText('That did not go through'))
+      .toBeVisible()
+    await expect
+      .element(screen.getByText(refused.shown, { exact: false }))
+      .toBeVisible()
   })
 
   it('lists what forgetting ends, from what the connection actually holds', async () => {

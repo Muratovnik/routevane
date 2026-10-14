@@ -2,7 +2,7 @@ import { computed, type Ref } from 'vue'
 
 import type { ConnectionRequirements } from '@/shared/api/deploy'
 import { useLocale } from '@/shared/i18n/useLocale'
-import { localDeviceAddress, validAddress } from '@/shared/lib/deviceAddress'
+import { validAddress } from '@/shared/lib/deviceAddress'
 
 /** The fields of one connection, in the order the form draws them. */
 export const FIELD_ORDER = [
@@ -14,12 +14,10 @@ export const FIELD_ORDER = [
 export type FieldKey = (typeof FIELD_ORDER)[number]
 
 /** What is wrong with one field. The words are the form's, not the model's. */
-export type FieldProblem = 'required' | 'shape' | 'local'
+export type FieldProblem = 'required' | 'shape'
 export type FieldProblems = Partial<Record<FieldKey, FieldProblem>>
 
 export type ConnectionDraft = Record<FieldKey, string>
-
-const HTTP_ADDRESS = /^https?:\/\//i
 
 /**
  * The field contract of one connection: what each field is called for the
@@ -48,29 +46,17 @@ export const useConnectionFields = (
     () => requirements.value?.needsInterface === true,
   )
 
-  // A router is reached over http or https, and the service accepts only a
-  // private or link-local IP literal for it. The deployer's own example says
-  // which kind of address this target takes; with no answer yet, any http
-  // address is held to the same rule.
-  const httpDestination = (value: string): boolean =>
-    HTTP_ADDRESS.test(value) ||
-    HTTP_ADDRESS.test(requirements.value?.addressExample ?? '')
-
   /**
-   * Every field of the draft that the service would refuse or that is left
-   * empty. The draft is expected trimmed; an untouched optional field is not a
-   * problem.
+   * Every field of the draft that is left empty or is not shaped like what the
+   * field takes. The draft is expected trimmed; an untouched optional field is
+   * not a problem. Which networks an address may name is the service's policy,
+   * stated at the field when the service refuses it, never checked here.
    */
   const problems = (draft: ConnectionDraft): FieldProblems => {
     const found: FieldProblems = {}
     if (draft.name === '') found.name = 'required'
     if (draft.address === '') found.address = 'required'
     else if (!validAddress(draft.address)) found.address = 'shape'
-    else if (
-      httpDestination(draft.address) &&
-      !localDeviceAddress(draft.address)
-    )
-      found.address = 'local'
     if (needsAccount.value && draft.account === '') found.account = 'required'
     if (needsInterface.value && draft.interfaceName === '')
       found.interfaceName = 'required'
@@ -89,11 +75,20 @@ export const useConnectionFields = (
       ),
     ),
     addressPlaceholder: addressExample,
-    // What the service will accept, said before it is typed rather than only
-    // after it is refused. The rule belongs to the target's deployer, so the
-    // dictionary carries one line per target and a target it does not know
-    // gets no empty line under its field.
-    addressHint: computed(() =>
+    // What the service meant by refusing the address, in the words of the
+    // target's own kind of address; a target the dictionary does not know gets
+    // the plain statement that the address was not accepted.
+    addressRefusal: computed(() =>
+      tor(
+        `deploy.field.address.${targetID.value}.rejected`,
+        t('devices.address.refused'),
+      ),
+    ),
+    // What the address field takes, explained behind the informer beside its
+    // label rather than under it. The rule belongs to the target's deployer,
+    // so the dictionary carries one text per target, and a target it does not
+    // know gets no informer. An example goes in the placeholder, not here.
+    addressInfo: computed(() =>
       tor(`deploy.field.address.${targetID.value}.hint`, ''),
     ),
     accountLabel: computed(() =>
@@ -105,10 +100,12 @@ export const useConnectionFields = (
         requirements.value?.interfaceLabel ?? t('devices.field.interface'),
       ),
     ),
-    // A hint states an input format or a consequence, so a target the
-    // dictionary carries no hint for gets no empty line under its field.
-    interfaceHint: computed(() =>
+    interfaceInfo: computed(() =>
       tor(`deploy.field.interface.${targetID.value}.hint`, ''),
+    ),
+    // The shape of an interface name, shown in the field until one is typed.
+    interfacePlaceholder: computed(() =>
+      tor(`deploy.field.interface.${targetID.value}.placeholder`, ''),
     ),
     passwordLabel: computed(() =>
       tor(

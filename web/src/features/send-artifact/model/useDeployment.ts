@@ -21,6 +21,8 @@ import {
   decode,
   failureKind,
   fields,
+  refusalCode,
+  refusalField,
   RoutevaneAPIError,
   text,
   type FailureKind,
@@ -93,13 +95,19 @@ export const useDeployment = (
     readRememberedRecipient(artifactID(), currentAttemptID.value),
   )
   const addressTouched = ref(false)
+  // The service refused the address typed for this send and named the field.
+  // The words go at the field until the address changes.
+  const addressRefused = ref(false)
   // Whether a review was asked for since the form was last reset: from then on
   // every field that stops it says why, beside itself.
   const attempted = ref(false)
   // A saved password is used unless the operator asks to type another one.
   const overridePassword = ref(false)
   const savePassword = ref(false)
-  const passwordSaveFailed = ref(false)
+  // Why a password asked to be kept was not: the message the failure reads as,
+  // or '' while nothing failed.
+  const passwordSaveFailure = ref('')
+  const passwordSaveFailed = computed(() => passwordSaveFailure.value !== '')
   const connections = useDeploymentConnections(targetID, preferredDeviceID)
   let initializationRequest = 0
   let reviewRequest = 0
@@ -110,6 +118,14 @@ export const useDeployment = (
   const interfaceName = ref(readRemembered('interface'))
 
   watch(device, (value) => remember('device', value))
+  // A refusal was about the address as typed; the next one is a new question.
+  watch(
+    device,
+    () => {
+      addressRefused.value = false
+    },
+    { flush: 'sync' },
+  )
   watch(username, (value) => remember('username', value))
   watch(interfaceName, (value) => remember('interface', value))
 
@@ -123,10 +139,11 @@ export const useDeployment = (
     () => {
       password.value = ''
       addressTouched.value = false
+      addressRefused.value = false
       attempted.value = false
       overridePassword.value = false
       savePassword.value = false
-      passwordSaveFailed.value = false
+      passwordSaveFailure.value = ''
     },
     { flush: 'sync' },
   )
@@ -181,6 +198,10 @@ export const useDeployment = (
       !addressValid.value
     )
       addressMessage = 'send.address.invalid'
+    // The service's own refusal, which owns the policy the shape check leaves
+    // out; it never outranks a shape problem the operator has since made.
+    else if (manual && addressRefused.value)
+      addressMessage = 'send.address.rejected'
     return {
       address: addressMessage,
       username: required(
@@ -266,6 +287,14 @@ export const useDeployment = (
     }
   }
 
+  // The service refused the address typed for this send and named the field.
+  // A saved connection has no typed address, so its refusal is a failure of the
+  // connection and reads as one.
+  const refusesTypedAddress = (error: unknown): boolean =>
+    connections.manual.value &&
+    refusalCode(error) === 'address_rejected' &&
+    refusalField(error) === 'address'
+
   const usesSavedPassword = (submitted: DeployConnection): boolean =>
     'deviceID' in submitted &&
     submitted.password === '' &&
@@ -301,11 +330,11 @@ export const useDeployment = (
       connections.markCredentialStored(submitted.deviceID)
       if (connections.selectedID.value === submitted.deviceID) {
         savePassword.value = false
-        passwordSaveFailed.value = false
+        passwordSaveFailure.value = ''
       }
-    } catch {
+    } catch (error) {
       if (connections.selectedID.value === submitted.deviceID)
-        passwordSaveFailed.value = true
+        passwordSaveFailure.value = passwordSaveFailureKey(error)
     }
   }
 
@@ -344,8 +373,15 @@ export const useDeployment = (
     } catch (error) {
       if (request !== reviewRequest || artifactID() !== submittedArtifactID)
         return null
-      state.value = 'failed'
       plan.value = null
+      if (refusesTypedAddress(error)) {
+        // The refusal is about a field, so it is stated at the field and the
+        // send is simply not started: nothing failed that a notice must carry.
+        state.value = 'idle'
+        addressRefused.value = true
+        return 'address'
+      }
+      state.value = 'failed'
       errorKey.value = messageKey(error)
     }
     return null
@@ -384,8 +420,13 @@ export const useDeployment = (
         attemptRecipient.value = null
         password.value = ''
         plan.value = null
-        state.value = 'failed'
-        errorKey.value = messageKey(error)
+        if (refusesTypedAddress(error)) {
+          state.value = 'idle'
+          addressRefused.value = true
+        } else {
+          state.value = 'failed'
+          errorKey.value = messageKey(error)
+        }
       } else {
         state.value = 'outcome_unknown'
         await checkOutcome()
@@ -476,9 +517,10 @@ export const useDeployment = (
     sentWithSavedPassword.value = false
     checkingOutcome.value = false
     attempted.value = false
+    addressRefused.value = false
     overridePassword.value = false
     savePassword.value = false
-    passwordSaveFailed.value = false
+    passwordSaveFailure.value = ''
     currentAttemptID.value = readRememberedAttempt(artifactID())
     attemptRecipient.value = readRememberedRecipient(
       artifactID(),
@@ -495,6 +537,7 @@ export const useDeployment = (
 
   return {
     addressError,
+    addressRefused,
     addressTouched,
     apply,
     attemptRecipient,
@@ -514,6 +557,7 @@ export const useDeployment = (
     password,
     passwordNeeded,
     passwordSaveFailed,
+    passwordSaveFailure,
     savedPasswordRefused,
     plan,
     requirements,
@@ -529,7 +573,22 @@ export const useDeployment = (
   }
 }
 
+// A password asked to be kept is refused by the registry's own codes (ADR 0050);
+// each reads as what the operator can act on, and anything else as the plain
+// statement that it was not kept.
+const passwordSaveFailureKey = (error: unknown): string => {
+  switch (refusalCode(error)) {
+    case 'secret_store_unavailable':
+      return 'devices.credential.unavailable'
+    case 'credential_invalid':
+      return 'devices.credential.invalid'
+    default:
+      return 'send.password.save.failed'
+  }
+}
+
 const failureCodes = new Set([
+  'address_rejected',
   'connection_invalid',
   'device_incompatible',
   'backup_unavailable',

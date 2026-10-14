@@ -333,8 +333,10 @@ Sections, addressable by URL:
    is cleared on every departure from its connection. Saved settings never imply
    verified reachability or successful delivery.
    Router login and route-interface fields are required when the selected
-   deployer needs them; the interface help names the Keenetic ID format. A
-   saved connection does not send anything.
+   deployer needs them. What a field takes is explained behind the informer at
+   the end of its label row, the shape of a value is its placeholder, and under
+   the field stands only its error; the same texts serve the manual fields of
+   Send. A saved connection does not send anything.
    A saved connection's editable parameters — name, address, account and route
    interface — are edited in place under «Параметры», in the same two-column
    grid the creation form uses. Adjacent fields share caption and control rows,
@@ -345,12 +347,14 @@ Sections, addressable by URL:
    is chosen), and pressing it never silently does nothing. A field left empty
    or malformed states its problem beside itself once it has been left or once
    Save was pressed, every required field is marked for assistive technology,
-   and focus moves to the first field that needs attention. A router address
-   must name a device on the operator's own network — an explicit http or
-   https address with a private or link-local IP — and the form states that
-   before sending, with the same rule the service applies; a refusal the
-   service gives anyway is stated beside the address only when the address is
-   what the draft changed. Pressing Save with a pointer does not take focus from
+   and focus moves to the first field that needs attention. The form checks only the
+   shape of an address — an explicit scheme, a host, nothing else the field does
+   not take. Which networks a device may live on is the service's policy: a
+   refusal it names with `address_rejected` and the field `address` (ADR 0050)
+   is stated beside the address, in the words of the format's own kind of
+   address, until the address changes, and the generic failure notice is not
+   drawn beside it. A refusal that names no field is not pinned on one. The same
+   holds for the address typed on Send. Pressing Save with a pointer does not take focus from
    the field being left, because the problem that field then states would move
    the button from under the click. After a write, focus stays where the
    operator was, or returns to the first field when the control that held it has
@@ -358,7 +362,9 @@ Sections, addressable by URL:
    the stored values. Because a password and consent name one exact destination
    and account, changing the address, account or interface turns automatic
    delivery off and removes the saved password — the screen says so beside Save
-   before it is pressed, in a notice that lists exactly what will be lost, and
+   before it is pressed, in a notice that lists exactly what will be lost and, for
+   a router, that Routevane creates its groups again on the next send while the
+   earlier ones stay on the router to be removed by hand (ADR 0040), and
    afterwards reports the state the server returned. A name-only change says
    nothing of the kind. When the deployment catalog is unavailable the
    parameters are stated rather than edited, because the fields a format asks

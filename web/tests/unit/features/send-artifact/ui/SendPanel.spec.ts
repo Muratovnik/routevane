@@ -362,3 +362,71 @@ it('names the address and the login of a router with the same subject as Connect
     .element(screen.getByLabelText('Router login', { exact: true }))
     .toBeVisible()
 })
+
+// The form checks only the shape of the address. Which networks a router may
+// live on is the service's policy, and what it refuses is said at the field the
+// operator typed it in, in the words of this format's own kind of address.
+it('states the service refusal of the typed address at the address field', async () => {
+  const { setLocale, t } = useLocale()
+  setLocale('en')
+  const fetchMock = vi.fn(async (input: unknown) => {
+    if (String(input) === '/v1/devices')
+      return json({ devices: [], secret_store_available: false })
+    if (String(input) === '/v1/deployments/targets')
+      return json({
+        targets: [
+          {
+            target_id: 'keenetic-dns',
+            title: 'Keenetic DNS',
+            deployer_id: 'keenetic-dns',
+            requirements: {
+              address_label: 'Router address',
+              address_example: 'http://192.168.1.1',
+              needs_credential: false,
+              needs_interface: false,
+            },
+          },
+        ],
+      })
+    return new Response(
+      JSON.stringify({ error: 'address_rejected', field: 'address' }),
+      { status: 400 },
+    )
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const screen = await render(SendPanel, {
+    ...links,
+    props: {
+      artifactId: 'artifact',
+      breadcrumbs: [],
+      groupPrefix: 'routevane',
+      heading: 'Send · Keenetic DNS',
+      targetId: 'keenetic-dns',
+      target: null,
+    },
+  })
+  const address = screen.getByRole('textbox', {
+    name: t('deploy.field.address.keenetic-dns'),
+  })
+  await address.fill('http://8.8.8.8')
+  await screen
+    .getByRole('button', { name: t('send.review'), exact: true })
+    .click()
+
+  await expect
+    .element(screen.getByText(t('deploy.field.address.keenetic-dns.rejected')))
+    .toBeVisible()
+  await expect.element(address).toHaveFocus()
+  // The send did not fail; it was not started, so no failure notice is drawn.
+  await expect
+    .element(screen.getByText(t('error.address_rejected')))
+    .not.toBeInTheDocument()
+  expect(
+    fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/deploy')),
+  ).toHaveLength(1)
+
+  await address.fill('http://10.255.0.2')
+  await expect
+    .element(screen.getByText(t('deploy.field.address.keenetic-dns.rejected')))
+    .not.toBeInTheDocument()
+})

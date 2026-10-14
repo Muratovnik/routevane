@@ -23,12 +23,17 @@ const wire = (id: string, name: string) => ({
   deployable: true,
 })
 
-const installFetch = () =>
-  vi.stubGlobal(
+// `failFirstRead` makes the first read of the registry fail the way a service
+// that is not up yet does, and every later one succeed.
+const installFetch = (failFirstRead = false) => {
+  let registryReads = 0
+  return vi.stubGlobal(
     'fetch',
     vi.fn((input: unknown) => {
       switch (String(input)) {
         case '/v1/devices':
+          if (failFirstRead && registryReads++ === 0)
+            return Promise.reject(new TypeError('Failed to fetch'))
           return Promise.resolve(
             json({
               devices: [
@@ -53,6 +58,7 @@ const installFetch = () =>
       }
     }),
   )
+}
 
 beforeEach(() => useLocale().setLocale('en'))
 afterEach(() => vi.unstubAllGlobals())
@@ -112,5 +118,42 @@ describe('DevicesView arrival from a link to one connection', () => {
       .element(screen.getByRole('heading', { name: 'Second router' }))
       .toBeVisible()
     expect(picked).toEqual(['device-2'])
+  })
+})
+
+// The first read of the registry may fail; the operator then presses Retry. The
+// connection they land on is the one arrival would have chosen, so the screen
+// does not answer a successful retry with the form for a new connection.
+describe('DevicesView after a failed first read', () => {
+  it('opens the first connection once Retry reads the registry', async () => {
+    installFetch(true)
+    const screen = await render(DevicesView)
+
+    await screen.getByRole('button', { name: 'Retry', exact: true }).click()
+
+    await expect
+      .element(screen.getByRole('heading', { name: 'First router' }))
+      .toBeVisible()
+    await expect
+      .element(
+        screen.getByRole('button', { name: /First router/, pressed: true }),
+      )
+      .toBeVisible()
+  })
+
+  it('opens the connection a link named, with the keyboard on its heading', async () => {
+    installFetch(true)
+    const screen = await render(DevicesView, {
+      props: { initialConnection: 'device-2' },
+    })
+
+    await screen.getByRole('button', { name: 'Retry', exact: true }).click()
+
+    const heading = screen.getByRole('heading', { name: 'Second router' })
+    await expect.element(heading).toBeVisible()
+    await expect.element(heading).toHaveFocus()
+    await expect
+      .element(screen.getByRole('heading', { name: 'First router' }))
+      .not.toBeInTheDocument()
   })
 })
