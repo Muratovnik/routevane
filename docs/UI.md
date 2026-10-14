@@ -535,8 +535,14 @@ the thing that will happen.
   previous file still stands. A rebuild of several formats continues after one
   failure and reports the affected formats instead of presenting the group as a
   single success or failure.
-- A toggle states an applied fact, never an optimistic click: hiding a format
-  changes exactly what its caption says it changes.
+- A toggle states an applied fact: hiding a format changes exactly what its
+  caption says it changes. The one place a switch is drawn ahead of its write is
+  a row on a list card (an entry or a source), which is small, independent and
+  repeated in quick succession: the switch changes at once, one write per row
+  follows the last choice, and a failed write returns the switch to the value
+  the server confirmed, says "The change was not applied." on that row and
+  offers its retry. A toggle whose effect reaches beyond its own row waits for
+  the server.
 - Server codes and server English never reach the operator as themselves.
   Models answer with message keys; the interface owns the sentence.
 

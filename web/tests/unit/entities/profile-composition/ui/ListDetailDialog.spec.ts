@@ -680,6 +680,44 @@ describe('ListDetailDialog', () => {
     await expect.element(screen.getByText(SAVING)).not.toBeInTheDocument()
   })
 
+  // An optimistic switch changes at once and is returned to the confirmed
+  // value, with a visible message and a retry, when the write fails.
+  it('rolls a failed source switch back to the confirmed value with a message and a retry', async () => {
+    let attempts = 0
+    const { keys } = stubAPI({
+      'GET /v1/lists/discord/contents': () => contentsResponse(),
+      'POST /v1/lists/discord/sources/itdoginfo/update': () => {
+        attempts += 1
+        return Promise.resolve(
+          attempts === 1 ? json({ error: 'offline' }, 503) : contentsResponse(),
+        )
+      },
+    })
+    const screen = await renderCard({ mode: 'library' })
+
+    await screen.getByRole('button', { name: CONFIGURE }).click()
+    await expect
+      .element(screen.getByRole('dialog', { name: 'Automatic sources' }))
+      .toBeVisible()
+    const first = screen.getByRole('checkbox').first()
+    expect(isChecked(first)).toBe(true)
+
+    await first.click()
+
+    await expect.element(screen.getByText(NOT_APPLIED)).toBeVisible()
+    expect(isChecked(first)).toBe(true)
+
+    await screen
+      .getByRole('button', { name: 'Retry the change for itdoginfo' })
+      .click()
+    await vi.waitFor(() => {
+      expect(
+        keys().filter((key) => key.includes('/sources/itdoginfo/update')),
+      ).toHaveLength(2)
+    })
+    await expect.element(screen.getByText(NOT_APPLIED)).not.toBeInTheDocument()
+  })
+
   // Deleting is confirmed by the flow that owns the library, so the card states
   // the request and lets one confirmation and one refusal serve both ways in.
   it('asks the library to delete the list rather than deleting it itself', async () => {
