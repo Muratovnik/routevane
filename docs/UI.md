@@ -789,7 +789,10 @@ lowering opacity, which would leave it looking like the enabled control beside
 it. The control keeps what states its value without colour: a switch its
 position, with the accent at low emphasis while it is on, a segmented choice its
 check mark and edge, a file picker its dashed edge. Each component owns its own
-disabled rule and the library's lowered opacity is overridden there.
+disabled rule and the library's lowered opacity is overridden there. A control
+that draws its own disabled state outside these components — a drag handle, a
+filter chip, a menu trigger, a dialog's close — is not yet part of this look and
+still lowers its opacity with `--rv-disabled-opacity`.
 Icons are hand-set 16-unit strokes, always decorative, always beside or behind an accessible name
 — navigation and menus never go icon-only. A feature that needs a different
 look asks for a role or a variant, never a parallel class. A component is a
