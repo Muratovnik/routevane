@@ -118,7 +118,8 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 		_ = s.config.Store.RecordOutputAttempt(context.WithoutCancel(ctx), OutputAttempt{
 			OutputID: output.ID, Status: "failed", Code: details.Code,
 			ProjectedRules: details.ProjectedRules, MaximumRules: details.MaximumRules,
-			CompletedAt: completedAt,
+			UncoveredLists: details.UncoveredLists,
+			CompletedAt:    completedAt,
 		})
 	}()
 	profile, err := s.config.Store.Profile(ctx, output.ProfileID)

@@ -552,12 +552,18 @@ func writeBackendError(w http.ResponseWriter, err error) {
 		writeCodedError(w, http.StatusConflict, "subscription not issued", "subscription_not_issued")
 	case errors.Is(err, application.ErrRuleLimit), errors.Is(err, application.ErrPartialCoverage), errors.Is(err, application.ErrFormatMismatch), errors.Is(err, application.ErrPreflight), errors.Is(err, application.ErrSourceFailed), errors.Is(err, application.ErrSourceDegraded):
 		details := application.ClassifyBuildFailure(err)
-		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{
+		body := map[string]any{
 			"error":           "operation failed",
 			"code":            details.Code,
 			"projected_rules": details.ProjectedRules,
 			"maximum_rules":   details.MaximumRules,
-		})
+		}
+		// Only a refusal for incomplete coverage names lists, and it names every
+		// one, so the screen can send the operator to each.
+		if len(details.UncoveredLists) > 0 {
+			body["uncovered_lists"] = details.UncoveredLists
+		}
+		writeJSON(w, http.StatusUnprocessableEntity, body)
 	default:
 		writeError(w, http.StatusUnprocessableEntity, "operation failed")
 	}

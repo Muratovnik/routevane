@@ -22,6 +22,9 @@ type Scenario = {
   boundDevice: boolean
   diagnosticsStatus: number
   failedRebuild: boolean
+  // What the failed attempt says: its code, and the lists it names, if any.
+  failureCode: string
+  failureLists: { id: string; title: string }[]
   fileStatus: number
   holdRoute: Promise<void> | undefined
   published: boolean
@@ -33,6 +36,8 @@ const defaultScenario = (): Scenario => ({
   boundDevice: false,
   diagnosticsStatus: 200,
   failedRebuild: false,
+  failureCode: 'source_failed',
+  failureLists: [],
   fileStatus: 200,
   holdRoute: undefined,
   published: true,
@@ -74,7 +79,14 @@ const routePayload = (scenario: Scenario) => ({
           }
         : null,
       last_attempt: scenario.failedRebuild
-        ? { status: 'failed', code: 'source_failed', completed_at: TIMESTAMP }
+        ? {
+            status: 'failed',
+            code: scenario.failureCode,
+            completed_at: TIMESTAMP,
+            ...(scenario.failureLists.length > 0
+              ? { uncovered_lists: scenario.failureLists }
+              : {}),
+          }
         : null,
     },
   ],
@@ -357,6 +369,72 @@ describe('profile screen read boundaries', () => {
     await expect
       .element(screen.getByRole('tabpanel', { name: 'Diagnostics' }))
       .toMatchTextContent('No exclusions: every rule entered the file.')
+  })
+
+  // A build refused for incomplete coverage names each list it could not
+  // cover, as a link to that list in the library, so the operator can go to
+  // the list that needs its sources looked at.
+  it.each([
+    ['en', 'A required part of these lists has no rules in this format:'],
+    ['ru', 'Обязательная часть этих списков не покрыта правилами формата:'],
+  ] as const)(
+    'links the uncovered lists to the library in %s',
+    async (language, lead) => {
+      useLocale().setLocale(language)
+      installFetch({
+        failedRebuild: true,
+        failureCode: 'partial_coverage',
+        failureLists: [
+          { id: 'delta', title: 'Дельта' },
+          { id: 'custom-0102030405060708', title: 'Мой список' },
+        ],
+      })
+      const screen = await renderRoute()
+
+      await expect.element(screen.getByText(lead)).toBeVisible()
+      await expect
+        .element(screen.getByRole('link', { name: 'Дельта' }))
+        .toHaveAttribute('href', '/lists#list=delta')
+      await expect
+        .element(screen.getByRole('link', { name: 'Мой список' }))
+        .toHaveAttribute('href', '/lists#list=custom-0102030405060708')
+    },
+  )
+
+  // An attempt recorded before the service named the lists, or a coverage
+  // failure that carries none, still says what it can without inventing lists.
+  it('keeps the sentence alone when a coverage failure names no list', async () => {
+    installFetch({ failedRebuild: true, failureCode: 'partial_coverage' })
+    const screen = await renderRoute()
+
+    await expect
+      .element(
+        screen.getByText(
+          'A required part of one of the lists is not covered by rules in this format. Refresh the list sources and rebuild.',
+        ),
+      )
+      .toBeVisible()
+    await expect
+      .element(
+        screen.getByText('A required part of these lists has no rules', {
+          exact: false,
+        }),
+      )
+      .not.toBeInTheDocument()
+  })
+
+  it('lists no uncovered list under another failure', async () => {
+    installFetch({
+      failedRebuild: true,
+      failureCode: 'source_failed',
+      failureLists: [{ id: 'delta', title: 'Дельта' }],
+    })
+    const screen = await renderRoute()
+
+    await expect.element(screen.getByText('Format not updated')).toBeVisible()
+    await expect
+      .element(screen.getByRole('link', { name: 'Дельта' }))
+      .not.toBeInTheDocument()
   })
 })
 

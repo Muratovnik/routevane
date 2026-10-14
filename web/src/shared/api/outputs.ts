@@ -37,11 +37,20 @@ export type CreatedOutput = {
   output: Output
 }
 
+// A list a build could not cover, by identity and the title it had then.
+export type UncoveredList = {
+  id: string
+  title: string
+}
+
 export type OutputAttempt = {
   status: 'success' | 'failed'
   code: string
   projectedRules: number
   maximumRules: number
+  // The lists a partial_coverage failure names, sorted by identity; empty for
+  // every other attempt.
+  uncoveredLists: UncoveredList[]
   artifactID: string
   completedAt: string
 }
@@ -289,6 +298,7 @@ const attemptSchema = v.pipe(
     code: optionalText,
     projected_rules: optionalCount,
     maximum_rules: optionalCount,
+    uncovered_lists: v.optional(v.array(fields({ id: text, title: text })), []),
     artifact_id: optionalText,
     completed_at: timestamp,
   }),
@@ -305,6 +315,7 @@ const attemptSchema = v.pipe(
     code: attempt.code,
     projectedRules: attempt.projected_rules,
     maximumRules: attempt.maximum_rules,
+    uncoveredLists: attempt.uncovered_lists,
     artifactID: attempt.artifact_id,
     completedAt: attempt.completed_at,
   })),

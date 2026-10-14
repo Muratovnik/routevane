@@ -145,13 +145,17 @@ type NewOutput struct {
 // It deliberately stores no raw error text, plan, source data, or bearer
 // credential: screens need a stable reason and safe counts, not internals.
 type OutputAttempt struct {
-	OutputID       string    `json:"-"`
-	Status         string    `json:"status"`
-	Code           string    `json:"code,omitempty"`
-	ProjectedRules int       `json:"projected_rules,omitempty"`
-	MaximumRules   int       `json:"maximum_rules,omitempty"`
-	ArtifactID     string    `json:"artifact_id,omitempty"`
-	CompletedAt    time.Time `json:"completed_at"`
+	OutputID       string `json:"-"`
+	Status         string `json:"status"`
+	Code           string `json:"code,omitempty"`
+	ProjectedRules int    `json:"projected_rules,omitempty"`
+	MaximumRules   int    `json:"maximum_rules,omitempty"`
+	// UncoveredLists names the lists a partial_coverage failure could not
+	// cover, so a screen can link to them after a reload. They are identities
+	// and titles, as safe to keep as the counts beside them.
+	UncoveredLists []UncoveredList `json:"uncovered_lists,omitempty"`
+	ArtifactID     string          `json:"artifact_id,omitempty"`
+	CompletedAt    time.Time       `json:"completed_at"`
 }
 type PublicationCandidate struct {
 	Snapshot        PlanSnapshotRecord

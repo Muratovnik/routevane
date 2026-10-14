@@ -187,6 +187,59 @@ describe('a build attempt names either a file or a reason', () => {
     ])
   })
 
+  // A coverage failure names the lists it could not cover; every other attempt,
+  // and one recorded before the service named them, names none.
+  it('reads the lists a coverage failure names', async () => {
+    answer(
+      attemptPayload({
+        status: 'failed',
+        code: 'partial_coverage',
+        uncovered_lists: [
+          { id: 'delta', title: 'Дельта' },
+          { id: 'gamma', title: 'Гамма' },
+        ],
+        completed_at: '2026-08-20T12:01:00Z',
+      }),
+    )
+    await expect(loadProfiles()).resolves.toMatchObject([
+      {
+        outputs: [
+          {
+            lastAttempt: {
+              code: 'partial_coverage',
+              uncoveredLists: [
+                { id: 'delta', title: 'Дельта' },
+                { id: 'gamma', title: 'Гамма' },
+              ],
+            },
+          },
+        ],
+      },
+    ])
+
+    answer(
+      attemptPayload({
+        status: 'failed',
+        code: 'partial_coverage',
+        completed_at: '2026-08-20T12:01:00Z',
+      }),
+    )
+    await expect(loadProfiles()).resolves.toMatchObject([
+      { outputs: [{ lastAttempt: { uncoveredLists: [] } }] },
+    ])
+
+    // A list that names no title is not a list a screen can show.
+    answer(
+      attemptPayload({
+        status: 'failed',
+        code: 'partial_coverage',
+        uncovered_lists: [{ id: 'delta' }],
+        completed_at: '2026-08-20T12:01:00Z',
+      }),
+    )
+    await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
+  })
+
   it('refuses an attempt that claims both or neither', async () => {
     const refused = [
       // A success that also names a failure code.

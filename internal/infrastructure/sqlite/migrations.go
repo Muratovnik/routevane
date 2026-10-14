@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 17
+const CurrentSchemaVersion = 18
 
 type migration struct {
 	version int
@@ -772,6 +772,15 @@ CREATE TRIGGER subscriptions_live_output BEFORE INSERT ON subscriptions
 WHEN EXISTS (SELECT 1 FROM outputs WHERE id=NEW.output_id AND removed_at_ns <> 0) BEGIN
     SELECT RAISE(ABORT, 'removed output');
 END;
+`}, {version: 18, sql: `
+-- ADR 0053: a build refused for incomplete coverage names the lists it could
+-- not cover. The attempt keeps them as identities and titles so the profile page
+-- can link to each list after a reload. Attempts stay immutable, the column
+-- defaults to the empty array for every attempt written before this version,
+-- and only a failed attempt can name lists.
+ALTER TABLE output_attempts ADD COLUMN uncovered_lists_json TEXT NOT NULL DEFAULT '[]'
+    CHECK (json_valid(uncovered_lists_json) AND json_type(uncovered_lists_json) = 'array'
+           AND (uncovered_lists_json = '[]' OR code = 'partial_coverage'));
 `}}
 
 var requiredTables = []string{
@@ -839,7 +848,7 @@ var requiredColumns = map[string][]string{
 	"managed_routes":           {"scope_id", "prefix", "created_by_routevane", "description"},
 	"managed_route_claims":     {"scope_id", "output_id", "prefix", "description", "labels_json"},
 	"outputs":                  {"id", "profile_id", "target_id", "format_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id", "fqdn_group_prefix", "removed_at_ns"},
-	"output_attempts":          {"id", "output_id", "status", "code", "projected_rules", "maximum_rules", "artifact_id", "completed_at_ns"},
+	"output_attempts":          {"id", "output_id", "status", "code", "projected_rules", "maximum_rules", "artifact_id", "completed_at_ns", "uncovered_lists_json"},
 	"plan_snapshots":           {"id", "output_id", "routing_plan_hash", "routing_plan_json", "policy_version", "catalog_revision", "observation_cutoff_ns", "created_at_ns", "status"},
 	"artifact_builds":          {"id", "output_id", "plan_snapshot_id", "renderer_id", "renderer_version", "artifact_hash", "artifact_path", "size_bytes", "content_type", "content_created_at_ns", "validation_status", "status"},
 	"subscriptions":            {"token_id", "output_id", "token_hash", "created_at_ns"},

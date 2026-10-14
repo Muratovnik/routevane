@@ -582,6 +582,10 @@ const ru: Dictionary = {
     'Сборка не завершилась. Повторите попытку; прежний файл не изменён.',
   'profile.notice.build.unknown.body':
     'Сборка не завершилась. Прежний опубликованный файл, если он был, сохранён.',
+  'profile.notice.build.partial_coverage.lists':
+    'Обязательная часть этих списков не покрыта правилами формата:',
+  'profile.notice.build.partial_coverage.next':
+    'Откройте список, проверьте его источники и пересоберите.',
   'profile.subscription': 'Ссылка подписки · {target}',
   'profile.subscription.info': 'Что такое ссылка подписки',
   'profile.subscription.info.text':
@@ -1554,6 +1558,10 @@ const en: Dictionary = {
     'The build did not finish. Retry; the previous file is unchanged.',
   'profile.notice.build.unknown.body':
     'The build did not finish. Any previous published file is unchanged.',
+  'profile.notice.build.partial_coverage.lists':
+    'A required part of these lists has no rules in this format:',
+  'profile.notice.build.partial_coverage.next':
+    'Open a list, check its sources and rebuild.',
   'profile.subscription': 'Subscription link · {target}',
   'profile.subscription.info': 'What the subscription link is',
   'profile.subscription.info.text':

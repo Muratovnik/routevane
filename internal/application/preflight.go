@@ -96,7 +96,7 @@ func preflightPlan(plan domain.RoutingPlan, target domain.TargetDefinition, rend
 		}
 		seenCoverage[key] = struct{}{}
 		if !coverage.Complete {
-			return fmt.Errorf("%w: incomplete coverage", ErrPartialCoverage)
+			return uncoveredFromCoverage(plan.Coverage)
 		}
 	}
 	projectedRuleCount, err := renderer.ProjectedRuleCount(cloneRoutingPlan(plan))

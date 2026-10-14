@@ -323,7 +323,7 @@ func prepareLists(ctx context.Context, definitions []domain.ListDefinition, acti
 		case errors.Is(err, planner.ErrRuleLimitExceeded):
 			return PreparedPlan{}, fmt.Errorf("%w: %v", ErrRuleLimit, err)
 		case errors.Is(err, planner.ErrRequiredCoverage):
-			return PreparedPlan{}, fmt.Errorf("%w: %v", ErrPartialCoverage, err)
+			return PreparedPlan{}, partialCoverage(err, ordered)
 		default:
 			return PreparedPlan{}, fmt.Errorf("build routing plan set: %w", err)
 		}
@@ -571,7 +571,7 @@ func BuildLists(ctx context.Context, definitions []domain.ListDefinition, active
 		case errors.Is(err, planner.ErrRuleLimitExceeded):
 			return BuildResult{}, fmt.Errorf("%w: %v", ErrRuleLimit, err)
 		case errors.Is(err, planner.ErrRequiredCoverage):
-			return BuildResult{}, fmt.Errorf("%w: %v", ErrPartialCoverage, err)
+			return BuildResult{}, partialCoverage(err, ordered)
 		default:
 			return BuildResult{}, fmt.Errorf("build routing plan set: %w", err)
 		}

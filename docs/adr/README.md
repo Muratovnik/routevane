@@ -21,6 +21,7 @@ Important chains: 0004 → 0013/0023 (objects and issuance), 0004/0018/0023 → 
 0029 → 0036 (composition, vocabulary, library ownership, default and route priority),
 0028 → 0039 (the deferred identifiers, and the executable that carries them),
 0027 → 0041 (one interface word per object),
+0004/0010 → 0053 (a refused build names the lists it could not cover),
 0024 → 0025 → 0029 (editing),
 0012 → 0014 → 0031 → 0050 (credentials, unattended delivery and the saved password), 0008 → 0020 → 0042
 (deployment recovery), 0008 → 0032 → 0034
@@ -82,3 +83,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0050: a connection's saved password is its own fact](./0050-saved-connection-credential.md) | adopted |
 | [ADR 0051: retiring a profile or a format, and reissuing a subscription link](./0051-profile-and-format-retirement-and-subscription-reissue.md) | adopted |
 | [ADR 0052: a test build for the device and credential suites](./0052-test-build-for-device-suites.md) | adopted |
+| [ADR 0053: a refused build names the lists it could not cover](./0053-a-refused-build-names-the-lists-it-could-not-cover.md) | adopted |

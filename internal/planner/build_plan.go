@@ -22,6 +22,45 @@ var (
 	ErrRequiredCoverage  = errors.New("required list component has no safe route")
 )
 
+// RequiredCoverageError names every list component the plan could not cover,
+// not only the first, so a caller can tell the operator which lists to look at.
+// It carries identities and nothing about how they are shown: the application
+// adds titles, and the transport maps the result.
+type RequiredCoverageError struct {
+	// Components are the uncovered (list, component) pairs in plan order.
+	Components []domain.Coverage
+	// Lists are the distinct list identities among them, sorted.
+	Lists []string
+}
+
+func (e *RequiredCoverageError) Error() string {
+	parts := make([]string, len(e.Components))
+	for i, coverage := range e.Components {
+		parts[i] = coverage.ListID + "/" + coverage.ComponentID
+	}
+	return fmt.Sprintf("%v: %s", ErrRequiredCoverage, strings.Join(parts, ", "))
+}
+
+// Is makes the typed error answer to the sentinel it refines.
+func (e *RequiredCoverageError) Is(target error) bool { return target == ErrRequiredCoverage }
+
+func requiredCoverageError(coverage []domain.Coverage) error {
+	var missing []domain.Coverage
+	for _, item := range coverage {
+		if !item.Complete {
+			missing = append(missing, item)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	lists := make([]string, len(missing))
+	for i, item := range missing {
+		lists[i] = item.ListID
+	}
+	return &RequiredCoverageError{Components: missing, Lists: domain.StableStrings(lists)}
+}
+
 const (
 	PolicyVersion                           = "auto-v1"
 	M0CatalogRevision                       = "m0-example-v1"
@@ -428,10 +467,8 @@ func BuildPlanSet(inputs []ListInput, target domain.TargetDefinition, cutoff tim
 	CanonicalizePlan(&combined)
 	combined.SemanticHash = SemanticHash(combined, target)
 
-	for _, coverage := range combined.Coverage {
-		if !coverage.Complete {
-			return combined, fmt.Errorf("%w: %s/%s", ErrRequiredCoverage, coverage.ListID, coverage.ComponentID)
-		}
+	if err := requiredCoverageError(combined.Coverage); err != nil {
+		return combined, err
 	}
 	if target.Constraints.MaxRules > 0 && len(combined.Rules) > target.Constraints.MaxRules {
 		combined.Warnings = domain.StableStrings(append(combined.Warnings, "partial_coverage:rule_limit"))

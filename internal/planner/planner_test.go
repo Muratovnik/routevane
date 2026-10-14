@@ -375,6 +375,34 @@ func TestBuildPlanSetFailsRequiredUncoveredButAllowsExplicitPartialCoverage(t *t
 	}
 }
 
+// A refused plan names every list it could not cover, in one order whatever the
+// order the lists arrived in, so the operator is told which lists to open and
+// not only that one of them is short.
+func TestBuildPlanSetNamesEveryUncoveredList(t *testing.T) {
+	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+	target := domain.TargetDefinition{ID: "keenetic", FormatKey: "keenetic-bat-ipv4-v1", RendererID: "keenetic-route-bat", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true, MaxRules: 1024, MaxArtifactSize: 131072}}
+	required := func(id string, seeds ...domain.Seed) ListInput {
+		return ListInput{Definition: domain.ListDefinition{ID: id, CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}, Seeds: seeds}}
+	}
+	// IPv4 literals are routable on this target, so a list seeded with one is covered.
+	covered := required("charlie", domain.Seed{Kind: domain.RuleIPv4, Value: "192.0.2.7", ComponentID: "web", SourceID: "manual:ip", SourceClass: domain.SourceManual})
+	_, err := BuildPlanSet([]ListInput{required("bravo"), covered, required("alpha")}, target, now)
+	var missing *RequiredCoverageError
+	if !errors.Is(err, ErrRequiredCoverage) || !errors.As(err, &missing) {
+		t.Fatalf("uncovered lists error=%v", err)
+	}
+	if !reflect.DeepEqual(missing.Lists, []string{"alpha", "bravo"}) {
+		t.Fatalf("uncovered lists = %v, want alpha and bravo and not the covered charlie", missing.Lists)
+	}
+	if len(missing.Components) != 2 || missing.Components[0].ComponentID != "web" {
+		t.Fatalf("uncovered components = %#v", missing.Components)
+	}
+	// A fully covered set is not refused at all.
+	if _, err := BuildPlanSet([]ListInput{covered}, target, now); err != nil {
+		t.Fatalf("covered list refused: %v", err)
+	}
+}
+
 func TestBuildPlanSetExcludesStaleAndMetadataBroadPrefixFromInstallableRules(t *testing.T) {
 	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
 	definition := domain.ListDefinition{ID: "example", CatalogRevision: "catalog", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}}

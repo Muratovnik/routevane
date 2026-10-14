@@ -75,6 +75,8 @@ type fakeBackend struct {
 	retireErr       error
 	retired         []string
 	subscriptionErr error
+	// buildErr is what a build refuses with, when a test sets one.
+	buildErr error
 }
 
 func (f *fakeBackend) ExportConfigTransfer(context.Context) ([]byte, error) {
@@ -395,6 +397,9 @@ func (f *fakeBackend) Build(ctx context.Context, _ string) (application.Publishe
 		<-ctx.Done()
 		f.canceled <- struct{}{}
 		return application.PublishedBuild{}, ctx.Err()
+	}
+	if f.buildErr != nil {
+		return application.PublishedBuild{}, f.buildErr
 	}
 	return testPublishedBuild(), nil
 }

@@ -4,6 +4,7 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import DiagnosticsPanel from '@/features/view-profile/ui/DiagnosticsPanel.vue'
 import OutputConfirmDialog from '@/features/view-profile/ui/OutputConfirmDialog.vue'
 import ProfileEditor from '@/features/view-profile/ui/ProfileEditor.vue'
+import UncoveredLists from '@/features/view-profile/ui/UncoveredLists.vue'
 import OutputsPanel from '@/features/view-profile/ui/OutputsPanel.vue'
 import { useProfileView } from '@/features/view-profile/model/useProfileView'
 import { useLocale } from '@/shared/i18n/useLocale'
@@ -113,9 +114,17 @@ const statusTone = computed<StatusTone>(() => {
   return warned.value ? 'warning' : 'ready'
 })
 
+// The lists a coverage refusal names. An attempt recorded before the service
+// named them has none, and reads as the sentence alone.
+const uncoveredLists = computed(() =>
+  buildFailure.value?.code === 'partial_coverage'
+    ? buildFailure.value.uncoveredLists
+    : [],
+)
+
 const buildFailureBody = computed(() => {
   const failure = buildFailure.value
-  if (failure === null) return ''
+  if (failure === null || uncoveredLists.value.length > 0) return ''
   if (
     failure.code === 'rule_limit' &&
     failure.projectedRules > 0 &&
@@ -675,6 +684,9 @@ const onConfirm = async (): Promise<void> => {
         "
         tone="failed"
       >
+        <template v-if="uncoveredLists.length > 0" #default>
+          <UncoveredLists :lists="uncoveredLists" />
+        </template>
         <template v-if="!view.archived.value" #action>
           <RvButton
             :disabled="view.busy.value"
