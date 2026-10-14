@@ -1005,7 +1005,7 @@ const submitPriority = async (): Promise<void> => {
         <RvButton
           :disabled="library.busy.value"
           :loading="library.busy.value"
-          variant="primary"
+          variant="danger"
           @click="confirmRemoveCategory"
         >
           {{ t('lists.category.remove.submit') }}
@@ -1055,7 +1055,7 @@ const submitPriority = async (): Promise<void> => {
         <RvButton
           :disabled="library.busy.value"
           :loading="library.busy.value"
-          variant="primary"
+          variant="danger"
           @click="confirmRemoveList"
         >
           {{ t('lists.list.remove.submit') }}

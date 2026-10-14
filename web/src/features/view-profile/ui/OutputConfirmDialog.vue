@@ -10,7 +10,8 @@ import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
  * The confirmation an irreversible act on one format asks for: reissuing its
  * link or removing it from the profile (ADR 0051). The dialog states what will
  * happen, beside the act, and a refusal stays inside it with the act still
- * offered.
+ * offered. Both acts end something other devices rely on, the old link or the
+ * format itself, so both confirm with the destructive button.
  */
 const props = defineProps<{
   busy: boolean
@@ -59,7 +60,7 @@ const copy = computed(() => `outputs.${props.kind}`)
       <RvButton
         :loading="busy"
         :loading-label="t(`${copy}.submit`)"
-        variant="primary"
+        variant="danger"
         @click="emit('confirm')"
       >
         {{ t(`${copy}.submit`) }}

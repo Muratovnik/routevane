@@ -222,6 +222,14 @@ describe('ProfilesView archive', () => {
       await screen
         .getByRole('menuitem', { name: 'Delete permanently…' })
         .click()
+      await expect
+        .element(
+          screen.getByRole('button', {
+            name: 'Delete permanently',
+            exact: true,
+          }),
+        )
+        .toHaveClass('rv-button--danger')
       await screen
         .getByRole('button', { name: 'Delete permanently', exact: true })
         .click()

@@ -14,7 +14,12 @@ const props = defineProps<{
   size?: 'compact' | 'default' | 'touch'
   to?: string
   type?: 'button' | 'submit'
-  variant?: 'primary' | 'secondary' | 'quiet'
+  /**
+   * `danger` is the final act of something that cannot be taken back: a
+   * deletion, a revoked link, a forgotten connection. A reversible act — an
+   * archive, a restore — keeps `primary`.
+   */
+  variant?: 'primary' | 'secondary' | 'quiet' | 'danger'
 }>()
 
 const unavailable = computed(
@@ -33,7 +38,7 @@ const unavailable = computed(
       `rv-button--${size ?? 'default'}`,
       { 'rv-button--block': block === true },
     ]"
-    color="neutral"
+    :color="variant === 'danger' ? 'error' : 'neutral'"
     variant="link"
     :block="block"
     :disabled="unavailable"
@@ -128,6 +133,24 @@ const unavailable = computed(
 
 .rv-button.rv-button--primary:hover:not(:disabled, [aria-disabled='true']) {
   background: var(--rv-color-accent-hover);
+}
+
+.rv-button.rv-button--danger {
+  color: var(--rv-color-ink-inverted);
+  background: var(--rv-color-danger);
+}
+
+/* Unavailable, the act stays the destructive one at low emphasis, as the
+   primary does, so a confirmation that is working does not turn neutral. */
+.rv-button.rv-button--danger:disabled,
+.rv-button.rv-button--danger[aria-disabled='true'] {
+  color: var(--rv-color-ink-muted);
+  background: var(--rv-color-danger-quiet);
+  border-color: transparent;
+}
+
+.rv-button.rv-button--danger:hover:not(:disabled, [aria-disabled='true']) {
+  background: var(--rv-color-danger-hover);
 }
 
 .rv-button.rv-button--secondary {

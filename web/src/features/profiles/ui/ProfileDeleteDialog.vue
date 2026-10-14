@@ -49,7 +49,7 @@ const { t } = useLocale()
         :disabled="blocked"
         :loading="busy"
         :loading-label="t('profiles.delete.confirm')"
-        variant="primary"
+        variant="danger"
         @click="$emit('confirm')"
       >
         <RvIcon name="trash" />

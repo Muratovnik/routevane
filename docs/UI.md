@@ -738,7 +738,16 @@ read, keeping the width it had at rest; while it works it is disabled and
 `aria-busy`, and any pending sentence belongs to the status text beside it.
 Every other pending command keeps the button's own ring. A disabled primary
 keeps the accent at low emphasis, so the principal act stays recognizable while
-it is unavailable; the other variants keep the neutral disabled ground.
+it is unavailable; the other variants keep the neutral disabled ground, and the
+destructive variant keeps its own quiet ground the same way.
+
+The final confirmation of an act that cannot be taken back — deleting a profile,
+a list or a category for good, forgetting a connection, removing a format,
+issuing a new link that ends the old one — is the `danger` variant of
+`RvButton`. Its ground is the danger role, which stands with the inverted ink
+at 4.5:1 or better in both themes. A reversible act, such as archiving or
+restoring, and an additive one, such as applying a reviewed import, keeps the
+primary look.
 Icons are hand-set 16-unit strokes, always decorative, always beside or behind an accessible name
 — navigation and menus never go icon-only. A feature that needs a different
 look asks for a role or a variant, never a parallel class. A component is a

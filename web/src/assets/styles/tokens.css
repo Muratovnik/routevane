@@ -62,6 +62,13 @@
   --rv-color-accent-hover: #76c79c;
   --rv-color-accent-quiet: #23332c;
   --rv-color-focus: #76c79c;
+
+  /* The ground of the act that cannot be taken back. Each ground stands with
+   * the inverted ink: 7.4:1 and 8.8:1 against it in dark, 7.3:1 and 9.0:1 in
+   * light. The quiet ground is the same act while it is not available. */
+  --rv-color-danger: var(--rv-red-400);
+  --rv-color-danger-hover: #f39a91;
+  --rv-color-danger-quiet: #3a2624;
   --rv-color-status-ready: var(--rv-green-400);
   --rv-color-status-warning: var(--rv-amber-400);
   --rv-color-status-failed: var(--rv-red-400);
@@ -330,6 +337,9 @@
     --rv-color-accent-hover: var(--rv-green-600);
     --rv-color-accent-quiet: rgb(18 105 74 / 10%);
     --rv-color-focus: var(--rv-green-600);
+    --rv-color-danger: var(--rv-red-600);
+    --rv-color-danger-hover: #842a2a;
+    --rv-color-danger-quiet: rgb(155 49 49 / 10%);
     --rv-color-status-ready: var(--rv-green-600);
     --rv-color-status-warning: var(--rv-amber-600);
     --rv-color-status-failed: var(--rv-red-600);
@@ -364,6 +374,9 @@
   --rv-color-accent-hover: var(--rv-green-600);
   --rv-color-accent-quiet: rgb(18 105 74 / 10%);
   --rv-color-focus: var(--rv-green-600);
+  --rv-color-danger: var(--rv-red-600);
+  --rv-color-danger-hover: #842a2a;
+  --rv-color-danger-quiet: rgb(155 49 49 / 10%);
   --rv-color-status-ready: var(--rv-green-600);
   --rv-color-status-warning: var(--rv-amber-600);
   --rv-color-status-failed: var(--rv-red-600);

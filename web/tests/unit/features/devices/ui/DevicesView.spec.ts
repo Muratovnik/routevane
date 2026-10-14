@@ -551,6 +551,14 @@ it.each([
     await screen
       .getByRole('menuitem', { name: 'Forget this connection' })
       .click()
+    await expect
+      .element(
+        screen.getByRole('button', {
+          name: 'Forget this connection',
+          exact: true,
+        }),
+      )
+      .toHaveClass('rv-button--danger')
     await screen
       .getByRole('button', { name: 'Forget this connection', exact: true })
       .click()

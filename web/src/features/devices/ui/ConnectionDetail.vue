@@ -402,7 +402,7 @@ const onForget = async (): Promise<void> => {
           :disabled="devices.busy.value"
           :loading="devices.busy.value"
           :loading-label="t('devices.forget')"
-          variant="primary"
+          variant="danger"
           @click="onForget"
           >{{ t('devices.forget') }}</RvButton
         >

@@ -45,6 +45,10 @@ describe('deleting and detaching', () => {
       .element(screen.getByText('What happens to its lists', { exact: false }))
       .toBeVisible()
     await confirm.getByText(choice).click()
+    // Either answer ends the category, so the act is the destructive one.
+    await expect
+      .element(confirm.getByRole('button', { name: 'Delete' }))
+      .toHaveClass('rv-button--danger')
     await confirm.getByRole('button', { name: 'Delete' }).click()
 
     await vi.waitFor(() => {
@@ -172,6 +176,11 @@ describe('deleting and detaching', () => {
         }),
       )
       .toBeVisible()
+    await expect
+      .element(
+        screen.getByRole('dialog').getByRole('button', { name: 'Delete' }),
+      )
+      .toHaveClass('rv-button--danger')
     await screen
       .getByRole('dialog')
       .getByRole('button', { name: 'Delete' })

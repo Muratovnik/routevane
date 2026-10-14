@@ -3,6 +3,8 @@ import { render, type RenderResult } from 'vitest-browser-vue'
 
 import RvButton from '@/shared/ui/RvButton.vue'
 
+import { contrast, inTheme } from './support/contrast'
+
 // Renders share one document, so each control is read by the words on it.
 const painted = (
   screen: RenderResult<unknown>,
@@ -71,6 +73,70 @@ describe('RvButton', () => {
     // The secondary keeps the edge that is its own; the primary has none.
     expect(unavailable.borderTopColor).toBe(TRANSPARENT)
     expect(painted(screen, 'Cancel').borderTopColor).not.toBe(TRANSPARENT)
+  })
+
+  // The act that cannot be taken back is told from the principal act: it asks
+  // the library for its error colour, stands on the danger ground and keeps
+  // its words readable on it, resting and hovered, in both themes. Unavailable
+  // is a ground of its own, so a working confirmation does not turn neutral.
+  it.each(['dark', 'light'] as const)(
+    'paints the destructive act on the danger ground in the %s theme',
+    async (theme) => {
+      await inTheme(theme, async () => {
+        const screen = await render(RvButton, {
+          props: { variant: 'danger' },
+          slots: { default: 'Delete permanently' },
+        })
+        await render(RvButton, {
+          props: { variant: 'primary' },
+          slots: { default: 'Save' },
+        })
+        await render(RvButton, {
+          props: { disabled: true, variant: 'danger' },
+          slots: { default: 'Forget' },
+        })
+
+        const button = screen.getByRole('button', {
+          name: 'Delete permanently',
+        })
+        await expect.element(button).toHaveAttribute('data-color', 'error')
+        await expect.element(button).toHaveAttribute('data-variant', 'link')
+        const danger = painted(screen, 'Delete permanently')
+        expect(danger.backgroundColor).toBe(paintedToken('--rv-color-danger'))
+        expect(danger.backgroundColor).not.toBe(
+          painted(screen, 'Save').backgroundColor,
+        )
+        expect(
+          contrast(danger.color, danger.backgroundColor),
+        ).toBeGreaterThanOrEqual(4.5)
+        expect(
+          contrast(
+            paintedToken('--rv-color-ink-inverted'),
+            paintedToken('--rv-color-danger-hover'),
+          ),
+        ).toBeGreaterThanOrEqual(4.5)
+
+        // Unavailable, it is the same act at low emphasis, not a neutral one.
+        const unavailable = painted(screen, 'Forget')
+        expect(unavailable.backgroundColor).toBe(
+          paintedToken('--rv-color-danger-quiet'),
+        )
+        expect(unavailable.backgroundColor).not.toBe(
+          painted(screen, 'Save').backgroundColor,
+        )
+      })
+    },
+  )
+
+  it('keeps the principal act off the danger look', async () => {
+    const screen = await render(RvButton, {
+      props: { variant: 'primary' },
+      slots: { default: 'Archive' },
+    })
+
+    const archive = screen.getByRole('button', { name: 'Archive' })
+    await expect.element(archive).toHaveAttribute('data-color', 'neutral')
+    await expect.element(archive).not.toHaveClass('rv-button--danger')
   })
 
   // A button shares the standard field height with the field beside it; only
