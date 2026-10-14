@@ -2,11 +2,12 @@
  * A connection's password is its own saved fact, and automatic delivery is a
  * separate switch that follows it (ADR 0050).
  *
- * The built product keeps a password in the operating system's credential
- * store, which a browser suite must never write to, so the password and
- * delivery routes are answered by `support/fakeDevices.ts` with the contract
- * the real routes keep. The credential-free walk at the end runs against the
- * product itself.
+ * The password and delivery routes here are answered by
+ * `support/fakeDevices.ts` with the contract the real routes keep, so a case can
+ * seed any registry state and inject a refusal. The same walk against the
+ * product's own routes and its in-memory test-build store is
+ * `test-build-device.spec.ts`. The credential-free walk at the end runs against
+ * the product itself.
  *
  * The worker fixture in `support/served-product.ts` serves this suite alone,
  * over the data directory named below.

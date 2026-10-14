@@ -14,7 +14,7 @@
  * inheriting another suite's state.
  */
 import { createHash } from 'node:crypto'
-import { access, readFile, readdir, rm } from 'node:fs/promises'
+import { readFile, readdir, rm } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -27,6 +27,7 @@ import {
   waitForAuthenticatedRoot,
   type SpawnedProduct,
 } from './product'
+import { requireTestBuild, testBuildBinary } from './test-build'
 
 const supportDirectory = dirname(fileURLToPath(import.meta.url))
 export const repositoryRoot = resolve(supportDirectory, '..', '..', '..', '..')
@@ -37,12 +38,7 @@ const embeddedUIRoot = join(
   'httpapi',
   'ui',
 )
-const binary = join(
-  repositoryRoot,
-  '.cache',
-  'build',
-  process.platform === 'win32' ? 'routevane.exe' : 'routevane',
-)
+const binary = testBuildBinary
 
 /** The running product a suite reads and writes through. */
 export interface ServedProduct {
@@ -80,7 +76,7 @@ const startProduct = async (
   spawned: SpawnedProduct
   dataRoot: string
 }> => {
-  await access(binary)
+  await requireTestBuild()
   const expectedUIDigest = await embeddedUIDigest()
   const port = await reserveLoopbackPort()
   const origin = `http://127.0.0.1:${port}`

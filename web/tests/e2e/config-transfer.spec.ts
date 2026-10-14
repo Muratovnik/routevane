@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -16,15 +16,11 @@ import {
   stopOwnedProductData,
   type SpawnedProduct,
 } from './support/product'
+import { requireTestBuild, testBuildBinary } from './support/test-build'
 
 const testDirectory = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(testDirectory, '..', '..', '..')
-const binary = join(
-  repositoryRoot,
-  '.cache',
-  'build',
-  process.platform === 'win32' ? 'routevane.exe' : 'routevane',
-)
+const binary = testBuildBinary
 let runRoot: string | undefined
 let sourceDataRoot = ''
 let destinationDataRoot = ''
@@ -48,7 +44,7 @@ test.use({ locale: 'en-US' })
 const DESKTOP_VIEWPORT = { height: 720, width: 1280 }
 
 test.beforeAll(async () => {
-  await access(binary)
+  await requireTestBuild()
   runRoot = await createOwnedProductData(
     join(repositoryRoot, 'tmp', 'browser-fixtures'),
     'config-transfer',

@@ -195,6 +195,13 @@ function Invoke-GoCheck {
     Invoke-Checked $GoExecutable @('tool', 'staticcheck', './...')
     # Staticcheck 2026.2 retired SA5011; keep nil-path analysis blocking.
     Invoke-Checked $GoExecutable @('tool', 'nilness', './...')
+    # The test build's files compile only under its tag. Vet and analyse them
+    # there, and run the tests that prove what the tag changes; the rest of the
+    # suite asserts the release behaviour and runs untagged below.
+    $TestBuildPackages = @('./cmd/routevane', './internal/netpolicy', './internal/infrastructure/secretstore')
+    Invoke-Checked $GoExecutable (@('vet', '-tags', (Get-RoutevaneTestBuildTag)) + $TestBuildPackages)
+    Invoke-Checked $GoExecutable (@('tool', 'staticcheck', '-tags', (Get-RoutevaneTestBuildTag)) + $TestBuildPackages)
+    Invoke-Checked $GoExecutable (@('test', '-count=1', '-tags', (Get-RoutevaneTestBuildTag), '-run', '^TestTestMode') + $TestBuildPackages)
 
     $CoverageRoot = Join-Path $RepositoryRoot '.cache/reports'
     New-Item -ItemType Directory -Force -Path $CoverageRoot | Out-Null
@@ -364,14 +371,55 @@ function Invoke-WebCheck {
     return Sync-RoutevaneGeneratedUI
 }
 
+# The build tag that compiles the test build (ADR 0052): documentation-range
+# device addresses, an in-memory password store and no device connections.
+# Only the binary under .cache/test-build carries it; every other build here,
+# including release, installer and desktop cores, must not.
+function Get-RoutevaneTestBuildTag { 'routevane_testmode' }
+
+# Reads the build settings Go embeds in a binary. A tag is recorded there as
+# `build -tags=...`, so this is the binary's own account of how it was built,
+# readable for any target platform.
+function Assert-RoutevaneBuildTags {
+    param(
+        [Parameter(Mandatory)][string]$Binary,
+        [Parameter(Mandatory)][bool]$TestBuild
+    )
+    $Settings = @(& $GoExecutable version -m $Binary)
+    if ($LASTEXITCODE -ne 0 -or $Settings.Count -eq 0) { throw "unable to read the build settings of $Binary" }
+    $Tagged = @($Settings | Where-Object { $_ -match "^\s*build\s+-tags=(.*,)?$(Get-RoutevaneTestBuildTag)(,.*)?$" }).Count -gt 0
+    if ($Tagged -ne $TestBuild) {
+        $Expected = if ($TestBuild) { 'a test build' } else { 'a release-shaped build without the test tag' }
+        throw "$Binary is not $Expected"
+    }
+}
+
 # Compiles the core against whatever interface was last generated and synced;
 # callers that need a fresh interface run Invoke-ProductBuild instead.
 function Invoke-CoreBuild {
     param(
         [Parameter(Mandatory)][string]$ProductVersion,
-        [Parameter(Mandatory)][string]$Output
+        [Parameter(Mandatory)][string]$Output,
+        [switch]$TestBuild
     )
-    Invoke-Checked $GoExecutable @('build', '-trimpath', '-buildvcs=true', '-mod=readonly', '-ldflags', "-X main.version=$ProductVersion", '-o', $Output, './cmd/routevane')
+    $Arguments = @('build', '-trimpath', '-buildvcs=true', '-mod=readonly')
+    if ($TestBuild) { $Arguments += @('-tags', (Get-RoutevaneTestBuildTag)) }
+    $Arguments += @('-ldflags', "-X main.version=$ProductVersion", '-o', $Output, './cmd/routevane')
+    Invoke-Checked $GoExecutable $Arguments
+    Assert-RoutevaneBuildTags -Binary $Output -TestBuild $TestBuild.IsPresent
+}
+
+# The binary the browser suites drive. It sits apart from .cache/build, which
+# the desktop shell and its packager read, so a test build can never be the
+# core a package or a release carries. Run after Invoke-ProductBuild, whose
+# generated interface it embeds.
+function Invoke-TestCoreBuild {
+    $TestBuildRoot = Join-Path $RepositoryRoot '.cache/test-build'
+    New-Item -ItemType Directory -Force -Path $TestBuildRoot | Out-Null
+    $BinaryName = if ($IsWindows) { 'routevane.exe' } else { 'routevane' }
+    $Binary = Join-Path $TestBuildRoot $BinaryName
+    Invoke-CoreBuild -ProductVersion 'dev' -Output $Binary -TestBuild
+    return $Binary
 }
 
 function Invoke-ProductBuild {
@@ -545,6 +593,8 @@ function Invoke-ReleaseBuild {
         } finally {
             Remove-Item Env:\CGO_ENABLED, Env:\GOOS, Env:\GOARCH -ErrorAction SilentlyContinue
         }
+        # A release never carries the test build (ADR 0052).
+        Assert-RoutevaneBuildTags -Binary $Output -TestBuild $false
         # The catalog travels with the binary. It is operator-editable data, so
         # embedding it would hide which copy is in effect.
         $CatalogPaths = @(& git -C $RepositoryRoot ls-files -- catalog)
@@ -757,7 +807,10 @@ try {
             Invoke-Checked 'npm' @('--prefix', (Join-Path $RepositoryRoot 'web'), 'run', 'security')
             Invoke-DesktopCommand @('run', 'security')
         }
-        'build' { Invoke-ProductBuild | Out-Null }
+        'build' {
+            Invoke-ProductBuild | Out-Null
+            Invoke-TestCoreBuild | Out-Null
+        }
         'dev' {
             if (-not (Test-Path -LiteralPath (Join-Path $RepositoryRoot 'web/node_modules') -PathType Container)) {
                 Invoke-Checked 'pwsh' @('-NoLogo', '-NoProfile', '-File', $PSCommandPath, 'setup')
@@ -804,6 +857,9 @@ try {
         'test-browser' {
             Get-RoutevaneBrowserPath | Out-Null
             Invoke-ProductBuild | Out-Null
+            # The browser suites drive the test build, never the release-shaped
+            # core above (ADR 0052).
+            Invoke-TestCoreBuild | Out-Null
             Push-Location (Join-Path $RepositoryRoot 'web')
             try {
                 Invoke-Checked 'npm' @('run', 'test:browser')

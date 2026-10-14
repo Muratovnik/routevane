@@ -1,5 +1,4 @@
 import {
-  access,
   copyFile,
   mkdir,
   mkdtemp,
@@ -34,6 +33,7 @@ import {
   listMembership,
   menuPanel,
 } from './support/queries'
+import { requireTestBuild, testBuildBinary } from './support/test-build'
 
 const testDirectory = dirname(fileURLToPath(import.meta.url))
 const repositoryRoot = resolve(testDirectory, '..', '..', '..')
@@ -43,12 +43,7 @@ const sourceCatalog = join(
   'expiry',
   'browser-catalog',
 )
-const binary = join(
-  repositoryRoot,
-  '.cache',
-  'build',
-  process.platform === 'win32' ? 'routevane.exe' : 'routevane',
-)
+const binary = testBuildBinary
 
 let origin = ''
 let port = 0
@@ -230,7 +225,7 @@ const sendAddress = (page: Page, language: 'en' | 'ru'): Locator =>
   page.getByLabel(message(language, 'deploy.field.address.singbox'))
 
 test.beforeAll(async () => {
-  await access(binary)
+  await requireTestBuild()
   runRoot = await createOwnedProductData(
     join(repositoryRoot, 'tmp', 'browser-fixtures'),
     'send',

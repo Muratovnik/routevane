@@ -153,7 +153,11 @@ pwsh -NoLogo -NoProfile -File tools/dev.ps1 build
 It has no hot reload. Use `-Port 9000` or `-NoBrowser` when needed; stop with Ctrl+C.
 Downloaded releases keep their separate `start-routevane.cmd` launcher.
 
-The binary is written to `.cache/build/`. Runtime state goes to `data/`;
+The binary is written to `.cache/build/`. `build` and `test-browser` also write
+the test build the browser suites drive to `.cache/test-build/`; it accepts
+documentation-range device addresses, keeps passwords in memory and is never
+shipped ([ADR 0052](docs/adr/0052-test-build-for-device-suites.md)).
+Runtime state goes to `data/`;
 reports and browser binaries go below `.cache/`, and browser test artifacts
 below `tmp/`. Preserve runtime data when cleaning generated files.
 Plain `go build` does not generate the UI and can produce an API-only binary.

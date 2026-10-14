@@ -81,3 +81,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0049: readable Keenetic FQDN group names](./0049-readable-fqdn-group-names.md) | adopted |
 | [ADR 0050: a connection's saved password is its own fact](./0050-saved-connection-credential.md) | adopted |
 | [ADR 0051: retiring a profile or a format, and reissuing a subscription link](./0051-profile-and-format-retirement-and-subscription-reissue.md) | adopted |
+| [ADR 0052: a test build for the device and credential suites](./0052-test-build-for-device-suites.md) | adopted |

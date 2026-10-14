@@ -98,7 +98,7 @@ work. Technical rationale belongs in the [decisions](adr/README.md).
 | Discovery and learning boundaries | `cmd/routevane/list_from_url_e2e_test.go`; `cmd/routevane/learning_session_e2e_test.go` |
 | Explicit device delivery | `cmd/routevane/device_deploy_e2e_test.go`; `cmd/routevane/scheduled_delivery_e2e_test.go`; `cmd/routevane/saved_credential_e2e_test.go` |
 | Real plugin examples | `cmd/routevane/external_plugin_e2e_test.go` consumes their shipped manifests |
-| Keyboard, localization, and browser flows | `web/tests/e2e/` against the built binary |
+| Keyboard, localization, and browser flows | `web/tests/e2e/` against the test build (ADR 0052); it is not the release binary and proves no release device policy, credential store or device contact |
 | Desktop lifetime, isolation, persistence and tray behavior | `tools/dev.ps1 test-desktop` against the native package; `cmd/routevane/desktop_test.go` |
 | Windows application updates | `tools/dev.ps1 test-update`: manual installer replacement and explicit download/install/restart preserve profiles and preferences; corrupt downloads cannot install |
 | New-user installation | Native release jobs start the packaged launcher with fresh data and check version, health, and UI |

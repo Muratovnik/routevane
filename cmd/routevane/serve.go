@@ -16,7 +16,6 @@ import (
 	"github.com/Muratovnik/routevane/internal/infrastructure/filesystem"
 	"github.com/Muratovnik/routevane/internal/infrastructure/httpapi"
 	"github.com/Muratovnik/routevane/internal/infrastructure/processlock"
-	"github.com/Muratovnik/routevane/internal/infrastructure/secretstore"
 	"github.com/Muratovnik/routevane/internal/infrastructure/sqlite"
 	"github.com/Muratovnik/routevane/internal/sources/httpfeed"
 )
@@ -170,7 +169,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	}
 	devices, err := application.NewDeviceService(application.DeviceConfig{
 		Store:                    store,
-		Secrets:                  secretstore.New(),
+		Secrets:                  newSecretStore(),
 		Targets:                  publication.Targets,
 		Deployable:               func(id string) bool { _, ok := deployableIDs[id]; return ok },
 		NeedsCredential:          func(id string) bool { _, ok := credentialTargets[id]; return ok },
@@ -225,6 +224,11 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		logger.Warn("serve", "operation", "serve", "origin", origin, "control_surface", "absent",
 			"detail", "the API is available and the browser page is not",
 			"remedy", "pwsh -NoLogo -NoProfile -File tools/dev.ps1 up")
+	}
+	if testBuild {
+		// Said once at start so a log of this process never passes for a
+		// release run (ADR 0052).
+		logger.Warn("serve", "operation", "serve", "build", "test", "device_policy", "documentation_ranges", "secret_store", "memory", "device_dial", "refused")
 	}
 	signalCtx, stopSignals := deps.SignalContext(deps.Context)
 	defer stopSignals()

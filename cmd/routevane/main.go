@@ -89,6 +89,7 @@ func productionDeps() runtimeDeps {
 		RandomIndex:  cryptoRandomIndex,
 		OpenBrowser:  openSystemBrowser,
 		DesktopInput: os.Stdin,
+		DeviceDialer: defaultDeviceDialer(),
 	}
 }
 
@@ -129,6 +130,10 @@ func normalizeDeps(deps runtimeDeps) runtimeDeps {
 	if deps.DesktopInput == nil {
 		deps.DesktopInput = production.DesktopInput
 	}
+	if deps.DeviceDialer == nil {
+		// Nil in a release build, where the deployers use the standard dialer.
+		deps.DeviceDialer = production.DeviceDialer
+	}
 	return deps
 }
 
@@ -140,7 +145,7 @@ func runWithDeps(stdout, stderr io.Writer, args []string, deps runtimeDeps) int 
 	deps = normalizeDeps(deps)
 	logger := newLogger(stderr)
 	if len(args) == 1 && args[0] == "version" {
-		fmt.Fprintf(stdout, "routevane %s\n", version)
+		fmt.Fprintf(stdout, "routevane %s%s\n", version, buildSuffix)
 		return 0
 	}
 	if len(args) > 0 && args[0] == "preview" {

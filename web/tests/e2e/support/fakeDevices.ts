@@ -1,10 +1,12 @@
 /**
  * A stand-in for the device registry's saved-password routes.
  *
- * The built product keeps a password in the operating system's credential
- * store, and a browser suite must never write to the workstation's own store.
- * This answers the registry reads and the password and delivery writes of
- * ADR 0050 from memory, with the contract the real routes keep: saving replaces
+ * A suite that needs a registry state it cannot reach in one step, or a
+ * refusal on demand, states it here instead of building it on the product.
+ * (The product's own password routes, over the test build's in-memory store,
+ * are walked in `test-build-device.spec.ts`.) This answers the registry reads
+ * and the password and delivery writes of ADR 0050 from memory, with the
+ * contract the real routes keep: saving replaces
  * the password; removing it also turns delivery off for a format that needs
  * one; delivery cannot be turned on without a saved password for such a format;
  * and changing the address, login or interface revokes both.

@@ -20,6 +20,9 @@ var ErrNotADeviceDestination = errors.New("destination is not a local network de
 // address, multicast, carrier-grade NAT, the cloud metadata address, and every
 // other special-use range, so widening this allowance cannot reach a list
 // running on the machine itself or a metadata endpoint.
+//
+// A test build alone also accepts the RFC 5737 documentation ranges, so its
+// suites never need an address that could be a real router (ADR 0052).
 func DeviceDestination(address netip.Addr) bool {
 	address = address.Unmap()
 	if !address.IsValid() || address.IsUnspecified() || address.IsLoopback() ||
@@ -40,7 +43,7 @@ func DeviceDestination(address netip.Addr) bool {
 			// but the cloud metadata address is never a router.
 			return octets[2] != 169 || octets[3] != 254
 		}
-		return false
+		return testBuildDevice(address)
 	}
 	// IPv6: unique-local and link-local unicast only.
 	return address.IsPrivate() || address.IsLinkLocalUnicast()
