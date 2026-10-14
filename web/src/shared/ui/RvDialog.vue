@@ -210,9 +210,9 @@ const panelUI = computed(() => ({
 
 const sheetUI = computed(() => ({
   overlay: ['rv-dialog__scrim', nested.value ? 'rv-dialog__scrim--nested' : ''],
-  // Cancels Nuxt UI's compact `max-w-md`; Routevane's token owns the working
-  // width below and Tailwind Merge removes the conflicting utility.
-  content: `max-w-none rv-dialog rv-dialog--sheet${props.adaptive && workspace ? ' rv-dialog--inspection' : ''}${docked.value ? ' rv-dialog--docked' : ''}`,
+  // The unlayered `.rv-dialog--sheet` rule outranks Nuxt UI's layered compact
+  // `max-w-md`, so Routevane's token owns the working width.
+  content: `rv-dialog rv-dialog--sheet${props.adaptive && workspace ? ' rv-dialog--inspection' : ''}${docked.value ? ' rv-dialog--docked' : ''}`,
   header: 'rv-dialog__header',
   wrapper: 'rv-dialog__heading',
   title: 'rv-dialog__title',

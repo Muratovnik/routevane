@@ -180,8 +180,6 @@ describe('RvDialog', () => {
     await expect.element(sheet).toHaveAttribute('data-side', 'right')
     await expect.element(sheet).toHaveAttribute('data-dismissible', 'true')
     await expect.element(sheet).toHaveAttribute('data-transition', 'true')
-    // Cancels the library's compact width so the Routevane token owns it.
-    await expect.element(sheet).toHaveClass('max-w-none')
     await expect.element(sheet).toHaveClass('rv-dialog--sheet')
 
     await screen.rerender({ open: false })
