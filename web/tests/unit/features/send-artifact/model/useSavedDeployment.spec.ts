@@ -612,7 +612,7 @@ const refusingAddress = () =>
     const path = String(input)
     if (path === '/v1/devices') return json(devicesPayload())
     if (path === '/v1/deployments/targets') return json(targetsPayload())
-    return json({ error: 'address_rejected', field: 'address' }, 400)
+    return json({ error: 'address_rejected', field: 'address' }, 422)
   })
 
 it('states the refusal of a typed address at the address and starts nothing', async () => {
@@ -662,7 +662,7 @@ it('states the refusal at the address when a confirmed send stopped before any a
       }
       return json(
         { error: 'address_rejected', field: 'address', attempt_started: false },
-        400,
+        422,
       )
     },
   )

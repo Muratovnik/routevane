@@ -71,20 +71,22 @@ func TestDeviceRoutesRefuseWithStableCodes(t *testing.T) {
 }
 
 // A send names the refused address the same way, in the reply of the review and
-// of a send that stopped before any attempt, and keeps the attempt journal's
-// broad code for it.
+// of a send that stopped before any attempt, with the status the device routes
+// give it (422) and the attempt journal's broad code kept for it. Another
+// connection fault stays 400 on the deploy routes.
 func TestADeployRefusedForItsAddressNamesTheField(t *testing.T) {
 	policy := fmt.Errorf("%w: %w", application.ErrConnectionInvalid, application.ErrAddressRejected)
 	for _, test := range []struct {
 		name    string
 		confirm bool
 		err     error
+		status  int
 		field   string
 	}{
-		{"review", false, policy, "address"},
-		{"send that did not start", true, policy, "address"},
-		{"review of another connection fault", false, application.ErrConnectionInvalid, ""},
-		{"send of another connection fault that did not start", true, application.ErrConnectionInvalid, ""},
+		{"review", false, policy, http.StatusUnprocessableEntity, "address"},
+		{"send that did not start", true, policy, http.StatusUnprocessableEntity, "address"},
+		{"review of another connection fault", false, application.ErrConnectionInvalid, http.StatusBadRequest, ""},
+		{"send of another connection fault that did not start", true, application.ErrConnectionInvalid, http.StatusBadRequest, ""},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			backend := unresolvedDeviceBackend{fakeBackend: testBackend(), refusedBeforeAttempt: true}
@@ -104,7 +106,7 @@ func TestADeployRefusedForItsAddressNamesTheField(t *testing.T) {
 			if test.field == "" {
 				code = "connection_invalid"
 			}
-			if response.Code != http.StatusBadRequest || reply["error"] != code || reply["field"] != nilIfEmpty(field) {
+			if response.Code != test.status || reply["error"] != code || reply["field"] != nilIfEmpty(field) {
 				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 			}
 			if strings.Contains(response.Body.String(), "router.invalid") {

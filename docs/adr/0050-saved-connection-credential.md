@@ -98,10 +98,11 @@ address, the account or the password it refuses.
 
 `address_rejected` is narrower than `connection_invalid`, not a synonym: the
 deploy routes answer a send whose address was refused with `address_rejected`
-and `field`, still with status 400 and `attempt_started: false`, while the
-attempt journal keeps `connection_invalid` for it. A password the device
-refuses is known only to a send, never to the registry, so it has no device
-route code. The account and the interface are required by the client before a
+and `field`, with the same status 422 as the device routes and with
+`attempt_started: false`, while the attempt journal keeps `connection_invalid`
+for it. Another connection fault stays `connection_invalid` with status 400 on
+the deploy routes. A password the device refuses is known only to a send,
+never to the registry, so it has no device route code. The account and the interface are required by the client before a
 request is made and carry no field code of their own.
 
 The client checks only the shape of what it sends. Which networks a router may

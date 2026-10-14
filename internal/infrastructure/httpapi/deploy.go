@@ -184,10 +184,16 @@ func deployCodeStatus(code string) int {
 	}
 }
 
+// deployStatus gives a refusal that stopped a send before its attempt the same
+// status the device routes give it. A refused address is checked first because
+// its error also wraps ErrConnectionInvalid, whose status is 400: the address
+// answers 422 on every route that names it (ADR 0050).
 func deployStatus(err error) int {
 	switch {
 	case errors.Is(err, application.ErrNotFound):
 		return http.StatusNotFound
+	case errors.Is(err, application.ErrAddressRejected):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, application.ErrConnectionInvalid), errors.Is(err, application.ErrDeployComposition),
 		errors.Is(err, application.ErrConfirmationRequired), errors.Is(err, application.ErrDeployerUnavailable):
 		return http.StatusBadRequest

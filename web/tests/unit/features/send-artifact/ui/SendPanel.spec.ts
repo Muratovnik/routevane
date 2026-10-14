@@ -390,7 +390,7 @@ it('states the service refusal of the typed address at the address field', async
       })
     return new Response(
       JSON.stringify({ error: 'address_rejected', field: 'address' }),
-      { status: 400 },
+      { status: 422 },
     )
   })
   vi.stubGlobal('fetch', fetchMock)
