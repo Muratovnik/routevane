@@ -451,7 +451,10 @@ const onRowMenu = (output: OutputCard, key: string): void => {
               :label="t('outputs.failed')"
               tone="failed"
             />
-            <span class="outputs__date">
+            <span
+              class="outputs__date"
+              :class="{ 'outputs__date--none': output.latest === null }"
+            >
               {{
                 output.latest === null
                   ? t('profiles.noArtifact')
@@ -654,6 +657,12 @@ const onRowMenu = (output: OutputCard, key: string): void => {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* A date fits the column; the words saying there is no file do not in every
+   language, and cut short they no longer say it. They wrap instead. */
+.outputs__date--none {
+  white-space: normal;
 }
 
 .outputs__actions {

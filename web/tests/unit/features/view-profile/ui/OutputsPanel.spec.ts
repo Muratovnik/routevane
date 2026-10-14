@@ -397,3 +397,19 @@ describe('OutputsPanel row actions', () => {
     ).toEqual(['Rebuild', 'Remove format…'])
   })
 })
+
+describe('OutputsPanel updated column', () => {
+  beforeEach(() => useLocale().setLocale('ru'))
+
+  // The column is sized for a date. The words that stand in for a date when
+  // nothing was published are longer in Russian, and cut to an ellipsis they
+  // no longer say there is no file.
+  it('shows the whole words for a format that never published', async () => {
+    const screen = await renderPanel()
+
+    const none = screen.getByText('Файл не опубликован', { exact: true })
+    await expect.element(none).toBeVisible()
+    const element = none.element() as HTMLElement
+    expect(element.scrollWidth).toBeLessThanOrEqual(element.clientWidth)
+  })
+})
