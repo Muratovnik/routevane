@@ -31,8 +31,6 @@ const ru: Dictionary = {
     'Недостаточно актуальных данных для расчёта. Повторите обновление источников.',
   'forecast.failure.unavailable': 'Расчёт недоступен. Повторите попытку.',
   'forecast.partial.target': 'Неполный расчёт',
-  'forecast.partial.table':
-    'Данные для {n} из {m} списков. Пересечения — среди них.',
   'forecast.partial.missing': 'Списки без подходящих данных',
   'forecast.partial.explanation':
     'Для этих списков нет данных, подходящих выбранному формату. Обновите источники или выберите другой формат:',
@@ -58,33 +56,6 @@ const ru: Dictionary = {
   'lists.priority.column': 'Приоритет',
   'lists.priority.cancel': 'Отменить порядок',
 
-  'overlaps.title': 'Как разрешаются пересечения',
-  'overlaps.loading': 'Обновляем прогноз файла…',
-  'overlaps.stale': 'Обновляем расчёт; ниже предыдущий результат.',
-  'overlaps.unavailable': 'Пересечения пока неизвестны',
-  'overlaps.unavailable.body':
-    'Не удалось получить прогноз для этого состава. Повторите расчёт.',
-  'overlaps.projection': '{target}: прогноз файла — {count} записей.',
-  'overlaps.meaning':
-    'Совпавшая запись относится к списку, который стоит выше в приоритете. Если нижний список содержит более широкую сеть, она сохраняется: иначе пропадут уникальные адреса.',
-  'overlaps.resolve.title': 'Ничего разбирать вручную не нужно',
-  'overlaps.resolve.body':
-    'Routevane применит порядок списков при сохранении и сборке профиля.',
-  'overlaps.resolve.scope': 'Порядок действует только в этом профиле.',
-  'overlaps.found': 'Пересечения найдены и будут разрешены автоматически.',
-  'overlaps.openList': 'Открыть «{list}»',
-  'overlaps.empty': 'Между списками нет одинаковых правил или покрытия.',
-  'overlaps.duplicate': 'Одинаковое правило',
-  'overlaps.covered': 'Покрытие другим списком',
-  'overlaps.covering': 'Покрывается правилом',
-  'overlaps.truncated':
-    'Показаны первые {count} пересечений. Есть ещё; сузьте состав для подробного разбора.',
-  'overlaps.rule.domain_exact': 'Только этот домен',
-  'overlaps.rule.domain_suffix': 'Домен и поддомены',
-  'overlaps.rule.ipv4': 'IPv4-адрес',
-  'overlaps.rule.ipv6': 'IPv6-адрес',
-  'overlaps.rule.prefix4': 'IPv4-сеть',
-  'overlaps.rule.prefix6': 'IPv6-сеть',
   'shell.product': 'Routevane',
   'shell.nav': 'Разделы',
   'shell.nav.profiles': 'Профили',
@@ -112,8 +83,6 @@ const ru: Dictionary = {
   'devices.requirements.failed': 'Параметры подключения не загружены',
   'devices.requirements.failed.body':
     'Сохранённые подключения показаны. Повторите чтение, чтобы зарегистрировать новое или включить автоотправку.',
-  'devices.requirements.dependency':
-    'Регистрация и включение автоотправки недоступны, пока параметры подключения не прочитаны.',
   'devices.requirements.reading': 'Читаем параметры подключения…',
   'devices.empty': 'Подключений пока нет',
   'devices.empty.body':
@@ -212,21 +181,11 @@ const ru: Dictionary = {
   'profiles.copy': 'Скопировать содержимое',
   'profiles.copied': 'Содержимое скопировано',
   'profiles.copyFailed': 'Не удалось скопировать',
-  'profiles.send': 'Отправить файл',
   'profiles.noArtifact': 'Файл не опубликован',
-  'profiles.download': 'Скачать {format}',
-  'profiles.download.plain': 'Скачать файл',
-  'profiles.download.aria': 'Скачать файл профиля {name}',
-  'profiles.download.menu': 'Скачать',
-  'profiles.download.menu.aria': 'Выбрать формат скачивания профиля {name}',
-  'profiles.download.option': '{target} · {format}',
   'profiles.noOutputs': 'Нет форматов',
-  'profiles.export.item': 'Скачать · {format}',
   'profiles.export.failed': 'Файл не подготовлен',
   'profiles.export.failed.body':
     'Попробуйте другой формат или обновите данные профиля.',
-  'profiles.sendTarget': 'Отправить на {target}',
-  'profiles.sendTarget.aria': 'Отправить профиль {name} на {target}',
   'profiles.imported.title': {
     few: '{count} профиля восстановлено из предыдущей версии',
     many: '{count} профилей восстановлено из предыдущей версии',
@@ -242,7 +201,6 @@ const ru: Dictionary = {
   'profiles.allArchived': 'Все профили в архиве',
   'profiles.allArchived.body': 'Верните профиль из архива или соберите новый.',
   'profiles.restore': 'Вернуть из архива',
-  'profiles.restore.aria': 'Вернуть профиль {name} из архива',
   'profiles.archive.failed':
     'Профиль {name} не перенесён в архив. Повторите попытку.',
   'profiles.restore.failed':
@@ -279,14 +237,12 @@ const ru: Dictionary = {
 
   'create.title': 'Новый профиль',
   'create.lists': 'Списки',
-  'create.categories': 'Категории',
   'create.category.size': {
     few: '{count} списка',
     many: '{count} списков',
     one: '{count} список',
     other: '{count} списка',
   },
-  'create.list.fromCategory': 'Уже в категории',
   'create.search': 'Найти список',
   'create.noMatches': 'По запросу «{query}» ничего нет',
   'create.resolved': {
@@ -351,10 +307,6 @@ const ru: Dictionary = {
   'category.work': 'Работа',
 
   'listPicker.collections': 'Категории',
-  'listPicker.configure': 'Состав',
-  'listPicker.configure.aria': 'Показать состав категории {category}',
-  'listPicker.back': 'Все категории',
-  'listPicker.detail.title': 'Списки: {category}',
   'listPicker.other': 'Без категории',
   'listPicker.refresh': 'Обновить списки',
   'listPicker.filter.more': 'Ещё',
@@ -365,20 +317,11 @@ const ru: Dictionary = {
   'listPicker.future.enable': 'Автоматически включать новые списки категории',
   'listPicker.future.disable': 'Выбирать новые списки вручную',
   'listPicker.follow': 'Следовать категории «{category}»',
-  'listPicker.follow.members': {
-    few: '{count} списка',
-    many: '{count} списков',
-    one: '{count} список',
-    other: '{count} списка',
-  },
-  'listPicker.column.include': 'Включить',
   'listPicker.column.list': 'Список',
   'listPicker.column.category': 'Категория',
   'listPicker.column.rules': 'Правила',
   'listPicker.column.overlaps': 'Пересечения',
   'listPicker.column.open': 'Открыть',
-  'listPicker.group.selected': 'Выбрано в профиль',
-  'listPicker.group.available': 'Доступные списки',
   'listPicker.include.aria': 'Добавить {list} в профиль',
   'listPicker.exclude.aria': 'Убрать {list} из профиля',
   'listPicker.rules.pending': 'Считаем…',
@@ -387,7 +330,6 @@ const ru: Dictionary = {
   'listPicker.overlap.unavailable':
     'Выберите формат, чтобы проверить пересечения',
   'listPicker.overlap.unknown': 'Пересечения неизвестны',
-  'listPicker.overlap.none': 'Нет',
   'create.settings': 'Параметры профиля',
   'listPicker.column.priority': 'Приоритет',
   'listPicker.overlap.legend':
@@ -566,7 +508,6 @@ const ru: Dictionary = {
   'listCard.origin.manual': 'вручную',
   'listCard.origin.missing': 'выключен; сейчас не встречается',
   'listCard.loading': 'Загружаем состав списка…',
-  'listCard.failed': 'Состав списка не загрузился',
   'listCard.membership.active': 'Активен',
   'listCard.membership.inactive': 'Неактивен',
   'listCard.openLibrary': 'Открыть в библиотеке',
@@ -590,7 +531,6 @@ const ru: Dictionary = {
   'profile.status.warning': 'Опубликовано с замечаниями',
   'profile.status.empty': 'Нет опубликованных файлов',
   'profile.status.failed': 'Ошибка обновления',
-  'profile.tab.overview': 'Обзор',
   'profile.tab.composition': 'Состав',
   'profile.tab.outputs': 'Публикация',
   'profile.tab.file': 'Файл',
@@ -652,7 +592,6 @@ const ru: Dictionary = {
   'profile.subscription.copy': 'Скопировать',
   'profile.subscription.copied': 'Скопирована',
   'profile.subscription.copyFailed': 'Не удалось скопировать',
-  'profile.download': 'Скачать {format}',
   'profile.download.plain': 'Скачать файл',
   'profile.notice.preparing': 'Готовим формат…',
   'profile.notice.preparing.body':
@@ -715,7 +654,6 @@ const ru: Dictionary = {
   'profile.technical.contentType': 'Тип содержимого',
   'profile.technical.size': 'Размер',
   'profile.panel.scope': 'Формат файла',
-  'profile.edit': 'Изменить',
   'profile.notice.archived': 'Профиль в архиве',
   'profile.notice.archived.body':
     'Он не обновляется и не редактируется. Опубликованный файл и ссылка подписки продолжают работать.',
@@ -738,11 +676,6 @@ const ru: Dictionary = {
   'profile.edit.discard': 'Отменить изменения',
   'profile.edit.saving': 'Сохраняем…',
   'profile.composition.lists': 'Списки профиля',
-  'profile.composition.empty': 'В профиле пока нет списков.',
-  'profile.composition.add': 'Добавить списки',
-  'profile.composition.hide': 'Скрыть',
-  'profile.composition.hide.aria': 'Скрыть каталог',
-  'profile.composition.remove.aria': 'Убрать {list} из профиля',
   'profile.priority.title': 'В профиле',
   'profile.priority.body': 'Порядок списков задаёт приоритет.',
   'profile.priority.count': {
@@ -1071,8 +1004,6 @@ const en: Dictionary = {
     'Not enough current source data to calculate. Retry the source refresh.',
   'forecast.failure.unavailable': 'Calculation unavailable. Try again.',
   'forecast.partial.target': 'Some lists could not be calculated',
-  'forecast.partial.table':
-    'Data for {n} of {m} lists. Intersections are between these lists.',
   'forecast.partial.missing': 'Lists without usable data',
   'forecast.partial.explanation':
     'These lists have no data usable by the selected format. Refresh sources or choose another format:',
@@ -1098,34 +1029,6 @@ const en: Dictionary = {
   'lists.priority.column': 'Priority',
   'lists.priority.cancel': 'Reset order',
 
-  'overlaps.title': 'How overlaps are resolved',
-  'overlaps.loading': 'Updating the file forecast…',
-  'overlaps.stale':
-    'Updating the calculation; the previous result is shown below.',
-  'overlaps.unavailable': 'Overlaps are not known yet',
-  'overlaps.unavailable.body':
-    'The forecast for this composition could not be read. Try the calculation again.',
-  'overlaps.projection': '{target}: file forecast — {count} entries.',
-  'overlaps.meaning':
-    'A matching entry belongs to the list with the higher priority. A wider network from a lower list remains when removing it would lose unique addresses.',
-  'overlaps.resolve.title': 'No manual cleanup is required',
-  'overlaps.resolve.body':
-    'Routevane applies the list order when the profile is saved and built.',
-  'overlaps.resolve.scope': 'The order applies only to this profile.',
-  'overlaps.found': 'Overlaps were found and will be resolved automatically.',
-  'overlaps.openList': 'Open “{list}”',
-  'overlaps.empty': 'No identical rules or containment between these lists.',
-  'overlaps.duplicate': 'Identical rule',
-  'overlaps.covered': 'Covered by another list',
-  'overlaps.covering': 'Covered by rule',
-  'overlaps.truncated':
-    'Showing the first {count} overlaps. There are more; narrow the composition to inspect them.',
-  'overlaps.rule.domain_exact': 'Only this domain',
-  'overlaps.rule.domain_suffix': 'Domain and subdomains',
-  'overlaps.rule.ipv4': 'IPv4 address',
-  'overlaps.rule.ipv6': 'IPv6 address',
-  'overlaps.rule.prefix4': 'IPv4 network',
-  'overlaps.rule.prefix6': 'IPv6 network',
   'shell.product': 'Routevane',
   'shell.nav': 'Sections',
   'shell.nav.profiles': 'Profiles',
@@ -1153,8 +1056,6 @@ const en: Dictionary = {
   'devices.requirements.failed': 'Connection requirements unavailable',
   'devices.requirements.failed.body':
     'Saved connections are shown. Retry the read to register a new one or turn on automatic delivery.',
-  'devices.requirements.dependency':
-    'Registration and turning on automatic delivery are unavailable until connection requirements are read.',
   'devices.requirements.reading': 'Reading connection requirements…',
   'devices.empty': 'No connections yet',
   'devices.empty.body':
@@ -1254,21 +1155,11 @@ const en: Dictionary = {
   'profiles.copy': 'Copy contents',
   'profiles.copied': 'Contents copied',
   'profiles.copyFailed': 'Copying failed',
-  'profiles.send': 'Send the file',
   'profiles.noArtifact': 'No published file',
-  'profiles.download': 'Download {format}',
-  'profiles.download.plain': 'Download the file',
-  'profiles.download.aria': 'Download the file of profile {name}',
-  'profiles.download.menu': 'Download',
-  'profiles.download.menu.aria': 'Choose a download format for profile {name}',
-  'profiles.download.option': '{target} · {format}',
   'profiles.noOutputs': 'No formats',
-  'profiles.export.item': 'Download · {format}',
   'profiles.export.failed': 'The file was not prepared',
   'profiles.export.failed.body':
     'Try another format or refresh the profile data.',
-  'profiles.sendTarget': 'Send to {target}',
-  'profiles.sendTarget.aria': 'Send profile {name} to {target}',
   'profiles.imported.title': {
     one: '{count} profile restored from the previous version',
     other: '{count} profiles restored from the previous version',
@@ -1283,7 +1174,6 @@ const en: Dictionary = {
   'profiles.allArchived.body':
     'Restore one from the archive, or build a new one.',
   'profiles.restore': 'Restore',
-  'profiles.restore.aria': 'Restore profile {name} from the archive',
   'profiles.archive.failed': 'Profile {name} was not archived. Try again.',
   'profiles.restore.failed':
     'Profile {name} was not restored from the archive. Try again.',
@@ -1319,12 +1209,10 @@ const en: Dictionary = {
 
   'create.title': 'New profile',
   'create.lists': 'Lists',
-  'create.categories': 'Categories',
   'create.category.size': {
     one: '{count} list',
     other: '{count} lists',
   },
-  'create.list.fromCategory': 'Already in a category',
   'create.search': 'Find a list',
   'create.noMatches': 'Nothing matches “{query}”',
   'create.resolved': {
@@ -1384,10 +1272,6 @@ const en: Dictionary = {
   'category.work': 'Work',
 
   'listPicker.collections': 'Categories',
-  'listPicker.configure': 'Contents',
-  'listPicker.configure.aria': 'Show the contents of category {category}',
-  'listPicker.back': 'All categories',
-  'listPicker.detail.title': 'Lists: {category}',
   'listPicker.other': 'Uncategorized',
   'listPicker.refresh': 'Refresh lists',
   'listPicker.filter.more': 'More',
@@ -1399,18 +1283,11 @@ const en: Dictionary = {
     'Automatically include new lists in this category',
   'listPicker.future.disable': 'Select new lists manually',
   'listPicker.follow': 'Follow “{category}”',
-  'listPicker.follow.members': {
-    one: '{count} list',
-    other: '{count} lists',
-  },
-  'listPicker.column.include': 'Include',
   'listPicker.column.list': 'List',
   'listPicker.column.category': 'Category',
   'listPicker.column.rules': 'Rules',
   'listPicker.column.overlaps': 'Overlaps',
   'listPicker.column.open': 'Open',
-  'listPicker.group.selected': 'Selected for the profile',
-  'listPicker.group.available': 'Available lists',
   'listPicker.include.aria': 'Add {list} to the profile',
   'listPicker.exclude.aria': 'Remove {list} from the profile',
   'listPicker.rules.pending': 'Calculating…',
@@ -1418,7 +1295,6 @@ const en: Dictionary = {
   'listPicker.overlap.pending': 'Calculating overlaps…',
   'listPicker.overlap.unavailable': 'Choose a format to check overlaps',
   'listPicker.overlap.unknown': 'Overlaps unknown',
-  'listPicker.overlap.none': 'None',
   'create.settings': 'Profile settings',
   'listPicker.column.priority': 'Priority',
   'listPicker.overlap.legend':
@@ -1590,7 +1466,6 @@ const en: Dictionary = {
   'listCard.origin.manual': 'by hand',
   'listCard.origin.missing': 'off; not currently offered',
   'listCard.loading': 'Loading the list contents…',
-  'listCard.failed': 'The list contents did not load',
   'listCard.membership.active': 'Active',
   'listCard.membership.inactive': 'Inactive',
   'listCard.openLibrary': 'Open in the library',
@@ -1614,7 +1489,6 @@ const en: Dictionary = {
   'profile.status.warning': 'Published with notes',
   'profile.status.empty': 'No published files',
   'profile.status.failed': 'Refresh failed',
-  'profile.tab.overview': 'Overview',
   'profile.tab.composition': 'Contents',
   'profile.tab.outputs': 'Publishing',
   'profile.tab.file': 'File',
@@ -1672,7 +1546,6 @@ const en: Dictionary = {
   'profile.subscription.copy': 'Copy',
   'profile.subscription.copied': 'Copied',
   'profile.subscription.copyFailed': 'Copying failed',
-  'profile.download': 'Download {format}',
   'profile.download.plain': 'Download the file',
   'profile.notice.preparing': 'Preparing the format…',
   'profile.notice.preparing.body':
@@ -1734,7 +1607,6 @@ const en: Dictionary = {
   'profile.technical.contentType': 'Content type',
   'profile.technical.size': 'Size',
   'profile.panel.scope': 'File format',
-  'profile.edit': 'Edit',
   'profile.notice.archived': 'This profile is archived',
   'profile.notice.archived.body':
     'It no longer updates and cannot be edited. Its published file and subscription link keep working.',
@@ -1757,11 +1629,6 @@ const en: Dictionary = {
   'profile.edit.discard': 'Discard changes',
   'profile.edit.saving': 'Saving…',
   'profile.composition.lists': 'Lists in the profile',
-  'profile.composition.empty': 'The profile has no lists yet.',
-  'profile.composition.add': 'Add lists',
-  'profile.composition.hide': 'Hide',
-  'profile.composition.hide.aria': 'Hide the catalog',
-  'profile.composition.remove.aria': 'Remove {list} from the profile',
   'profile.priority.title': 'In the profile',
   'profile.priority.body': 'List order sets the priority.',
   'profile.priority.count': {
