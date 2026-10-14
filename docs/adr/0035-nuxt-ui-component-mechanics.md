@@ -67,6 +67,17 @@ decision is meant to stop owning.
 - Adoption is incremental. A raw control is replaced when its owning flow is
   changed and the facade has regression coverage; installing the library does
   not authorize an unrelated whole-interface rewrite.
+- `RvMenu` stays on Reka's dropdown parts. `UDropdownMenu` in Nuxt UI 4.11.2
+  binds each submenu's `DropdownMenu.Sub` to the item's `open` and
+  `defaultOpen` alone, with no listener for its open change and nothing passed
+  to its trigger, so a facade can neither see nor refuse a submenu's request
+  to open. Reka UI 2.10.4 still opens a group from a hover timer queued before
+  ArrowLeft closed it; `RvMenu` holds each group's open state itself and
+  refuses that late request until fresh input reaches the group's trigger.
+  With the library's uncontrolled submenu that refusal has no place to live,
+  and the unit spec for it fails. Reconsider when the library passes a
+  submenu's open change to its item, or Reka clears the timer when a submenu
+  closes.
 - `RvDisclosure` retains its small local state adapter and CSS grid transition.
   Reka Collapsible 2.10.4 can retain content with `unmountOnHide=false`, but then
   hides it with `hidden="until-found"` and reopens it on browser find. With
