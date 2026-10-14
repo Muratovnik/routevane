@@ -292,7 +292,11 @@ const displayName = computed(() => {
 watch(tab, (value) => {
   if (value === 'file') void view.openContent()
   if (value === 'diagnostics') void view.openDiagnostics()
-  void router.replace({ hash: profilePageHash({ tab: value }) })
+  // A tab the operator chose is a place they can come back from, so it takes a
+  // history entry of its own. A tab that the address already names — the
+  // browser's Back or Forward moved there — has its entry and adds no second.
+  if (pageLocation.value.tab !== value)
+    void router.push({ hash: profilePageHash({ tab: value }) })
 })
 
 // A restored tab can be active before its output arrives. Detail loading follows

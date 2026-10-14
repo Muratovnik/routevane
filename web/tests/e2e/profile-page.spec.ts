@@ -448,6 +448,46 @@ test('send links navigate through the router for one and multiple published outp
   )
 })
 
+test('Back retraces the tabs the operator opened and then leaves the profile', async ({
+  page,
+  origin,
+}) => {
+  const { profileId } = await buildProfile(page, origin)
+  // Arrive from the shelf, so that leaving the profile has a known place to go.
+  await page.goto(`${origin}/`)
+  await linkTo(page, `/profiles/${profileId}`).click()
+  await page.waitForURL(`${origin}/profiles/${profileId}`)
+  const tablist = page.getByRole('tablist', { name: 'Profile sections' })
+  const selected = (name: string) =>
+    tablist.getByRole('tab', { name, selected: true })
+
+  await expect(selected('Contents')).toBeVisible()
+  await tablist.getByRole('tab', { name: 'Publishing' }).click()
+  await expect(page).toHaveURL(`${origin}/profiles/${profileId}#tab=outputs`)
+  await tablist.getByRole('tab', { name: 'File' }).click()
+  await expect(page).toHaveURL(`${origin}/profiles/${profileId}#tab=file`)
+  await expect(selected('File')).toBeVisible()
+
+  await page.goBack()
+  await expect(page).toHaveURL(`${origin}/profiles/${profileId}#tab=outputs`)
+  await expect(selected('Publishing')).toBeVisible()
+  await page.goBack()
+  await expect(page).toHaveURL(`${origin}/profiles/${profileId}`)
+  await expect(selected('Contents')).toBeVisible()
+  // The tab Back returned to did not push an entry of its own: one more Back
+  // is the shelf, not the tab it just left.
+  await page.goBack()
+  await expect(page).toHaveURL(`${origin}/`)
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Profiles' }),
+  ).toBeVisible()
+  // And Forward walks the same way back in.
+  await page.goForward()
+  await expect(selected('Contents')).toBeVisible()
+  await page.goForward()
+  await expect(selected('Publishing')).toBeVisible()
+})
+
 test('the header menu names each act in the words of the shelf row menu', async ({
   page,
   origin,
