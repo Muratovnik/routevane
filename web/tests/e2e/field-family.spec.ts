@@ -114,8 +114,18 @@ for (const colorScheme of ['dark', 'light'] as const) {
     expect(await paint(address)).toEqual(rest)
 
     // Nothing stands under the field while nothing is wrong: the explanation is
-    // the informer's, the example is the placeholder.
-    expect(await described(routes)).toEqual([])
+    // the informer's, the example is the placeholder. The explanation is still
+    // the field's description, kept out of sight, so a reader hears it.
+    const explanation = englishCopy('deploy.field.interface.keenetic.hint')
+    expect(await described(routes)).toEqual([explanation])
+    // Drawn nowhere: every box holding the words is at most a hairline.
+    const boxes = await page
+      .getByText(explanation, { exact: true })
+      .evaluateAll((nodes) =>
+        nodes.map((node) => node.getBoundingClientRect().height),
+      )
+    expect(boxes.length).toBeGreaterThan(0)
+    for (const height of boxes) expect(height).toBeLessThanOrEqual(1)
     await expect(routes).not.toHaveAttribute('aria-invalid')
     await expect(routes).toHaveAttribute(
       'placeholder',
@@ -124,7 +134,13 @@ for (const colorScheme of ['dark', 'light'] as const) {
 
     // Keyboard traversal reaches the field and draws a ring of at least two
     // pixels (docs/UI.md, Accessibility).
+    // The informer stands in the label row before the control, so the
+    // keyboard meets it first, in the order the row is read.
     await account.focus()
+    await page.keyboard.press('Tab')
+    await expect(
+      page.getByRole('button', { name: 'What the interface field takes' }),
+    ).toBeFocused()
     await page.keyboard.press('Tab')
     await expect(routes).toBeFocused()
     const focused = await paint(routes)
@@ -136,16 +152,16 @@ for (const colorScheme of ['dark', 'light'] as const) {
       .poll(async () => (await paint(routes)).outlineColor)
       .toBe(focusColor)
 
-    // Leaving the field empty states the omission under the control, and the
-    // description names only what is on the screen.
+    // Leaving the field empty states the omission under the control. The
+    // description is the explanation and the error that is actually shown.
     await page.keyboard.press('Shift+Tab')
     const required = englishCopy('devices.validation.required')
     await expect(routes).toHaveAttribute('aria-invalid', 'true')
-    expect(await described(routes)).toEqual([required])
+    expect(await described(routes)).toEqual([explanation, required])
 
     await routes.fill('Wireguard0')
     await expect(routes).not.toHaveAttribute('aria-invalid')
-    expect(await described(routes)).toEqual([])
+    expect(await described(routes)).toEqual([explanation])
 
     expect(await audit(page, `field-family-${colorScheme}`)).toEqual([])
     assertProductAlive()

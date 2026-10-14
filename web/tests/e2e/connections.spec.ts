@@ -227,8 +227,8 @@ test('the device form asks only for fields the selected target needs', async ({
     .getByRole('button', { name: 'What the interface field takes' })
     .click()
   await expect(
-    page.getByText('The ID of the Keenetic connection or interface.'),
-  ).toBeVisible()
+    page.getByRole('dialog', { name: 'What the interface field takes' }),
+  ).toHaveText('The ID of the Keenetic connection or interface.')
   await page.keyboard.press('Escape')
   await keeneticAddress.fill('http://10.255.0.1')
   await deviceField(page, 'deploy.field.account.keenetic').fill('admin')
