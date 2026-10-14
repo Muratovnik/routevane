@@ -8,10 +8,11 @@ import type { SegmentOption } from '@/shared/ui/types'
  * carry the semantics, so keyboard and screen-reader behaviour is the platform's
  * rather than ours.
  *
- * The chosen option is told from the others by more than a shade: an accent
- * edge that stands off the track by the 3:1 non-text contrast WCAG asks for, and
- * a check mark. The mark holds its place in every option and is only drawn on
- * the chosen one, so choosing another never moves the words.
+ * The chosen option is told from the others by a shape, not by a colour: it
+ * stands raised out of the track on a neutral surface with a hairline edge, and
+ * it carries a check mark. The mark holds its place in every option and is only
+ * drawn on the chosen one, so choosing another never moves the words. The
+ * accent colour is not used here; the mark is what states the choice.
  */
 const props = withDefaults(
   defineProps<{
@@ -136,7 +137,7 @@ const select = (value: string, event: Event): void => {
   font-weight: 600;
   font-size: var(--rv-text-dense);
 
-  /* The edge exists on every option and is only coloured on the chosen one, so
+  /* The edge exists on every option and is only drawn on the chosen one, so
      the chosen option is no larger than the others. */
   border: var(--rv-border-hair) solid transparent;
   border-radius: var(--rv-radius-sm);
@@ -155,8 +156,9 @@ const select = (value: string, event: Event): void => {
 
 .rv-segmented__option--active {
   color: var(--rv-color-ink);
-  background: var(--rv-color-accent-quiet);
-  border-color: var(--rv-color-accent);
+  background: var(--rv-color-surface-raised);
+  border-color: var(--rv-color-rule-raised);
+  box-shadow: var(--rv-shadow-panel);
 }
 
 .rv-segmented__body {
@@ -168,7 +170,7 @@ const select = (value: string, event: Event): void => {
 .rv-segmented__mark {
   display: inline-flex;
   visibility: hidden;
-  color: var(--rv-color-accent-ink);
+  color: var(--rv-color-ink);
 }
 
 .rv-segmented__option--active .rv-segmented__mark {

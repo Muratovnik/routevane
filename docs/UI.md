@@ -416,8 +416,9 @@ Sections, addressable by URL:
    switch each under «Предлагать при добавлении формата»; a switch states what
    this browser holds and is the only place that preference is changed. An
    unreadable catalog says so with a retry instead of an empty list. The
-   segmented choices mark the chosen option with a border, a ground and a check
-   mark, so the choice does not rest on colour alone. Every section uses one surface and grid: title and explanation
+   segmented choices raise the chosen option on a neutral surface with a hairline
+   edge and a check mark, without the accent colour, so the choice does not rest
+   on colour alone. Every section uses one surface and grid: title and explanation
    on the left, related controls and actions on the right. On constrained
    screens the heading precedes its content. Surface contrast, padding and
    whitespace distinguish sections without horizontal separators. Interface

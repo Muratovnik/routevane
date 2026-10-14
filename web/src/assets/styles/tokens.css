@@ -69,6 +69,14 @@
   --rv-color-danger: var(--rv-red-400);
   --rv-color-danger-hover: #f39a91;
   --rv-color-danger-quiet: #3a2624;
+
+  /* A surface that stands above the page's own surfaces: a menu, a list that
+   * opens from a field, the chosen option of a segmented choice. It is a step
+   * lighter than a surface in dark, where a shadow lifts nothing, and its edge
+   * is the hairline that can be seen against the canvas. */
+  --rv-color-surface-raised: #30353a;
+  --rv-color-surface-raised-hover: #3b4147;
+  --rv-color-rule-raised: #4f575f;
   --rv-color-status-ready: var(--rv-green-400);
   --rv-color-status-warning: var(--rv-amber-400);
   --rv-color-status-failed: var(--rv-red-400);
@@ -340,6 +348,9 @@
     --rv-color-danger: var(--rv-red-600);
     --rv-color-danger-hover: #842a2a;
     --rv-color-danger-quiet: rgb(155 49 49 / 10%);
+    --rv-color-surface-raised: var(--rv-white-000);
+    --rv-color-surface-raised-hover: var(--rv-paper-300);
+    --rv-color-rule-raised: rgb(20 24 21 / 28%);
     --rv-color-status-ready: var(--rv-green-600);
     --rv-color-status-warning: var(--rv-amber-600);
     --rv-color-status-failed: var(--rv-red-600);
@@ -377,6 +388,9 @@
   --rv-color-danger: var(--rv-red-600);
   --rv-color-danger-hover: #842a2a;
   --rv-color-danger-quiet: rgb(155 49 49 / 10%);
+  --rv-color-surface-raised: var(--rv-white-000);
+  --rv-color-surface-raised-hover: var(--rv-paper-300);
+  --rv-color-rule-raised: rgb(20 24 21 / 28%);
   --rv-color-status-ready: var(--rv-green-600);
   --rv-color-status-warning: var(--rv-amber-600);
   --rv-color-status-failed: var(--rv-red-600);

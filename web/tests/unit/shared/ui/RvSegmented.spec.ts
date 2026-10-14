@@ -3,6 +3,8 @@ import { render } from 'vitest-browser-vue'
 
 import RvSegmented from '@/shared/ui/RvSegmented.vue'
 
+import { contrast, inTheme } from './support/contrast'
+
 const OPTIONS = [
   { label: 'Automatic', value: 'auto' },
   { label: 'By hand', value: 'manual' },
@@ -46,8 +48,8 @@ describe('RvSegmented', () => {
   })
 
   // The chosen option has to be told from the others by more than a shade:
-  // a mark that holds its place in every option, drawn only on the chosen one,
-  // and an edge that stands off the track by the non-text contrast WCAG asks.
+  // a mark that holds its place in every option and is drawn only on the
+  // chosen one.
   it('marks the chosen option with a shape, and the mark holds its place', async () => {
     const screen = await renderSegmented()
     const option = (label: string) =>
@@ -77,49 +79,60 @@ describe('RvSegmented', () => {
     ).toEqual(widths)
   })
 
-  it.each(['dark', 'light'])(
-    'stands the chosen option off the track by 3:1 in the %s theme',
+  // The chosen option stands raised out of the track on a neutral surface and
+  // is never drawn in the accent: the check mark states the choice, and the
+  // ground and hairline only lift it. Its words stay readable on that ground,
+  // and so do the words of an option that was not chosen, on the track.
+  it.each(['dark', 'light'] as const)(
+    'raises the chosen option on a neutral surface in the %s theme',
     async (theme) => {
-      document.documentElement.setAttribute('data-rv-theme', theme)
-      try {
+      await inTheme(theme, async () => {
         const screen = await renderSegmented()
-        const chosen = screen
-          .getByRole('radio', { name: 'Automatic' })
-          .element()
-          .closest('label')!
+        const label = (name: string) =>
+          screen.getByRole('radio', { name }).element().closest('label')!
+        const chosen = label('Automatic')
+        const other = label('By hand')
         const track = chosen.parentElement!
-        // A colour with no drawn edge behind it states nothing.
+        const chosenStyle = getComputedStyle(chosen)
+        const trackGround = getComputedStyle(track).backgroundColor
+
+        expect(chosenStyle.backgroundColor).toBe(
+          paintedToken('--rv-color-surface-raised'),
+        )
+        expect(chosenStyle.backgroundColor).not.toBe(trackGround)
+        // An edge is drawn, it is the neutral overlay hairline, and it is not
+        // the accent the option used to be outlined with.
+        expect(parseFloat(chosenStyle.borderTopWidth)).toBeGreaterThan(0)
+        expect(chosenStyle.borderTopColor).toBe(
+          paintedToken('--rv-color-rule-raised'),
+        )
+        expect(chosenStyle.borderTopColor).not.toBe(
+          paintedToken('--rv-color-accent'),
+        )
+        expect(getComputedStyle(other).backgroundColor).not.toBe(
+          chosenStyle.backgroundColor,
+        )
         expect(
-          parseFloat(getComputedStyle(chosen).borderTopWidth),
-        ).toBeGreaterThan(0)
-        const edge = getComputedStyle(chosen).borderTopColor
-        const ground = getComputedStyle(track).backgroundColor
-        expect(contrast(edge, ground)).toBeGreaterThanOrEqual(3)
-      } finally {
-        document.documentElement.removeAttribute('data-rv-theme')
-      }
+          contrast(chosenStyle.color, chosenStyle.backgroundColor),
+        ).toBeGreaterThanOrEqual(4.5)
+        expect(
+          contrast(getComputedStyle(other).color, trackGround),
+        ).toBeGreaterThanOrEqual(4.5)
+        await expect
+          .element(screen.getByTestId('rv-segmented-mark-auto'))
+          .toBeVisible()
+      })
     },
   )
 })
 
-const channel = (value: number): number => {
-  const scaled = value / 255
-  return scaled <= 0.03928 ? scaled / 12.92 : ((scaled + 0.055) / 1.055) ** 2.4
-}
-
-const luminance = (color: string): number => {
-  const [red, green, blue] = (color.match(/[\d.]+/g) ?? []).map(Number)
-  return (
-    0.2126 * channel(red ?? 0) +
-    0.7152 * channel(green ?? 0) +
-    0.0722 * channel(blue ?? 0)
-  )
-}
-
-// WCAG relative-luminance contrast of two opaque computed `rgb()` colours.
-const contrast = (first: string, second: string): number => {
-  const [lighter, darker] = [luminance(first), luminance(second)].sort(
-    (a, b) => b - a,
-  )
-  return (lighter! + 0.05) / (darker! + 0.05)
+// A token as the browser paints it, read off a probe rather than from the
+// token's text: the hairline is written with an alpha channel in light.
+const paintedToken = (name: string): string => {
+  const probe = document.createElement('span')
+  probe.style.background = `var(${name})`
+  document.body.append(probe)
+  const painted = getComputedStyle(probe).backgroundColor
+  probe.remove()
+  return painted
 }
