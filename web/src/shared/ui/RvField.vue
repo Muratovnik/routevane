@@ -137,13 +137,14 @@ const failure = computed(() =>
     <!-- The library draws the error's line whenever this slot exists, so the
          slot is always given and the line it keeps is one line tall whether or
          not an error is in it: leaving a field with a refused value must not
-         move what is under it, or a click aimed there lands beside it. -->
+         move what is under it, or a click aimed there lands beside it. An
+         announced error is a live region that stands from the moment the field
+         is drawn and only receives its text: a region that arrives together
+         with its text is not reliably announced. -->
     <template #error>
       <span
         class="rv-field__error"
-        :role="
-          announceError === true && failure !== undefined ? 'alert' : undefined
-        "
+        :role="announceError === true ? 'alert' : undefined"
         >{{ failure }}</span
       >
     </template>

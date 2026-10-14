@@ -40,15 +40,21 @@ const describedTexts = (element: Element): string[] =>
     .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
 
 describe('RvField', () => {
-  it('announces an opted-in error once and clears the live region when resolved', async () => {
+  // A live region is announced when its text changes, not when it is added with
+  // its text, so the region has to stand before the error arrives and keep the
+  // same node while the text comes and goes.
+  it('keeps one live region standing and only changes its text for an opted-in error', async () => {
     const screen = await render(TextField, {
       props: { announceError: true, error: '' },
     })
-    await expect.element(screen.getByRole('alert')).not.toBeInTheDocument()
+    const region = screen.getByRole('alert')
+    const standing = region.element()
+    await expect.element(region).toBeEmptyDOMElement()
     await screen.rerender({ error: 'The file could not be read.' })
     await expect
       .element(screen.getByRole('alert'))
       .toHaveTextContent('The file could not be read.')
+    expect(screen.getByRole('alert').element()).toBe(standing)
     expect(
       describedTexts(
         screen.getByLabelText('Address', { exact: true }).element(),
@@ -58,7 +64,8 @@ describe('RvField', () => {
       screen.getByText('The file could not be read.', { exact: true }).all(),
     ).toHaveLength(1)
     await screen.rerender({ error: '' })
-    await expect.element(screen.getByRole('alert')).not.toBeInTheDocument()
+    await expect.element(screen.getByRole('alert')).toBeEmptyDOMElement()
+    expect(screen.getByRole('alert').element()).toBe(standing)
     await expect
       .element(screen.getByLabelText('Address', { exact: true }))
       .not.toHaveAttribute('aria-describedby')

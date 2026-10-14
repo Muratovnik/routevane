@@ -747,7 +747,10 @@ opening the informer. Under the control there is only the error. The `label-asid
 slot is the label row's place for any other small control. The field keeps one line for
 that error whether or not it is shown, so a refused value stated on leaving the
 field never moves the controls below it: a press aimed at the button under the
-field, made in the same motion that leaves it, still lands on the button. A file
+field, made in the same motion that leaves it, still lands on the button. An
+error that arrives while focus is elsewhere is announced by a live region that
+stands from the first draw of the field and only receives the text; a region
+that appears together with its text is not reliably announced. A file
 picker is the one control with a line of its own under the label: which files it
 takes is a fact needed before one is chosen, not an explanation. A disabled text field takes the
 library's disabled look, reduced opacity, rather than a colour of its own. A
