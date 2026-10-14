@@ -7,6 +7,8 @@ import type { ChoiceGroup, ChoiceOption } from '@/shared/ui/types'
 import RvField from '@/shared/ui/RvField.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 
+import { contrast, inTheme, paintedToken } from './support/contrast'
+
 const OPTIONS: ChoiceOption[] = [
   { label: 'As in settings', value: 'default' },
   { label: 'Off', value: 'off' },
@@ -201,4 +203,40 @@ describe('RvSelect, panel name', () => {
       .element(screen.getByRole('listbox', { name: 'Refresh' }))
       .toBeVisible()
   })
+})
+
+// A trigger that cannot be used now has to read as unavailable beside the same
+// trigger when it can: flat, dimmer, and drawn with the faint rule.
+describe('RvSelect, unavailable', () => {
+  it.each(['dark', 'light'] as const)(
+    'draws a disabled trigger apart from an enabled one in the %s theme',
+    async (theme) => {
+      await inTheme(theme, async () => {
+        const enabled = await renderSelect({
+          inputId: 'choice-enabled',
+          options: OPTIONS,
+        })
+        const disabled = await renderSelect({
+          disabled: true,
+          inputId: 'choice-disabled',
+          options: OPTIONS,
+        })
+
+        const on = getComputedStyle(
+          enabled.getByRole('combobox').first().element(),
+        )
+        const off = getComputedStyle(
+          disabled.getByRole('combobox').last().element(),
+        )
+        expect(off.color).not.toBe(on.color)
+        expect(off.color).toBe(paintedToken('--rv-color-ink-disabled'))
+        expect(off.backgroundColor).not.toBe(on.backgroundColor)
+        expect(off.boxShadow).not.toBe(on.boxShadow)
+        expect(off.opacity).toBe('1')
+        expect(
+          contrast(off.color, paintedToken('--rv-color-canvas')),
+        ).toBeGreaterThanOrEqual(3)
+      })
+    },
+  )
 })

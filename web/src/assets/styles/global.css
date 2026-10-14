@@ -84,6 +84,21 @@ ol {
     var(--rv-shadow-raised);
 }
 
+/* A choice trigger that cannot be used now is flat, dimmer and drawn with the
+ * faint rule, as an unavailable button is. The library only lowers its opacity
+ * a quarter, which leaves it looking like the enabled trigger beside it. The
+ * classes are the facades': a select, a field-size search select and the
+ * compact one. */
+.rv-select:disabled,
+.rv-search-select:disabled,
+.rv-search-select__trigger:disabled {
+  color: var(--rv-color-ink-disabled);
+  background: transparent;
+  box-shadow: inset 0 0 0 var(--rv-border-hair) var(--rv-color-rule);
+  opacity: 1;
+  cursor: not-allowed;
+}
+
 /* The focus ring is a role, not a per-component decision: two device pixels of
  * ring plus an offset so it stays visible on a filled control. */
 :focus-visible {

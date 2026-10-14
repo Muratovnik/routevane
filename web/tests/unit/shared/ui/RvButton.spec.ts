@@ -127,6 +127,41 @@ describe('RvButton', () => {
     await expect.element(archive).not.toHaveClass('rv-button--danger')
   })
 
+  // An unavailable button has to read as unavailable beside the same button
+  // when it is available: it gives up its ground and its words dim, yet they stay legible (disabled controls are exempt from 4.5:1, not
+  // from being read).
+  it.each(['dark', 'light'] as const)(
+    'draws an unavailable button apart from an available one in the %s theme',
+    async (theme) => {
+      await inTheme(theme, async () => {
+        const screen = await render(RvButton, {
+          props: { variant: 'secondary' },
+          slots: { default: 'Add format' },
+        })
+        await render(RvButton, {
+          props: { disabled: true, variant: 'secondary' },
+          slots: { default: 'Add formats' },
+        })
+        await render(RvButton, {
+          props: { disabled: true, variant: 'quiet' },
+          slots: { default: 'Retry' },
+        })
+
+        const enabled = painted(screen, 'Add format')
+        const disabled = painted(screen, 'Add formats')
+        expect(disabled.backgroundColor).not.toBe(enabled.backgroundColor)
+        expect(disabled.color).not.toBe(enabled.color)
+        expect(disabled.color).toBe(paintedToken('--rv-color-ink-disabled'))
+        // Legible against the surface it stands on, at 3:1.
+        expect(
+          contrast(disabled.color, paintedToken('--rv-color-canvas')),
+        ).toBeGreaterThanOrEqual(3)
+        // A quiet button has no edge to give up, and stays without one.
+        expect(painted(screen, 'Retry').borderTopColor).toBe(TRANSPARENT)
+      })
+    },
+  )
+
   // A button shares the standard field height with the field beside it; only
   // a page header's principal action asks for the larger target, and a row or
   // a filter for the compact one (docs/UI.md, Tokens and State and honesty).

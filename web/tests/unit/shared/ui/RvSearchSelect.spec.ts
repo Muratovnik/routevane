@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { userEvent } from 'vitest/browser'
+import { page, userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
 import { defineComponent } from 'vue'
 
 import type { ChoiceOption } from '@/shared/ui/types'
 import RvField from '@/shared/ui/RvField.vue'
 import RvSearchSelect from '@/shared/ui/RvSearchSelect.vue'
+
+import { contrast, inTheme, paintedToken } from './support/contrast'
 
 const CATEGORIES: ChoiceOption[] = [
   { label: 'Communication', value: 'communication' },
@@ -262,4 +264,32 @@ describe('RvSearchSelect, in a labelled field', () => {
       .element(screen.getByRole('dialog', { name: 'Format' }))
       .toBeVisible()
   })
+})
+
+// "Add a format" with nothing left to add must not look like the enabled
+// trigger beside it: flat, dimmer, and drawn with the faint rule.
+describe('RvSearchSelect, unavailable', () => {
+  it.each(['dark', 'light'] as const)(
+    'draws a disabled trigger apart from an enabled one in the %s theme',
+    async (theme) => {
+      await inTheme(theme, async () => {
+        await renderFilter({ label: 'Open formats' })
+        await renderFilter({ disabled: true, label: 'Closed formats' })
+
+        const style = (name: string) =>
+          getComputedStyle(
+            page.getByRole('button', { name: `${name}: More` }).element(),
+          )
+        const on = style('Open formats')
+        const off = style('Closed formats')
+        expect(off.color).toBe(paintedToken('--rv-color-ink-disabled'))
+        expect(off.color).not.toBe(on.color)
+        expect(off.backgroundColor).not.toBe(on.backgroundColor)
+        expect(off.boxShadow).not.toBe(on.boxShadow)
+        expect(
+          contrast(off.color, paintedToken('--rv-color-canvas')),
+        ).toBeGreaterThanOrEqual(3)
+      })
+    },
+  )
 })

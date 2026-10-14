@@ -166,16 +166,25 @@ const unavailable = computed(
   color: var(--rv-color-ink-muted);
 }
 
+/* A quiet button has no edge to give up, so unavailable it keeps none. */
+.rv-button.rv-button--quiet:disabled,
+.rv-button.rv-button--quiet[aria-disabled='true'] {
+  border-color: transparent;
+}
+
 .rv-button.rv-button--quiet:hover:not(:disabled, [aria-disabled='true']) {
   color: var(--rv-color-ink);
   background: var(--rv-color-surface-muted);
 }
 
+/* An unavailable button gives up its ground and its strong edge: it is flat,
+   dimmer than any available one and drawn with the faint rule, so it cannot be
+   taken for the enabled button it was a moment ago. */
 .rv-button:disabled,
 .rv-button[aria-disabled='true'] {
-  color: var(--rv-color-ink);
-  background: var(--rv-color-surface-muted);
-  border-color: var(--rv-color-rule-strong);
+  color: var(--rv-color-ink-disabled);
+  background: transparent;
+  border-color: var(--rv-color-rule);
   opacity: 1;
   cursor: not-allowed;
 }

@@ -767,6 +767,10 @@ issuing a new link that ends the old one — is the `danger` variant of
 at 4.5:1 or better in both themes. A reversible act, such as archiving or
 restoring, and an additive one, such as applying a reviewed import, keeps the
 primary look.
+An unavailable button or choice trigger is flat and dimmer than an available one:
+it gives up its ground, its words take the disabled ink — legible at 3:1 or
+better in both themes, though a disabled control is exempt from 4.5:1 — and its
+edge is the faint rule. It never keeps the look of the enabled control beside it.
 Icons are hand-set 16-unit strokes, always decorative, always beside or behind an accessible name
 — navigation and menus never go icon-only. A feature that needs a different
 look asks for a role or a variant, never a parallel class. A component is a
