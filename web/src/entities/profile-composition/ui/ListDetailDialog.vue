@@ -826,35 +826,6 @@ watch(contentsState, async (state) => {
   font-size: var(--rv-text-dense);
 }
 
-/* A named action that is not the point of the screen: it reads as a control
-   rather than a link, and it says what it opens and how much is in there. */
-.list-card__quiet {
-  display: inline-flex;
-  gap: var(--rv-space-2);
-  align-items: center;
-  min-height: var(--rv-control-compact);
-  padding: 0 var(--rv-space-2);
-  color: var(--rv-color-ink-muted);
-  font: inherit;
-  font-size: var(--rv-text-dense);
-  background: transparent;
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-sm);
-  cursor: pointer;
-}
-
-.list-card__quiet:hover {
-  color: var(--rv-color-ink);
-  background: var(--rv-color-surface-hover);
-}
-
-.list-card__quiet:disabled {
-  color: var(--rv-color-ink-tertiary);
-  background: transparent;
-  opacity: var(--rv-disabled-opacity);
-  cursor: not-allowed;
-}
-
 .list-card__muted {
   max-width: var(--rv-measure-prose);
   color: var(--rv-color-ink-muted);
@@ -1128,8 +1099,7 @@ watch(contentsState, async (state) => {
 
 .list-card__add:focus-visible,
 .list-card__link:focus-visible,
-.list-card__row-action:focus-visible,
-.list-card__quiet:focus-visible {
+.list-card__row-action:focus-visible {
   outline: var(--rv-border-mark) solid var(--rv-color-focus);
   outline-offset: var(--rv-focus-offset);
 }
