@@ -1487,31 +1487,6 @@ func TestProfileListingServesTheLibraryRows(t *testing.T) {
 	}
 }
 
-func TestProfileListingContinuesWithTheReturnedPathCursor(t *testing.T) {
-	backend := testBackend()
-	backend.profileNext = strings.Repeat("b", 32)
-	server, err := New("http://127.0.0.1:8765", backend, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	get := func(path string) *httptest.ResponseRecorder {
-		t.Helper()
-		request := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8765"+path, nil)
-		request.RemoteAddr = "127.0.0.1:54321"
-		response := httptest.NewRecorder()
-		server.Handler().ServeHTTP(response, request)
-		return response
-	}
-	first := get("/v1/profiles")
-	if first.Code != http.StatusOK || !strings.Contains(first.Body.String(), `"next":"`+backend.profileNext+`"`) {
-		t.Fatalf("first page code=%d body=%s", first.Code, first.Body.String())
-	}
-	second := get("/v1/profile-pages/" + backend.profileNext)
-	if second.Code != http.StatusOK || backend.profileCursor != backend.profileNext {
-		t.Fatalf("continued page code=%d cursor=%q", second.Code, backend.profileCursor)
-	}
-}
-
 // The shelf is a path segment, not a query string, and each half of the library
 // is read from its own address. The archived count rides on every page, so the
 // screen never derives it from the rows it happened to load.
@@ -1562,6 +1537,11 @@ func TestProfileShelvesAreReadByPathAndCarryTheArchivedCount(t *testing.T) {
 	}
 	if response := get("/v1/profile-shelf/archived?cursor=x"); response.Code == http.StatusOK {
 		t.Fatalf("a query string was accepted: %d", response.Code)
+	}
+	// The unfiltered listing has no continuation route: the shelves are the
+	// paged reads, and the retired cursor address is not served.
+	if response := get("/v1/profile-pages/" + backend.profileNext); response.Code != http.StatusNotFound {
+		t.Fatalf("the retired profile page route answered %d", response.Code)
 	}
 }
 
@@ -1690,7 +1670,6 @@ var everyAPIPath = []struct {
 	{"/v1/settings", "settings.get"},
 	{"/v1/settings/update", "settings.update"},
 	{"/v1/profiles", "profiles.collection"},
-	{"/v1/profile-pages/" + testID, "profiles.page"},
 	{"/v1/profile-shelf/archived", "profiles.shelf"},
 	{"/v1/profile-shelf/archived/" + testID, "profiles.shelf.page"},
 	{"/v1/profiles/preview", "profiles.preview"},

@@ -9,8 +9,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/Muratovnik/routevane/internal/application"
 )
 
 // writeDeadlineSlack is the margin between a route's own budget and the write
@@ -193,9 +191,6 @@ var routes = map[string]routeSpec{
 			return
 		}
 		h.listProfiles(w, r)
-	}},
-	"profiles.page": {path: "/v1/profile-pages/{cursor}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
-		h.listProfilePage(w, r, application.ProfileShelfAll, r.PathValue("cursor"))
 	}},
 	// A shelf is one half of the library: the profiles on it, newest first, and
 	// the count of archived ones whichever half is read. The literal prefix keeps
