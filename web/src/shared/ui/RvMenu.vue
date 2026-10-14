@@ -232,8 +232,8 @@ const onCloseAutoFocus = (event: Event): void => {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--rv-space-1);
-  background: var(--rv-color-surface);
-  border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
+  background: var(--rv-color-surface-raised);
+  border: var(--rv-border-hair) solid var(--rv-color-rule-raised);
   border-radius: var(--rv-radius-md);
   box-shadow: var(--rv-shadow-raised);
   animation: rv-menu-in var(--rv-motion-fast) var(--rv-motion-ease-out);
@@ -267,11 +267,11 @@ const onCloseAutoFocus = (event: Event): void => {
 .rv-menu__separator {
   height: var(--rv-border-hair);
   margin-block: var(--rv-space-1);
-  background: var(--rv-color-rule);
+  background: var(--rv-color-rule-raised);
 }
 
 .rv-menu__item[data-highlighted] {
-  background: var(--rv-color-surface-hover);
+  background: var(--rv-color-surface-raised-hover);
   outline: none;
 }
 

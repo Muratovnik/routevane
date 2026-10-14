@@ -270,7 +270,11 @@ const choosePalette = (value: unknown): void => {
 </script>
 
 <template>
-  <UPopover v-model:open="open" :content="panelContent">
+  <UPopover
+    v-model:open="open"
+    :content="panelContent"
+    :ui="{ content: 'rv-overlay' }"
+  >
     <!-- The field's trigger is drawn as a field: its ground and edge, the value
          at the leading edge and the chevron at the end, at the field height.
          The compact trigger stands among the filter chips at their size, on the

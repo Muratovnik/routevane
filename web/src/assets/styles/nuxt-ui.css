@@ -22,9 +22,10 @@
   --ui-bg-muted: var(--rv-color-surface-muted);
 
   /* The library highlights a choice row with half of this ground over its
-     panel. The strong rule is the role that keeps a highlighted row at least as
-     distinct from the panel as the Reka rows were in both themes. */
-  --ui-bg-elevated: var(--rv-color-rule-strong);
+     panel. A panel is a raised surface, so the raised hairline is the role that
+     keeps a highlighted row at least as distinct from it as the Reka rows were
+     in both themes. */
+  --ui-bg-elevated: var(--rv-color-rule-raised);
   --ui-bg-accented: var(--rv-color-surface-hover);
   --ui-border: var(--rv-color-rule);
   --ui-border-muted: var(--rv-color-rule);

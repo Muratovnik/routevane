@@ -3,7 +3,7 @@ import { render } from 'vitest-browser-vue'
 
 import RvSegmented from '@/shared/ui/RvSegmented.vue'
 
-import { contrast, inTheme } from './support/contrast'
+import { contrast, inTheme, paintedToken } from './support/contrast'
 
 const OPTIONS = [
   { label: 'Automatic', value: 'auto' },
@@ -125,14 +125,3 @@ describe('RvSegmented', () => {
     },
   )
 })
-
-// A token as the browser paints it, read off a probe rather than from the
-// token's text: the hairline is written with an alpha channel in light.
-const paintedToken = (name: string): string => {
-  const probe = document.createElement('span')
-  probe.style.background = `var(${name})`
-  document.body.append(probe)
-  const painted = getComputedStyle(probe).backgroundColor
-  probe.remove()
-  return painted
-}

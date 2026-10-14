@@ -3,7 +3,7 @@ import { render, type RenderResult } from 'vitest-browser-vue'
 
 import RvButton from '@/shared/ui/RvButton.vue'
 
-import { contrast, inTheme } from './support/contrast'
+import { contrast, inTheme, paintedToken } from './support/contrast'
 
 // Renders share one document, so each control is read by the words on it.
 const painted = (
@@ -13,18 +13,6 @@ const painted = (
   getComputedStyle(screen.getByRole('button', { name }).element())
 
 const TRANSPARENT = 'rgba(0, 0, 0, 0)'
-
-// A token as the browser paints it, read off a probe rather than from the
-// token's text: the quiet accent is written with an alpha channel, so only a
-// painted box compares with a painted button.
-const paintedToken = (name: string): string => {
-  const probe = document.createElement('span')
-  probe.style.background = `var(${name})`
-  document.body.append(probe)
-  const painted = getComputedStyle(probe).backgroundColor
-  probe.remove()
-  return painted
-}
 
 describe('RvButton', () => {
   it('forwards pending state while keeping one accessible progress mark', async () => {

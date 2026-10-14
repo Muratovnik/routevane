@@ -584,6 +584,9 @@ raised surfaces; green belongs to interactive accents and restrained selection.
 Brand accent and semantic success have separate tokens, so changing the theme
 does not redefine a successful publication. Searchable and plain single-choice
 menus align their names at the leading edge and put selection marks at the end.
+A menu, a choice list and an informer panel are raised surfaces: in the dark theme
+they stand a step lighter than the canvas and are drawn with a hairline that
+reads against it, so an open panel never blends into the page.
 Its shared workspace centers the page content with the same width limit
 on profiles, composition, library, connections and settings; features do not add
 their own page containers. Docked inspection divides the existing workspace

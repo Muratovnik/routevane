@@ -36,3 +36,17 @@ export const inTheme = async (
     document.documentElement.removeAttribute('data-rv-theme')
   }
 }
+
+/**
+ * A token as the browser paints it, read off a probe rather than from the
+ * token's text: a role may be written with an alpha channel or as a reference
+ * to another, so only a painted box compares with a painted component.
+ */
+export const paintedToken = (name: string): string => {
+  const probe = document.createElement('span')
+  probe.style.background = `var(${name})`
+  document.body.append(probe)
+  const painted = getComputedStyle(probe).backgroundColor
+  probe.remove()
+  return painted
+}

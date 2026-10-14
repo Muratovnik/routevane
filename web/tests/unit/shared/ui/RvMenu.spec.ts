@@ -7,6 +7,8 @@ import { createMemoryHistory, createRouter, RouterLink } from 'vue-router'
 import type { MenuItem } from '@/shared/ui/types'
 import RvMenu from '@/shared/ui/RvMenu.vue'
 
+import { contrast, inTheme, paintedToken } from './support/contrast'
+
 const GLOBAL = { stubs: { NuxtLink: true } }
 
 // Every panel is a viewport overlay portalled to the document, so it is read
@@ -49,6 +51,46 @@ describe('RvMenu', () => {
       .element(hidden('Выбрать формат'))
       .toHaveAttribute('aria-expanded', 'true')
   })
+
+  // A menu is a raised surface: in dark a shadow lifts nothing, so the panel is
+  // a step lighter than the page and drawn with the overlay hairline, and the
+  // row under the keyboard is a further step on that ground.
+  it.each(['dark', 'light'] as const)(
+    'stands raised from the canvas, with a hairline, in the %s theme',
+    async (theme) => {
+      await inTheme(theme, async () => {
+        const screen = await renderMenu({
+          items: [
+            { key: 'open', label: 'Открыть' },
+            { key: 'archive', label: 'В архив' },
+          ],
+          label: 'Действия',
+        })
+        await screen.getByRole('button', { name: 'Действия' }).click()
+        await userEvent.keyboard('{ArrowDown}')
+
+        const panel = getComputedStyle(innermost().element())
+        const canvas = paintedToken('--rv-color-canvas')
+        expect(panel.backgroundColor).toBe(
+          paintedToken('--rv-color-surface-raised'),
+        )
+        expect(panel.backgroundColor).not.toBe(canvas)
+        expect(panel.borderTopColor).toBe(
+          paintedToken('--rv-color-rule-raised'),
+        )
+        expect(parseFloat(panel.borderTopWidth)).toBeGreaterThan(0)
+        const row = screen.getByRole('menuitem', { name: 'Открыть' })
+        await expect.element(row).toHaveFocus()
+        const highlighted = getComputedStyle(row.element())
+        expect(highlighted.backgroundColor).toBe(
+          paintedToken('--rv-color-surface-raised-hover'),
+        )
+        expect(
+          contrast(highlighted.color, highlighted.backgroundColor),
+        ).toBeGreaterThanOrEqual(4.5)
+      })
+    },
+  )
 
   it('emits the chosen key and closes', async () => {
     const screen = await renderMenu({

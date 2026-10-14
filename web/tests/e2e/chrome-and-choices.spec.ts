@@ -16,6 +16,7 @@ import {
   choicePanel,
   choiceSearch,
   deliveryField,
+  menuPanel,
   nameField,
   scheduleField,
 } from './support/queries'
@@ -186,6 +187,67 @@ for (const colorScheme of ['dark', 'light'] as const) {
         await contrastRatio(page, placeholder, ground),
       ).toBeGreaterThanOrEqual(1.5)
     release()
+  })
+}
+
+// A panel opened over the page has to stand apart from the canvas it opens on.
+// In the dark theme the library's own ground is the canvas, so a list or a menu
+// would otherwise melt into the page: the ground is a raised surface and the
+// edge is a hairline that reads against the canvas.
+const MIN_PANEL_EDGE_CONTRAST = 1.8
+
+const panelPaint = (panel: Locator) =>
+  panel.evaluate((element) => {
+    const host = element.closest('.rv-overlay, .rv-menu__panel') ?? element
+    const style = getComputedStyle(host)
+    return {
+      edge: style.borderTopColor,
+      edgeWidth: Number.parseFloat(style.borderTopWidth),
+      ground: style.backgroundColor,
+      isPanel: host.matches('.rv-overlay, .rv-menu__panel'),
+    }
+  })
+
+for (const colorScheme of ['dark', 'light'] as const) {
+  test(`menus, choice lists and palettes stand apart from the canvas in the ${colorScheme} theme`, async ({
+    page,
+    origin,
+  }) => {
+    await page.emulateMedia({ colorScheme })
+    await page.goto(`${origin}/profiles/new`)
+    const canvas = await page.evaluate(
+      () => getComputedStyle(document.documentElement).backgroundColor,
+    )
+
+    const checkPanel = async (panel: Locator): Promise<void> => {
+      await settleAnimations(page)
+      const drawn = await panelPaint(panel)
+      expect(drawn.isPanel).toBe(true)
+      expect(drawn.ground).not.toBe(canvas)
+      expect(drawn.edgeWidth).toBeGreaterThan(0)
+      expect(
+        await contrastRatio(page, drawn.edge, canvas),
+      ).toBeGreaterThanOrEqual(MIN_PANEL_EDGE_CONTRAST)
+    }
+
+    // The library's palette in a popover, opened from the format field.
+    await openFormats(page)
+    await checkPanel(choicePanel(page, englishCopy('create.target.toggle')))
+    await page.keyboard.press('Escape')
+
+    // The library's list of a select, opened from its field.
+    await buildProfile(page, origin)
+    await page.getByRole('tab', { name: 'Publishing', exact: true }).click()
+    await scheduleField(page).click()
+    await checkPanel(page.getByRole('listbox'))
+    await page.keyboard.press('Escape')
+
+    // Reka's own menu.
+    await page
+      .getByRole('button', { name: /^Actions for / })
+      .first()
+      .click()
+    await checkPanel(menuPanel(page))
   })
 }
 

@@ -115,8 +115,8 @@ defineProps<{
   line-height: var(--rv-leading-normal);
   text-transform: none;
   letter-spacing: normal;
-  background: var(--rv-color-canvas);
-  border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
+  background: var(--rv-color-surface-raised);
+  border: var(--rv-border-hair) solid var(--rv-color-rule-raised);
   border-radius: var(--rv-radius-md);
   box-shadow: var(--rv-shadow-raised);
 }
