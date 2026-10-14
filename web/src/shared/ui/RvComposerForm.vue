@@ -1,12 +1,9 @@
 <template>
   <form class="rv-composer-form">
+    <div class="rv-composer-form__actions"><slot name="actions" /></div>
     <div class="rv-composer-form__body">
       <div class="rv-composer-form__fields"><slot /></div>
-      <div v-if="$slots.details" class="rv-composer-form__details">
-        <slot name="details" />
-      </div>
     </div>
-    <div class="rv-composer-form__actions"><slot name="actions" /></div>
   </form>
 </template>
 
@@ -14,7 +11,7 @@
 .rv-composer-form {
   display: flex;
   flex-direction: column;
-  gap: var(--rv-space-5);
+  gap: var(--rv-space-4);
   min-width: 0;
   min-height: 0;
 }
@@ -22,7 +19,7 @@
 /* The fields and what is said about them are the part of the form that gives
    way: a host that caps the form's height, as the settings rail does to keep
    itself inside the window, scrolls this part and leaves the actions where
-   they are. Without a cap it has its natural height and never scrolls. The
+   they are, above it. Without a cap it has its natural height and never scrolls. The
    inset keeps a focus ring or an error from being cut at the scroll edge. */
 .rv-composer-form__body {
   display: grid;
@@ -50,28 +47,21 @@
   min-width: 0;
 }
 
-/* The acts that end the edit stand together at the form's end, on one line
-   where there is room and in the order they are taken: leave the draft, then
-   commit it. A note that explains them takes the whole line above.
-
-   They are also pinned to the bottom of the window while the form is partly
-   below it, so the act that stores the draft is in reach without scrolling the
-   page. The bar's own ground covers what passes under it, and the negative
-   margin gives back the space its padding takes where the form ends in the
-   window, so the bar sits where the unpinned row would. */
+/* The acts on the draft come first, on one line where there is room and in
+   the order they are taken: what the draft says about itself, leave it, then
+   commit it. Standing above the fields they are the first thing the rail shows
+   wherever it starts in the window, and nothing of the fields can pass under
+   them. A note that explains them takes the whole line. A hairline sets them
+   apart from the fields below. */
 .rv-composer-form__actions {
-  position: sticky;
-  bottom: var(--rv-space-4);
   display: flex;
   flex: none;
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--rv-space-3);
+  gap: var(--rv-space-2) var(--rv-space-3);
   min-width: 0;
-  margin-bottom: calc(var(--rv-space-4) * -1);
-  padding-block: var(--rv-space-3) var(--rv-space-4);
-  background: var(--rv-color-surface);
-  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
+  padding-bottom: var(--rv-space-3);
+  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 </style>

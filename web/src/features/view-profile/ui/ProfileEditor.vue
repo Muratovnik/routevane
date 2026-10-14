@@ -103,7 +103,7 @@ const firstForecast = computed(() => {
   return first === undefined ? null : forecast.forTarget(first.targetID)
 })
 
-// A format that would refuse this draft says so beside the save control. It
+// A format that would refuse this draft says so under the save control. It
 // does not stop the save: the operator may be fixing one format while another
 // is still over its bound, and a failed rebuild is already reported per output.
 const overflowLines = computed<string[]>(() => {
@@ -303,15 +303,10 @@ watch(stored, (next, previous) => {
               </li>
             </ul>
           </div>
-          <template v-if="overflowLines.length > 0" #details>
-            <div class="editor__forecast" role="status">
-              <p v-for="line in overflowLines" :key="line">{{ line }}</p>
-            </div>
-          </template>
           <template #actions>
-            <!-- The draft says that it differs from what is stored, at the end
-                 of the form where the act that stores it stands. The region is
-                 always present so the change is announced when it appears. -->
+            <!-- The draft says that it differs from what is stored, first in
+                 the form where the acts on it stand. The region is always
+                 present so the change is announced when it appears. -->
             <span class="editor__dirty" role="status">
               <RvStatus
                 v-if="dirty"
@@ -321,7 +316,7 @@ watch(stored, (next, previous) => {
             </span>
             <!-- Leaving the draft comes before committing it, in the order the
                  eye and the keyboard both travel, so the act that ends this
-                 edit sits last and at the row's end. Its name says what it
+                 edit sits last in the row. Its name says what it
                  undoes: "cancel" alone, next to a save, reads as though it
                  might cancel the save that is running. -->
             <RvButton
@@ -353,6 +348,13 @@ watch(stored, (next, previous) => {
                 props.busy ? t('profile.edit.saving') : t('profile.edit.save')
               }}
             </RvButton>
+            <div
+              v-if="overflowLines.length > 0"
+              class="editor__forecast"
+              role="status"
+            >
+              <p v-for="line in overflowLines" :key="line">{{ line }}</p>
+            </div>
           </template>
         </RvComposerForm>
       </template>
@@ -406,6 +408,7 @@ watch(stored, (next, previous) => {
 }
 
 .editor__forecast {
+  flex: 1 1 100%;
   display: grid;
   gap: var(--rv-space-1);
   max-width: var(--rv-measure-prose);

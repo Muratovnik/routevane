@@ -138,16 +138,28 @@ test('the editor keeps save in the window and says the draft is unsaved', async 
 })
 
 // The settings rail beside the table starts below the cards that stand over
-// the composer, so it begins low in a short window. Its actions follow the
-// window rather than the rail's own end: the unsaved status and save stay in
-// reach at the page's top and after it has been scrolled to the bottom.
-for (const width of [1024, 1440]) {
+// the composer, so it begins low in a short window. Its actions come first in
+// it, above the fields: the unsaved status and save are in the window at the
+// page's top and after it has been scrolled to the bottom, and no field passes
+// under them.
+for (const { sidebar, width } of [
+  { sidebar: 'Expand sidebar', width: 1024 },
+  { sidebar: 'Collapse sidebar', width: 1440 },
+]) {
   test(`the editor beside the rail keeps save and the unsaved status in a ${width}x700 window`, async ({
     page,
     origin,
   }) => {
     await buildProfile(page, origin)
     await page.setViewportSize({ width, height: 700 })
+    // Below 1100px the window collapses the rail by itself; the composer is
+    // read once that has happened and not while it is still stacked.
+    await expect(
+      page.getByRole('button', {
+        name: sidebar,
+        exact: true,
+      }),
+    ).toBeVisible()
     await settleAnimations(page)
     const save = page.getByRole('button', {
       name: 'Save and rebuild',
@@ -156,6 +168,10 @@ for (const width of [1024, 1440]) {
     const unsaved = page
       .getByRole('status')
       .filter({ hasText: englishCopy('profile.edit.dirty') })
+    const discard = page.getByRole('button', {
+      name: englishCopy('profile.edit.discard'),
+      exact: true,
+    })
     const main = page.getByRole('main')
     const settings = composerSettings(page)
 
@@ -169,6 +185,20 @@ for (const width of [1024, 1440]) {
     await withinWindow(page, save)
     await withinWindow(page, unsaved)
 
+    // The name is whole in the window and clear of every action: the actions
+    // stand above it, and nothing of the field is covered.
+    await withinWindow(page, nameField(page))
+    const name = await box(nameField(page))
+    for (const action of [save, discard, unsaved]) {
+      const actionBox = await box(action)
+      expect(actionBox.y + actionBox.height).toBeLessThanOrEqual(name.y)
+    }
+
+    // The keyboard goes where the eye does: from save down into the fields.
+    await save.focus()
+    await page.keyboard.press('Tab')
+    await expect(nameField(page)).toBeFocused()
+
     // Scrolled to the end of the page the rail has followed the window.
     await main.evaluate((element) => {
       element.scrollTop = element.scrollHeight
@@ -180,8 +210,8 @@ for (const width of [1024, 1440]) {
 }
 
 // A window shorter than the rail's own content: the rail stays inside the
-// window and the fields give way to a scroll of their own, so the act that
-// stores the draft is never what scrolls out of reach.
+// window and the fields give way to a scroll of their own beneath the actions,
+// so the act that stores the draft is never what scrolls out of reach.
 test('a window shorter than the rail scrolls its fields and keeps save in view', async ({
   page,
   origin,
@@ -202,16 +232,18 @@ test('a window shorter than the rail scrolls its fields and keeps save in view',
   await withinWindow(page, rail)
   await withinWindow(page, save)
 
-  // What the actions leave room for is still reachable inside the rail.
+  // What the actions leave room for is still reachable inside the rail,
+  // below them and inside its edge.
   const formats = rail.getByText(englishCopy('profile.edit.connections'), {
     exact: true,
   })
   await formats.scrollIntoViewIfNeeded()
   const railBox = await box(rail)
   const formatsBox = await box(formats)
-  expect(formatsBox.y).toBeGreaterThanOrEqual(railBox.y)
+  const saveBox = await box(save)
+  expect(formatsBox.y).toBeGreaterThanOrEqual(saveBox.y + saveBox.height)
   expect(formatsBox.y + formatsBox.height).toBeLessThanOrEqual(
-    (await box(save)).y,
+    railBox.y + railBox.height,
   )
 })
 

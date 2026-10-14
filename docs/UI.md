@@ -108,9 +108,10 @@ Sections, addressable by URL:
    the table's selection checkbox and never occupies a separate banner.
    The settings rail contains the name, first format choice,
    forecast and create action, without repeating the selected lists. In a
-   constrained window it stands above the table in two columns with its actions
-   at the right end, as it already does while a list card is docked, so the
-   create action is never pushed below a table that can run to fifty rows.
+   constrained window it stands above the table, as it already does while a list
+   card is docked, with its actions first and its fields in two columns under
+   them, so the create action is never pushed below a table that can run to fifty
+   rows.
    Create stays pressable while something is missing: pressing it states each
    omission beside the field that lacks it — name, format, or a table with no
    list in it — and moves the keyboard to the first of them. A format the
@@ -154,7 +155,7 @@ Sections, addressable by URL:
    selected rows use the first format, like the row weights, and
    name every other selected list with which that row overlaps. Save
    is enabled only once the draft differs from the stored profile, cancel
-   restores it, and a format the draft would overflow is warned about beside
+   restores it, and a format the draft would overflow is warned about under
    the save action without blocking it. **The composition table selects and
    writes nothing else** (ADR 0029). Every
    category names its members before it is selected; a mixed checkbox always
@@ -602,9 +603,10 @@ kept and wins in any window; only while none is kept does the window decide. The
 and library allocate remaining height to their data regions; headings and filters
 keep natural height. Short windows and enlarged content may scroll to preserve
 access to actions. Beside the table, the settings rail is pinned at the page inset
-and is never taller than the window less that inset twice; its fields scroll inside
-it when they do not fit, and its actions are pinned to the window's bottom edge, so
-create and save stay in reach wherever the page is scrolled. In a section that fills the window, the data region, or the
+and is never taller than the window less that inset twice, and its actions come
+first in it, so create and save stay in view wherever the page is scrolled; its
+fields scroll inside it when they do not fit, and nothing of them passes under the
+actions. In a section that fills the window, the data region, or the
 composer row that holds it, has a standing height taken from the window itself
 — the viewport less that section's own chrome — and its rows scroll inside
 that frame rather than down the page. A notice, a bar or a secondary section is therefore an addition to
@@ -640,10 +642,11 @@ an icon to the right of the drawer title, before Close and outside its accessibl
 shows priority actions only for an unsaved order, without repeating category
 or priority explanations above the table.
 
-Create and edit share the settings form layout. When moved above the table,
-its fields align at the top in two equal columns; the actions stand together
-at the right end of a row of their own, and the edit form says beside them
-that the draft has unsaved changes. Numeric overlap disclosures keep numbers aligned
+Create and edit share the settings form layout, in one order wherever it stands:
+the actions first, together on a row of their own with a hairline under them, and
+the fields below. The edit form says beside the actions that the draft has unsaved
+changes. When moved above the table, the fields align at the top in two equal
+columns under the actions. Numeric overlap disclosures keep numbers aligned
 while providing inset hit areas and a titled list of intersecting names.
 
 This is the shared layout verification matrix; rule and skill files link here:
