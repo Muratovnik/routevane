@@ -501,11 +501,13 @@ test('an output can be explicitly bound to and detached from a compatible device
   await page.reload()
   await publishingTab.click()
   await expect(binding).toHaveText(none)
+  // The operator left the row without a connection, and this connection does
+  // not deliver on its own: nothing is demanded of the row.
   await expect(
     publishing.getByText(englishCopy('outputs.readiness.choose'), {
       exact: true,
     }),
-  ).toBeVisible()
+  ).toHaveCount(0)
 
   const forgotten = await page.request.post(
     `${origin}/v1/devices/${deviceID}/forget`,

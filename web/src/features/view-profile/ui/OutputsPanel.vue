@@ -158,11 +158,23 @@ const scheduleValue = computed<string>({
 })
 
 type Readiness =
-  'choose' | 'auto' | 'refresh' | 'ready' | 'unavailable' | 'unknown'
+  'none' | 'choose' | 'auto' | 'refresh' | 'ready' | 'unavailable' | 'unknown'
 
+// A row without a connection asks for one only once delivery has been set up
+// for its format: a connection of that format already sends automatically, and
+// this row is the one left out. A format that is read as a file or through its
+// subscription link — with no connection, or with one that never delivers on
+// its own — is complete as it is, so the row states nothing and the choice
+// stays in the field.
 const readiness = (output: OutputCard): Readiness => {
   const device = output.deviceID === '' ? null : boundDevice(output)
-  if (device === null) return 'choose'
+  if (device === null) {
+    return compatibleDevices(output).some(
+      (candidate) => candidate.deployable && candidate.autoDeliver,
+    )
+      ? 'choose'
+      : 'none'
+  }
   const delivery = deviceDeliveryState(device)
   if (delivery === 'unavailable' || delivery === 'unknown') return delivery
   if (delivery === 'disabled') return 'auto'
@@ -205,6 +217,10 @@ const targetChoices = computed<ChoiceGroup[]>(() =>
     })),
   })),
 )
+// With every format added, or the rest hidden in Settings, «Add format» has
+// nothing to open. The control stays where it is, disabled, and the note beside
+// it is its accessible description: the reason is read with the control.
+const nothingToAdd = computed(() => props.targetGroups.length === 0)
 const addTrigger = useTemplateRef<HTMLElement>('addTrigger')
 
 /** Brings the operator to «Add format», as the profile menu promises. */
@@ -315,7 +331,7 @@ const onRowMenu = (output: OutputCard, key: string): void => {
         <span id="outputs-add-label" class="rv-visually-hidden">
           {{ t('outputs.add') }}
         </span>
-        <span v-if="props.targetGroups.length === 0" class="outputs__note">
+        <span v-if="nothingToAdd" id="outputs-add-reason" class="outputs__note">
           {{
             (props.hiddenTargetCount ?? 0) > 0
               ? t('outputs.add.hidden')
@@ -323,7 +339,8 @@ const onRowMenu = (output: OutputCard, key: string): void => {
           }}
         </span>
         <RvSearchSelect
-          :disabled="props.busy"
+          :described-by="nothingToAdd ? 'outputs-add-reason' : undefined"
+          :disabled="props.busy || nothingToAdd"
           :groups="targetChoices"
           labelled-by="outputs-add-label"
           :loading="props.busy"
@@ -407,7 +424,10 @@ const onRowMenu = (output: OutputCard, key: string): void => {
                 :placeholder="t('outputs.device.none')"
                 @update:model-value="chooseDevice(output, $event)"
               />
-              <span class="outputs__readiness">
+              <span
+                v-if="readiness(output) !== 'none'"
+                class="outputs__readiness"
+              >
                 <RvStatus
                   :label="readinessLabel(output)"
                   :tone="readinessTone(output)"

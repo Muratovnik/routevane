@@ -88,6 +88,45 @@ describe('OutputsPanel connection readiness', () => {
       .toBeVisible()
   })
 
+  // A row that is read as a file or through its link is complete without a
+  // connection. It asks for one only when delivery is already set up for its
+  // format and this row is the one left out.
+  it.each([
+    ['no connection of the format exists', []],
+    [
+      'a connection exists that never delivers on its own',
+      [{ ...CONNECTED_DEVICE, autoDeliver: false }],
+    ],
+    [
+      'a connection of another format sends automatically',
+      [{ ...CONNECTED_DEVICE, targetID: 'singbox' }],
+    ],
+  ])('states no demand on an unbound row when %s', async (_case, devices) => {
+    const screen = await renderPanel({ devices })
+
+    await expect
+      .element(screen.getByText('Choose a connection', { exact: true }))
+      .not.toBeInTheDocument()
+  })
+
+  it('asks an unbound row to choose a connection once a connection of its format sends automatically', async () => {
+    const screen = await renderPanel({ devices: [CONNECTED_DEVICE] })
+
+    await expect
+      .element(screen.getByText('Choose a connection', { exact: true }))
+      .toBeVisible()
+  })
+
+  it('keeps the connection field on a row that states no demand', async () => {
+    const screen = await renderPanel({
+      devices: [{ ...CONNECTED_DEVICE, autoDeliver: false }],
+    })
+
+    await expect
+      .element(screen.getByLabelText('Connection for Keenetic'))
+      .toHaveTextContent('None')
+  })
+
   // An empty picker has two causes, and they ask for different things: all
   // formats added needs nothing, formats hidden in Settings are one switch away.
   it.each([
@@ -99,8 +138,33 @@ describe('OutputsPanel connection readiness', () => {
       const screen = await renderPanel({ hiddenTargetCount })
 
       await expect.element(screen.getByText(words)).toBeVisible()
+      // The control is disabled and carries that reason as its description.
+      const add = screen.getByRole('button', { name: 'Add a format' })
+      await expect.element(add).toBeDisabled()
+      await expect.element(add).toHaveAccessibleDescription(words)
     },
   )
+
+  it('keeps Add format enabled and undescribed while there is a format to add', async () => {
+    const screen = await renderPanel({
+      targetGroups: [
+        {
+          kind: 'router',
+          targets: [
+            {
+              id: 'mikrotik',
+              title: 'MikroTik',
+              fileExtension: 'rsc',
+            },
+          ],
+        },
+      ],
+    })
+
+    const add = screen.getByRole('button', { name: 'Add a format' })
+    await expect.element(add).toBeEnabled()
+    await expect.element(add).not.toHaveAccessibleDescription(/\S/)
+  })
 
   it('states when automatic delivery is on but profile refresh is off', async () => {
     const screen = await renderPanel({
