@@ -274,6 +274,12 @@
      comparable at a glance. Below two of these the form is one column. */
   --rv-form-column-min: 18rem;
   --rv-fact-label-width: 8rem;
+
+  /* The line a field keeps under its control for its error, and that line with
+     the gap above it. A control that shares a row with a field is lifted by the
+     second, so it stands on the field's control and not on its cell. */
+  --rv-field-error-line: 1.25rem;
+  --rv-field-error-space: calc(var(--rv-field-error-line) + var(--rv-space-1));
   --rv-disabled-opacity: 0.5;
   --rv-sidebar-width: 15rem;
   --rv-sidebar-collapsed-width: 4rem;

@@ -252,6 +252,7 @@ watch(contentsState, async (state) => {
             </template>
           </RvField>
           <RvButton
+            class="rv-field-action"
             :disabled="saving || titleDraft.trim() === list.title"
             :loading="saving"
             variant="secondary"

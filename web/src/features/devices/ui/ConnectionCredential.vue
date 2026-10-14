@@ -134,14 +134,19 @@ const stopReplacing = async (): Promise<void> => {
           </template>
         </RvField>
         <RvButton
+          class="rv-field-action"
           :disabled="disabled || password === ''"
           type="submit"
           variant="primary"
           >{{ t('devices.credential.save') }}</RvButton
         >
-        <RvButton v-if="saved" :disabled="disabled" @click="stopReplacing">{{
-          t('action.cancel')
-        }}</RvButton>
+        <RvButton
+          v-if="saved"
+          class="rv-field-action"
+          :disabled="disabled"
+          @click="stopReplacing"
+          >{{ t('action.cancel') }}</RvButton
+        >
       </div>
       <!-- What saving does, beside the act that does it. -->
       <p class="credential__note">{{ t('devices.credential.where') }}</p>
@@ -191,8 +196,9 @@ const stopReplacing = async (): Promise<void> => {
   min-width: 0;
 }
 
-/* A button beside a field stands at the field's own height: the row aligns on
-   the control, so the label above the field takes nothing from it. */
+/* A button beside a field stands on the field's control: the row aligns to its
+   bottom edge and `rv-field-action` lifts the button by the line the field
+   keeps for its error. */
 .credential__row {
   display: flex;
   flex-wrap: wrap;

@@ -327,7 +327,13 @@ const onRowMenu = (output: OutputCard, key: string): void => {
           tone="warning"
         />
       </div>
-      <div ref="addTrigger" class="outputs__add">
+      <!-- Beside the refresh field it stands on that field's control; alone it
+           has no field to stand on. -->
+      <div
+        ref="addTrigger"
+        class="outputs__add"
+        :class="{ 'rv-field-action': props.schedule !== null }"
+      >
         <span id="outputs-add-label" class="rv-visually-hidden">
           {{ t('outputs.add') }}
         </span>
@@ -520,7 +526,7 @@ const onRowMenu = (output: OutputCard, key: string): void => {
 }
 
 /* The refresh rule is one field; «Add format» belongs to the table it adds a
-   row to, so it stands at the table's trailing edge, on the field's line. */
+   row to, so it stands at the table's trailing edge, on the field's control. */
 .outputs__toolbar {
   display: flex;
   flex-wrap: wrap;

@@ -153,7 +153,7 @@ const failure = computed(() =>
 <style scoped>
 .rv-field__error {
   display: block;
-  min-height: 1lh;
+  min-height: var(--rv-field-error-line);
 }
 
 .rv-field--aligned {
