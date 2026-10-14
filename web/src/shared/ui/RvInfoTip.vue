@@ -40,10 +40,10 @@ defineProps<{
   <PopoverRoot>
     <PopoverTrigger
       :aria-label="label"
-      class="rv-infotip__trigger"
+      class="rv-info-tip__trigger"
       :class="{
-        'rv-infotip__trigger--inline': inline,
-        'rv-infotip__trigger--numeric': numeric,
+        'rv-info-tip__trigger--inline': inline,
+        'rv-info-tip__trigger--numeric': numeric,
       }"
     >
       <slot><RvIcon name="info" /></slot>
@@ -51,7 +51,7 @@ defineProps<{
     <PopoverPortal>
       <PopoverContent
         align="start"
-        class="rv-infotip__panel"
+        class="rv-info-tip__panel"
         :collision-padding="8"
         :side-offset="6"
       >
@@ -59,8 +59,8 @@ defineProps<{
           ><strong>{{ text }}</strong>
           <component
             :is="ordered ? 'ol' : 'ul'"
-            class="rv-infotip__items"
-            :class="{ 'rv-infotip__items--ordered': ordered }"
+            class="rv-info-tip__items"
+            :class="{ 'rv-info-tip__items--ordered': ordered }"
           >
             <li v-for="(item, index) in items" :key="index">{{ item }}</li>
           </component></template
@@ -72,7 +72,7 @@ defineProps<{
 </template>
 
 <style scoped>
-.rv-infotip__trigger {
+.rv-info-tip__trigger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -87,13 +87,13 @@ defineProps<{
   cursor: pointer;
 }
 
-.rv-infotip__trigger--inline {
+.rv-info-tip__trigger--inline {
   width: var(--rv-control-inline);
   height: var(--rv-control-inline);
   margin-block: calc((1lh - var(--rv-control-inline)) / 2);
 }
 
-.rv-infotip__trigger--numeric {
+.rv-info-tip__trigger--numeric {
   justify-content: flex-start;
   padding-inline: var(--rv-space-2);
   margin-inline-start: calc(-1 * var(--rv-space-2));
@@ -101,7 +101,7 @@ defineProps<{
   color: var(--rv-color-ink-muted);
 }
 
-.rv-infotip__trigger:hover {
+.rv-info-tip__trigger:hover {
   color: var(--rv-color-ink);
   background: var(--rv-color-surface-hover);
 }
@@ -111,11 +111,11 @@ defineProps<{
      `PopperContent` renders its own positioning wrapper as this component's root
      element, so the scope attribute lands on that wrapper while this class lands
      on the element inside it: a scoped rule would compile to
-     `.rv-infotip__panel[data-v-…]` and match nothing, leaving the explanation as
-     unpainted text over the page. The `rv-infotip__` names are this component's
+     `.rv-info-tip__panel[data-v-…]` and match nothing, leaving the explanation as
+     unpainted text over the page. The `rv-info-tip__` names are this component's
      alone, so an unscoped block claims nothing else. -->
 <style>
-.rv-infotip__panel {
+.rv-info-tip__panel {
   z-index: 8;
   display: block;
   width: max-content;
@@ -144,7 +144,7 @@ defineProps<{
   box-shadow: var(--rv-shadow-raised);
 }
 
-.rv-infotip__items {
+.rv-info-tip__items {
   display: grid;
   gap: var(--rv-space-2);
   margin: var(--rv-space-3) 0 0;
@@ -153,7 +153,7 @@ defineProps<{
 }
 
 /* Steps are read in order, and a step carries no number of its own. */
-.rv-infotip__items--ordered {
+.rv-info-tip__items--ordered {
   padding-inline-start: var(--rv-space-5);
   list-style: decimal;
 }

@@ -29,9 +29,15 @@ UPPER_CASE.
 Styling is semantic tokens plus named classes. Raw palette, typography,
 spacing, radius, shadow, and motion values are declared in
 `src/assets/styles/tokens.css`; component code consumes semantic variables.
-There is no utility CSS framework. A component's styles live in its own
-`<style scoped>` block, the only stylesheets outside a component are the global
-ones in `src/assets/styles`, and `<style src>` is not used.
+Tailwind is loaded only as Nuxt UI's engine in `src/assets/styles/nuxt-ui.css`;
+no code writes utility classes, including through a library component's `:ui`.
+A component's styles live in its own `<style scoped>` block, the only
+stylesheets outside a component are the global ones in `src/assets/styles`, and
+`<style src>` is not used. A shared component whose library or portal renders
+elements outside its scope keeps those rules in an unscoped `<style>` block
+instead, and every selector there carries the component's own block class in
+its leading compound (`RvSearchSelect.vue` → `.rv-search-select`), as every
+keyframe name begins with it, so the rule cannot reach another component.
 
 Unit specs live in `web/tests/unit/` mirroring `src/`, the browser suites live
 in `web/tests/{e2e,desktop,dev,update}`, and `src/` holds no test file.
