@@ -21,7 +21,7 @@ func TestDeviceConnectionMetadataAndOutputBindingRoundTrip(t *testing.T) {
 	}
 	device := application.Device{
 		ID: "22222222222222222222222222222222", TargetID: "keenetic", Name: "Router",
-		Address: "http://192.168.1.1", Account: "admin", Interface: "Wireguard0",
+		Address: "http://192.0.2.1", Account: "admin", Interface: "Wireguard0",
 		AutoDeliver: true, CreatedAt: now, UpdatedAt: now,
 	}
 	if err := store.CreateDevice(context.Background(), device); err != nil {

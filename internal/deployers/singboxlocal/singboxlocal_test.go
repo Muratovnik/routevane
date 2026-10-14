@@ -93,7 +93,7 @@ func TestValidateConnectionAcceptsALocalPathAndRefusesACredential(t *testing.T) 
 	}
 	cases := map[string]application.Connection{
 		"no url":            {},
-		"http url":          {URL: "http://192.168.1.1"},
+		"http url":          {URL: "http://192.0.2.1"},
 		"relative path":     {URL: Scheme + "config.json"},
 		"non canonical":     {URL: Scheme + "/tmp/../tmp/config.json"},
 		"with authority":    {URL: Scheme + "server/share/config.json"},

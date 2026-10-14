@@ -282,7 +282,7 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 		Now:          func() time.Time { return now },
 		Context:      context.Background(),
 	}
-	baseArgs := []string{"deploy", "--artifact", artifactID, "--target", "keenetic", "--device", "http://192.168.1.1", "--user", deviceUser, "--interface", deviceInterfaceName, "--catalog-dir", catalog, "--data-dir", data}
+	baseArgs := []string{"deploy", "--artifact", artifactID, "--target", "keenetic", "--device", "http://10.255.0.1", "--user", deviceUser, "--interface", deviceInterfaceName, "--catalog-dir", catalog, "--data-dir", data}
 
 	// The unconfirmed call changes nothing on the device.
 	preview := deployViaCLI(t, deps, baseArgs, "")
@@ -344,7 +344,7 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 	if routes, restores := device.snapshot(); routes != 3 || restores != 0 {
 		t.Fatalf("a repeated deployment changed the device: routes=%d restores=%d", routes, restores)
 	}
-	ownershipScope := application.ManagedRouteScope{Endpoint: "http://192.168.1.1", TargetID: "keenetic", Interface: deviceInterfaceName}
+	ownershipScope := application.ManagedRouteScope{Endpoint: "http://10.255.0.1", TargetID: "keenetic", Interface: deviceInterfaceName}
 	ownershipBefore := readManagedOwnership(t, data, ownershipScope)
 
 	// A device that silently omits the RCI comment fails exact ownership
@@ -415,7 +415,7 @@ func TestManualDeploymentOutcomeSurvivesLostResponseAndServerRestart(t *testing.
 	attemptID := strings.Repeat("e", 32)
 	body, err := json.Marshal(map[string]any{
 		"attempt_id": attemptID,
-		"device":     "http://192.168.1.1", "username": deviceUser, "password": devicePassword,
+		"device":     "http://10.255.0.1", "username": deviceUser, "password": devicePassword,
 		"interface": deviceInterfaceName, "confirm": true,
 	})
 	if err != nil {
@@ -512,7 +512,7 @@ func TestManagedRouteClaimsPreserveForeignRoutesAndShareCreatedPrefixes(t *testi
 	stopServer()
 	deps := runtimeDeps{Resolver: resolver, DeviceDialer: redirectDialer{target: deviceServer.Listener.Addr().String()}, Now: func() time.Time { return now }, Context: context.Background()}
 	args := func(artifact string) []string {
-		return []string{"deploy", "--artifact", artifact, "--target", "keenetic", "--device", "http://192.168.1.1", "--user", deviceUser, "--interface", deviceInterfaceName, "--catalog-dir", catalog, "--data-dir", data, "--confirm"}
+		return []string{"deploy", "--artifact", artifact, "--target", "keenetic", "--device", "http://10.255.0.1", "--user", deviceUser, "--interface", deviceInterfaceName, "--catalog-dir", catalog, "--data-dir", data, "--confirm"}
 	}
 	deployViaCLI(t, deps, args(artifactA), devicePassword)
 	deployViaCLI(t, deps, args(artifactB), devicePassword)
@@ -619,7 +619,7 @@ func TestPartialDeviceWriteRestoresTheExactBeforeStateEvenAfterCancellation(t *t
 			server := httptest.NewServer(device.handler())
 			defer server.Close()
 			deps := runtimeDeps{Resolver: resolver, DeviceDialer: redirectDialer{target: server.Listener.Addr().String()}, Now: func() time.Time { return now }, Context: ctx}
-			args := []string{"deploy", "--artifact", build.Artifact.ID, "--target", "keenetic", "--device", "http://192.168.1.1", "--user", deviceUser, "--interface", deviceInterfaceName, "--catalog-dir", catalog, "--data-dir", data, "--confirm"}
+			args := []string{"deploy", "--artifact", build.Artifact.ID, "--target", "keenetic", "--device", "http://10.255.0.1", "--user", deviceUser, "--interface", deviceInterfaceName, "--catalog-dir", catalog, "--data-dir", data, "--confirm"}
 			t.Setenv(DevicePasswordVariable, devicePassword)
 			stdout, deployStderr := &syncBuffer{}, &syncBuffer{}
 			if code := runWithDeps(stdout, deployStderr, args, deps); code == 0 {
@@ -728,7 +728,7 @@ func TestDesktopSignalCancelsDeploymentBeforeShutdownAndWaitsForRollback(t *test
 
 	payload, err := json.Marshal(map[string]any{
 		"attempt_id": strings.Repeat("e", 32),
-		"device":     "http://192.168.1.1", "username": deviceUser, "password": devicePassword,
+		"device":     "http://10.255.0.1", "username": deviceUser, "password": devicePassword,
 		"interface": deviceInterfaceName, "confirm": true,
 	})
 	if err != nil {
@@ -873,7 +873,7 @@ func testServeWaitsForDeploymentRollback(t *testing.T, failListener bool) {
 	}
 	payload, err := json.Marshal(map[string]any{
 		"attempt_id": strings.Repeat("f", 32),
-		"device":     "http://192.168.1.1", "username": deviceUser, "password": devicePassword,
+		"device":     "http://10.255.0.1", "username": deviceUser, "password": devicePassword,
 		"interface": deviceInterfaceName, "confirm": true,
 	})
 	if err != nil {

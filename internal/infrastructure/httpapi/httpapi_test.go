@@ -440,7 +440,7 @@ func (f *fakeBackend) DeviceCards(context.Context) ([]application.DeviceCard, er
 	return []application.DeviceCard{{
 		Device: application.Device{
 			ID: strings.Repeat("d", 32), TargetID: "keenetic", Name: "Роутер",
-			Address: "http://192.168.1.1", Account: "admin",
+			Address: "http://192.0.2.1", Account: "admin",
 		},
 		TargetTitle: "Keenetic", Deployable: true,
 	}}, nil
@@ -484,7 +484,7 @@ func (f *fakeBackend) DeployableTargets() []application.DeployableTarget {
 	return []application.DeployableTarget{{
 		TargetID: "keenetic", Title: "Keenetic", DeployerID: "keenetic-route-bat",
 		Requirements: application.ConnectionRequirements{
-			AddressLabel: "Адрес устройства", AddressExample: "http://192.168.1.1",
+			AddressLabel: "Адрес устройства", AddressExample: "http://192.0.2.1",
 			NeedsCredential: true, NeedsInterface: true, InterfaceLabel: "Интерфейс",
 		},
 	}}
@@ -1325,7 +1325,7 @@ func TestDeployTakesTheCredentialAndNeverReturnsOrLogsIt(t *testing.T) {
 	}
 	const secret = "SuperSecret123"
 	path := "/v1/artifacts/" + strings.Repeat("c", 32) + "/deploy"
-	body := `{"attempt_id":"` + strings.Repeat("e", 32) + `","device":"http://192.168.1.1","username":"admin","password":"` + secret + `","interface":"Wireguard0","confirm":true}`
+	body := `{"attempt_id":"` + strings.Repeat("e", 32) + `","device":"http://192.0.2.1","username":"admin","password":"` + secret + `","interface":"Wireguard0","confirm":true}`
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, mutationRequest(t, path, body))
 	if response.Code != http.StatusOK {
@@ -1341,7 +1341,7 @@ func TestDeployTakesTheCredentialAndNeverReturnsOrLogsIt(t *testing.T) {
 	if strings.Contains(response.Body.String(), secret) {
 		t.Fatalf("the response echoed the credential: %s", response.Body.String())
 	}
-	if strings.Contains(logs.String(), secret) || strings.Contains(logs.String(), "192.168.1.1") {
+	if strings.Contains(logs.String(), secret) || strings.Contains(logs.String(), "192.0.2.1") {
 		t.Fatalf("the log recorded the connection: %s", logs.String())
 	}
 	var decoded struct {
@@ -1364,7 +1364,7 @@ func TestDeployWithoutConfirmationReportsThePlanAndChangesNothing(t *testing.T) 
 	}
 	path := "/v1/artifacts/" + strings.Repeat("c", 32) + "/deploy"
 	response := httptest.NewRecorder()
-	server.Handler().ServeHTTP(response, mutationRequest(t, path, `{"device":"http://192.168.1.1","username":"admin","password":"x","interface":"Wireguard0"}`))
+	server.Handler().ServeHTTP(response, mutationRequest(t, path, `{"device":"http://192.0.2.1","username":"admin","password":"x","interface":"Wireguard0"}`))
 	if response.Code != http.StatusOK {
 		t.Fatalf("code=%d body=%s", response.Code, response.Body.String())
 	}
@@ -1378,7 +1378,7 @@ func TestDeployWithoutConfirmationReportsThePlanAndChangesNothing(t *testing.T) 
 
 func TestDeployRefusesUnguardedAndMalformedRequests(t *testing.T) {
 	path := "/v1/artifacts/" + strings.Repeat("c", 32) + "/deploy"
-	body := `{"attempt_id":"` + strings.Repeat("e", 32) + `","device":"http://192.168.1.1","username":"admin","password":"x","interface":"Wireguard0","confirm":true}`
+	body := `{"attempt_id":"` + strings.Repeat("e", 32) + `","device":"http://192.0.2.1","username":"admin","password":"x","interface":"Wireguard0","confirm":true}`
 
 	// A cross-origin page must not be able to change a device, and neither must
 	// a request that omits the mutation marker.
@@ -1440,7 +1440,7 @@ func TestDeployReportsAFailureWithItsAuditTrail(t *testing.T) {
 	}
 	path := "/v1/artifacts/" + strings.Repeat("c", 32) + "/deploy"
 	response := httptest.NewRecorder()
-	server.Handler().ServeHTTP(response, mutationRequest(t, path, `{"attempt_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","device":"http://192.168.1.1","username":"admin","password":"x","interface":"Wireguard0","confirm":true}`))
+	server.Handler().ServeHTTP(response, mutationRequest(t, path, `{"attempt_id":"eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","device":"http://192.0.2.1","username":"admin","password":"x","interface":"Wireguard0","confirm":true}`))
 	if response.Code != http.StatusConflict {
 		t.Fatalf("code=%d body=%s", response.Code, response.Body.String())
 	}

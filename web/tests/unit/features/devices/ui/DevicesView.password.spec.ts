@@ -32,7 +32,7 @@ const router = (overrides: Partial<Wire> = {}): Wire => ({
   target_id: 'keenetic',
   target_title: 'Keenetic',
   name: 'Home router',
-  address: 'http://192.168.1.1',
+  address: 'http://10.255.0.1',
   account: 'admin',
   interface: 'Wireguard0',
   credential_stored: false,
@@ -83,7 +83,7 @@ const REQUIREMENTS_PAYLOAD = {
       deployer_id: 'keenetic',
       requirements: {
         address_label: 'Device address',
-        address_example: 'http://192.168.1.1',
+        address_example: 'http://10.255.0.1',
         needs_credential: true,
         needs_interface: true,
         interface_label: 'Device interface',
@@ -339,7 +339,7 @@ describe('changing a saved connection', () => {
 
     await screen
       .getByLabelText('Router address', { exact: true })
-      .fill('http://192.168.1.50')
+      .fill('http://10.255.0.50')
     await expect
       .element(
         screen.getByText('Saving ends the previous setup of this connection'),
@@ -366,7 +366,7 @@ describe('changing a saved connection', () => {
     const screen = await render(DevicesView)
     const address = screen.getByLabelText('Router address', { exact: true })
 
-    await address.fill('http://192.168.1.60')
+    await address.fill('http://10.255.0.60')
     await screen.getByRole('button', { name: 'Save', exact: true }).click()
     await expect
       .element(screen.getByText('The service did not accept this address.'))
@@ -374,7 +374,7 @@ describe('changing a saved connection', () => {
     expect(document.activeElement).toBe(address.element())
 
     // Only the name changed: nothing points at the address.
-    await address.fill('http://192.168.1.1')
+    await address.fill('http://10.255.0.1')
     await screen.getByLabelText('Connection name').fill('Study router')
     await screen.getByRole('button', { name: 'Save', exact: true }).click()
     await expect

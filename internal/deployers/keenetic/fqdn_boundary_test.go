@@ -38,7 +38,7 @@ func TestFQDNCapacityDriftAfterBackupDoesNotRestoreOverAnotherWriter(t *testing.
 	ledger := &fqdnLedger{states: map[string]application.ManagedFQDNOwnership{}}
 	result, err := application.DeployToDevice(context.Background(), application.DeployRequest{
 		Target:     domain.TargetDefinition{ID: "keenetic-dns", RendererID: keeneticdns.ID, FormatKey: keeneticdns.Version},
-		Connection: application.Connection{URL: "http://192.168.1.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface},
+		Connection: application.Connection{URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface},
 		OutputID:   id, ManagedFQDN: ledger, Artifact: outputFQDNArtifact(t, id, "", "claude", "claude.ai"),
 	}, application.DeployerRegistry{keeneticdns.ID: deployer}, fqdnBackups{}, application.ClockFunc(time.Now))
 	if err == nil || result.Applied || result.RolledBack {
@@ -68,7 +68,7 @@ func TestFQDNNoOpFailurePreservesChangesMadeAfterItsBackup(t *testing.T) {
 			group := groups[0]
 			double.fqdn[group.Name], double.fqdnDescriptions[group.Name] = group.Entries, group.Description
 			double.dnsRoutes[group.Name], double.dnsAuto[group.Name] = deviceInterface, true
-			prior := application.ManagedFQDNOwnership{Endpoint: "http://192.168.1.1", OutputID: id,
+			prior := application.ManagedFQDNOwnership{Endpoint: "http://10.255.0.1", OutputID: id,
 				Groups: []application.ManagedFQDNGroup{{Name: group.Name, Entries: group.Entries, Description: group.Description, Interface: deviceInterface, Auto: true}}}
 			ledger := &fqdnLedger{states: map[string]application.ManagedFQDNOwnership{prior.Endpoint + id: prior}, fail: failure == "ownership persistence"}
 			base := double.handler()
@@ -143,7 +143,7 @@ func TestFQDNReadbackRefusesExcludedEntriesAndGatewayRoutes(t *testing.T) {
 	}{
 		{name: "plain interface route"},
 		{name: "excluded domain", excluded: true},
-		{name: "gateway route", gateway: "192.168.1.254"},
+		{name: "gateway route", gateway: "10.255.0.254"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			double := newDeviceDouble("5.1.2")
@@ -164,7 +164,7 @@ func TestFQDNReadbackRefusesExcludedEntriesAndGatewayRoutes(t *testing.T) {
 			}))
 			defer server.Close()
 			deployer := NewFQDNDeployer(Options{Dialer: fixtureDialer{target: server.Listener.Addr().String()}})
-			connection := application.Connection{URL: "http://192.168.1.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface}
+			connection := application.Connection{URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface}
 			device, err := deployer.Probe(context.Background(), connection)
 			if err != nil {
 				t.Fatal(err)
@@ -214,7 +214,7 @@ func TestFQDNConnectionAcceptsNativeInterfaceIDsAndRefusesCLIArguments(t *testin
 		{"Wireguard0\nno object-group fqdn manual", false},
 	} {
 		t.Run(test.value, func(t *testing.T) {
-			connection := application.Connection{URL: "http://192.168.1.1", Username: deviceUser, Password: devicePassword, Interface: test.value}
+			connection := application.Connection{URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword, Interface: test.value}
 			if err := d.ValidateConnection(connection); (err == nil) != test.valid {
 				t.Fatalf("interface %q valid=%v err=%v", test.value, test.valid, err)
 			}

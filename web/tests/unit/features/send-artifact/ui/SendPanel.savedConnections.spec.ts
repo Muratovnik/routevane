@@ -31,7 +31,7 @@ const scenario = (
     target_id: 'keenetic',
     target_title: 'Keenetic',
     name: 'Home router',
-    address: 'http://192.168.1.1',
+    address: 'http://10.255.0.1',
     account: 'home-admin',
     interface: 'Wireguard0',
     // A saved password is its own fact, apart from automatic delivery.
@@ -43,7 +43,7 @@ const scenario = (
     ...selected,
     id: 'c'.repeat(32),
     name: 'Office router',
-    address: 'http://192.168.1.2',
+    address: 'http://10.255.0.2',
     account: 'office-admin',
     interface: 'Wireguard1',
     auto_deliver: true,
@@ -81,7 +81,7 @@ const scenario = (
             deployer_id: 'keenetic-route-bat',
             requirements: {
               address_label: 'Address',
-              address_example: 'http://192.168.1.1',
+              address_example: 'http://10.255.0.1',
               needs_credential: true,
               needs_interface: true,
               interface_label: 'Interface',
@@ -545,7 +545,7 @@ it('keeps manual entry usable when the saved registry cannot be loaded', async (
     .toBeVisible()
   await screen
     .getByRole('textbox', { name: t('deploy.field.address.keenetic') })
-    .fill('http://192.168.1.8')
+    .fill('http://10.255.0.8')
   await screen
     .getByRole('textbox', { name: t('deploy.field.account.keenetic') })
     .fill('manual-admin')
@@ -565,7 +565,7 @@ it('keeps manual entry usable when the saved registry cannot be loaded', async (
     String(input).endsWith('/deploy'),
   )
   expect(JSON.parse(String(request?.[1]?.body))).toEqual({
-    device: 'http://192.168.1.8',
+    device: 'http://10.255.0.8',
     username: 'manual-admin',
     password: credential,
     interface: 'Wireguard8',

@@ -157,7 +157,7 @@ test('changing the address states the consequence beside Save and then clears th
   await expect(detail.getByText(warning)).toHaveCount(0)
   await name.fill('Home router')
 
-  await address.fill('http://192.168.1.77')
+  await address.fill('http://10.255.0.77')
   await expect(detail.getByText(warning)).toBeVisible()
   await expect(
     detail.getByText(copy('devices.consequence.credential')),
@@ -219,13 +219,13 @@ test('a refused save names the address when the address was what changed', async
   // The refusal carries no field, so it is attributed to the address only
   // when the address is the thing that changed.
   registry.refuseNextUpdate()
-  await address.fill('http://192.168.1.78')
+  await address.fill('http://10.255.0.78')
   await detail.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(detail.getByText(copy('devices.address.refused'))).toBeVisible()
   await expect(address).toBeFocused()
 
   registry.refuseNextUpdate()
-  await address.fill('http://192.168.1.1')
+  await address.fill('http://10.255.0.1')
   await deviceField(detail, 'devices.field.name').fill('Renamed router')
   await detail.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(detail.getByText(copy('devices.work.failed'))).toBeVisible()
@@ -269,7 +269,7 @@ test('an address the service would refuse is answered beside the field before it
   }
   expect(writes).toEqual([])
 
-  await address.fill('http://192.168.1.201')
+  await address.fill('http://10.255.0.201')
   await expect(
     page.getByText(copy('devices.validation.address.local')),
   ).toHaveCount(0)

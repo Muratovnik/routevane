@@ -24,7 +24,7 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 			ListDomains: map[string][]string{}, RefreshInterval: application.RefreshDaily,
 		}},
 		Devices: []application.TransferDevice{{
-			Ref: "device-1", TargetID: "keenetic", Name: "Router", Address: "http://192.168.1.1", Account: "admin", Interface: "WG0",
+			Ref: "device-1", TargetID: "keenetic", Name: "Router", Address: "http://192.0.2.1", Account: "admin", Interface: "WG0",
 		}},
 		Outputs: []application.TransferOutput{{Ref: "output-1", ProfileRef: "profile-1", TargetID: "keenetic", DeviceRef: "device-1"}},
 	}

@@ -12,7 +12,7 @@ import (
 )
 
 func sqliteManagedScope() application.ManagedRouteScope {
-	return application.ManagedRouteScope{Endpoint: "http://192.168.1.1", TargetID: "keenetic", Interface: "Wireguard0"}
+	return application.ManagedRouteScope{Endpoint: "http://192.0.2.1", TargetID: "keenetic", Interface: "Wireguard0"}
 }
 
 func TestManagedRouteOwnershipPersistsExactlyAndRetirementStartsSafe(t *testing.T) {

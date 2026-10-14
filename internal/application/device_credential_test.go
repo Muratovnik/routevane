@@ -228,7 +228,7 @@ func TestChangingAConnectionDeletesACredentialSavedWithoutAutomaticDelivery(t *t
 	if _, err := devices.SaveCredential(context.Background(), device.ID, "saved"); err != nil {
 		t.Fatal(err)
 	}
-	updated, err := devices.UpdateDevice(context.Background(), device.ID, device.Name, "http://192.168.1.2", device.Account, device.Interface)
+	updated, err := devices.UpdateDevice(context.Background(), device.ID, device.Name, "http://10.255.0.2", device.Account, device.Interface)
 	if err != nil || updated.CredentialStored || len(secrets.secrets) != 0 {
 		t.Fatalf("updated = %#v secrets = %#v err = %v", updated, secrets.secrets, err)
 	}

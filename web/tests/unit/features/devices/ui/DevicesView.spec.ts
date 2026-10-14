@@ -11,7 +11,7 @@ const LISTS = '/v1/lists'
 const TARGETS = '/v1/targets'
 const REQUIREMENTS = '/v1/deployments/targets'
 const MISSING_FIELD = 'Fill in this field'
-const ADDRESS_EXPECTED = 'Expected an address like http://192.168.1.1.'
+const ADDRESS_EXPECTED = 'Expected an address like http://10.255.0.1.'
 const ADDRESS_RULE =
   'Start with http:// or https://, then the router’s local IP address'
 
@@ -28,7 +28,7 @@ const DEVICE_PAYLOAD = {
       target_id: 'keenetic',
       target_title: 'Keenetic',
       name: 'Home router',
-      address: 'http://192.168.1.1',
+      address: 'http://10.255.0.1',
       account: 'admin',
       auto_deliver: false,
       deployable: true,
@@ -61,7 +61,7 @@ const REQUIREMENTS_PAYLOAD = {
       deployer_id: 'keenetic',
       requirements: {
         address_label: 'Device address',
-        address_example: 'http://192.168.1.1',
+        address_example: 'http://10.255.0.1',
         needs_credential: true,
         needs_interface: true,
         interface_label: 'Device interface',
@@ -183,7 +183,7 @@ describe('DevicesView prerequisite audit', () => {
     await screen.getByLabelText('Connection name').fill('Draft router')
     await screen
       .getByLabelText('Router address', { exact: true })
-      .fill('http://192.168.1.2')
+      .fill('http://10.255.0.2')
     const submit = screen.getByRole('button', { name: 'Save' })
     await expect.element(submit).toBeDisabled()
 
@@ -195,7 +195,7 @@ describe('DevicesView prerequisite audit', () => {
       .toHaveValue('Draft router')
     await expect
       .element(screen.getByLabelText('Router address', { exact: true }))
-      .toHaveValue('http://192.168.1.2')
+      .toHaveValue('http://10.255.0.2')
     // With the requirements read, the fields they ask for appear.
     const account = screen.getByLabelText('Router login')
     const deviceInterface = screen.getByLabelText('Interface for routes')
@@ -299,7 +299,7 @@ describe('DevicesView prerequisite audit', () => {
   /**
    * The service stores this address and contacts it later, without the operator
    * present, so it refuses one whose scheme is left to be guessed. The form used
-   * to take `192.168.1.1`, send it, and report only that the request had been
+   * to take `10.255.0.1`, send it, and report only that the request had been
    * refused — naming no field and no reason.
    */
   it('states the address shape a stored connection needs before it is sent', async () => {
@@ -330,7 +330,7 @@ describe('DevicesView prerequisite audit', () => {
     await screen.getByLabelText('Router login').fill('admin')
     await screen.getByLabelText('Interface for routes').fill('Wireguard0')
     const address = screen.getByLabelText('Router address', { exact: true })
-    await address.fill('192.168.1.1')
+    await address.fill('10.255.0.1')
     // Leaving the field is what asks it to answer, as with a field left empty.
     await screen.getByLabelText('Connection name').click()
 
@@ -338,7 +338,7 @@ describe('DevicesView prerequisite audit', () => {
     await screen.getByRole('button', { name: 'Save' }).click()
     await expect.element(address).toHaveFocus()
 
-    await address.fill('http://192.168.1.1')
+    await address.fill('http://10.255.0.1')
     await expect
       .element(screen.getByText(ADDRESS_EXPECTED))
       .not.toBeInTheDocument()
@@ -434,7 +434,7 @@ it.each([
         ...DEVICE_PAYLOAD.devices[0],
         id: 'device-2',
         name: 'Office router',
-        address: 'http://192.168.1.2',
+        address: 'http://10.255.0.2',
       },
     ],
     nextHeading: 'Office router',
@@ -567,7 +567,7 @@ it('selects the created identity after a failed reread recovers without repeatin
     ...DEVICE_PAYLOAD.devices[0],
     id: 'created-id',
     name: 'Saved router',
-    address: 'http://192.168.1.9',
+    address: 'http://10.255.0.9',
   }
   const fetchMock = installFetch(async (input, init) => {
     if (input === DEVICES && init?.method === 'POST') {
@@ -600,7 +600,7 @@ it('selects the created identity after a failed reread recovers without repeatin
   await screen.getByLabelText('Connection name').fill('Home router')
   await screen
     .getByLabelText('Router address', { exact: true })
-    .fill('http://192.168.1.1')
+    .fill('http://10.255.0.1')
   await screen.getByLabelText('Router login').fill('admin')
   await screen.getByLabelText('Interface for routes').fill('Wireguard0')
   await screen.getByRole('button', { name: 'Save', exact: true }).click()
@@ -612,7 +612,7 @@ it('selects the created identity after a failed reread recovers without repeatin
     .toBeVisible()
   await expect
     .element(screen.getByLabelText('Router address', { exact: true }))
-    .toHaveValue('http://192.168.1.9')
+    .toHaveValue('http://10.255.0.9')
   await expect
     .element(screen.getByRole('button', { name: 'Save', exact: true }))
     .toBeDisabled()
@@ -651,7 +651,7 @@ const AUTO_DEVICE = {
   target_id: 'keenetic',
   target_title: 'Keenetic',
   name: 'Home router',
-  address: 'http://192.168.1.1',
+  address: 'http://10.255.0.1',
   account: 'admin',
   interface: 'Wireguard0',
   credential_stored: true,
@@ -774,7 +774,7 @@ it('saves a renamed connection through the update endpoint and says nothing abou
   expect(written).toHaveLength(1)
   expect(JSON.parse(String((written[0]?.[1] as RequestInit).body))).toEqual({
     account: 'admin',
-    address: 'http://192.168.1.1',
+    address: 'http://10.255.0.1',
     interface: 'Wireguard0',
     name: 'Study router',
   })
@@ -785,7 +785,7 @@ it('keeps an updated same-device card through a failed reread and retry', async 
   const saved = {
     ...AUTO_DEVICE,
     name: 'Study router',
-    address: 'http://192.168.1.9',
+    address: 'http://10.255.0.9',
   }
   const fetchMock = installFetch(async (input, init) => {
     if (input === UPDATE) return json({ device: saved })
@@ -806,7 +806,7 @@ it('keeps an updated same-device card through a failed reread and retry', async 
   await screen.getByLabelText('Connection name').fill('Study router')
   await screen
     .getByLabelText('Router address', { exact: true })
-    .fill('http://192.168.1.9')
+    .fill('http://10.255.0.9')
   await screen.getByLabelText('Router login').fill('admin')
   await screen.getByLabelText('Interface for routes').fill('Wireguard0')
   await screen.getByRole('button', { name: 'Save', exact: true }).click()
@@ -819,7 +819,7 @@ it('keeps an updated same-device card through a failed reread and retry', async 
     .toBeVisible()
   await expect
     .element(screen.getByLabelText('Router address', { exact: true }))
-    .toHaveValue('http://192.168.1.9')
+    .toHaveValue('http://10.255.0.9')
   await expect
     .element(screen.getByRole('button', { name: 'Save', exact: true }))
     .toBeDisabled()
@@ -846,7 +846,7 @@ it('states that a changed destination ends the setup, then reports the state the
         devices: [
           {
             ...AUTO_DEVICE,
-            address: written ? 'http://192.168.1.2' : 'http://192.168.1.1',
+            address: written ? 'http://10.255.0.2' : 'http://10.255.0.1',
             auto_deliver: !written,
             credential_stored: !written,
           },
@@ -867,7 +867,7 @@ it('states that a changed destination ends the setup, then reports the state the
 
   await screen
     .getByLabelText('Router address', { exact: true })
-    .fill('http://192.168.1.2')
+    .fill('http://10.255.0.2')
   // The warning stands beside Save, before it is pressed.
   await expect
     .element(

@@ -78,7 +78,7 @@ func TestFQDNOutputsCoexistAndPrefixMigrationOnlyRemovesTheirOwnObjects(t *testi
 	old, _ := keeneticdns.Parse(first.Payload)
 	otherGroups, _ := keeneticdns.Parse(other.Payload)
 	changed := outputFQDNArtifact(t, a, "custom", "same-list", "a.example")
-	prior, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", a)
+	prior, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://10.255.0.1", a)
 	changed.OwnedFQDNGroups = prior.Groups
 	preview, err := f.deployer.PreviewFQDNGroups(context.Background(), f.probe(t), f.connection, changed)
 	if err != nil {
@@ -226,7 +226,7 @@ func TestFQDNDescriptionUpdatesOwnedLegacyGroupAndRollsBackWithItsLedger(t *test
 	if len(f.device.commandLog()) != before {
 		t.Fatal("same or legacy artifact rewrote a correctly labelled group")
 	}
-	prior, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", id)
+	prior, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://10.255.0.1", id)
 	changed := current
 	changed.Payload = []byte(strings.ReplaceAll(string(current.Payload), `description "Claude"`, `description "Claude work"`))
 	ledger.fail = true
@@ -237,7 +237,7 @@ func TestFQDNDescriptionUpdatesOwnedLegacyGroupAndRollsBackWithItsLedger(t *test
 	f.device.mu.Lock()
 	label, foreign := f.device.fqdnDescriptions[name], f.device.fqdnDescriptions["manual"]
 	f.device.mu.Unlock()
-	after, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", id)
+	after, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://10.255.0.1", id)
 	if label != "Claude" || foreign != "Operator list" || !reflect.DeepEqual(prior, after) {
 		t.Fatalf("label recovery lost prior state: label=%q foreign=%q ledger=%#v", label, foreign, after)
 	}
@@ -269,14 +269,14 @@ func TestFQDNReadableNamesReplaceOnlyTheOutputsOwnHashedGroups(t *testing.T) {
 			t.Fatalf("earlier hashed build of %s: %#v %v", earlier.id, result, err)
 		}
 	}
-	otherBefore, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", b)
+	otherBefore, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://10.255.0.1", b)
 
 	current := outputFQDNArtifact(t, a, "", "chatgpt", "chatgpt.com")
 	readable := "routevane-chatgpt-8a8366-s1"
 	if groups, err := keeneticdns.Parse(current.Payload); err != nil || len(groups) != 1 || groups[0].Name != readable {
 		t.Fatalf("current build groups=%#v err=%v", groups, err)
 	}
-	prior, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", a)
+	prior, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://10.255.0.1", a)
 	current.OwnedFQDNGroups = prior.Groups
 	preview, err := f.deployer.PreviewFQDNGroups(context.Background(), f.probe(t), f.connection, current)
 	if err != nil {
@@ -305,11 +305,11 @@ func TestFQDNReadableNamesReplaceOnlyTheOutputsOwnHashedGroups(t *testing.T) {
 	if !reflect.DeepEqual(groups, wantGroups) || !reflect.DeepEqual(routes, wantRoutes) {
 		t.Fatalf("device groups=%v routes=%v", groups, routes)
 	}
-	owned, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", a)
+	owned, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://10.255.0.1", a)
 	if len(owned.Groups) != 1 || owned.Groups[0].Name != readable {
 		t.Fatalf("ledger of the deployed output = %#v", owned.Groups)
 	}
-	otherAfter, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://192.168.1.1", b)
+	otherAfter, _ := ledger.ManagedFQDNOwnership(context.Background(), "http://10.255.0.1", b)
 	if !reflect.DeepEqual(otherBefore, otherAfter) {
 		t.Fatalf("another output's ledger changed: %#v", otherAfter)
 	}

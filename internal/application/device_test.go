@@ -114,7 +114,7 @@ func deviceService(t *testing.T, secrets *fakeSecretStore) (*DeviceService, *fak
 
 func registered(t *testing.T, devices *DeviceService) Device {
 	t.Helper()
-	device, err := devices.RegisterDevice(context.Background(), "keenetic", " Роутер ", " http://192.168.1.1 ", " admin ", " Wireguard0 ")
+	device, err := devices.RegisterDevice(context.Background(), "keenetic", " Роутер ", " http://10.255.0.1 ", " admin ", " Wireguard0 ")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +126,7 @@ func registered(t *testing.T, devices *DeviceService) Device {
 func TestARegisteredDeviceStartsWithoutUnattendedDelivery(t *testing.T) {
 	devices, _ := deviceService(t, &fakeSecretStore{available: true})
 	device := registered(t, devices)
-	if device.Name != "Роутер" || device.Address != "http://192.168.1.1" || device.Account != "admin" || device.Interface != "Wireguard0" {
+	if device.Name != "Роутер" || device.Address != "http://10.255.0.1" || device.Account != "admin" || device.Interface != "Wireguard0" {
 		t.Fatalf("device = %#v", device)
 	}
 	if device.AutoDeliver {
@@ -137,11 +137,11 @@ func TestARegisteredDeviceStartsWithoutUnattendedDelivery(t *testing.T) {
 func TestRegistrationRefusesWhatItCannotStand(t *testing.T) {
 	devices, _ := deviceService(t, &fakeSecretStore{available: true})
 	tests := []struct{ name, target, deviceName, address string }{
-		{"unknown target", "absent", "Роутер", "http://192.168.1.1"},
-		{"no name", "keenetic", "  ", "http://192.168.1.1"},
+		{"unknown target", "absent", "Роутер", "http://10.255.0.1"},
+		{"no name", "keenetic", "  ", "http://10.255.0.1"},
 		{"no address", "keenetic", "Роутер", "  "},
-		{"control character", "keenetic", "Ро\x07утер", "http://192.168.1.1"},
-		{"overlong name", "keenetic", strings.Repeat("я", 121), "http://192.168.1.1"},
+		{"control character", "keenetic", "Ро\x07утер", "http://10.255.0.1"},
+		{"overlong name", "keenetic", strings.Repeat("я", 121), "http://10.255.0.1"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -159,7 +159,7 @@ func TestRegistrationEnforcesTheDeployersConnectionFields(t *testing.T) {
 		"missing interface": {account: "admin"},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := devices.RegisterDevice(context.Background(), "keenetic", "Роутер", "http://192.168.1.1", input.account, input.interfaceName); err == nil {
+			if _, err := devices.RegisterDevice(context.Background(), "keenetic", "Роутер", "http://10.255.0.1", input.account, input.interfaceName); err == nil {
 				t.Fatal("expected the incomplete connection to be refused")
 			}
 		})
@@ -176,7 +176,7 @@ func TestRegistrationAppliesTheDeployersStoredConnectionPolicy(t *testing.T) {
 		NeedsCredential: func(string) bool { return true },
 		NeedsInterface:  func(string) bool { return true },
 		ValidateStoredConnection: func(_ string, connection Connection) error {
-			if connection.URL != "http://192.168.1.1" || connection.Password != "" {
+			if connection.URL != "http://10.255.0.1" || connection.Password != "" {
 				return ErrConnectionInvalid
 			}
 			return nil
@@ -208,11 +208,11 @@ func TestChangingAConnectionRevokesConsentCredentialAndOldRouteOwnership(t *test
 	if _, err := devices.EnableAutoDelivery(context.Background(), device.ID, "password"); err != nil {
 		t.Fatal(err)
 	}
-	updated, err := devices.UpdateDevice(context.Background(), device.ID, "New name", "http://192.168.1.2", "operator", "Wireguard1")
+	updated, err := devices.UpdateDevice(context.Background(), device.ID, "New name", "http://10.255.0.2", "operator", "Wireguard1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if updated.AutoDeliver || updated.CredentialStored || updated.Address != "http://192.168.1.2" || updated.Account != "operator" || updated.Interface != "Wireguard1" {
+	if updated.AutoDeliver || updated.CredentialStored || updated.Address != "http://10.255.0.2" || updated.Account != "operator" || updated.Interface != "Wireguard1" {
 		t.Fatalf("updated = %#v", updated)
 	}
 	if _, held := secrets.secrets[secretKey(device.ID)]; held {
@@ -250,7 +250,7 @@ func TestAConnectionChangeStopsWhenItsCredentialCannotBeRevoked(t *testing.T) {
 		t.Fatal(err)
 	}
 	secrets.deleteErr = errors.New("credential store locked")
-	if _, err := devices.UpdateDevice(context.Background(), device.ID, device.Name, "http://192.168.1.2", device.Account, device.Interface); err == nil {
+	if _, err := devices.UpdateDevice(context.Background(), device.ID, device.Name, "http://10.255.0.2", device.Account, device.Interface); err == nil {
 		t.Fatal("the connection changed while its old credential could not be revoked")
 	}
 	stored := store.devices[0]

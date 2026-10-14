@@ -13,7 +13,7 @@ const registry = () => ({
       target_id: 'keenetic',
       target_title: 'Keenetic',
       name: 'First router',
-      address: 'http://192.168.1.1',
+      address: 'http://10.255.0.1',
       account: 'admin',
       interface: 'Wireguard0',
       // Automatic delivery on is not a saved password (ADR 0050).
@@ -26,7 +26,7 @@ const registry = () => ({
       target_id: 'keenetic',
       target_title: 'Keenetic',
       name: 'Bound router',
-      address: 'http://192.168.1.2',
+      address: 'http://10.255.0.2',
       account: 'operator',
       interface: 'Wireguard1',
       auto_deliver: false,
@@ -49,7 +49,7 @@ const registry = () => ({
       target_id: 'keenetic',
       target_title: 'Keenetic',
       name: 'Unavailable adapter',
-      address: 'http://192.168.1.3',
+      address: 'http://10.255.0.3',
       account: 'admin',
       interface: 'Wireguard0',
       auto_deliver: true,
@@ -89,7 +89,7 @@ it('selects the bound compatible access and only reads the registry', async () =
   ])
   expect(connections.selected.value).toMatchObject({
     id: 'bound',
-    address: 'http://192.168.1.2',
+    address: 'http://10.255.0.2',
     account: 'operator',
     interfaceName: 'Wireguard1',
   })

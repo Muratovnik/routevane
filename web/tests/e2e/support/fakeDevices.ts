@@ -49,7 +49,7 @@ export const routerDevice = (
   target_id: 'keenetic',
   target_title: 'Keenetic',
   name: 'Home router',
-  address: 'http://192.168.1.1',
+  address: 'http://10.255.0.1',
   account: 'admin',
   interface: 'Wireguard0',
   credential_stored: false,

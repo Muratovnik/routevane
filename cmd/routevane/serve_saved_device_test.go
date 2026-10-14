@@ -194,7 +194,7 @@ func TestRegisteredDeploymentReadsTheSavedCredentialOnlyAfterAcquiringTheDeliver
 			if err != nil {
 				t.Fatal(err)
 			}
-			device, err := devices.RegisterDevice(context.Background(), artifacts.target.ID, "Saved router", "http://192.168.1.1", "admin", "Wireguard0")
+			device, err := devices.RegisterDevice(context.Background(), artifacts.target.ID, "Saved router", "http://10.255.0.1", "admin", "Wireguard0")
 			if err != nil {
 				t.Fatal(err)
 			}

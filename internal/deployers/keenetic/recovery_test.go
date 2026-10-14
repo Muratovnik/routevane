@@ -72,7 +72,7 @@ func TestRollbackRequiresAcceptedSaveAndMatchingReadback(t *testing.T) {
 			}))
 			defer server.Close()
 			d := New(Options{Dialer: fixtureDialer{target: server.Listener.Addr().String()}})
-			connection := application.Connection{URL: "http://192.168.1.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface}
+			connection := application.Connection{URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface}
 			backup, err := d.Backup(context.Background(), application.DeviceInfo{}, connection)
 			if err != nil {
 				t.Fatal(err)

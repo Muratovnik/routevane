@@ -53,7 +53,7 @@ func TestFQDNSendKeepsClaudeGroupAcrossEditsArchiveAndServerRestart(t *testing.T
 	send := func(attempt string, confirm bool) {
 		t.Helper()
 		body, err := json.Marshal(map[string]any{
-			"attempt_id": attempt, "confirm": confirm, "device": "http://192.168.1.1",
+			"attempt_id": attempt, "confirm": confirm, "device": "http://10.255.0.1",
 			"username": deviceUser, "password": devicePassword, "interface": deviceInterfaceName,
 		})
 		if err != nil {

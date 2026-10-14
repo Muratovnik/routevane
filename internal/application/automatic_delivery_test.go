@@ -120,7 +120,7 @@ func TestManualAndAutomaticDeliveryUseTheSameManagedRouteLedger(t *testing.T) {
 	}
 
 	devices := automaticDeviceSource{
-		devices: map[string]Device{"router": {ID: "router", Address: "http://192.168.1.1", Account: "admin", Interface: "Wireguard0", AutoDeliver: true}},
+		devices: map[string]Device{"router": {ID: "router", Address: "http://10.255.0.1", Account: "admin", Interface: "Wireguard0", AutoDeliver: true}},
 		secrets: map[string]string{"router": deployTestPassword},
 	}
 	automatic, err := NewAutomaticDeliveryService(AutomaticDeliveryConfig{
@@ -179,7 +179,7 @@ func TestAutomaticDeliveryCompositionIsRequired(t *testing.T) {
 func TestAutomaticDeliveryHoldsAuthorizationThroughTheDeviceSideEffect(t *testing.T) {
 	gate := NewDeliveryGate()
 	source := automaticDeviceSource{
-		devices: map[string]Device{"router": {ID: "router", Address: "http://192.168.1.1", Account: "admin", Interface: "Wireguard0", AutoDeliver: true}},
+		devices: map[string]Device{"router": {ID: "router", Address: "http://10.255.0.1", Account: "admin", Interface: "Wireguard0", AutoDeliver: true}},
 		secrets: map[string]string{"router": "secret"},
 		outputs: map[string]Output{"output": {ID: "output", DeviceID: "router"}},
 	}

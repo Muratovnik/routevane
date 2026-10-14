@@ -26,13 +26,13 @@ func TestDeviceRegistrationRefusesUnsafePersistedDestinationsEndToEnd(t *testing
 	}()
 
 	userInfoSecret := "embedded-password"
-	userInfoURL := (&url.URL{Scheme: "http", Host: "192.168.1.1", User: url.UserPassword("admin", userInfoSecret)}).String()
+	userInfoURL := (&url.URL{Scheme: "http", Host: "10.255.0.1", User: url.UserPassword("admin", userInfoSecret)}).String()
 	cases := []struct {
 		name, target, address, account, interfaceName, secret string
 	}{
 		{"keenetic userinfo", "keenetic", userInfoURL, "admin", "Wireguard0", userInfoSecret},
-		{"keenetic query", "keenetic", "http://192.168.1.1?password=query-password", "admin", "Wireguard0", "query-password"},
-		{"keenetic fragment", "keenetic", "http://192.168.1.1/#fragment-password", "admin", "Wireguard0", "fragment-password"},
+		{"keenetic query", "keenetic", "http://10.255.0.1?password=query-password", "admin", "Wireguard0", "query-password"},
+		{"keenetic fragment", "keenetic", "http://10.255.0.1/#fragment-password", "admin", "Wireguard0", "fragment-password"},
 		{"keenetic public address", "keenetic", "https://203.0.113.10", "admin", "Wireguard0", "203.0.113.10"},
 		{"sing-box authority", "singbox", "file://server/share/config.json", "", "", "server"},
 		{"sing-box query", "singbox", "file:///C:/sing-box/config.json?token=file-password", "", "", "file-password"},
@@ -62,7 +62,7 @@ func TestDeviceRegistrationRefusesUnsafePersistedDestinationsEndToEnd(t *testing
 		t.Fatalf("unsafe devices reached the registry: status=%d body=%s", listing.status, listing.body)
 	}
 
-	createdBody := postJSON(t, origin+"/v1/devices", `{"target_id":"keenetic","name":"Router","address":"http://192.168.1.1","account":"admin","interface":"Wireguard0"}`)
+	createdBody := postJSON(t, origin+"/v1/devices", `{"target_id":"keenetic","name":"Router","address":"http://10.255.0.1","account":"admin","interface":"Wireguard0"}`)
 	var created struct {
 		Device struct {
 			ID string `json:"id"`
@@ -72,13 +72,13 @@ func TestDeviceRegistrationRefusesUnsafePersistedDestinationsEndToEnd(t *testing
 		t.Fatalf("valid device registration=%s err=%v", createdBody, err)
 	}
 	const updateSecret = "update-password"
-	unsafeUpdate := postGuardedBody(t, origin+"/v1/devices/"+created.Device.ID+"/update", `{"name":"Router","address":"http://192.168.1.1?password=`+updateSecret+`","account":"admin","interface":"Wireguard0"}`)
+	unsafeUpdate := postGuardedBody(t, origin+"/v1/devices/"+created.Device.ID+"/update", `{"name":"Router","address":"http://10.255.0.1?password=`+updateSecret+`","account":"admin","interface":"Wireguard0"}`)
 	if unsafeUpdate.status != http.StatusUnprocessableEntity || strings.Contains(string(unsafeUpdate.body), updateSecret) {
 		t.Fatalf("unsafe update status=%d body=%s", unsafeUpdate.status, unsafeUpdate.body)
 	}
 	listing = httpGet(t, origin+"/v1/devices", nil)
 	decoded.Devices = nil
-	if listing.status != http.StatusOK || json.Unmarshal(listing.body, &decoded) != nil || len(decoded.Devices) != 1 || decoded.Devices[0].Address != "http://192.168.1.1" || strings.Contains(string(listing.body), updateSecret) {
+	if listing.status != http.StatusOK || json.Unmarshal(listing.body, &decoded) != nil || len(decoded.Devices) != 1 || decoded.Devices[0].Address != "http://10.255.0.1" || strings.Contains(string(listing.body), updateSecret) {
 		t.Fatalf("unsafe update changed persisted metadata: status=%d body=%s", listing.status, listing.body)
 	}
 }

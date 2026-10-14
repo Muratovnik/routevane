@@ -39,7 +39,7 @@ export const answer = (payload: unknown, status = 200): void => {
 }
 
 export const connection = {
-  device: '192.168.1.1',
+  device: '192.0.2.1',
   username: 'admin',
   password: 'secret',
   interfaceName: 'wan',
@@ -132,7 +132,7 @@ export const requirementsPayload = (
       deployer_id: 'keenetic-telnet',
       requirements: {
         address_label: 'Address',
-        address_example: '192.168.1.1',
+        address_example: '192.0.2.1',
         needs_credential: true,
         needs_interface: false,
         ...requirements,

@@ -17,7 +17,7 @@ test('a forgotten connection leaves the real registry and the empty view keeps G
     data: {
       target_id: 'keenetic',
       name: 'Forgotten router',
-      address: 'http://192.168.1.1',
+      address: 'http://192.0.2.1',
       account: 'admin',
       interface: 'Wireguard0',
     },

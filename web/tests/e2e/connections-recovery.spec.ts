@@ -14,7 +14,7 @@ test('a saved connection survives a failed registry read and retries without ano
     data: {
       target_id: 'keenetic',
       name: 'Recovery router',
-      address: 'http://192.168.1.1',
+      address: 'http://10.255.0.1',
       account: 'admin',
       interface: 'Wireguard0',
     },
@@ -23,7 +23,7 @@ test('a saved connection survives a failed registry read and retries without ano
   const { device } = (await created.json()) as { device: { id: string } }
   await page.goto(`${origin}/connections`)
   await expect(page.getByLabel('Router address', { exact: true })).toHaveValue(
-    'http://192.168.1.1',
+    'http://10.255.0.1',
   )
 
   let writes = 0
@@ -41,7 +41,7 @@ test('a saved connection survives a failed registry read and retries without ano
   await page.getByLabel('Connection name').fill('Saved router')
   await page
     .getByLabel('Router address', { exact: true })
-    .fill('http://192.168.1.9')
+    .fill('http://10.255.0.9')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
 
   await expect(
@@ -51,7 +51,7 @@ test('a saved connection survives a failed registry read and retries without ano
     page.getByRole('heading', { name: 'Saved router', exact: true }),
   ).toBeVisible()
   await expect(page.getByLabel('Router address', { exact: true })).toHaveValue(
-    'http://192.168.1.9',
+    'http://10.255.0.9',
   )
   await expect(
     page.getByRole('button', { name: 'Save', exact: true }),
@@ -59,7 +59,7 @@ test('a saved connection survives a failed registry read and retries without ano
   const persisted = await page.request.get(`${origin}/v1/devices`)
   expect(await persisted.json()).toMatchObject({
     devices: [
-      { id: device.id, name: 'Saved router', address: 'http://192.168.1.9' },
+      { id: device.id, name: 'Saved router', address: 'http://10.255.0.9' },
     ],
   })
 
@@ -68,7 +68,7 @@ test('a saved connection survives a failed registry read and retries without ano
     page.getByText('Connections could not be refreshed'),
   ).toHaveCount(0)
   await expect(page.getByLabel('Router address', { exact: true })).toHaveValue(
-    'http://192.168.1.9',
+    'http://10.255.0.9',
   )
   expect(writes).toBe(1)
   expect(reads).toBe(2)

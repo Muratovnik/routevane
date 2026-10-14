@@ -15,7 +15,7 @@ const wire = (overrides: Record<string, unknown> = {}) => ({
   target_id: 'keenetic',
   target_title: 'Keenetic',
   name: 'Home router',
-  address: 'http://192.168.1.1',
+  address: 'http://10.255.0.1',
   account: 'admin',
   interface: 'Wireguard0',
   credential_stored: false,
@@ -32,7 +32,7 @@ const REQUIREMENTS = {
       deployer_id: 'keenetic',
       requirements: {
         address_label: 'Device address',
-        address_example: 'http://192.168.1.1',
+        address_example: 'http://10.255.0.1',
         needs_credential: true,
         needs_interface: true,
         interface_label: 'Device interface',
@@ -177,7 +177,7 @@ describe('useDevices saved password', () => {
       devices.update(
         'device-1',
         'Home router',
-        'http://192.168.1.2',
+        'http://10.255.0.2',
         'admin',
         'Wireguard0',
       ),
@@ -234,7 +234,7 @@ describe('useDevices requirements', () => {
     const written = devices.update(
       'device-1',
       'Study router',
-      'http://192.168.1.1',
+      'http://10.255.0.1',
       'admin',
       'Wireguard0',
     )

@@ -85,7 +85,7 @@ func TestDirectCLIDeploySignalsWaitForRollback(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			command := exec.CommandContext(ctx, executable, "-test.run=^TestCLIDeploySignalProcess$", "--",
-				"deploy", "--artifact", artifactID, "--target", "keenetic", "--device", "http://192.168.1.1",
+				"deploy", "--artifact", artifactID, "--target", "keenetic", "--device", "http://10.255.0.1",
 				"--user", deviceUser, "--interface", deviceInterfaceName, "--catalog-dir", catalog, "--data-dir", data, "--confirm")
 			command.Env = append(os.Environ(), cliSignalDeviceVariable+"="+deviceServer.Listener.Addr().String(),
 				PluginsDirVariable+"=", DevicePasswordVariable+"="+devicePassword)

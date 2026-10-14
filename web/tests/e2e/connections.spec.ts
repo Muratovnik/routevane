@@ -223,7 +223,7 @@ test('the device form asks only for fields the selected target needs', async ({
       'For example, Wireguard0 — the Keenetic connection/interface ID.',
     ),
   ).toBeVisible()
-  await keeneticAddress.fill('http://192.168.1.1')
+  await keeneticAddress.fill('http://10.255.0.1')
   await deviceField(page, 'deploy.field.account.keenetic').fill('admin')
   await page
     .getByRole('button', { name: 'Save', exact: true })
@@ -377,7 +377,7 @@ test('an output can be explicitly bound to and detached from a compatible device
   const created = await page.request.post(`${origin}/v1/devices`, {
     data: {
       account: 'admin',
-      address: 'http://192.168.1.1',
+      address: 'http://192.0.2.1',
       interface: 'Wireguard0',
       name: deviceName,
       target_id: 'keenetic',
@@ -526,7 +526,7 @@ test('binding a device on Publishing keeps an unsaved rename on Contents', async
   const created = await page.request.post(`${origin}/v1/devices`, {
     data: {
       account: 'admin',
-      address: 'http://192.168.1.2',
+      address: 'http://192.0.2.2',
       interface: 'Wireguard0',
       name: deviceName,
       target_id: 'keenetic',

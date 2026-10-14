@@ -104,7 +104,7 @@ func TestRegisteredDeploymentRefusesStaleOrMixedMetadataBeforeReadingASecret(t *
 		wantErr error
 	}{
 		{"changed address", func(_ *DeployCommand, store *fakeDeviceStore, _ *stubArtifacts) {
-			store.devices[0].Address = "http://192.168.1.2"
+			store.devices[0].Address = "http://10.255.0.2"
 		}, ErrConnectionInvalid},
 		{"changed account", func(_ *DeployCommand, store *fakeDeviceStore, _ *stubArtifacts) {
 			store.devices[0].Account = "another-admin"
@@ -113,7 +113,7 @@ func TestRegisteredDeploymentRefusesStaleOrMixedMetadataBeforeReadingASecret(t *
 			store.devices[0].Interface = "Wireguard1"
 		}, ErrConnectionInvalid},
 		{"raw address mixed in", func(command *DeployCommand, _ *fakeDeviceStore, _ *stubArtifacts) {
-			command.Connection.URL = "http://192.168.1.2"
+			command.Connection.URL = "http://10.255.0.2"
 		}, ErrConnectionInvalid},
 		{"raw account mixed in", func(command *DeployCommand, _ *fakeDeviceStore, _ *stubArtifacts) {
 			command.Connection.Username = "admin"
@@ -170,7 +170,7 @@ func TestRegisteredDeploymentRechecksTheDisplayedAccessAfterPreview(t *testing.T
 		name   string
 		mutate func(*Device)
 	}{
-		{"address", func(device *Device) { device.Address = "http://192.168.1.2" }},
+		{"address", func(device *Device) { device.Address = "http://10.255.0.2" }},
 		{"account", func(device *Device) { device.Account = "another-admin" }},
 		{"interface", func(device *Device) { device.Interface = "Wireguard1" }},
 	}

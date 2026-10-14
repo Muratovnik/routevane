@@ -22,7 +22,7 @@ it.each([false, true])(
       deviceID: 'd'.repeat(32),
       password: credential,
       expectedConnection: {
-        device: 'http://192.168.1.1',
+        device: 'http://192.0.2.1',
         username: 'admin',
         interfaceName: 'Wireguard0',
       },
@@ -93,7 +93,7 @@ it.each([
   const failure: unknown = await applyDeployment(
     'a'.repeat(32),
     {
-      device: 'http://192.168.1.1',
+      device: 'http://192.0.2.1',
       username: 'admin',
       password: credential,
       interfaceName: 'Wireguard0',

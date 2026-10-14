@@ -31,7 +31,7 @@ func newFQDNFixture(t *testing.T, firmware string) *fqdnFixture {
 		device:   device,
 		deployer: NewFQDNDeployer(Options{Dialer: fixtureDialer{target: server.Listener.Addr().String()}}),
 		connection: application.Connection{
-			URL: "http://192.168.1.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface,
+			URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface,
 		},
 	}
 }

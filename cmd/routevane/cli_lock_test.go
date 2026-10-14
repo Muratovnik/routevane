@@ -38,7 +38,7 @@ func TestOneShotWritersRespectTheDataRootLock(t *testing.T) {
 	for _, args := range [][]string{
 		{"refresh", "--list", "youtube"},
 		{"build", "--target", "raw-json", "--list", "youtube"},
-		{"deploy", "--artifact", "existing-artifact", "--target", "keenetic", "--device", "http://192.168.1.1", "--confirm"},
+		{"deploy", "--artifact", "existing-artifact", "--target", "keenetic", "--device", "http://10.255.0.1", "--confirm"},
 		{"discover", "--url", "example.com", "--list-id", "blocked-draft", "--confirm"},
 		{"learn", "--url", "example.com", "--har", filepath.Join(root, "not-read.har"), "--list-id", "blocked-draft", "--confirm"},
 	} {
@@ -73,7 +73,7 @@ func TestUnconfirmedCommandsRemainAvailableWhileDataRootIsLocked(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = lock.Close() })
 	for _, args := range [][]string{
-		{"deploy", "--artifact", "existing-artifact", "--target", "keenetic", "--device", "http://192.168.1.1"},
+		{"deploy", "--artifact", "existing-artifact", "--target", "keenetic", "--device", "http://10.255.0.1"},
 		{"discover", "--url", "example.com"},
 		{"learn", "--url", "example.com", "--har", filepath.Join(root, "not-read.har")},
 	} {

@@ -43,7 +43,7 @@ const CONNECTED_DEVICE = {
   targetID: 'keenetic',
   targetTitle: 'Keenetic',
   name: 'Home router',
-  address: 'http://192.168.1.1',
+  address: 'http://10.255.0.1',
   account: 'admin',
   interfaceName: 'Wireguard0',
   autoDeliver: true,

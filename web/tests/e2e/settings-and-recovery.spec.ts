@@ -154,7 +154,7 @@ for (const language of ['en', 'ru'] as const) {
       const created = await page.request.post(`${origin}/v1/devices`, {
         data: {
           account: 'admin',
-          address: 'http://192.168.1.1',
+          address: 'http://192.0.2.1',
           interface: 'Wireguard0',
           name: 'Requirements retry fixture',
           target_id: 'keenetic',

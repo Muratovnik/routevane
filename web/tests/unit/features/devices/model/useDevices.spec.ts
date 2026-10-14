@@ -17,7 +17,7 @@ const devicePayload = {
       target_id: 'keenetic',
       target_title: 'Keenetic',
       name: 'Home router',
-      address: 'http://192.168.1.1',
+      address: 'http://10.255.0.1',
       account: 'admin',
       auto_deliver: false,
       deployable: true,
@@ -83,7 +83,7 @@ describe('useDevices degraded dependencies', () => {
       devices.register(
         'keenetic',
         'Home router',
-        'http://192.168.1.1',
+        'http://10.255.0.1',
         'admin',
         '',
       ),
@@ -122,7 +122,7 @@ describe('useDevices degraded dependencies', () => {
     await devices.initialize()
 
     await expect(
-      devices.update('device-1', 'Home router', 'http://192.168.1.1', '', ''),
+      devices.update('device-1', 'Home router', 'http://10.255.0.1', '', ''),
     ).resolves.toBe(true)
 
     expect(devices.state.value).toBe('stale')
@@ -193,7 +193,7 @@ describe('useDevices degraded dependencies', () => {
       devices.register(
         'keenetic',
         'Another router',
-        'http://192.168.1.2',
+        'http://10.255.0.2',
         'admin',
         'Wireguard0',
       ),
@@ -234,7 +234,7 @@ describe('useDevices degraded dependencies', () => {
                     deployer_id: 'keenetic',
                     requirements: {
                       address_label: 'Device address',
-                      address_example: 'http://192.168.1.1',
+                      address_example: 'http://10.255.0.1',
                       needs_credential: true,
                       needs_interface: true,
                       interface_label: 'Device interface',
@@ -288,7 +288,7 @@ describe('useDevices degraded dependencies', () => {
       devices.register(
         'keenetic',
         'Manual router',
-        'http://192.168.1.2',
+        'http://10.255.0.2',
         '',
         '',
       ),
@@ -366,7 +366,7 @@ describe('useDevices degraded dependencies', () => {
     await devices.initialize()
     expect(devices.requirementsState.value).toBe('failed')
     await expect(
-      devices.update('device-1', 'Study router', 'http://192.168.1.1', '', ''),
+      devices.update('device-1', 'Study router', 'http://10.255.0.1', '', ''),
     ).resolves.toBe(false)
     const writes = (): unknown[][] =>
       fetchMock.mock.calls.filter(
@@ -383,7 +383,7 @@ describe('useDevices degraded dependencies', () => {
     ).length
     requirements.push(json({ targets: [] }))
     await expect(
-      devices.update('device-1', 'Study router', 'http://192.168.1.1', '', ''),
+      devices.update('device-1', 'Study router', 'http://10.255.0.1', '', ''),
     ).resolves.toBe(true)
 
     expect(writes()).toHaveLength(1)

@@ -13,7 +13,7 @@ const devicesPayload = () => ({
       target_id: 'keenetic',
       target_title: 'Keenetic',
       name: 'Home',
-      address: 'http://192.168.1.1',
+      address: 'http://10.255.0.1',
       account: 'admin',
       interface: 'Wireguard0',
       auto_deliver: true,
@@ -25,7 +25,7 @@ const devicesPayload = () => ({
       target_id: 'keenetic',
       target_title: 'Keenetic',
       name: 'Office',
-      address: 'http://192.168.1.2',
+      address: 'http://10.255.0.2',
       account: 'operator',
       interface: 'Wireguard1',
       auto_deliver: true,
@@ -44,7 +44,7 @@ const targetsPayload = () => ({
       deployer_id: 'keenetic-route-bat',
       requirements: {
         address_label: 'Address',
-        address_example: 'http://192.168.1.1',
+        address_example: 'http://10.255.0.1',
         needs_credential: true,
         needs_interface: true,
         interface_label: 'Interface',
@@ -258,7 +258,7 @@ it('clears the one-use password when the same saved identity acquires different 
   await deployment.review()
   registry.devices[0] = {
     ...registry.devices[0]!,
-    address: 'http://192.168.1.9',
+    address: 'http://10.255.0.9',
     // A changed address removes the saved password with the consent (ADR 0050).
     auto_deliver: false,
     credential_stored: false,
@@ -266,7 +266,7 @@ it('clears the one-use password when the same saved identity acquires different 
   await deployment.connections.initialize()
   expect(deployment.connections.selectedID.value).toBe('saved')
   expect(deployment.connections.selected.value?.address).toBe(
-    'http://192.168.1.9',
+    'http://10.255.0.9',
   )
   expect(deployment.password.value).toBe('')
   expect(deployment.plan.value).toBeNull()
@@ -316,7 +316,7 @@ it.each(['succeeded', 'failed', 'outcome_unknown'] as const)(
     await deployment.review()
     await deployment.apply()
     const recipient = {
-      device: 'http://192.168.1.2',
+      device: 'http://10.255.0.2',
       username: 'operator',
       interfaceName: 'Wireguard1',
     }
@@ -334,7 +334,7 @@ it.each(['succeeded', 'failed', 'outcome_unknown'] as const)(
     deployment.connections.selectedID.value = 'saved'
     registry.devices[1] = {
       ...registry.devices[1]!,
-      address: 'http://192.168.1.9',
+      address: 'http://10.255.0.9',
     }
     await deployment.connections.initialize()
     expect(deployment.attemptRecipient.value).toEqual(recipient)
@@ -374,7 +374,7 @@ it.each([
   JSON.stringify([]),
   JSON.stringify({
     attemptID: 'another-attempt',
-    device: 'http://192.168.1.2',
+    device: 'http://10.255.0.2',
     username: 'operator',
     interfaceName: 'Wireguard1',
   }),
@@ -431,22 +431,22 @@ it('remembers only the canonical non-secret fields of a manual attempt', async (
   const { deployment } = harness()
   await deployment.initialize()
   deployment.connections.selectedID.value = 'manual'
-  deployment.device.value = ' http://192.168.1.8 '
+  deployment.device.value = ' http://10.255.0.8 '
   deployment.username.value = ' manual-admin '
   deployment.interfaceName.value = ' Wireguard8 '
   deployment.password.value = 'manual-secret'
   await deployment.review()
   await deployment.apply()
   expect(deployment.attemptRecipient.value).toEqual({
-    device: 'http://192.168.1.8',
+    device: 'http://10.255.0.8',
     username: 'manual-admin',
     interfaceName: 'Wireguard8',
   })
   expect(JSON.stringify({ ...window.sessionStorage })).not.toContain(
     'manual-secret',
   )
-  deployment.device.value = 'http://192.168.1.9'
-  expect(deployment.attemptRecipient.value?.device).toBe('http://192.168.1.8')
+  deployment.device.value = 'http://10.255.0.9'
+  expect(deployment.attemptRecipient.value?.device).toBe('http://10.255.0.8')
 })
 
 const unsavedPayload = () => {

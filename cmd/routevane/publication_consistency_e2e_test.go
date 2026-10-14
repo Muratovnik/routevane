@@ -262,7 +262,7 @@ func TestArchivedOutputRefusesOperatorEditsAndSubscriptionIssuance(t *testing.T)
 			}
 			device := application.Device{
 				ID: strings.Repeat("d", 32), TargetID: "keenetic-dns", Name: "Fixture",
-				Address: "http://192.168.1.1", Account: "admin", Interface: "Wireguard0",
+				Address: "http://10.255.0.1", Account: "admin", Interface: "Wireguard0",
 				CreatedAt: fixture.clock.read(), UpdatedAt: fixture.clock.read(),
 			}
 			if err := fixture.store.CreateDevice(ctx, device); err != nil {

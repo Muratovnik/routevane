@@ -457,7 +457,7 @@ func newDeviceFixture(t *testing.T, firmware string) *deviceFixture {
 		device:   device,
 		deployer: New(Options{Dialer: fixtureDialer{target: server.Listener.Addr().String()}}),
 		connection: application.Connection{
-			URL: "http://192.168.1.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface,
+			URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface,
 		},
 	}
 }
@@ -628,14 +628,14 @@ func TestRouteRemovalDoesNotRequireOrSendAComment(t *testing.T) {
 
 func TestStoredConnectionValidationRefusesSecretsAndNonDeviceDestinations(t *testing.T) {
 	deployer := newDeviceFixture(t, "5.1.2").deployer
-	valid := application.Connection{URL: "http://192.168.1.1", Username: deviceUser, Interface: deviceInterface}
+	valid := application.Connection{URL: "http://10.255.0.1", Username: deviceUser, Interface: deviceInterface}
 	if err := deployer.ValidateStoredConnection(valid); err != nil {
 		t.Fatal(err)
 	}
 	for name, connection := range map[string]application.Connection{
-		"userinfo":  {URL: "http://admin@192.168.1.1", Username: deviceUser, Interface: deviceInterface},
-		"query":     {URL: "http://192.168.1.1?password=secret", Username: deviceUser, Interface: deviceInterface},
-		"fragment":  {URL: "http://192.168.1.1/#secret", Username: deviceUser, Interface: deviceInterface},
+		"userinfo":  {URL: "http://admin@10.255.0.1", Username: deviceUser, Interface: deviceInterface},
+		"query":     {URL: "http://10.255.0.1?password=secret", Username: deviceUser, Interface: deviceInterface},
+		"fragment":  {URL: "http://10.255.0.1/#secret", Username: deviceUser, Interface: deviceInterface},
 		"public IP": {URL: "https://203.0.113.10", Username: deviceUser, Interface: deviceInterface},
 		"password":  {URL: valid.URL, Username: deviceUser, Password: devicePassword, Interface: deviceInterface},
 	} {
@@ -853,9 +853,9 @@ func TestTheDeployerNeverLeavesTheLocalNetwork(t *testing.T) {
 		"http://8.8.8.8",
 		"http://169.254.169.254",
 		"http://router.local",
-		"http://192.168.1.1/rci/",
-		"ftp://192.168.1.1",
-		"http://user:secret@192.168.1.1",
+		"http://10.255.0.1/rci/",
+		"ftp://10.255.0.1",
+		"http://user:secret@10.255.0.1",
 		"",
 	}
 	for _, url := range refused {
@@ -917,7 +917,7 @@ func TestTheDeployerHonorsTheCallerDeadline(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	deployer := New(Options{Dialer: fixtureDialer{target: server.Listener.Addr().String()}})
-	connection := application.Connection{URL: "http://192.168.1.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface}
+	connection := application.Connection{URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface}
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
 	started := time.Now()

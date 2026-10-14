@@ -59,7 +59,7 @@ func TestArchivedProfileRefusesStoredOperatorMutationsAndRestoreReenablesThem(t 
 			}
 			device := application.Device{
 				ID: strings.Repeat("2", 32), TargetID: "keenetic-dns", Name: "Fixture",
-				Address: "http://192.168.1.1", Account: "admin", Interface: "Wireguard0", CreatedAt: now, UpdatedAt: now,
+				Address: "http://192.0.2.1", Account: "admin", Interface: "Wireguard0", CreatedAt: now, UpdatedAt: now,
 			}
 			if err := store.CreateDevice(ctx, device); err != nil {
 				t.Fatal(err)

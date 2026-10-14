@@ -97,7 +97,7 @@ func TestLegacyEmptyClaimDoesNotClearTheLastKnownManagedDescription(t *testing.T
 }
 
 func managedScope() ManagedRouteScope {
-	return ManagedRouteScope{Endpoint: "http://192.168.1.1", TargetID: "keenetic", Interface: "Wireguard0"}
+	return ManagedRouteScope{Endpoint: "http://10.255.0.1", TargetID: "keenetic", Interface: "Wireguard0"}
 }
 
 func TestManagedRouteReconciliationPreservesForeignAndPreexistingRoutes(t *testing.T) {

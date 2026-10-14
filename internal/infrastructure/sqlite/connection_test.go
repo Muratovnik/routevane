@@ -58,7 +58,7 @@ func createBoundDevice(t *testing.T, store *Store) (application.Device, applicat
 	if err := store.CreateProfile(t.Context(), profile); err != nil {
 		t.Fatal(err)
 	}
-	device := application.Device{ID: "22222222222222222222222222222222", TargetID: "keenetic", Name: "Before", Address: "http://192.168.1.1", Account: "admin", Interface: "Wireguard0", CreatedAt: now, UpdatedAt: now}
+	device := application.Device{ID: "22222222222222222222222222222222", TargetID: "keenetic", Name: "Before", Address: "http://192.0.2.1", Account: "admin", Interface: "Wireguard0", CreatedAt: now, UpdatedAt: now}
 	if err := store.CreateDevice(t.Context(), device); err != nil {
 		t.Fatal(err)
 	}

@@ -87,7 +87,7 @@ func TestEachDeviceConversationClosesItsConnectionsOnReturn(t *testing.T) {
 			dialer := &observedSessionDialer{target: server.Listener.Addr().String()}
 			defer dialer.closeAll()
 			routes, fqdn := New(Options{Dialer: dialer}), NewFQDNDeployer(Options{Dialer: dialer})
-			connection := application.Connection{URL: "http://192.168.1.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface}
+			connection := application.Connection{URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface}
 			device := application.DeviceInfo{Interface: deviceInterface}
 			artifact := testArtifact(t, "192.0.2.10/32")
 			dnsArtifact := fqdnArtifact(t, "example=example.com")

@@ -215,7 +215,7 @@ export const installShelfService = (options: ServiceOptions) => {
         deployer_id: `${target}-deployer`,
         requirements: {
           address_label: 'Address',
-          address_example: '192.168.1.1',
+          address_example: '192.0.2.1',
           needs_credential: false,
           needs_interface: false,
         },
@@ -237,7 +237,7 @@ export const installShelfService = (options: ServiceOptions) => {
         target_id: 'keenetic',
         target_title: 'Keenetic',
         name: device.name,
-        address: '192.168.1.1',
+        address: '192.0.2.1',
       })),
     },
   }

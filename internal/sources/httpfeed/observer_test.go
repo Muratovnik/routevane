@@ -122,7 +122,7 @@ func TestFeedRefusesLocalAndSpecialUseDestinations(t *testing.T) {
 		{"unspecified", "0.0.0.0"},
 		{"private class a", "10.0.0.5"},
 		{"private class b", "172.16.9.9"},
-		{"private class c", "192.168.1.1"},
+		{"private class c", "192.168.100.7"},
 		{"unique local ipv6", "fd00::1"},
 		{"link local", "169.254.10.10"},
 		{"cloud metadata", "169.254.169.254"},

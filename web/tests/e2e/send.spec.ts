@@ -356,7 +356,7 @@ savedTest(
       savedDestinations,
       'keenetic',
       'Other format router',
-      'http://192.168.1.1',
+      'http://192.0.2.1',
       'admin',
       'Wireguard0',
     )
@@ -1160,7 +1160,7 @@ const sendToSavedRouter = async (
     owned,
     'keenetic',
     'Home Keenetic',
-    'http://192.168.1.1',
+    'http://192.0.2.1',
     'admin',
     'Wireguard0',
   )
@@ -1268,7 +1268,7 @@ savedTest(
       {
         device_id: deviceID,
         expected_connection: {
-          device: 'http://192.168.1.1',
+          device: 'http://192.0.2.1',
           username: 'admin',
           interface: 'Wireguard0',
         },

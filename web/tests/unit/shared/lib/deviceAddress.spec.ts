@@ -5,12 +5,12 @@ import { localDeviceAddress, validAddress } from '@/shared/lib/deviceAddress'
 describe('destination address shape', () => {
   it('accepts what a deployer is actually addressed by', () => {
     for (const value of [
-      'http://192.168.1.1',
+      'http://10.255.0.1',
       'https://my.keenetic.net',
       'http://[fd00::1]',
       'https://[fd00::1]:8443/',
-      'http://192.168.1.1:81/',
-      'http://192.168.1.1:8080',
+      'http://10.255.0.1:81/',
+      'http://10.255.0.1:8080',
       // A local configuration file is what the sing-box deployer declares as
       // its own example, so the form has to accept exactly that.
       'file:///C:/sing-box/config.json',
@@ -26,10 +26,10 @@ describe('destination address shape', () => {
   // promising something the service would not honour.
   it('refuses an address that leaves its scheme to be guessed', () => {
     for (const value of [
-      '192.168.1.1',
+      '10.255.0.1',
       'router',
       'router:8080',
-      '192.168.1.1:8080',
+      '10.255.0.1:8080',
       '[fe80::1]:8080',
     ]) {
       expect(validAddress(value), value).toBe(false)
@@ -48,20 +48,20 @@ describe('destination address shape', () => {
   it('rejects a malformed address before a request is made', () => {
     for (const value of [
       '',
-      'http://192.168.1.1/admin',
+      'http://10.255.0.1/admin',
       'http://',
       'http://[fd00::1',
       'http://[fd00::1]:70000',
-      'http://192.168.1.1?query=yes',
-      'http://192.168.1.1#fragment',
-      'ftp://192.168.1.1',
-      'http://192.168.1.1 ',
+      'http://10.255.0.1?query=yes',
+      'http://10.255.0.1#fragment',
+      'ftp://10.255.0.1',
+      'http://10.255.0.1 ',
       'два адреса сразу',
-      'http://192.168.1.1:0',
-      'http://192.168.1.1:70000',
+      'http://10.255.0.1:0',
+      'http://10.255.0.1:70000',
       'file://',
       'file:///',
-      'ssh://192.168.1.1',
+      'ssh://10.255.0.1',
     ]) {
       expect(validAddress(value), value).toBe(false)
     }
@@ -74,7 +74,7 @@ describe('destination address shape', () => {
 describe('local device address', () => {
   it('accepts private and link-local unicast literals', () => {
     for (const value of [
-      'http://192.168.1.1',
+      'http://192.168.100.7',
       'https://10.0.0.1:8080',
       'http://172.16.0.1/',
       'http://172.31.255.254',
@@ -110,11 +110,11 @@ describe('local device address', () => {
 
   it('keeps the shape rules in force', () => {
     for (const value of [
-      '192.168.1.1',
-      'http://192.168.1.1/admin',
-      'http://admin@192.168.1.1',
-      'http://192.168.1.1?x=1',
-      ' http://192.168.1.1',
+      '10.255.0.1',
+      'http://10.255.0.1/admin',
+      'http://admin@10.255.0.1',
+      'http://10.255.0.1?x=1',
+      ' http://10.255.0.1',
     ]) {
       expect(localDeviceAddress(value), value).toBe(false)
     }

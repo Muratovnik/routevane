@@ -16,7 +16,7 @@ func TestConfirmedDeploymentRequiresAClientAttemptID(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := mutationRequest(t, "/v1/artifacts/"+strings.Repeat("a", 32)+"/deploy",
-		`{"device":"http://192.168.1.1","confirm":true}`)
+		`{"device":"http://192.0.2.1","confirm":true}`)
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"error":"attempt_id_required"`) {

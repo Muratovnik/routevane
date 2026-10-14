@@ -27,7 +27,7 @@ func TestProbeUsesKeyedInterfaceIDsAndNeverGuessesFromDescriptions(t *testing.T)
 	}))
 	defer server.Close()
 	options := Options{Dialer: fixtureDialer{target: server.Listener.Addr().String()}}
-	connection := application.Connection{URL: "http://192.168.1.1", Username: deviceUser, Password: devicePassword}
+	connection := application.Connection{URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword}
 	for _, deployer := range []application.Deployer{New(options), NewFQDNDeployer(options)} {
 		connection.Interface = "Shared tunnel"
 		if _, err := deployer.Probe(context.Background(), connection); !errors.Is(err, ErrDeviceAnswer) {
@@ -80,7 +80,7 @@ func TestFQDNRouteFlagsAreNotSilentlyTreatedAsEquivalent(t *testing.T) {
 			}))
 			defer server.Close()
 			deployer := NewFQDNDeployer(Options{Dialer: fixtureDialer{target: server.Listener.Addr().String()}})
-			connection := application.Connection{URL: "http://192.168.1.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface}
+			connection := application.Connection{URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface}
 			info, err := deployer.Probe(context.Background(), connection)
 			if test.name == "invalid reject" {
 				if !errors.Is(err, ErrDeviceAnswer) {
@@ -126,7 +126,7 @@ func TestRCIReadBoundsTheResponseBodyAfterHeadersArrive(t *testing.T) {
 			defer server.Close()
 			defer close(release)
 			deployer := New(Options{Dialer: fixtureDialer{target: server.Listener.Addr().String()}})
-			session, err := deployer.connect(context.Background(), application.Connection{URL: "http://192.168.1.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface})
+			session, err := deployer.connect(context.Background(), application.Connection{URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface})
 			if err != nil {
 				t.Fatal(err)
 			}

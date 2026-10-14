@@ -19,7 +19,7 @@ func savedDeploymentBody(confirm bool) map[string]any {
 	return map[string]any{
 		"device_id": strings.Repeat("d", 32),
 		"expected_connection": map[string]any{
-			"device": "http://192.168.1.1", "username": "admin", "interface": "Wireguard0",
+			"device": "http://192.0.2.1", "username": "admin", "interface": "Wireguard0",
 		},
 		"password":   rand.Text(),
 		"confirm":    confirm,
@@ -53,7 +53,7 @@ func TestDeploymentAcceptsARegisteredDeviceWithoutReturningItsCredential(t *test
 				t.Fatalf("status=%d body=%s commands=%d", response.Code, response.Body.String(), len(backend.deployCommands))
 			}
 			command := backend.deployCommands[0]
-			wantSnapshot := application.DeviceConnectionSnapshot{Address: "http://192.168.1.1", Account: "admin", Interface: "Wireguard0"}
+			wantSnapshot := application.DeviceConnectionSnapshot{Address: "http://192.0.2.1", Account: "admin", Interface: "Wireguard0"}
 			if command.DeviceID != strings.Repeat("d", 32) || command.ExpectedConnection == nil || *command.ExpectedConnection != wantSnapshot || command.Connection.Password != credential || command.Confirm != confirm {
 				t.Fatal("selected access did not reach the backend intact")
 			}
@@ -72,13 +72,13 @@ func TestRegisteredDeploymentRejectsMixedOrMissingSnapshotsBeforeTheBackend(t *t
 		name   string
 		mutate func(map[string]any)
 	}{
-		{"raw address", func(body map[string]any) { body["device"] = "http://192.168.1.2" }},
+		{"raw address", func(body map[string]any) { body["device"] = "http://192.0.2.2" }},
 		{"raw account", func(body map[string]any) { body["username"] = "admin" }},
 		{"raw interface", func(body map[string]any) { body["interface"] = "Wireguard0" }},
 		{"missing snapshot", func(body map[string]any) { delete(body, "expected_connection") }},
 		{"snapshot without a device", func(body map[string]any) { delete(body, "device_id") }},
 		{"password inside snapshot", func(body map[string]any) {
-			body["expected_connection"] = map[string]any{"device": "http://192.168.1.1", "username": "admin", "interface": "Wireguard0", "password": rand.Text()}
+			body["expected_connection"] = map[string]any{"device": "http://192.0.2.1", "username": "admin", "interface": "Wireguard0", "password": rand.Text()}
 		}},
 	}
 	for _, test := range tests {

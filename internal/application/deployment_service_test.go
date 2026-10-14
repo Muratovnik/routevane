@@ -91,7 +91,7 @@ func deploymentTestService(t *testing.T, artifacts ArtifactSource, deployer Depl
 func deploymentTestCommand(confirm bool) DeployCommand {
 	return DeployCommand{
 		ArtifactID: deploymentArtifactID,
-		Connection: Connection{URL: "http://192.168.1.1", Username: "admin", Password: deployTestPassword, Interface: "Wireguard0"},
+		Connection: Connection{URL: "http://10.255.0.1", Username: "admin", Password: deployTestPassword, Interface: "Wireguard0"},
 		Confirm:    confirm,
 	}
 }

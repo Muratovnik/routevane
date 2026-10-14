@@ -56,7 +56,7 @@ for (const locale of ['en', 'ru'] as const) {
         data: {
           target_id: 'keenetic-dns',
           name: `Saved connection ${locale}`,
-          address: 'http://192.168.1.1',
+          address: 'http://192.0.2.1',
           account: 'admin',
           interface: 'Wireguard0',
         },
@@ -94,7 +94,7 @@ for (const locale of ['en', 'ru'] as const) {
           name: copy('deploy.field.address.keenetic'),
           exact: true,
         })
-        .fill('http://192.168.1.2')
+        .fill('http://10.255.0.2')
       await page
         .getByRole('textbox', {
           name: copy('deploy.field.account.keenetic'),

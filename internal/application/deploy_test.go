@@ -35,7 +35,7 @@ func (s *spyDeployer) ID() string { return "keenetic-route-bat" }
 
 func (s *spyDeployer) Requirements() ConnectionRequirements {
 	return ConnectionRequirements{
-		AddressLabel: "Device", AddressExample: "http://192.168.1.1",
+		AddressLabel: "Device", AddressExample: "http://10.255.0.1",
 		NeedsCredential: true, NeedsInterface: true, InterfaceLabel: "Interface",
 	}
 }
@@ -123,7 +123,7 @@ func deployTestTarget() domain.TargetDefinition {
 func deployTestRequest() DeployRequest {
 	return DeployRequest{
 		Target:     deployTestTarget(),
-		Connection: Connection{URL: "http://192.168.1.1", Username: "admin", Password: deployTestPassword, Interface: "Wireguard0"},
+		Connection: Connection{URL: "http://10.255.0.1", Username: "admin", Password: deployTestPassword, Interface: "Wireguard0"},
 		Artifact: DeployArtifact{
 			ArtifactID: strings.Repeat("a", 32), RendererID: "keenetic-route-bat",
 			ArtifactHash: strings.Repeat("b", 64), ContentType: "application/x-bat",

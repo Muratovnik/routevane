@@ -50,7 +50,7 @@ test('the format mark stands on the name line and the chosen row has no frame', 
     const seed = await page.request.post(`${origin}/v1/devices`, {
       data: {
         account: 'admin',
-        address: 'http://192.168.1.1',
+        address: 'http://192.0.2.1',
         interface: 'Wireguard0',
         name,
         target_id: 'keenetic-dns',

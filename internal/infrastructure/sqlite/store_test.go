@@ -263,7 +263,7 @@ func TestVersionNineManagedRouteOwnershipMigratesWithEmptyDescriptions(t *testin
 		`INSERT INTO settings(key,value,updated_at_ns) VALUES('refresh_interval','weekly',1)`,
 		`INSERT INTO lists(id,name,created_at_ns,updated_at_ns) VALUES('11111111111111111111111111111111','Legacy list',1,1)`,
 		`INSERT INTO outputs(id,list_id,target_id,profile_key,renderer_id,renderer_version,target_revision,created_at_ns) VALUES('33333333333333333333333333333333','11111111111111111111111111111111','keenetic','keenetic-bat-ipv4-v1','keenetic-route-bat','keenetic-bat-ipv4-v1','legacy',1)`,
-		`INSERT INTO managed_route_scopes(endpoint,target_id,interface,created_at_ns,updated_at_ns) VALUES('http://192.168.1.1','keenetic','Wireguard0',1,1)`,
+		`INSERT INTO managed_route_scopes(endpoint,target_id,interface,created_at_ns,updated_at_ns) VALUES('http://192.0.2.1','keenetic','Wireguard0',1,1)`,
 		`INSERT INTO managed_routes(scope_id,prefix,created_by_routevane) VALUES(1,'192.0.2.10/32',1)`,
 		`INSERT INTO managed_route_claims(scope_id,output_id,prefix) VALUES(1,'33333333333333333333333333333333','192.0.2.10/32')`,
 	}
@@ -301,7 +301,7 @@ func TestVersionNineManagedRouteOwnershipMigratesWithEmptyDescriptions(t *testin
 	if routeDescription != "" || claimDescription != "" || labelsJSON != "[]" {
 		t.Fatalf("legacy ownership gained invented provenance: route=%q claim=%q labels=%q", routeDescription, claimDescription, labelsJSON)
 	}
-	loaded, err := store.ManagedRouteOwnership(context.Background(), application.ManagedRouteScope{Endpoint: "http://192.168.1.1", TargetID: "keenetic", Interface: "Wireguard0"})
+	loaded, err := store.ManagedRouteOwnership(context.Background(), application.ManagedRouteScope{Endpoint: "http://192.0.2.1", TargetID: "keenetic", Interface: "Wireguard0"})
 	if err != nil || len(loaded.Routes) != 1 || len(loaded.Claims) != 1 || loaded.Routes[0].Description != "" || loaded.Claims[0].Description != "" || len(loaded.Claims[0].Labels) != 0 {
 		t.Fatalf("migrated ownership=%#v err=%v", loaded, err)
 	}
@@ -374,7 +374,7 @@ func TestVersionTwelveVocabularyMigratesEveryStoredRowInPlace(t *testing.T) {
 		{`INSERT INTO sightings(id,service_id,component_id,resource_id,source_id,source_class,source_revision,first_seen_ns,last_seen_ns,valid_until_ns,observation_count) VALUES(1,'discord','web',1,'dns','observed','v1',1,1,2,1)`, nil},
 		{`INSERT INTO relations(id,source_resource_id,relation_type,target_resource_id,service_id,component_id,first_seen_ns,last_seen_ns,valid_until_ns,source_id,source_revision) VALUES(1,1,'cname_to',1,'discord','web',1,1,2,'dns','v1')`, nil},
 		{`INSERT INTO source_runs(id,service_id,source_id,source_revision,started_at_ns,completed_at_ns,status) VALUES(1,'discord','dns','v1',1,1,'success')`, nil},
-		{`INSERT INTO devices(id,target_id,name,address,account,created_at_ns,updated_at_ns) VALUES(?,'keenetic','Router','http://192.168.1.1','admin',1,1)`, []any{deviceID}},
+		{`INSERT INTO devices(id,target_id,name,address,account,created_at_ns,updated_at_ns) VALUES(?,'keenetic','Router','http://192.0.2.1','admin',1,1)`, []any{deviceID}},
 		{`INSERT INTO outputs(id,list_id,target_id,profile_key,renderer_id,renderer_version,target_revision,created_at_ns,device_id) VALUES(?,?,'keenetic','keenetic-bat-ipv4-v1','keenetic-route-bat','keenetic-bat-ipv4-v1','rev',1,?)`, []any{outputID, profileID, deviceID}},
 		{`INSERT INTO plan_snapshots(id,output_id,routing_plan_hash,routing_plan_json,policy_version,catalog_revision,observation_cutoff_ns,created_at_ns,status) VALUES(?,?,?,?,'auto-v1',?,1,1,'valid')`, []any{snapshotID, outputID, hash, []byte("{}"), hash}},
 		{`INSERT INTO artifact_builds(id,output_id,plan_snapshot_id,renderer_id,renderer_version,artifact_hash,artifact_path,size_bytes,content_type,content_created_at_ns,validation_status,status) VALUES(?,?,?,'keenetic-route-bat','keenetic-bat-ipv4-v1',?,'artifacts/published/x.bat',2,'application/x-bat',1,'valid','published')`, []any{artifactID, outputID, snapshotID, hash}},

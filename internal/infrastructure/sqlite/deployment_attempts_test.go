@@ -67,7 +67,7 @@ func TestDeploymentAttemptIsDurableAndNeverReplaysEffects(t *testing.T) {
 	service := attemptService(t, store, executor)
 	id := strings.Repeat("b", 32)
 
-	first, err := service.Deploy(context.Background(), id, attemptCommand("http://192.168.1.1"))
+	first, err := service.Deploy(context.Background(), id, attemptCommand("http://192.0.2.1"))
 	if err != nil || first.Status != application.DeploymentAttemptSucceeded || executor.calls != 1 {
 		t.Fatalf("first=%#v calls=%d err=%v", first, executor.calls, err)
 	}
@@ -82,11 +82,11 @@ func TestDeploymentAttemptIsDurableAndNeverReplaysEffects(t *testing.T) {
 	t.Cleanup(func() { _ = reopened.Close() })
 	afterRestartExecutor := &attemptExecutor{}
 	afterRestart := attemptService(t, reopened, afterRestartExecutor)
-	recovered, err := afterRestart.Deploy(context.Background(), id, attemptCommand("http://192.168.1.1"))
+	recovered, err := afterRestart.Deploy(context.Background(), id, attemptCommand("http://192.0.2.1"))
 	if err != nil || recovered.Status != application.DeploymentAttemptSucceeded || afterRestartExecutor.calls != 0 {
 		t.Fatalf("recovered=%#v calls=%d err=%v", recovered, afterRestartExecutor.calls, err)
 	}
-	_, err = afterRestart.Deploy(context.Background(), id, attemptCommand("http://192.168.1.2"))
+	_, err = afterRestart.Deploy(context.Background(), id, attemptCommand("http://192.0.2.2"))
 	if !errors.Is(err, application.ErrDeploymentAttemptMismatch) || afterRestartExecutor.calls != 0 {
 		t.Fatalf("mismatched retry calls=%d err=%v", afterRestartExecutor.calls, err)
 	}
@@ -113,7 +113,7 @@ func TestCanceledRequestStillRecordsTheOutcomeAfterRecovery(t *testing.T) {
 	}
 	service := attemptService(t, store, executor)
 	id := strings.Repeat("c", 32)
-	completed, err := service.Deploy(ctx, id, attemptCommand("http://192.168.1.1"))
+	completed, err := service.Deploy(ctx, id, attemptCommand("http://192.0.2.1"))
 	if !errors.Is(err, application.ErrVerifyFailed) || completed.Status != application.DeploymentAttemptFailed || !completed.Result.RolledBack {
 		t.Fatalf("completed=%#v err=%v", completed, err)
 	}
