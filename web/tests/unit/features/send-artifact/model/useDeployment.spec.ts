@@ -28,9 +28,14 @@ describe('failure messages', () => {
     expect(messageKey(new RoutevaneAPIError('not found', 404))).toBe(
       'error.notFound',
     )
+    // A send whose attempt id answers another request did not start; it is not
+    // a changed format, and no conflict is read as one.
+    expect(messageKey(new RoutevaneAPIError('attempt_mismatch', 409))).toBe(
+      'error.attempt_mismatch',
+    )
     expect(
       messageKey(new RoutevaneAPIError('output target changed', 409)),
-    ).toBe('error.targetChanged')
+    ).toBe('error.unexpected')
     expect(
       messageKey(
         new RoutevaneAPIError(

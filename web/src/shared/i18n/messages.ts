@@ -981,8 +981,6 @@ const ru: Dictionary = {
 
   'error.notFound': 'Локальный сервис не нашёл эти данные.',
   'error.unavailable': 'Файл сейчас недоступен. Повторите позже.',
-  'error.targetChanged':
-    'Каталог форматов изменился с момента сборки. Пересоберите профиль.',
   'error.operationFailed':
     'Устройство не приняло данные: адрес, аккаунт или пароль не подошли.',
   'error.unexpected': 'Не получилось. Повторите ещё раз.',
@@ -996,6 +994,7 @@ const ru: Dictionary = {
   'error.deployer_unavailable': 'Для этого формата нет способа применения.',
   'error.confirmation_required': 'Требуется подтверждение.',
   'error.deploy_failed': 'Применение не завершилось.',
+  'error.attempt_mismatch': 'Отправка не началась. Повторите её.',
 
   'action.retry': 'Повторить',
   'action.back': 'Назад',
@@ -1946,8 +1945,6 @@ const en: Dictionary = {
 
   'error.notFound': 'The local service did not find this data.',
   'error.unavailable': 'The file is unavailable right now. Try again later.',
-  'error.targetChanged':
-    'The format catalog changed since the build. Rebuild the profile.',
   'error.operationFailed':
     'The device refused the details: the address, account or password did not fit.',
   'error.unexpected': 'That did not work. Try again.',
@@ -1960,6 +1957,7 @@ const en: Dictionary = {
   'error.deployer_unavailable': 'This format has no applying method.',
   'error.confirmation_required': 'Confirmation is required.',
   'error.deploy_failed': 'Applying did not finish.',
+  'error.attempt_mismatch': 'The send did not start. Try it again.',
 
   'action.retry': 'Retry',
   'action.back': 'Back',

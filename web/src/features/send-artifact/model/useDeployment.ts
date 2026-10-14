@@ -589,6 +589,7 @@ const passwordSaveFailureKey = (error: unknown): string => {
 
 const failureCodes = new Set([
   'address_rejected',
+  'attempt_mismatch',
   'connection_invalid',
   'device_incompatible',
   'backup_unavailable',
@@ -608,7 +609,6 @@ export const messageKey = (error: unknown): string => {
     return 'failure.unreachable.body'
   if (failureCodes.has(error.message)) return `error.${error.message}`
   if (error.status === 404) return 'error.notFound'
-  if (error.status === 409) return 'error.targetChanged'
   if (error.status === 503) return 'error.unavailable'
   if (error.status === 400 || error.status === 422) {
     return 'error.operationFailed'
