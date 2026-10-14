@@ -96,6 +96,51 @@ func TestTargetRevisionFollowsArtifactFieldsOnly(t *testing.T) {
 	}
 }
 
+// An output stores the revision of its target when it is created and compares
+// it on every build (ADR 0054). The relative tests above hold for any encoding
+// of the artifact fields, so a renamed JSON tag, a dropped omitempty or a new
+// field with a non-zero default would pass them while giving every newly made
+// output a revision that no older release computes. This test pins the value
+// itself, for a target that states every artifact field and for one that states
+// only the required ones.
+// targetRevisionPinMessage is what a failing pin must tell its reader.
+const targetRevisionPinMessage = "Changing a pinned target revision strands every existing output: each one stores its revision when it is created and refuses to build once it differs. " +
+	"A different value needs a data migration that rebases stored outputs and an ADR (see ADR 0054), not an updated constant. " +
+	"If this failed after an encoding change, revert the change instead."
+
+func TestTargetRevisionValueIsPinned(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		target TargetDefinition
+		want   string
+	}{
+		{
+			name: "every artifact field stated",
+			target: TargetDefinition{
+				ID: "pinned", FormatKey: "pinned-v1", RendererID: "pinned-renderer", Kind: TargetKindRouter,
+				RendererOptions: []string{"compact", "sorted"},
+				Constraints: TargetConstraints{
+					SupportsDomainExact: true, SupportsDomainSuffix: true, SupportsDynamicDNSSet: true,
+					SupportsIPv4: true, SupportsIPv6: true, SupportsPrefixes: true,
+					MaxRules: 1000, MaxArtifactSize: 65536, MaxEntriesPerList: 250, MaxLists: 64,
+				},
+			},
+			want: "506b2dd1a494e48496b30ea9e9e3ab6563b257162928cda0a545322e4d62e0d3",
+		},
+		{
+			name:   "only the required fields stated",
+			target: TargetDefinition{ID: "minimal", FormatKey: "minimal-v1", RendererID: "minimal-renderer"},
+			want:   "6512e437a661aedb54399aead7165c7df43ae71fde3e3ff9a9704b0a0b2c8498",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := TargetRevision(test.target); got != test.want {
+				t.Errorf("TargetRevision = %s, pinned %s\n%s", got, test.want, targetRevisionPinMessage)
+			}
+		})
+	}
+}
+
 func fieldNames(typ reflect.Type) []string {
 	names := make([]string, 0, typ.NumField())
 	for field := range typ.Fields() {

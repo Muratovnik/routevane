@@ -168,3 +168,33 @@ func TestShippedAdditionalDomainListsHaveOnlyTheirOwnSource(t *testing.T) {
 		})
 	}
 }
+
+// An output stores the revision of its target when it is created and compares
+// it on every build (ADR 0054). The shipped targets are what a real install
+// creates outputs against, so their revisions are pinned through the real
+// catalog: loading, decoding and the revision encoding together. The relative
+// tests in the domain package hold for any encoding and cannot notice one that
+// changed.
+func TestShippedTargetRevisionsArePinned(t *testing.T) {
+	catalog, err := Load(context.Background(), filepath.Join(repositoryRoot(t), "catalog"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, want := range map[string]string{
+		"keenetic":     "ebfdbfe0230d627bb5d21d48e78567c6e1c14f3e7f0070ebba5fd95dc297a26f",
+		"keenetic-dns": "f009fdb18cc83dc2d3f74b19f66410cadfaf7cb99eeba536c2a61fb689060188",
+	} {
+		target, ok := catalog.Target(id)
+		if !ok {
+			t.Fatalf("shipped target %s is missing", id)
+		}
+		if got := domain.TargetRevision(target); got != want {
+			t.Errorf("revision of shipped target %s = %s, pinned %s\n%s", id, got, want, shippedRevisionPinMessage)
+		}
+	}
+}
+
+const shippedRevisionPinMessage = "Changing a pinned target revision strands every existing output of that target: each one stores its revision when it is created and refuses to build once it differs. " +
+	"A different value needs a data migration that rebases stored outputs and an ADR (see ADR 0054), not an updated constant. " +
+	"If an artifact field of the target was edited on purpose in catalog/targets, that strands its outputs by design and needs the same migration and ADR; " +
+	"if only the encoding or loading changed, revert that change."
