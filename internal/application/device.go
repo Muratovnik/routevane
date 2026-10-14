@@ -23,6 +23,10 @@ var (
 	// ErrCredentialRequired is returned when automatic delivery is requested for
 	// a device whose deployer needs a password and none is saved (ADR 0050).
 	ErrCredentialRequired = errors.New("the device needs a saved credential")
+	// ErrCredentialInvalid is returned when the password offered for saving is
+	// empty or longer than the store keeps. It judges the value only: whether a
+	// device accepts the password is known to a send, never to the registry.
+	ErrCredentialInvalid = errors.New("the credential cannot be saved")
 )
 
 // Device is a registered instance of a catalog target: what the operator calls
@@ -221,7 +225,7 @@ func (s *DeviceService) RegisterDevice(ctx context.Context, targetID, name, addr
 	}
 	cleanAddress, ok := validAddress(address)
 	if !ok {
-		return Device{}, fmt.Errorf("invalid device address")
+		return Device{}, fmt.Errorf("%w: invalid device address", ErrAddressRejected)
 	}
 	cleanAccount, ok := validAccount(account)
 	if !ok {
@@ -286,7 +290,7 @@ func (s *DeviceService) UpdateDevice(ctx context.Context, id, name, address, acc
 	}
 	cleanAddress, ok := validAddress(address)
 	if !ok {
-		return Device{}, fmt.Errorf("invalid device address")
+		return Device{}, fmt.Errorf("%w: invalid device address", ErrAddressRejected)
 	}
 	cleanAccount, ok := validAccount(account)
 	if !ok {
@@ -401,7 +405,7 @@ func (s *DeviceService) SaveCredential(ctx context.Context, id, secret string) (
 		return Device{}, fmt.Errorf("the device's deployer takes no credential")
 	}
 	if secret == "" || len(secret) > maxCredentialBytes {
-		return Device{}, fmt.Errorf("invalid credential")
+		return Device{}, ErrCredentialInvalid
 	}
 	if !s.config.Secrets.Available() {
 		return Device{}, ErrSecretStoreUnavailable

@@ -47,8 +47,8 @@ func TestSavingACredentialRefusesWhatCannotBeKept(t *testing.T) {
 		target    string
 		wantErr   error
 	}{
-		{name: "empty", available: true, secret: ""},
-		{name: "overlong", available: true, secret: strings.Repeat("я", 513)},
+		{name: "empty", available: true, secret: "", wantErr: ErrCredentialInvalid},
+		{name: "overlong", available: true, secret: strings.Repeat("я", 513), wantErr: ErrCredentialInvalid},
 		{name: "no secret store", available: false, secret: "пароль", wantErr: ErrSecretStoreUnavailable},
 		{name: "deployer takes no credential", available: true, secret: "пароль", target: "no-credential"},
 		{name: "no deployer", available: true, secret: "пароль", target: "download-only", wantErr: ErrDeployerUnavailable},

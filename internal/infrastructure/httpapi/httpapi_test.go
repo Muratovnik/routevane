@@ -446,9 +446,15 @@ func (f *fakeBackend) DeviceCards(context.Context) ([]application.DeviceCard, er
 	}}, nil
 }
 func (f *fakeBackend) RegisterDevice(_ context.Context, targetID, name, address, account, interfaceName string) (application.Device, error) {
+	if f.deviceErr != nil {
+		return application.Device{}, f.deviceErr
+	}
 	return application.Device{ID: strings.Repeat("d", 32), TargetID: targetID, Name: name, Address: address, Account: account, Interface: interfaceName}, nil
 }
 func (f *fakeBackend) UpdateDevice(_ context.Context, id, name, address, account, interfaceName string) (application.Device, error) {
+	if f.deviceErr != nil {
+		return application.Device{}, f.deviceErr
+	}
 	return application.Device{ID: id, TargetID: "keenetic", Name: name, Address: address, Account: account, Interface: interfaceName}, nil
 }
 func (f *fakeBackend) ForgetDevice(context.Context, string) error { return nil }

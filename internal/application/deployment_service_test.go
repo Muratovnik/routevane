@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -194,6 +195,15 @@ func TestStoredConnectionValidationUsesTheTargetsDeployerWithoutASecret(t *testi
 	connection.Password = ""
 	if err := deployments.ValidateStoredConnection(artifacts.target.ID, connection); !errors.Is(err, ErrConnectionInvalid) {
 		t.Fatalf("destination err = %v", err)
+	}
+	if err := deployments.ValidateStoredConnection(artifacts.target.ID, connection); errors.Is(err, ErrAddressRejected) {
+		t.Fatalf("a refusal the deployer did not attribute to the address named it: %v", err)
+	}
+	// What the deployer says about the address survives the wrap, so the
+	// transport can name the field.
+	deployer.connectionErr = fmt.Errorf("%w: unsafe destination", ErrAddressRejected)
+	if err := deployments.ValidateStoredConnection(artifacts.target.ID, connection); !errors.Is(err, ErrConnectionInvalid) || !errors.Is(err, ErrAddressRejected) {
+		t.Fatalf("address err = %v, want ErrConnectionInvalid and ErrAddressRejected", err)
 	}
 }
 

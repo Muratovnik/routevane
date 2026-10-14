@@ -81,6 +81,32 @@ the device while the operator is away.
   clients written before this decision. Enabling without a saved password for a
   deployer that needs one answers `409` with `{"error": "credential_required"}`.
 
+## Refusal codes
+
+A refusal of a `/v1/devices/*` route carries a stable code in `error` and, when
+the refusal is about one field, that field in `field`, so a screen can say it
+beside the field instead of in a generic notice. A reply never repeats the
+address, the account or the password it refuses.
+
+| Code | Status | Field | Meaning |
+| --- | --- | --- | --- |
+| `address_rejected` | 422 | `address` | The address broke the deployer's destination policy or could not be read. Added by this decision. |
+| `credential_invalid` | 422 | `credential` | The password offered for saving is empty or longer than the store keeps. Added by this decision. |
+| `secret_store_unavailable` | 503 | none | The platform keeps no credential store, so a password cannot be saved. Added by this decision. |
+| `connection_invalid` | 422 | none | Another part of the connection, such as a missing account, does not suit the deployer. Existing code, reused with its meaning from the deploy routes. |
+| `credential_required` | 409 | none | Existing code, unchanged. |
+
+`address_rejected` is narrower than `connection_invalid`, not a synonym: the
+deploy routes answer a send whose address was refused with `address_rejected`
+and `field`, still with status 400 and `attempt_started: false`, while the
+attempt journal keeps `connection_invalid` for it. A password the device
+refuses is known only to a send, never to the registry, so it has no device
+route code. The account and the interface are required by the client before a
+request is made and carry no field code of their own.
+
+The client checks only the shape of what it sends. Which networks a router may
+live on is the server's policy, and the field shows the server's refusal.
+
 ## Migration
 
 Schema version 16 adds `devices.credential_stored`. Before this version a password

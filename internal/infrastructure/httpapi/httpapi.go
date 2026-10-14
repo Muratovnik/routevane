@@ -525,6 +525,21 @@ func writeBackendError(w http.ResponseWriter, err error) {
 		// Automatic delivery for a deployer that takes a password needs one saved
 		// first (ADR 0050). A stable code, because a screen acts on it.
 		writeError(w, http.StatusConflict, "credential_required")
+	case errors.Is(err, application.ErrAddressRejected):
+		// The address of a connection broke the deployer's destination policy.
+		// The field travels with the code so a form can say it beside the
+		// field; the address itself is never repeated (ADR 0050).
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "address_rejected", "field": "address"})
+	case errors.Is(err, application.ErrConnectionInvalid):
+		// Another part of the connection does not suit the deployer, the same
+		// meaning the deploy routes give this code.
+		writeError(w, http.StatusUnprocessableEntity, "connection_invalid")
+	case errors.Is(err, application.ErrCredentialInvalid):
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "credential_invalid", "field": "credential"})
+	case errors.Is(err, application.ErrSecretStoreUnavailable):
+		// The platform keeps no credential store, which no retry changes
+		// (ADR 0014).
+		writeError(w, http.StatusServiceUnavailable, "secret_store_unavailable")
 	case errors.Is(err, application.ErrArtifactUnavailable):
 		writeError(w, http.StatusServiceUnavailable, "artifact unavailable")
 	case errors.Is(err, application.ErrTargetChanged):

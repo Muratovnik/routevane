@@ -96,7 +96,7 @@ func (d *Deployer) ValidateConnection(connection application.Connection) error {
 // explicit to the device registry.
 func (*Deployer) ValidateStoredConnection(connection application.Connection) error {
 	if _, err := configPath(connection.URL); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", application.ErrAddressRejected, err)
 	}
 	if connection.Username != "" || connection.Password != "" {
 		return fmt.Errorf("%w: a local deployment takes no credential", ErrConnectionUnsupported)

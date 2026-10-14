@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -192,6 +193,45 @@ func TestRegistrationAppliesTheDeployersStoredConnectionPolicy(t *testing.T) {
 	}
 	if len(store.devices) != 0 {
 		t.Fatalf("invalid destination was persisted: %#v", store.devices)
+	}
+}
+
+// A refused address is told apart from every other refusal so a screen can put
+// it beside the address field: the shape check of the service and the
+// deployer's own policy both end in ErrAddressRejected, and the broad
+// ErrConnectionInvalid stays true beside it.
+func TestARefusedAddressIsNamedOnRegistrationAndEdit(t *testing.T) {
+	secrets := &fakeSecretStore{available: true}
+	devices, _ := deviceService(t, secrets)
+	devices.config.ValidateStoredConnection = func(_ string, connection Connection) error {
+		if connection.URL == "http://router.invalid" {
+			return fmt.Errorf("%w: %w", ErrConnectionInvalid, ErrAddressRejected)
+		}
+		return nil
+	}
+	device := registered(t, devices)
+	for _, test := range []struct {
+		name, address string
+	}{
+		{"a policy refusal by the deployer", "http://router.invalid"},
+		{"an address with a control character", "http://10.255.0.1\x07"},
+		{"an empty address", "  "},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := devices.RegisterDevice(context.Background(), "keenetic", "Router", test.address, "admin", "Wireguard0")
+			if !errors.Is(err, ErrAddressRejected) {
+				t.Fatalf("register err = %v, want ErrAddressRejected", err)
+			}
+			_, err = devices.UpdateDevice(context.Background(), device.ID, "Router", test.address, "admin", "Wireguard0")
+			if !errors.Is(err, ErrAddressRejected) {
+				t.Fatalf("update err = %v, want ErrAddressRejected", err)
+			}
+		})
+	}
+	// A refusal that is not about the address must not claim the field.
+	_, err := devices.RegisterDevice(context.Background(), "keenetic", "Router", "http://10.255.0.1", "", "Wireguard0")
+	if err == nil || errors.Is(err, ErrAddressRejected) {
+		t.Fatalf("a missing account err = %v, want a refusal that does not name the address", err)
 	}
 }
 

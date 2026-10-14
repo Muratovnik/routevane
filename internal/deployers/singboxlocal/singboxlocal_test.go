@@ -113,6 +113,34 @@ func TestValidateConnectionAcceptsALocalPathAndRefusesACredential(t *testing.T) 
 	}
 }
 
+func TestOnlyAnAddressRefusalNamesTheAddress(t *testing.T) {
+	deployer := New()
+	base := newFixture(t, "routevane.json")
+	for name, connection := range map[string]application.Connection{
+		"no url":        {},
+		"relative path": {URL: Scheme + "config.json"},
+		"http url":      {URL: "http://10.255.0.1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := deployer.ValidateStoredConnection(connection)
+			if !errors.Is(err, application.ErrAddressRejected) || !errors.Is(err, ErrConnectionUnsupported) {
+				t.Fatalf("err = %v, want the address refusal with its cause", err)
+			}
+		})
+	}
+	for name, connection := range map[string]application.Connection{
+		"with account":      {URL: base.connection.URL, Username: "admin"},
+		"with an interface": {URL: base.connection.URL, Interface: "Wireguard0"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := deployer.ValidateStoredConnection(connection)
+			if err == nil || errors.Is(err, application.ErrAddressRejected) {
+				t.Fatalf("err = %v, want a refusal that does not name the address", err)
+			}
+		})
+	}
+}
+
 func TestProbeReportsTheDeclaredLocalRuleSet(t *testing.T) {
 	deployer := New()
 	base := newFixture(t, "routevane.json")

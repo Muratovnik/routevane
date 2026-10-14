@@ -112,7 +112,7 @@ func (s *DeploymentService) ValidateStoredConnection(targetID string, connection
 		return fmt.Errorf("%w: %q", ErrDeployerUnavailable, target.RendererID)
 	}
 	if err := deployer.ValidateStoredConnection(connection); err != nil {
-		return fmt.Errorf("%w: %v", ErrConnectionInvalid, err)
+		return fmt.Errorf("%w: %w", ErrConnectionInvalid, err)
 	}
 	return nil
 }
@@ -191,7 +191,7 @@ func (s *DeploymentService) ResolveDeviceConnection(ctx context.Context, command
 		connection.Password = credential
 	}
 	if err := deployer.ValidateConnection(connection); err != nil {
-		return DeployCommand{}, fmt.Errorf("%w: %v", ErrConnectionInvalid, err)
+		return DeployCommand{}, fmt.Errorf("%w: %w", ErrConnectionInvalid, err)
 	}
 	command.DeviceID = ""
 	command.ExpectedConnection = nil
@@ -323,7 +323,7 @@ func (s *DeploymentService) RetireManagedRoutes(ctx context.Context, targetID st
 		return nil
 	}
 	if err := deployer.ValidateStoredConnection(connection.Redacted()); err != nil {
-		return fmt.Errorf("%w: %v", ErrConnectionInvalid, err)
+		return fmt.Errorf("%w: %w", ErrConnectionInvalid, err)
 	}
 	scope, err := managed.ManagedRouteScope(target, connection.Redacted())
 	if err != nil || !validManagedRouteScope(scope) {
@@ -348,7 +348,7 @@ func (s *DeploymentService) resolve(ctx context.Context, command DeployCommand) 
 		return ArtifactPayload{}, domain.TargetDefinition{}, nil, fmt.Errorf("%w: %q", ErrDeployerUnavailable, target.RendererID)
 	}
 	if err := deployer.ValidateConnection(command.Connection); err != nil {
-		return ArtifactPayload{}, domain.TargetDefinition{}, nil, fmt.Errorf("%w: %v", ErrConnectionInvalid, err)
+		return ArtifactPayload{}, domain.TargetDefinition{}, nil, fmt.Errorf("%w: %w", ErrConnectionInvalid, err)
 	}
 	return payload, target, deployer, nil
 }

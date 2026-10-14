@@ -19,6 +19,12 @@ var (
 	ErrOwnershipPersist    = errors.New("managed route ownership could not be persisted")
 	ErrDeployerUnavailable = errors.New("no deployer registered for the target")
 	ErrConnectionInvalid   = errors.New("connection is not usable by this deployer")
+	// ErrAddressRejected marks a refusal of the destination address itself: a
+	// scheme, host, path or network the deployer's policy does not allow. It
+	// travels together with ErrConnectionInvalid, which stays the broad
+	// "not usable" meaning, and exists so a screen can say which field to fix
+	// (ADR 0050). It never carries the address.
+	ErrAddressRejected = errors.New("the address is not an acceptable destination")
 	// ErrDeviceUnchanged marks a refusal before the deployer submitted any
 	// mutation. Restoring a backup then could erase a concurrent external edit.
 	ErrDeviceUnchanged = errors.New("deployment left the device unchanged")
@@ -238,7 +244,7 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 		return result, fmt.Errorf("%w: %q", ErrDeployerUnavailable, request.Target.RendererID)
 	}
 	if err := deployer.ValidateConnection(request.Connection); err != nil {
-		return result, fmt.Errorf("%w: %v", ErrConnectionInvalid, err)
+		return result, fmt.Errorf("%w: %w", ErrConnectionInvalid, err)
 	}
 
 	record := func(step string, started time.Time, err error, detail string) {

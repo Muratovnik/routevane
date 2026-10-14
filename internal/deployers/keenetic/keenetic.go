@@ -550,7 +550,7 @@ func (d *Deployer) ValidateConnection(connection application.Connection) error {
 // before it is persisted, and refuses a password at that boundary.
 func (*Deployer) ValidateStoredConnection(connection application.Connection) error {
 	if _, err := netpolicy.ValidateDeviceURL(connection.URL); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", application.ErrAddressRejected, err)
 	}
 	if connection.Username == "" {
 		return fmt.Errorf("%w: a device account is required", ErrDeviceRefused)

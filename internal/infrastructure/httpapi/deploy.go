@@ -51,7 +51,7 @@ func (h *handler) deploy(w http.ResponseWriter, r *http.Request, id string) {
 		plan, err := h.backend.DeployPlan(r.Context(), command)
 		if err != nil {
 			if errors.Is(err, application.ErrFQDNOwnershipConflict) || errors.Is(err, application.ErrDeployFailed) || errors.Is(err, application.ErrConnectionInvalid) || errors.Is(err, application.ErrDeviceIncompatible) {
-				writeJSON(w, deployStatus(err), map[string]string{"error": deployFailure(err)})
+				writeJSON(w, deployStatus(err), deployRefusal(err))
 				return
 			}
 			h.backendError(w, err)
@@ -84,7 +84,7 @@ func (h *handler) deploy(w http.ResponseWriter, r *http.Request, id string) {
 	if attempt.ID == "" {
 		if err != nil {
 			if errors.Is(err, application.ErrConnectionInvalid) || errors.Is(err, application.ErrDeviceIncompatible) || errors.Is(err, application.ErrDeployerUnavailable) {
-				writeJSON(w, deployStatus(err), map[string]string{"error": deployFailure(err)})
+				writeJSON(w, deployStatus(err), deployRefusal(err))
 				return
 			}
 			h.backendError(w, err)
@@ -120,7 +120,11 @@ func (h *handler) deployNotStarted(w http.ResponseWriter, err error) {
 		status, code = http.StatusUnprocessableEntity, "operation failed"
 		h.logger.Warn("deployment refused before starting an attempt", "error", err.Error())
 	}
-	writeJSON(w, status, map[string]any{"error": code, "attempt_started": false})
+	body := map[string]any{"error": code, "attempt_started": false}
+	if errors.Is(err, application.ErrAddressRejected) {
+		body["error"], body["field"] = "address_rejected", "address"
+	}
+	writeJSON(w, status, body)
 }
 
 func (h *handler) deploymentAttempt(w http.ResponseWriter, r *http.Request, id string) {
@@ -158,6 +162,19 @@ func deploymentAttemptBody(attempt application.DeploymentAttempt) map[string]any
 // name a device answer, so it is logged rather than returned.
 func deployFailure(err error) string {
 	return application.DeploymentFailureCode(err)
+}
+
+// deployRefusal is the body of a refusal that stopped a send before it touched
+// anything. A refused address is the one refusal that names a field, so the
+// screen can say it beside the address it was typed in (ADR 0050); every other
+// refusal is the stable code of DeploymentFailureCode alone. The attempt
+// journal keeps `connection_invalid` for it: the field is a detail of the
+// refusal, not a second failure kind.
+func deployRefusal(err error) map[string]string {
+	if errors.Is(err, application.ErrAddressRejected) {
+		return map[string]string{"error": "address_rejected", "field": "address"}
+	}
+	return map[string]string{"error": deployFailure(err)}
 }
 
 func deployCodeStatus(code string) int {

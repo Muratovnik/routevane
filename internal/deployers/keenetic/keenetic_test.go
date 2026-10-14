@@ -647,6 +647,36 @@ func TestStoredConnectionValidationRefusesSecretsAndNonDeviceDestinations(t *tes
 	}
 }
 
+// The refusal of an address names the address field and no other refusal does,
+// so a screen can put the message beside the field the operator has to change.
+func TestStoredConnectionValidationNamesTheAddressOnlyWhenTheAddressIsRefused(t *testing.T) {
+	deployer := newDeviceFixture(t, "5.1.2").deployer
+	for name, connection := range map[string]application.Connection{
+		"a host name":    {URL: "http://router.invalid", Username: deviceUser, Interface: deviceInterface},
+		"a public IP":    {URL: "https://203.0.113.10", Username: deviceUser, Interface: deviceInterface},
+		"without scheme": {URL: "10.255.0.1", Username: deviceUser, Interface: deviceInterface},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := deployer.ValidateStoredConnection(connection)
+			if !errors.Is(err, application.ErrAddressRejected) || !errors.Is(err, netpolicy.ErrNotADeviceDestination) {
+				t.Fatalf("err = %v, want the address refusal with its cause", err)
+			}
+		})
+	}
+	for name, connection := range map[string]application.Connection{
+		"no account":   {URL: "http://10.255.0.1", Interface: deviceInterface},
+		"no interface": {URL: "http://10.255.0.1", Username: deviceUser},
+		"a password":   {URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := deployer.ValidateStoredConnection(connection)
+			if err == nil || errors.Is(err, application.ErrAddressRejected) {
+				t.Fatalf("err = %v, want a refusal that does not name the address", err)
+			}
+		})
+	}
+}
+
 func TestProbeReportsTheFirmwareAndRefusesAnUnsupportedOne(t *testing.T) {
 	supported := newDeviceFixture(t, "5.1.2")
 	device, err := supported.deployer.Probe(context.Background(), supported.connection)
