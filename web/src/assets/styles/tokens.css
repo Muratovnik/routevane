@@ -60,8 +60,14 @@
    * better on the ground it stands on in both themes, and plainly dimmer than
    * the muted ink an available control reads in. */
   --rv-color-ink-disabled: #737a76;
+
+  /* The hairline between neighbours, and the stronger edge of a control that
+   * can be used: a switch, a secondary button, a field the library draws, the
+   * thumb of a scrollbar. The strong edge is a step above the hairline, as it
+   * is in light, so an unavailable control that falls back to the hairline
+   * reads as unavailable. It is the same edge a raised surface wears. */
   --rv-color-rule: #363b40;
-  --rv-color-rule-strong: #363b40;
+  --rv-color-rule-strong: #4f575f;
   --rv-color-accent: #63b98d;
   --rv-color-accent-ink: #63b98d;
   --rv-color-accent-hover: #76c79c;
