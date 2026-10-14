@@ -95,6 +95,18 @@ test('a refused build names the uncovered lists and links each to the library', 
     notice.getByRole('link', { name: 'Coverage alpha' }),
   ).toBeVisible()
 
+  // Rebuilding refuses again and keeps naming the lists: the page reads the
+  // stored attempt back, not the refusal the rebuild was answered with.
+  await notice
+    .getByRole('button', { name: copy('profiles.rebuild'), exact: true })
+    .click()
+  await expect(
+    notice.getByRole('button', { name: copy('profiles.rebuild'), exact: true }),
+  ).toBeEnabled()
+  for (const list of lists) {
+    await expect(notice.getByRole('link', { name: list.title })).toBeVisible()
+  }
+
   // The link opens the list in the library, ready to have its sources checked.
   await notice.getByRole('link', { name: 'Coverage beta' }).click()
   await page.waitForURL(/\/lists#list=/)
