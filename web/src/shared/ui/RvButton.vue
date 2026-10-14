@@ -47,9 +47,6 @@ const unavailable = computed(
     :href="href"
     :to="href === undefined ? to : undefined"
     :type="type ?? 'button'"
-    :ui="{
-      base: 'disabled:opacity-100 aria-disabled:opacity-100',
-    }"
     :aria-busy="loading === true ? 'true' : undefined"
     :aria-label="loading === true ? loadingLabel : undefined"
   >
@@ -179,7 +176,10 @@ const unavailable = computed(
 
 /* An unavailable button gives up its ground and its strong edge: it is flat,
    dimmer than any available one and drawn with the faint rule, so it cannot be
-   taken for the enabled button it was a moment ago. */
+   taken for the enabled button it was a moment ago. The library lowers an
+   unavailable button's opacity with a utility in its cascade layer; this rule
+   sits outside that layer, so its full opacity is the one that holds, for a
+   disabled button and an unavailable link alike. */
 .rv-button:disabled,
 .rv-button[aria-disabled='true'] {
   color: var(--rv-color-ink-disabled);

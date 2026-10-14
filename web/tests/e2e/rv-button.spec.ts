@@ -238,6 +238,11 @@ test('real Nuxt UI blocks disabled native and router links', async ({
   for (const target of ['disabled-href', 'disabled-to']) {
     const control = page.getByTestId(target)
     await expect(control).toHaveAttribute('aria-disabled', 'true')
+    // An unavailable link is drawn as an unavailable button is: flat at full
+    // opacity, not faded by the library's own disabled utility.
+    expect(
+      await control.evaluate((element) => getComputedStyle(element).opacity),
+    ).toBe('1')
     await control.click({ force: true })
     await control.dispatchEvent('click')
     await page.evaluate(
