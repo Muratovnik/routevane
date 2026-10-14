@@ -113,8 +113,6 @@ func (h *handler) deployNotStarted(w http.ResponseWriter, err error) {
 		code = "not found"
 	case errors.Is(err, application.ErrArtifactUnavailable):
 		status, code = http.StatusServiceUnavailable, "artifact unavailable"
-	case errors.Is(err, application.ErrTargetChanged):
-		status, code = http.StatusConflict, "output target changed"
 	case errors.Is(err, application.ErrConnectionInvalid), errors.Is(err, application.ErrDeviceIncompatible), errors.Is(err, application.ErrDeployerUnavailable):
 	default:
 		status, code = http.StatusUnprocessableEntity, "operation failed"
