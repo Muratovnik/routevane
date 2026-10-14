@@ -614,12 +614,14 @@ describe('ListDetailDialog', () => {
 
   it('rolls back one failed entry and exposes a row-level retry', async () => {
     const attempts: string[] = []
+    // The first write is held, so the switch can be read while it is pending.
+    const firstWrite = Promise.withResolvers<Response>()
     const { keys } = stubAPI({
       'GET /v1/lists/discord/contents': () => contentsResponse(),
       'POST /v1/lists/discord/domains': () => {
         attempts.push('write')
         return attempts.length === 1
-          ? Promise.resolve(json({ error: 'offline' }, 503))
+          ? firstWrite.promise
           : Promise.resolve(
               contentsResponse(true, undefined, { 'discord.gg': false }),
             )
@@ -630,7 +632,15 @@ describe('ListDetailDialog', () => {
 
     await entrySwitch(screen, 'discord.gg').click()
 
+    // The switch flips at once, before the service has answered, and nothing
+    // yet says the change was not applied.
     const failed = entry(screen, 'discord.gg')
+    expect(isChecked(entrySwitch(screen, 'discord.gg'))).toBe(false)
+    await expect.element(screen.getByText(SAVING).first()).toBeVisible()
+    await expect.element(failed).not.toMatchTextContent(NOT_APPLIED)
+
+    firstWrite.resolve(json({ error: 'offline' }, 503))
+
     await expect.element(failed).toMatchTextContent(NOT_APPLIED)
     expect(isChecked(entrySwitch(screen, 'discord.gg'))).toBe(true)
 
@@ -684,13 +694,15 @@ describe('ListDetailDialog', () => {
   // value, with a visible message and a retry, when the write fails.
   it('rolls a failed source switch back to the confirmed value with a message and a retry', async () => {
     let attempts = 0
+    // The first write is held, so the switch can be read while it is pending.
+    const firstWrite = Promise.withResolvers<Response>()
     const { keys } = stubAPI({
       'GET /v1/lists/discord/contents': () => contentsResponse(),
       'POST /v1/lists/discord/sources/itdoginfo/update': () => {
         attempts += 1
-        return Promise.resolve(
-          attempts === 1 ? json({ error: 'offline' }, 503) : contentsResponse(),
-        )
+        return attempts === 1
+          ? firstWrite.promise
+          : Promise.resolve(contentsResponse())
       },
     })
     const screen = await renderCard({ mode: 'library' })
@@ -703,6 +715,14 @@ describe('ListDetailDialog', () => {
     expect(isChecked(first)).toBe(true)
 
     await first.click()
+
+    // The switch flips at once, before the service has answered, and nothing
+    // yet says the change was not applied.
+    expect(isChecked(first)).toBe(false)
+    await expect.element(screen.getByText(SAVING).first()).toBeVisible()
+    await expect.element(screen.getByText(NOT_APPLIED)).not.toBeInTheDocument()
+
+    firstWrite.resolve(json({ error: 'offline' }, 503))
 
     await expect.element(screen.getByText(NOT_APPLIED)).toBeVisible()
     expect(isChecked(first)).toBe(true)

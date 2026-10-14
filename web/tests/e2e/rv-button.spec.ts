@@ -279,6 +279,36 @@ const paintedToken = (page: Page, name: string) =>
 const TRANSPARENT = 'rgba(0, 0, 0, 0)'
 
 for (const colorScheme of ['dark', 'light'] as const) {
+  // The final confirmation of an act that cannot be taken back is painted on
+  // the danger role, not merely given a class that says so.
+  test(`paints a danger confirmation on the danger ground in the ${colorScheme} theme`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme })
+    await page.goto(origin)
+    const confirm = page.getByRole('button', { name: 'Delete permanently' })
+    await expect(confirm).toBeVisible()
+
+    const danger = await paint(confirm)
+    expect(danger.backgroundColor).toBe(
+      await paintedToken(page, '--rv-color-danger'),
+    )
+    expect(danger.color).toBe(
+      await paintedToken(page, '--rv-color-ink-inverted'),
+    )
+    expect(
+      contrast(danger.color, danger.backgroundColor),
+    ).toBeGreaterThanOrEqual(4.5)
+    // Not the ground of the principal act or of a neutral button beside it.
+    const neutral = await paint(
+      page.getByRole('button', { name: 'Open button', exact: true }),
+    )
+    expect(danger.backgroundColor).not.toBe(neutral.backgroundColor)
+    expect(danger.backgroundColor).not.toBe(
+      await paintedToken(page, '--rv-color-accent'),
+    )
+  })
+
   // One disabled look for everything that takes input: the library lowers a
   // disabled control's opacity, and every one of these gives that up for the
   // flat look of an unavailable button — the disabled ink, no ground, the faint

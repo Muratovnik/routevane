@@ -50,6 +50,9 @@ const SEGMENTS = [
         {{ activations }}
       </output>
 
+      <!-- The final confirmation of an act that cannot be taken back. -->
+      <RvButton variant="danger">Delete permanently</RvButton>
+
       <!-- Every control that can be unavailable, once available and once not,
            drawn by the real library: the disabled look is read off these. -->
       <section aria-label="Controls">
