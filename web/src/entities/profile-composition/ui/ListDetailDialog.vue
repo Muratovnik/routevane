@@ -631,7 +631,7 @@ watch(contentsState, async (state) => {
     variant="panel"
     @update:open="onSourcesOpenChange"
   >
-    <section class="list-card__section">
+    <section class="list-card__sources">
       <p v-if="sourceError !== ''" class="list-card__error" role="alert">
         {{ sourceError }}
       </p>
@@ -1134,10 +1134,10 @@ watch(contentsState, async (state) => {
   outline-offset: var(--rv-focus-offset);
 }
 
-.list-card__entries {
+.list-card__entries,
+.list-card__sources {
   display: grid;
   gap: var(--rv-space-4);
-  padding: var(--rv-space-5) var(--rv-space-6);
 }
 
 /* Reading a file the operator already has is the same act as typing into the
@@ -1192,8 +1192,7 @@ watch(contentsState, async (state) => {
 
 @container dialog (width <= 36rem) {
   .list-card__membership,
-  .list-card__section,
-  .list-card__entries {
+  .list-card__section {
     padding-right: var(--rv-space-4);
     padding-left: var(--rv-space-4);
   }

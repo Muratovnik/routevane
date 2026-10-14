@@ -74,13 +74,6 @@ const copy = computed(() => `outputs.${props.kind}`)
 .output-confirm {
   display: grid;
   gap: var(--rv-space-4);
-  padding: var(--rv-space-5) var(--rv-space-6);
-}
-
-@container dialog (width <= 36rem) {
-  .output-confirm {
-    padding-inline: var(--rv-space-4);
-  }
 }
 
 .output-confirm__consequence {

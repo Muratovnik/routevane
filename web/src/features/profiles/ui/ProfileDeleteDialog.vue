@@ -60,12 +60,9 @@ const { t } = useLocale()
 </template>
 
 <style scoped>
-/* The panel's body carries no padding of its own; the content sets the inset
-   its header and footer share. */
 .profile-delete {
   display: grid;
   gap: var(--rv-space-3);
-  padding: var(--rv-space-5) var(--rv-space-6);
 }
 
 .profile-delete__body {

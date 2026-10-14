@@ -10,6 +10,15 @@ import {
   formFieldInjectionKey,
   inputIdInjectionKey,
 } from '@nuxt/ui/composables/useFormField'
+import {
+  DialogContent,
+  DialogDescription,
+  DialogOverlay,
+  DialogPortal,
+  DialogRoot,
+  DialogTitle,
+  VisuallyHidden,
+} from 'reka-ui'
 import { config } from 'vitest-browser-vue'
 import {
   cloneVNode,
@@ -166,6 +175,116 @@ const USlideoverDouble = defineComponent({
         ),
       ])
     }
+  },
+})
+
+// The centred panel. Unlike the other doubles this one keeps the library's
+// mechanics rather than standing in for them: Nuxt UI's modal is a thin layer
+// over Reka's dialog, and the focus trap, the focus handed back, the scroll
+// lock and Escape are Reka's. So the double renders the same Reka parts the
+// library does, wired the same way — the caller's `content` props on the
+// panel, the dismissal refused while `dismissible` is false, the `ui` classes
+// on each part and the library's `data-slot` names — leaving out only the
+// library's theme, which this suite does not load. That the library itself
+// keeps this wiring is proven by the browser suites against the built product.
+const UModalDouble = defineComponent({
+  inheritAttrs: false,
+  props: {
+    content: {
+      type: Object as PropType<Record<string, unknown>>,
+      default: () => ({}),
+    },
+    description: String,
+    dismissible: { type: Boolean, default: true },
+    open: Boolean,
+    portal: { type: [Boolean, String], default: true },
+    title: String,
+    ui: {
+      type: Object as PropType<Record<string, unknown>>,
+      default: () => ({}),
+    },
+  },
+  emits: { 'update:open': (_open: boolean) => true },
+  setup(props, { emit, slots }) {
+    const refuse = (event: Event) => event.preventDefault()
+    return () =>
+      h(
+        DialogRoot,
+        {
+          open: props.open,
+          'onUpdate:open': (open: boolean) => emit('update:open', open),
+        },
+        () =>
+          h(
+            DialogPortal,
+            { to: typeof props.portal === 'string' ? props.portal : 'body' },
+            () => [
+              h(DialogOverlay, {
+                class: props.ui.overlay,
+                'data-slot': 'overlay',
+              }),
+              h(
+                DialogContent,
+                {
+                  ...props.content,
+                  class: props.ui.content,
+                  'data-slot': 'content',
+                  ...(props.dismissible
+                    ? {}
+                    : { onEscapeKeyDown: refuse, onInteractOutside: refuse }),
+                },
+                () =>
+                  children([
+                    props.description === undefined
+                      ? h(VisuallyHidden, () => h(DialogDescription))
+                      : undefined,
+                    h(
+                      'div',
+                      { class: props.ui.header, 'data-slot': 'header' },
+                      children([
+                        h(
+                          'div',
+                          { class: props.ui.wrapper, 'data-slot': 'wrapper' },
+                          children([
+                            h(
+                              DialogTitle,
+                              { class: props.ui.title, 'data-slot': 'title' },
+                              () => props.title,
+                            ),
+                            props.description === undefined
+                              ? undefined
+                              : h(
+                                  DialogDescription,
+                                  {
+                                    class: props.ui.description,
+                                    'data-slot': 'description',
+                                  },
+                                  () => props.description,
+                                ),
+                          ]),
+                        ),
+                        slots.actions?.(),
+                      ]),
+                    ),
+                    slots.body
+                      ? h(
+                          'div',
+                          { class: props.ui.body, 'data-slot': 'body' },
+                          slots.body(),
+                        )
+                      : undefined,
+                    slots.footer
+                      ? h(
+                          'div',
+                          { class: props.ui.footer, 'data-slot': 'footer' },
+                          slots.footer(),
+                        )
+                      : undefined,
+                  ]),
+              ),
+            ],
+          ),
+      )
   },
 })
 
@@ -739,6 +858,7 @@ config.global.components = {
   UCommandPalette: UCommandPaletteDouble,
   UFormField: UFormFieldDouble,
   UInput: UInputDouble,
+  UModal: UModalDouble,
   UPopover: UPopoverDouble,
   USelect: USelectDouble,
   USelectMenu: USelectMenuDouble,

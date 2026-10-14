@@ -712,8 +712,12 @@ declares a literal colour, size, space, radius or duration.
 `RvDialog`, `RvSelect`, `RvCombobox`, `RvSearchSelect`, `RvMenu`, `RvInfoTip`, `RvIcon`,
 `RvDisclosure`, `RvTable`, `RvFilePicker`, `RvCopyButton`, `RvCodeBlock`. Nuxt UI supplies
 the styled mechanics behind `RvButton`, the text fields — `RvTextInput` is
-`UInput`, `RvTextarea` is `UTextarea`, `RvField` is `UFormField` — and the
-full-height sheet variant of `RvDialog`. It also draws the choices: `RvSelect`
+`UInput`, `RvTextarea` is `UTextarea`, `RvField` is `UFormField` — and both
+variants of `RvDialog`: the full-height sheet is `USlideover` and the bounded
+centred panel is `UModal`, which own focus, dismissal and the scroll lock. The
+panel owns the inset of its body as it owns its header's and footer's, so a
+caller places content in it without padding of its own and that content starts
+on the title's line. It also draws the choices: `RvSelect`
 is `USelect`, and `RvSearchSelect` — with `RvCombobox` through it — is a
 `UCommandPalette` in a `UPopover`. At field size its trigger is drawn as a
 field and its panel is as wide as the field; the compact category filter's
@@ -794,8 +798,9 @@ position, with the accent at low emphasis while it is on, a segmented choice its
 check mark and edge, a file picker its dashed edge. Each component owns its own
 disabled rule and the library's lowered opacity is overridden there. A control
 that draws its own disabled state outside these components — a drag handle, a
-filter chip, a menu trigger, a dialog's close — is not yet part of this look and
-still lowers its opacity with `--rv-disabled-opacity`.
+filter chip, a menu trigger — is not yet part of this look and still lowers
+its opacity with `--rv-disabled-opacity`. A dialog's close control, which has
+no ground or edge, takes the disabled ink at full opacity.
 Icons are hand-set 16-unit strokes, always decorative, always beside or behind an accessible name
 — navigation and menus never go icon-only. A feature that needs a different
 look asks for a role or a variant, never a parallel class. A component is a

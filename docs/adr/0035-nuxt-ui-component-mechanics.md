@@ -36,8 +36,14 @@ decision is meant to stop owning.
 - `RvButton` delegates element selection, disabled-link behavior and loading
   mechanics to `UButton`. `RvDialog` delegates its full-height sheet structure,
   focus mechanics, dismissal, scroll locking and ordinary sheet transitions to
-  `USlideover`. The bounded centred panel remains
-  on the existing Reka dialog during incremental migration.
+  `USlideover`, and its bounded centred panel to `UModal`: the focus trap and
+  the focus handed back, Escape and the press outside as `dismissible` allows,
+  the scroll lock and the aria wiring of title and description. Both variants
+  name the library's slots with Routevane's own `rv-dialog__*` classes and draw
+  them with tokens, outside the library's cascade layer, so no utility class
+  sets their look; the panel takes no library close button (its own close
+  control sits in the header actions) and no library transition, keeping its
+  own entrance keyframe, which Reka's presence handling waits on.
 - The current Nuxt UI 4.11.1 / Reka UI 2.10.4 sheet uses the library's stateful
   keyframes. Reka assigns `animationFillMode` through CSSOM; that assignment is
   permitted by the application's `style-src 'self'` policy. The former rationale
@@ -81,7 +87,7 @@ dependency adds build size and requires compatibility checks during Nuxt UI or
 Reka upgrades. A rollback removes the Nuxt module and restores the internals of
 the affected `Rv*` facades without changing feature callers.
 
-Buttons and full-height side sheets use Nuxt UI. Tabs delegate their complete
+Buttons, full-height side sheets and centred dialog panels use Nuxt UI. Tabs delegate their complete
 tab/retained-panel relationship to Reka, including keyboard traversal and panel
 focus entry. Other facades remain valid and are not considered migrated merely
 because Nuxt UI is present.

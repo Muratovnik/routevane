@@ -1216,6 +1216,7 @@ const submitPriority = async (): Promise<void> => {
 .lists__groups {
   max-height: var(--rv-overlay-height);
   overflow-y: auto;
+  border-top: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 
 .lists__group {
@@ -1229,7 +1230,6 @@ const submitPriority = async (): Promise<void> => {
 .lists__category-row {
   display: flex;
   align-items: center;
-  padding-inline-end: var(--rv-space-2);
 }
 
 .lists__category {
@@ -1240,7 +1240,7 @@ const submitPriority = async (): Promise<void> => {
   justify-content: space-between;
   min-width: 0;
   min-height: var(--rv-row-dense);
-  padding: var(--rv-space-2) var(--rv-space-5);
+  padding: var(--rv-space-2) 0;
   font: inherit;
   color: var(--rv-color-ink);
   text-align: start;
@@ -1261,7 +1261,6 @@ const submitPriority = async (): Promise<void> => {
 .lists__form {
   display: grid;
   gap: var(--rv-space-4);
-  padding: var(--rv-space-5) var(--rv-space-6);
 }
 
 .lists__empty {

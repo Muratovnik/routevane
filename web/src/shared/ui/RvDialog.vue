@@ -1,13 +1,4 @@
 <script setup lang="ts">
-import {
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogOverlay,
-  DialogPortal,
-  DialogRoot,
-  DialogTitle,
-} from 'reka-ui'
 import { portalTargetInjectionKey } from '@nuxt/ui/composables/usePortal'
 import {
   computed,
@@ -32,10 +23,12 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
  * document body and positioned against the viewport, so what is behind it can
  * be any length and any scroll offset.
  *
- * The primitives underneath supply the parts a modal has to get right — the
- * scroll lock on the page behind, the focus trap, Escape, the click on the
- * scrim, and the aria wiring between the panel, its title and its description.
- * Everything visible is ours.
+ * Nuxt UI supplies the parts a modal has to get right for both variants — the
+ * sheet is its `USlideover`, the centred panel its `UModal`: the scroll lock on
+ * the page behind, the focus trap, Escape and the press outside as far as
+ * `dismissible` allows, and the aria wiring between the panel, its title and
+ * its description. Everything visible is ours: the library's slots are named
+ * with the classes below and drawn with Routevane tokens.
  */
 const props = withDefaults(
   defineProps<{
@@ -194,6 +187,27 @@ const sheetContentProps = computed(() => ({
   },
 }))
 
+// The panel's parts. Unlike the sheet it has no host pane to defer to, so the
+// library owns its whole dismissal: Escape and the press outside close it while
+// `dismissible` holds and are refused while it does not.
+const panelContentProps = computed(() => ({
+  id: panelId,
+  onCloseAutoFocus,
+  onOpenAutoFocus,
+  ...describedBy.value,
+}))
+
+const panelUI = computed(() => ({
+  overlay: ['rv-dialog__scrim', nested.value ? 'rv-dialog__scrim--nested' : ''],
+  content: 'rv-dialog rv-dialog--panel',
+  header: 'rv-dialog__header',
+  wrapper: 'rv-dialog__heading',
+  title: 'rv-dialog__title',
+  description: 'rv-dialog__description',
+  body: ['rv-dialog__body', props.fill === true ? 'rv-dialog__body--fill' : ''],
+  footer: 'rv-dialog__footer',
+}))
+
 const sheetUI = computed(() => ({
   overlay: ['rv-dialog__scrim', nested.value ? 'rv-dialog__scrim--nested' : ''],
   // Cancels Nuxt UI's compact `max-w-md`; Routevane's token owns the working
@@ -282,54 +296,40 @@ const PortalScope = defineComponent({
     </template>
   </USlideover>
 
-  <DialogRoot v-else :open="open" @update:open="updateOpen">
-    <DialogPortal>
-      <!-- The ground behind the panel. It has no role and no name of its own,
-           so a test hook is the only way to identify it. -->
-      <DialogOverlay
-        class="rv-dialog__scrim"
-        :class="{ 'rv-dialog__scrim--nested': nested }"
-        data-testid="rv-dialog-scrim"
-      />
-      <DialogContent
-        :id="panelId"
-        class="rv-dialog rv-dialog--panel"
-        v-bind="describedBy"
-        @close-auto-focus="onCloseAutoFocus"
-        @open-auto-focus="onOpenAutoFocus"
+  <!-- The panel's own entrance is the keyframe below, as it was before the
+       library drew the panel; the library's scale-in would be a second one. -->
+  <UModal
+    v-else
+    :open="open"
+    :title="title"
+    :description="description"
+    :dismissible="canDismiss"
+    :content="panelContentProps"
+    :ui="panelUI"
+    :close="false"
+    :transition="false"
+    portal="body"
+    @update:open="updateOpen"
+  >
+    <template #actions>
+      <slot name="actions" />
+      <button
+        :aria-label="closeLabel"
+        class="rv-dialog__close"
+        :disabled="!canDismiss"
+        type="button"
+        @click="updateOpen(false)"
       >
-        <header class="rv-dialog__header">
-          <div class="rv-dialog__heading">
-            <DialogTitle class="rv-dialog__title">{{ title }}</DialogTitle>
-            <DialogDescription
-              v-if="description !== undefined"
-              class="rv-dialog__description"
-            >
-              {{ description }}
-            </DialogDescription>
-          </div>
-          <slot name="actions" />
-          <DialogClose
-            :aria-label="closeLabel"
-            class="rv-dialog__close"
-            :disabled="!canDismiss"
-          >
-            <RvIcon name="close" />
-          </DialogClose>
-        </header>
-
-        <div class="rv-dialog__body" :class="{ 'rv-dialog__body--fill': fill }">
-          <PortalScope :target="panelTarget"><slot /></PortalScope>
-        </div>
-
-        <footer v-if="$slots.footer" class="rv-dialog__footer">
-          <PortalScope :target="panelTarget"
-            ><slot name="footer"
-          /></PortalScope>
-        </footer>
-      </DialogContent>
-    </DialogPortal>
-  </DialogRoot>
+        <RvIcon name="close" />
+      </button>
+    </template>
+    <template #body>
+      <PortalScope :target="panelTarget"><slot /></PortalScope>
+    </template>
+    <template v-if="$slots.footer" #footer>
+      <PortalScope :target="panelTarget"><slot name="footer" /></PortalScope>
+    </template>
+  </UModal>
 </template>
 
 <style>
@@ -385,18 +385,22 @@ const PortalScope = defineComponent({
 }
 
 /* One bounded decision: centred, no taller than it needs to be, and never
-   taller than the viewport it is centred in. */
+   taller than the viewport it is centred in. The library centres its modal
+   with the `translate` property and caps it at its own compact width; these
+   declarations sit outside its cascade layer, so they replace both rather than
+   adding to them. */
 .rv-dialog--panel {
   top: 50%;
   left: 50%;
   width: min(var(--rv-dialog-panel-width), calc(100% - var(--rv-space-8)));
+  max-width: 100%;
   max-height: min(
     var(--rv-dialog-panel-height),
     calc(100dvh - var(--rv-space-8))
   );
   border: var(--rv-border-hair) solid var(--rv-color-rule-strong);
   border-radius: var(--rv-radius-lg);
-  transform: translate(-50%, -50%);
+  translate: -50% -50%;
   animation: rv-dialog-panel-in var(--rv-motion-normal)
     var(--rv-motion-ease-out);
 }
@@ -426,6 +430,7 @@ const PortalScope = defineComponent({
    standing fact rather than something that just happened. */
 .rv-dialog__description {
   max-width: var(--rv-measure-prose);
+  margin: 0;
   color: var(--rv-color-ink-tertiary);
   font-size: var(--rv-text-meta);
 }
@@ -445,8 +450,12 @@ const PortalScope = defineComponent({
   cursor: pointer;
 }
 
+/* Unavailable, the close control is drawn as every unavailable button is: in
+   the disabled ink at full opacity, so it cannot pass for the control it is
+   while the panel can be dismissed. It has no ground or edge to give up. */
 .rv-dialog__close:disabled {
-  opacity: var(--rv-disabled-opacity);
+  color: var(--rv-color-ink-disabled);
+  background: transparent;
   cursor: not-allowed;
 }
 
@@ -467,6 +476,16 @@ const PortalScope = defineComponent({
   min-height: 0;
   overflow-y: auto;
   padding: 0;
+}
+
+/* A panel's content stands at the inset its header and footer share; the
+   panel owns it, so whatever a caller places in the body starts on the
+   title's line. A sheet's sections each carry their own. The rule above the
+   footer is the footer's; the library's dividing rule under the body would
+   draw it a second time. */
+.rv-dialog--panel .rv-dialog__body {
+  padding: var(--rv-space-5) var(--rv-space-6);
+  border-bottom: 0;
 }
 
 /* The panel's own height, handed to the content instead of kept as empty space
@@ -492,6 +511,7 @@ const PortalScope = defineComponent({
 
 @container dialog (width <= 36rem) {
   .rv-dialog__header,
+  .rv-dialog--panel .rv-dialog__body,
   .rv-dialog__footer {
     padding-right: var(--rv-space-4);
     padding-left: var(--rv-space-4);

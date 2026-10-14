@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { page, userEvent } from 'vitest/browser'
+import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
 import { defineComponent, h, ref, watch } from 'vue'
 
@@ -11,20 +11,31 @@ const givePageAScrollbar = (): void => {
   document.body.style.minHeight = '400vh'
 }
 
+// The layers behind the panels. A layer has no role and no name, and both
+// variants are drawn by Nuxt UI, whose overlay takes no attribute from its
+// caller; the library's own slot name is the one handle it carries.
+const scrims = (): Element[] => [
+  ...document.querySelectorAll('[data-slot="overlay"]'),
+]
+
 // The scrims that actually paint. A nested one keeps its layer, so a pointer
 // landing outside still closes the panel, and drops its ground so a stack of
 // two does not darken the page twice. The painted colour is what a reader sees,
 // so that is what is measured rather than the class that produces it.
 const grounds = (): Element[] =>
-  page
-    .getByTestId('rv-dialog-scrim')
-    .elements()
-    .filter(
-      (scrim) => getComputedStyle(scrim).backgroundColor !== 'rgba(0, 0, 0, 0)',
-    )
+  scrims().filter(
+    (scrim) => getComputedStyle(scrim).backgroundColor !== 'rgba(0, 0, 0, 0)',
+  )
 
-const scrimCount = (): number =>
-  page.getByTestId('rv-dialog-scrim').all().length
+const scrimCount = (): number => scrims().length
+
+// Presses the layer behind the topmost panel at its corner, which no panel
+// covers.
+const pressOutside = async (): Promise<void> => {
+  const layer = scrims().at(-1)
+  expect(layer, 'a layer is behind the panel').toBeInstanceOf(HTMLElement)
+  await userEvent.click(layer as HTMLElement, { position: { x: 4, y: 4 } })
+}
 
 // A host that owns the open state, because that is how every caller uses it:
 // the dialog is opened by what the screen knows, not by a trigger inside it.
@@ -264,15 +275,33 @@ describe('RvDialog', () => {
       .toBeVisible()
   })
 
+  // The control that closes the panel hands the keyboard back as Escape does:
+  // the panel was opened by state, not by a trigger the library knows about.
+  it('hands the focus back to the opener when its close control is pressed', async () => {
+    const screen = await render(Host)
+
+    const opener = screen.getByRole('button', { name: 'Open' })
+    opener.element().focus()
+    await opener.click()
+
+    const panel = screen.getByRole('dialog')
+    await expect.element(panel).toBeVisible()
+    expect(panel.element().contains(document.activeElement)).toBe(true)
+
+    await screen.getByRole('button', { name: 'Close' }).click()
+
+    await expect.element(panel).not.toBeInTheDocument()
+    await expect.element(opener).toHaveFocus()
+  })
+
   // The scrim is a way out, not decoration.
   it('closes when the pointer lands on the scrim', async () => {
     const screen = await render(Host)
 
     await screen.getByRole('button', { name: 'Open' }).click()
-    const scrim = page.getByTestId('rv-dialog-scrim')
-    await expect.element(scrim).toBeVisible()
+    await expect.element(screen.getByRole('dialog')).toBeVisible()
 
-    await scrim.click({ position: { x: 4, y: 4 } })
+    await pressOutside()
 
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
   })
@@ -289,15 +318,73 @@ describe('RvDialog', () => {
       slots: { default: 'Deleting…' },
     })
 
+    const panel = screen.getByRole('dialog', { name: 'Deleting list' })
     const close = screen.getByRole('button', { name: 'Close' })
     await expect.element(close).toBeDisabled()
 
     await userEvent.keyboard('{Escape}')
+    await pressOutside()
     expect(screen.emitted('update:open')).toBeUndefined()
+    await expect.element(panel).toBeVisible()
 
     await screen.rerender({ dismissible: true })
     await close.click()
     expect(screen.emitted('update:open')?.at(-1)).toEqual([false])
+  })
+
+  // Unavailable, the close control is drawn as every unavailable button is:
+  // in the disabled ink at full opacity, not as the enabled control faded.
+  it('draws an unavailable close control flat rather than faded', async () => {
+    const screen = await render(RvDialog, {
+      props: {
+        closeLabel: 'Close',
+        dismissible: true,
+        open: true,
+        title: 'Deleting list',
+        variant: 'panel',
+      },
+    })
+    const close = screen.getByRole('button', { name: 'Close' })
+    await expect.element(close).toBeEnabled()
+    const enabledInk = getComputedStyle(close.element()).color
+
+    await screen.rerender({ dismissible: false })
+    await expect.element(close).toBeDisabled()
+    const disabled = getComputedStyle(close.element())
+    expect(disabled.opacity).toBe('1')
+    expect(disabled.color).not.toBe(enabledInk)
+    expect(disabled.cursor).toBe('not-allowed')
+  })
+
+  // The panel owns the inset of what a caller puts in it: content placed with
+  // no padding of its own starts on the title's line and ends on the close
+  // control's, and stands below the header's rule rather than against it.
+  it('sets its content at the inset its header uses', async () => {
+    const screen = await render(RvDialog, {
+      props: {
+        closeLabel: 'Close',
+        open: true,
+        title: 'Delete the list',
+        variant: 'panel',
+      },
+      slots: {
+        default: '<p>The list goes with its entries.</p>',
+        footer: '<span>Footer</span>',
+      },
+    })
+
+    const content = screen.getByText('The list goes with its entries.')
+    await expect.element(content).toBeVisible()
+    const title = screen.getByText('Delete the list').element()
+    const close = screen.getByRole('button', { name: 'Close' }).element()
+    const copy = content.element().getBoundingClientRect()
+    const panel = screen.getByRole('dialog').element().getBoundingClientRect()
+    expect(copy.left).toBe(title.getBoundingClientRect().left)
+    expect(copy.right).toBe(close.getBoundingClientRect().right)
+    expect(copy.left - panel.left).toBeGreaterThan(8)
+    // The header is the row the close control stands in.
+    const header = close.parentElement!.getBoundingClientRect()
+    expect(copy.top - header.bottom).toBeGreaterThan(8)
   })
 
   // A panel opened over a sheet is one modal stack, and a stack has one ground.

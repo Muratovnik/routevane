@@ -243,7 +243,6 @@ const submit = async (): Promise<void> => {
 .list-sheet {
   display: grid;
   gap: var(--rv-space-5);
-  padding: var(--rv-space-5) var(--rv-space-6);
 }
 
 .list-sheet__field {

@@ -77,3 +77,52 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     expect(cspErrors).toEqual([])
   })
 }
+
+// A bounded panel is a modal of its own: the press outside it is a way out
+// while nothing is in flight, and while a write it started is unanswered no
+// way out is offered — not Escape, not the press outside, not its close
+// control, which says so by being drawn as every unavailable button is. The
+// page behind stays locked throughout, and the keyboard comes back to the
+// control that opened the panel once the answer has closed it.
+test('a bounded panel holds while its write is in flight', async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${origin}/lists`)
+  const opener = page.getByRole('button', {
+    name: 'New category',
+    exact: true,
+  })
+  const panel = page.getByRole('dialog', { name: 'New category', exact: true })
+  const close = panel.getByRole('button', { name: 'Close', exact: true })
+  const outside = { x: 8, y: 8 }
+
+  await opener.click()
+  await expect(panel.getByLabel('Name', { exact: true })).toBeFocused()
+  await page.mouse.click(outside.x, outside.y)
+  await expect(panel).toBeHidden()
+  await expect(opener).toBeFocused()
+
+  const held = Promise.withResolvers<undefined>()
+  await page.route(`${origin}/v1/categories`, async (route) => {
+    await held.promise
+    await route.continue()
+  })
+  await opener.click()
+  await panel.getByLabel('Name', { exact: true }).fill('Held category')
+  await panel.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(close).toBeDisabled()
+  expect(
+    await close.evaluate((control) => getComputedStyle(control).opacity),
+  ).toBe('1')
+
+  await page.keyboard.press('Escape')
+  await page.mouse.click(outside.x, outside.y)
+  await expect(panel).toBeVisible()
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden')
+
+  held.resolve(undefined)
+  await expect(panel).toBeHidden()
+  await expect(opener).toBeFocused()
+})

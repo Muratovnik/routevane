@@ -162,13 +162,13 @@ export const linkTo = (page: Page, href: string): Locator =>
 /**
  * The dimming layer behind a modal surface.
  *
- * A layer has no role and no name, so RvDialog puts a hook on the one it owns
- * itself — the panel variant's. The sheet's layer belongs to Nuxt UI's
- * USlideover, which renders it with an internal data-slot of its own and takes
- * no attributes for it, so nothing can hook that one. The class both variants
- * carry is therefore the only handle that reaches a whole stack, which is what
- * a test counting the dimming of a stack needs. It is one of the three
- * selectors `playwright/no-raw-locators` allows, and it is written here alone.
+ * A layer has no role and no name. Both of RvDialog's layers belong to Nuxt
+ * UI — the sheet's to USlideover, the panel's to UModal — which render them
+ * with an internal data-slot of their own and take no attributes for them, so
+ * nothing can put a test hook on either. The class RvDialog names both with is
+ * therefore the only handle that reaches a whole stack, which is what a test
+ * counting the dimming of a stack needs. It is one of the three selectors
+ * `playwright/no-raw-locators` allows, and it is written here alone.
  */
 export const dialogScrims = (page: Page): Locator =>
   page.locator('.rv-dialog__scrim')

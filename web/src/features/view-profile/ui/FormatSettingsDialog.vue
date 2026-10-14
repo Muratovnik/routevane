@@ -137,13 +137,6 @@ const rebuildNow = async (): Promise<void> => {
   display: grid;
   gap: var(--rv-space-4);
   min-width: 0;
-  padding: var(--rv-space-5) var(--rv-space-6);
-}
-
-@container dialog (width <= 36rem) {
-  .format-settings {
-    padding-inline: var(--rv-space-4);
-  }
 }
 
 /* The two acts stay together; the consequence wraps above them first. */

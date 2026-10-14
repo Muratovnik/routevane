@@ -226,21 +226,23 @@ const apply = async (): Promise<void> => {
       :title="t('configTransfer.confirm.title')"
       variant="panel"
     >
-      <RvStateNotice
-        v-if="transfer.applyState.value === 'failed'"
-        live
-        :title="t('configTransfer.apply.failed')"
-        tone="failed"
-      >
-        <template #action>
-          <RvButton :disabled="!transfer.canApply.value" @click="apply">
-            {{ t('configTransfer.apply') }}
-          </RvButton>
-        </template>
-      </RvStateNotice>
-      <p class="config-transfer__confirm-copy">
-        {{ t('configTransfer.confirm.body') }}
-      </p>
+      <div class="config-transfer__confirm">
+        <RvStateNotice
+          v-if="transfer.applyState.value === 'failed'"
+          live
+          :title="t('configTransfer.apply.failed')"
+          tone="failed"
+        >
+          <template #action>
+            <RvButton :disabled="!transfer.canApply.value" @click="apply">
+              {{ t('configTransfer.apply') }}
+            </RvButton>
+          </template>
+        </RvStateNotice>
+        <p>
+          {{ t('configTransfer.confirm.body') }}
+        </p>
+      </div>
       <template #footer>
         <RvButton
           :disabled="transfer.applyState.value === 'applying'"
@@ -329,7 +331,8 @@ const apply = async (): Promise<void> => {
   color: var(--rv-color-status-warning);
 }
 
-.config-transfer__confirm-copy {
-  padding: var(--rv-space-5) var(--rv-space-6);
+.config-transfer__confirm {
+  display: grid;
+  gap: var(--rv-space-4);
 }
 </style>
