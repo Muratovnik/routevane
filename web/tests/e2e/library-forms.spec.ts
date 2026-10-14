@@ -176,6 +176,12 @@ test('a refused deletion links the profiles that hold the list and marks archive
   origin,
 }) => {
   const profiles = await holdList(page, origin)
+  const profileReads: string[] = []
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname
+    if (request.method() === 'GET' && path.startsWith('/v1/profiles/'))
+      profileReads.push(path)
+  })
   await page.goto(`${origin}/lists`)
   await page.getByRole('button', { name: 'Actions for list Held list' }).click()
   await page.getByRole('menuitem', { name: 'Delete the list' }).click()
@@ -198,6 +204,9 @@ test('a refused deletion links the profiles that hold the list and marks archive
   await expect(
     dialog.getByText(englishCopy('lists.list.inUse.next')),
   ).toBeVisible()
+  // The refusal itself says which profile is archived: no profile was read to
+  // find out.
+  expect(profileReads).toEqual([])
   // The list is still there: a refusal changes nothing.
   await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(libraryRow(libraryRegion(page), 'Held list')).toBeVisible()
