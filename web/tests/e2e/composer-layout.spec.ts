@@ -137,6 +137,82 @@ test('the editor keeps save in the window and says the draft is unsaved', async 
   await expect(unsaved).toBeHidden()
 })
 
+// The settings rail beside the table starts below the cards that stand over
+// the composer, so it begins low in a short window. Its actions follow the
+// window rather than the rail's own end: the unsaved status and save stay in
+// reach at the page's top and after it has been scrolled to the bottom.
+for (const width of [1024, 1440]) {
+  test(`the editor beside the rail keeps save and the unsaved status in a ${width}x700 window`, async ({
+    page,
+    origin,
+  }) => {
+    await buildProfile(page, origin)
+    await page.setViewportSize({ width, height: 700 })
+    await settleAnimations(page)
+    const save = page.getByRole('button', {
+      name: 'Save and rebuild',
+      exact: true,
+    })
+    const unsaved = page
+      .getByRole('status')
+      .filter({ hasText: englishCopy('profile.edit.dirty') })
+    const main = page.getByRole('main')
+    const settings = composerSettings(page)
+
+    await nameField(page).fill('Edited name')
+    await expect(unsaved).toBeVisible()
+    // Beside the table, not stacked over it, and read before anything scrolls.
+    expect((await box(settings)).x).toBeGreaterThan(
+      (await box(page.getByTestId('rv-list-picker-frame'))).x,
+    )
+    expect(await main.evaluate((element) => element.scrollTop)).toBe(0)
+    await withinWindow(page, save)
+    await withinWindow(page, unsaved)
+
+    // Scrolled to the end of the page the rail has followed the window.
+    await main.evaluate((element) => {
+      element.scrollTop = element.scrollHeight
+    })
+    await withinWindow(page, save)
+    await withinWindow(page, unsaved)
+    await withinWindow(page, nameField(page))
+  })
+}
+
+// A window shorter than the rail's own content: the rail stays inside the
+// window and the fields give way to a scroll of their own, so the act that
+// stores the draft is never what scrolls out of reach.
+test('a window shorter than the rail scrolls its fields and keeps save in view', async ({
+  page,
+  origin,
+}) => {
+  await buildProfile(page, origin)
+  await page.setViewportSize({ width: 1440, height: 360 })
+  await settleAnimations(page)
+  await nameField(page).fill('Edited name')
+  await page.getByRole('main').evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+
+  const rail = composerSettings(page)
+  const save = page.getByRole('button', {
+    name: 'Save and rebuild',
+    exact: true,
+  })
+  await withinWindow(page, rail)
+  await withinWindow(page, save)
+
+  // What the actions leave room for is still reachable inside the rail.
+  const formats = rail.getByText('Formats', { exact: true })
+  await formats.scrollIntoViewIfNeeded()
+  const railBox = await box(rail)
+  const formatsBox = await box(formats)
+  expect(formatsBox.y).toBeGreaterThanOrEqual(railBox.y)
+  expect(formatsBox.y + formatsBox.height).toBeLessThanOrEqual(
+    (await box(save)).y,
+  )
+})
+
 test('beside the rail the discard button is not a full-width row either', async ({
   page,
   origin,

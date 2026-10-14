@@ -599,7 +599,10 @@ surface keeps its width. The operator's own choice with the collapse control is
 kept and wins in any window; only while none is kept does the window decide. The profile composer
 and library allocate remaining height to their data regions; headings and filters
 keep natural height. Short windows and enlarged content may scroll to preserve
-access to actions. In a section that fills the window, the data region, or the
+access to actions. Beside the table, the settings rail is pinned at the page inset
+and is never taller than the window less that inset twice; its fields scroll inside
+it when they do not fit, and its actions are pinned to the window's bottom edge, so
+create and save stay in reach wherever the page is scrolled. In a section that fills the window, the data region, or the
 composer row that holds it, has a standing height taken from the window itself
 — the viewport less that section's own chrome — and its rows scroll inside
 that frame rather than down the page. A notice, a bar or a secondary section is therefore an addition to

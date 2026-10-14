@@ -30,9 +30,19 @@ const compact = computed(() => pane?.docked.value && pane.open.value)
   min-width: 0;
 }
 
+/* Beside the table the rail follows the window instead of waiting below
+   whatever stands above the composer: it is pinned at the page inset and never
+   taller than the window less that inset twice. The form inside gives up its
+   fields to a scroll of their own before the rail outgrows that, and keeps its
+   actions in view. */
 .rv-composer__settings {
   view-transition-name: composer-settings;
   align-self: start;
+  position: sticky;
+  top: var(--rv-space-6);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - var(--rv-space-6) * 2);
   padding: var(--rv-space-5);
   min-width: 0;
   background: var(--rv-color-surface);
@@ -48,6 +58,8 @@ const compact = computed(() => pane?.docked.value && pane.open.value)
 .rv-composer--compact .rv-composer__settings {
   view-transition-name: composer-settings;
   grid-row: 1;
+  position: static;
+  max-height: none;
 }
 
 /* Without room for the rail beside the table, the settings stand above the
@@ -62,6 +74,8 @@ const compact = computed(() => pane?.docked.value && pane.open.value)
 
   .rv-composer:not(.rv-composer--compact) .rv-composer__settings {
     grid-row: 1;
+    position: static;
+    max-height: none;
   }
 
   .rv-composer:not(.rv-composer--compact) .rv-composer__main {
