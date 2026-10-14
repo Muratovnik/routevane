@@ -96,6 +96,9 @@ const startReplacing = async (): Promise<void> => {
 
 const stopReplacing = async (): Promise<void> => {
   password.value = ''
+  // A refusal belongs to the attempt that drew it, and the field was already
+  // empty, so clearing it above is no change for the watcher to see.
+  refused.value = false
   replacing.value = false
   await nextTick()
   focusReplace()?.focus()

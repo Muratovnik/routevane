@@ -457,6 +457,39 @@ describe('changing a saved connection', () => {
       .not.toBeInTheDocument()
   })
 
+  // The refusal answers one attempt. Replace, refuse, cancel and replace again
+  // must open an empty field that has nothing to say yet.
+  it('does not bring a refusal back on the field of a later replacement', async () => {
+    const registry = installRegistry([router({ credential_stored: true })])
+    registry.refusal = {
+      action: 'credential',
+      status: 422,
+      body: { error: 'credential_invalid', field: 'credential' },
+    }
+    const screen = await render(DevicesView)
+
+    await screen.getByRole('button', { name: 'Replace' }).click()
+    await screen.getByLabelText('Router password').fill(TYPED)
+    await screen.getByRole('button', { name: 'Save password' }).click()
+    await expect
+      .element(screen.getByText('The password is empty or too long.'))
+      .toBeVisible()
+
+    // The parameters have a Cancel of their own; this one is the password's.
+    await screen
+      .getByRole('region', { name: 'Password', exact: true })
+      .getByRole('button', { name: 'Cancel' })
+      .click()
+    await screen.getByRole('button', { name: 'Replace' }).click()
+
+    await expect
+      .element(screen.getByLabelText('Router password'))
+      .toHaveValue('')
+    await expect
+      .element(screen.getByText('The password is empty or too long.'))
+      .not.toBeInTheDocument()
+  })
+
   it.each([
     {
       name: 'a platform without a credential store',
