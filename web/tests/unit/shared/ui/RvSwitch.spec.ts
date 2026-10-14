@@ -19,6 +19,36 @@ describe('RvSwitch', () => {
     expect(screen.emitted('update:modelValue')).toEqual([[true]])
   })
 
+  // The label beside the switch is what a pointer presses as well as what a
+  // reader hears, and the standing note under it is read out as the switch's
+  // description rather than as more of its name.
+  it('takes its label as its name and its note as its description', async () => {
+    const screen = await render(RvSwitch, {
+      props: {
+        description: 'Applies to every profile.',
+        label: 'Refresh sources',
+        modelValue: false,
+      },
+    })
+
+    const control = screen.getByRole('switch', { name: 'Refresh sources' })
+    await expect
+      .element(control)
+      .toHaveAccessibleDescription('Applies to every profile.')
+    await screen.getByText('Refresh sources', { exact: true }).click()
+    expect(screen.emitted('update:modelValue')).toEqual([[true]])
+  })
+
+  it('has no description when it is given no note', async () => {
+    const screen = await render(RvSwitch, {
+      props: { label: 'Offer Keenetic', modelValue: true },
+    })
+
+    const control = screen.getByRole('switch', { name: 'Offer Keenetic' })
+    await expect.element(control).toBeChecked()
+    await expect.element(control).not.toHaveAttribute('aria-describedby')
+  })
+
   it('refuses a change while disabled', async () => {
     const screen = await render(RvSwitch, {
       props: { disabled: true, label: 'Offer Keenetic', modelValue: false },
@@ -89,8 +119,8 @@ describe('RvSwitch', () => {
           paint('Closed off').backgroundColor,
         )
         // Where the thumb stands still says which it is.
-        expect(thumb('Closed on').transform).not.toBe(
-          thumb('Closed off').transform,
+        expect(thumb('Closed on').translate).not.toBe(
+          thumb('Closed off').translate,
         )
       })
     },

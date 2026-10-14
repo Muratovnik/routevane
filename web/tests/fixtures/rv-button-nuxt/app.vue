@@ -16,6 +16,7 @@ const chosen = ref('daily')
 const segment = ref('auto')
 const on = ref(true)
 const off = ref(false)
+const kept = ref(false)
 
 const OPTIONS = [
   { label: 'Daily', value: 'daily' },
@@ -88,6 +89,11 @@ const SEGMENTS = [
         <RvSwitch v-model="off" disabled label="Closed switch" />
         <RvSwitch v-model="on" label="Open switch on" />
         <RvSwitch v-model="on" disabled label="Closed switch on" />
+        <RvSwitch
+          v-model="kept"
+          description="Kept on this computer only."
+          label="Described switch"
+        />
         <RvSegmented
           v-model="segment"
           label="Open choice"

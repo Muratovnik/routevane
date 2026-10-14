@@ -363,3 +363,106 @@ for (const colorScheme of ['dark', 'light'] as const) {
     }
   })
 }
+
+// A switch drawn by the real library: its root is the row the library lowers to
+// three quarters while unavailable, and its thumb is moved by the library's own
+// `translate`, which the facade's travel must replace rather than add to.
+const switchParts = (control: Locator) =>
+  control.evaluate((element) => {
+    const thumb = element.firstElementChild!.getBoundingClientRect()
+    const track = element.getBoundingClientRect()
+    return {
+      inset: Math.round(track.right - thumb.right),
+      lead: Math.round(thumb.left - track.left),
+      rowOpacity: getComputedStyle(element.closest('[data-slot="root"]')!)
+        .opacity,
+    }
+  })
+
+for (const colorScheme of ['dark', 'light'] as const) {
+  test(`draws a disabled switch flat, on or off, in the ${colorScheme} theme`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme })
+    await page.goto(origin)
+    const ink = await paintedToken(page, '--rv-color-ink-disabled')
+    const rule = await paintedToken(page, '--rv-color-rule')
+    const quiet = await paintedToken(page, '--rv-color-accent-quiet')
+    const control = (name: string) =>
+      page.getByRole('switch', { name, exact: true })
+
+    for (const name of ['Closed switch', 'Closed switch on']) {
+      const closed = control(name)
+      await expect(closed).toBeDisabled()
+      const style = await closed.evaluate((element) => {
+        const own = getComputedStyle(element)
+        return {
+          border: own.borderTopColor,
+          cursor: own.cursor,
+          opacity: own.opacity,
+          thumb: getComputedStyle(element.firstElementChild!).backgroundColor,
+        }
+      })
+      expect(style.opacity, name).toBe('1')
+      expect(style.cursor, name).toBe('not-allowed')
+      expect(style.border, name).toBe(rule)
+      expect(style.thumb, name).toBe(ink)
+      expect((await switchParts(closed)).rowOpacity, name).toBe('1')
+    }
+    expect(
+      await control('Closed switch on').evaluate(
+        (element) => getComputedStyle(element).backgroundColor,
+      ),
+    ).toBe(quiet)
+    expect(
+      await control('Closed switch').evaluate(
+        (element) => getComputedStyle(element).backgroundColor,
+      ),
+    ).toBe(TRANSPARENT)
+    expect(
+      await control('Open switch').evaluate(
+        (element) => getComputedStyle(element).backgroundColor,
+      ),
+    ).not.toBe(TRANSPARENT)
+
+    // On, the thumb has travelled the track's width less its own and less
+    // twice its 3px margin: 36 - 14 - 6 = 16px at the default text size, and it
+    // still ends inside its track. A travel added to the library's own would
+    // carry it twice as far, past the end of the track.
+    const off = await switchParts(control('Open switch'))
+    const on = await switchParts(control('Open switch on'))
+    expect(on.lead - off.lead).toBe(16)
+    expect(on.inset).toBeGreaterThan(0)
+  })
+}
+
+// The library owns the toggle — a press on the switch or on its label, and
+// Space from the keyboard — and the facade names the note under the label as
+// the switch's description.
+test('a real switch toggles and reads its note as its description', async ({
+  page,
+}) => {
+  await page.goto(origin)
+  const control = page.getByRole('switch', {
+    name: 'Described switch',
+    exact: true,
+  })
+  await expect(control).toHaveAccessibleDescription(
+    'Kept on this computer only.',
+  )
+  await expect(control).not.toBeChecked()
+  await control.click()
+  await expect(control).toBeChecked()
+  await page.getByText('Described switch', { exact: true }).click()
+  await expect(control).not.toBeChecked()
+  await control.focus()
+  await page.keyboard.press('Space')
+  await expect(control).toBeChecked()
+
+  await page.getByRole('switch', { name: 'Closed switch', exact: true }).click({
+    force: true,
+  })
+  await expect(
+    page.getByRole('switch', { name: 'Closed switch', exact: true }),
+  ).not.toBeChecked()
+})

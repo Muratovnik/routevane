@@ -17,6 +17,9 @@ import {
   DialogPortal,
   DialogRoot,
   DialogTitle,
+  Label,
+  SwitchRoot,
+  SwitchThumb,
   VisuallyHidden,
 } from 'reka-ui'
 import { config } from 'vitest-browser-vue'
@@ -285,6 +288,88 @@ const UModalDouble = defineComponent({
             ],
           ),
       )
+  },
+})
+
+// The switch. Like the modal's, this double keeps the library's mechanics:
+// Nuxt UI's switch is Reka's switch root and thumb with a Reka label beside
+// them, so the double renders those parts wired the same way — the caller's
+// attributes and model on the root, the id the label points at, the `ui`
+// classes and `data-slot` names on each part, and the description in its own
+// paragraph or its slot — leaving out only the library's theme. That the
+// library keeps this wiring is proven by the browser suites.
+const USwitchDouble = defineComponent({
+  inheritAttrs: false,
+  props: {
+    class: [String, Array, Object] as PropType<unknown>,
+    description: String,
+    disabled: Boolean,
+    id: String,
+    label: String,
+    modelValue: Boolean,
+    ui: {
+      type: Object as PropType<Record<string, unknown>>,
+      default: () => ({}),
+    },
+  },
+  emits: { 'update:modelValue': (_value: boolean) => true },
+  setup(props, { attrs, emit, slots }) {
+    const fallbackId = useId()
+    return () => {
+      const id = props.id ?? fallbackId
+      return h(
+        'div',
+        { class: [props.ui.root, props.class], 'data-slot': 'root' },
+        children([
+          h('div', { class: props.ui.container, 'data-slot': 'container' }, [
+            h(
+              SwitchRoot,
+              {
+                ...attrs,
+                id,
+                class: props.ui.base,
+                'data-slot': 'base',
+                disabled: props.disabled,
+                modelValue: props.modelValue,
+                'onUpdate:modelValue': (value: unknown) =>
+                  emit('update:modelValue', value === true),
+              },
+              () =>
+                h(SwitchThumb, { class: props.ui.thumb, 'data-slot': 'thumb' }),
+            ),
+          ]),
+          props.label === undefined && props.description === undefined
+            ? undefined
+            : h(
+                'div',
+                { class: props.ui.wrapper, 'data-slot': 'wrapper' },
+                children([
+                  props.label === undefined
+                    ? undefined
+                    : h(
+                        Label,
+                        {
+                          for: id,
+                          class: props.ui.label,
+                          'data-slot': 'label',
+                        },
+                        () => props.label,
+                      ),
+                  props.description === undefined && !slots.description
+                    ? undefined
+                    : h(
+                        'p',
+                        {
+                          class: props.ui.description,
+                          'data-slot': 'description',
+                        },
+                        slots.description?.() ?? props.description,
+                      ),
+                ]),
+              ),
+        ]),
+      )
+    }
   },
 })
 
@@ -863,5 +948,6 @@ config.global.components = {
   USelect: USelectDouble,
   USelectMenu: USelectMenuDouble,
   USlideover: USlideoverDouble,
+  USwitch: USwitchDouble,
   UTextarea: UTextareaDouble,
 }

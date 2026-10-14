@@ -45,6 +45,15 @@ decision is meant to stop owning.
   control sits in the header actions) and no library transition, keeping its
   own entrance keyframe and has no exit transition: the animation name does
   not change on close, so Reka's presence handling unmounts it at once.
+- `RvSwitch` delegates to `USwitch`: the switch role and checked state, Space
+  and Enter, the label that names and presses it, and the not-allowed cursor
+  of an unavailable one. The library wires a description to the control only
+  inside its own form field, so the facade names the note it passes through
+  the description slot and points `aria-describedby` at it. The parts take
+  `rv-switch__*` classes; the facade's rules replace the library's lowered
+  opacity on an unavailable row, its thumb shadow and its smaller copy, and
+  move the thumb with the same `translate` property the library moves it
+  with, so the two travels never add up.
 - The current Nuxt UI 4.11.1 / Reka UI 2.10.4 sheet uses the library's stateful
   keyframes. Reka assigns `animationFillMode` through CSSOM; that assignment is
   permitted by the application's `style-src 'self'` policy. The former rationale
@@ -99,7 +108,7 @@ dependency adds build size and requires compatibility checks during Nuxt UI or
 Reka upgrades. A rollback removes the Nuxt module and restores the internals of
 the affected `Rv*` facades without changing feature callers.
 
-Buttons, full-height side sheets and centred dialog panels use Nuxt UI. Tabs delegate their complete
+Buttons, switches, full-height side sheets and centred dialog panels use Nuxt UI. Tabs delegate their complete
 tab/retained-panel relationship to Reka, including keyboard traversal and panel
 focus entry. Other facades remain valid and are not considered migrated merely
 because Nuxt UI is present.
