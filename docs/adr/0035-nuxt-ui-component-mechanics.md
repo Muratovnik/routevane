@@ -54,6 +54,13 @@ decision is meant to stop owning.
   opacity on an unavailable row, its thumb shadow and its smaller copy, and
   move the thumb with the same `translate` property the library moves it
   with, so the two travels never add up.
+- `RvTooltip` delegates to `UTooltip`: opening on hover and focus, closing on
+  Escape and on leaving, positioning, the portal and the description its
+  trigger carries. Each tooltip keeps a Reka provider of its own with the
+  quarter-second delay it had, rather than sharing the application's, so one
+  that has just closed does not open its neighbour at once. The panel and its
+  text take `rv-tooltip` classes that replace the library's fixed one-line
+  height, its truncated text and its entrance.
 - The current Nuxt UI 4.11.1 / Reka UI 2.10.4 sheet uses the library's stateful
   keyframes. Reka assigns `animationFillMode` through CSSOM; that assignment is
   permitted by the application's `style-src 'self'` policy. The former rationale
@@ -108,7 +115,7 @@ dependency adds build size and requires compatibility checks during Nuxt UI or
 Reka upgrades. A rollback removes the Nuxt module and restores the internals of
 the affected `Rv*` facades without changing feature callers.
 
-Buttons, switches, full-height side sheets and centred dialog panels use Nuxt UI. Tabs delegate their complete
+Buttons, switches, tooltips, full-height side sheets and centred dialog panels use Nuxt UI. Tabs delegate their complete
 tab/retained-panel relationship to Reka, including keyboard traversal and panel
 focus entry. Other facades remain valid and are not considered migrated merely
 because Nuxt UI is present.

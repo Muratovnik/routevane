@@ -466,3 +466,44 @@ test('a real switch toggles and reads its note as its description', async ({
     page.getByRole('switch', { name: 'Closed switch', exact: true }),
   ).not.toBeChecked()
 })
+
+// A tooltip drawn by the real library keeps its whole text: the library sets
+// its panel to one fixed line and truncates the words, and the facade gives
+// both up for a panel no wider than its token that wraps. It opens on hover and
+// on focus beside its trigger, describes the trigger, and Escape puts it away.
+test('a real tooltip wraps its whole text and leaves on Escape', async ({
+  page,
+}) => {
+  await page.goto(origin)
+  const trigger = page.getByRole('button', { name: 'Explained action' })
+  const tooltip = page.getByTestId('rv-tooltip')
+
+  await trigger.hover()
+  await expect(tooltip).toBeVisible()
+  await page.mouse.move(0, 0)
+  await expect(tooltip).toBeHidden()
+
+  await trigger.focus()
+  await expect(tooltip).toBeVisible()
+  await expect(trigger).toHaveAccessibleDescription(/^Rebuilds every file/)
+  const geometry = await tooltip.evaluate((element) => {
+    const text = element.querySelector('[data-slot="text"]')!
+    const panel = element.getBoundingClientRect()
+    const trigger = document
+      .querySelector('section[aria-label="Tooltips"] button')!
+      .getBoundingClientRect()
+    return {
+      clipped: text.scrollWidth > text.clientWidth,
+      lineHeight: parseFloat(getComputedStyle(text).lineHeight),
+      textHeight: text.getBoundingClientRect().height,
+      rightOfTrigger: panel.left >= trigger.right,
+    }
+  })
+  expect(geometry.clipped).toBe(false)
+  expect(geometry.textHeight).toBeGreaterThan(geometry.lineHeight * 1.5)
+  expect(geometry.rightOfTrigger).toBe(true)
+
+  await page.keyboard.press('Escape')
+  await expect(tooltip).toBeHidden()
+  await expect(trigger).toBeFocused()
+})

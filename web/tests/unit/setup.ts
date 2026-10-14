@@ -20,6 +20,10 @@ import {
   Label,
   SwitchRoot,
   SwitchThumb,
+  TooltipContent,
+  TooltipPortal,
+  TooltipRoot,
+  TooltipTrigger,
   VisuallyHidden,
 } from 'reka-ui'
 import { config } from 'vitest-browser-vue'
@@ -370,6 +374,64 @@ const USwitchDouble = defineComponent({
         ]),
       )
     }
+  },
+})
+
+// The tooltip. Nuxt UI's tooltip is Reka's tooltip with its own defaults, so
+// the double renders the same Reka parts: the trigger as the caller's own
+// element, the panel portalled with the caller's `content` props over the
+// library's defaults, the `ui` classes on the panel and its text, and no panel
+// at all when there is nothing to say. Opening, closing and the description it
+// gives its trigger are Reka's, as they are in production; the browser suites
+// prove the library keeps that wiring.
+const UTooltipDouble = defineComponent({
+  inheritAttrs: false,
+  props: {
+    content: {
+      type: Object as PropType<Record<string, unknown>>,
+      default: () => ({}),
+    },
+    delayDuration: Number,
+    disabled: Boolean,
+    text: String,
+    ui: {
+      type: Object as PropType<Record<string, unknown>>,
+      default: () => ({}),
+    },
+  },
+  setup(props, { attrs, slots }) {
+    return () =>
+      h(
+        TooltipRoot,
+        {
+          delayDuration: props.delayDuration,
+          disabled: props.text === undefined || props.disabled,
+        },
+        () => [
+          h(TooltipTrigger, { ...attrs, asChild: true }, () =>
+            slots.default?.(),
+          ),
+          h(TooltipPortal, () =>
+            h(
+              TooltipContent,
+              {
+                collisionPadding: 8,
+                side: 'bottom',
+                sideOffset: 8,
+                ...props.content,
+                class: props.ui.content,
+                'data-slot': 'content',
+              },
+              () =>
+                h(
+                  'span',
+                  { class: props.ui.text, 'data-slot': 'text' },
+                  props.text,
+                ),
+            ),
+          ),
+        ],
+      )
   },
 })
 
@@ -950,4 +1012,5 @@ config.global.components = {
   USlideover: USlideoverDouble,
   USwitch: USwitchDouble,
   UTextarea: UTextareaDouble,
+  UTooltip: UTooltipDouble,
 }

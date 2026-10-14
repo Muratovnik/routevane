@@ -8,6 +8,7 @@ import RvSelect from '../../../src/shared/ui/RvSelect.vue'
 import RvSwitch from '../../../src/shared/ui/RvSwitch.vue'
 import RvTextarea from '../../../src/shared/ui/RvTextarea.vue'
 import RvTextInput from '../../../src/shared/ui/RvTextInput.vue'
+import RvTooltip from '../../../src/shared/ui/RvTooltip.vue'
 
 const activations = ref(0)
 const text = ref('Typed value')
@@ -22,6 +23,8 @@ const OPTIONS = [
   { label: 'Daily', value: 'daily' },
   { label: 'Weekly', value: 'weekly' },
 ]
+const LONG_HINT =
+  'Rebuilds every file of this profile from the lists it holds now, and keeps the files it published before.'
 const SEGMENTS = [
   { label: 'Automatic', value: 'auto' },
   { label: 'By hand', value: 'manual' },
@@ -122,6 +125,13 @@ const SEGMENTS = [
           input-id="closed-file"
           label="Closed file"
         />
+      </section>
+
+      <!-- A tooltip longer than one line, drawn by the real library. -->
+      <section aria-label="Tooltips">
+        <RvTooltip :text="LONG_HINT">
+          <button type="button">Explained action</button>
+        </RvTooltip>
       </section>
     </main>
   </UApp>

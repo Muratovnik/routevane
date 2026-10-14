@@ -866,8 +866,11 @@ Text inputs and choice triggers use the same field ground, distinct from their
 containing panel. Searchable choices share `RvSearchSelect`: a labelled trigger,
 a portalled panel with search at the top, optional groups, a bounded scrolling
 option list, and focus returned to the trigger on dismissal. Short policy choices
-retain `RvSelect` without a search field. Sidebar tooltips use Reka positioning
-and portals, above page content.
+retain `RvSelect` without a search field. Tooltips are `RvTooltip`, drawn by
+the library's tooltip: they open on hover and keyboard focus after a quarter
+second, describe the control they stand beside, close on Escape, and stand above
+page content in a portal. Sidebar tooltips speak only while the sidebar is
+collapsed.
 
 A disabled reorder handle cannot initiate a drag. Table fallbacks preserve the
 measured cell widths and row height outside their table. Selection never changes

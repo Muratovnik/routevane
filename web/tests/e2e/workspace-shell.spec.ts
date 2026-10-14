@@ -290,6 +290,14 @@ test('workspace pages share geometry and the category panel supports keyboard se
       )
     }),
   ).toBe(true)
+  // Escape puts the tooltip away and leaves the keyboard where it was; the
+  // pointer resting on another link brings that link's own name up instead.
+  await page.keyboard.press('Escape')
+  await expect(tooltip).toBeHidden()
+  await expect(nav).toBeFocused()
+  await page.getByRole('link', { name: 'Connections', exact: true }).hover()
+  await expect(tooltip).toBeVisible()
+  await expect(tooltip).toHaveText(/Connections/)
   await page.getByRole('button', { name: 'Expand sidebar' }).click()
   const more = categoryMore(page)
   await more.click()
