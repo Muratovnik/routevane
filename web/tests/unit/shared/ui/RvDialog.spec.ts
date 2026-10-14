@@ -385,6 +385,18 @@ describe('RvDialog', () => {
     // The header is the row the close control stands in.
     const header = close.parentElement!.getBoundingClientRect()
     expect(copy.top - header.bottom).toBeGreaterThan(8)
+    // A panel is never wider than the width at which an inset narrows, so its
+    // header, body and footer all stand at the narrow 1rem inset.
+    const footer = screen.getByText('Footer').element().parentElement!
+    for (const part of [
+      close.parentElement!,
+      content.element().parentElement!,
+      footer,
+    ]) {
+      const style = getComputedStyle(part)
+      expect(style.paddingLeft).toBe('16px')
+      expect(style.paddingRight).toBe('16px')
+    }
   })
 
   // A panel opened over a sheet is one modal stack, and a stack has one ground.

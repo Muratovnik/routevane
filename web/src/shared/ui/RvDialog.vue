@@ -484,7 +484,7 @@ const PortalScope = defineComponent({
    footer is the footer's; the library's dividing rule under the body would
    draw it a second time. */
 .rv-dialog--panel .rv-dialog__body {
-  padding: var(--rv-space-5) var(--rv-space-6);
+  padding: var(--rv-space-5) var(--rv-space-4);
   border-bottom: 0;
 }
 
@@ -509,10 +509,20 @@ const PortalScope = defineComponent({
   border-top: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 
+/* A panel is never wider than 34rem, so it always stands at the narrow inset
+   a sheet only takes once it is no wider than 36rem: its header, body and
+   footer share the 1rem inset at every window size. */
+.rv-dialog--panel .rv-dialog__header,
+.rv-dialog--panel .rv-dialog__footer {
+  padding-right: var(--rv-space-4);
+  padding-left: var(--rv-space-4);
+}
+
+/* A sheet narrows its inset when it is narrow: a docked sheet in a slim host
+   or any sheet in a slim window. */
 @container dialog (width <= 36rem) {
-  .rv-dialog__header,
-  .rv-dialog--panel .rv-dialog__body,
-  .rv-dialog__footer {
+  .rv-dialog--sheet .rv-dialog__header,
+  .rv-dialog--sheet .rv-dialog__footer {
     padding-right: var(--rv-space-4);
     padding-left: var(--rv-space-4);
   }
