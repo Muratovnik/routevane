@@ -92,6 +92,58 @@ describe('RvMenu', () => {
     },
   )
 
+  // An unavailable trigger reads as unavailable beside the same trigger when it
+  // is available: the disabled ink at full opacity rather than a faded copy of
+  // the available one, no ground, and no ground under a pointer either.
+  it.each(['dark', 'light'] as const)(
+    'draws an unavailable trigger flat in the %s theme',
+    async (theme) => {
+      await inTheme(theme, async () => {
+        const items: MenuItem[] = [{ key: 'open', label: 'Open' }]
+        const screen = await render(RvMenu, {
+          global: GLOBAL,
+          props: { items, label: 'Open actions' },
+        })
+        await render(RvMenu, {
+          global: GLOBAL,
+          props: { disabled: true, items, label: 'Closed actions' },
+        })
+        await render(RvMenu, {
+          global: GLOBAL,
+          props: {
+            disabled: true,
+            items,
+            label: 'Closed choice',
+            triggerText: 'Format',
+          },
+        })
+        const paint = (name: string) =>
+          getComputedStyle(
+            screen.getByRole('button', { name, exact: true }).element(),
+          )
+        const enabled = paint('Open actions')
+
+        for (const name of ['Closed actions', 'Closed choice']) {
+          const closed = screen.getByRole('button', { name, exact: true })
+          await expect.element(closed).toBeDisabled()
+          await closed.hover()
+          const style = paint(name)
+          expect(style.opacity, name).toBe('1')
+          expect(style.color, name).toBe(
+            paintedToken('--rv-color-ink-disabled'),
+          )
+          expect(style.color, name).not.toBe(enabled.color)
+          expect(style.backgroundColor, name).toBe('rgba(0, 0, 0, 0)')
+          expect(style.cursor, name).toBe('not-allowed')
+          expect(
+            contrast(style.color, paintedToken('--rv-color-canvas')),
+            name,
+          ).toBeGreaterThanOrEqual(3)
+        }
+      })
+    },
+  )
+
   it('emits the chosen key and closes', async () => {
     const screen = await renderMenu({
       items: [

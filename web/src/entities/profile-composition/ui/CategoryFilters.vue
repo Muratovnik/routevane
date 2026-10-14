@@ -213,15 +213,24 @@ const toggle = (id: string): void => {
   cursor: pointer;
 }
 
+.catalog-filters__chip[aria-pressed='true'] {
+  color: var(--rv-color-accent-ink);
+  background: var(--rv-color-accent-quiet);
+}
+
 /* A chip that cannot be pressed says so, rather than accepting a press that
-   provably changes nothing. */
+   provably changes nothing. It is drawn as every unavailable control is: flat,
+   in the disabled ink, edged with the faint rule and at full opacity. A chip
+   that is pressed keeps the accent at low emphasis, as an unavailable switch
+   that is on does, so the filter in force still reads as the one in force. */
 .catalog-filters__chip:disabled {
-  opacity: var(--rv-disabled-opacity);
+  color: var(--rv-color-ink-disabled);
+  background: transparent;
+  border-color: var(--rv-color-rule);
   cursor: not-allowed;
 }
 
-.catalog-filters__chip[aria-pressed='true'] {
-  color: var(--rv-color-accent-ink);
+.catalog-filters__chip[aria-pressed='true']:disabled {
   background: var(--rv-color-accent-quiet);
 }
 
@@ -236,6 +245,10 @@ const toggle = (id: string): void => {
   font-variant-numeric: tabular-nums;
   background: var(--rv-color-surface-muted);
   border-radius: var(--rv-radius-sm);
+}
+
+.catalog-filters__chip:disabled .catalog-filters__count {
+  color: var(--rv-color-ink-disabled);
 }
 
 /* In the option list a category's name is followed straight by its count, so

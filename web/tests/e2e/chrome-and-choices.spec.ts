@@ -16,8 +16,11 @@ import {
   choicePanel,
   choiceSearch,
   deliveryField,
+  listMembership,
+  listRow,
   menuPanel,
   nameField,
+  priorityHandle,
   scheduleField,
 } from './support/queries'
 import { test } from './support/served-product'
@@ -339,3 +342,49 @@ test('the search ring in the format panel stays inside the panel', async ({
     choicePanel(page, englishCopy('create.target.toggle')),
   ).toBeVisible()
 })
+
+// A handle that cannot carry its row — the row of a list the draft does not
+// hold — is drawn as every unavailable control is: the disabled ink at full
+// opacity, beside the handle of a held list that can be moved.
+for (const colorScheme of ['dark', 'light'] as const) {
+  test(`an unavailable drag handle is flat and legible in the ${colorScheme} theme`, async ({
+    page,
+    origin,
+  }) => {
+    await page.emulateMedia({ colorScheme })
+    await page.goto(`${origin}/profiles/new`)
+    await listMembership(page, 'Discord').check()
+    const held = priorityHandle(listRow(page, 'Discord'))
+    const loose = priorityHandle(listRow(page, 'YouTube'))
+    await expect(held).toBeEnabled()
+    await expect(loose).toBeDisabled()
+
+    const read = (handle: Locator) =>
+      handle.evaluate((element) => {
+        const style = getComputedStyle(element)
+        const probe = document.createElement('span')
+        probe.style.color = 'var(--rv-color-ink-disabled)'
+        document.body.append(probe)
+        const disabledInk = getComputedStyle(probe).color
+        probe.style.color = 'var(--rv-color-canvas)'
+        const canvas = getComputedStyle(probe).color
+        probe.remove()
+        return {
+          canvas,
+          color: style.color,
+          cursor: style.cursor,
+          disabledInk,
+          opacity: style.opacity,
+        }
+      })
+    const enabled = await read(held)
+    const disabled = await read(loose)
+    expect(disabled.opacity).toBe('1')
+    expect(disabled.color).toBe(disabled.disabledInk)
+    expect(disabled.color).not.toBe(enabled.color)
+    expect(disabled.cursor).toBe('not-allowed')
+    expect(
+      await contrastRatio(page, disabled.color, disabled.canvas),
+    ).toBeGreaterThanOrEqual(3)
+  })
+}

@@ -1180,7 +1180,7 @@ const submitPriority = async (): Promise<void> => {
 
 .lists__handle:disabled {
   cursor: not-allowed;
-  opacity: var(--rv-disabled-opacity);
+  color: var(--rv-color-ink-disabled);
 }
 
 .lists__list-name {
@@ -1205,7 +1205,7 @@ const submitPriority = async (): Promise<void> => {
 }
 
 .lists__list-row.sortable-ghost {
-  opacity: var(--rv-disabled-opacity);
+  opacity: var(--rv-drag-ghost-opacity);
 }
 
 .lists__collections {

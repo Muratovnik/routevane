@@ -831,8 +831,7 @@ defineExpose({ focus })
 
 .picker__open:disabled {
   cursor: not-allowed;
-  color: var(--rv-color-ink-tertiary);
-  opacity: var(--rv-disabled-opacity);
+  color: var(--rv-color-ink-disabled);
 }
 
 .picker__open:focus-visible,
@@ -965,8 +964,7 @@ defineExpose({ focus })
 
 .picker__handle:disabled {
   cursor: not-allowed;
-  color: var(--rv-color-ink-tertiary);
-  opacity: var(--rv-disabled-opacity);
+  color: var(--rv-color-ink-disabled);
 }
 
 .picker__handle:focus-visible {
@@ -975,7 +973,7 @@ defineExpose({ focus })
 }
 
 .picker__row.sortable-ghost {
-  opacity: var(--rv-disabled-opacity);
+  opacity: var(--rv-drag-ghost-opacity);
 }
 
 .picker__controls {

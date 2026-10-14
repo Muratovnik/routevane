@@ -280,7 +280,10 @@
      second, so it stands on the field's control and not on its cell. */
   --rv-field-error-line: 1.25rem;
   --rv-field-error-space: calc(var(--rv-field-error-line) + var(--rv-space-1));
-  --rv-disabled-opacity: 0.5;
+
+  /* The row a drag leaves behind while its copy follows the pointer. It is a
+     placeholder, not an unavailable control, and only it is faded. */
+  --rv-drag-ghost-opacity: 0.5;
 
   /* The edge of a control that cannot be used now: the faint rule, drawn inside
      the box the way a field's own ring is. With the disabled ink and no ground

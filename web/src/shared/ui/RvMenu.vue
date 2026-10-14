@@ -181,7 +181,16 @@ const onCloseAutoFocus = (event: Event): void => {
   cursor: pointer;
 }
 
-.rv-menu__trigger:hover {
+/* Unavailable, the trigger is drawn as every unavailable control is: the
+   disabled ink at full opacity and no ground. A trigger has no edge at rest,
+   so it has none to give up, and a pointer over it changes nothing. */
+.rv-menu__trigger:disabled {
+  color: var(--rv-color-ink-disabled);
+  background: transparent;
+  cursor: not-allowed;
+}
+
+.rv-menu__trigger:hover:not(:disabled) {
   color: var(--rv-color-ink);
   background: var(--rv-color-surface-hover);
 }
@@ -189,11 +198,6 @@ const onCloseAutoFocus = (event: Event): void => {
 .rv-menu__trigger[data-state='open'] {
   color: var(--rv-color-ink);
   background: var(--rv-color-surface-hover);
-}
-
-.rv-menu__trigger:disabled {
-  opacity: var(--rv-disabled-opacity);
-  cursor: not-allowed;
 }
 
 .rv-menu__trigger--text {

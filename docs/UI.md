@@ -786,8 +786,9 @@ at 4.5:1 or better in both themes. A reversible act, such as archiving or
 restoring, and an additive one, such as applying a reviewed import, keeps the
 primary look.
 One disabled look serves every control that takes input: a button, a choice
-trigger, a text field, an editor, a switch, a segmented choice and a file
-picker. An unavailable control is flat and dimmer than an available one: it gives
+or menu trigger, a text field, an editor, a switch, a segmented choice, a file
+picker, a filter chip, a drag handle and a dialog's close control. An
+unavailable control is flat and dimmer than an available one: it gives
 up its ground, its words and glyphs take the disabled ink — legible at 3:1 or
 better in both themes, though a disabled control is exempt from 4.5:1 — its edge
 is the faint rule (`--rv-edge-disabled` where the edge is a ring), its cursor says
@@ -795,12 +796,13 @@ it is unavailable, and its opacity stays whole: no such control is dimmed by
 lowering opacity, which would leave it looking like the enabled control beside
 it. The control keeps what states its value without colour: a switch its
 position, with the accent at low emphasis while it is on, a segmented choice its
-check mark and edge, a file picker its dashed edge. Each component owns its own
-disabled rule and the library's lowered opacity is overridden there. A control
-that draws its own disabled state outside these components — a drag handle, a
-filter chip, a menu trigger — is not yet part of this look and still lowers
-its opacity with `--rv-disabled-opacity`. A dialog's close control, which has
-no ground or edge, takes the disabled ink at full opacity.
+check mark and edge, a file picker its dashed edge, a pressed filter chip the
+accent at low emphasis. A quiet control — a menu trigger, a handle, a dialog's
+close control — has no ground or edge at rest, so it gives up none and takes
+the disabled ink alone. Each component owns its own disabled rule and the
+library's lowered opacity is overridden there. Only the row a drag leaves
+behind is faded, with `--rv-drag-ghost-opacity`; it is a placeholder, not a
+control.
 Icons are hand-set 16-unit strokes, always decorative, always beside or behind an accessible name
 — navigation and menus never go icon-only. A feature that needs a different
 look asks for a role or a variant, never a parallel class. A component is a

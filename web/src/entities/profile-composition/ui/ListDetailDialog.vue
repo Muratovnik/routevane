@@ -902,8 +902,11 @@ watch(contentsState, async (state) => {
   background: var(--rv-color-surface-hover);
 }
 
+/* Unavailable, a link-styled action and the add action are drawn as every
+   unavailable control is: the disabled ink, no ground, full opacity. */
 .list-card__link:disabled {
-  opacity: var(--rv-disabled-opacity);
+  color: var(--rv-color-ink-disabled);
+  background: transparent;
   cursor: not-allowed;
 }
 
@@ -1081,8 +1084,8 @@ watch(contentsState, async (state) => {
 }
 
 .list-card__add:disabled {
+  color: var(--rv-color-ink-disabled);
   background: transparent;
-  opacity: var(--rv-disabled-opacity);
   cursor: not-allowed;
 }
 

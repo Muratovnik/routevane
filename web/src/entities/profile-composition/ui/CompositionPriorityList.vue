@@ -307,7 +307,7 @@ const overlapMessage = (): string => {
 }
 
 .priority-profile__handle:disabled {
-  opacity: var(--rv-disabled-opacity);
+  color: var(--rv-color-ink-disabled);
   cursor: not-allowed;
 }
 
