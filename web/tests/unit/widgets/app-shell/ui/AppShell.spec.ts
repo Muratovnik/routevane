@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { page } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
 import { nextTick, toValue, watchEffect, type MaybeRefOrGetter } from 'vue'
 
@@ -54,14 +55,22 @@ const loseTheService = async (): Promise<void> => {
   await checkService()
 }
 
+// The rail collapses by itself below 1100px, and the unit browser is 1024px
+// wide, so a case about what the rail shows states the window it is read in.
+const WIDE = { height: 640, width: 1280 }
+const NARROW = { height: 640, width: 1024 }
+
 describe('AppShell', () => {
   beforeEach(() => {
+    window.localStorage.removeItem('rv.sidebarCollapsed')
     stubNuxtContext()
     document.documentElement.lang = 'xx'
     useLocale().setLocale('en')
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    window.localStorage.removeItem('rv.sidebarCollapsed')
+    await page.viewport(NARROW.width, NARROW.height)
     // The surface's own state is one value for every screen, so a case hands it
     // back answering and quiet rather than leaving it to the next one — the
     // registered recovery included, which the application installs once and a
@@ -77,6 +86,7 @@ describe('AppShell', () => {
   // declared language and the words on the page are one statement — stated when
   // the shell first renders and restated on every switch.
   it('declares the language at start and again on a switch', async () => {
+    await page.viewport(WIDE.width, WIDE.height)
     const { setLocale } = useLocale()
     setLocale('en')
 
@@ -102,6 +112,39 @@ describe('AppShell', () => {
     setLocale('en')
     await nextTick()
     expect(document.documentElement.lang).toBe('en')
+  })
+
+  // The rail follows the window until the operator chooses, and from then on
+  // the choice stands wherever the window goes.
+  it('collapses the rail in a narrow window and opens it in a wide one', async () => {
+    const narrow = await draw()
+    await expect
+      .element(narrow.getByRole('button', { name: 'Expand sidebar' }))
+      .toHaveAttribute('aria-expanded', 'false')
+    await narrow.unmount()
+
+    await page.viewport(WIDE.width, WIDE.height)
+    const wide = await draw()
+    await expect
+      .element(wide.getByRole('button', { name: 'Collapse sidebar' }))
+      .toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('lets the control override the window and keeps what it chose', async () => {
+    const screen = await draw()
+    // Collapsed by the window; the control opens it.
+    await screen.getByRole('button', { name: 'Expand sidebar' }).click()
+    await expect
+      .element(screen.getByRole('button', { name: 'Collapse sidebar' }))
+      .toBeVisible()
+    expect(window.localStorage.getItem('rv.sidebarCollapsed')).toBe('false')
+    await screen.unmount()
+
+    // A new visit in the same narrow window finds the rail as it was left.
+    const again = await draw()
+    await expect
+      .element(again.getByRole('button', { name: 'Collapse sidebar' }))
+      .toHaveAttribute('aria-expanded', 'true')
   })
 
   it('says nothing about the surface while the service answers', async () => {

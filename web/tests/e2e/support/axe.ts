@@ -105,6 +105,30 @@ const isPaletteElement = (
 export const axeFor = (page: Page): AxeBuilder => new AxeBuilder({ page })
 
 /**
+ * Waits until what the page is drawing has stopped changing, so contrast is
+ * measured settled and not at the intermediate opacity of an opening panel.
+ * A window that has just changed size changes what the shell draws — the rail
+ * collapses or opens — one frame later, and its transitions begin with that
+ * frame, so two frames pass before the running animations are collected.
+ * Loading indicators may run indefinitely; they are still audited as drawn.
+ */
+const settle = (page: Page): Promise<void> =>
+  page.evaluate(async () => {
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    )
+    await Promise.all(
+      document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.effect?.getComputedTiming().iterations !== Infinity,
+        )
+        .map((animation) => animation.finished.catch(() => {})),
+    )
+  })
+
+/**
  * Runs axe on the page — through the given builder when a suite configures one
  * — and removes the accepted findings and nothing else.
  */
@@ -112,6 +136,7 @@ export const analyze = async (
   page: Page,
   builder: AxeBuilder = axeFor(page),
 ): Promise<AxeResults> => {
+  await settle(page)
   const results = await builder.analyze()
   const rulesOf = (node: NodeResult) =>
     results.violations.filter((violation) =>

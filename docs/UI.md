@@ -593,7 +593,10 @@ on profiles, composition, library, connections and settings; features do not add
 their own page containers. Docked inspection divides the existing workspace
 without moving its outer edges. Reading widths belong to form fields and prose within it.
 The sidebar keeps its place on desktop and
-can collapse to icons with labels on hover or keyboard focus. The profile composer
+can collapse to icons with labels on hover or keyboard focus. Below 68.75rem
+(1100 CSS px at the default text size) it starts collapsed, so the working
+surface keeps its width. The operator's own choice with the collapse control is
+kept and wins in any window; only while none is kept does the window decide. The profile composer
 and library allocate remaining height to their data regions; headings and filters
 keep natural height. Short windows and enlarged content may scroll to preserve
 access to actions. In a section that fills the window, the data region, or the

@@ -37,19 +37,6 @@ export const audit = async (
   page: Page,
   screen: string,
 ): Promise<AuditFinding[]> => {
-  // Measure settled contrast, not the intermediate opacity of an opening panel.
-  // Loading indicators may run indefinitely; they are still audited as drawn.
-  await page.evaluate(async () => {
-    await Promise.all(
-      document
-        .getAnimations()
-        .filter(
-          (animation) =>
-            animation.effect?.getComputedTiming().iterations !== Infinity,
-        )
-        .map((animation) => animation.finished.catch(() => {})),
-    )
-  })
   const result = await analyze(
     page,
     axeFor(page).withTags([

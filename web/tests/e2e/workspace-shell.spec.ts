@@ -82,10 +82,8 @@ for (const locale of ['en', 'ru'] as const) {
         fullPage: true,
       })
 
+      // At 1024px the window collapses the rail; nothing has been chosen.
       await page.setViewportSize({ width: 1024, height: 640 })
-      await page
-        .getByRole('button', { name: copy('shell.collapse'), exact: true })
-        .click()
       await expect(
         page.getByRole('button', {
           name: copy('shell.expand'),
@@ -104,6 +102,54 @@ for (const locale of ['en', 'ru'] as const) {
     })
   })
 }
+
+/**
+ * The rail gives its labels up to the page below 1100px, but only while the
+ * operator has not chosen: the collapse control's own choice is kept and wins in
+ * any window, and survives a reload.
+ */
+test('the rail follows the window until the operator chooses, then keeps the choice', async ({
+  page,
+  origin,
+}) => {
+  const collapse = page.getByRole('button', {
+    name: 'Collapse sidebar',
+    exact: true,
+  })
+  const expand = page.getByRole('button', {
+    name: 'Expand sidebar',
+    exact: true,
+  })
+
+  // Nothing chosen: a wide window opens the rail and a narrow one closes it.
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto(`${origin}/settings`)
+  await expect(collapse).toBeVisible()
+  await page.setViewportSize({ width: 1099, height: 900 })
+  await expect(expand).toBeVisible()
+  await page.setViewportSize({ width: 1100, height: 900 })
+  await expect(collapse).toBeVisible()
+
+  // Opening it in a narrow window is a choice, and the window no longer decides.
+  await page.setViewportSize({ width: 1000, height: 900 })
+  await expect(expand).toBeVisible()
+  await expand.click()
+  await expect(collapse).toBeVisible()
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.setViewportSize({ width: 1000, height: 900 })
+  await expect(collapse).toBeVisible()
+  await page.reload()
+  await expect(collapse).toBeVisible()
+
+  // Collapsing it in a wide window is a choice too.
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await collapse.click()
+  await expect(expand).toBeVisible()
+  await page.setViewportSize({ width: 1700, height: 900 })
+  await expect(expand).toBeVisible()
+  await page.reload()
+  await expect(expand).toBeVisible()
+})
 
 /**
  * Every overlay on this surface is portalled out of the component that owns it,

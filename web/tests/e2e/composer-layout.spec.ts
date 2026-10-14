@@ -36,11 +36,15 @@ const withinWindow = async (page: Page, locator: Locator) => {
   expect(found.y + found.height).toBeLessThanOrEqual(height)
 }
 
+// Below 1100px the rail collapses by itself, so a window of 1024px holds the
+// table and its settings side by side (the composer stacks them under 54rem of
+// content). The stacked layout is read at 900px, where the collapsed rail still
+// leaves less than that.
 test('a short window keeps the create action on screen, above the table', async ({
   page,
   origin,
 }) => {
-  await page.setViewportSize({ width: 1024, height: 700 })
+  await page.setViewportSize({ width: 900, height: 700 })
   await page.goto(`${origin}/profiles/new`)
   await page.getByRole('searchbox', { name: 'Find a list' }).fill('discord')
   await listMembership(page, 'Discord').check()
@@ -64,6 +68,27 @@ test('a short window keeps the create action on screen, above the table', async 
   expect(settings.x + settings.width - (action.x + action.width)).toBeLessThan(
     32,
   )
+})
+
+test('a collapsed rail leaves room for the settings beside the table at 1024px', async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 700 })
+  await page.goto(`${origin}/profiles/new`)
+  // The window, not a choice, collapsed the rail.
+  await expect(
+    page.getByRole('button', { name: 'Expand sidebar', exact: true }),
+  ).toBeVisible()
+  await page.getByRole('searchbox', { name: 'Find a list' }).fill('discord')
+  await listMembership(page, 'Discord').check()
+  await chooseFormat(page, /Keenetic/)
+
+  const submit = page.getByRole('button', { name: 'Create and prepare' })
+  await withinWindow(page, submit)
+  const settings = await box(composerSettings(page))
+  const table = await box(page.getByTestId('rv-list-picker-frame'))
+  expect(settings.x).toBeGreaterThanOrEqual(table.x + table.width - 1)
 })
 
 test('the editor keeps save in the window and says the draft is unsaved', async ({

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { useLocalStorage } from '@vueuse/core'
 import { computed } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
+import { useSidebarCollapse } from '@/shared/model/useSidebarCollapse'
 import {
   checkService,
   retrySection,
@@ -25,10 +25,7 @@ import ApplicationUpdate from '@/features/application-update/ui/ApplicationUpdat
  */
 const { locale, t } = useLocale()
 const route = useRoute()
-const collapsed = useLocalStorage('rv.sidebarCollapsed', false, {
-  writeDefaults: false,
-  onError: () => {},
-})
+const { collapsed, toggle: toggleCollapsed } = useSidebarCollapse()
 const workspace = computed(
   () => route.path.startsWith('/profiles/') || route.path === '/lists',
 )
@@ -167,7 +164,7 @@ const retry = async (): Promise<void> => {
               type="button"
               :aria-expanded="!collapsed"
               :aria-label="t(collapsed ? 'shell.expand' : 'shell.collapse')"
-              @click="collapsed = !collapsed"
+              @click="toggleCollapsed"
             >
               <RvIcon name="chevron" /><span class="shell__nav-label">{{
                 t('shell.collapse')
