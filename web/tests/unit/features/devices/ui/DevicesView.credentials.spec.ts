@@ -28,7 +28,7 @@ const DEVICE_PAYLOAD = {
       target_id: 'keenetic',
       target_title: 'Keenetic',
       name: 'Office router',
-      address: 'http://10.255.1.1',
+      address: 'http://10.255.0.2',
       account: 'admin',
       interface: 'Wireguard0',
       credential_stored: false,
