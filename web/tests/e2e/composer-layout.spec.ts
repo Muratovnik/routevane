@@ -203,7 +203,9 @@ test('a window shorter than the rail scrolls its fields and keeps save in view',
   await withinWindow(page, save)
 
   // What the actions leave room for is still reachable inside the rail.
-  const formats = rail.getByText('Formats', { exact: true })
+  const formats = rail.getByText(englishCopy('profile.edit.connections'), {
+    exact: true,
+  })
   await formats.scrollIntoViewIfNeeded()
   const railBox = await box(rail)
   const formatsBox = await box(formats)
