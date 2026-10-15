@@ -39,7 +39,10 @@ pwsh -NoLogo -NoProfile -File tools/dev.ps1 test-browser
 
 `setup` validates prerequisites before downloading Go/npm dependencies. It does
 not install Git hooks or browser binaries. `install-hooks` installs the tracked
-checkout-local hooks. `setup-browser` installs the pinned Chromium in the
+checkout-local hooks in the directory Git runs. When `core.hooksPath` comes from
+your user or system Git configuration, that directory belongs to your own hook
+manager: the hooks go to `.git/hooks` instead, and the manager has to run them
+from there. `setup-browser` installs the pinned Chromium in the
 checkout's ignored `.cache/browsers/`; on Linux it can also need elevated
 package-manager permission for browser system libraries. No user browser profile
 is used. Do not approve arbitrary dependency install scripts: approvals are

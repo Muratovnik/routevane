@@ -639,7 +639,26 @@ function Invoke-ReleaseBuild {
     return $ReleaseRoot
 }
 
+function Test-RoutevaneHooksUserManaged {
+    # A core.hooksPath from the user's or the system's configuration belongs to
+    # a hook manager this repository does not own; such a manager runs the
+    # repository's hooks from the common Git directory. A path set for this
+    # repository, or none, names the directory Git runs directly.
+    $Setting = & git -C $RepositoryRoot config --show-scope --get core.hooksPath
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($Setting)) {
+        return $false
+    }
+    return $Setting -match '^(global|system)\s'
+}
+
 function Get-RoutevaneHookDirectory {
+    if (Test-RoutevaneHooksUserManaged) {
+        $CommonDirectory = & git -C $RepositoryRoot rev-parse --path-format=absolute --git-common-dir
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($CommonDirectory)) {
+            throw 'unable to resolve the common Git directory'
+        }
+        return [IO.Path]::GetFullPath((Join-Path $CommonDirectory.Trim() 'hooks'))
+    }
     # --git-path follows core.hooksPath and Git's shared worktree directory.
     $HookDirectory = & git -C $RepositoryRoot rev-parse --path-format=absolute --git-path hooks
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($HookDirectory)) {
@@ -675,6 +694,9 @@ function Assert-RoutevaneHooksCurrent {
         }
     }
     Write-Host 'Routevane hook copies match the tracked entry points.'
+    if (Test-RoutevaneHooksUserManaged) {
+        Write-Host "core.hooksPath belongs to a user hook manager; it must run the copies in $HookRoot."
+    }
 }
 
 function Install-Hooks {

@@ -220,6 +220,44 @@ class DeveloperEntrypointTests(unittest.TestCase):
         self.assert_ok(self.helper("install"))
         self.assert_ok(self.helper("assert"))
 
+    def test_a_user_scoped_hook_manager_keeps_its_hooks_and_runs_the_repository_copies(self):
+        # A hook manager configured for the user, not for this repository, owns
+        # the directory core.hooksPath names and calls the repository's own hooks
+        # from the common Git directory. Its files are not Routevane's to check
+        # or replace.
+        manager = self.root / "user hook manager"
+        manager.mkdir()
+        dispatcher = b"#!/bin/sh\nexec \"$(git rev-parse --git-common-dir)/hooks/pre-commit\"\n"
+        for name in ("pre-commit", "commit-msg"):
+            (manager / name).write_bytes(dispatcher)
+        user_config = self.root / "user.gitconfig"
+        user_config.write_text(f"[core]\n\thooksPath = {manager.as_posix()}\n", encoding="utf-8")
+        self.env["GIT_CONFIG_GLOBAL"] = str(user_config)
+
+        missing = self.helper("assert")
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn(str(self.root / ".git" / "hooks"), missing.stdout + missing.stderr)
+        self.assert_ok(self.helper("install"))
+        checked = self.helper("assert")
+        self.assert_ok(checked)
+        self.assertIn("user hook manager", checked.stdout)
+        for name in ("pre-commit", "commit-msg"):
+            self.assertEqual((manager / name).read_bytes(), dispatcher)
+            self.assertEqual((self.root / ".git/hooks" / name).read_bytes(),
+                             (self.root / ".githooks" / name).read_bytes())
+        (self.root / ".git/hooks/pre-commit").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        stale = self.helper("assert")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("stale", stale.stdout + stale.stderr)
+
+        # The repository's own setting still names the directory Git runs.
+        self.git("config", "core.hooksPath", "custom hooks")
+        self.assert_ok(self.helper("install"))
+        self.assert_ok(self.helper("assert"))
+        self.assertEqual((self.root / "custom hooks/pre-commit").read_bytes(),
+                         (self.root / ".githooks/pre-commit").read_bytes())
+        self.assertEqual((manager / "pre-commit").read_bytes(), dispatcher)
+
     def test_tracked_hooks_can_be_the_configured_hook_directory(self):
         self.git("config", "core.hooksPath", ".githooks")
         self.assert_ok(self.helper("install"))
