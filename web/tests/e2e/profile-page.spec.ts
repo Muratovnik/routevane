@@ -8,7 +8,7 @@
 
 import { expect, type Page } from '@playwright/test'
 
-import { englishCopy } from './support/copy'
+import { copyFor, englishCopy } from './support/copy'
 import {
   buildProfile,
   pressSegment,
@@ -895,6 +895,73 @@ test('diagnostics is one table of rules with a list filter and a search', async 
   const height = (await rules.boundingBox())!.height
   expect(height).toBeGreaterThan(900 * 0.6)
 })
+
+// An address or a network is digits and dots, or holds a colon; a domain is
+// neither, because its last label is never all digits.
+const isAddress = (value: string): boolean =>
+  value.includes(':') || /^[\d./]+$/.test(value)
+
+for (const { language, choice } of [
+  { language: 'en', choice: 'English' },
+  { language: 'ru', choice: 'Русский' },
+] as const) {
+  test(`diagnostics reads addresses before names and shows only the excluded rules on request (${language})`, async ({
+    page,
+    origin,
+  }) => {
+    const copy = copyFor(language)
+    const { profileId } = await buildProfile(page, origin)
+    await page.goto(`${origin}/settings`)
+    await pressSegment(page, choice)
+    await page.goto(`${origin}/profiles/${profileId}`)
+    await page
+      .getByRole('tablist', { name: copy('profile.tabs') })
+      .getByRole('tab', { name: copy('profile.tab.diagnostics') })
+      .click()
+    const rules = page.getByRole('region', {
+      name: copy('profile.diagnostics.rules'),
+      exact: true,
+    })
+    const rows = rules.getByRole('row').filter({ has: page.getByRole('cell') })
+    const excludedRows = rows.filter({
+      has: page.getByRole('cell', {
+        name: copy('profile.diagnostics.excluded'),
+        exact: true,
+      }),
+    })
+    await expect(excludedRows.first()).toBeVisible()
+    const total = await rows.count()
+    const excluded = await excludedRows.count()
+    expect(excluded).toBeLessThan(total)
+
+    // Every address the fixture yields — its documentation-range seed and the
+    // refused loopback answer — stands before every name.
+    const values = await Promise.all(
+      (await rows.all()).map((row) => row.getByRole('cell').nth(2).innerText()),
+    )
+    const kinds = values.map((value) =>
+      isAddress(value.trim()) ? 'address' : 'name',
+    )
+    expect(kinds).toContain('address')
+    expect(kinds).toContain('name')
+    expect(kinds).toEqual(kinds.toSorted())
+
+    const onlyExcluded = copy('profile.diagnostics.filter.excluded').replace(
+      '{count}',
+      String(excluded),
+    )
+    await pressSegment(rules, onlyExcluded)
+    await expect(rules.getByRole('radio', { name: onlyExcluded })).toBeChecked()
+    await expect(rows).toHaveCount(excluded)
+    for (const row of await rows.all())
+      await expect(row.getByRole('cell').first()).toHaveText(
+        copy('profile.diagnostics.excluded'),
+      )
+
+    await pressSegment(rules, copy('profile.diagnostics.filter.all'))
+    await expect(rows).toHaveCount(total)
+  })
+}
 
 test('publishing cells stay on one line at 1024px and archived facts keep their height', async ({
   page,

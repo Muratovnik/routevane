@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 
+import { sortByRuleValue } from '@/features/view-profile/lib/ruleOrder'
 import type { DiagnosticRule } from '@/shared/api/artifacts'
 import { useLocale } from '@/shared/i18n/useLocale'
-import type { ChoiceOption } from '@/shared/ui/types'
+import type { ChoiceOption, SegmentOption } from '@/shared/ui/types'
+import RvSegmented from '@/shared/ui/RvSegmented.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStatus from '@/shared/ui/RvStatus.vue'
 import RvTable from '@/shared/ui/RvTable.vue'
@@ -14,8 +16,12 @@ import RvTextInput from '@/shared/ui/RvTextInput.vue'
  * table: list, value and reason. The value is compared character by character
  * and takes the mono role; the reason is words. Whether a rule was included is
  * a column only when some rule was not, because a column that says «Included»
- * on every row tells the reader nothing. The table fills the window and scrolls
- * its own rows; the per-list totals follow it as an addition to the page.
+ * on every row tells the reader nothing, and so is the choice to show only the
+ * rules the build left out. Rows read in address order — 10.0.0.2 before
+ * 10.0.0.10, networks at their address, names after every address — with the
+ * list as the tie-break (`lib/ruleOrder.ts`). The table fills the window and
+ * scrolls its own rows; the per-list totals follow it as an addition to the
+ * page.
  */
 const props = defineProps<{
   listTitle: (id: string) => string
@@ -26,10 +32,31 @@ const props = defineProps<{
 const { t, tc } = useLocale()
 
 const ALL_LISTS = 'all'
+const ALL_STATES = 'all'
+const EXCLUDED = 'excluded'
 const listFilter = ref(ALL_LISTS)
+const stateFilter = ref(ALL_STATES)
 const query = ref('')
 
-const hasExclusions = computed(() => props.rules.some((rule) => rule.excluded))
+const excludedCount = computed(
+  () => props.rules.filter((rule) => rule.excluded).length,
+)
+const hasExclusions = computed(() => excludedCount.value > 0)
+// A build with nothing excluded offers no such choice, so a choice made on an
+// earlier build cannot leave this one showing an empty table.
+const onlyExcluded = computed(
+  () => hasExclusions.value && stateFilter.value === EXCLUDED,
+)
+
+const stateOptions = computed<SegmentOption[]>(() => [
+  { label: t('profile.diagnostics.filter.all'), value: ALL_STATES },
+  {
+    label: t('profile.diagnostics.filter.excluded', {
+      count: excludedCount.value,
+    }),
+    value: EXCLUDED,
+  },
+])
 
 const listOptions = computed<ChoiceOption[]>(() => {
   const ids = [...new Set(props.rules.map((rule) => rule.listID))]
@@ -44,10 +71,24 @@ const listOptions = computed<ChoiceOption[]>(() => {
 const reasonText = (rule: DiagnosticRule): string =>
   rule.reasons.map(props.reasonLabel).join(', ')
 
+// Sorted once per build and language, so typing in the search only filters.
+const ordered = computed(() =>
+  sortByRuleValue(
+    props.rules,
+    (rule) => rule.value,
+    (left, right) =>
+      props
+        .listTitle(left.listID)
+        .localeCompare(props.listTitle(right.listID)) ||
+      Number(left.excluded) - Number(right.excluded),
+  ),
+)
+
 const shown = computed(() => {
   const needle = query.value.trim().toLocaleLowerCase()
-  return props.rules.filter(
+  return ordered.value.filter(
     (rule) =>
+      (!onlyExcluded.value || rule.excluded) &&
       (listFilter.value === ALL_LISTS || rule.listID === listFilter.value) &&
       (needle === '' ||
         [rule.value, props.listTitle(rule.listID), reasonText(rule)].some(
@@ -88,6 +129,14 @@ const columns = computed(() => (hasExclusions.value ? 4 : 3))
         </p>
       </div>
       <div class="diagnostics__toolbar">
+        <RvSegmented
+          v-if="hasExclusions"
+          v-model="stateFilter"
+          label-hidden
+          :label="t('profile.diagnostics.filter.label')"
+          name="profile-diagnostics-state"
+          :options="stateOptions"
+        />
         <span id="profile-diagnostics-list-label" class="rv-visually-hidden">
           {{ t('profile.diagnostics.list') }}
         </span>

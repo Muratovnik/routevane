@@ -253,7 +253,15 @@ Sections, addressable by URL:
    available ways to get the file.
    The Diagnostics tab is one table of the rules of the shown file: a list
    filter, a search field, columns for list, value and reason, and a state
-   column only when the file excluded something. The table fills the window
+   column only when the file excluded something. When it did, a choice beside
+   the filters — «Все» / «Исключено N» — narrows the table to the excluded
+   rules alone. Rows read in address order rather than as text: IPv4, then
+   IPv6, each by its numeric value, so 10.0.0.2 precedes 10.0.0.10 and a
+   compressed IPv6 form sorts with its long form. A network stands at its
+   address, the wider before the narrower, and a single address after the
+   networks that begin at it (10.0.0.0/8, 10.0.0.0/24, 10.0.0.0). Domains and
+   any other value follow every address in plain character order; the same
+   value in several lists is ordered by list. The table fills the window
    below its heading and scrolls beneath its header; per-list counts follow it.
 4. `/lists` — **Lists / Списки.** The library: what a list holds and which
    category holds it, for every profile at once (ADR 0029). It uses the same

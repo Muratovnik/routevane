@@ -30,6 +30,7 @@ const NODE_SPECS = [
   'tests/unit/entities/profile-composition/model/composition.spec.ts',
   'tests/unit/features/{devices,lists,settings}/model/*.spec.ts',
   'tests/unit/features/send-artifact/model/useDeployment.spec.ts',
+  'tests/unit/features/view-profile/lib/*.spec.ts',
 ]
 
 export default defineConfig({
