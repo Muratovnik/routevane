@@ -132,8 +132,10 @@ jobs:
           python tools/release_smoke.py --archive ".cache/release/routevane-$env:VERSION-$env:PLATFORM.zip" --version "$env:VERSION" --platform "$env:PLATFORM"
           if ($LASTEXITCODE -ne 0) { throw 'native launcher acceptance failed' }
 
+  # The desktop shell builds and checks itself from the checkout and takes
+  # nothing from build, so it runs beside it; the candidate still needs both.
   desktop:
-    needs: build
+    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
