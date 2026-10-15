@@ -73,7 +73,7 @@ func TestRegisteredDeploymentUsesOnlyTheSelectedAccessAndTheSavedSecret(t *testi
 			}
 			if test.wantErr == nil {
 				want := Connection{URL: device.Address, Username: device.Account, Interface: device.Interface, Password: test.wantSecret}
-				if resolved.Connection != want || resolved.DeviceID != "" || resolved.ExpectedConnection != nil || resolved.ArtifactID != command.ArtifactID || resolved.Confirm != command.Confirm {
+				if resolved.Connection != want || resolved.DeviceID != "" || resolved.SavedDeviceID != device.ID || resolved.ExpectedConnection != nil || resolved.ArtifactID != command.ArtifactID || resolved.Confirm != command.Confirm {
 					t.Fatal("registered access was not resolved to the exact selected connection")
 				}
 				result, deployErr := deployments.Deploy(context.Background(), resolved)

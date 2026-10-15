@@ -157,6 +157,17 @@ type OutputAttempt struct {
 	ArtifactID     string          `json:"artifact_id,omitempty"`
 	CompletedAt    time.Time       `json:"completed_at"`
 }
+
+// OutputDelivery is the last time a file of one output reached a saved
+// connection: the connection, the file and the moment the send completed.
+// Only a succeeded send to a registered device is one; a typed address names
+// no connection and a failed or unfinished attempt delivered nothing.
+type OutputDelivery struct {
+	DeviceID    string    `json:"device_id"`
+	ArtifactID  string    `json:"artifact_id"`
+	CompletedAt time.Time `json:"completed_at"`
+}
+
 type PublicationCandidate struct {
 	Snapshot        PlanSnapshotRecord
 	Artifact        ArtifactBuildRecord
@@ -288,6 +299,10 @@ type PublicationRepository interface {
 	ReissueSubscription(ctx context.Context, outputID, tokenID string, tokenHash [32]byte, issuedAt time.Time) error
 	RecordOutputAttempt(context.Context, OutputAttempt) error
 	LatestOutputAttempt(context.Context, string) (OutputAttempt, error)
+	// LatestOutputDelivery answers ErrNotFound for an output none of whose
+	// files has reached the saved connection the output is bound to now,
+	// including an output bound to none.
+	LatestOutputDelivery(context.Context, string) (OutputDelivery, error)
 	Output(context.Context, string) (Output, error)
 	// OutputsByProfile returns one profile's outputs in a stable order; Outputs
 	// returns every stored output, bounded the same way Profiles is.

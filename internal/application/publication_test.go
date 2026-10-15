@@ -480,6 +480,9 @@ func (s *publicationFakeStore) LatestOutputAttempt(context.Context, string) (Out
 	}
 	return s.attempts[len(s.attempts)-1], nil
 }
+func (s *publicationFakeStore) LatestOutputDelivery(context.Context, string) (OutputDelivery, error) {
+	return OutputDelivery{}, ErrNotFound
+}
 func (s *publicationFakeStore) Output(context.Context, string) (Output, error) {
 	return s.output, nil
 }

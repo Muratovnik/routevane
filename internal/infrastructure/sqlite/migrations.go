@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 19
+const CurrentSchemaVersion = 20
 
 type migration struct {
 	version int
@@ -815,6 +815,25 @@ CREATE TRIGGER outputs_target_revision_immutable BEFORE UPDATE OF target_revisio
 WHEN NOT EXISTS (SELECT 1 FROM legacy_target_revisions WHERE output_id = OLD.id) BEGIN
     SELECT RAISE(ABORT, 'immutable output identity');
 END;
+`}, {version: 20, sql: `
+-- A profile page states when each format's file last reached a saved
+-- connection. An attempt now names the registered device its destination was
+-- resolved from; a send to an address typed by hand keeps the empty string.
+-- Attempts written before this version keep it too: the connection was not
+-- recorded then and is not guessed now, so none of them is reported.
+ALTER TABLE deployment_attempts ADD COLUMN device_id TEXT NOT NULL DEFAULT ''
+    CHECK (device_id = '' OR (length(device_id) = 32 AND device_id NOT GLOB '*[^0-9a-f]*'));
+
+-- The device is part of the immutable identity of an attempt.
+DROP TRIGGER deployment_attempts_identity_immutable;
+CREATE TRIGGER deployment_attempts_identity_immutable BEFORE UPDATE OF id,artifact_id,device_id,request_hash,started_at_ns ON deployment_attempts BEGIN
+    SELECT RAISE(ABORT, 'immutable deployment attempt identity');
+END;
+
+-- The per-format lookup walks a format's files (artifact_builds_output_hash_idx)
+-- and asks each for its succeeded sends to a saved connection, newest first.
+CREATE INDEX deployment_attempts_delivery_idx ON deployment_attempts(artifact_id, completed_at_ns)
+    WHERE status = 'succeeded' AND device_id <> '';
 `}}
 
 var requiredTables = []string{
@@ -855,7 +874,7 @@ var requiredTables = []string{
 }
 
 var requiredColumns = map[string][]string{
-	"deployment_attempts":      {"id", "artifact_id", "request_hash", "status", "started_at_ns", "completed_at_ns", "result_json", "error_code"},
+	"deployment_attempts":      {"id", "artifact_id", "request_hash", "status", "started_at_ns", "completed_at_ns", "result_json", "error_code", "device_id"},
 	"managed_fqdn_groups":      {"endpoint", "output_id", "name", "interface", "state_json"},
 	"schema_migrations":        {"version", "applied_at_ns"},
 	"resources":                {"id", "kind", "normalized_value", "ip_version", "created_at_ns"},

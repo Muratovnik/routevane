@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Muratovnik/routevane/internal/application"
 	"github.com/Muratovnik/routevane/internal/renderers/singbox"
 )
 
@@ -68,6 +69,22 @@ func TestScheduledRefreshAutomaticallyDeliversAnExplicitOutputBinding(t *testing
 				artifact := httpGet(t, origin+"/v1/artifacts/"+current.Latest.ID, nil)
 				if artifact.status != 200 || string(artifact.body) != string(payload) {
 					t.Fatalf("delivered file is not the scheduled artifact: status=%d\n%s\n%s", artifact.status, artifact.body, payload)
+				}
+				// The automatic send is a delivery to the bound saved connection like
+				// any other: the profile page states it with the device, the file and
+				// the moment it completed.
+				view := httpGet(t, origin+"/v1/profiles/"+profileID, nil)
+				var page struct {
+					Outputs []struct {
+						LastDelivery *application.OutputDelivery `json:"last_delivery"`
+					} `json:"outputs"`
+				}
+				if view.status != 200 || json.Unmarshal(view.body, &page) != nil || len(page.Outputs) != 1 {
+					t.Fatalf("profile view status=%d body=%s", view.status, view.body)
+				}
+				want := application.OutputDelivery{DeviceID: created.Device.ID, ArtifactID: current.Latest.ID, CompletedAt: now}
+				if got := page.Outputs[0].LastDelivery; got == nil || *got != want {
+					t.Fatalf("last_delivery = %+v, want %+v\n%s", got, want, view.body)
 				}
 				return
 			}

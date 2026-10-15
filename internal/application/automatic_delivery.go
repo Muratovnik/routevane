@@ -105,7 +105,10 @@ func (s *AutomaticDeliveryService) deliverOne(ctx context.Context, publication S
 			URL: device.Address, Username: device.Account,
 			Password: credential, Interface: device.Interface,
 		},
-		Confirm: true,
+		// The send is recorded against the saved device it goes to, so the
+		// profile page can state when this format last reached it.
+		SavedDeviceID: device.ID,
+		Confirm:       true,
 	})
 	if err != nil {
 		return false, classifyAutomaticDeliveryFailure(err)

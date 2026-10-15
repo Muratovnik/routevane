@@ -295,3 +295,64 @@ describe('a build attempt names either a file or a reason', () => {
     ])
   })
 })
+
+describe('the last delivery of an output', () => {
+  const card = (delivery?: unknown) =>
+    profilePayload({
+      outputs: [
+        {
+          id: outputID,
+          target_id: 'keenetic',
+          target_title: 'Keenetic',
+          created_at: '2026-08-20T12:00:00Z',
+          ...(delivery === undefined ? {} : { last_delivery: delivery }),
+        },
+      ],
+    })
+
+  it('reads the connection and the file that last arrived', async () => {
+    answer(
+      card({
+        device_id: 'd'.repeat(32),
+        artifact_id: artifactID,
+        completed_at: '2026-08-21T08:30:00Z',
+      }),
+    )
+    await expect(loadProfiles()).resolves.toMatchObject([
+      {
+        outputs: [
+          {
+            lastDelivery: {
+              deviceID: 'd'.repeat(32),
+              artifactID,
+              completedAt: '2026-08-21T08:30:00Z',
+            },
+          },
+        ],
+      },
+    ])
+  })
+
+  it('reads an output that was never delivered as having none', async () => {
+    for (const absent of [undefined, null]) {
+      answer(card(absent))
+      await expect(loadProfiles()).resolves.toMatchObject([
+        { outputs: [{ lastDelivery: null }] },
+      ])
+    }
+  })
+
+  it('refuses a delivery that names no connection, file or time', async () => {
+    const whole = {
+      device_id: 'd'.repeat(32),
+      artifact_id: artifactID,
+      completed_at: '2026-08-21T08:30:00Z',
+    }
+    for (const field of Object.keys(whole)) {
+      answer(card({ ...whole, [field]: undefined }))
+      await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
+    }
+    answer(card({ ...whole, completed_at: 'yesterday' }))
+    await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
+  })
+})

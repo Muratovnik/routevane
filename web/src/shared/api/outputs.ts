@@ -66,6 +66,15 @@ export type OutputArtifact = {
   contentCreatedAt: string
 }
 
+// The last time this format's file reached a saved connection, whichever
+// artifact it was. A send to an address typed by hand names no connection and
+// is never reported here.
+export type OutputDelivery = {
+  deviceID: string
+  artifactID: string
+  completedAt: string
+}
+
 export type OutputCard = {
   id: string
   targetID: string
@@ -77,6 +86,7 @@ export type OutputCard = {
   createdAt: string
   latest: OutputArtifact | null
   lastAttempt: OutputAttempt | null
+  lastDelivery: OutputDelivery | null
 }
 
 export type BuildResult = {
@@ -321,6 +331,19 @@ const attemptSchema = v.pipe(
   })),
 )
 
+const deliverySchema = v.pipe(
+  fields({
+    device_id: text,
+    artifact_id: text,
+    completed_at: timestamp,
+  }),
+  v.transform((delivery): OutputDelivery => ({
+    deviceID: delivery.device_id,
+    artifactID: delivery.artifact_id,
+    completedAt: delivery.completed_at,
+  })),
+)
+
 // An absent artifact or attempt is a card that honestly has none. A malformed
 // one is a reply outside the contract, and it refuses the whole list rather
 // than showing a row nobody can trust.
@@ -336,6 +359,7 @@ const outputCardSchema = v.pipe(
     created_at: timestamp,
     latest: v.nullish(cardArtifactSchema, null),
     last_attempt: v.nullish(attemptSchema, null),
+    last_delivery: v.nullish(deliverySchema, null),
   }),
   v.transform((card): OutputCard => ({
     id: card.id,
@@ -348,6 +372,7 @@ const outputCardSchema = v.pipe(
     createdAt: card.created_at,
     latest: card.latest,
     lastAttempt: card.last_attempt,
+    lastDelivery: card.last_delivery,
   })),
 )
 

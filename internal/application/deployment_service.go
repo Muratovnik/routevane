@@ -128,6 +128,11 @@ type DeployCommand struct {
 	ExpectedConnection *DeviceConnectionSnapshot
 	Connection         Connection
 	Confirm            bool
+	// SavedDeviceID names the registered device whose access Connection was
+	// resolved from. Only ResolveDeviceConnection and an automatic delivery
+	// set it: deployment never reads it, and the attempt journal keeps it so
+	// a send to a saved connection can be told from a typed address.
+	SavedDeviceID string
 }
 
 // DeviceConnectionSnapshot is the non-secret access the operator selected.
@@ -194,6 +199,7 @@ func (s *DeploymentService) ResolveDeviceConnection(ctx context.Context, command
 		return DeployCommand{}, fmt.Errorf("%w: %w", ErrConnectionInvalid, err)
 	}
 	command.DeviceID = ""
+	command.SavedDeviceID = device.ID
 	command.ExpectedConnection = nil
 	command.Connection = connection
 	return command, nil

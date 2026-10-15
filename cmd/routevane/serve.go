@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
@@ -193,7 +194,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	}
 	deliveryGate := application.NewDeliveryGate()
 	automaticDelivery, err := application.NewAutomaticDeliveryService(application.AutomaticDeliveryConfig{
-		Devices: devices, Deployments: deployments, Outputs: publication, Gate: deliveryGate,
+		Devices: devices, Deployments: journaledDeployments{attempts: deploymentAttempts, logger: logger}, Outputs: publication, Gate: deliveryGate,
 	})
 	if err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
@@ -477,6 +478,29 @@ func (b serveBackend) EnableAutoDelivery(ctx context.Context, id, secret string)
 	}
 	defer release()
 	return b.devices.EnableAutoDelivery(ctx, id, secret)
+}
+
+// journaledDeployments records every scheduled send in the deployment attempt
+// journal, so an automatic delivery is as visible to the profile page as one an
+// operator confirmed. The record never decides the send (see DeployUnattended):
+// a journal fault is logged here, with the identities it concerns and no secret,
+// and the deployment's own result is what the delivery reports.
+type journaledDeployments struct {
+	attempts *application.DeploymentAttemptService
+	logger   *slog.Logger
+}
+
+func (j journaledDeployments) Deploy(ctx context.Context, command application.DeployCommand) (application.DeployResult, error) {
+	var raw [16]byte
+	id := ""
+	if _, err := io.ReadFull(rand.Reader, raw[:]); err == nil {
+		id = hex.EncodeToString(raw[:])
+	}
+	outcome := j.attempts.DeployUnattended(ctx, id, command)
+	if outcome.JournalErr != nil {
+		j.logger.Warn("automatic delivery was not fully recorded", "operation", "serve", "artifact_id", command.ArtifactID, "device_id", command.SavedDeviceID, "error", outcome.JournalErr.Error())
+	}
+	return outcome.Result, outcome.Err
 }
 
 func (b serveBackend) DisableAutoDelivery(ctx context.Context, id string) (application.Device, error) {

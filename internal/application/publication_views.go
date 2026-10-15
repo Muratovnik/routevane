@@ -122,6 +122,10 @@ type OutputCard struct {
 	CreatedAt       time.Time       `json:"created_at"`
 	Latest          *OutputArtifact `json:"latest,omitempty"`
 	LastAttempt     *OutputAttempt  `json:"last_attempt,omitempty"`
+	// LastDelivery is the last successful send of any file of this output to the
+	// saved connection the output is bound to now. LastAttempt is the build; the
+	// two are separate facts.
+	LastDelivery *OutputDelivery `json:"last_delivery,omitempty"`
 }
 
 // ProfileCard is one row of the library screen: the profile itself plus the outputs
@@ -377,6 +381,9 @@ func (s *PublicationService) outputCard(ctx context.Context, output Output) Outp
 	}
 	if attempt, err := s.config.Store.LatestOutputAttempt(ctx, output.ID); err == nil {
 		card.LastAttempt = &attempt
+	}
+	if delivery, err := s.config.Store.LatestOutputDelivery(ctx, output.ID); err == nil {
+		card.LastDelivery = &delivery
 	}
 	return card
 }

@@ -29,10 +29,13 @@ const (
 
 // DeploymentAttempt is the durable identity and outcome of one confirmed
 // deployment. RequestHash binds the identity to the artifact and redacted
-// destination inputs; it never includes the password.
+// destination inputs; it never includes the password. DeviceID is the saved
+// connection the destination was resolved from, and stays empty for a send to
+// an address typed by hand; it is not part of RequestHash.
 type DeploymentAttempt struct {
 	ID          string
 	ArtifactID  string
+	DeviceID    string
 	RequestHash string
 	Status      DeploymentAttemptStatus
 	StartedAt   time.Time
@@ -81,7 +84,7 @@ func (s *DeploymentAttemptService) Deploy(ctx context.Context, id string, comman
 		return DeploymentAttempt{}, ErrDeploymentAttemptInvalid
 	}
 	proposed := DeploymentAttempt{
-		ID: id, ArtifactID: command.ArtifactID,
+		ID: id, ArtifactID: command.ArtifactID, DeviceID: command.SavedDeviceID,
 		RequestHash: deploymentRequestHash(command),
 		Status:      DeploymentAttemptPending, StartedAt: s.config.Clock.Now().UTC(),
 	}
@@ -89,7 +92,7 @@ func (s *DeploymentAttemptService) Deploy(ctx context.Context, id string, comman
 	if err != nil {
 		return DeploymentAttempt{}, fmt.Errorf("begin deployment attempt %q: %w", id, err)
 	}
-	if attempt.ArtifactID != proposed.ArtifactID || attempt.RequestHash != proposed.RequestHash {
+	if attempt.ArtifactID != proposed.ArtifactID || attempt.DeviceID != proposed.DeviceID || attempt.RequestHash != proposed.RequestHash {
 		return DeploymentAttempt{}, ErrDeploymentAttemptMismatch
 	}
 	if !created {
@@ -100,15 +103,7 @@ func (s *DeploymentAttemptService) Deploy(ctx context.Context, id string, comman
 	}
 
 	result, deployErr := s.config.Deployments.Deploy(ctx, command)
-	completed := proposed
-	completed.Result = result
-	completed.CompletedAt = s.config.Clock.Now().UTC()
-	completed.Error = DeploymentFailureCode(deployErr)
-	if deployErr == nil {
-		completed.Status = DeploymentAttemptSucceeded
-	} else {
-		completed.Status = DeploymentAttemptFailed
-	}
+	completed := s.completed(proposed, result, deployErr)
 
 	// Deployment may have used a detached rollback after request cancellation.
 	// Its result must get the same protection so cancellation cannot leave a
@@ -119,6 +114,65 @@ func (s *DeploymentAttemptService) Deploy(ctx context.Context, id string, comman
 		return proposed, fmt.Errorf("%w: record deployment attempt %q: %v", ErrDeploymentOutcomeUnknown, id, err)
 	}
 	return completed, deployErr
+}
+
+// UnattendedDeployment is the outcome of a send nobody is waiting on. Result
+// and Err are the deployment's own; JournalErr is only a fault of the record.
+type UnattendedDeployment struct {
+	Result     DeployResult
+	Err        error
+	JournalErr error
+}
+
+// DeployUnattended is Deploy for a caller that has no screen to answer, such as
+// a scheduled delivery. The journal is a record of the send, not a condition of
+// it: a record that cannot be begun leaves the send to proceed unrecorded, and
+// one that cannot be completed leaves the send's real outcome intact. Either
+// fault is returned beside that outcome, never in place of it, so the caller
+// neither reports a delivered file as failed nor sends it again. A fault of the
+// first kind means the send has no row, hence no delivery date; of the second,
+// the row stays pending and is not counted.
+func (s *DeploymentAttemptService) DeployUnattended(ctx context.Context, id string, command DeployCommand) UnattendedDeployment {
+	var outcome UnattendedDeployment
+	proposed := DeploymentAttempt{
+		ID: id, ArtifactID: command.ArtifactID, DeviceID: command.SavedDeviceID,
+		RequestHash: deploymentRequestHash(command),
+		Status:      DeploymentAttemptPending, StartedAt: s.config.Clock.Now().UTC(),
+	}
+	recorded := command.Confirm && validDeploymentAttemptID(id)
+	if !recorded {
+		outcome.JournalErr = ErrDeploymentAttemptInvalid
+	} else if _, created, err := s.config.Journal.BeginDeploymentAttempt(ctx, proposed); err != nil {
+		recorded, outcome.JournalErr = false, fmt.Errorf("begin deployment attempt %q: %w", id, err)
+	} else if !created {
+		recorded, outcome.JournalErr = false, fmt.Errorf("begin deployment attempt %q: %w", id, ErrDeploymentAttemptMismatch)
+	}
+
+	outcome.Result, outcome.Err = s.config.Deployments.Deploy(ctx, command)
+	if !recorded {
+		return outcome
+	}
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), deploymentAttemptRecordBudget)
+	defer cancel()
+	completed := s.completed(proposed, outcome.Result, outcome.Err)
+	if err := s.config.Journal.CompleteDeploymentAttempt(persistCtx, completed); err != nil {
+		outcome.JournalErr = fmt.Errorf("record deployment attempt %q: %w", id, err)
+	}
+	return outcome
+}
+
+// completed is the terminal record of proposed once the deployment answered.
+func (s *DeploymentAttemptService) completed(proposed DeploymentAttempt, result DeployResult, deployErr error) DeploymentAttempt {
+	completed := proposed
+	completed.Result = result
+	completed.CompletedAt = s.config.Clock.Now().UTC()
+	completed.Error = DeploymentFailureCode(deployErr)
+	if deployErr == nil {
+		completed.Status = DeploymentAttemptSucceeded
+	} else {
+		completed.Status = DeploymentAttemptFailed
+	}
+	return completed
 }
 
 func (s *DeploymentAttemptService) Attempt(ctx context.Context, id string) (DeploymentAttempt, error) {
