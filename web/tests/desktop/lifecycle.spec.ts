@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { analyze, axeFor } from '../e2e/support/axe'
 import { spawn } from 'node:child_process'
 import { copyFile, readFile } from 'node:fs/promises'
@@ -10,6 +10,7 @@ import {
   spawnProduct,
   stopOwnedProduct,
 } from '../e2e/support/product'
+import { chooseFormatAction } from '../e2e/support/queries'
 import {
   acceptanceScratch,
   backendReachable,
@@ -21,6 +22,19 @@ import {
 } from './support/packaged'
 
 test.afterEach(() => removeScratchOfPassedTest(test.info()))
+
+// The FQDN group prefix is a setting of the format, in its row's settings
+// dialog; this opens it and answers the prefix's field.
+const prefixField = async (page: Page): Promise<Locator> => {
+  await chooseFormatAction(
+    page,
+    'Keenetic (domain-based)',
+    'outputs.menu.settings',
+  )
+  return page
+    .getByRole('dialog', { name: 'Format settings · Keenetic (domain-based)' })
+    .getByRole('textbox', { name: 'FQDN group prefix', exact: true })
+}
 
 const scratch = async () => {
   const directory = await acceptanceScratch('profile ')
@@ -253,17 +267,14 @@ test('desktop publishes and transfers a reviewed configuration to a fresh instal
     await page.getByRole('tab', { name: 'Publishing', exact: true }).click()
     await expect(page).toHaveURL(/#tab=outputs$/)
     const prefixURL = page.url()
+    await (await prefixField(page)).fill('desktop-home')
     await page
-      .getByLabel('FQDN group prefix', { exact: true })
-      .fill('desktop-home')
-    await page.getByRole('button', { name: 'Save prefix', exact: true }).click()
-    await expect(
-      page.getByText('Prefix saved for the next build', { exact: true }),
-    ).toBeVisible()
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Save', exact: true })
+      .click()
+    await expect(page.getByRole('dialog')).toBeHidden()
     await page.reload()
-    await expect(
-      page.getByLabel('FQDN group prefix', { exact: true }),
-    ).toHaveValue('desktop-home')
+    await expect(await prefixField(page)).toHaveValue('desktop-home')
 
     const saved = join(env.ROUTEVANE_DESKTOP_PROFILE, 'config.json')
     // Stand in for the operator accepting the native Save dialog; the UI still
@@ -323,9 +334,7 @@ test('desktop publishes and transfers a reviewed configuration to a fresh instal
     try {
       expect(await (await fetch(subscription)).text()).toContain('example.com')
       await reopened.page.goto(prefixURL)
-      await expect(
-        reopened.page.getByLabel('FQDN group prefix', { exact: true }),
-      ).toHaveValue('desktop-home')
+      await expect(await prefixField(reopened.page)).toHaveValue('desktop-home')
     } finally {
       await reopened.app.close()
     }
