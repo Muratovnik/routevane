@@ -68,9 +68,18 @@ published tag):
 
 4. Commit as `chore(release): vX.Y.Z` after the staged audit. The history audit
    requires a clean worktree, including the curated changelog.
-5. Push the reviewed source branch separately when authorized, then dispatch the
-   release workflow on that branch with the explicit version. The workflow must
-   already be present on GitHub's default branch:
+5. Push the reviewed source branch separately when authorized, and wait for the
+   `ci.yml` run of that exact commit (its push to `main` or its pull request).
+   It runs the same gates on Linux and the Windows desktop in a fraction of a
+   candidate run's time; dispatch nothing until it has passed, and fix a red run
+   first:
+
+   ```powershell
+   gh run list --workflow ci.yml --commit (git rev-parse HEAD) --json databaseId,status,conclusion
+   ```
+
+   Then dispatch the release workflow on that branch with the explicit version.
+   The workflow must already be present on GitHub's default branch:
 
    ```powershell
    gh workflow run release.yml --ref BRANCH -f version=vX.Y.Z
