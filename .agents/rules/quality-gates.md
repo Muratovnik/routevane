@@ -23,7 +23,10 @@ commands. Do not add a second runner whose result can drift.
   setup-browser` installs and asserts it is there before npm runs. The Playwright
   end-to-end and axe suites stay a separate command for their runtime and because
   they drive the built product, not because of the binary; they remain blocking
-  for browser-facing work.
+  for browser-facing work. On Windows `test-browser` also packages the desktop
+  shell and runs its acceptance suite on the product it built, so an interface
+  change that breaks the packaged shell fails there and not first in the
+  release's desktop job.
 - ESLint runs without `--max-warnings`: an error is the gate and a warning is
   advice. The warn-level rules are the advisory size and complexity signals
   (`max-lines`, `max-lines-per-function`, `complexity`,

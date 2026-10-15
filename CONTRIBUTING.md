@@ -177,6 +177,9 @@ The complete gate is `tools/dev.ps1 check`; browser-facing changes also require
 `tools/dev.ps1 test-browser`. This includes both the embedded-product browser
 suite and `npm run test:dev`: real API reads/writes, HMR without losing a draft,
 failed Go compilation/recovery, and process cleanup against throwaway data.
+On Windows it also packages the desktop shell and runs `test-desktop`'s suite,
+since the shell loads the same interface; it needs `setup-desktop`. Elsewhere
+the Windows desktop job of CI runs that suite.
 Linux CI additionally runs the race detector.
 The gates validate code and mechanical repository contracts; they do not replace
 the file/audience and end-user review required for a prerelease.

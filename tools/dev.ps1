@@ -446,9 +446,24 @@ function Invoke-DesktopCheck {
 }
 
 function Invoke-DesktopPackage {
-    Invoke-ProductBuild | Out-Null
+    # A caller that has just built the product passes -ProductBuilt rather than
+    # building it a second time.
+    param([switch]$ProductBuilt)
+    if (-not $ProductBuilt) { Invoke-ProductBuild | Out-Null }
     Invoke-Checked 'node' @((Join-Path $RepositoryRoot 'desktop/icons.mjs'))
     Invoke-DesktopCommand @('run', 'package')
+}
+
+# Drives the native package with fresh data. The package and its suite are the
+# Windows shell's; elsewhere the Windows desktop job of CI runs them.
+function Invoke-DesktopAcceptance {
+    param([switch]$ProductBuilt)
+    if (-not (Test-Path -LiteralPath (Join-Path $RepositoryRoot 'desktop/node_modules/electron/dist'))) {
+        throw 'Electron is not installed for the desktop package; run tools/dev.ps1 setup-desktop'
+    }
+    Invoke-DesktopPackage -ProductBuilt:$ProductBuilt
+    Push-Location (Join-Path $RepositoryRoot 'web')
+    try { Invoke-Checked 'npx' @('--no-install', 'playwright', 'test', '--config', 'playwright.desktop.config.ts') } finally { Pop-Location }
 }
 
 function Assert-ReleaseArchives {
@@ -806,11 +821,7 @@ try {
             Invoke-Checked 'node' @((Join-Path $RepositoryRoot 'desktop/icons.mjs'))
             Invoke-DesktopCommand @('start')
         }
-        'test-desktop' {
-            Invoke-DesktopPackage
-            Push-Location (Join-Path $RepositoryRoot 'web')
-            try { Invoke-Checked 'npx' @('--no-install', 'playwright', 'test', '--config', 'playwright.desktop.config.ts') } finally { Pop-Location }
-        }
+        'test-desktop' { Invoke-DesktopAcceptance }
         'doctor' {
             Invoke-Checked 'python' @((Join-Path $RepositoryRoot 'tools\doctor.py'), '--go', $GoExecutable)
         }
@@ -896,6 +907,14 @@ try {
                 Invoke-Checked $GoExecutable @('test', '-count=1', './internal/discovery/...', './cmd/routevane/...')
             } finally {
                 Remove-Item Env:\ROUTEVANE_BROWSER -ErrorAction SilentlyContinue
+            }
+            # The desktop shell loads the same interface, so a change to it can
+            # break the packaged acceptance; it runs here, on the product built
+            # above, rather than first in the release's desktop job.
+            if ($IsWindows) {
+                Invoke-DesktopAcceptance -ProductBuilt
+            } else {
+                Write-Host 'Desktop acceptance skipped: the package is the Windows shell; run tools/dev.ps1 test-desktop on Windows.'
             }
         }
         'install-hooks' { Install-Hooks }
