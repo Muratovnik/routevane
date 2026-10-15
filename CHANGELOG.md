@@ -11,6 +11,22 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
+## [0.4.1](https://github.com/Muratovnik/routevane/compare/v0.4.0...v0.4.1) (2026-10-15)
+
+### Features
+
+- **delivery:** ([f53f13e](https://github.com/Muratovnik/routevane/commit/f53f13e67b2b3dd5402f7faf2ebd5de2e96ffef5)) The Publishing tab of a profile shows, for each format, when its file last reached the connection the format is bound to. Only a successful send to that connection counts; a send to a typed address or to another connection does not. Scheduled automatic delivery is now recorded in the same delivery journal. The database moves to schema version 20, so a 0.4.0 binary refuses it after the upgrade, and sends made before the upgrade are not shown.
+- **web:** ([846051e](https://github.com/Muratovnik/routevane/commit/846051e19d201cd52c8e0237d8c0feadd64c42f4)) Fields show an error only when there is one: it appears after the first Save and then follows the value, and no empty line is kept under each field. The profile header shows a status only for a problem or work under way, the subscription link is collapsed until it is issued, and Save and rebuild spans the action panel.
+- **web:** ([846051e](https://github.com/Muratovnik/routevane/commit/846051e19d201cd52c8e0237d8c0feadd64c42f4)) The Publishing table is lighter: the connection cell holds the choice alone, «Open the connection» moved into the row menu, Download and Send are icon buttons with tooltips, and an archived profile offers no Send. Connections no longer repeat the supported-format reference that Settings owns.
+- **web:** ([846051e](https://github.com/Muratovnik/routevane/commit/846051e19d201cd52c8e0237d8c0feadd64c42f4)) Segmented controls drop the check mark and mark the selected option with a stronger edge, menu items and row actions carry glyphs, and the mouse wheel over a table scrolls the page once the table reaches its end. The library numbers its lists by priority.
+- **web:** ([4c49ec9](https://github.com/Muratovnik/routevane/commit/4c49ec943f856196e867ff3074ed741ce8abc84f)) The send page of an archived profile, opened from a kept link, states that sending is unavailable and leads back to the profile. Choosing a configuration file in Settings checks it at once, leaving a single Import step.
+- **web:** ([e99307b](https://github.com/Muratovnik/routevane/commit/e99307b16260add94d7177693e814fbaf63536ab)) Settings and Connections draw their sections as one card with the same edge, inset and heading.
+- **web:** ([36fb530](https://github.com/Muratovnik/routevane/commit/36fb53068e727db556b3291b3d86c6064df49f7f)) The Diagnostics tab can narrow its table to the excluded rules, and orders addresses by value: 10.0.0.2 before 10.0.0.10, IPv4 before IPv6, and a network before the single addresses inside it.
+
+### Bug Fixes
+
+- **web:** ([2839336](https://github.com/Muratovnik/routevane/commit/2839336a705ffd9d2102221a67a3b4d8a491f66e)) The library filter row stays on one line beside an open list card when the system font is wider, so the list table no longer runs past the card.
+
 ## [0.4.0](https://github.com/Muratovnik/routevane/compare/v0.3.3...v0.4.0) (2026-10-15)
 
 ### Highlights
