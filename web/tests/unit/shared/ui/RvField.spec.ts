@@ -120,8 +120,14 @@ describe('RvField', () => {
       informer.element().getBoundingClientRect(),
     ]
     expect(informerBox.left).toBeGreaterThanOrEqual(labelBox.right)
-    expect(informerBox.top).toBeGreaterThanOrEqual(labelBox.top - 4)
-    expect(informerBox.bottom).toBeLessThanOrEqual(labelBox.bottom + 4)
+    // The informer's target is taller than the label's text and shares its
+    // line, so its top rises past the label's by an amount the platform font's
+    // line height decides (4px on Windows, 6px on Linux CI). Its middle stays
+    // on the label's line on every platform; an informer pushed to a line of
+    // its own would put it below the label.
+    const informerMiddle = informerBox.top + informerBox.height / 2
+    expect(informerMiddle).toBeGreaterThanOrEqual(labelBox.top)
+    expect(informerMiddle).toBeLessThanOrEqual(labelBox.bottom)
   })
 
   it('describes the control by the explanation and the error together', async () => {
