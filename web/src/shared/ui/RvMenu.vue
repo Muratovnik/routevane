@@ -29,7 +29,10 @@ const props = defineProps<{
   items: MenuItem[]
   /** Accessible name of the trigger, e.g. "Actions for list X". */
   label: string
-  /** Overflow menus stay icon-only; primary choice menus can name themselves. */
+  /**
+   * Overflow menus stay icon-only (the `dots` glyph); primary choice menus name
+   * themselves with `triggerText` and draw a leading glyph only when one is given.
+   */
   triggerIcon?: IconName
   triggerText?: string
 }>()
@@ -99,7 +102,10 @@ const onCloseAutoFocus = (event: Event): void => {
       :class="{ 'rv-menu__trigger--text': triggerText !== undefined }"
       :disabled="disabled === true"
     >
-      <RvIcon :name="triggerIcon ?? 'dots'" />
+      <RvIcon
+        v-if="triggerIcon !== undefined || triggerText === undefined"
+        :name="triggerIcon ?? 'dots'"
+      />
       <span v-if="triggerText !== undefined">{{ triggerText }}</span>
       <RvIcon v-if="triggerText !== undefined" name="chevron" />
     </DropdownMenuTrigger>

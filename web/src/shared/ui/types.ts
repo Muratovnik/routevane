@@ -58,6 +58,7 @@ export type IconName =
   | 'file'
   | 'info'
   | 'library'
+  | 'link'
   | 'plus'
   | 'refresh'
   | 'search'
@@ -65,6 +66,7 @@ export type IconName =
   | 'settings'
   | 'targets'
   | 'trash'
+  | 'unlink'
   | 'warning'
 
 export type MenuItem = {

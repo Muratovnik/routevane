@@ -18,7 +18,6 @@ import { useDevices } from '@/features/devices/model/useDevices'
 import ConnectionDetail from '@/features/devices/ui/ConnectionDetail.vue'
 import ConnectionFields from '@/features/devices/ui/ConnectionFields.vue'
 import ConnectionList from '@/features/devices/ui/ConnectionList.vue'
-import FormatReference from '@/features/devices/ui/FormatReference.vue'
 import { localizedTargetTitle } from '@/shared/api/catalog'
 import type { DeviceCard } from '@/shared/api/devices'
 import { useLocale } from '@/shared/i18n/useLocale'
@@ -52,11 +51,25 @@ const titleOf = (connection: DeviceCard): string =>
   targetTitle(connection.targetID, connection.targetTitle)
 
 const targetID = ref('')
+// Whether a format can be delivered to automatically is the note of its
+// option, from the same requirements answer the form reads: while that answer
+// is not in, the options say nothing rather than guess.
+const deliverableIDs = computed<ReadonlySet<string> | null>(() =>
+  devices.requirementsState.value === 'ready'
+    ? new Set(devices.deployableTargets.value.map((entry) => entry.targetID))
+    : null,
+)
+const deliveryNote = (id: string): string | undefined => {
+  if (deliverableIDs.value === null) return undefined
+  if (deliverableIDs.value.has(id)) return t('devices.target.auto')
+  return t('devices.delivery.manual')
+}
 const targetChoices = computed<ChoiceOption[]>(() =>
   devices.targets.value.map((target) => ({
     label: targetTitle(target.id, target.title),
     value: target.id,
     icon: targetIcon(target.id),
+    note: deliveryNote(target.id),
   })),
 )
 
@@ -300,7 +313,9 @@ const submit = async (): Promise<void> => {
       tone="failed"
     >
       <template #action>
-        <RvButton @click="retryRead">{{ t('action.retry') }}</RvButton>
+        <RvButton @click="retryRead"
+          ><RvIcon name="refresh" />{{ t('action.retry') }}</RvButton
+        >
       </template>
     </RvStateNotice>
 
@@ -317,9 +332,9 @@ const submit = async (): Promise<void> => {
         tone="warning"
       >
         <template #action>
-          <RvButton @click="devices.initialize">{{
-            t('action.retry')
-          }}</RvButton>
+          <RvButton @click="devices.initialize"
+            ><RvIcon name="refresh" />{{ t('action.retry') }}</RvButton
+          >
         </template>
       </RvStateNotice>
 
@@ -331,9 +346,9 @@ const submit = async (): Promise<void> => {
         tone="warning"
       >
         <template #action>
-          <RvButton @click="devices.retryDevices">{{
-            t('action.retry')
-          }}</RvButton>
+          <RvButton @click="devices.retryDevices"
+            ><RvIcon name="refresh" />{{ t('action.retry') }}</RvButton
+          >
         </template>
       </RvStateNotice>
 
@@ -429,7 +444,7 @@ const submit = async (): Promise<void> => {
               <RvButton
                 :disabled="devices.requirementsState.value === 'loading'"
                 @click="devices.retryRequirements"
-                >{{ t('action.retry') }}</RvButton
+                ><RvIcon name="refresh" />{{ t('action.retry') }}</RvButton
               >
             </template>
           </RvStateNotice>
@@ -500,26 +515,6 @@ const submit = async (): Promise<void> => {
           </div>
         </section>
       </div>
-
-      <!-- What this build can talk to at all is reference material behind one
-           click, read from the same catalog and requirements this screen
-           already holds: a second read of either could disagree with the
-           first. -->
-      <FormatReference
-        v-if="
-          devices.catalogAvailable.value && devices.targets.value.length > 0
-        "
-        :deliverable-ids="
-          devices.requirementsState.value === 'ready'
-            ? new Set(
-                devices.deployableTargets.value.map((entry) => entry.targetID),
-              )
-            : null
-        "
-        :failure="devices.requirementsFailure.value"
-        :targets="devices.targets.value"
-        @retry="devices.retryRequirements"
-      />
     </template>
   </section>
 </template>
@@ -552,7 +547,7 @@ const submit = async (): Promise<void> => {
 
 .devices__editor {
   display: grid;
-  gap: var(--rv-space-6);
+  gap: var(--rv-space-5);
   align-content: start;
   min-width: 0;
   width: 100%;

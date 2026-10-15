@@ -337,10 +337,11 @@ test('the library starts empty and shelves the profile the composer creates and 
   const outputID = outputPayload.output.id
   expect(outputID).toMatch(/^[a-f0-9]{32}$/)
 
-  // The one-time subscription block appears the moment the build finishes.
+  // The one-time subscription block opens the moment the build finishes: the
+  // link can be read only now, so it does not wait behind a click.
   await expect(
-    page.getByRole('heading', { name: 'Subscription link · Keenetic' }),
-  ).toBeVisible()
+    page.getByRole('button', { name: 'Subscription link · Keenetic' }),
+  ).toHaveAttribute('aria-expanded', 'true')
   const targetSelect = addConnectionField(page)
   await expect(targetSelect).toBeEnabled()
 
@@ -382,7 +383,9 @@ test('the library starts empty and shelves the profile the composer creates and 
   await artifactLink.click()
   expect((await directDownload).suggestedFilename()).toMatch(/\.bat$/)
 
-  await expect(outputRow.getByRole('link', { name: 'Send' })).toBeVisible()
+  await expect(
+    outputRow.getByRole('link', { name: 'Send Keenetic', exact: true }),
+  ).toBeVisible()
 
   // The breadcrumb returns to the shelf, which now holds the new row.
   await page.getByRole('link', { name: 'Profiles' }).first().click()

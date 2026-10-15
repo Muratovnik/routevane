@@ -176,7 +176,8 @@ test('an archived profile leaves the shelf, keeps its file, and comes back whole
   // What stops is change. The controls that would edit, rebuild, reschedule or
   // bind a new format are gone rather than disabled, and the file is still
   // offered from the same page.
-  await expect(page.getByText('Archived', { exact: true })).toBeVisible()
+  // The archive notice states it; the header carries no second mark for it.
+  await expect(page.getByText('Archived', { exact: true })).toHaveCount(0)
   await expect(nameField(page)).toHaveCount(0)
   await expect(scheduleField(page)).toHaveCount(0)
   await expect(

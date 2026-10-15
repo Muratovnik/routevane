@@ -83,6 +83,49 @@ describe('ProfilesView rows', () => {
       ])
     })
 
+    // Every item of a menu panel carries a glyph, a submenu's items included.
+    const unmarked = (screen: Screen): string[] =>
+      screen
+        .getByRole('menuitem')
+        .all()
+        .filter(
+          (item) =>
+            item.element().querySelector('[data-testid="rv-icon"]') === null,
+        )
+        .map((item) => item.element().textContent.trim())
+
+    it('draws a glyph on every item of the menu', async () => {
+      installShelfService({
+        deployable: ['keenetic', 'sing-box'],
+        profiles: [mixed()],
+      })
+      const screen = await renderShelf()
+      await menuOf(screen, 'Mixed').click()
+
+      expect(itemNames(screen)).toContain('Add a format…')
+      expect(unmarked(screen)).toEqual([])
+    })
+
+    it.each(['Send', 'Copy contents'])(
+      'draws a glyph on every item of the %s submenu',
+      async (group) => {
+        installShelfService({
+          deployable: ['keenetic', 'sing-box'],
+          profiles: [mixed()],
+        })
+        const screen = await renderShelf()
+        await menuOf(screen, 'Mixed').click()
+        await screen.getByRole('menuitem', { name: group, exact: true }).click()
+
+        await expect
+          .element(
+            screen.getByRole('menuitem', { name: 'sing-box', exact: true }),
+          )
+          .toBeVisible()
+        expect(unmarked(screen)).toEqual([])
+      },
+    )
+
     it('offers only what a profile with no published file can do', async () => {
       installShelfService({
         deployable: ['keenetic'],
@@ -290,6 +333,26 @@ describe('ProfilesView rows', () => {
         .element(row.getByText('No published file'))
         .not.toBeInTheDocument()
       await expect.element(row.getByText(/2026/)).toBeVisible()
+    })
+
+    it('shows each format of a profile with its icon', async () => {
+      installShelfService({ profiles: [mixed()] })
+      const screen = await renderShelf()
+
+      const items = screen
+        .getByRole('row', { name: /Mixed/ })
+        .getByRole('listitem')
+      await expect.element(items.first()).toBeVisible()
+      const formats = items.all()
+      expect(formats.map((item) => item.element().textContent.trim())).toEqual([
+        'Keenetic',
+        'sing-box',
+      ])
+      for (const item of formats) {
+        expect(
+          item.element().querySelector('[data-testid="rv-icon"]'),
+        ).not.toBeNull()
+      }
     })
 
     it('names the formats in a column of that name', async () => {

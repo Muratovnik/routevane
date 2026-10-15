@@ -50,4 +50,34 @@ describe('RvDisclosure', () => {
 
     await expect.element(field).toHaveValue('routevane')
   })
+
+  // The informer is a control of its own, so it sits beside the toggle, never
+  // inside it, follows it in focus order, and takes room the toggle gives up.
+  it('places a summary-end control after the toggle without overlapping it', async () => {
+    const screen = await render(RvDisclosure, {
+      props: { summary: 'Subscription link · Keenetic' },
+      slots: { 'summary-end': '<button type="button">About the link</button>' },
+    })
+    const trigger = screen
+      .getByRole('button', { name: 'Subscription link · Keenetic' })
+      .element()
+    const info = screen
+      .getByRole('button', { name: 'About the link' })
+      .element()
+
+    expect(trigger.contains(info)).toBe(false)
+    expect(
+      trigger.compareDocumentPosition(info) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(trigger.getBoundingClientRect().right).toBeLessThanOrEqual(
+      info.getBoundingClientRect().left,
+    )
+  })
+
+  it('draws no summary-end box when the slot is empty', async () => {
+    const screen = await render(RvDisclosure, { props: { summary: 'Plain' } })
+    const trigger = screen.getByRole('button', { name: 'Plain' }).element()
+
+    expect(trigger.parentElement?.children).toHaveLength(1)
+  })
 })

@@ -6,6 +6,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvFilePicker from '@/shared/ui/RvFilePicker.vue'
+import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvSettingsSection from '@/shared/ui/RvSettingsSection.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 
@@ -88,6 +89,10 @@ const apply = async (): Promise<void> => {
             :loading-label="t('configTransfer.download.busy')"
             @click="transfer.download"
           >
+            <RvIcon
+              v-if="transfer.downloadState.value !== 'downloading'"
+              name="download"
+            />
             {{
               transfer.downloadState.value === 'downloading'
                 ? t('configTransfer.download.busy')
@@ -149,7 +154,7 @@ const apply = async (): Promise<void> => {
         >
           <template v-if="transfer.failure.value === 'preview'" #action>
             <RvButton @click="transfer.previewSelected">
-              {{ t('action.retry') }}
+              <RvIcon name="refresh" />{{ t('action.retry') }}
             </RvButton>
           </template>
         </RvStateNotice>
@@ -286,7 +291,6 @@ const apply = async (): Promise<void> => {
   font-weight: 600;
 }
 
-.config-transfer__actions,
 .config-transfer__file,
 .config-transfer__preview {
   display: grid;
@@ -303,9 +307,19 @@ const apply = async (): Promise<void> => {
   font-size: var(--rv-text-dense);
 }
 
+.config-transfer__actions {
+  display: grid;
+  justify-items: start;
+}
+
+/* A live region that stands from the start so its text is announced; with
+   nothing in it, it takes no height and no gap. */
 .config-transfer__download-status {
-  min-height: var(--rv-leading-normal);
   color: var(--rv-color-status-failed);
+}
+
+.config-transfer__download-status:not(:empty) {
+  margin-block-start: var(--rv-space-3);
 }
 
 .config-transfer__file-row {

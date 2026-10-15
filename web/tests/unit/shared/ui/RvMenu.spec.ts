@@ -144,6 +144,46 @@ describe('RvMenu', () => {
     },
   )
 
+  // A trigger that names itself with words draws no glyph before them unless one
+  // is given; the overflow trigger stays the three dots. The glyphs are
+  // aria-hidden decoration, so they are counted by their hook.
+  it('draws a leading glyph on a text trigger only when one is passed', async () => {
+    const items: MenuItem[] = [{ key: 'open', label: 'Open' }]
+    const glyphs = (name: string): number =>
+      page
+        .getByRole('button', { name, exact: true })
+        .element()
+        .querySelectorAll('[data-testid="rv-icon"]').length
+    await render(RvMenu, {
+      global: GLOBAL,
+      props: { items, label: 'Plain actions' },
+    })
+    await render(RvMenu, {
+      global: GLOBAL,
+      props: { items, label: 'Text choice', triggerText: 'New lists' },
+    })
+    await render(RvMenu, {
+      global: GLOBAL,
+      props: {
+        items,
+        label: 'Text choice with glyph',
+        triggerIcon: 'plus',
+        triggerText: 'Add',
+      },
+    })
+
+    // The three dots alone.
+    expect(glyphs('Plain actions')).toBe(1)
+    // Only the chevron after the words.
+    expect(glyphs('Text choice')).toBe(1)
+    const text = page
+      .getByRole('button', { name: 'Text choice', exact: true })
+      .element()
+    expect(text.firstElementChild?.tagName).toBe('SPAN')
+    // The glyph that was passed, and the chevron.
+    expect(glyphs('Text choice with glyph')).toBe(2)
+  })
+
   it('emits the chosen key and closes', async () => {
     const screen = await renderMenu({
       items: [

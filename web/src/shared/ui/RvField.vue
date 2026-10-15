@@ -55,8 +55,8 @@ const FieldBinding = defineComponent({
 
 <script setup lang="ts">
 /**
- * One form field: label, the control, and — while there is one — the error the
- * control caused, under it. Nuxt UI draws the field. An example of the format
+ * One form field: label, the control, and — only while there is one — the error
+ * the control caused, under it. Nuxt UI draws the field. An example of the format
  * belongs in the control's placeholder and an explanation in `info`, which
  * opens from an informer in the label's row; neither is a line under the label.
  * The explanation is also the control's description: its text is kept in the
@@ -65,6 +65,12 @@ const FieldBinding = defineComponent({
  * `label-aside` slot is the label row's own place for any other small control.
  * The slot receives the ids to point `aria-describedby` at, so the wiring
  * cannot drift from what is rendered.
+ *
+ * The field keeps no line for the error. The error is drawn when it exists, at
+ * the width of the field and wrapping as any text does, and what is under the
+ * field moves down by what it takes. The one standing exception is the live
+ * region of an announced error, which is empty and takes no room until it holds
+ * a text.
  */
 const props = defineProps<{
   /** Share caption and control rows with adjacent fields in a parent grid. */
@@ -106,7 +112,7 @@ const failure = computed(() =>
     :class="{ 'rv-field--aligned': aligned }"
     :error="failure"
     :label="label"
-    :ui="{ error: 'mt-1', labelWrapper: 'justify-start' }"
+    :ui="{ error: 'rv-field__error-slot', labelWrapper: 'rv-field__label-row' }"
   >
     <!-- The label's text carries the id a choice button names itself by. -->
     <template #label>
@@ -134,21 +140,17 @@ const failure = computed(() =>
         :invalid="binding.invalid"
       />
     </FieldBinding>
-    <!-- The library draws the error's line whenever this slot exists, so the
-         slot is always given and the line it keeps is one line tall whether or
-         not an error is in it: leaving a field with a refused value must not
-         move what is under it, or a click aimed there lands beside it. A text
-         longer than the line is cut with an ellipsis rather than wrapped, so
-         no font, language or column width can grow the line; the whole text
-         stays the control's description and the line's tooltip. An
-         announced error is a live region that stands from the moment the field
-         is drawn and only receives its text: a region that arrives together
-         with its text is not reliably announced. -->
-    <template #error>
+    <!-- The library draws the error's element whenever this slot exists, so the
+         slot is given only while there is an error to show. An announced error
+         is the exception: it is a live region that stands from the moment the
+         field is drawn and only receives its text, because a region that
+         arrives together with its text is not reliably announced. Empty, it
+         takes no height and no gap. -->
+    <template v-if="announceError === true || failure !== undefined" #error>
       <span
         class="rv-field__error"
+        :class="{ 'rv-field__error--shown': failure !== undefined }"
         :role="announceError === true ? 'alert' : undefined"
-        :title="failure"
         >{{ failure }}</span
       >
     </template>
@@ -156,16 +158,16 @@ const failure = computed(() =>
 </template>
 
 <style scoped>
-/* The line takes the field's width and lends it none: a text that does not wrap
-   would otherwise widen the field, and the form's column with it. */
+/* The error takes the field's width and wraps inside it. An unbreakable token
+   is cut at the edge rather than widening the field, and the form's column
+   with it. */
 .rv-field__error {
   display: block;
-  contain: inline-size;
-  height: var(--rv-field-error-line);
-  overflow: hidden;
-  line-height: var(--rv-field-error-line);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+}
+
+.rv-field__error--shown {
+  margin-block-start: var(--rv-space-1);
 }
 
 .rv-field--aligned {
@@ -175,5 +177,19 @@ const failure = computed(() =>
   row-gap: 0;
   align-self: stretch;
   min-width: 0;
+}
+</style>
+
+<!-- The label row and the error's holder are drawn by the library, outside this
+     component's scope, so they carry names of their own. The holder has no
+     margin of its own: the error brings its gap with it, and a live region
+     with nothing in it leaves none. -->
+<style>
+.rv-field__label-row {
+  justify-content: flex-start;
+}
+
+.rv-field__error-slot {
+  margin-block-start: 0;
 }
 </style>

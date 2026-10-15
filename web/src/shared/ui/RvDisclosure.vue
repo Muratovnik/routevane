@@ -6,6 +6,12 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
  * Progressive detail. Addresses, reason codes and file formats live behind one
  * of these rather than on the path a first-time operator walks — and they are
  * always one click away rather than absent.
+ *
+ * The `summary-end` slot holds a small control that belongs to the summary row
+ * but is not part of the toggle (an informer): it stands after the toggle in
+ * the row, in focus order and in layout, so the toggle reserves its room and
+ * the control stays reachable while the block is collapsed. It is a sibling of
+ * the toggle button, never inside it, since controls do not nest.
  */
 const props = withDefaults(
   defineProps<{
@@ -45,22 +51,27 @@ const toggle = (): void => {
     class="rv-disclosure"
     :class="{ 'rv-disclosure--borderless': borderless }"
   >
-    <button
-      :id="`${baseID}-trigger`"
-      :aria-controls="`${baseID}-panel`"
-      :aria-expanded="expanded"
-      class="rv-disclosure__summary"
-      type="button"
-      @click="toggle"
-    >
-      <RvIcon class="rv-disclosure__chevron" name="chevron" />
-      <span class="rv-disclosure__label">
-        <span class="rv-disclosure__title">{{ summary }}</span>
-        <span v-if="hint !== undefined" class="rv-disclosure__hint">
-          {{ hint }}
+    <div class="rv-disclosure__head">
+      <button
+        :id="`${baseID}-trigger`"
+        :aria-controls="`${baseID}-panel`"
+        :aria-expanded="expanded"
+        class="rv-disclosure__summary"
+        type="button"
+        @click="toggle"
+      >
+        <RvIcon class="rv-disclosure__chevron" name="chevron" />
+        <span class="rv-disclosure__label">
+          <span class="rv-disclosure__title">{{ summary }}</span>
+          <span v-if="hint !== undefined" class="rv-disclosure__hint">
+            {{ hint }}
+          </span>
         </span>
-      </span>
-    </button>
+      </button>
+      <div v-if="$slots['summary-end']" class="rv-disclosure__end">
+        <slot name="summary-end" />
+      </div>
+    </div>
     <div
       :id="`${baseID}-panel`"
       :aria-hidden="!expanded"
@@ -88,11 +99,25 @@ const toggle = (): void => {
   border-top: 0;
 }
 
-.rv-disclosure__summary {
+.rv-disclosure__head {
   display: flex;
   gap: var(--rv-space-3);
   align-items: flex-start;
-  width: 100%;
+}
+
+.rv-disclosure__end {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: var(--rv-row-default);
+}
+
+.rv-disclosure__summary {
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--rv-space-3);
+  align-items: flex-start;
+  min-width: 0;
   min-height: var(--rv-row-default);
   padding: var(--rv-space-4) 0;
   color: var(--rv-color-ink);

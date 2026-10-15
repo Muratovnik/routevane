@@ -4,9 +4,9 @@ import { expect, type Page } from '@playwright/test'
 import { audit, auditWidths, reviewRoot } from './support/audits'
 import { copyFor, type Copy } from './support/copy'
 import {
-  catalogDisclosure,
   chooseFormatAction,
   deviceField,
+  formatOption,
 } from './support/queries'
 import { test } from './support/served-product'
 
@@ -76,7 +76,7 @@ for (const locale of ['en', 'ru'] as const) {
         .getByRole('button', { name: copy('devices.add'), exact: true })
         .click()
       await deviceField(page, 'devices.field.target', copy).click()
-      await page.getByRole('option', { name: 'Keenetic', exact: true }).click()
+      await formatOption(page, 'Keenetic').click()
       await expectAlignedFields(page, copy)
       await page.screenshot({
         animations: 'disabled',
@@ -231,9 +231,13 @@ for (const locale of ['en', 'ru'] as const) {
       await expect(settings).toBeHidden()
       await page.setViewportSize({ width: 1440, height: 900 })
       const table = page.getByRole('table')
-      await expect(
-        table.getByRole('link', { name: copy('outputs.send'), exact: true }),
-      ).toHaveCount(2)
+      for (const title of ['Keenetic', dnsTitle])
+        await expect(
+          table.getByRole('link', {
+            name: copy('outputs.send.aria').replace('{target}', title),
+            exact: true,
+          }),
+        ).toHaveCount(1)
       for (const action of await table.getByRole('link').all())
         await expect(action).toBeInViewport()
       // The original nowrap prefix form pushed the table far beyond the workspace.
@@ -288,15 +292,12 @@ for (const locale of ['en', 'ru'] as const) {
       await page.keyboard.press('Escape')
       await expect(settings).toBeHidden()
       await page.goto(`${origin}/connections`)
-      await catalogDisclosure(page, copy).click()
-      await expect(page.getByRole('table')).toBeVisible()
+      await expect(page.getByRole('table')).toHaveCount(0)
       await page.setViewportSize({ width: 1440, height: 900 })
       await page.screenshot({
-        path: join(reviewRoot, `connections-catalog-${locale}.png`),
+        path: join(reviewRoot, `connections-page-${locale}.png`),
       })
-      expect(await auditWidths(page, `connections-catalog-${locale}`)).toEqual(
-        [],
-      )
+      expect(await auditWidths(page, `connections-page-${locale}`)).toEqual([])
       assertProductAlive()
     })
   })

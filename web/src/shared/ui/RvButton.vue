@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 
-const props = defineProps<{
+type Props = {
   block?: boolean
   disabled?: boolean
   href?: string
@@ -20,7 +20,18 @@ const props = defineProps<{
    * archive, a restore — keeps `primary`.
    */
   variant?: 'primary' | 'secondary' | 'quiet' | 'danger'
-}>()
+}
+
+/**
+ * A button is named by its words. The icon-only form of a compact row action —
+ * a square at the compact height with the glyph from the slot and no text — has
+ * no words, so it cannot be drawn without `label`, which is its accessible name
+ * (and its only name: the glyph is decoration).
+ */
+const props = defineProps<
+  | (Props & { iconOnly?: false; label?: undefined })
+  | (Props & { iconOnly: true; label: string })
+>()
 
 const unavailable = computed(
   () => props.disabled === true || props.loading === true,
@@ -35,8 +46,11 @@ const unavailable = computed(
     class="rv-button"
     :class="[
       `rv-button--${variant ?? 'secondary'}`,
-      `rv-button--${size ?? 'default'}`,
-      { 'rv-button--block': block === true },
+      `rv-button--${iconOnly === true ? 'compact' : (size ?? 'default')}`,
+      {
+        'rv-button--block': block === true,
+        'rv-button--icon-only': iconOnly === true,
+      },
     ]"
     :color="variant === 'danger' ? 'error' : 'neutral'"
     variant="link"
@@ -48,7 +62,9 @@ const unavailable = computed(
     :to="href === undefined ? to : undefined"
     :type="type ?? 'button'"
     :aria-busy="loading === true ? 'true' : undefined"
-    :aria-label="loading === true ? loadingLabel : undefined"
+    :aria-label="
+      loading === true ? (loadingLabel ?? label) : (label ?? undefined)
+    "
   >
     <template #leading>
       <!-- Decoration beside the accessible name, so it is aria-hidden and
@@ -104,6 +120,11 @@ const unavailable = computed(
   min-height: var(--rv-control-compact);
   padding: 0 var(--rv-space-3);
   font-size: var(--rv-text-dense);
+}
+
+.rv-button.rv-button--icon-only {
+  width: var(--rv-control-compact);
+  padding: 0;
 }
 
 .rv-button--touch {

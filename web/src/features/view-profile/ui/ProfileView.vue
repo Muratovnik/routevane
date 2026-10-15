@@ -24,6 +24,7 @@ import type {
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvCodeBlock from '@/shared/ui/RvCodeBlock.vue'
 import RvCopyButton from '@/shared/ui/RvCopyButton.vue'
+import RvDisclosure from '@/shared/ui/RvDisclosure.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvMenu from '@/shared/ui/RvMenu.vue'
@@ -68,13 +69,6 @@ const tabs = computed<TabItem[]>(() => [
   { id: 'diagnostics', label: t('profile.tab.diagnostics') },
 ])
 
-const warned = computed(
-  () =>
-    view.stale.value ||
-    view.partialCoverageCount.value > 0 ||
-    view.degradedSources.value.length > 0,
-)
-
 const published = computed(() =>
   view.outputs.value.some((output) => output.latest !== null),
 )
@@ -97,22 +91,51 @@ const firstBuildFailed = computed(
     ),
 )
 
-const statusLabel = computed(() => {
-  if (view.archived.value) return t('profile.status.archived')
-  if (hasBuildFailure.value)
-    return published.value
-      ? t('profile.status.failed')
-      : t('profiles.buildFailed')
-  if (!published.value) return t('profile.status.empty')
-  return warned.value ? t('profile.status.warning') : t('profile.status.ready')
+// The header states the files' condition only while something is wrong or
+// missing. Every other state — archived, behind the catalog, partly covered,
+// degraded sources, a refresh that failed after a publication — has a notice
+// of its own right below, and a built, current profile says nothing: «published»
+// does not say where or when.
+const status = computed<{ label: string; tone: StatusTone } | null>(() => {
+  if (view.archived.value) return null
+  if (hasBuildFailure.value) {
+    return firstBuildFailed.value
+      ? { label: t('profiles.buildFailed'), tone: 'failed' }
+      : null
+  }
+  return published.value
+    ? null
+    : { label: t('profile.status.empty'), tone: 'waiting' }
 })
 
-const statusTone = computed<StatusTone>(() => {
-  if (view.archived.value) return 'waiting'
-  if (hasBuildFailure.value) return 'failed'
-  if (!published.value) return 'waiting'
-  return warned.value ? 'warning' : 'ready'
-})
+// The block is collapsed unless the link in it has not been shown yet: a link
+// just issued or reissued in this tab is readable now and never again, so it
+// must not wait behind a click. Collapsing masks the link again.
+const linkOpen = ref(false)
+watch(
+  () => view.subscriptionURL.value,
+  (url) => {
+    if (url === '' || announcedLinks.has(url)) return
+    linkOpen.value = true
+  },
+  { immediate: true },
+)
+// A link counts as shown once its block is on the page and open. A page that
+// goes away before the profile has loaded has shown nothing, and the next visit
+// must still open the block.
+const secretBlock = ref<HTMLElement | null>(null)
+watch(
+  () =>
+    [view.subscriptionURL.value, linkOpen.value, secretBlock.value] as const,
+  ([url, open, block]) => {
+    if (url !== '' && open && block !== null) announcedLinks.add(url)
+  },
+  { flush: 'post', immediate: true },
+)
+const onLinkToggle = (open: boolean): void => {
+  linkOpen.value = open
+  if (!open) view.revealed.value = false
+}
 
 // The lists a coverage refusal names. An attempt recorded before the service
 // named them has none, and reads as the sentence alone.
@@ -418,7 +441,7 @@ const profileMenuItems = computed<MenuItem[]>(() => {
       )
       const format = view.outputTitle(output)
       return {
-        icon: 'send',
+        icon: targetIcon(output.targetID),
         key: `send:${output.id}`,
         label:
           device === undefined
@@ -438,6 +461,7 @@ const profileMenuItems = computed<MenuItem[]>(() => {
   items.push(
     {
       disabled: view.busy.value || view.targetGroups.value.length === 0,
+      icon: 'plus',
       key: 'add-format',
       label: t('profiles.addFormat'),
     },
@@ -525,6 +549,13 @@ const onConfirm = async (): Promise<void> => {
 }
 </script>
 
+<script lang="ts">
+// The subscription links this tab has already opened the link block for. The
+// link lives in memory for the life of the tab, so a later visit to the profile
+// finds it again, but only a link nobody has been shown yet opens the block.
+const announcedLinks = new Set<string>()
+</script>
+
 <template>
   <section
     :aria-labelledby="view.state.value === 'ready' ? titleID : undefined"
@@ -605,7 +636,11 @@ const onConfirm = async (): Promise<void> => {
           {{ displayName }}
         </h1>
         <div class="profile__header-tools">
-          <RvStatus :label="statusLabel" :tone="statusTone" />
+          <RvStatus
+            v-if="status !== null"
+            :label="status.label"
+            :tone="status.tone"
+          />
           <RvMenu
             :items="profileMenuItems"
             :label="t('profiles.menu', { name: displayName })"
@@ -718,41 +753,49 @@ const onConfirm = async (): Promise<void> => {
         tone="warning"
       />
 
-      <section
+      <div
         v-if="view.subscriptionURL.value !== ''"
-        aria-labelledby="profile-subscription"
+        ref="secretBlock"
         class="profile__secret"
       >
-        <h2 id="profile-subscription" class="profile__section-title">
-          {{ t('profile.subscription', { target: selectedTitle }) }}
-          <RvInfoTip
-            :label="t('profile.subscription.info')"
-            :text="t('profile.subscription.info.text')"
-          />
-        </h2>
-        <p class="profile__secret-value">
-          {{
-            view.revealed.value
-              ? view.subscriptionURL.value
-              : view.maskedSubscription.value
-          }}
-        </p>
-        <div class="profile__secret-actions">
-          <RvButton
-            v-if="!view.revealed.value"
-            variant="secondary"
-            @click="view.reveal"
-          >
-            {{ t('profile.subscription.reveal') }}
-          </RvButton>
-          <RvCopyButton
-            :copied-label="t('profile.subscription.copied')"
-            :failed-label="t('profile.subscription.copyFailed')"
-            :label="t('profile.subscription.copy')"
-            :value="view.subscriptionURL.value"
-          />
-        </div>
-      </section>
+        <RvDisclosure
+          borderless
+          :open="linkOpen"
+          :summary="t('profile.subscription', { target: selectedTitle })"
+          @toggle="onLinkToggle"
+        >
+          <!-- The informer stands at the end of the summary row, where it stays
+               reachable while the block is collapsed. -->
+          <template #summary-end>
+            <RvInfoTip
+              :label="t('profile.subscription.info')"
+              :text="t('profile.subscription.info.text')"
+            />
+          </template>
+          <p class="profile__secret-value">
+            {{
+              view.revealed.value
+                ? view.subscriptionURL.value
+                : view.maskedSubscription.value
+            }}
+          </p>
+          <div class="profile__secret-actions">
+            <RvButton
+              v-if="!view.revealed.value"
+              variant="secondary"
+              @click="view.reveal"
+            >
+              {{ t('profile.subscription.reveal') }}
+            </RvButton>
+            <RvCopyButton
+              :copied-label="t('profile.subscription.copied')"
+              :failed-label="t('profile.subscription.copyFailed')"
+              :label="t('profile.subscription.copy')"
+              :value="view.subscriptionURL.value"
+            />
+          </div>
+        </RvDisclosure>
+      </div>
       <RvTabs v-model="tab" :label="t('profile.tabs')" :tabs="tabs">
         <template #overview>
           <div
@@ -1103,9 +1146,7 @@ const onConfirm = async (): Promise<void> => {
 }
 
 .profile__secret {
-  display: grid;
-  gap: var(--rv-space-4);
-  padding: var(--rv-space-5);
+  padding: 0 var(--rv-space-5);
   background: var(--rv-color-surface);
   border: var(--rv-border-hair) solid var(--rv-color-rule);
   border-radius: var(--rv-radius-md);

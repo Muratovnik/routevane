@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import RvIcon from '@/shared/ui/RvIcon.vue'
 import type { SegmentOption } from '@/shared/ui/types'
 
 /**
@@ -9,10 +8,14 @@ import type { SegmentOption } from '@/shared/ui/types'
  * rather than ours.
  *
  * The chosen option is told from the others by a shape, not by a colour: it
- * stands raised out of the track on a neutral surface with a hairline edge, and
- * it carries a check mark. The mark holds its place in every option and is only
- * drawn on the chosen one, so choosing another never moves the words. The
- * accent colour is not used here; the mark is what states the choice.
+ * stands raised out of the track on a neutral surface with a hairline edge
+ * drawn in the tertiary ink (the faint rules are about 2:1 against the track,
+ * short of the 3:1 an edge that carries the state needs). In forced-colors
+ * mode the surface and the shadow are dropped, so the chosen option keeps a
+ * Highlight edge and the others none.
+ * Every option keeps the same edge box and the same weight of type, so choosing
+ * another changes no option's width and moves no words. The accent colour is
+ * not used here.
  */
 const props = withDefaults(
   defineProps<{
@@ -75,16 +78,7 @@ const select = (value: string, event: Event): void => {
           :value="option.value"
           @change="select(option.value, $event)"
         />
-        <span class="rv-segmented__body">
-          <span
-            aria-hidden="true"
-            class="rv-segmented__mark"
-            :data-testid="`rv-segmented-mark-${option.value}`"
-          >
-            <RvIcon name="check" />
-          </span>
-          <span>{{ option.label }}</span>
-        </span>
+        <span class="rv-segmented__body">{{ option.label }}</span>
       </label>
     </div>
   </fieldset>
@@ -157,24 +151,13 @@ const select = (value: string, event: Event): void => {
 .rv-segmented__option--active {
   color: var(--rv-color-ink);
   background: var(--rv-color-surface-raised);
-  border-color: var(--rv-color-rule-raised);
+  border-color: var(--rv-color-ink-tertiary);
   box-shadow: var(--rv-shadow-panel);
 }
 
 .rv-segmented__body {
-  display: inline-flex;
-  gap: var(--rv-space-2);
-  align-items: center;
-}
-
-.rv-segmented__mark {
-  display: inline-flex;
-  visibility: hidden;
-  color: var(--rv-color-ink);
-}
-
-.rv-segmented__option--active .rv-segmented__mark {
-  visibility: visible;
+  display: inline-block;
+  text-align: center;
 }
 
 .rv-segmented__input {
@@ -194,20 +177,37 @@ const select = (value: string, event: Event): void => {
   outline-offset: 0.1875rem;
 }
 
-/* An unavailable choice is flat, as an unavailable button is: no grounds, the
-   disabled ink and the faint rule. The chosen option keeps its edge and its
-   check mark, so the choice still does not rest on colour. */
+/* An unavailable choice is flat, as an unavailable button is: no grounds and
+   the disabled ink. The chosen option keeps an edge, and a stronger one than
+   the track's, so the choice still does not rest on colour. */
 .rv-segmented:disabled .rv-segmented__track {
   background: transparent;
 }
 
 .rv-segmented:disabled .rv-segmented__option--active {
   background: transparent;
-  border-color: var(--rv-color-rule);
+  border-color: var(--rv-color-rule-strong);
   box-shadow: none;
 }
 
-.rv-segmented:disabled .rv-segmented__mark {
-  color: var(--rv-color-ink-disabled);
+/* Forced colours replace the grounds and drop the shadow, which leaves nothing
+   to tell the chosen option by now that it wears no mark. System colours are
+   kept as written: the chosen option is outlined in Highlight inside its own
+   box, so no option changes size, and the others keep a transparent edge. */
+@media (forced-colors: active) {
+  .rv-segmented__option {
+    border-color: transparent;
+  }
+
+  .rv-segmented__option--active {
+    border-color: Highlight;
+    outline: var(--rv-border-mark) solid Highlight;
+    outline-offset: calc(var(--rv-border-hair) * -1);
+  }
+
+  .rv-segmented:disabled .rv-segmented__option--active {
+    border-color: GrayText;
+    outline-color: GrayText;
+  }
 }
 </style>

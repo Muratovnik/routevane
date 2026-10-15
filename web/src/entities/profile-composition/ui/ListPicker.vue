@@ -19,6 +19,7 @@ import type {
   TargetForecast,
 } from '../model/types'
 import { useLocale } from '@/shared/i18n/useLocale'
+import type { MenuItem } from '@/shared/ui/types'
 import { useTableDragGeometry } from '@/shared/model/useTableDragGeometry'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
@@ -224,6 +225,34 @@ const movePriority = (id: string, offset: number): void => {
   rowOrder.value = rows
   emit('reorder', priority)
 }
+
+// What a table with no row says depends on what hides the rows: a query names
+// itself, and so does a filter that was pressed. Only a query the operator typed
+// can be quoted back.
+const emptyMessage = computed(() => {
+  const typed = query.value.trim()
+  if (typed !== '') return t('create.noMatches', { query: typed })
+  if (selectedOnly.value) return t('listPicker.empty.selected')
+  if (categoryFilter.value.length > 0) return t('listPicker.empty.category')
+  return t('listPicker.empty.none')
+})
+
+// The menu states the live reference's two answers. A mark stands on the one in
+// force, and the names of both start on one line because the panel keeps the
+// glyph column for the item that has none.
+const futureItems = computed<MenuItem[]>(() => [
+  {
+    icon: followsSelectedCategory.value ? 'check' : undefined,
+    key: 'auto',
+    label: t('listPicker.future.enable'),
+  },
+  {
+    icon: followsSelectedCategory.value ? undefined : 'check',
+    key: 'manual',
+    label: t('listPicker.future.disable'),
+  },
+])
+
 const overlapMessage = computed(() => {
   if (resolved.value.length < 2) return ''
   if (props.overlapUnavailable)
@@ -407,10 +436,7 @@ defineExpose({ focus })
                 : 'listPicker.future.manual',
             )
           "
-          :items="[
-            { key: 'auto', label: t('listPicker.future.enable') },
-            { key: 'manual', label: t('listPicker.future.disable') },
-          ]"
+          :items="futureItems"
           @select="toggleCategoryReference($event === 'auto')"
         />
         <span role="status">{{ tc('create.resolved', resolved.length) }}</span>
@@ -440,7 +466,7 @@ defineExpose({ focus })
             "
             size="compact"
             @click="emit('retry')"
-            >{{ t('forecast.recalculate') }}</RvButton
+            ><RvIcon name="refresh" />{{ t('forecast.recalculate') }}</RvButton
           >
         </div>
       </div>
@@ -675,7 +701,7 @@ defineExpose({ focus })
 
       <template #after
         ><p v-if="orderedRows.length === 0" class="picker__empty">
-          {{ t('create.noMatches', { query: query.trim() }) }}
+          {{ emptyMessage }}
         </p></template
       >
     </RvTable>
@@ -706,7 +732,6 @@ defineExpose({ focus })
   min-height: var(--rv-picker-height);
   max-height: var(--rv-picker-height);
   overflow: auto;
-  overscroll-behavior: contain;
 
   --rv-table-layout: fixed;
 }

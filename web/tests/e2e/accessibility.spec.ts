@@ -18,12 +18,7 @@ import {
 } from './support/audits'
 import { copyFor } from './support/copy'
 import { chooseFormat, openLibraryCategory } from './support/flows'
-import {
-  catalogDisclosure,
-  escapeRegExp,
-  linkTo,
-  listMembership,
-} from './support/queries'
+import { escapeRegExp, linkTo, listMembership } from './support/queries'
 import { test } from './support/served-product'
 
 // The surface negotiates its language from the browser, and English is the
@@ -123,7 +118,7 @@ for (const language of ['en', 'ru'] as const) {
       // The profile audit is taken with an output bound and its subscription block
       // showing, so the outputs table and the secret disclosure are covered too.
       await expect(
-        page.getByRole('heading', {
+        page.getByRole('button', {
           name: copy('profile.subscription').replace('{target}', 'Keenetic'),
         }),
       ).toBeVisible()
@@ -164,12 +159,6 @@ for (const language of ['en', 'ru'] as const) {
           level: 1,
           name: copy('connections.title'),
         }),
-      ).toBeVisible()
-      // The catalog is audited open: a disclosure hides its contents from the
-      // sweep exactly as it hides them from the operator.
-      await catalogDisclosure(page, copy).click()
-      await expect(
-        page.getByRole('row').filter({ hasText: 'Keenetic' }),
       ).toBeVisible()
       violations.push(...(await auditWidths(page, `${language}-connections`)))
       await page.screenshot({

@@ -94,7 +94,6 @@ export const useDeployment = (
   const attemptRecipient = ref<DeploymentRecipient | null>(
     readRememberedRecipient(artifactID(), currentAttemptID.value),
   )
-  const addressTouched = ref(false)
   // The service refused the address typed for this send and named the field.
   // The words go at the field until the address changes.
   const addressRefused = ref(false)
@@ -138,7 +137,6 @@ export const useDeployment = (
     ],
     () => {
       password.value = ''
-      addressTouched.value = false
       addressRefused.value = false
       attempted.value = false
       overridePassword.value = false
@@ -182,8 +180,9 @@ export const useDeployment = (
         !connections.storedCredential.value ||
         overridePassword.value),
   )
-  // The message each field states, or null. A required field says so only once
-  // a review was asked for; a malformed address says so once it was left.
+  // The message each field states, or null. A field says what is wrong with it
+  // only once a review was asked for, and from then on stays live: it follows
+  // what is typed, and nothing is reported on leaving a field.
   const fieldErrors = computed<Record<SendField, string | null>>(() => {
     const needed = requirements.value
     const manual = connections.manual.value
@@ -192,11 +191,7 @@ export const useDeployment = (
       attempted.value && missing ? 'send.field.required' : null
     let addressMessage: string | null = null
     if (manual && address === '') addressMessage = required(true)
-    else if (
-      manual &&
-      (addressTouched.value || attempted.value) &&
-      !addressValid.value
-    )
+    else if (manual && attempted.value && !addressValid.value)
       addressMessage = 'send.address.invalid'
     // The service's own refusal, which owns the policy the shape check leaves
     // out; it never outranks a shape problem the operator has since made.
@@ -344,7 +339,6 @@ export const useDeployment = (
    * for the form to move the keyboard to, or null.
    */
   const review = async (): Promise<SendField | null> => {
-    addressTouched.value = true
     attempted.value = true
     if (!available.value) return null
     if (!complete.value)
@@ -538,7 +532,6 @@ export const useDeployment = (
   return {
     addressError,
     addressRefused,
-    addressTouched,
     apply,
     attemptRecipient,
     available,

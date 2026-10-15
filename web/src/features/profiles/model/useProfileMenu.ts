@@ -1,6 +1,7 @@
 import { profileHref } from '@/features/profiles/lib/profileHref'
 import type { useProfiles } from '@/features/profiles/model/useProfiles'
 import { useLocale } from '@/shared/i18n/useLocale'
+import { targetIcon } from '@/shared/lib/targetIcon'
 import type { ExportFormat } from '@/shared/api/exports'
 import type { ProfileCard } from '@/shared/api/profiles'
 import type { MenuItem } from '@/shared/ui/types'
@@ -28,6 +29,7 @@ export const useProfileMenu = (library: ReturnType<typeof useProfiles>) => {
           {
             children: library.exportFormats.value.map((format) => ({
               disabled: library.exporting.value !== '',
+              icon: 'download' as const,
               key: `export:${format.id}`,
               label: exportLabel(format),
             })),
@@ -42,6 +44,7 @@ export const useProfileMenu = (library: ReturnType<typeof useProfiles>) => {
       const format = library.outputTitle(output)
       const connection = library.connectionName(output)
       return {
+        icon: targetIcon(output.targetID),
         key: `send:${output.id}`,
         label:
           connection === ''
@@ -82,6 +85,7 @@ export const useProfileMenu = (library: ReturnType<typeof useProfiles>) => {
     return [
       {
         children: copyable.map((output) => ({
+          icon: targetIcon(output.targetID),
           key: `copy:${output.id}`,
           label: library.outputTitle(output),
         })),
@@ -123,6 +127,7 @@ export const useProfileMenu = (library: ReturnType<typeof useProfiles>) => {
   const liveItems = (card: ProfileCard): MenuItem[] => [
     ...sendItem(card),
     {
+      icon: 'plus',
       key: 'formats',
       label: t('profiles.addFormat'),
       to: profileHref(card, 'outputs'),
@@ -141,7 +146,12 @@ export const useProfileMenu = (library: ReturnType<typeof useProfiles>) => {
   ]
 
   const menuItems = (card: ProfileCard): MenuItem[] => [
-    { key: 'open', label: t('profiles.configure'), to: profileHref(card) },
+    {
+      icon: 'file',
+      key: 'open',
+      label: t('profiles.configure'),
+      to: profileHref(card),
+    },
     ...exportItem(),
     ...(card.archivedAt === '' ? liveItems(card) : archivedItems()),
   ]

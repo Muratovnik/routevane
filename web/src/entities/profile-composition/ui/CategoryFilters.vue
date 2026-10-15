@@ -77,6 +77,15 @@ const triggerLabel = computed(
       .map((option) => option.label)
       .join(', ') || t('listPicker.filter.more'),
 )
+// A chosen category that is not among the quick chips is named by the trigger,
+// which then reads as a pressed chip does.
+const moreActive = computed(() =>
+  choices.value.some(
+    (option) =>
+      props.modelValue.includes(option.value) &&
+      !quick.value.some((quickOption) => quickOption.value === option.value),
+  ),
+)
 const toggle = (id: string): void => {
   emit(
     'update:modelValue',
@@ -117,7 +126,12 @@ const toggle = (id: string): void => {
           formatNumber(option.count)
         }}</span>
       </button>
+      <!-- The trigger is the choice panel's own button. It takes the chips'
+           ink, ground and edge at rest, and their pressed look while it names a
+           chosen category. -->
       <RvSearchSelect
+        chip
+        :marked="moreActive"
         :model-value="modelValue"
         :trigger-label="triggerLabel"
         :options="choices"
@@ -126,6 +140,7 @@ const toggle = (id: string): void => {
         :placeholder="t('listPicker.filter.more')"
         :search-label="t('category.search')"
         :empty-label="t('category.noMatches')"
+        size="compact"
         @update:model-value="emit('update:modelValue', $event)"
       >
         <template #option="{ option }">
@@ -162,7 +177,7 @@ const toggle = (id: string): void => {
           :disabled="disabled || actionDisabled"
           @click="emit('action')"
         >
-          <RvIcon name="plus" />
+          <RvIcon name="plus" />{{ t('listPicker.filter.add') }}
         </button>
       </RvTooltip>
     </div>
@@ -256,10 +271,5 @@ const toggle = (id: string): void => {
    wanted here: it is the last thing still holding the number away. */
 .rv-search-select__option .category-label {
   margin-inline-end: 0;
-}
-
-.catalog-filters__action {
-  min-width: var(--rv-control-compact);
-  justify-content: center;
 }
 </style>

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { render, type RenderResult } from 'vitest-browser-vue'
+import { h } from 'vue'
 
 import RvButton from '@/shared/ui/RvButton.vue'
+import RvIcon from '@/shared/ui/RvIcon.vue'
 
 import { contrast, inTheme, paintedToken } from './support/contrast'
 
@@ -182,6 +185,63 @@ describe('RvButton', () => {
     expect(height('Add')).toBe(40)
     expect(height('New list')).toBe(44)
     expect(height('Retry')).toBe(36)
+  })
+
+  // A compact row action is its glyph alone, named by `label`: a square at the
+  // compact height whose only content is the decoration.
+  it('draws the icon-only form as a named square at the compact height', async () => {
+    const screen = await render(RvButton, {
+      props: { iconOnly: true, label: 'Edit list' },
+      slots: { default: () => h(RvIcon, { name: 'edit' }) },
+    })
+
+    const button = screen.getByRole('button', { name: 'Edit list' })
+    await expect.element(button).toBeVisible()
+    expect(button.element().textContent?.trim()).toBe('')
+    const box = button.element().getBoundingClientRect()
+    expect(box.width).toBe(36)
+    expect(box.height).toBe(36)
+    // The size is the compact one whatever size the caller asked for.
+    await screen.rerender({ size: 'touch' })
+    expect(button.element().getBoundingClientRect().width).toBe(36)
+    expect(button.element().getBoundingClientRect().height).toBe(36)
+    await userEvent.tab()
+    await expect.element(button).toHaveFocus()
+  })
+
+  it('keeps the disabled look and the loading name on the icon-only form', async () => {
+    const screen = await render(RvButton, {
+      props: { disabled: true, iconOnly: true, label: 'Delete list' },
+      slots: { default: () => h(RvIcon, { name: 'trash' }) },
+    })
+    await expect
+      .element(screen.getByRole('button', { name: 'Delete list' }))
+      .toBeDisabled()
+    const disabled = painted(screen, 'Delete list')
+    expect(disabled.color).toBe(paintedToken('--rv-color-ink-disabled'))
+    expect(disabled.cursor).toBe('not-allowed')
+    expect(disabled.opacity).toBe('1')
+
+    await screen.rerender({
+      disabled: false,
+      loading: true,
+      loadingLabel: 'Deleting list',
+    })
+    await expect
+      .element(screen.getByRole('button', { name: 'Deleting list' }))
+      .toHaveAttribute('aria-busy', 'true')
+  })
+
+  it('keeps the icon-only form a link when it has a destination', async () => {
+    const screen = await render(RvButton, {
+      props: { href: '/artifact', iconOnly: true, label: 'Download file' },
+      slots: { default: () => h(RvIcon, { name: 'download' }) },
+    })
+
+    const link = screen.getByRole('link', { name: 'Download file' })
+    await expect.element(link).toHaveAttribute('href', '/artifact')
+    expect(link.element().getBoundingClientRect().width).toBe(36)
+    expect(link.element().getBoundingClientRect().height).toBe(36)
   })
 
   it('forwards an href as an external native-link request', async () => {

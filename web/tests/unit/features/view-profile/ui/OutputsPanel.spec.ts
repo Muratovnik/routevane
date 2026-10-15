@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { page } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
+import { defineComponent, h } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { Schedule } from '@/shared/api/profiles'
@@ -16,6 +18,7 @@ const OUTPUT = {
   createdAt: '2026-09-03T09:00:00Z',
   latest: null,
   lastAttempt: null,
+  lastDelivery: null,
 }
 
 const PUBLISHED = {
@@ -51,6 +54,16 @@ const CONNECTED_DEVICE = {
   deployable: true,
 }
 
+// A router link that is only its address: the menu resolves the link by name,
+// where a template string would need the runtime compiler.
+const LINK = defineComponent({
+  props: { to: { type: String, default: '' } },
+  setup:
+    (props, { slots }) =>
+    () =>
+      h('a', { href: props.to }, slots.default?.()),
+})
+
 const renderPanel = (overrides: Record<string, unknown> = {}) =>
   render(OutputsPanel, {
     props: {
@@ -67,64 +80,124 @@ const renderPanel = (overrides: Record<string, unknown> = {}) =>
       ...overrides,
     },
     global: {
-      stubs: {
-        NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
-      },
+      components: { NuxtLink: LINK },
     },
   })
 
-describe('OutputsPanel connection readiness', () => {
+describe('OutputsPanel connection cell', () => {
   beforeEach(() => useLocale().setLocale('en'))
 
-  it('states the next unmet condition for an unbound output', async () => {
-    const screen = await renderPanel()
-
-    await expect
-      .element(screen.getByText('Add a connection', { exact: false }).first())
-      .toBeVisible()
-    // The refresh rule is one field above the table, named by its own label.
-    await expect
-      .element(screen.getByRole('combobox', { name: 'Profile refresh' }))
-      .toBeVisible()
-  })
-
-  // A row that is read as a file or through its link is complete without a
-  // connection. It asks for one only when delivery is already set up for its
-  // format and this row is the one left out.
-  it.each([
-    ['no connection of the format exists', []],
-    [
-      'a connection exists that never delivers on its own',
-      [{ ...CONNECTED_DEVICE, autoDeliver: false }],
-    ],
-    [
-      'a connection of another format sends automatically',
-      [{ ...CONNECTED_DEVICE, targetID: 'singbox' }],
-    ],
-  ])('states no demand on an unbound row when %s', async (_case, devices) => {
-    const screen = await renderPanel({ devices })
-
-    await expect
-      .element(screen.getByText('Choose a connection', { exact: true }))
-      .not.toBeInTheDocument()
-  })
-
-  it('asks an unbound row to choose a connection once a connection of its format sends automatically', async () => {
-    const screen = await renderPanel({ devices: [CONNECTED_DEVICE] })
-
-    await expect
-      .element(screen.getByText('Choose a connection', { exact: true }))
-      .toBeVisible()
-  })
-
-  it('keeps the connection field on a row that states no demand', async () => {
+  it('keeps the refresh rule above the table and the connection field in the row', async () => {
     const screen = await renderPanel({
       devices: [{ ...CONNECTED_DEVICE, autoDeliver: false }],
     })
 
     await expect
+      .element(screen.getByRole('combobox', { name: 'Profile refresh' }))
+      .toBeVisible()
+    await expect
       .element(screen.getByLabelText('Connection for Keenetic'))
       .toHaveTextContent('None')
+  })
+
+  // The cell is the choice and nothing else: the state of a connection is the
+  // option's note, and the connection page owns it.
+  it.each([
+    [
+      'unbound, a connection of its format sends automatically',
+      '',
+      'available',
+      true,
+    ],
+    ['bound, delivery is off', 'device-1', 'available', false],
+    ['bound, delivery is unconfirmed', 'device-1', 'unknown', true],
+    [
+      'bound, the system has no password store',
+      'device-1',
+      'unavailable',
+      true,
+    ],
+  ] as const)(
+    'states no delivery status in the cell when the row is %s',
+    async (_case, deviceID, capability, autoDeliver) => {
+      const screen = await renderPanel({
+        automaticDelivery: () => capability,
+        devices: [{ ...CONNECTED_DEVICE, autoDeliver }],
+        outputs: [{ ...OUTPUT, deviceID }],
+        schedule: { ...SCHEDULE, effective: 'daily' },
+      })
+
+      const cell = screen.getByRole('cell', { name: /Home router|None/ })
+      await expect.element(cell).toBeVisible()
+      expect(cell.element().querySelectorAll('a')).toHaveLength(0)
+      expect(cell.element().textContent).not.toMatch(
+        /automatic|Automatic|password store|Choose a connection|Open the connection/,
+      )
+    },
+  )
+
+  it('names a connection by itself and its delivery state in the option note', async () => {
+    const screen = await renderPanel({
+      devices: [{ ...CONNECTED_DEVICE, autoDeliver: false }],
+      outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
+    })
+
+    await expect
+      .element(screen.getByLabelText('Connection for Keenetic'))
+      .toHaveTextContent('Home router')
+    await expect
+      .element(screen.getByLabelText('Connection for Keenetic'))
+      .not.toHaveTextContent('·')
+  })
+
+  it('offers None as the first choice and unbinds through it', async () => {
+    const screen = await renderPanel({
+      devices: [{ ...CONNECTED_DEVICE, autoDeliver: false }],
+      outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
+    })
+
+    await screen.getByLabelText('Connection for Keenetic').click()
+    const options = screen.getByRole('option').all()
+    expect(
+      options.map((option) => option.element().textContent?.trim()),
+    ).toEqual([
+      'None',
+      expect.stringMatching(/^Home router\s*automatic delivery off$/),
+    ])
+    await screen.getByRole('option', { name: 'None' }).click()
+    expect(screen.emitted('bindDevice')).toEqual([['output-1', '']])
+  })
+
+  it('states a manual-only output as a fact without offering a connection', async () => {
+    const screen = await renderPanel({ deployable: () => false })
+
+    await expect
+      .element(screen.getByText('Manual download', { exact: false }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByLabelText('Connection for Keenetic'))
+      .not.toBeInTheDocument()
+  })
+
+  it('states the bound connection of an archived profile instead of offering a choice', async () => {
+    const screen = await renderPanel({
+      archived: true,
+      devices: [CONNECTED_DEVICE],
+      outputs: [{ ...PUBLISHED, deviceID: 'device-1' }],
+    })
+
+    await expect
+      .element(screen.getByRole('cell', { name: 'Home router' }))
+      .toBeVisible()
+    await expect
+      .element(screen.getByLabelText('Connection for Keenetic'))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('combobox', { name: 'Profile refresh' }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: 'Add a format' }))
+      .not.toBeInTheDocument()
   })
 
   // An empty picker has two causes, and they ask for different things: all
@@ -165,182 +238,6 @@ describe('OutputsPanel connection readiness', () => {
     await expect.element(add).toBeEnabled()
     await expect.element(add).not.toHaveAccessibleDescription(/\S/)
   })
-
-  it('states when automatic delivery is on but profile refresh is off', async () => {
-    const screen = await renderPanel({
-      devices: [CONNECTED_DEVICE],
-      outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
-    })
-
-    await expect
-      .element(screen.getByText('Profile refresh is off', { exact: true }))
-      .toBeVisible()
-  })
-
-  it.each([false, true])(
-    'states a system without a password store as a fact, automatic delivery %s',
-    async (autoDeliver) => {
-      const screen = await renderPanel({
-        automaticDelivery: () => 'unavailable',
-        devices: [{ ...CONNECTED_DEVICE, autoDeliver }],
-        outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
-        schedule: { ...SCHEDULE, effective: 'daily' },
-      })
-
-      // The choice is named by the connection alone; its state is the
-      // option's note and the status line, never part of the name.
-      await expect
-        .element(screen.getByLabelText('Connection for Keenetic'))
-        .toHaveTextContent('Home router')
-      await expect
-        .element(screen.getByLabelText('Connection for Keenetic'))
-        .not.toHaveTextContent('·')
-      await expect
-        .element(
-          screen.getByText(
-            'This system has no password store: manual sending only',
-            { exact: true },
-          ),
-        )
-        .toBeVisible()
-      await expect
-        .element(screen.getByRole('link', { name: 'Send', exact: true }))
-        .toHaveAttribute('href', '/profiles/profile-1/send/output-1')
-      await expect
-        .element(screen.getByRole('link', { name: 'Open the connection' }))
-        .not.toBeInTheDocument()
-    },
-  )
-
-  it.each([
-    ['unknown', true, 'Automatic delivery unconfirmed'],
-    ['available', false, 'Automatic delivery is off'],
-  ] as const)(
-    'states %s delivery once, with the way to that connection',
-    async (capability, autoDeliver, status) => {
-      const screen = await renderPanel({
-        automaticDelivery: () => capability,
-        devices: [{ ...CONNECTED_DEVICE, autoDeliver }],
-        outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
-        schedule: { ...SCHEDULE, effective: 'daily' },
-      })
-
-      await expect
-        .element(screen.getByLabelText('Connection for Keenetic'))
-        .toHaveTextContent('Home router')
-      await expect
-        .element(screen.getByLabelText('Connection for Keenetic'))
-        .not.toHaveTextContent('·')
-      await expect
-        .element(screen.getByText(status, { exact: true }))
-        .toBeVisible()
-      await expect
-        .element(screen.getByRole('link', { name: 'Open the connection' }))
-        .toHaveAttribute('href', '/connections#connection=device-1')
-      await expect
-        .element(screen.getByText('Ready: new versions', { exact: false }))
-        .not.toBeInTheDocument()
-    },
-  )
-
-  it('offers None as the first choice and unbinds through it', async () => {
-    const screen = await renderPanel({
-      devices: [{ ...CONNECTED_DEVICE, autoDeliver: false }],
-      outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
-    })
-
-    await expect
-      .element(screen.getByRole('button', { name: 'Detach' }))
-      .not.toBeInTheDocument()
-    await screen.getByLabelText('Connection for Keenetic').click()
-    const options = screen.getByRole('option').all()
-    expect(
-      options.map((option) => option.element().textContent?.trim()),
-    ).toEqual([
-      'None',
-      expect.stringMatching(/^Home router\s*automatic delivery off$/),
-    ])
-    await screen.getByRole('option', { name: 'None' }).click()
-    expect(screen.emitted('bindDevice')).toEqual([['output-1', '']])
-  })
-
-  it('reports a configured password-free local target without a router promise', async () => {
-    const screen = await renderPanel({
-      devices: [
-        {
-          ...CONNECTED_DEVICE,
-          targetID: 'singbox',
-          targetTitle: 'sing-box',
-          address: '/data/routevane.json',
-          account: '',
-          interfaceName: '',
-        },
-      ],
-      outputs: [
-        {
-          ...OUTPUT,
-          deviceID: 'device-1',
-          targetID: 'singbox',
-          targetTitle: 'sing-box',
-          targetKind: 'app',
-        },
-      ],
-      schedule: { ...SCHEDULE, effective: 'daily' },
-    })
-
-    await expect
-      .element(screen.getByText('Automatic delivery configured'))
-      .toBeVisible()
-    await expect
-      .element(screen.getByText('Ready: new versions', { exact: false }))
-      .not.toBeInTheDocument()
-  })
-
-  it('does not invent automatic readiness for a manual-only output', async () => {
-    const screen = await renderPanel({ deployable: () => false })
-
-    await expect
-      .element(screen.getByText('Choose a connection', { exact: false }))
-      .not.toBeInTheDocument()
-    await expect
-      .element(
-        screen.getByText('Automatic delivery configured', { exact: false }),
-      )
-      .not.toBeInTheDocument()
-    await expect
-      .element(screen.getByText('Manual download', { exact: false }))
-      .toBeVisible()
-  })
-
-  it('states the bound connection of an archived profile instead of offering a choice', async () => {
-    const screen = await renderPanel({
-      archived: true,
-      devices: [CONNECTED_DEVICE],
-      outputs: [{ ...PUBLISHED, deviceID: 'device-1' }],
-    })
-
-    await expect
-      .element(screen.getByRole('cell', { name: 'Home router' }))
-      .toBeVisible()
-    await expect
-      .element(screen.getByLabelText('Connection for Keenetic'))
-      .not.toBeInTheDocument()
-    await expect
-      .element(screen.getByRole('combobox', { name: 'Profile refresh' }))
-      .not.toBeInTheDocument()
-    await expect
-      .element(screen.getByRole('button', { name: 'Add a format' }))
-      .not.toBeInTheDocument()
-    await expect
-      .element(
-        screen.getByText('Automatic delivery configured', { exact: false }),
-      )
-      .not.toBeInTheDocument()
-    // Reading and downloading stay; nothing that changes the format is offered.
-    await expect
-      .element(screen.getByRole('button', { name: 'Actions for Keenetic' }))
-      .not.toBeInTheDocument()
-  })
 })
 
 describe('OutputsPanel row actions', () => {
@@ -366,7 +263,12 @@ describe('OutputsPanel row actions', () => {
     expect(format.element().textContent).toMatch(
       /Keenetic \(domain-based\)\s*\.txt/,
     )
-    expect(screen.getByRole('columnheader').all()).toHaveLength(4)
+    expect(
+      screen
+        .getByRole('columnheader')
+        .all()
+        .map((header) => header.element().textContent?.trim()),
+    ).toEqual(['Format', 'Connection', 'Content from', 'Last sent', 'Actions'])
     await screen
       .getByRole('button', { name: 'Actions for Keenetic (domain-based)' })
       .click()
@@ -381,6 +283,12 @@ describe('OutputsPanel row actions', () => {
       'Issue a new link…',
       'Remove format…',
     ])
+    // Every item of a menu panel carries a glyph.
+    for (const item of screen.getByRole('menuitem').all()) {
+      expect(
+        item.element().querySelector('[data-testid="rv-icon"]'),
+      ).not.toBeNull()
+    }
     await screen.getByRole('menuitem', { name: 'Remove format…' }).click()
     expect(screen.emitted('remove')).toEqual([['output-dns']])
   })
@@ -395,6 +303,182 @@ describe('OutputsPanel row actions', () => {
         .all()
         .map((item) => item.element().textContent?.trim()),
     ).toEqual(['Rebuild', 'Remove format…'])
+  })
+
+  it('offers Download and Send as icon buttons named for the format, each explained by a tooltip', async () => {
+    const screen = await renderPanel({ outputs: [PUBLISHED] })
+
+    const download = screen.getByRole('link', {
+      name: 'Download the file for Keenetic',
+    })
+    const send = screen.getByRole('link', { name: 'Send Keenetic' })
+    await expect
+      .element(download)
+      .toHaveAttribute('href', '/v1/artifacts/artifact-1')
+    await expect
+      .element(send)
+      .toHaveAttribute('href', '/profiles/profile-1/send/output-1')
+    // The glyph is the whole face: no word stands beside it.
+    expect(download.element().textContent?.trim()).toBe('')
+    expect(send.element().textContent?.trim()).toBe('')
+
+    await send.hover()
+    await expect.element(page.getByTestId('rv-tooltip')).toBeVisible()
+    expect(page.getByTestId('rv-tooltip').element().textContent).toContain(
+      'Send Keenetic',
+    )
+  })
+
+  it('offers no Send for a format that cannot be sent and no Download before a file exists', async () => {
+    const screen = await renderPanel({ deployable: () => false })
+
+    await expect
+      .element(screen.getByRole('link', { name: /^Send/ }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('link', { name: /^Download/ }))
+      .not.toBeInTheDocument()
+  })
+
+  it('keeps the actions in the row at a narrow panel instead of moving them into the menu', async () => {
+    const screen = await renderPanel({ outputs: [PUBLISHED] })
+
+    await screen.getByRole('button', { name: 'Actions for Keenetic' }).click()
+    const items = screen
+      .getByRole('menuitem')
+      .all()
+      .map((item) => item.element().textContent?.trim())
+    expect(items).not.toContain('Download')
+    expect(items).not.toContain('Send')
+  })
+
+  describe('open connection', () => {
+    it('leads from the menu to the bound connection, selected', async () => {
+      const screen = await renderPanel({
+        devices: [CONNECTED_DEVICE],
+        outputs: [{ ...OUTPUT, deviceID: 'device-1' }],
+      })
+
+      await screen.getByRole('button', { name: 'Actions for Keenetic' }).click()
+      const open = screen.getByRole('menuitem', { name: 'Open the connection' })
+      await expect
+        .element(open)
+        .toHaveAttribute('href', '/connections#connection=device-1')
+      expect(
+        open.element().querySelector('[data-testid="rv-icon"]'),
+      ).not.toBeNull()
+    })
+
+    it('is not offered while no connection is bound', async () => {
+      const screen = await renderPanel({ devices: [CONNECTED_DEVICE] })
+
+      await screen.getByRole('button', { name: 'Actions for Keenetic' }).click()
+      await expect
+        .element(screen.getByRole('menuitem', { name: 'Open the connection' }))
+        .not.toBeInTheDocument()
+    })
+  })
+
+  describe('archived profile', () => {
+    it('keeps Download, withdraws Send and offers only the way to the bound connection', async () => {
+      const screen = await renderPanel({
+        archived: true,
+        devices: [CONNECTED_DEVICE],
+        outputs: [{ ...PUBLISHED, deviceID: 'device-1' }],
+      })
+
+      await expect
+        .element(
+          screen.getByRole('link', { name: 'Download the file for Keenetic' }),
+        )
+        .toBeVisible()
+      await expect
+        .element(screen.getByRole('link', { name: 'Send Keenetic' }))
+        .not.toBeInTheDocument()
+      await screen.getByRole('button', { name: 'Actions for Keenetic' }).click()
+      expect(
+        screen
+          .getByRole('menuitem')
+          .all()
+          .map((item) => item.element().textContent?.trim()),
+      ).toEqual(['Open the connection'])
+    })
+
+    it('has no menu on a row with no connection to open', async () => {
+      const screen = await renderPanel({
+        archived: true,
+        outputs: [PUBLISHED],
+      })
+
+      await expect
+        .element(screen.getByRole('button', { name: 'Actions for Keenetic' }))
+        .not.toBeInTheDocument()
+    })
+  })
+})
+
+describe('OutputsPanel last sent column', () => {
+  beforeEach(() => useLocale().setLocale('en'))
+
+  const COMPLETED_AT = '2026-09-05T10:30:00Z'
+  const sentCell = (screen: Awaited<ReturnType<typeof renderPanel>>): string =>
+    screen.getByRole('cell').all()[3]?.element().textContent?.trim() ?? ''
+  const delivery = (deviceID: string) => ({
+    deviceID,
+    artifactID: 'artifact-1',
+    completedAt: COMPLETED_AT,
+  })
+
+  it('shows the date the file last reached the bound connection', async () => {
+    const screen = await renderPanel({
+      devices: [CONNECTED_DEVICE],
+      outputs: [
+        {
+          ...PUBLISHED,
+          deviceID: 'device-1',
+          lastDelivery: delivery('device-1'),
+        },
+      ],
+    })
+
+    const expected = new Intl.DateTimeFormat('en', {
+      dateStyle: 'short',
+      timeStyle: 'short',
+    }).format(new Date(COMPLETED_AT))
+    await expect.element(screen.getByText(expected)).toBeVisible()
+    expect(sentCell(screen)).toBe(expected)
+  })
+
+  // The server reports only the bound connection's send; a card that still
+  // carries one for another connection (read just before a re-bind) must not
+  // be shown for the row, and a row with no connection has none to report.
+  it.each([
+    ['another connection than the bound one', 'device-1', 'device-2'],
+    ['a connection while none is bound', '', 'device-2'],
+  ])('shows a dash for a send to %s', async (_case, bound, sentTo) => {
+    const screen = await renderPanel({
+      devices: [CONNECTED_DEVICE],
+      outputs: [
+        {
+          ...PUBLISHED,
+          deviceID: bound,
+          lastDelivery: delivery(sentTo),
+        },
+      ],
+    })
+
+    await expect.element(screen.getByText('—', { exact: true })).toBeVisible()
+    expect(sentCell(screen)).toBe('—')
+  })
+
+  it('shows a dash when nothing was ever sent', async () => {
+    const screen = await renderPanel({
+      devices: [CONNECTED_DEVICE],
+      outputs: [{ ...PUBLISHED, deviceID: 'device-1' }],
+    })
+
+    await expect.element(screen.getByText('—', { exact: true })).toBeVisible()
+    expect(sentCell(screen)).toBe('—')
   })
 })
 

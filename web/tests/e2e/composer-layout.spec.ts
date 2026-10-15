@@ -117,21 +117,25 @@ test('the editor keeps save in the window and says the draft is unsaved', async 
   await expect(unsaved).toBeVisible()
   await withinWindow(page, save)
 
-  // Discarding is one quiet button beside the save, not a full-width row over it.
   const discard = page.getByRole('button', {
     name: englishCopy('profile.edit.discard'),
     exact: true,
   })
+  // Save is the rail's primary act and as wide as the rail. The unsaved line
+  // and the quiet Discard share a line of their own above it.
   const settings = await box(composerSettings(page))
   const discardBox = await box(discard)
   const saveBox = await box(save)
+  expect(saveBox.width).toBeGreaterThan(settings.width * 0.7)
   expect(discardBox.width).toBeLessThan(settings.width / 2)
-  expect(Math.abs(discardBox.y - saveBox.y)).toBeLessThanOrEqual(2)
-  expect(discardBox.x + discardBox.width).toBeLessThanOrEqual(saveBox.x)
+  expect(discardBox.y + discardBox.height).toBeLessThanOrEqual(saveBox.y)
   const status = await box(unsaved)
+  expect(status.y + status.height).toBeLessThanOrEqual(saveBox.y)
   expect(
-    Math.abs(status.y + status.height / 2 - saveBox.y - saveBox.height / 2),
-  ).toBeLessThanOrEqual(saveBox.height)
+    Math.abs(
+      status.y + status.height / 2 - discardBox.y - discardBox.height / 2,
+    ),
+  ).toBeLessThanOrEqual(discardBox.height)
 
   await discard.click()
   await expect(unsaved).toBeHidden()
@@ -247,7 +251,7 @@ test('a window shorter than the rail scrolls its fields and keeps save in view',
   )
 })
 
-test('beside the rail the discard button is not a full-width row either', async ({
+test('beside the rail Save is the full-width act and Discard stays a quiet button', async ({
   page,
   origin,
 }) => {
@@ -260,6 +264,11 @@ test('beside the rail the discard button is not a full-width row either', async 
   })
   const settings = await box(composerSettings(page))
   expect((await box(discard)).width).toBeLessThan(settings.width * 0.7)
+  const save = page.getByRole('button', {
+    name: 'Save and rebuild',
+    exact: true,
+  })
+  expect((await box(save)).width).toBeGreaterThan(settings.width * 0.7)
 })
 
 test('a pair that cannot fully build says what stops the file beside create', async ({

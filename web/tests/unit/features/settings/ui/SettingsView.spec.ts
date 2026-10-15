@@ -227,3 +227,32 @@ describe('SettingsView runtime version', () => {
     expect(service.getByText(/Version/).query()).toBeNull()
   })
 })
+
+describe('SettingsView status lines', () => {
+  beforeEach(() => {
+    useLocale().setLocale('en')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  // The schedule's status line is a live region that stands from the start so
+  // its text is announced; it keeps no room for text it does not hold.
+  it('gives the schedule status no height while it says nothing', async () => {
+    installFetch((input: string) => {
+      if (input === HEALTH) return Promise.resolve(running())
+      if (input === SETTINGS)
+        return Promise.resolve(json({ refresh_interval: 'daily' }))
+      return Promise.reject(new Error(`unexpected request ${input}`))
+    })
+    const screen = await render(SettingsView)
+    await expect
+      .element(screen.getByRole('radio', { name: 'Daily' }))
+      .toBeChecked()
+
+    const status = screen.getByRole('status').first()
+    await expect.element(status).toBeEmptyDOMElement()
+    expect(status.element().getBoundingClientRect().height).toBe(0)
+  })
+})

@@ -411,7 +411,6 @@ onMounted(() => {
               mono
               :invalid="invalid"
               :placeholder="deployment.requirements.value?.addressExample"
-              @blur="deployment.addressTouched.value = true"
             />
           </template>
         </RvField>

@@ -129,6 +129,118 @@ describe('DevicesView router form labels', () => {
   })
 })
 
+describe('DevicesView presentation of formats, rows and statements', () => {
+  beforeEach(() => {
+    useLocale().setLocale('en')
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const installRegistry = (
+    devices: unknown[],
+    targets: unknown[] = TARGETS_PAYLOAD.targets,
+  ): void => {
+    installFetch((input: string) => {
+      if (input === DEVICES)
+        return Promise.resolve(json({ devices, secret_store_available: true }))
+      if (input === LISTS) return Promise.resolve(json(CATALOG_PAYLOAD))
+      if (input === TARGETS) return Promise.resolve(json({ targets }))
+      if (input === REQUIREMENTS)
+        return Promise.resolve(json(REQUIREMENTS_PAYLOAD))
+      return Promise.reject(new Error(`unexpected request ${input}`))
+    })
+  }
+
+  // The page has no reference of formats: whether a format can be delivered to
+  // automatically is said where the format is chosen.
+  it('says on each format option whether it can be delivered to automatically', async () => {
+    installRegistry(
+      [],
+      [
+        ...TARGETS_PAYLOAD.targets,
+        {
+          ...TARGETS_PAYLOAD.targets[0],
+          id: 'plain-file',
+          title: 'Plain file',
+        },
+      ],
+    )
+    const screen = await render(DevicesView)
+    await screen
+      .getByRole('button', { name: 'Add a connection', exact: true })
+      .click()
+    await screen.getByLabelText('Format', { exact: true }).click()
+
+    await expect
+      .element(
+        screen
+          .getByRole('option', { name: /^Keenetic/ })
+          .getByText('Can be delivered automatically'),
+      )
+      .toBeVisible()
+    await expect
+      .element(
+        screen
+          .getByRole('option', { name: /^Plain file/ })
+          .getByText('Manual only'),
+      )
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('button', { name: 'Supported formats' }))
+      .not.toBeInTheDocument()
+  })
+
+  it('names a row by what it shows, marks the chosen one current, and repeats no address in the detail header', async () => {
+    installRegistry([{ ...DEVICE_PAYLOAD.devices[0], interface: 'Wireguard0' }])
+    const screen = await render(DevicesView)
+
+    const row = screen.getByRole('button', {
+      name: /^Home router Keenetic http:\/\/10\.255\.0\.1 /,
+    })
+    await expect.element(row).toHaveAttribute('aria-current', 'true')
+    await expect.element(row).not.toHaveAttribute('aria-pressed')
+    // The address is the first parameter, in its field right below the title.
+    await expect
+      .element(screen.getByRole('region', { name: 'Home router', exact: true }))
+      .not.toHaveTextContent('http://10.255.0.1')
+  })
+
+  // A statement about a field is the answer to a submission, not to leaving the
+  // field, and from then on it follows the value.
+  it('states a missing name only after Save, focuses it, and clears it as the name is typed', async () => {
+    installRegistry([
+      {
+        ...DEVICE_PAYLOAD.devices[0],
+        interface: 'Wireguard0',
+      },
+    ])
+    const screen = await render(DevicesView)
+    const name = screen.getByLabelText('Connection name')
+    await expect.element(name).toHaveValue('Home router')
+
+    await name.fill('')
+    await userEvent.tab()
+    await expect
+      .element(screen.getByText(MISSING_FIELD))
+      .not.toBeInTheDocument()
+
+    await screen.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.element(screen.getByText(MISSING_FIELD)).toBeVisible()
+    await expect.element(name).toHaveFocus()
+
+    await name.fill('Office router')
+    await expect
+      .element(screen.getByText(MISSING_FIELD))
+      .not.toBeInTheDocument()
+
+    // Once Save has asked, emptying the field again is stated at once.
+    await name.fill('')
+    await expect.element(screen.getByText(MISSING_FIELD)).toBeVisible()
+  })
+})
+
 describe('DevicesView prerequisite audit', () => {
   beforeEach(() => {
     useLocale().setLocale('en')
@@ -204,20 +316,28 @@ describe('DevicesView prerequisite audit', () => {
     await expect.element(deviceInterface).toBeVisible()
 
     await deviceInterface.fill('Wireguard0')
+    // Leaving an empty required field states nothing; only a submission does.
     await account.click()
     await userEvent.tab()
-    await expect.element(screen.getByText(MISSING_FIELD)).toBeVisible()
+    await expect
+      .element(screen.getByText(MISSING_FIELD))
+      .not.toBeInTheDocument()
 
     // Submitting stays possible: pressing it states what is missing and moves
     // focus there instead of staying silent, and sends nothing.
     await expect.element(submit).toBeEnabled()
     await submit.click()
+    await expect.element(screen.getByText(MISSING_FIELD)).toBeVisible()
     await expect.element(account).toHaveFocus()
     expect(
       fetchMock.mock.calls.filter(([, request]) => request?.method === 'POST'),
     ).toHaveLength(0)
 
+    // From then on the statement follows the value: typing clears it.
     await account.fill('admin')
+    await expect
+      .element(screen.getByText(MISSING_FIELD))
+      .not.toBeInTheDocument()
     await expect.element(submit).toBeEnabled()
     expect(callsTo(fetchMock, REQUIREMENTS)).toHaveLength(2)
   })
@@ -352,11 +472,14 @@ describe('DevicesView prerequisite audit', () => {
     await screen.getByLabelText('Interface for routes').fill('Wireguard0')
     const address = screen.getByLabelText('Router address', { exact: true })
     await address.fill('10.255.0.1')
-    // Leaving the field is what asks it to answer, as with a field left empty.
+    // Leaving the field states nothing, as with a field left empty.
     await screen.getByLabelText('Connection name').click()
+    await expect
+      .element(screen.getByText(ADDRESS_EXPECTED))
+      .not.toBeInTheDocument()
 
-    await expect.element(screen.getByText(ADDRESS_EXPECTED)).toBeVisible()
     await screen.getByRole('button', { name: 'Save' }).click()
+    await expect.element(screen.getByText(ADDRESS_EXPECTED)).toBeVisible()
     await expect.element(address).toHaveFocus()
 
     await address.fill('http://10.255.0.1')
@@ -441,7 +564,7 @@ describe('DevicesView prerequisite audit', () => {
     })
     const screen = await render(DevicesView)
     const connection = screen.getByRole('button', {
-      name: 'Configure connection Home router',
+      name: /^Home router /,
     })
     await connection.click()
     await expect
@@ -543,8 +666,7 @@ it.each([
     await screen.getByLabelText('Connection name').fill('Unsaved connection')
     await screen
       .getByRole('button', {
-        name: 'Configure connection Home router',
-        exact: true,
+        name: /^Home router /,
       })
       .click()
     // Forgetting is the connection's own secondary action and it is confirmed:
@@ -702,19 +824,17 @@ it('selects the created identity after a failed reread recovers without repeatin
   await expect
     .element(
       screen.getByRole('button', {
-        name: 'Configure connection Home router',
-        exact: true,
+        name: /^Home router /,
       }),
     )
-    .toHaveAttribute('aria-pressed', 'false')
+    .not.toHaveAttribute('aria-current')
   await expect
     .element(
       screen.getByRole('button', {
-        name: 'Configure connection Saved router',
-        exact: true,
+        name: /^Saved router /,
       }),
     )
-    .toHaveAttribute('aria-pressed', 'true')
+    .toHaveAttribute('aria-current', 'true')
   await expect
     .element(screen.getByRole('region', { name: 'Saved router', exact: true }))
     .toBeVisible()
@@ -1000,14 +1120,12 @@ it('opens each connection at its stored parameters while the creation draft surv
 
   await screen
     .getByRole('button', {
-      name: 'Configure connection Office router',
-      exact: true,
+      name: /^Office router /,
     })
     .click()
   await screen
     .getByRole('button', {
-      name: 'Configure connection Home router',
-      exact: true,
+      name: /^Home router /,
     })
     .click()
   // A connection opens at what is stored for it, not at what was typed into

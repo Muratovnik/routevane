@@ -29,9 +29,7 @@ import {
   type SpawnedProduct,
 } from './support/product'
 import {
-  catalogDisclosure,
   chooseFormatAction,
-  infoPanel,
   listMembership,
   menuPanel,
 } from './support/queries'
@@ -180,7 +178,9 @@ const publishProfile = async (
     .getByRole('searchbox', { name: message(language, 'create.search') })
     .fill('youtube')
   await listMembership(page, 'YouTube').check()
-  const delivery = page.getByLabel(message(language, 'create.target'))
+  const delivery = page.getByLabel(message(language, 'create.target'), {
+    exact: true,
+  })
   await delivery.click()
   await page.getByRole('option', { name: formatNames[targetID] }).click()
   await expect(delivery).not.toHaveText(
@@ -924,7 +924,7 @@ test('a target without a deployer is offered the manual path only', async ({
   ).toBeVisible()
   await expect(
     publishing.getByRole('link', {
-      name: message('en', 'outputs.send'),
+      name: message('en', 'outputs.send.aria').replace('{target}', 'MikroTik'),
       exact: true,
     }),
   ).toHaveCount(0)
@@ -994,23 +994,11 @@ test('a format with several installation steps shows them as a numbered list', a
   )
   await expect(steps.nth(3)).toHaveText(/^The commands never delete anything/)
 
-  // The reference of supported formats reads the same steps, as a list in the
-  // format's informer, not as the one-line hint they are joined into.
-  await page.goto(`${origin}/connections`)
-  await catalogDisclosure(page).click()
-  const informer = message('en', 'targets.hint').replace(
-    '{target}',
-    DNS_TITLES.en,
-  )
-  await page.getByRole('button', { name: informer }).click()
-  const referenceSteps = infoPanel(page, informer).getByRole('listitem')
-  await expect(referenceSteps).toHaveCount(4)
-  await expect(referenceSteps.first()).toHaveText(
-    /^KeeneticOS 5\.0 or newer is required\./,
-  )
-  await expect(referenceSteps.nth(3)).toHaveText(
-    /^The commands never delete anything/,
-  )
+  // The steps stand in an ordered list, so the screen numbers them and no
+  // step carries a number of its own.
+  expect(
+    await steps.first().evaluate((step) => step.parentElement?.tagName),
+  ).toBe('OL')
 })
 
 test('a destination the configuration cannot accept is refused before writing', async ({

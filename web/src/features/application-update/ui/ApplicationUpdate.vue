@@ -17,10 +17,7 @@ const busy = computed(() =>
 )
 const label = computed(() => {
   if (state.value.status === 'downloading')
-    return t('update.downloading').replace(
-      '{percent}',
-      String(state.value.percent ?? 0),
-    )
+    return t('update.downloading', { percent: state.value.percent ?? 0 })
   if (state.value.status === 'installing') return t('update.installing')
   if (state.value.status === 'error') return t('update.retry')
   return t('update.available')
@@ -28,7 +25,7 @@ const label = computed(() => {
 const hint = computed(() =>
   state.value.status === 'error'
     ? t('update.failed')
-    : t('update.hint').replace('{version}', state.value.version ?? ''),
+    : t('update.hint', { version: state.value.version ?? '' }),
 )
 let unsubscribe: (() => void) | undefined
 onMounted(async () => {
@@ -70,7 +67,7 @@ const apply = async () => {
     >
       <RvIcon
         v-if="!busy"
-        :name="state.status === 'error' ? 'warning' : 'download'"
+        :name="state.status === 'error' ? 'refresh' : 'download'"
       />
       <span class="application-update__label">{{ label }}</span>
     </RvButton>

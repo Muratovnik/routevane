@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 
 import { reviewRoot } from './support/audits'
+import { formatOption } from './support/queries'
 import { test } from './support/served-product'
 
 test.use({ locale: 'en-US', productData: 'connections-forget-recovery' })
@@ -29,14 +30,13 @@ test('a forgotten connection leaves the real registry and the empty view keeps G
     .getByRole('button', { name: 'Add a connection', exact: true })
     .click()
   await page.getByLabel('Format', { exact: true }).click()
-  await page.getByRole('option', { name: 'Keenetic', exact: true }).click()
+  await formatOption(page, 'Keenetic').click()
   await page
     .getByLabel('Connection name', { exact: true })
     .fill('Retained draft')
   await page
     .getByRole('button', {
-      name: 'Configure connection Forgotten router',
-      exact: true,
+      name: /^Forgotten router /,
     })
     .click()
 

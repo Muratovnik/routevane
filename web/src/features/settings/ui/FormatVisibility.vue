@@ -4,6 +4,7 @@ import { onMounted } from 'vue'
 import { useFormatVisibility } from '@/features/settings/model/useFormatVisibility'
 import { useLocale } from '@/shared/i18n/useLocale'
 import RvButton from '@/shared/ui/RvButton.vue'
+import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvSettingsSection from '@/shared/ui/RvSettingsSection.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import RvSwitch from '@/shared/ui/RvSwitch.vue'
@@ -11,8 +12,8 @@ import RvSwitch from '@/shared/ui/RvSwitch.vue'
 /**
  * The formats this build carries, each with the one choice that is the
  * operator's to make: whether the composer offers it. What a format is and
- * whether it can be delivered to automatically is reference material and lives
- * in Connections.
+ * whether it can be delivered to automatically is the note of its option in
+ * the form that registers a connection.
  */
 const { t } = useLocale()
 const formats = useFormatVisibility()
@@ -38,7 +39,9 @@ onMounted(() => {
       tone="failed"
     >
       <template #action>
-        <RvButton @click="formats.load">{{ t('action.retry') }}</RvButton>
+        <RvButton @click="formats.load"
+          ><RvIcon name="refresh" />{{ t('action.retry') }}</RvButton
+        >
       </template>
     </RvStateNotice>
     <RvStateNotice

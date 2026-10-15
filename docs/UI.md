@@ -214,25 +214,36 @@ Sections, addressable by URL:
    named submenus of formats, then «Добавить формат…», «Пересобрать файлы»
    and, after a separator, «В архив»; an archived profile offers only export
    and «Вернуть из архива». Profile facts keep their natural height; only the
-   composition workspace fills the window. A first build that published
-   nothing reads «Сборка не удалась», and its notice carries «Пересобрать
-   файлы».
+   composition workspace fills the window. The header states the files'
+   condition only while something needs attention or is under way: a profile
+   whose formats are built and current carries no status there, because
+   «published» does not say where or when, and the content time already stands
+   in the Publishing table. A first build that published nothing reads «Сборка
+   не удалась», and its notice carries «Пересобрать файлы».
+   The subscription link block stands collapsed above the tabs: its summary
+   names the format, and it opens on request. It opens by itself when a link
+   has just been issued or reissued, because that is the only moment the link
+   can be read (see «The one-time secret»).
    The Publishing tab is one table and what sits around it. Above the table
    stand one field, «Автообновление профиля» (Settings supplies only the
    global default), and the «Добавить формат» action, which opens the
    searchable format choice; adding a format creates it and publishes it in
    one move, because a format with no file is a promise the screen cannot keep.
    Each row is one line: the format with its file extension, its connection,
-   and the content date. The connection choice names connections only, with
-   «Не выбрано» first; a connection's delivery state is the option's note and
-   one status line beneath the choice, which states the next unmet condition
-   once and links to that connection where it is changed. An archived profile
-   shows the bound connection as text and offers no changes. Each row's «⋮»
-   menu holds «Настройки формата…» (the FQDN group prefix of a domain-based
+   the content date, and the date the file last reached that connection
+   («Отправлено»: the latest successful send to a saved connection, manual or
+   automatic; a dash when there has been none). The connection cell holds only
+   the choice, which names connections only, with «Не выбрано» first; a
+   connection's delivery state is the option's note, and the connection page
+   owns that state. Download and Send are compact icon buttons at the row's
+   end, each named for its format and explained by a tooltip. An archived
+   profile shows the bound connection as text, offers no changes and no Send;
+   Download stays. Each row's
+   «⋮» menu holds «Открыть подключение» while a connection is bound,
+   «Настройки формата…» (the FQDN group prefix of a domain-based
    format: its rule appears only as a refused save, «Применится при следующей
    сборке» beside Save, and «Пересобрать сейчас»), «Пересобрать», «Выпустить
-   новую ссылку…» once the format has published, and «Убрать формат…»; when
-   the panel is narrow, Download and Send move into the same menu. Issuing a
+   новую ссылку…» once the format has published, and «Убрать формат…». Issuing a
    new link and removing a format each confirm with their consequence; the new
    link is shown once (see «The one-time secret»). After a reload no format
    has its link on screen; each format's own menu offers «Выпустить новую
@@ -346,19 +357,19 @@ Sections, addressable by URL:
    become an OpenWrt. Both forms validate the same way: Save is available
    whenever the draft differs from what is stored (creation: whenever a format
    is chosen), and pressing it never silently does nothing. A field left empty
-   or malformed states its problem beside itself once it has been left or once
-   Save was pressed, every required field is marked for assistive technology,
-   and focus moves to the first field that needs attention. The form checks only the
+   or malformed states its problem beside itself once Save was pressed, and
+   from then on the statement follows the value as it is corrected; leaving a
+   field states nothing. Every required field is marked for assistive
+   technology, and focus moves to the first field that needs attention. The form checks only the
    shape of an address — an explicit scheme, a host, nothing else the field does
    not take. Which networks a device may live on is the service's policy: a
    refusal it names with `address_rejected` and the field `address` (ADR 0050)
    is stated beside the address, in the words of the format's own kind of
    address, until the address changes, and the generic failure notice is not
    drawn beside it. A refusal that names no field is not pinned on one. The same
-   holds for the address typed on Send. Pressing Save with a pointer is an
-   ordinary press that takes focus to the button: the field being left states
-   its problem in the line it keeps for its error (see the field's paragraph
-   under Components), so nothing moves the button from under the click. After a
+   holds for the address typed on Send. Because leaving a field states nothing,
+   nothing moves the button from under a pointer press; the statements appear
+   once the press has landed. After a
    write, `keepFocus` puts focus back where the operator was, or on the first
    field when the control that held it — Save, with nothing left to save — has
    nothing left to offer. «Отменить» and opening another connection both return
@@ -399,15 +410,14 @@ Sections, addressable by URL:
    what remains before unattended delivery, and after opt-in it points to
    choosing that connection in a profile; it never states that a connection is
    unused, because which profiles name it is not a fact this screen reads. The
-   list of connections is headed «Сохранённые подключения». The reference of
-   supported formats is collapsed beneath them and summarized by the catalog's
-   own titles; it states name, type, file and whether the format can be
-   delivered to automatically, and carries no switches: which formats the
-   profile composer offers is chosen in Settings. The words «цель», «вывод» and
-   «потребитель» do not appear on any surface, and «подключение» names exactly
-   one thing on every surface: the registered access this screen owns
-   (ADR 0041). What a profile publishes in is a _format_, and the catalog
-   collapsed here is the list of formats this build carries. «Устройство»
+   list of connections is headed «Сохранённые подключения». The screen carries
+   no reference of formats: the formats this build carries are listed, and
+   chosen for the composer, in Settings, and whether a format can be delivered
+   to automatically is the note of its option in the creation form. The words
+   «цель», «вывод» and «потребитель» do not appear on any surface, and
+   «подключение» names exactly one thing on every surface: the registered
+   access this screen owns (ADR 0041). What a profile publishes in is a
+   _format_. «Устройство»
    is left for a physical device during a delivery attempt — a deploy step
    or a deploy error — and names no object of the product. If a catalog dependency
    is unavailable, the screen keeps known devices readable and states exactly
@@ -420,8 +430,8 @@ Sections, addressable by URL:
    this browser holds and is the only place that preference is changed. An
    unreadable catalog says so with a retry instead of an empty list. The
    segmented choices raise the chosen option on a neutral surface with a hairline
-   edge and a check mark, without the accent colour, so the choice does not rest
-   on colour alone. Every section uses one surface and grid: title and explanation
+   edge, without the accent colour or a check mark, so the choice rests on the
+   raised ground and edge rather than on colour. Every section uses one surface and grid: title and explanation
    on the left, related controls and actions on the right. On constrained
    screens the heading precedes its content. Surface contrast, padding and
    whitespace distinguish sections without horizontal separators. Interface
@@ -501,9 +511,9 @@ Disclosures are for long secondary content, not for hints. A label or a heading
 never gets a sentence under it that restates the label, the placeholder or the
 obvious next step. A field's example is its placeholder, its explanation sits
 behind an informer beside its label, and under a field there is only its error.
-That error keeps one line whether or not it is shown, so it never moves what is
-below; a longer text is cut with an ellipsis and stays whole in the control's
-description and the line's tooltip.
+No line is kept for that error while there is none, so a form keeps the plain
+spacing of its fields; the error appears when a submit finds a problem, wraps
+like any text, and pushes what is below down by its own height.
 Keep edits on the surface that owns their
 scope: composing a profile writes only that profile; the library writes the
 library (ADR 0029). Explain shared effects beside an action when they affect
@@ -646,9 +656,11 @@ shows priority actions only for an unsaved order, without repeating category
 or priority explanations above the table.
 
 Create and edit share the settings form layout, in one order wherever it stands:
-the actions first, together on a row of their own with a hairline under them, and
-the fields below. The edit form says beside the actions that the draft has unsaved
-changes. When moved above the table, the fields align at the top in two equal
+the actions first, with a hairline under them, and the fields below. The primary
+act — create, or save and rebuild — spans the rail's full width. A line above it
+holds what qualifies it only while there is something to say: the edit form's
+note that the draft has unsaved changes with its discard action, or a missing
+piece that blocks creation; with nothing to say the line takes no room. When moved above the table, the fields align at the top in two equal
 columns under the actions. Numeric overlap disclosures keep numbers aligned
 while providing inset hit areas and a titled list of intersecting names.
 
@@ -674,7 +686,9 @@ explicit disclosure, validation message or user-requested layout change may
 reflow content while preserving focus and keeping the next action reachable. Long
 values wrap or scroll inside their own box, except an option's name in a
 choice panel, which the library shortens with an ellipsis; wide tables scroll
-inside their own container, never the page. Menus are viewport overlays: they collision-position
+inside their own container, never the page. A table's frame never traps the
+wheel: when it has nothing more to scroll in that direction, the page scrolls.
+Only overlays — menus, choice panels, informers — keep the wheel to themselves. Menus are viewport overlays: they collision-position
 above or below their trigger and never extend a table's scroll area. A screen
 that unexpectedly jumps during a background update fails this contract.
 On the profile page the composition panel holds a standing height, so a notice
@@ -756,10 +770,12 @@ address field takes"), so a reader moving between them can tell them apart. The 
 text is also kept in the field, visually hidden, and the control is described by
 it together with the error that is actually shown, so a reader hears it without
 opening the informer. Under the control there is only the error. The `label-aside`
-slot is the label row's place for any other small control. The field keeps one line for
-that error whether or not it is shown, so a refused value stated on leaving the
-field never moves the controls below it: a press aimed at the button under the
-field, made in the same motion that leaves it, still lands on the button. An
+slot is the label row's place for any other small control. The field draws its
+error only while there is one and keeps no empty line for it; forms state errors
+once their submit was pressed, never on leaving a field, so an error never
+appears in the middle of a press aimed at a button below. A control that shares
+a row with the field, such as «Сохранить пароль», sits inside the field beside
+its input, so the error runs under both. An
 error that arrives while focus is elsewhere is announced by a live region that
 stands from the first draw of the field and only receives the text; a region
 that appears together with its text is not reliably announced. A file
@@ -770,7 +786,7 @@ opacity of its own. A
 panel opened from a field is aligned to its leading edge and never narrower
 than it; a single choice or name field is `--rv-measure-field` wide; a stack of
 dialogs dims the page once.
-Composition selection is the shared `ServicePicker` entity used by the create
+Composition selection is the shared `ListPicker` entity used by the create
 and edit flows, and its list card is one modal `RvDialog`. There is
 one button, one status mark, one fact ledger, one icon set. A refresh command
 carries the refresh glyph and turns that glyph in place while its sources are
@@ -799,7 +815,7 @@ it is unavailable, and its opacity stays whole: no such control is dimmed by
 lowering opacity, which would leave it looking like the enabled control beside
 it. The control keeps what states its value without colour: a switch its
 position, with the accent at low emphasis while it is on, a segmented choice its
-check mark and edge, a file picker its dashed edge, a pressed filter chip the
+raised ground and a stronger edge, a file picker its dashed edge, a pressed filter chip the
 accent at low emphasis. A quiet control — a menu trigger, a handle, a dialog's
 close control — has no ground or edge at rest, so it gives up none and takes
 the disabled ink alone. Each component owns its own disabled rule and the
@@ -807,7 +823,13 @@ library's lowered opacity is overridden there. Only the row a drag leaves
 behind is faded, with `--rv-drag-ghost-opacity`; it is a placeholder, not a
 control.
 Icons are hand-set 16-unit strokes, always decorative, always beside or behind an accessible name
-— navigation and menus never go icon-only. A feature that needs a different
+— navigation and menus never go icon-only. A repeated row action in a table,
+such as Download or Send on the Publishing tab, may be an icon-only button: its
+accessible name says what it acts on and a tooltip shows that name. Every item
+of an action menu carries a glyph, as do commands that a sibling command with a
+glyph stands beside; form actions such as Save and Cancel carry none. A menu
+whose items are mutually exclusive settings, such as «Новые списки», uses its
+glyph column for the check mark of the current setting instead. A feature that needs a different
 look asks for a role or a variant, never a parallel class. A component is a
 black box: a host styles its own root class, passes props or fills a slot.
 

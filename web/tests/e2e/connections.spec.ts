@@ -15,7 +15,7 @@ import { localConfigAddress } from './support/environment'
 import { buildProfile, openFormats } from './support/flows'
 import {
   addConnectionField,
-  catalogDisclosure,
+  chooseFormatAction,
   choiceSearch,
   deliveryField,
   deviceField,
@@ -71,25 +71,24 @@ test('hiding a format in Settings removes it from the connection picker', async 
     page.getByRole('heading', { level: 1, name: 'Connections' }),
   ).toBeVisible()
 
-  // What this build can talk to at all is reference material behind one
-  // disclosure, under the connections the operator actually made.
-  // A disclosure keeps its contents out of the page until it is opened, so
-  // nothing of the catalog's table is on screen yet.
+  // The page carries no reference of formats: no disclosure, no table. Which
+  // formats exist and which the composer offers is Settings' to say, and
+  // whether a format can be delivered to automatically is the note of its
+  // option in the form that registers a connection.
+  await expect(
+    page.getByRole('button', { name: 'Supported formats' }),
+  ).toHaveCount(0)
   await expect(page.getByRole('columnheader')).toHaveCount(0)
-  await catalogDisclosure(page).click()
-  await expect(page.getByRole('columnheader')).toHaveText([
-    'Name',
-    'Type',
-    'File',
-    'Automatic delivery',
-  ])
-  const keeneticRow = page.getByRole('row').filter({ hasText: 'Keenetic' })
-  await expect(keeneticRow).toContainText('Router')
-  await expect(keeneticRow).toContainText('.bat')
-  await expect(keeneticRow).toContainText('Yes')
-  // The reference states what the catalog carries; what the composer offers
-  // is a preference, and it lives in Settings.
   await expect(page.getByRole('checkbox')).toHaveCount(0)
+  await page
+    .getByRole('button', { name: 'Add a connection', exact: true })
+    .click()
+  await deviceField(page, 'devices.field.target').click()
+  await expect(page.getByRole('option', { name: /^Keenetic/ })).toContainText(
+    'Can be delivered automatically',
+  )
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('listbox')).toHaveCount(0)
 
   // Hiding is a preference of this browser, kept under its own key.
   await page
@@ -130,7 +129,7 @@ test('hiding a format in Settings removes it from the connection picker', async 
   ).toBeVisible()
 
   await expect(
-    page.getByRole('heading', { name: 'Subscription link · sing-box' }),
+    page.getByRole('button', { name: 'Subscription link · sing-box' }),
   ).toBeVisible()
   await addConnectionField(page).click()
   const outputFormats = page.getByRole('listbox')
@@ -296,7 +295,7 @@ test('the device form asks only for fields the selected target needs', async ({
     page.getByRole('region', { name: 'Add a connection', exact: true }),
   ).toHaveCount(0)
   await expect(
-    page.getByRole('button', { name: /^Configure connection / }),
+    page.getByRole('button', { name: /^Local client / }),
   ).toHaveCount(1)
   await expect(addConnection).toBeEnabled()
   await addConnection.click()
@@ -305,17 +304,17 @@ test('the device form asks only for fields the selected target needs', async ({
   await expect(deviceField(page, 'devices.field.name')).toHaveValue('')
   await page
     .getByRole('button', {
-      name: 'Configure connection Local client',
-      exact: true,
+      name: /^Local client /,
     })
     .click()
   const details = page.getByRole('region', {
     name: 'Local client',
     exact: true,
   })
+  // The address is the first parameter, shown in its own field.
   await expect(
-    details.getByText(localConfigAddress(), { exact: true }),
-  ).toBeVisible()
+    deviceField(details, 'deploy.field.address.singbox'),
+  ).toHaveValue(localConfigAddress())
   await expect(page.getByRole('dialog')).toHaveCount(0)
   // The list's own heading is not the page's: one heading says «Connections».
   await expect(
@@ -343,8 +342,7 @@ test('the device form asks only for fields the selected target needs', async ({
   await expect(renamed).toBeVisible()
   await expect(
     page.getByRole('button', {
-      name: 'Configure connection Local client v2',
-      exact: true,
+      name: /^Local client v2 /,
     }),
   ).toBeVisible()
 
@@ -371,7 +369,7 @@ test('the device form asks only for fields the selected target needs', async ({
     page.getByRole('button', { name: 'Add a connection', exact: true }),
   ).toBeEnabled()
   await expect(
-    page.getByRole('button', { name: /^Configure connection / }),
+    page.getByRole('button', { name: /^Local client / }),
   ).toHaveCount(0)
 })
 
@@ -425,13 +423,9 @@ test('an output can be explicitly bound to and detached from a compatible device
   const copyByStore = {
     false: {
       device: 'outputs.device.unavailable',
-      readiness: 'outputs.readiness.unavailable',
-      absent: 'outputs.readiness.auto',
     },
     true: {
       device: 'outputs.device.disabled',
-      readiness: 'outputs.readiness.auto',
-      absent: 'outputs.readiness.unavailable',
     },
   } as const
   const expectedCopy =
@@ -476,19 +470,14 @@ test('an output can be explicitly bound to and detached from a compatible device
   await page.reload()
   await publishingTab.click()
   await expect(binding).toHaveText(deviceName)
+  // The connection cell holds the choice alone; the way to the connection is
+  // the row menu's item, and Send is the row's named icon action.
+  await chooseFormatAction(page, 'Keenetic', 'outputs.menu.open', englishCopy)
+  await page.waitForURL(`${origin}/connections#connection=${deviceID}`)
+  await page.goBack()
+  await publishingTab.click()
   await expect(
-    publishing.getByText(englishCopy(expectedCopy.readiness), { exact: true }),
-  ).toBeVisible()
-  await expect(
-    publishing.getByText(englishCopy(expectedCopy.absent), { exact: true }),
-  ).toHaveCount(0)
-  await expect(
-    publishing.getByText(englishCopy('outputs.readiness.ready.router'), {
-      exact: true,
-    }),
-  ).toHaveCount(0)
-  await expect(
-    publishing.getByRole('link', { name: 'Send', exact: true }),
+    publishing.getByRole('link', { name: 'Send Keenetic', exact: true }),
   ).toHaveAttribute('href', `/profiles/${profileId}/send/${outputId}`)
 
   const [detachedResponse] = await Promise.all([
@@ -508,13 +497,6 @@ test('an output can be explicitly bound to and detached from a compatible device
   await page.reload()
   await publishingTab.click()
   await expect(binding).toHaveText(none)
-  // The operator left the row without a connection, and this connection does
-  // not deliver on its own: nothing is demanded of the row.
-  await expect(
-    publishing.getByText(englishCopy('outputs.readiness.choose'), {
-      exact: true,
-    }),
-  ).toHaveCount(0)
 
   const forgotten = await page.request.post(
     `${origin}/v1/devices/${deviceID}/forget`,

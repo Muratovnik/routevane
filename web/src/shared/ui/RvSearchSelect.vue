@@ -33,6 +33,16 @@ const props = defineProps<{
   loading?: boolean
   loadingLabel?: string
   size?: 'default' | 'compact'
+  /**
+   * Draws the compact trigger as a filter chip: a chip's ink, ground and edge
+   * at rest, so a trigger among chips is not brighter than they are.
+   */
+  chip?: boolean
+  /**
+   * With `chip`, whether the trigger names a chosen value, so that it takes the
+   * pressed chip's accent as the chips beside it do when they are chosen.
+   */
+  marked?: boolean
   placeholder: string
   triggerLabel?: string
   searchLabel?: string
@@ -281,7 +291,14 @@ const choosePalette = (value: unknown): void => {
          same outlined ground, which is the library variant nearest to them. -->
     <UButton
       v-bind="triggerId"
-      :class="field ? 'rv-search-select' : 'rv-search-select__trigger'"
+      :class="[
+        field ? 'rv-search-select' : 'rv-search-select__trigger',
+        {
+          'rv-search-select__trigger--chip': !field && chip === true,
+          'rv-search-select__trigger--marked':
+            !field && chip === true && marked === true,
+        },
+      ]"
       :aria-busy="loading === true ? 'true' : undefined"
       :aria-describedby="describedBy"
       :aria-invalid="invalid === true ? 'true' : undefined"
@@ -358,6 +375,23 @@ const choosePalette = (value: unknown): void => {
 
 .rv-search-select__trigger {
   min-height: var(--rv-control-compact);
+}
+
+/* The chip look is written from the product's own tokens, not from the
+   library's colour roles: the library resolves its roles once at the root, so a
+   host cannot re-tint the trigger by setting them around it. */
+.rv-search-select__trigger--chip {
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+  font-weight: inherit;
+  background: var(--rv-color-surface);
+  border-radius: var(--rv-radius-md);
+  box-shadow: inset 0 0 0 var(--rv-border-hair) var(--rv-color-rule);
+}
+
+.rv-search-select__trigger--marked {
+  color: var(--rv-color-accent-ink);
+  background: var(--rv-color-accent-quiet);
 }
 
 /* A trigger that cannot be used now is flat, dimmer and drawn with the faint

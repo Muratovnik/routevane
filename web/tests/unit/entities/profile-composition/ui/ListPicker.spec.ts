@@ -394,6 +394,68 @@ describe('ListPicker', () => {
     })
   })
 
+  // The two answers of the live reference are both named in the menu, with a
+  // mark on the one in force, so the names start on one line.
+  it('marks the answer in force in the new-lists menu', async () => {
+    const screen = await renderPicker()
+    await screen.getByRole('button', { name: /^Communication/ }).click()
+
+    await screen.getByRole('button', { name: 'Follow “Communication”' }).click()
+    const automatic = screen.getByRole('menuitem', {
+      name: 'Automatically include new lists in this category',
+    })
+    const manual = screen.getByRole('menuitem', {
+      name: 'Select new lists manually',
+    })
+    await expect.element(manual.getByTestId('rv-icon')).toBeVisible()
+    await expect
+      .element(automatic.getByTestId('rv-icon'))
+      .not.toBeInTheDocument()
+    expect(
+      Math.abs(
+        automatic
+          .getByText('Automatically', { exact: false })
+          .element()
+          .getBoundingClientRect().left -
+          manual
+            .getByText('Select new lists manually')
+            .element()
+            .getBoundingClientRect().left,
+      ),
+    ).toBeLessThanOrEqual(1)
+  })
+
+  // What a table with no row says depends on what hides the rows. The empty
+  // query is never quoted back.
+  it('says which filter leaves the table empty', async () => {
+    const screen = await renderPicker({
+      categories: [
+        { custom: true, id: 'empty-shelf', lists: [], title: 'Пусто' },
+        ...CATEGORIES,
+      ],
+    })
+
+    await screen.getByLabelText(FIND_A_LIST).fill('no such list')
+    await expect
+      .element(screen.getByText('Nothing matches “no such list”'))
+      .toBeVisible()
+    await screen.getByLabelText(FIND_A_LIST).fill('')
+
+    await screen.getByRole('button', { name: /^In profile/ }).click()
+    await expect
+      .element(screen.getByText('No list is selected yet.'))
+      .toBeVisible()
+    await screen.getByRole('button', { name: /^In profile/ }).click()
+
+    await screen.getByRole('button', { name: /^Пусто/ }).click()
+    await expect
+      .element(screen.getByText('The chosen categories hold no lists.'))
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('Nothing matches', { exact: false }))
+      .not.toBeInTheDocument()
+  })
+
   /**
    * Selection is a checkbox and nothing else (ADR 0029). What a category holds,
    * what a list holds and whether either exists are the library's subject, so

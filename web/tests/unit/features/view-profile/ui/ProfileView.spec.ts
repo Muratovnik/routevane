@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render } from 'vitest-browser-vue'
 
-import { usePublishedProfile } from '@/entities/profile-build/model/publishedProfile'
+import {
+  usePublishedProfile,
+  type FreshBuild,
+} from '@/entities/profile-build/model/publishedProfile'
 import { invalidateCatalogCache } from '@/shared/api/catalog'
 import { useLocale } from '@/shared/i18n/useLocale'
 
@@ -230,7 +233,8 @@ describe('profile screen read boundaries', () => {
 
     await screen.getByRole('tab', { name: 'Publishing' }).click()
     const publishing = screen.getByRole('tabpanel', { name: 'Publishing' })
-    // The choice is named by the connection; what it can do is stated once.
+    // The choice is named by the connection alone; the cell states nothing
+    // else, and Send stays an icon named for the format.
     await expect
       .element(publishing.getByLabelText('Connection for Keenetic'))
       .toHaveTextContent('Home router')
@@ -238,19 +242,11 @@ describe('profile screen read boundaries', () => {
       .element(publishing.getByLabelText('Connection for Keenetic'))
       .not.toHaveTextContent('·')
     await expect
-      .element(
-        publishing.getByText(
-          'This system has no password store: manual sending only',
-          { exact: true },
-        ),
-      )
-      .toBeVisible()
-    await expect
-      .element(publishing.getByRole('link', { name: 'Send', exact: true }))
-      .toHaveAttribute('href', '/profiles/profile-1/send/output-1')
-    await expect
       .element(publishing.getByText('Automatic delivery is off'))
       .not.toBeInTheDocument()
+    await expect
+      .element(publishing.getByRole('link', { name: 'Send Keenetic' }))
+      .toHaveAttribute('href', '/profiles/profile-1/send/output-1')
   })
 
   it('shows loading, then a failed read with retry, then the recovered profile', async () => {
@@ -465,6 +461,211 @@ it('keeps the saved schedule on refusal and retries the requested interval', asy
   ).toHaveLength(2)
 })
 
+// The header states the files' condition only while something is missing or
+// wrong; every other state has a notice of its own, and a profile whose formats
+// are built and current says nothing there.
+describe('profile header status', () => {
+  const headerText = async (
+    screen: Awaited<ReturnType<typeof renderRoute>>,
+  ): Promise<string> => {
+    const title = screen.getByRole('heading', {
+      level: 1,
+      name: 'Known profile',
+    })
+    await expect.element(title).toBeVisible()
+    return title.element().closest('header')?.textContent ?? ''
+  }
+
+  it('carries no status for a profile whose formats are published', async () => {
+    installFetch()
+    const screen = await renderRoute()
+
+    const header = await headerText(screen)
+    expect(header).not.toMatch(/published|failed|Archived/i)
+  })
+
+  it('says so when nothing is published and nothing failed', async () => {
+    installFetch({ published: false })
+    const screen = await renderRoute()
+
+    expect(await headerText(screen)).toContain('No published files')
+  })
+
+  it('names a first build that published nothing, with its notice below', async () => {
+    installFetch({ failedRebuild: true, published: false })
+    const screen = await renderRoute()
+
+    expect(await headerText(screen)).toContain('Build failed')
+    await expect
+      .element(screen.getByRole('button', { name: 'Rebuild files' }))
+      .toBeVisible()
+  })
+
+  it('leaves a failed refresh of a published file to its notice', async () => {
+    installFetch({ failedRebuild: true })
+    const screen = await renderRoute()
+
+    expect(await headerText(screen)).not.toMatch(/failed/i)
+    await expect.element(screen.getByText('Format not updated')).toBeVisible()
+  })
+})
+
+describe('profile menu', () => {
+  it('draws a glyph on every item, «Add a format…» included', async () => {
+    installFetch()
+    const screen = await render(ProfileView, {
+      props: { profileId: 'profile-1' },
+      global: {
+        stubs: {
+          OutputsPanel: true,
+          ProfileEditor: true,
+          RvInfoTip: true,
+          NuxtLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
+        },
+      },
+    })
+
+    await screen
+      .getByRole('button', { name: 'Actions for profile Known profile' })
+      .click()
+    await expect
+      .element(screen.getByRole('menuitem', { name: 'Add a format…' }))
+      .toBeVisible()
+    const unmarked = screen
+      .getByRole('menuitem')
+      .all()
+      .filter(
+        (item) =>
+          item.element().querySelector('[data-testid="rv-icon"]') === null,
+      )
+      .map((item) => item.element().textContent?.trim())
+    expect(unmarked).toEqual([])
+  })
+})
+
+describe('subscription link block', () => {
+  let issued = 0
+  // Every case issues a link of its own: the tab remembers which links it has
+  // already opened the block for, and a case is not the setup of the next one.
+  const link = (): string => {
+    issued += 1
+    return `http://example.test/v1/subscriptions/rv1.secret${issued}`
+  }
+  const build = (subscriptionURL: string): FreshBuild => ({
+    output: {
+      id: 'output-1',
+      profileID: 'profile-1',
+      targetID: 'keenetic',
+      deviceID: '',
+    },
+    subscriptionURL,
+    artifactID: 'artifact-1',
+    artifactHash: 'fixture-hash',
+    snapshotID: 'snapshot-1',
+    contentCreatedAt: TIMESTAMP,
+    validationStatus: 'valid',
+    status: 'published',
+    ruleCount: 1,
+    partialCoverage: false,
+    partialCoverageCount: 0,
+    rendererID: 'fixture',
+    rendererVersion: '1',
+    contentType: 'text/plain',
+    degradedSources: [],
+    stale: false,
+  })
+  const summary = (screen: Awaited<ReturnType<typeof renderRoute>>) =>
+    screen.getByRole('button', { name: 'Subscription link · Keenetic' })
+
+  it('stays collapsed on a later visit to a link already shown, and opens by itself for a new one', async () => {
+    installFetch()
+    const first = link()
+    usePublishedProfile().publish(build(first))
+    const arrival = await renderRoute()
+    await expect
+      .element(summary(arrival))
+      .toHaveAttribute('aria-expanded', 'true')
+    await arrival.unmount()
+
+    const later = await renderRoute()
+    await expect.element(summary(later)).toBeVisible()
+    await expect
+      .element(summary(later))
+      .toHaveAttribute('aria-expanded', 'false')
+    // The link is the only moment the secret can be read: issuing another
+    // opens the block on the page that is open.
+    usePublishedProfile().publish(build(link()))
+    await expect
+      .element(summary(later))
+      .toHaveAttribute('aria-expanded', 'true')
+  })
+
+  // A link counts as shown only once its block has been on the page: a page
+  // left before the profile loaded has shown nobody anything, and the link,
+  // readable once, must still open the block on the next visit. (Today the
+  // link only becomes known together with the loaded profile, so this guards
+  // the invariant rather than a reachable window.)
+  it('opens on the next visit when the page was left before the profile loaded', async () => {
+    const held = Promise.withResolvers<undefined>()
+    installFetch({ holdRoute: held.promise })
+    usePublishedProfile().publish(build(link()))
+    const early = await renderRoute()
+    await expect
+      .element(early.getByRole('status', { name: LOADING }))
+      .toBeVisible()
+    expect(summary(early).elements()).toHaveLength(0)
+    await early.unmount()
+    held.resolve(undefined)
+
+    installFetch()
+    const later = await renderRoute()
+    await expect
+      .element(summary(later))
+      .toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('opens when a link is reissued while the page is open', async () => {
+    installFetch()
+    const screen = await renderRoute()
+    await expect
+      .element(screen.getByRole('heading', { level: 1, name: 'Known profile' }))
+      .toBeVisible()
+    await expect.element(summary(screen)).not.toBeInTheDocument()
+
+    usePublishedProfile().publish(build(link()))
+    await expect
+      .element(summary(screen))
+      .toHaveAttribute('aria-expanded', 'true')
+    await expect
+      .element(screen.getByRole('button', { name: 'Copy', exact: true }))
+      .toBeVisible()
+  })
+
+  it('masks the link again once the block is collapsed', async () => {
+    installFetch()
+    const secret = link()
+    usePublishedProfile().publish(build(secret))
+    const screen = await renderRoute()
+    const region = screen.getByRole('region', {
+      name: 'Subscription link · Keenetic',
+    })
+
+    await expect.element(region).not.toMatchTextContent('rv1.')
+    await screen.getByRole('button', { name: 'Show', exact: true }).click()
+    await expect.element(region).toMatchTextContent(secret)
+
+    await summary(screen).click()
+    await expect
+      .element(summary(screen))
+      .toHaveAttribute('aria-expanded', 'false')
+    await summary(screen).click()
+    await expect.element(region).not.toMatchTextContent('rv1.')
+    await expect
+      .element(screen.getByRole('button', { name: 'Show', exact: true }))
+      .toBeVisible()
+  })
+})
+
 // A write on one facet re-reads the profile. The page that asked for it stays
 // mounted through that read: the facets it is not showing hold the operator's
 // unsaved work, and a skeleton in their place would discard it (docs/UI.md,
@@ -546,7 +747,7 @@ describe('profile re-read after a write', () => {
       .toBeVisible()
     await expect
       .element(screen.getByRole('heading', { level: 1 }))
-      .toHaveTextContent('Known profile')
+      .toMatchTextContent('Known profile')
     await expect.element(publishing).toBeVisible()
     await expect
       .element(screen.getByText('Profiles are unavailable'))

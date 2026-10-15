@@ -1,12 +1,12 @@
 /**
  * A button that stands beside a field stands on the field's control.
  *
- * A field keeps one line under its control for its error whether or not an
- * error is in it (`field-error-space.spec.ts`). A button that is bottom-aligned
- * to the field's cell, not to its control, would therefore sit that line below
- * the control it acts for. This suite measures the three places where a button
- * shares a row with a field: the saved-password form, the list card's rename
- * and the profile's Publishing toolbar.
+ * A field keeps no line for its error: an error exists only after Save has
+ * found a problem (`field-error-space.spec.ts`), and a button beside the field
+ * stands in the field's own row (the saved-password form) or on its control's
+ * bottom edge. This suite measures the places where a button shares a row with
+ * a field: the saved-password form, the list card's rename and the profile's
+ * Publishing toolbar.
  *
  * The worker fixture in `support/served-product.ts` serves this suite alone,
  * over the data directory named below.

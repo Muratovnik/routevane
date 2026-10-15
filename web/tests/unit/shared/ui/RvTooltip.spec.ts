@@ -9,7 +9,11 @@ import RvTooltip from '@/shared/ui/RvTooltip.vue'
 // hidden node inside it), so it is read through its hook.
 const panel = () => page.getByTestId('rv-tooltip')
 
-const renderTooltip = (props: { disabled?: boolean; text: string }) =>
+const renderTooltip = (props: {
+  disabled?: boolean
+  side?: 'top' | 'right' | 'bottom' | 'left'
+  text: string
+}) =>
   render(
     defineComponent({
       setup: () => () =>
@@ -17,7 +21,7 @@ const renderTooltip = (props: { disabled?: boolean; text: string }) =>
           h(RvTooltip, props, () =>
             h('button', { type: 'button' }, 'Collapse sidebar'),
           ),
-          // Well clear of the panel, which opens to the trigger's right.
+          // Well clear of the panel, which opens beside the trigger.
           h('p', { style: 'margin-top: 12rem' }, [
             h('button', { type: 'button' }, 'Elsewhere'),
           ]),
@@ -58,6 +62,20 @@ describe('RvTooltip', () => {
 
     await screen.getByRole('button', { name: 'Elsewhere' }).hover()
     await expect.element(panel()).not.toBeInTheDocument()
+  })
+
+  // The panel opens on the side the caller asks for, as far as the viewport
+  // leaves room; bottom is the side the page always has room on here.
+  it('opens below its trigger when asked to', async () => {
+    const screen = await renderTooltip({ side: 'bottom', text: 'Lists' })
+    const trigger = screen.getByRole('button', { name: 'Collapse sidebar' })
+
+    await trigger.hover()
+    await expect.element(panel()).toBeVisible()
+    await expect.element(panel()).toHaveAttribute('data-side', 'bottom')
+    expect(
+      panel().element().getBoundingClientRect().top,
+    ).toBeGreaterThanOrEqual(trigger.element().getBoundingClientRect().bottom)
   })
 
   // The sidebar's tooltips stand down while the sidebar is wide enough to name

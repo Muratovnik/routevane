@@ -30,6 +30,12 @@ const renderFilter = (props: Record<string, unknown> = {}) =>
     },
   })
 
+// The painted style of a trigger that is named for the collection it filters.
+const style = (name: string) =>
+  getComputedStyle(
+    page.getByRole('button', { name: `${name}: More` }).element(),
+  )
+
 describe('RvSearchSelect, compact', () => {
   it('names its trigger by the collection and what it shows', async () => {
     const screen = await renderFilter({ triggerLabel: 'Video, Games' })
@@ -276,10 +282,6 @@ describe('RvSearchSelect, unavailable', () => {
         await renderFilter({ label: 'Open formats' })
         await renderFilter({ disabled: true, label: 'Closed formats' })
 
-        const style = (name: string) =>
-          getComputedStyle(
-            page.getByRole('button', { name: `${name}: More` }).element(),
-          )
         const on = style('Open formats')
         const off = style('Closed formats')
         expect(off.color).toBe(paintedToken('--rv-color-ink-disabled'))
@@ -289,6 +291,32 @@ describe('RvSearchSelect, unavailable', () => {
         expect(
           contrast(off.color, paintedToken('--rv-color-canvas')),
         ).toBeGreaterThanOrEqual(3)
+      })
+    },
+  )
+})
+
+// Among filter chips the trigger rests as an unpressed chip does and takes the
+// pressed chip's accent only while it names a chosen value.
+describe('RvSearchSelect, as a chip', () => {
+  it.each(['dark', 'light'] as const)(
+    'rests in the chip ink and takes the accent when marked in the %s theme',
+    async (theme) => {
+      await inTheme(theme, async () => {
+        await renderFilter({ chip: true, label: 'Resting' })
+        await renderFilter({ chip: true, label: 'Chosen', marked: true })
+        await renderFilter({ label: 'Library' })
+
+        const rest = style('Resting')
+        const chosen = style('Chosen')
+        expect(rest.color).toBe(paintedToken('--rv-color-ink-muted'))
+        expect(rest.backgroundColor).toBe(paintedToken('--rv-color-surface'))
+        expect(chosen.color).toBe(paintedToken('--rv-color-accent-ink'))
+        expect(chosen.backgroundColor).toBe(
+          paintedToken('--rv-color-accent-quiet'),
+        )
+        // Without the chip look the trigger keeps the library's own ink.
+        expect(style('Library').color).not.toBe(rest.color)
       })
     },
   )

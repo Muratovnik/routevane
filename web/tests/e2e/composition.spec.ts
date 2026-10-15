@@ -223,6 +223,27 @@ test('the composition table blocks unselected drags and bulk-selects only its ca
   assertProductAlive()
 })
 
+// The «More» trigger is the choice panel's own button. At rest it stands among
+// the chips and is not brighter than they are.
+test('the More trigger rests in the ink and ground of an unpressed category chip', async ({
+  page,
+  origin,
+}) => {
+  await page.setViewportSize({ height: 900, width: 1440 })
+  await page.goto(`${origin}/profiles/new`)
+  const more = categoryMore(page)
+  await expect(more).toBeVisible()
+  const chip = categoryFilters(page)
+    .getByRole('button', { pressed: false })
+    .first()
+  const look = (locator: typeof more): Promise<string[]> =>
+    locator.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return [style.color, style.backgroundColor]
+    })
+  expect(await look(more)).toEqual(await look(chip))
+})
+
 test('the composition editor keeps its geometry across selections and shell breakpoints', async ({
   page,
   origin,

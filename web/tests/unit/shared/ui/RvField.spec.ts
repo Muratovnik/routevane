@@ -33,6 +33,17 @@ const TextField = defineComponent({
     </RvField>`,
 })
 
+// The same field in a column narrower than a long sentence, so the error has to
+// wrap to be read whole.
+const NarrowField = defineComponent({
+  components: { TextField },
+  props: { error: { type: String, default: undefined } },
+  template: `<div style="width: 12rem"><TextField :error="error" /></div>`,
+})
+
+const heightOf = (screen: { container: Element }): number =>
+  screen.container.firstElementChild!.getBoundingClientRect().height
+
 const describedTexts = (element: Element): string[] =>
   (element.getAttribute('aria-describedby') ?? '')
     .split(' ')
@@ -69,6 +80,64 @@ describe('RvField', () => {
     await expect
       .element(screen.getByLabelText('Address', { exact: true }))
       .not.toHaveAttribute('aria-describedby')
+  })
+
+  // Empty, the region that stands for an announced error takes no room: the
+  // field is as tall as one that has none.
+  it('takes no room for an announced error until it holds one', async () => {
+    const screen = await render(TextField)
+    const bare = heightOf(screen)
+    await screen.rerender({ announceError: true })
+    const region = screen.getByRole('alert')
+    await expect.element(region).toBeEmptyDOMElement()
+    expect(region.element().getBoundingClientRect().height).toBe(0)
+    expect(heightOf(screen)).toBe(bare)
+
+    await screen.rerender({ error: 'The file could not be read.' })
+    expect(heightOf(screen)).toBeGreaterThan(bare)
+  })
+
+  // The field keeps no line for an error. Nothing is drawn under the control
+  // until there is a reason to, the reason takes the room it needs, and when it
+  // goes the room goes with it.
+  it('draws no room for an error until there is one and gives it back', async () => {
+    const screen = await render(TextField)
+    const empty = heightOf(screen)
+
+    await screen.rerender({ error: 'Enter the address.' })
+    await expect.element(screen.getByText('Enter the address.')).toBeVisible()
+    expect(heightOf(screen)).toBeGreaterThan(empty)
+
+    await screen.rerender({ error: undefined })
+    await expect
+      .element(screen.getByText('Enter the address.'))
+      .not.toBeInTheDocument()
+    expect(heightOf(screen)).toBe(empty)
+
+    await screen.rerender({ error: '' })
+    expect(heightOf(screen)).toBe(empty)
+  })
+
+  it('wraps a long error whole instead of cutting it', async () => {
+    const error =
+      'The address must be a host name or an IPv4 address followed by a port.'
+    const screen = await render(NarrowField, { props: { error } })
+
+    const text = screen.getByText(error)
+    await expect.element(text).toBeVisible()
+    const style = getComputedStyle(text.element())
+    expect(style.whiteSpace).toBe('normal')
+    expect(style.textOverflow).not.toBe('ellipsis')
+    const box = text.element().getBoundingClientRect()
+    expect(box.height).toBeGreaterThan(parseFloat(style.lineHeight) * 1.5)
+    expect(text.element().scrollWidth).toBeLessThanOrEqual(box.width)
+    await expect.element(text).not.toHaveAttribute('title')
+    // It still describes the control, in full.
+    expect(
+      describedTexts(
+        screen.getByLabelText('Address', { exact: true }).element(),
+      ),
+    ).toEqual([error])
   })
 
   it('keeps ordinary inline errors out of a live region', async () => {

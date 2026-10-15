@@ -271,11 +271,8 @@ const onForget = async (): Promise<void> => {
           <RvIcon :name="targetIcon(connection.targetID)" />
           <span class="connection__name-text">{{ connection.name }}</span>
         </h2>
-        <p class="connection__meta">
-          {{ targetTitle }}
-          <span aria-hidden="true"> · </span>
-          <span class="connection__address">{{ connection.address }}</span>
-        </p>
+        <!-- The address is the first parameter, in its field right below. -->
+        <p class="connection__meta">{{ targetTitle }}</p>
       </div>
       <RvMenu
         :disabled="disabled"
@@ -305,7 +302,7 @@ const onForget = async (): Promise<void> => {
         <RvButton
           :disabled="devices.requirementsState.value === 'loading'"
           @click="devices.retryRequirements"
-          >{{ t('action.retry') }}</RvButton
+          ><RvIcon name="refresh" />{{ t('action.retry') }}</RvButton
         >
       </template>
     </RvStateNotice>
@@ -410,7 +407,9 @@ const onForget = async (): Promise<void> => {
           :loading-label="t('devices.forget')"
           variant="danger"
           @click="onForget"
-          >{{ t('devices.forget') }}</RvButton
+          ><RvIcon v-if="!devices.busy.value" name="trash" />{{
+            t('devices.forget')
+          }}</RvButton
         >
       </template>
     </RvDialog>
@@ -420,7 +419,7 @@ const onForget = async (): Promise<void> => {
 <style scoped>
 .connection {
   display: grid;
-  gap: var(--rv-space-6);
+  gap: var(--rv-space-8);
   align-content: start;
   min-width: 0;
   padding: var(--rv-space-6);
@@ -463,10 +462,6 @@ const onForget = async (): Promise<void> => {
   overflow-wrap: anywhere;
 }
 
-.connection__address {
-  font-family: var(--rv-font-mono);
-}
-
 .connection__part {
   display: grid;
   gap: var(--rv-space-4);
@@ -483,7 +478,7 @@ const onForget = async (): Promise<void> => {
 
 .connection__form {
   display: grid;
-  gap: var(--rv-space-4);
+  gap: var(--rv-space-5);
   min-width: 0;
 }
 

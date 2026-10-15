@@ -67,6 +67,14 @@ watch(
   },
 )
 
+// The dialog is named for the act it is taking: the segmented choice changes
+// what the form does, so it changes what the dialog says it is.
+const dialogTitle = computed(() =>
+  mode.value === 'existing' && !props.createdPendingAttachment
+    ? t('lists.list.existing.title')
+    : t('lists.list.new'),
+)
+
 const parsedDomains = (): string[] | null => {
   const result: string[] = []
   const lines = domains.value.split(/\r?\n/)
@@ -130,7 +138,7 @@ const submit = async (): Promise<void> => {
     :close-label="t('action.close')"
     :dismissible="!busy"
     :open="open"
-    :title="t('lists.list.new')"
+    :title="dialogTitle"
     variant="panel"
     @update:open="$event === false && emit('close')"
   >
@@ -163,6 +171,7 @@ const submit = async (): Promise<void> => {
           </template>
         </RvField>
         <RvField
+          class="list-sheet__field"
           :error="domainsError"
           :info="t('listCard.new.domains.hint')"
           input-id="library-list-domains"

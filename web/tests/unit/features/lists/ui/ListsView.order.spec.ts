@@ -41,6 +41,50 @@ describe('the library default order', () => {
     await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
   })
 
+  // Priority numbers are visible: the handle prints the row's position beside
+  // its glyph, and the unsaved order says so beside its two acts.
+  it('prints each position beside its handle and says the order is unsaved', async () => {
+    stubAPI(catalogRoutes())
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
+
+    const handles = () =>
+      screen.getByRole('button', { name: /^Change priority of list/ })
+    const printed = () =>
+      handles()
+        .elements()
+        .map((handle) => handle.textContent?.trim())
+    expect(printed()).toEqual(['1', '2', '3', '4'])
+    await expect
+      .element(screen.getByText('Unsaved changes'))
+      .not.toBeInTheDocument()
+
+    const discord = screen.getByRole('button', {
+      name: 'Change priority of list Discord, position 1',
+    })
+    discord.element().focus()
+    await userEvent.keyboard('{ArrowDown}')
+
+    // The moved list prints its new position and still names it.
+    await expect
+      .element(
+        screen.getByRole('button', {
+          name: 'Change priority of list Discord, position 2',
+        }),
+      )
+      .toHaveTextContent('2')
+    expect(printed()).toEqual(['1', '2', '3', '4'])
+    await expect.element(screen.getByText('Unsaved changes')).toBeVisible()
+    await expect
+      .element(screen.getByRole('button', { name: 'Reset order' }))
+      .toBeVisible()
+
+    await screen.getByRole('button', { name: 'Reset order' }).click()
+    await expect
+      .element(screen.getByText('Unsaved changes'))
+      .not.toBeInTheDocument()
+  })
+
   // The service answering with an error and the service not answering ask for
   // different things, so the notice says which one happened.
   it.each([

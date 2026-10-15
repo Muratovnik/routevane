@@ -77,10 +77,8 @@ describe('DevicesView arrival from a link to one connection', () => {
       .element(screen.getByRole('heading', { name: 'First router' }))
       .not.toBeInTheDocument()
     await expect
-      .element(
-        screen.getByRole('button', { name: /Second router/, pressed: true }),
-      )
-      .toBeVisible()
+      .element(screen.getByRole('button', { name: /^Second router / }))
+      .toHaveAttribute('aria-current', 'true')
   })
 
   it('opens the first connection when the named one does not exist', async () => {
@@ -135,10 +133,8 @@ describe('DevicesView after a failed first read', () => {
       .element(screen.getByRole('heading', { name: 'First router' }))
       .toBeVisible()
     await expect
-      .element(
-        screen.getByRole('button', { name: /First router/, pressed: true }),
-      )
-      .toBeVisible()
+      .element(screen.getByRole('button', { name: /^First router / }))
+      .toHaveAttribute('aria-current', 'true')
   })
 
   it('opens the connection a link named, with the keyboard on its heading', async () => {

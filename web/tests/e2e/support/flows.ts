@@ -96,7 +96,7 @@ export const buildProfile = async (
     output: { id: string }
   }
   await expect(
-    page.getByRole('heading', { name: 'Subscription link · Keenetic' }),
+    page.getByRole('button', { name: 'Subscription link · Keenetic' }),
   ).toBeVisible()
   await expect(addConnectionField(page)).toBeEnabled()
   await page

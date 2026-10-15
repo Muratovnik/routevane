@@ -234,33 +234,36 @@ watch(contentsState, async (state) => {
         <h3 id="list-card-name" class="rv-visually-hidden">
           {{ t('listCard.title.field') }}
         </h3>
-        <div class="list-card__rename">
-          <RvField
-            :error="titleError"
-            input-id="list-title"
-            :label="t('listCard.title.field')"
-          >
-            <template #default="{ describedBy, invalid }">
+        <!-- The act that stores the name stands beside the input inside the
+             field, so a refusal is stated under both. -->
+        <RvField
+          :error="titleError"
+          input-id="list-title"
+          :label="t('listCard.title.field')"
+        >
+          <template #default="{ describedBy, invalid }">
+            <div class="list-card__rename">
               <RvTextInput
                 v-model="titleDraft"
+                class="list-card__rename-input"
                 :described-by="describedBy"
                 :disabled="saving"
                 input-id="list-title"
                 :invalid="invalid"
                 maxlength="120"
               />
-            </template>
-          </RvField>
-          <RvButton
-            class="rv-field-action"
-            :disabled="saving || titleDraft.trim() === list.title"
-            :loading="saving"
-            variant="secondary"
-            @click="onRenameCustom"
-          >
-            {{ t('listCard.title.save') }}
-          </RvButton>
-        </div>
+              <RvButton
+                :disabled="saving || titleDraft.trim() === list.title"
+                :loading="saving"
+                variant="secondary"
+                @click="onRenameCustom"
+              >
+                <RvIcon name="edit" />
+                {{ t('listCard.title.save') }}
+              </RvButton>
+            </div>
+          </template>
+        </RvField>
       </section>
 
       <!-- The one contents table: domains, addresses and networks. The card
@@ -409,6 +412,7 @@ watch(contentsState, async (state) => {
                   : onRetryRefresh()
               "
             >
+              <RvIcon name="refresh" />
               {{ t('action.retry') }}
             </RvButton>
           </div>
@@ -818,14 +822,6 @@ watch(contentsState, async (state) => {
   font-size: var(--rv-text-dense);
 }
 
-/* A fact the composing card states but does not offer to change: the same
-   words as the control beside the table in the other flow, without the box
-   that would promise something to press. */
-.list-card__fact {
-  color: var(--rv-color-ink-tertiary);
-  font-size: var(--rv-text-dense);
-}
-
 .list-card__muted {
   max-width: var(--rv-measure-prose);
   color: var(--rv-color-ink-muted);
@@ -913,11 +909,12 @@ watch(contentsState, async (state) => {
 .list-card__rename {
   display: flex;
   gap: var(--rv-space-3);
-  align-items: flex-end;
+  align-items: center;
 }
 
-.list-card__rename > :first-child {
+.list-card__rename-input {
   flex: 1;
+  min-width: 0;
 }
 
 /* The filter and the way in share one line above the table: the control that
@@ -941,7 +938,6 @@ watch(contentsState, async (state) => {
   align-content: start;
   max-height: var(--rv-picker-height);
   overflow-y: auto;
-  overscroll-behavior: contain;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1089,17 +1085,6 @@ watch(contentsState, async (state) => {
   cursor: not-allowed;
 }
 
-/* The file control is driven by the button beside it. It stays in the document
-   so the browser can open the picker, and out of the tab order so the operator
-   meets one control rather than two. */
-.list-card__file {
-  position: absolute;
-  width: 0.0625rem;
-  height: 0.0625rem;
-  overflow: hidden;
-  clip-path: inset(50%);
-}
-
 .list-card__add:focus-visible,
 .list-card__link:focus-visible,
 .list-card__row-action:focus-visible {
@@ -1179,6 +1164,10 @@ watch(contentsState, async (state) => {
   .list-card__rename {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .list-card__rename-input {
+    flex: none;
   }
 
   .list-card__actions > * {

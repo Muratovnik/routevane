@@ -636,6 +636,26 @@ it('states the refusal of a typed address at the address and starts nothing', as
   expect(deployment.fieldErrors.value.address).toBeNull()
 })
 
+it('states a malformed address only once a review was asked for, then keeps it live', async () => {
+  vi.stubGlobal('fetch', refusingAddress())
+  const { deployment } = harness()
+  await deployment.initialize()
+  deployment.connections.selectedID.value = 'manual'
+
+  // Leaving the field says nothing: there is no such event in the model, and
+  // typing alone does not make a complaint.
+  deployment.device.value = 'not an address'
+  expect(deployment.fieldErrors.value.address).toBeNull()
+
+  await expect(deployment.review()).resolves.toBe('address')
+  expect(deployment.fieldErrors.value.address).toBe('send.address.invalid')
+
+  deployment.device.value = 'http://10.255.0.2'
+  expect(deployment.fieldErrors.value.address).toBeNull()
+  deployment.device.value = 'still not an address'
+  expect(deployment.fieldErrors.value.address).toBe('send.address.invalid')
+})
+
 it('does not blame a field the operator did not type when a saved connection is refused', async () => {
   vi.stubGlobal('fetch', refusingAddress())
   const { deployment } = harness()

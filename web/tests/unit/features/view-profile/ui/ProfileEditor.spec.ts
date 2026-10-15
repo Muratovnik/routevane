@@ -84,6 +84,8 @@ const renderEditor = (
     exclusions: string[]
     priority: string[]
     listDomains: Record<string, string[]>
+    selected: string[]
+    selectedCategories: string[]
   }> = {},
 ) =>
   render(ProfileEditor, {
@@ -168,8 +170,13 @@ describe('ProfileEditor', () => {
     await expect
       .element(screen.getByText('Formats', { exact: true }))
       .toBeVisible()
+    // The caption names the list it captions, so a reader of the list hears it.
     await expect
-      .element(screen.getByText('Where to deliver the profile'))
+      .element(screen.getByRole('list', { name: 'Formats' }))
+      .toBeVisible()
+    // The create form's question is not asked of a stored profile.
+    await expect
+      .element(screen.getByRole('combobox', { name: 'Format', exact: true }))
       .not.toBeInTheDocument()
     for (const output of OUTPUTS)
       await expect
@@ -189,6 +196,66 @@ describe('ProfileEditor', () => {
         screen.getByText('Saving rebuilds every format of this profile.'),
       )
       .not.toBeInTheDocument()
+  })
+
+  // The act on the draft is the first item of the rail and as wide as the rail.
+  // What the draft says about itself stands on a line above it, and only while
+  // there is something to say: a clean draft leaves the rail as the button alone.
+  it('stands Save alone and full width on a clean draft', async () => {
+    stubPreview()
+    const screen = await renderEditor()
+    await settle()
+
+    const save = screen.getByRole('button', { name: SAVE }).element()
+    const rail = save.closest('form')!.getBoundingClientRect()
+    const button = save.getBoundingClientRect()
+    expect(Math.abs(button.width - rail.width)).toBeLessThanOrEqual(1)
+    expect(button.top - rail.top).toBeLessThanOrEqual(1)
+    await expect
+      .element(screen.getByText('Unsaved changes'))
+      .not.toBeInTheDocument()
+  })
+
+  it('puts the unsaved-changes line and Discard above Save, still full width', async () => {
+    stubPreview()
+    const screen = await renderEditor()
+    await settle()
+
+    await screen.getByLabelText('Name').fill('Unsaved name')
+
+    const save = screen.getByRole('button', { name: SAVE }).element()
+    const saveBox = save.getBoundingClientRect()
+    const rail = save.closest('form')!.getBoundingClientRect()
+    for (const above of [
+      screen.getByText('Unsaved changes').element(),
+      screen.getByRole('button', { name: CANCEL }).element(),
+    ])
+      expect(above.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+        saveBox.top,
+      )
+    expect(Math.abs(saveBox.width - rail.width)).toBeLessThanOrEqual(1)
+  })
+
+  it('states a missing list above Save when saving is attempted without one', async () => {
+    stubPreview()
+    const screen = await renderEditor({
+      selected: ['youtube'],
+      selectedCategories: [],
+    })
+    await settle()
+
+    await screen
+      .getByRole('checkbox', { name: 'Remove YouTube from the profile' })
+      .click()
+    await screen.getByRole('button', { name: SAVE }).click()
+
+    const problem = screen.getByText('Select at least one list').element()
+    expect(problem.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      screen
+        .getByRole('button', { name: SAVE })
+        .element()
+        .getBoundingClientRect().top,
+    )
   })
 
   it('does not recalculate when output objects refresh without changing the formats', async () => {

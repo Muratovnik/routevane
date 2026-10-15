@@ -5,7 +5,12 @@ import { audit, auditWidths, reviewRoot } from './support/audits'
 import { localConfigAddress } from './support/environment'
 import { pressSegment, settleAnimations } from './support/flows'
 import { CONTROL_TOUCH } from './support/geometry'
-import { libraryRow, libraryRowName, listRow } from './support/queries'
+import {
+  formatOption,
+  libraryRow,
+  libraryRowName,
+  listRow,
+} from './support/queries'
 import { test } from './support/served-product'
 
 test.use({
@@ -96,14 +101,16 @@ test('graphite settings and inline connection choices preserve readable alignmen
   ).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.getByLabel('Формат', { exact: true }).click()
-  const option = page.getByRole('option', { name: 'Keenetic', exact: true })
+  const option = formatOption(page, 'Keenetic')
   // The panel grows in as it opens; its rows are measured once it settles.
   await expect(option).toBeVisible()
   await settleAnimations(page)
   const labelLeft = await option.evaluate((element) => {
+    // The option's name, not the note beside it that says how it is delivered.
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
     let node = walker.nextNode()
-    while (node && !node.textContent?.trim()) node = walker.nextNode()
+    while (node && !node.textContent?.trim().startsWith('Keenetic'))
+      node = walker.nextNode()
     if (!node) throw new Error('The option must contain its visible name')
     const range = document.createRange()
     range.selectNodeContents(node)

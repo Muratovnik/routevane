@@ -9,7 +9,6 @@
 
 import { expect, type Locator } from '@playwright/test'
 
-import { englishCopy } from './support/copy'
 import { test } from './support/served-product'
 
 test.use({
@@ -62,13 +61,11 @@ test('the format mark stands on the name line and the chosen row has no frame', 
   await page.goto(`${origin}/connections`)
 
   const row = (name: string) =>
-    page.getByRole('button', {
-      name: englishCopy('devices.configure.aria').replace('{name}', name),
-    })
+    page.getByRole('button', { name: new RegExp(`^${name} `) })
   const chosen = row(NAMES[0]!)
   const other = row(NAMES[1]!)
-  await expect(chosen).toHaveAttribute('aria-pressed', 'true')
-  await expect(other).toHaveAttribute('aria-pressed', 'false')
+  await expect(chosen).toHaveAttribute('aria-current', 'true')
+  await expect(other).not.toHaveAttribute('aria-current')
 
   // The mark is the first glyph in the row and the name its own text: their
   // centres coincide, where a mark at the top of a three-line block sits above.

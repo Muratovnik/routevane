@@ -10,8 +10,8 @@
 
 import { expect, type Page } from '@playwright/test'
 
-import { englishCopy } from './support/copy'
 import { buildProfile } from './support/flows'
+import { chooseFormatAction } from './support/queries'
 import { test } from './support/served-product'
 
 test.use({
@@ -44,10 +44,9 @@ const seed = async (
   return ids
 }
 
+// A row is named by what it shows, and the connection's name comes first.
 const row = (page: Page, name: string) =>
-  page.getByRole('button', {
-    name: englishCopy('devices.configure.aria').replace('{name}', name),
-  })
+  page.getByRole('button', { name: new RegExp(`^${name} `) })
 
 test('opens the connection a link names and focuses its heading', async ({
   page,
@@ -60,15 +59,15 @@ test('opens the connection a link names and focuses its heading', async ({
   const heading = page.getByRole('heading', { level: 2, name: NAMES[1] })
   await expect(heading).toBeVisible()
   await expect(heading).toBeFocused()
-  await expect(row(page, NAMES[1])).toHaveAttribute('aria-pressed', 'true')
-  await expect(row(page, NAMES[0])).toHaveAttribute('aria-pressed', 'false')
+  await expect(row(page, NAMES[1])).toHaveAttribute('aria-current', 'true')
+  await expect(row(page, NAMES[0])).not.toHaveAttribute('aria-current')
 
   // Picking another connection moves the address with it, so a refresh stays
   // on what the operator is looking at.
   await row(page, NAMES[0]).click()
   await expect(page).toHaveURL(/#connection=[a-f0-9]+$/)
   await page.reload()
-  await expect(row(page, NAMES[0])).toHaveAttribute('aria-pressed', 'true')
+  await expect(row(page, NAMES[0])).toHaveAttribute('aria-current', 'true')
   assertProductAlive()
 })
 
@@ -78,19 +77,23 @@ test('opens the default connection when the link names one that is gone', async 
   assertProductAlive,
 }) => {
   await seed(page, origin, ['Dock router', 'Shelf router'])
-  const selected = page.getByRole('button', {
-    pressed: true,
-    name: /^Configure connection /,
-  })
+  // The suite's worker keeps one registry across its tests, so the default is
+  // the first row of the list the seeded rows are in, not a row named here.
+  const rows = page
+    .getByRole('list')
+    .filter({ has: row(page, 'Dock router') })
+    .getByRole('listitem')
+  const first = rows.first().getByRole('button')
+  const second = rows.nth(1).getByRole('button')
 
-  // What the page selects with no link at all is the default.
+  // What the page selects with no link at all is the default: the first.
   await page.goto(`${origin}/connections`)
-  await expect(selected).toHaveCount(1)
-  const fallback = await selected.getAttribute('aria-label')
+  await expect(first).toHaveAttribute('aria-current', 'true')
+  await expect(second).not.toHaveAttribute('aria-current')
 
   await page.goto(`${origin}/connections#connection=no-such-connection`)
-  await expect(selected).toHaveCount(1)
-  await expect(selected).toHaveAttribute('aria-label', fallback ?? '')
+  await expect(first).toHaveAttribute('aria-current', 'true')
+  await expect(second).not.toHaveAttribute('aria-current')
   assertProductAlive()
 })
 
@@ -130,14 +133,12 @@ test('the Publishing link of a format bound to the second connection opens that 
     .getByRole('tablist', { name: 'Profile sections' })
     .getByRole('tab', { name: 'Publishing' })
     .click()
-  await page
-    .getByRole('link', { name: englishCopy('outputs.readiness.open') })
-    .click()
+  await chooseFormatAction(page, 'Keenetic', 'outputs.menu.open')
 
   await expect(page).toHaveURL(new RegExp(`/connections#connection=${ids[1]}$`))
   await expect(
     page.getByRole('heading', { level: 2, name: names[1] }),
   ).toBeFocused()
-  await expect(row(page, names[1]!)).toHaveAttribute('aria-pressed', 'true')
+  await expect(row(page, names[1]!)).toHaveAttribute('aria-current', 'true')
   assertProductAlive()
 })

@@ -152,9 +152,13 @@ for (const colorScheme of ['dark', 'light'] as const) {
       .poll(async () => (await paint(routes)).outlineColor)
       .toBe(focusColor)
 
-    // Leaving the field empty states the omission under the control. The
-    // description is the explanation and the error that is actually shown.
+    // Leaving the field empty states nothing; the omission is stated when a
+    // submission asks for it, under the control, and the description is then the
+    // explanation and the error that is actually shown.
     await page.keyboard.press('Shift+Tab')
+    await expect(routes).not.toHaveAttribute('aria-invalid')
+    expect(await described(routes)).toEqual([explanation])
+    await save.click()
     const required = englishCopy('devices.validation.required')
     await expect(routes).toHaveAttribute('aria-invalid', 'true')
     expect(await described(routes)).toEqual([explanation, required])

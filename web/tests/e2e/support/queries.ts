@@ -217,11 +217,11 @@ export const rowCellWidths = (row: Locator): Promise<number[]> =>
 export const nameField = (scope: Scope): Locator =>
   scope.getByLabel(englishCopy('create.name'), { exact: true })
 
-/** The field that states where a profile is delivered. */
+/** The field that chooses the format a new profile is first published in. */
 export const deliveryField = (
   scope: Scope,
   copy: Copy = englishCopy,
-): Locator => scope.getByLabel(copy('create.target'))
+): Locator => scope.getByLabel(copy('create.target'), { exact: true })
 
 /** The field a published profile adds another connection with. */
 export const addConnectionField = (
@@ -283,12 +283,6 @@ export const forecastStatus = (page: Page, message: string): Locator =>
 /** The field that narrows a searchable choice to what was typed. */
 export const choiceSearch = (page: Page, copy: Copy = englishCopy): Locator =>
   page.getByRole('textbox', { name: copy('choice.search'), exact: true })
-
-/** The disclosure that holds the catalog of everything this build can reach. */
-export const catalogDisclosure = (
-  page: Page,
-  copy: Copy = englishCopy,
-): Locator => page.getByRole('button', { name: copy('targets.title') })
 
 /**
  * One option of a segmented choice, by the words it is announced with. The
@@ -380,3 +374,15 @@ export const chooseFormatAction = async (
     .getByRole('menuitem', { name: copy(key), exact: true })
     .click()
 }
+
+/**
+ * One option of the connection form's format choice, found by the name it
+ * leads with. A format option also states in a note whether it can be
+ * delivered to automatically, and the note is part of the option's accessible
+ * name, so the name is matched at its start and a variant that merely begins
+ * with the same word (the parenthesised «Keenetic (domain-based)») is not it.
+ */
+export const formatOption = (scope: Scope, title: string): Locator =>
+  scope.getByRole('option', {
+    name: new RegExp(String.raw`^${escapeRegExp(title)}(?!\s*\()`),
+  })

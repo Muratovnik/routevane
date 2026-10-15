@@ -11,6 +11,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import type { ProfileCard } from '@/shared/api/profiles'
 import { legacyImportedOrdinal } from '@/shared/lib/legacyProfile'
 import { parseLegacyProfileHash } from '@/shared/lib/profileHash'
+import { targetIcon } from '@/shared/lib/targetIcon'
 import type { StatusTone } from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
@@ -161,11 +162,6 @@ const updatedAt = (card: ProfileCard): string => {
     return t('profiles.noArtifact')
   const parsed = new Date(output.latest.contentCreatedAt)
   return Number.isNaN(parsed.valueOf()) ? '—' : dateTime.value.format(parsed)
-}
-
-const outputSummary = (card: ProfileCard): string => {
-  if (card.outputs.length === 0) return t('profiles.noOutputs')
-  return card.outputs.map(library.outputTitle).join(', ')
 }
 
 const archivedSince = (card: ProfileCard): string => {
@@ -359,7 +355,19 @@ const onMenu = (card: ProfileCard, key: string): void => {
               'profiles__cell-outputs--none': card.outputs.length === 0,
             }"
           >
-            {{ outputSummary(card) }}
+            <span v-if="card.outputs.length === 0">
+              {{ t('profiles.noOutputs') }}
+            </span>
+            <ul v-else class="profiles__formats">
+              <li
+                v-for="output in card.outputs"
+                :key="output.id"
+                class="profiles__format"
+              >
+                <RvIcon :name="targetIcon(output.targetID)" />
+                {{ library.outputTitle(output) }}
+              </li>
+            </ul>
           </td>
           <td
             class="profiles__cell-updated"
@@ -523,6 +531,21 @@ const onMenu = (card: ProfileCard, key: string): void => {
 
 .profiles__cell-outputs--none {
   color: var(--rv-color-ink-tertiary);
+}
+
+.profiles__formats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-1) var(--rv-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.profiles__format {
+  display: inline-flex;
+  gap: var(--rv-space-2);
+  align-items: center;
 }
 
 .profiles__cell-updated,

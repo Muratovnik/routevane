@@ -12,6 +12,7 @@ import type { ChoiceGroup } from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvCombobox from '@/shared/ui/RvCombobox.vue'
 import RvField from '@/shared/ui/RvField.vue'
+import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import RvStatus from '@/shared/ui/RvStatus.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
@@ -153,9 +154,9 @@ const submit = async (): Promise<void> => {
         tone="warning"
       >
         <template #action>
-          <RvButton @click="setup.catalogRefresh.retry">{{
-            t('action.retry')
-          }}</RvButton>
+          <RvButton @click="setup.catalogRefresh.retry"
+            ><RvIcon name="refresh" />{{ t('action.retry') }}</RvButton
+          >
         </template>
       </RvStateNotice>
     </header>
@@ -174,7 +175,9 @@ const submit = async (): Promise<void> => {
       tone="failed"
     >
       <template #action>
-        <RvButton @click="setup.initialize">{{ t('action.retry') }}</RvButton>
+        <RvButton @click="setup.initialize"
+          ><RvIcon name="refresh" />{{ t('action.retry') }}</RvButton
+        >
       </template>
     </RvStateNotice>
     <RvStateNotice
@@ -280,7 +283,10 @@ const submit = async (): Promise<void> => {
             />
           </RvField>
 
-          <template #actions>
+          <!-- Above the act, and only while there is something to say: what
+               the chosen format cannot take, what its file will wait for, and
+               what is missing. -->
+          <template #status>
             <RvStateNotice
               v-if="setup.blocked.value"
               :body="blockedBody"
@@ -323,7 +329,10 @@ const submit = async (): Promise<void> => {
               tone="failed"
               :label="t('create.lists.required')"
             />
+          </template>
+          <template #actions>
             <RvButton
+              block
               :disabled="!setup.startable.value"
               :loading="setup.busy.value"
               type="submit"
@@ -408,12 +417,6 @@ const submit = async (): Promise<void> => {
   color: var(--rv-color-ink-tertiary);
   font-size: var(--rv-text-meta);
   font-variant-numeric: tabular-nums;
-}
-
-.create__submit {
-  display: grid;
-  gap: var(--rv-space-3);
-  justify-items: stretch;
 }
 
 /* The refusal explains the disabled control beneath it, so it takes the

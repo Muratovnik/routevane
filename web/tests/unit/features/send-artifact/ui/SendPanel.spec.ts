@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest'
+import { userEvent } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
 
 import SendPanel from '@/features/send-artifact/ui/SendPanel.vue'
@@ -429,4 +430,66 @@ it('states the service refusal of the typed address at the address field', async
   await expect
     .element(screen.getByText(t('deploy.field.address.keenetic-dns.rejected')))
     .not.toBeInTheDocument()
+})
+
+// A field says what is wrong with it once the operator asked for the review,
+// not when they merely leave it, and from then on follows what they type.
+it('states a malformed address after the review is pressed, not on leaving the field', async () => {
+  const { setLocale, t } = useLocale()
+  setLocale('en')
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: unknown) =>
+      String(input) === '/v1/devices'
+        ? json({ devices: [], secret_store_available: false })
+        : json({
+            targets: [
+              {
+                target_id: 'keenetic-dns',
+                title: 'Keenetic DNS',
+                deployer_id: 'keenetic-dns',
+                requirements: {
+                  address_label: 'Router address',
+                  address_example: 'http://192.168.1.1',
+                  needs_credential: false,
+                  needs_interface: false,
+                },
+              },
+            ],
+          }),
+    ),
+  )
+  const screen = await render(SendPanel, {
+    ...links,
+    props: {
+      artifactId: 'artifact',
+      breadcrumbs: [],
+      groupPrefix: 'routevane',
+      heading: 'Send · Keenetic DNS',
+      targetId: 'keenetic-dns',
+      target: null,
+    },
+  })
+  const address = screen.getByRole('textbox', {
+    name: t('deploy.field.address.keenetic-dns'),
+  })
+  const complaint = screen.getByText('Expected an address like', {
+    exact: false,
+  })
+
+  await address.fill('not an address')
+  await userEvent.tab()
+  await expect.element(address).not.toHaveFocus()
+  await expect.element(complaint).not.toBeInTheDocument()
+
+  await screen
+    .getByRole('button', { name: t('send.review'), exact: true })
+    .click()
+  await expect.element(complaint).toBeVisible()
+
+  // From then on the message follows what is typed, field by field.
+  await address.fill('http://192.168.1.1')
+  await expect.element(complaint).not.toBeInTheDocument()
+  await address.fill('still not an address')
+  await expect.element(complaint).toBeVisible()
 })

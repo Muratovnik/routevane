@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef, watch } from 'vue'
+import { computed, useTemplateRef } from 'vue'
 
 import {
   FIELD_ORDER,
@@ -20,8 +20,9 @@ import RvTextInput from '@/shared/ui/RvTextInput.vue'
  *
  * What is wrong with the draft is the host's answer too — it needs the same
  * answer to decide whether a submission can go — so the fields only say it, and
- * say it when the operator has had the field or the host asked for every
- * problem at once.
+ * say it once the host has asked for every problem at once by a submission.
+ * From then on the problems follow the draft as it is corrected; leaving a
+ * field states nothing.
  */
 const props = defineProps<{
   disabled?: boolean
@@ -29,7 +30,7 @@ const props = defineProps<{
   idPrefix: string
   problems: FieldProblems
   requirements: ConnectionRequirements | null
-  /** State every problem, not only those of fields already left behind. */
+  /** A submission found problems: state them, and keep them current. */
   reveal?: boolean
   /** The service refused this draft's address and named the field. */
   refusedAddress?: boolean
@@ -58,23 +59,6 @@ const {
   computed(() => props.targetId),
 )
 
-// Nothing is reported as wrong before the operator has had it: a field states
-// its own problem once they have left it, and the whole draft states its
-// problems when a submission asked for them.
-const emptyVisits = (): Record<FieldKey, boolean> => ({
-  account: false,
-  address: false,
-  interfaceName: false,
-  name: false,
-})
-const visited = ref(emptyVisits())
-watch(
-  () => props.targetId,
-  () => {
-    visited.value = emptyVisits()
-  },
-)
-
 const message = (problem: FieldProblem): string => {
   if (problem === 'required') return t('devices.validation.required')
   return t('devices.validation.address', {
@@ -84,8 +68,7 @@ const message = (problem: FieldProblem): string => {
 
 const errorOf = (key: FieldKey): string | undefined => {
   const problem = props.problems[key]
-  if (problem !== undefined && (visited.value[key] || props.reveal === true))
-    return message(problem)
+  if (problem !== undefined && props.reveal === true) return message(problem)
   // The service named the address, so the host says it here until the address
   // is edited.
   if (key === 'address' && props.refusedAddress === true)
@@ -136,7 +119,6 @@ defineExpose({
           :input-id="`${idPrefix}-name`"
           :invalid="invalid"
           maxlength="120"
-          @blur="visited.name = true"
         />
       </template>
     </RvField>
@@ -161,7 +143,6 @@ defineExpose({
           maxlength="512"
           mono
           :placeholder="addressPlaceholder"
-          @blur="visited.address = true"
         />
       </template>
     </RvField>
@@ -184,7 +165,6 @@ defineExpose({
           :invalid="invalid"
           mono
           maxlength="120"
-          @blur="visited.account = true"
         />
       </template>
     </RvField>
@@ -210,7 +190,6 @@ defineExpose({
           mono
           maxlength="120"
           :placeholder="interfacePlaceholder"
-          @blur="visited.interfaceName = true"
         />
       </template>
     </RvField>

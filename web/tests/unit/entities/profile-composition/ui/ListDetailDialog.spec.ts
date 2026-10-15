@@ -509,6 +509,47 @@ describe('ListDetailDialog', () => {
     )
   })
 
+  // The act that stores a custom list's name stands beside the input, inside the
+  // same field, so a refusal is stated under both rather than under the input
+  // alone.
+  it('renames a custom list from a button beside the name, with the refusal under both', async () => {
+    stubAPI({ 'GET /v1/lists/discord/contents': () => contentsResponse() })
+    const screen = await renderCard({
+      list: { ...DISCORD, custom: true },
+      mode: 'library',
+    })
+    await expect.element(entries(screen).first()).toBeVisible()
+
+    const name = screen.getByRole('textbox', { name: 'Name' })
+    const rename = screen.getByRole('button', { name: 'Rename' })
+    await expect.element(rename.getByTestId('rv-icon')).toBeVisible()
+
+    await name.fill('')
+    await rename.click()
+    await expect.element(screen.getByText('Name the list.')).toBeVisible()
+    // The sheet slides in, so the geometry is read once it has settled and the
+    // refusal is on screen.
+    await vi.waitFor(() => {
+      const nameBox = name.element().getBoundingClientRect()
+      const renameBox = rename.element().getBoundingClientRect()
+      const refusalTop = screen
+        .getByText('Name the list.')
+        .element()
+        .getBoundingClientRect().top
+      expect(renameBox.left).toBeGreaterThanOrEqual(nameBox.right)
+      expect(
+        Math.abs(
+          renameBox.top +
+            renameBox.height / 2 -
+            nameBox.top -
+            nameBox.height / 2,
+        ),
+      ).toBeLessThanOrEqual(2)
+      expect(refusalTop).toBeGreaterThanOrEqual(nameBox.bottom)
+      expect(refusalTop).toBeGreaterThanOrEqual(renameBox.bottom - 1)
+    })
+  })
+
   it('keeps entry switches optimistic and independent while writes settle', async () => {
     const held = Promise.withResolvers<Response>()
     const api = stubAPI({

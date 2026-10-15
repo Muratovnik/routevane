@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useElementSize } from '@vueuse/core'
 import { computed, nextTick, ref, useTemplateRef } from 'vue'
 
 import FormatSettingsDialog from '@/features/view-profile/ui/FormatSettingsDialog.vue'
@@ -11,12 +10,7 @@ import type { TargetOption } from '@/shared/api/catalog'
 import type { DeviceCard } from '@/shared/api/devices'
 import type { OutputCard } from '@/shared/api/outputs'
 import type { RefreshInterval, Schedule } from '@/shared/api/profiles'
-import type {
-  ChoiceGroup,
-  ChoiceOption,
-  MenuItem,
-  StatusTone,
-} from '@/shared/ui/types'
+import type { ChoiceGroup, ChoiceOption, MenuItem } from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
@@ -26,6 +20,7 @@ import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import RvStatus from '@/shared/ui/RvStatus.vue'
 import RvTable from '@/shared/ui/RvTable.vue'
+import RvTooltip from '@/shared/ui/RvTooltip.vue'
 
 /**
  * Everything a profile publishes in, around one table: the profile's refresh
@@ -72,20 +67,6 @@ const compactTime = computed(
       timeStyle: 'short',
     }),
 )
-
-// Below this width the row's own buttons would stack under each other, so
-// they move into the row menu instead. Measured on the panel, not the window:
-// the sidebar and a docked card change the room the table has.
-const NARROW_REM = 60
-const root = useTemplateRef<HTMLElement>('root')
-const { width } = useElementSize(root)
-const narrow = computed(() => {
-  if (width.value === 0) return false
-  const rem = Number.parseFloat(
-    getComputedStyle(document.documentElement).fontSize,
-  )
-  return width.value < NARROW_REM * (Number.isNaN(rem) ? 16 : rem)
-})
 
 const formatTime = (value: string): string => {
   const parsed = new Date(value)
@@ -157,51 +138,25 @@ const scheduleValue = computed<string>({
   },
 })
 
-type Readiness =
-  'none' | 'choose' | 'auto' | 'refresh' | 'ready' | 'unavailable' | 'unknown'
-
-// A row without a connection asks for one only once delivery has been set up
-// for its format: a connection of that format already sends automatically, and
-// this row is the one left out. A format that is read as a file or through its
-// subscription link — with no connection, or with one that never delivers on
-// its own — is complete as it is, so the row states nothing and the choice
-// stays in the field.
-const readiness = (output: OutputCard): Readiness => {
-  const device = output.deviceID === '' ? null : boundDevice(output)
-  if (device === null) {
-    return compatibleDevices(output).some(
-      (candidate) => candidate.deployable && candidate.autoDeliver,
-    )
-      ? 'choose'
-      : 'none'
-  }
-  const delivery = deviceDeliveryState(device)
-  if (delivery === 'unavailable' || delivery === 'unknown') return delivery
-  if (delivery === 'disabled') return 'auto'
-  if ((props.schedule?.effective ?? 'off') === 'off') return 'refresh'
-  return 'ready'
-}
-
-const readinessLabel = (output: OutputCard): string => {
-  const state = readiness(output)
-  if (state === 'ready' && output.targetKind === 'router') {
-    return t('outputs.readiness.ready.router')
-  }
-  return t(`outputs.readiness.${state}`)
-}
-
-const readinessTone = (output: OutputCard): StatusTone => {
-  const state = readiness(output)
-  if (state === 'ready') return 'ready'
-  return state === 'choose' ? 'waiting' : 'warning'
-}
-
-// The next step that happens on the Connections screen is stated once, with
-// the way there: the connection itself, selected.
-const opensConnection = (output: OutputCard): boolean =>
-  ['auto', 'unknown'].includes(readiness(output))
+// The connection page owns the state of a connection; a row only leads there,
+// to the connection itself, selected.
 const connectionLink = (output: OutputCard): string =>
   `/connections${connectionPageHash(output.deviceID)}`
+
+// The date the file last reached the connection the row is bound to. The server
+// already reports only that connection's send; the comparison guards against a
+// card read just before the row was re-bound.
+const lastSent = (output: OutputCard): string => {
+  const delivery = output.lastDelivery
+  if (
+    delivery === null ||
+    output.deviceID === '' ||
+    delivery.deviceID !== output.deviceID
+  ) {
+    return '—'
+  }
+  return formatTime(delivery.completedAt)
+}
 
 // Formats stay grouped by the kind of thing they feed: a reader looks for a
 // router or an application before looking for a name.
@@ -237,32 +192,23 @@ const hasSettings = (output: OutputCard): boolean =>
 
 const rowMenu = (output: OutputCard): MenuItem[] => {
   const items: MenuItem[] = []
-  if (narrow.value && output.latest !== null) {
+  const opens = output.deviceID !== ''
+  if (opens) {
     items.push({
-      download: true,
-      href: `/v1/artifacts/${output.latest.id}`,
-      icon: 'download',
-      key: 'download',
-      label: t('outputs.download'),
-    })
-  }
-  if (narrow.value && props.deployable(output)) {
-    items.push({
-      icon: 'send',
-      key: 'send',
-      label: t('outputs.send'),
-      to: `/profiles/${props.profileId}/send/${output.id}`,
+      icon: 'targets',
+      key: 'connection',
+      label: t('outputs.menu.open'),
+      to: connectionLink(output),
     })
   }
   if (props.archived) return items
-  const separatorBefore = items.length > 0
   if (hasSettings(output)) {
     items.push({
       disabled: props.busy,
       icon: 'settings',
       key: 'settings',
       label: t('outputs.menu.settings'),
-      separatorBefore,
+      separatorBefore: opens,
     })
   }
   items.push({
@@ -270,12 +216,12 @@ const rowMenu = (output: OutputCard): MenuItem[] => {
     icon: 'refresh',
     key: 'rebuild',
     label: t('outputs.menu.rebuild'),
-    separatorBefore: separatorBefore && !hasSettings(output),
+    separatorBefore: opens && !hasSettings(output),
   })
   if (output.latest !== null) {
     items.push({
       disabled: props.busy,
-      icon: 'external',
+      icon: 'link',
       key: 'reissue',
       label: t('outputs.menu.reissue'),
     })
@@ -302,7 +248,7 @@ const onRowMenu = (output: OutputCard, key: string): void => {
 </script>
 
 <template>
-  <div ref="root" class="outputs" :class="{ 'outputs--narrow': narrow }">
+  <div class="outputs">
     <div v-if="!props.archived" class="outputs__toolbar">
       <div v-if="props.schedule !== null" class="outputs__schedule">
         <RvField
@@ -327,13 +273,7 @@ const onRowMenu = (output: OutputCard, key: string): void => {
           tone="warning"
         />
       </div>
-      <!-- Beside the refresh field it stands on that field's control; alone it
-           has no field to stand on. -->
-      <div
-        ref="addTrigger"
-        class="outputs__add"
-        :class="{ 'rv-field-action': props.schedule !== null }"
-      >
+      <div ref="addTrigger" class="outputs__add">
         <span id="outputs-add-label" class="rv-visually-hidden">
           {{ t('outputs.add') }}
         </span>
@@ -371,6 +311,7 @@ const onRowMenu = (output: OutputCard, key: string): void => {
           <th scope="col">{{ t('outputs.column.target') }}</th>
           <th scope="col">{{ t('outputs.column.device') }}</th>
           <th scope="col">{{ t('outputs.column.updated') }}</th>
+          <th scope="col">{{ t('outputs.column.sent') }}</th>
           <th scope="col">
             <span class="rv-visually-hidden">
               {{ t('outputs.column.actions') }}
@@ -430,22 +371,6 @@ const onRowMenu = (output: OutputCard, key: string): void => {
                 :placeholder="t('outputs.device.none')"
                 @update:model-value="chooseDevice(output, $event)"
               />
-              <span
-                v-if="readiness(output) !== 'none'"
-                class="outputs__readiness"
-              >
-                <RvStatus
-                  :label="readinessLabel(output)"
-                  :tone="readinessTone(output)"
-                />
-                <NuxtLink
-                  v-if="opensConnection(output)"
-                  class="outputs__link"
-                  :to="connectionLink(output)"
-                >
-                  {{ t('outputs.readiness.open') }}
-                </NuxtLink>
-              </span>
             </template>
             <RvButton v-else size="compact" to="/connections" variant="quiet">
               {{ t('outputs.device.add') }}
@@ -468,31 +393,45 @@ const onRowMenu = (output: OutputCard, key: string): void => {
               }}
             </span>
           </td>
+          <td class="outputs__cell-sent">
+            <span class="outputs__date">{{ lastSent(output) }}</span>
+          </td>
           <td class="outputs__cell-actions">
             <div class="outputs__actions">
-              <template v-if="!narrow">
+              <RvTooltip
+                v-if="output.latest !== null"
+                :text="
+                  t('outputs.download.aria', { target: outputTitle(output) })
+                "
+                side="top"
+              >
                 <RvButton
-                  v-if="output.latest !== null"
-                  :aria-label="
+                  icon-only
+                  :href="`/v1/artifacts/${output.latest.id}`"
+                  :label="
                     t('outputs.download.aria', { target: outputTitle(output) })
                   "
-                  :href="`/v1/artifacts/${output.latest.id}`"
-                  size="compact"
                   variant="quiet"
                 >
                   <RvIcon name="download" />
-                  {{ t('outputs.download') }}
                 </RvButton>
+              </RvTooltip>
+              <RvTooltip
+                v-if="!props.archived && props.deployable(output)"
+                :text="t('outputs.send.aria', { target: outputTitle(output) })"
+                side="top"
+              >
                 <RvButton
-                  v-if="props.deployable(output)"
-                  size="compact"
+                  icon-only
+                  :label="
+                    t('outputs.send.aria', { target: outputTitle(output) })
+                  "
                   :to="`/profiles/${props.profileId}/send/${output.id}`"
                   variant="quiet"
                 >
                   <RvIcon name="send" />
-                  {{ t('outputs.send') }}
                 </RvButton>
-              </template>
+              </RvTooltip>
               <RvMenu
                 v-if="rowMenu(output).length > 0"
                 :items="rowMenu(output)"
@@ -564,31 +503,28 @@ const onRowMenu = (output: OutputCard, key: string): void => {
   --rv-table-cell-padding: var(--rv-space-3);
 }
 
-/* The format and the date keep the width their one line needs and the actions
-   the width of their buttons, so the «⋮» trigger is never squeezed below its
-   target size; the connection takes what is left. */
+/* The format and the two dates keep the width their one line needs and the
+   actions the width of their three square buttons, so the «⋮» trigger is never
+   squeezed below its target size; the connection takes what is left. */
 .outputs__scroll th:nth-child(1) {
-  width: 28%;
+  width: 24%;
 }
 
-.outputs__scroll th:nth-child(3) {
+.outputs__scroll th:nth-child(3),
+.outputs__scroll th:nth-child(4) {
   width: 10rem;
 }
 
-.outputs__scroll th:nth-child(4) {
-  width: 17rem;
-}
-
-.outputs--narrow .outputs__scroll th:nth-child(1) {
-  width: 35%;
-}
-
-.outputs--narrow .outputs__scroll th:nth-child(4) {
-  width: calc(var(--rv-control-compact) + 2 * var(--rv-space-3));
+.outputs__scroll th:nth-child(5) {
+  width: calc(
+    3 * var(--rv-control-compact) + 2 * var(--rv-space-1) + 2 *
+      var(--rv-space-3)
+  );
 }
 
 .outputs__cell-target,
-.outputs__cell-updated {
+.outputs__cell-updated,
+.outputs__cell-sent {
   overflow: hidden;
 }
 
@@ -634,26 +570,8 @@ const onRowMenu = (output: OutputCard, key: string): void => {
   text-overflow: ellipsis;
 }
 
-.outputs__readiness {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-1) var(--rv-space-2);
-  align-items: baseline;
-  margin-top: var(--rv-space-2);
-  font-size: var(--rv-text-dense);
-}
-
-.outputs__link {
-  color: var(--rv-color-accent-ink);
-  font-weight: 600;
-}
-
-.outputs__link:focus-visible {
-  outline: var(--rv-border-mark) solid var(--rv-color-focus);
-  outline-offset: var(--rv-focus-offset);
-}
-
-.outputs__cell-updated {
+.outputs__cell-updated,
+.outputs__cell-sent {
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
   white-space: nowrap;

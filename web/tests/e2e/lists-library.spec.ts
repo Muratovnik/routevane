@@ -166,8 +166,12 @@ test('an operator category carries its lists into a profile and is kept while a 
   await expectLibraryCategory(page, 'Домашние')
 
   await page.getByRole('button', { name: 'New list' }).click()
-  const addList = page.getByRole('dialog', { name: 'New list' })
-  await addList.getByText('Existing list', { exact: true }).click()
+  await page
+    .getByRole('dialog', { name: 'New list' })
+    .getByText('Existing list', { exact: true })
+    .click()
+  // The dialog is named for the act the choice selected.
+  const addList = page.getByRole('dialog', { name: 'Add an existing list' })
   await addList
     .getByRole('button', {
       name: englishCopy('lists.category.pick.placeholder'),

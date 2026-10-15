@@ -275,7 +275,7 @@ test('page inspection preserves primary actions and full-height geometry in ever
   // The format exists before its first build finishes. Leave only after the
   // published link appears, so navigation cannot cancel the file preparation.
   await expect(
-    page.getByRole('heading', { name: 'Subscription link · sing-box' }),
+    page.getByRole('button', { name: 'Subscription link · sing-box' }),
   ).toBeVisible()
   const id = profileIDFromURL(page.url())
   await page.goto(`${origin}/profiles/${id}`)

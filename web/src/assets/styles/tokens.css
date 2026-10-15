@@ -275,12 +275,6 @@
   --rv-form-column-min: 18rem;
   --rv-fact-label-width: 8rem;
 
-  /* The line a field keeps under its control for its error, and that line with
-     the gap above it. A control that shares a row with a field is lifted by the
-     second, so it stands on the field's control and not on its cell. */
-  --rv-field-error-line: 1.25rem;
-  --rv-field-error-space: calc(var(--rv-field-error-line) + var(--rv-space-1));
-
   /* The row a drag leaves behind while its copy follows the pointer. It is a
      placeholder, not an unavailable control, and only it is faded. */
   --rv-drag-ghost-opacity: 0.5;
@@ -316,7 +310,7 @@
   --rv-table-cell-padding: var(--rv-space-3) var(--rv-space-4);
   --rv-targets-table-width: 40rem;
   --rv-profiles-table-width: 38rem;
-  --rv-outputs-table-width: 44rem;
+  --rv-outputs-table-width: 54rem;
   --rv-table-action-width: 3.25rem;
   --rv-measure-workspace: 70rem;
 

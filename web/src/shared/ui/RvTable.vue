@@ -28,7 +28,12 @@ defineProps<{ dense?: boolean; stickyHeader?: boolean }>()
   background: var(--rv-color-canvas);
   border: var(--rv-border-hair) solid var(--rv-color-rule);
   border-radius: var(--rv-radius-lg);
-  overscroll-behavior: contain;
+
+  /* Only the horizontal axis is held: a table wider than its frame scrolls
+     sideways, and a sideways gesture that runs past its end must not become the
+     browser's history swipe. The vertical axis chains, so a wheel the table
+     cannot take scrolls the page. */
+  overscroll-behavior-x: contain;
 }
 
 .rv-table {

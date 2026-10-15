@@ -145,7 +145,7 @@ test('saving a password, switching delivery on, and removing the password are se
     body: { enabled: true },
   })
   await expect(
-    page.getByRole('button', { name: 'Configure connection Home router' }),
+    page.getByRole('button', { name: /^Home router / }),
   ).toContainText(copy('devices.auto.on'))
 
   // Turning delivery off keeps the saved password.

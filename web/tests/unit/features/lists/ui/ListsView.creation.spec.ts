@@ -86,10 +86,20 @@ describe('creating categories and lists', () => {
     const sheet = screen.getByRole('dialog', { name: NEW_LIST })
     // The native radio is kept out of sight; its segment is the hit area.
     await sheet.getByText('Existing list').click()
-    await sheet.getByRole('button', { name: 'List Choose a list' }).click()
+
+    // The dialog is named for the act the choice selected, and the other act
+    // goes back to the first name when the choice is undone.
+    const existing = screen.getByRole('dialog', {
+      name: 'Add an existing list',
+    })
+    await expect.element(existing).toBeVisible()
+    await expect
+      .element(screen.getByRole('dialog', { name: NEW_LIST }))
+      .not.toBeInTheDocument()
+    await existing.getByRole('button', { name: 'List Choose a list' }).click()
     await screen.getByLabelText('Search').fill('Steam')
     await screen.getByRole('option', { name: /^Steam/ }).click()
-    await sheet.getByRole('button', { name: 'Add' }).click()
+    await existing.getByRole('button', { name: 'Add' }).click()
 
     await vi.waitFor(() => {
       const write = calls.find(

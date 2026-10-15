@@ -227,7 +227,7 @@ test('desktop publishes and transfers a reviewed configuration to a fresh instal
       .filter({ hasText: 'Desktop list' })
       .getByRole('checkbox')
       .check()
-    await page.getByLabel('Where to deliver the profile').click()
+    await page.getByLabel('Format', { exact: true }).click()
     await page.getByRole('option', { name: /Keenetic.*\.txt/ }).click()
     await page
       .getByRole('button', { name: 'Create and prepare', exact: true })

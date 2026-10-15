@@ -72,10 +72,11 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   const { profileId, outputId } = await buildProfile(page, origin)
   const profileURL = `${origin}/profiles/${profileId}`
 
+  // The notice states the coverage; the header adds no second sentence for it.
+  await expect(page.getByText('Coverage is incomplete')).toBeVisible()
   await expect(
     page.getByText('Published with notes', { exact: true }),
-  ).toBeVisible()
-  await expect(page.getByText('Coverage is incomplete')).toBeVisible()
+  ).toHaveCount(0)
   await expect(nameField(page)).toHaveValue('Discord, YouTube')
   // The contents tab states the composition itself, one row per list, and keeps
   // the catalog behind the control that adds to it.
@@ -88,10 +89,12 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
   await expect(scheduleField(page)).toBeHidden()
 
   // The subscription link is shown masked: the raw secret is not in the DOM,
-  // not in any request, until the operator asks for it.
+  // not in any request, until the operator asks for it. The block opens by
+  // itself for a link that was just issued, because this is the only moment it
+  // can be read.
   await expect(
-    page.getByRole('heading', { name: 'Subscription link · Keenetic' }),
-  ).toBeVisible()
+    page.getByRole('button', { name: 'Subscription link · Keenetic' }),
+  ).toHaveAttribute('aria-expanded', 'true')
   const secret = page.getByRole('region', { name: /^Subscription link/ })
   await expect(secret).toContainText(`${origin}/v1/subscriptions/`)
   expect(await page.content()).not.toContain('rv1.')
@@ -216,7 +219,7 @@ test('the profile page guards the secret, shows the file and its diagnostics, an
       .some((url) => new URL(url).pathname === `/v1/profiles/${profileId}`),
   ).toBe(true)
   await expect(
-    page.getByRole('heading', { name: /^Subscription link/ }),
+    page.getByRole('button', { name: /^Subscription link/ }),
   ).toHaveCount(0)
   await expect(
     page.getByRole('button', { name: 'Show', exact: true }),
@@ -388,7 +391,7 @@ test('a failed first build remains retryable and exposes no subscription', async
   await expect(outputRow).toContainText('Last build failed')
   await expect(outputRow).toContainText('No published file')
   await expect(
-    page.getByRole('heading', { name: /^Subscription link/ }),
+    page.getByRole('button', { name: /^Subscription link/ }),
   ).toHaveCount(0)
   expect(await page.content()).not.toContain('rv1.')
 
@@ -408,7 +411,7 @@ test('a failed first build remains retryable and exposes no subscription', async
   await menuPanel(page).getByRole('menuitem', { name: 'Rebuild files' }).click()
   await expect(buildFailed).toHaveCount(2)
   await expect(
-    page.getByRole('heading', { name: /^Subscription link/ }),
+    page.getByRole('button', { name: /^Subscription link/ }),
   ).toHaveCount(0)
 })
 
@@ -756,7 +759,7 @@ test('the row menu issues a new link that withdraws the old one and shows it onc
   const token = replacement.slice(replacement.indexOf('rv1.'))
   await page.reload()
   await expect(
-    page.getByRole('heading', { name: /^Subscription link/ }),
+    page.getByRole('button', { name: /^Subscription link/ }),
   ).toHaveCount(0)
   await publishingTab(page).click()
   const publishing = page.getByRole('tabpanel', { name: 'Publishing' })
@@ -925,20 +928,30 @@ test('publishing cells stay on one line at 1024px and archived facts keep their 
   })
   expect(wrapped).toEqual([])
   await expect(table).toContainText('.bat')
-  // A narrow panel moves Download and Send into the row's menu, and the
-  // trigger keeps its full target.
+  // Download and Send stay in the row at this width as icon buttons named for
+  // the format, and the menu holds the rest with its trigger at full target.
+  const row = table.getByRole('row').filter({ hasText: 'Keenetic' })
+  await expect(
+    row.getByRole('link', { name: 'Download the file for Keenetic' }),
+  ).toBeVisible()
+  await expect(row.getByRole('link', { name: 'Send Keenetic' })).toBeVisible()
   const menu = formatMenu(page, 'Keenetic')
   const trigger = (await menu.boundingBox())!
   expect(Math.min(trigger.width, trigger.height)).toBeGreaterThanOrEqual(24)
   await menu.click()
   await expect(menuPanel(page).getByRole('menuitem')).toHaveText([
-    'Download',
-    'Send',
     'Rebuild',
     'Issue a new link…',
     'Remove format…',
   ])
   await page.keyboard.press('Escape')
+
+  // At a desktop width the table fits its frame: nothing scrolls sideways.
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const overflow = await table.evaluate(
+    (node) => node.parentElement!.scrollWidth - node.parentElement!.clientWidth,
+  )
+  expect(overflow).toBeLessThanOrEqual(0)
 
   // An archived profile states its facts at their own height instead of
   // stretching them to the window the composition would fill.
@@ -959,12 +972,19 @@ test('publishing cells stay on one line at 1024px and archived facts keep their 
   expect(rowHeights.length).toBeGreaterThan(1)
   for (const height of rowHeights) expect(height).toBeLessThan(64)
   // The archived row offers no change to its formats. What it still offers is
-  // reading the published file and sending it, which change nothing: a narrow
-  // panel keeps those two in the row's menu, as it does for a live profile.
+  // reading the published file; sending it is a change of the connection's
+  // device and is withdrawn with the rest. With no connection bound there is
+  // nothing left for its menu to hold.
   await publishingTab(page).click()
-  await formatMenu(page, 'Keenetic').click()
-  await expect(menuPanel(page).getByRole('menuitem')).toHaveText([
-    'Download',
-    'Send',
-  ])
+  const archivedRow = page
+    .getByRole('tabpanel', { name: 'Publishing' })
+    .getByRole('row')
+    .filter({ hasText: 'Keenetic' })
+  await expect(
+    archivedRow.getByRole('link', { name: 'Download the file for Keenetic' }),
+  ).toBeVisible()
+  await expect(
+    archivedRow.getByRole('link', { name: 'Send Keenetic' }),
+  ).toHaveCount(0)
+  await expect(formatMenu(page, 'Keenetic')).toHaveCount(0)
 })

@@ -287,12 +287,13 @@ watch(stored, (next, previous) => {
 
           <!-- What this profile already publishes, stated one connection per
                line with the glyph of the format it is delivered in. It is a
-               fact about the stored profile, not a choice this form offers. -->
+               fact about the stored profile, not a choice this form offers; the
+               caption names the list, so a reader of the list hears it. -->
           <div v-if="outputs.length" class="editor__facts">
-            <span class="editor__label">{{
+            <span id="editor-formats" class="editor__label">{{
               t('profile.edit.connections')
             }}</span>
-            <ul class="editor__connections">
+            <ul aria-labelledby="editor-formats" class="editor__connections">
               <li
                 v-for="output in outputs"
                 :key="output.id"
@@ -303,10 +304,12 @@ watch(stored, (next, previous) => {
               </li>
             </ul>
           </div>
-          <template #actions>
-            <!-- The draft says that it differs from what is stored, first in
-                 the form where the acts on it stand. The region is always
-                 present so the change is announced when it appears. -->
+          <!-- Above the act, and only while there is something to say: that the
+               draft differs from what is stored, leaving it, and what stands
+               in the way of storing it. The dirty region is always present so
+               the change is announced when it appears, and it takes no room
+               while it is empty. -->
+          <template #status>
             <span class="editor__dirty" role="status">
               <RvStatus
                 v-if="dirty"
@@ -314,11 +317,8 @@ watch(stored, (next, previous) => {
                 tone="warning"
               />
             </span>
-            <!-- Leaving the draft comes before committing it, in the order the
-                 eye and the keyboard both travel, so the act that ends this
-                 edit sits last in the row. Its name says what it
-                 undoes: "cancel" alone, next to a save, reads as though it
-                 might cancel the save that is running. -->
+            <!-- Its name says what it undoes: "cancel" alone, next to a save,
+                 reads as though it might cancel the save that is running. -->
             <RvButton
               v-if="dirty"
               :disabled="props.busy"
@@ -327,9 +327,6 @@ watch(stored, (next, previous) => {
             >
               {{ t('profile.edit.discard') }}
             </RvButton>
-            <!-- What saving does is in the name of the control that does it.
-                 A note beside it could only restate that name, so there is
-                 none. -->
             <RvStatus
               v-if="attempted && listsMissing"
               class="editor__problem"
@@ -337,7 +334,13 @@ watch(stored, (next, previous) => {
               tone="failed"
               :label="t('create.lists.required')"
             />
+          </template>
+          <template #actions>
+            <!-- What saving does is in the name of the control that does it.
+                 A note beside it could only restate that name, so there is
+                 none. -->
             <RvButton
+              block
               :disabled="props.busy || !dirty"
               :loading="props.busy"
               :loading-label="t('profile.edit.saving')"
@@ -408,7 +411,6 @@ watch(stored, (next, previous) => {
 }
 
 .editor__forecast {
-  flex: 1 1 100%;
   display: grid;
   gap: var(--rv-space-1);
   max-width: var(--rv-measure-prose);

@@ -12,17 +12,26 @@ import { computed } from 'vue'
  * delay is its own, so a neighbour that has just closed does not open it at
  * once. Everything visible is ours, named with the classes below.
  */
-const props = defineProps<{ text: string; disabled?: boolean }>()
+const props = withDefaults(
+  defineProps<{
+    text: string
+    disabled?: boolean
+    /** The side of the trigger the panel opens on. */
+    side?: 'top' | 'right' | 'bottom' | 'left'
+  }>(),
+  { side: 'right' },
+)
 
 const parts = { content: 'rv-tooltip', text: 'rv-tooltip__text' }
 
-// The panel opens to the trigger's right. Its hook is an attribute the library
-// passes on to the panel element along with the positioning props.
+// The panel opens on `side` of the trigger, to its right unless asked
+// otherwise. Its hook is an attribute the library passes on to the panel
+// element along with the positioning props.
 const panel = computed(() => ({
   ariaLabel: props.text,
   collisionPadding: 8,
   'data-testid': 'rv-tooltip',
-  side: 'right' as const,
+  side: props.side,
   sideOffset: 8,
 }))
 </script>

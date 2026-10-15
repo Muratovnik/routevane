@@ -9,7 +9,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import CreateProfile from '@/features/create-profile/ui/CreateProfile.vue'
 
 const SUBMIT = 'Create and prepare'
-const TARGET_FIELD = 'Where to deliver the profile'
+const TARGET_FIELD = 'Format'
 const SETTINGS = 'Profile settings'
 const OVERFLOW_WARNING = 'Cannot hold this profile'
 
@@ -560,9 +560,7 @@ describe('CreateProfile forecast', () => {
     await settle()
 
     await expect.element(screen.getByText('Enter a name')).toBeVisible()
-    await expect
-      .element(screen.getByText('Say where to deliver the profile'))
-      .toBeVisible()
+    await expect.element(screen.getByText('Pick a format')).toBeVisible()
     await expect
       .element(screen.getByText('Select at least one list'))
       .toBeVisible()
@@ -585,6 +583,27 @@ describe('CreateProfile forecast', () => {
     await expect
       .element(screen.getByText('Enter a name'))
       .not.toBeInTheDocument()
+  })
+
+  // The act is the first item of the rail and as wide as the rail. What is
+  // missing is said on a line above it, and only once create has been pressed.
+  it('stands create alone and full width, with omissions stated above it', async () => {
+    stubNetwork()
+    const screen = await renderComposer()
+    await settle()
+
+    const submit = screen.getByRole('button', { name: SUBMIT })
+    const rail = submit.element().closest('form')!.getBoundingClientRect()
+    const alone = submit.element().getBoundingClientRect()
+    expect(Math.abs(alone.width - rail.width)).toBeLessThanOrEqual(1)
+    expect(alone.top - rail.top).toBeLessThanOrEqual(1)
+
+    await submit.click()
+    await settle()
+    const said = screen.getByText('Select at least one list').element()
+    expect(said.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      submit.element().getBoundingClientRect().top,
+    )
   })
 
   // A format that cannot weigh every list still gets its profile; the screen

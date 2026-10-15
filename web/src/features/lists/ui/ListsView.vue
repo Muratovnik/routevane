@@ -29,6 +29,7 @@ import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvMenu from '@/shared/ui/RvMenu.vue'
 import RvSegmented from '@/shared/ui/RvSegmented.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
+import RvStatus from '@/shared/ui/RvStatus.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
 /**
@@ -185,15 +186,18 @@ const profileActions = (list: ListDetail): MenuItem[] => {
   if (activeRow.value?.category)
     items.push({
       disabled: library.stale.value || library.busy.value,
+      icon: 'unlink',
       key: 'detach',
       label: t('lists.list.detach'),
     })
   else if (memberships.length > 0)
     items.push({
+      icon: 'unlink',
       key: 'detach-category',
       label: t('lists.list.detach'),
       children: memberships.map((entry) => ({
         key: `detach:${entry.id}`,
+        icon: 'unlink',
         label: entry.label,
         disabled: library.stale.value || library.busy.value,
       })),
@@ -562,6 +566,17 @@ const visibleLists = computed(() => {
         ].some((label) => label.toLocaleLowerCase().includes(needle)),
     )
 })
+
+// What a table with no row says depends on what hides the rows: a typed query
+// is quoted back, one category names itself, several categories are stated as
+// such, and with no filter at all the library itself is empty.
+const emptyMessage = computed(() => {
+  const typed = query.value.trim()
+  if (typed !== '') return t('create.noMatches', { query: typed })
+  if (activeCategoryIDs.value.length === 1) return t('lists.category.empty')
+  if (activeCategoryIDs.value.length > 1) return t('listPicker.empty.category')
+  return t('lists.empty.library')
+})
 const tableBody = useTemplateRef<HTMLElement>('tableBody')
 const visibleOrder = computed({
   get: () => visibleLists.value.map((list) => list.id),
@@ -623,7 +638,7 @@ const submitPriority = async (): Promise<void> => {
         :disabled="library.state.value !== 'ready' || library.busy.value"
         size="touch"
         @click="categoriesOpen = true"
-        >{{ t('lists.manageCategories') }}</RvButton
+        ><RvIcon name="edit" />{{ t('lists.manageCategories') }}</RvButton
       >
       <RvButton
         :disabled="
@@ -660,13 +675,13 @@ const submitPriority = async (): Promise<void> => {
       <RvStateNotice
         v-if="library.stale.value"
         :body="t('lists.stale.body')"
-        class="lists__notice"
         live
         :title="t('lists.stale')"
         tone="warning"
       >
         <template #action>
           <RvButton :disabled="library.busy.value" @click="retryLibraryRead">
+            <RvIcon name="refresh" :spin="library.refreshing.value" />
             {{
               library.refreshing.value
                 ? t('lists.refresh.busy')
@@ -686,8 +701,12 @@ const submitPriority = async (): Promise<void> => {
         @action="startCreateCategory"
       />
       <div v-if="priorityDirty" class="lists__order-bar">
+        <RvStatus
+          class="lists__order-dirty"
+          :label="t('profile.edit.dirty')"
+          tone="warning"
+        />
         <RvButton
-          v-if="priorityDirty"
           :disabled="tableDisabled"
           size="compact"
           variant="quiet"
@@ -695,7 +714,6 @@ const submitPriority = async (): Promise<void> => {
           >{{ t('lists.priority.cancel') }}</RvButton
         >
         <RvButton
-          v-if="priorityDirty"
           :disabled="tableDisabled"
           size="compact"
           variant="primary"
@@ -722,7 +740,7 @@ const submitPriority = async (): Promise<void> => {
            own, and a test reads the geometry and the scroll extent it owns, so
            it carries a test hook. -->
       <RvTable
-        class="lists__workspace lists__pane-body"
+        class="lists__workspace"
         data-testid="rv-lists-workspace"
         dense
         sticky-header
@@ -736,7 +754,7 @@ const submitPriority = async (): Promise<void> => {
             </th>
             <th scope="col">{{ t('listPicker.column.list') }}</th>
             <th class="lists__category-column" scope="col">
-              {{ t('listPicker.collections') }}
+              {{ t('listPicker.column.category') }}
             </th>
             <th class="lists__action-column" scope="col">
               <span class="rv-visually-hidden">{{
@@ -778,6 +796,11 @@ const submitPriority = async (): Promise<void> => {
                 "
               >
                 <RvIcon name="drag" />
+                <!-- The position is printed for a reader who looks; the handle
+                     already states it in its name. -->
+                <span aria-hidden="true" class="lists__position">{{
+                  priorityDraft.indexOf(list.id) + 1
+                }}</span>
               </button>
             </td>
             <th scope="row">
@@ -820,11 +843,11 @@ const submitPriority = async (): Promise<void> => {
           </tr>
         </tbody>
 
-        <p v-if="visibleLists.length === 0" class="lists__empty">
-          {{
-            query ? t('create.noMatches', { query }) : t('lists.category.empty')
-          }}
-        </p>
+        <template #after
+          ><p v-if="visibleLists.length === 0" class="lists__empty">
+            {{ emptyMessage }}
+          </p></template
+        >
       </RvTable>
     </template>
 
@@ -1096,14 +1119,10 @@ const submitPriority = async (): Promise<void> => {
   color: var(--rv-color-ink-muted);
 }
 
-.lists__details-title {
-  font-size: var(--rv-text-dense);
-}
-
-.lists__priority-help {
-  flex: 1 1 var(--rv-panel-width);
-  min-width: 0;
-  overflow-wrap: anywhere;
+/* The order is said once, at the start of the bar, and the acts on it stand at
+   the end. */
+.lists__order-dirty {
+  margin-inline-end: auto;
 }
 
 /* The table's standing height comes from the window rather than from what the
@@ -1117,7 +1136,6 @@ const submitPriority = async (): Promise<void> => {
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  overscroll-behavior: contain;
 
   --rv-table-min-width: var(--rv-measure-field);
   --rv-table-layout: fixed;
@@ -1129,7 +1147,7 @@ const submitPriority = async (): Promise<void> => {
 }
 
 .lists__workspace .lists__priority-column {
-  width: var(--rv-table-action-width);
+  width: calc(var(--rv-table-action-width) + var(--rv-space-4));
 }
 
 .lists__workspace .lists__action-column {
@@ -1165,7 +1183,7 @@ const submitPriority = async (): Promise<void> => {
 .lists__handle {
   display: inline-flex;
   align-items: center;
-  gap: var(--rv-space-2);
+  gap: var(--rv-space-1);
   width: 100%;
   min-height: var(--rv-control-compact);
   padding: 0;
@@ -1181,6 +1199,12 @@ const submitPriority = async (): Promise<void> => {
 .lists__handle:disabled {
   cursor: not-allowed;
   color: var(--rv-color-ink-disabled);
+}
+
+.lists__position {
+  min-width: 2ch;
+  font-size: var(--rv-text-meta);
+  text-align: end;
 }
 
 .lists__list-name {
@@ -1290,7 +1314,7 @@ const submitPriority = async (): Promise<void> => {
 
 @container (width <= 40rem) {
   .lists__workspace .lists__priority-column {
-    width: var(--rv-picker-priority-width);
+    width: calc(var(--rv-picker-priority-width) + var(--rv-space-2));
     padding-inline: var(--rv-space-1);
   }
 

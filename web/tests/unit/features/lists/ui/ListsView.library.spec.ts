@@ -5,11 +5,14 @@ import {
   activeCategory,
   ALL_CATEGORIES,
   categoryNames,
+  catalogResponse,
   catalogRoutes,
   CATEGORIES,
   CATEGORY_NAME_FIELD,
   closeMenu,
   contentsResponse,
+  json,
+  LISTS,
   NEW_CATEGORY,
   NEW_LIST,
   openCategory,
@@ -20,6 +23,7 @@ import {
   rowNames,
   stubAPI,
   UNCATEGORIZED,
+  type Library,
 } from './support/library'
 
 describe('the library pane', () => {
@@ -151,6 +155,95 @@ describe('the library pane', () => {
       .element(rename.getByRole('textbox', { name: CATEGORY_NAME_FIELD }))
       .toHaveValue('Telegram')
   })
+
+  // An action that sits beside a sibling with a glyph, and every item of a
+  // menu, carries one; the new-category tag says what it makes.
+  it('gives its commands glyphs and names the new-category tag', async () => {
+    stubAPI(catalogRoutes())
+    const screen = await renderLibrary()
+    await expect.element(screen.getByRole('table')).toBeVisible()
+
+    await expect
+      .element(
+        screen
+          .getByRole('button', { name: 'Categories', exact: true })
+          .getByTestId('rv-icon'),
+      )
+      .toBeVisible()
+    const tag = screen.getByRole('button', { name: NEW_CATEGORY })
+    await expect.element(tag).toHaveTextContent('Category')
+    await expect.element(tag.getByTestId('rv-icon')).toBeVisible()
+
+    await openCategory(screen, 'Communication')
+    await openMenu(screen, 'Actions for list Discord')
+    for (const item of ['Remove from the category', 'Delete the list'])
+      await expect
+        .element(
+          screen.getByRole('menuitem', { name: item }).getByTestId('rv-icon'),
+        )
+        .toBeVisible()
+  })
+
+  // What an empty table says depends on what empties it, and it is said inside
+  // the table's frame rather than as a child of the table element.
+  it.each([
+    [
+      'a query nothing matches',
+      async (screen: Library) => {
+        await screen.getByLabelText('Find a list').fill('no such list')
+      },
+      CATEGORIES,
+      LISTS,
+      'Nothing matches “no such list”',
+    ],
+    [
+      'a category with no list',
+      async (screen: Library) => {
+        await screen.getByRole('button', { name: /^Shelf/ }).click()
+      },
+      [{ custom: true, id: 'shelf', lists: [], title: 'Shelf' }],
+      LISTS,
+      'This category holds no lists yet.',
+    ],
+    [
+      'two categories with no list',
+      async (screen: Library) => {
+        await screen.getByRole('button', { name: /^Shelf/ }).click()
+        await screen.getByRole('button', { name: /^Drawer/ }).click()
+      },
+      [
+        { custom: true, id: 'shelf', lists: [], title: 'Shelf' },
+        { custom: true, id: 'drawer', lists: [], title: 'Drawer' },
+      ],
+      LISTS,
+      'The chosen categories hold no lists.',
+    ],
+    [
+      'a library with no list at all',
+      async () => undefined,
+      [],
+      [],
+      'The library holds no lists yet.',
+    ],
+  ])(
+    'says what leaves the table empty: %s',
+    async (_case, act, categories, lists, said) => {
+      stubAPI({
+        'GET /v1/lists': () => catalogResponse(categories, lists),
+        'GET /v1/targets': () => json({ targets: [] }),
+      })
+      const screen = await renderLibrary()
+      await expect.element(screen.getByRole('table')).toBeVisible()
+      await act(screen)
+
+      const message = screen.getByText(said)
+      await expect.element(message).toBeVisible()
+      expect(message.element().closest('table')).toBeNull()
+      await expect
+        .element(screen.getByText('Nothing matches “”', { exact: false }))
+        .not.toBeInTheDocument()
+    },
+  )
 
   // The address states where the operator is, so the composing card's link
   // lands on the category and the list it named.

@@ -116,51 +116,51 @@ const stopReplacing = async (): Promise<void> => {
     </p>
 
     <form v-else-if="editing" class="credential__form" @submit.prevent="onSave">
-      <div class="credential__row">
-        <RvField
-          class="credential__field"
-          :error="refused ? t('devices.credential.invalid') : undefined"
-          :input-id="fieldID"
-          :label="label"
-        >
-          <template #default="{ describedBy, invalid }">
+      <!-- The act stands in the field's own row, so the error — when there is
+           one — runs under the whole row, not under the input alone. -->
+      <RvField
+        :error="refused ? t('devices.credential.invalid') : undefined"
+        :input-id="fieldID"
+        :label="label"
+      >
+        <template #default="{ describedBy, invalid }">
+          <div class="credential__row">
             <RvTextInput
               ref="field"
               v-model="password"
               autocomplete="off"
+              class="credential__input"
               :described-by="describedBy"
               :disabled="disabled"
               :input-id="fieldID"
               :invalid="invalid"
               type="password"
             />
-          </template>
-        </RvField>
-        <RvButton
-          class="rv-field-action"
-          :disabled="disabled || password === ''"
-          type="submit"
-          variant="primary"
-          >{{ t('devices.credential.save') }}</RvButton
-        >
-        <RvButton
-          v-if="saved"
-          class="rv-field-action"
-          :disabled="disabled"
-          @click="stopReplacing"
-          >{{ t('action.cancel') }}</RvButton
-        >
-      </div>
+            <RvButton
+              :disabled="disabled || password === ''"
+              type="submit"
+              variant="primary"
+              >{{ t('devices.credential.save') }}</RvButton
+            >
+            <RvButton
+              v-if="saved"
+              :disabled="disabled"
+              @click="stopReplacing"
+              >{{ t('action.cancel') }}</RvButton
+            >
+          </div>
+        </template>
+      </RvField>
       <!-- What saving does, beside the act that does it. -->
       <p class="credential__note">{{ t('devices.credential.where') }}</p>
     </form>
 
     <template v-else>
-      <div class="credential__row credential__row--saved">
+      <div class="credential__row">
         <RvStatus :label="t('devices.credential.saved')" tone="ready" />
-        <RvButton ref="replace" :disabled="disabled" @click="startReplacing">{{
-          t('devices.credential.replace')
-        }}</RvButton>
+        <RvButton ref="replace" :disabled="disabled" @click="startReplacing"
+          ><RvIcon name="edit" />{{ t('devices.credential.replace') }}</RvButton
+        >
         <RvTooltip :text="t('devices.credential.remove')">
           <RvButton
             :aria-label="t('devices.credential.remove')"
@@ -193,30 +193,27 @@ const stopReplacing = async (): Promise<void> => {
   border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
 }
 
+/* The field and the sentence about where the password is kept are one group:
+   the sentence stands right under the row, and an error, when there is one,
+   comes between them. */
 .credential__form {
   display: grid;
-  gap: var(--rv-space-3);
+  gap: var(--rv-space-2);
   min-width: 0;
 }
 
-/* A button beside a field stands on the field's control: the row aligns to its
-   bottom edge and `rv-field-action` lifts the button by the line the field
-   keeps for its error. */
+/* The input takes what the button and Cancel leave of the row, so the row's
+   right edge is the edge of the parameter grid above it. */
 .credential__row {
   display: flex;
   flex-wrap: wrap;
   gap: var(--rv-space-3);
-  align-items: flex-end;
+  align-items: center;
   min-width: 0;
 }
 
-.credential__row--saved {
-  align-items: center;
-}
-
-.credential__field {
+.credential__input {
   flex: 1 1 var(--rv-form-column-min);
-  max-width: var(--rv-measure-field);
   min-width: 0;
 }
 

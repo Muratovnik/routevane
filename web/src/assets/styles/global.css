@@ -84,14 +84,6 @@ ol {
     var(--rv-shadow-raised);
 }
 
-/* A control that shares a row with a field stands on the field's control. The
- * field keeps a line under its control for its error, so a row that aligns its
- * items to their bottom edge would set the control one line below it; this
- * lifts the control by that line. Written once, here, for every such row. */
-.rv-field-action {
-  margin-block-end: var(--rv-field-error-space);
-}
-
 /* The focus ring is a role, not a per-component decision: two device pixels of
  * ring plus an offset so it stays visible on a filled control. */
 :focus-visible {

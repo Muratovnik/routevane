@@ -115,8 +115,7 @@ describe('DevicesView credential ownership', () => {
 
     await screen
       .getByRole('button', {
-        name: 'Configure connection Office router',
-        exact: true,
+        name: /^Office router /,
       })
       .click()
     await expect
@@ -140,8 +139,7 @@ describe('DevicesView credential ownership', () => {
     await screen.getByLabelText('Router password').fill(DUMMY_SECOND)
     await screen
       .getByRole('button', {
-        name: 'Configure connection Home router',
-        exact: true,
+        name: /^Home router /,
       })
       .click()
     await expect
@@ -159,8 +157,7 @@ describe('DevicesView credential ownership', () => {
 
     await screen
       .getByRole('button', {
-        name: 'Configure connection Office router',
-        exact: true,
+        name: /^Office router /,
       })
       .click()
     await expect

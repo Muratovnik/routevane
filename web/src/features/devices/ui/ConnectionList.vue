@@ -61,15 +61,16 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
     </header>
     <ul class="connections__rows">
       <li v-for="connection in connections" :key="connection.id">
+        <!-- The row is named by what it shows — name, format, address and
+             delivery — so what is read is what is seen; the chosen one is the
+             current item of the list. -->
         <button
           type="button"
           class="connections__row"
           :class="{
             'connections__row--selected': connection.id === selectedId,
           }"
-          :aria-describedby="`delivery-${connection.id}`"
-          :aria-label="t('devices.configure.aria', { name: connection.name })"
-          :aria-pressed="connection.id === selectedId"
+          :aria-current="connection.id === selectedId ? 'true' : undefined"
           :disabled="busy"
           @click="emit('select', connection.id)"
         >
@@ -86,7 +87,6 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
               <span class="connections__address">{{ connection.address }}</span>
             </span>
             <RvStatus
-              :id="`delivery-${connection.id}`"
               :label="deliveryLabel(connection)"
               :tone="deliveryTone(connection)"
             />
@@ -134,7 +134,6 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
 .connections__rows {
   min-height: 0;
   overflow-y: auto;
-  overscroll-behavior: contain;
   list-style: none;
 }
 
@@ -162,7 +161,7 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
 
 /* The chosen row takes the ground every other selection here takes. It carries
    no frame of its own: the rows already divide by a hairline, and the mark at
-   its end and the pressed state say what the ground does not. */
+   its end and the current state say what the ground does not. */
 .connections__row--selected {
   background: var(--rv-color-surface-muted);
 }

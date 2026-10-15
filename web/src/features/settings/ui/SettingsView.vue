@@ -16,6 +16,7 @@ import {
   type DetailMode,
 } from '@/shared/model/useSurfacePreferences'
 import RvButton from '@/shared/ui/RvButton.vue'
+import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvSettingsSection from '@/shared/ui/RvSettingsSection.vue'
 import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import RvSegmented from '@/shared/ui/RvSegmented.vue'
@@ -136,10 +137,12 @@ const onConfigTransferApplied = (): void => {
           tone="warning"
         >
           <template #action>
-            <RvButton @click="settings.retry">{{ t('action.retry') }}</RvButton>
+            <RvButton @click="settings.retry"
+              ><RvIcon name="refresh" />{{ t('action.retry') }}</RvButton
+            >
           </template>
         </RvStateNotice>
-        <div class="settings__copy">
+        <div class="settings__copy settings__copy--live">
           <RvSegmented
             label-hidden
             :disabled="!settings.canChange.value"
@@ -226,8 +229,14 @@ const onConfigTransferApplied = (): void => {
   overflow-wrap: anywhere;
 }
 
-.settings__feedback {
-  min-height: 1lh;
+/* The status line is a live region that stands from the start so that its text
+   is announced, but it takes no height and no gap while it holds none. */
+.settings__copy--live {
+  gap: 0;
+}
+
+.settings__feedback:not(:empty) {
+  margin-block-start: var(--rv-space-2);
 }
 
 .settings__mono {

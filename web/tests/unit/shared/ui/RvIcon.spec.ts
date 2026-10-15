@@ -18,6 +18,28 @@ describe('RvIcon', () => {
     expect(getComputedStyle(glyph.element()).animationName).toBe('none')
   })
 
+  // The set's own strokes stay inside 2..14 of the 16 units, the way the other
+  // glyphs are set, and a new glyph draws something.
+  it.each(['link', 'unlink'] as const)(
+    'draws the %s glyph inside the product icons’ box',
+    async (name) => {
+      const screen = await render(RvIcon, { props: { name } })
+      const svg = screen.getByTestId('rv-icon').element()
+      const frame = svg.getBoundingClientRect()
+      const ink = [...svg.querySelectorAll('path')].map((path) =>
+        path.getBoundingClientRect(),
+      )
+      expect(ink.length).toBeGreaterThan(1)
+      const left = Math.min(...ink.map((box) => box.left)) - frame.left
+      const right = Math.max(...ink.map((box) => box.right)) - frame.left
+      const top = Math.min(...ink.map((box) => box.top)) - frame.top
+      const bottom = Math.max(...ink.map((box) => box.bottom)) - frame.top
+      for (const edge of [left, top]) expect(edge).toBeGreaterThanOrEqual(1.25)
+      for (const edge of [right, bottom])
+        expect(edge).toBeLessThanOrEqual(14.75)
+    },
+  )
+
   // A publisher's artwork runs to the edge of its own box, so drawn like the
   // product's strokes — which stay inside 2..14 of 16 units — it looks larger
   // than the icon beside it. Its ink takes the same share, on the same centre.

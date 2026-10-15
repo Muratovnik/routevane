@@ -318,12 +318,14 @@ test('a palette list longer than its panel scrolls within reach of the keyboard'
   await page.goto(`${origin}/lists`)
   await openLibraryCategory(page, 'Communication')
   await page.getByRole('button', { name: englishCopy('lists.addList') }).click()
-  const sheet = page.getByRole('dialog', {
-    name: englishCopy('lists.addList'),
-  })
-  await sheet
+  await page
+    .getByRole('dialog', { name: englishCopy('lists.addList') })
     .getByText(englishCopy('lists.list.flow.existing'), { exact: true })
     .click()
+  // The sheet is named for the act it is taking, so the choice renames it.
+  const sheet = page.getByRole('dialog', {
+    name: englishCopy('lists.list.existing.title'),
+  })
   const trigger = sheet.getByRole('button', {
     name: englishCopy('lists.category.pick.placeholder'),
   })
