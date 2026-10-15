@@ -115,7 +115,16 @@ After required gates pass, commit each coherent task-owned green increment by
 default. Preserve unrelated work and pre-existing staged changes. Stage only
 exact task-owned paths, run `relkit audit --staged`, inspect
 the staged diff, and commit in one uninterrupted sequence; never leave a staged
-handoff. Never push unless the user explicitly requests it.
+handoff.
+
+Push `main` after committing such an increment, so that `ci.yml` checks it on
+Linux and the Windows desktop within minutes rather than first at release. Push
+only a fast-forward of `origin/main`: never force, never bypass the pre-push
+guard, and if `origin/main` has commits that local `main` lacks, stop and report
+rather than merging or rebasing. Push no other branch or tag unless the user
+asks; tags belong to the release procedure. After the push, read the `ci.yml`
+run for the pushed commit: a red run is the pushing task's own defect to fix
+before it closes.
 
 Commit subjects follow Conventional Commits with the closed Angular type set:
 `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `refactor`, `revert`,
