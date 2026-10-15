@@ -11,6 +11,55 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
+## [0.4.0](https://github.com/Muratovnik/routevane/compare/v0.3.3...v0.4.0) (2026-10-15)
+
+### Highlights
+
+Routevane 0.4.0 lets a connection keep its password on its own, separate from
+automatic delivery, and lets you delete archived profiles, remove a format from
+a profile and issue a new subscription link. A build refused for incomplete
+coverage now names the lists it could not cover. Keenetic FQDN groups are named
+after their list instead of two hashes; the next build and send of an output
+replaces its old groups and leaves other outputs' and manual groups alone.
+Editing a target's title or installation steps no longer strands existing
+outputs after an upgrade.
+
+The screens follow one look for unavailable controls, state the service's
+refusals at the fields they concern, collapse the sidebar in a narrow window,
+and confirm irreversible actions with a destructive button.
+
+### BREAKING CHANGES
+
+`POST /v1/artifacts/{id}/deploy` now answers a refused device address with
+status 422 and the code `address_rejected`, the same status the device routes
+use, instead of 400. The response names the refused field and reports
+`attempt_started: false`. Other connection faults on this route keep
+`connection_invalid` with 400. Clients that branched on the 400 status for a
+refused address must read 422 or the code.
+
+`GET /v1/profile-pages/{cursor}` is removed. Page through profiles with
+`GET /v1/profile-shelf/{shelf}/{cursor}`, which the screens already use.
+
+### Features
+
+- **devices:** ([820429d](https://github.com/Muratovnik/routevane/commit/820429d3f280e3f2e9fdcf8a6fb1585df3f99b2c), [c5a1036](https://github.com/Muratovnik/routevane/commit/c5a1036675194347710cbd1bfc833394b1258796)) Save a connection's password in the operating system's credential store on its own; manual sends use it, and automatic delivery is a separate switch that no longer deletes the password when turned off.
+- **profiles:** ([97be074](https://github.com/Muratovnik/routevane/commit/97be074a8b85248bab1cc7b075ea4eef71ed344d), [4008c30](https://github.com/Muratovnik/routevane/commit/4008c30275610a9a4340fc64e36e820903ef709a)) Delete an archived profile, remove a format from a profile, and issue a new subscription link for a format; the previous link is revoked and answers 410. The profiles shelf filters active and archived profiles, and archiving can be undone from the status line.
+- **web:** ([05614c2](https://github.com/Muratovnik/routevane/commit/05614c2b4825a14dbf79d22e799ae190dd452ff0), [0fded05](https://github.com/Muratovnik/routevane/commit/0fded05e2b768437039b22e5c9d50f006a79fb63)) The Publishing tab is arranged around its format table with a menu per format; the send page uses a saved password, can save a typed one on consent, and previews changes first.
+- **api:** ([1b22973](https://github.com/Muratovnik/routevane/commit/1b229730f3853889ae9cf34f166c96669466a45f), [7f17ce5](https://github.com/Muratovnik/routevane/commit/7f17ce5bfa32c8392e269b3552bd538d97d00912), [f77985f](https://github.com/Muratovnik/routevane/commit/f77985f15ed83afaacf1a3cd349a50394b248906), [038f6a6](https://github.com/Muratovnik/routevane/commit/038f6a6fdbd6101cfe58e324363392fbf1ab5478)) A build refused for incomplete coverage lists the uncovered lists, also after a reload. Device and deploy routes name a refused address, an invalid password and an unavailable credential store, and the screens state these refusals at their fields.
+- **catalog:** ([18c6456](https://github.com/Muratovnik/routevane/commit/18c64562a81adc6e7b974fb9a87573054ba38a3f), [635b0c8](https://github.com/Muratovnik/routevane/commit/635b0c8044aef5e9331cce53d3ade85e5f832b44)) A target lists its manual installation steps as steps; the Send screen and the supported-formats informer show them in order.
+- **web:** ([d787522](https://github.com/Muratovnik/routevane/commit/d787522abec7d1966518e31bb9871d9d82bcb17d), [1e7a97c](https://github.com/Muratovnik/routevane/commit/1e7a97ce089bd4915d01f7a1ae8b6d187e59df69)) The sidebar starts collapsed below 1100 px (at the default text size) unless you chose otherwise, and the settings rail and its actions stay inside the window.
+- **web:** ([eb45539](https://github.com/Muratovnik/routevane/commit/eb455390f86f439b9246dad92519741704492934), [a052f48](https://github.com/Muratovnik/routevane/commit/a052f48da484d0c0d96ad2fdadff3f1565ba28d1), [7a35d6b](https://github.com/Muratovnik/routevane/commit/7a35d6bd465480a06c68ba12d9f64fde7cd4883b), [bb680de](https://github.com/Muratovnik/routevane/commit/bb680de59045be0fff6c74235dc9de156ffe3522), [47b19e1](https://github.com/Muratovnik/routevane/commit/47b19e19303a043c3da385bc888217a39e7754b6)) Irreversible actions use a destructive button, and unavailable buttons, fields, switches, choices and chips share one flat look.
+
+### Bug Fixes
+
+- **keenetic:** ([0d54d2a](https://github.com/Muratovnik/routevane/commit/0d54d2ab4e577fc088b411de19d488cb886ec75f)) Name FQDN groups `<prefix>-<list>-<output code>-s<shard>`, for example `routevane-chatgpt-db8428-s1`, instead of two hashes.
+- **catalog:** ([c25a460](https://github.com/Muratovnik/routevane/commit/c25a4605e7bad42fdfdff00beb65e596bdb0262c)) Compare an output with its own target's artifact revision, so editing any target's text no longer refuses every existing output after an upgrade. Outputs whose format or renderer changed are still refused, as before.
+- **web:** ([f1634c5](https://github.com/Muratovnik/routevane/commit/f1634c5b50ec02f9fe7341707a25fe34a4aa8844)) Profile tabs are history entries, so Back returns to the previous tab.
+- **web:** ([74b497e](https://github.com/Muratovnik/routevane/commit/74b497e66a8175bd11077bd205fca951c5231429), [8f4bf61](https://github.com/Muratovnik/routevane/commit/8f4bf6150473f4fb6f861d760b2b8d15626a2e01)) A refused send no longer claims the format changed, and a failed list write says whether the service answered.
+- **web:** ([cdcf667](https://github.com/Muratovnik/routevane/commit/cdcf6676fd6008c519534331694a34aaae6be5a5), [1b01d66](https://github.com/Muratovnik/routevane/commit/1b01d669ad92c5e91d678510d246bbda4f35357c), [73fcbe4](https://github.com/Muratovnik/routevane/commit/73fcbe420ac5aa34eec66f3d339e79538cf40b82), [d08e61c](https://github.com/Muratovnik/routevane/commit/d08e61c9404c0b6bd96b425e00167c913adf6a89)) A format row asks for a connection only once delivery is set up; the connection form keeps focus during writes, and a cancelled password replacement clears its stale refusal.
+- **web:** ([4f4510b](https://github.com/Muratovnik/routevane/commit/4f4510b0b2cc40fa2fabc1e2aa3c1fcf9b3194fa), [d71d8ed](https://github.com/Muratovnik/routevane/commit/d71d8edc3ffd57bfab373c74e47490006185b0f1), [c94163c](https://github.com/Muratovnik/routevane/commit/c94163ca134343e841dab678404685d9d0541c64), [804b878](https://github.com/Muratovnik/routevane/commit/804b878ed9b73e53828d796c8476f5ae47f6fc0f), [0f85b19](https://github.com/Muratovnik/routevane/commit/0f85b193b86b21b30bfa8a37a674b7935c0c8675), [e6cf10f](https://github.com/Muratovnik/routevane/commit/e6cf10f6196592797734aff5235f8013407fdea4)) Composer actions sit above its fields and stay in reach, choice triggers stay on one line, and table and refusal text is no longer cut.
+- **web:** ([28ddeee](https://github.com/Muratovnik/routevane/commit/28ddeeeb6331504f9fdf4e4f4db5e3b8c1f81c55), [0815358](https://github.com/Muratovnik/routevane/commit/081535894575131c188a23f49ba9a08123fd1420), [7899044](https://github.com/Muratovnik/routevane/commit/789904406a98472f2bffdbf0f6ebd83b6e6db28f)) Menus, choice lists and the strong edge stay distinct from the canvas in the dark theme.
+
 ## [0.3.3](https://github.com/Muratovnik/routevane/compare/v0.3.2...v0.3.3) (2026-10-11)
 
 ### Bug Fixes
