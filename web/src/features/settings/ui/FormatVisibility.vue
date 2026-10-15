@@ -5,7 +5,7 @@ import { useFormatVisibility } from '@/features/settings/model/useFormatVisibili
 import { useLocale } from '@/shared/i18n/useLocale'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
-import RvSettingsSection from '@/shared/ui/RvSettingsSection.vue'
+import RvSection from '@/shared/ui/RvSection.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import RvSwitch from '@/shared/ui/RvSwitch.vue'
 
@@ -24,7 +24,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <RvSettingsSection :title="t('settings.formats.title')">
+  <RvSection layout="beside" :title="t('settings.formats.title')">
     <RvStateNotice
       v-if="formats.state.value === 'loading'"
       live
@@ -61,7 +61,7 @@ onMounted(() => {
         @update:model-value="formats.setShown(format.id, $event)"
       />
     </fieldset>
-  </RvSettingsSection>
+  </RvSection>
 </template>
 
 <style scoped>

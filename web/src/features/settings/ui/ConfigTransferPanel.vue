@@ -7,7 +7,7 @@ import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvFilePicker from '@/shared/ui/RvFilePicker.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
-import RvSettingsSection from '@/shared/ui/RvSettingsSection.vue'
+import RvSection from '@/shared/ui/RvSection.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 
 const emit = defineEmits<{ applied: [] }>()
@@ -70,7 +70,7 @@ const apply = async (): Promise<void> => {
 </script>
 
 <template>
-  <RvSettingsSection :title="t('configTransfer.title')">
+  <RvSection layout="beside" :title="t('configTransfer.title')">
     <div class="config-transfer__operations">
       <section
         class="config-transfer__operation"
@@ -249,7 +249,7 @@ const apply = async (): Promise<void> => {
         </RvButton>
       </template>
     </RvDialog>
-  </RvSettingsSection>
+  </RvSection>
 </template>
 
 <style scoped>

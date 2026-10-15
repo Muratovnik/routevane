@@ -17,8 +17,8 @@ import {
 } from '@/shared/model/useSurfacePreferences'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
-import RvSettingsSection from '@/shared/ui/RvSettingsSection.vue'
 import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
+import RvSection from '@/shared/ui/RvSection.vue'
 import RvSegmented from '@/shared/ui/RvSegmented.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 
@@ -88,7 +88,7 @@ const onConfigTransferApplied = (): void => {
   <section aria-labelledby="settings-title" class="settings">
     <RvPageHeader title-id="settings-title" :title="t('settings.title')" />
     <div class="settings__content">
-      <RvSettingsSection :title="t('settings.interface')">
+      <RvSection layout="beside" :title="t('settings.interface')">
         <div class="settings__fields">
           <RvSegmented
             :label="t('settings.locale')"
@@ -115,13 +115,14 @@ const onConfigTransferApplied = (): void => {
             <p class="settings__note">{{ t('settings.mode.note') }}</p>
           </div>
         </div>
-      </RvSettingsSection>
+      </RvSection>
 
       <FormatVisibility />
 
-      <RvSettingsSection
-        :title="t('settings.refresh')"
+      <RvSection
         :description="t('settings.refresh.note')"
+        layout="beside"
+        :title="t('settings.refresh')"
       >
         <RvStateNotice
           v-if="settings.readState.value === 'failed'"
@@ -176,10 +177,10 @@ const onConfigTransferApplied = (): void => {
             }}
           </p>
         </div>
-      </RvSettingsSection>
+      </RvSection>
 
       <ConfigTransferPanel @applied="onConfigTransferApplied" />
-      <RvSettingsSection :title="t('settings.runtime')">
+      <RvSection layout="beside" :title="t('settings.runtime')">
         <p class="settings__runtime">
           {{ t('settings.runtime.address') }} ·
           <span class="settings__mono">{{ origin }}</span>
@@ -188,7 +189,7 @@ const onConfigTransferApplied = (): void => {
           {{ t('settings.runtime.version') }} ·
           <span class="settings__mono">{{ runtime.version.value }}</span>
         </p>
-      </RvSettingsSection>
+      </RvSection>
     </div>
   </section>
 </template>
@@ -203,7 +204,6 @@ const onConfigTransferApplied = (): void => {
 .settings__content {
   display: grid;
   gap: var(--rv-space-6);
-  container: settings-content / inline-size;
 }
 
 .settings__fields {

@@ -1,13 +1,5 @@
 <script setup lang="ts">
-import {
-  computed,
-  nextTick,
-  onMounted,
-  ref,
-  useId,
-  useTemplateRef,
-  watch,
-} from 'vue'
+import { computed, nextTick, onMounted, ref, useTemplateRef, watch } from 'vue'
 
 import {
   addressRefused,
@@ -26,6 +18,7 @@ import RvButton from '@/shared/ui/RvButton.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
+import RvSection from '@/shared/ui/RvSection.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import type { ChoiceOption } from '@/shared/ui/types'
@@ -83,10 +76,10 @@ const selectedID = ref('')
 // The connection the form replaced, so that leaving the form by its own action
 // returns there rather than to an arbitrary row.
 const returnTo = ref('')
-const createHeadingID = useId()
-const emptyHeadingID = useId()
-const createHeading = ref<HTMLElement | null>(null)
-const emptyHeading = ref<HTMLElement | null>(null)
+const createSection =
+  useTemplateRef<InstanceType<typeof RvSection>>('createSection')
+const emptySection =
+  useTemplateRef<InstanceType<typeof RvSection>>('emptySection')
 const detail = ref<InstanceType<typeof ConnectionDetail> | null>(null)
 const fields = useTemplateRef<InstanceType<typeof ConnectionFields>>('fields')
 // Whether the operator asked to register one. An empty registry is not the
@@ -110,7 +103,7 @@ const empty = computed(
 
 const focusSelection = async (): Promise<void> => {
   await nextTick()
-  if (selectedID.value === '') emptyHeading.value?.focus()
+  if (selectedID.value === '') emptySection.value?.focusHeading()
   else detail.value?.focusHeading()
 }
 
@@ -128,7 +121,7 @@ const startComposing = async (): Promise<void> => {
   composing.value = true
   selectedID.value = ''
   await nextTick()
-  createHeading.value?.focus()
+  createSection.value?.focusHeading()
 }
 
 // The model changes this array only after a confirmed write or registry read.
@@ -352,19 +345,12 @@ const submit = async (): Promise<void> => {
         </template>
       </RvStateNotice>
 
-      <section
+      <RvSection
         v-if="empty"
-        :aria-labelledby="emptyHeadingID"
+        ref="emptySection"
         class="devices__nothing"
+        :title="t('devices.empty')"
       >
-        <h2
-          :id="emptyHeadingID"
-          ref="emptyHeading"
-          class="devices__title"
-          tabindex="-1"
-        >
-          {{ t('devices.empty') }}
-        </h2>
         <p class="devices__lead">{{ t('devices.empty.body') }}</p>
         <div>
           <RvButton
@@ -375,7 +361,7 @@ const submit = async (): Promise<void> => {
             <RvIcon name="plus" />{{ t('devices.add') }}
           </RvButton>
         </div>
-      </section>
+      </RvSection>
 
       <div
         v-else
@@ -405,23 +391,15 @@ const submit = async (): Promise<void> => {
           :target-title="titleOf(selectedDevice)"
         />
 
-        <section
+        <RvSection
           v-else
-          :aria-labelledby="createHeadingID"
+          ref="createSection"
           class="devices__editor"
           :class="{
             'devices__editor--standalone': devices.devices.value.length === 0,
           }"
+          :title="t('devices.add')"
         >
-          <h2
-            :id="createHeadingID"
-            ref="createHeading"
-            class="devices__title"
-            tabindex="-1"
-          >
-            {{ t('devices.add') }}
-          </h2>
-
           <RvStateNotice
             v-if="devices.requirementsState.value !== 'ready'"
             :body="
@@ -513,7 +491,7 @@ const submit = async (): Promise<void> => {
               >{{ t('action.save') }}</RvButton
             >
           </div>
-        </section>
+        </RvSection>
       </div>
     </template>
   </section>
@@ -546,28 +524,16 @@ const submit = async (): Promise<void> => {
 }
 
 .devices__editor {
-  display: grid;
-  gap: var(--rv-space-5);
-  align-content: start;
-  min-width: 0;
+  --rv-section-gap: var(--rv-space-5);
+
   width: 100%;
   min-height: var(--rv-connections-compose-height);
-  padding: var(--rv-space-6);
-  background: var(--rv-color-surface);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-lg);
 }
 
 .devices__nothing {
-  display: grid;
-  gap: var(--rv-space-4);
-  justify-items: start;
+  --rv-section-gap: var(--rv-space-4);
+
   width: 100%;
-  min-width: 0;
-  padding: var(--rv-space-8) var(--rv-space-6);
-  background: var(--rv-color-surface);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-lg);
 }
 
 /* An empty registry and the form that fills it are one surface that changes
@@ -579,17 +545,11 @@ const submit = async (): Promise<void> => {
 .devices__editor--standalone {
   width: min(100%, var(--rv-measure-form));
   min-height: var(--rv-connections-compose-height);
-  align-content: start;
 }
 
 .devices__lead {
   max-width: var(--rv-measure-prose);
   color: var(--rv-color-ink-muted);
-}
-
-.devices__title {
-  font-size: var(--rv-text-module);
-  overflow-wrap: anywhere;
 }
 
 .devices__form {

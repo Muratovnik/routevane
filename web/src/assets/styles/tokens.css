@@ -186,7 +186,14 @@
   --rv-picker-fill-max: none;
   --rv-composition-width: 88rem;
   --rv-feedback-delay: 160ms;
-  --rv-settings-heading-width: 15rem;
+
+  /* A section that puts its heading beside its content: the heading's column,
+     and the least width the content keeps before the two stack. */
+  --rv-section-heading-width: 15rem;
+  --rv-section-content-min: 28rem;
+
+  /* RvSection default; a host sets the space between its content's parts. */
+  --rv-section-gap: var(--rv-space-3);
   --rv-composer-field-width: 14rem;
   --rv-detail-min-width: 35rem;
   --rv-composer-rail-width: var(--rv-panel-width);

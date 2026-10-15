@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 
 import {
   addressRefused,
@@ -19,6 +19,7 @@ import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvMenu from '@/shared/ui/RvMenu.vue'
+import RvSection from '@/shared/ui/RvSection.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
 import type { Fact, MenuItem } from '@/shared/ui/types'
 
@@ -44,10 +45,9 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useLocale()
-const headingID = useId()
-const heading = ref<HTMLElement | null>(null)
+const section = useTemplateRef<InstanceType<typeof RvSection>>('section')
 const fields = useTemplateRef<InstanceType<typeof ConnectionFields>>('fields')
-defineExpose({ focusHeading: (): void => heading.value?.focus() })
+defineExpose({ focusHeading: (): void => section.value?.focusHeading() })
 
 const requirements = computed(
   () =>
@@ -257,30 +257,28 @@ const onForget = async (): Promise<void> => {
 </script>
 
 <template>
-  <section :aria-labelledby="headingID" class="connection">
-    <header class="connection__header">
-      <div class="connection__identity">
-        <!-- The mark stands in the heading's own line, so it keeps that line's
-             centre whatever stands beneath it. -->
-        <h2
-          :id="headingID"
-          ref="heading"
-          class="connection__name"
-          tabindex="-1"
-        >
-          <RvIcon :name="targetIcon(connection.targetID)" />
-          <span class="connection__name-text">{{ connection.name }}</span>
-        </h2>
-        <!-- The address is the first parameter, in its field right below. -->
-        <p class="connection__meta">{{ targetTitle }}</p>
-      </div>
+  <!-- The address is the first parameter, in its field right below; the
+       heading says what the connection is and which format it takes. -->
+  <RvSection
+    ref="section"
+    class="connection"
+    :description="targetTitle"
+    :title="connection.name"
+  >
+    <!-- The mark stands in the heading's own line, so it keeps that line's
+         centre whatever stands beneath it. -->
+    <template #title>
+      <RvIcon :name="targetIcon(connection.targetID)" />
+      <span class="connection__name-text">{{ connection.name }}</span>
+    </template>
+    <template #actions>
       <RvMenu
         :disabled="disabled"
         :items="menuItems"
         :label="t('devices.menu', { name: connection.name })"
         @select="forgetting = true"
       />
-    </header>
+    </template>
 
     <RvStateNotice
       v-if="!requirementsReady"
@@ -413,52 +411,17 @@ const onForget = async (): Promise<void> => {
         >
       </template>
     </RvDialog>
-  </section>
+  </RvSection>
 </template>
 
 <style scoped>
+/* The parts of a connection stand further apart than the lines inside one. */
 .connection {
-  display: grid;
-  gap: var(--rv-space-8);
-  align-content: start;
-  min-width: 0;
-  padding: var(--rv-space-6);
-  background: var(--rv-color-surface);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-lg);
-}
-
-.connection__header {
-  display: flex;
-  gap: var(--rv-space-3);
-  align-items: flex-start;
-  min-width: 0;
-}
-
-.connection__identity {
-  display: grid;
-  gap: var(--rv-space-1);
-  flex: 1;
-  min-width: 0;
-}
-
-.connection__name {
-  display: flex;
-  gap: var(--rv-space-3);
-  align-items: center;
-  min-width: 0;
-  font-size: var(--rv-text-module);
+  --rv-section-gap: var(--rv-space-8);
 }
 
 .connection__name-text {
   min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.connection__meta {
-  min-width: 0;
-  color: var(--rv-color-ink-muted);
-  font-size: var(--rv-text-dense);
   overflow-wrap: anywhere;
 }
 

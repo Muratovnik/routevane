@@ -4,6 +4,7 @@ import { useLocale } from '@/shared/i18n/useLocale'
 import { targetIcon } from '@/shared/lib/targetIcon'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvSection from '@/shared/ui/RvSection.vue'
 import RvStatus from '@/shared/ui/RvStatus.vue'
 import type { StatusTone } from '@/shared/ui/types'
 
@@ -43,13 +44,14 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
 <template>
   <!-- The page's own heading says «Connections»; this one names the column, so a
        reader moving by headings hears two different things. -->
-  <section class="connections">
-    <header class="connections__header">
-      <h2 class="connections__title">{{ t('devices.list.title') }}</h2>
+  <RvSection class="connections" flush :title="t('devices.list.title')">
+    <template #meta>
       <span class="connections__count">{{ connections.length }}</span>
-      <!-- The collection's principal action stands the same height here as on
-           the profiles shelf and in the library; the row wraps under the title
-           where a language needs more width, rather than shrinking it. -->
+    </template>
+    <!-- The collection's principal action stands the same height here as on
+         the profiles shelf and in the library; the row wraps under the title
+         where a language needs more width, rather than shrinking it. -->
+    <template #actions>
       <RvButton
         :disabled="addDisabled"
         size="touch"
@@ -58,7 +60,7 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
       >
         <RvIcon name="plus" />{{ t('devices.add') }}
       </RvButton>
-    </header>
+    </template>
     <ul class="connections__rows">
       <li v-for="connection in connections" :key="connection.id">
         <!-- The row is named by what it shows — name, format, address and
@@ -98,42 +100,22 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
         </button>
       </li>
     </ul>
-  </section>
+  </RvSection>
 </template>
 
 <style scoped>
+/* A ceiling, not a standing height: past it the rows scroll inside the
+   section's frame. */
 .connections {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-width: 0;
   max-height: var(--rv-connections-list-height);
-  background: var(--rv-color-surface);
-  border: var(--rv-border-hair) solid var(--rv-color-rule);
-  border-radius: var(--rv-radius-lg);
-}
-
-.connections__header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-3);
-  align-items: center;
-  padding: var(--rv-space-4) var(--rv-space-4) var(--rv-space-3);
-  border-bottom: var(--rv-border-hair) solid var(--rv-color-rule);
-}
-
-.connections__title {
-  font-size: var(--rv-text-section);
 }
 
 .connections__count {
-  margin-inline-end: auto;
   color: var(--rv-color-ink-muted);
   font-variant-numeric: tabular-nums;
 }
 
 .connections__rows {
-  min-height: 0;
-  overflow-y: auto;
   list-style: none;
 }
 
@@ -146,7 +128,7 @@ const deliveryTone = (connection: DeviceCard): StatusTone =>
   gap: var(--rv-space-3);
   align-items: flex-start;
   width: 100%;
-  padding: var(--rv-space-3) var(--rv-space-4);
+  padding: var(--rv-space-3) var(--rv-space-6);
   color: var(--rv-color-ink);
   font: inherit;
   text-align: start;

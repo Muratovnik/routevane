@@ -434,10 +434,11 @@ Sections, addressable by URL:
    unreadable catalog says so with a retry instead of an empty list. The
    segmented choices raise the chosen option on a neutral surface with a hairline
    edge, without the accent colour or a check mark, so the choice rests on the
-   raised ground and edge rather than on colour. Every section uses one surface and grid: title and explanation
-   on the left, related controls and actions on the right. On constrained
-   screens the heading precedes its content. Surface contrast, padding and
-   whitespace distinguish sections without horizontal separators. Interface
+   raised ground and edge rather than on colour. Every section is the shared
+   section card (see Components), with the same frame as the cards of
+   Connections: title and explanation on the left, related controls and actions
+   on the right. On constrained screens the heading precedes its content. No
+   horizontal separator runs inside a section. Interface
    fields place labels above their controls; export and import stack in the
    same content column. The source-refresh explanation belongs beside its
    schedule, and the choice is named once, not by a second visible caption. The
@@ -734,7 +735,7 @@ declares a literal colour, size, space, radius or duration.
 `web/src/shared/ui` owns the primitives: `RvButton`, `RvStatus`, `RvStateNotice`,
 `RvFacts`, `RvField`, `RvTextInput`, `RvTextarea`, `RvSegmented`, `RvTabs`,
 `RvDialog`, `RvSelect`, `RvCombobox`, `RvSearchSelect`, `RvMenu`, `RvInfoTip`, `RvIcon`,
-`RvDisclosure`, `RvTable`, `RvFilePicker`, `RvCopyButton`, `RvCodeBlock`. Nuxt UI supplies
+`RvDisclosure`, `RvTable`, `RvFilePicker`, `RvCopyButton`, `RvCodeBlock`, `RvSection`. Nuxt UI supplies
 the styled mechanics behind `RvButton`, the text fields — `RvTextInput` is
 `UInput`, `RvTextarea` is `UTextarea`, `RvField` is `UFormField` — and both
 variants of `RvDialog`: the full-height sheet is `USlideover` and the bounded
@@ -839,6 +840,25 @@ whose items are mutually exclusive settings, such as «Новые списки»
 glyph column for the check mark of the current setting instead. A feature that needs a different
 look asks for a role or a variant, never a parallel class. A component is a
 black box: a host styles its own root class, passes props or fills a slot.
+
+A page section that stands as a card of its own — every section of Settings,
+and on Connections the list of saved connections, the selected connection, the
+creation form and the empty registry — is `RvSection`. It is a native
+`<section>` named by its own level-two heading, and it draws one look: the
+surface ground, a hairline edge, the large radius, the `--rv-space-6` inset and
+a heading in `--rv-text-module`, so a section's own parts, headed in
+`--rv-text-section`, stay below it. A short description may stand under the
+heading, a count beside it without joining its name, and actions at the end of
+the header line. Settings puts the heading in a column beside the content
+(`layout="beside"`) and stacks the two where the section is too narrow for
+both; Connections stacks them. The list of saved connections is `flush`: its
+rows run to the frame's edges under a header divided from them by a hairline,
+and once the page caps its height they scroll inside the frame. The host sets
+the space between the content's own children with `--rv-section-gap`, and moves
+the keyboard to the heading through the section when it replaces what the
+section shows. Nuxt UI's `UCard` is not used for this: it renders no landmark or
+heading, and its insets follow the window's breakpoints rather than the
+section's own width.
 
 The application chrome presents the Routevane wordmark beside the canonical
 mark at `/routevane-logo.svg`. The mark is decorative and never replaces the

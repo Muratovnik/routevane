@@ -200,7 +200,7 @@ for (const language of ['en', 'ru'] as const) {
         const beforeRetry = reads
         failRequirements = false
         await page
-          .getByRole('region', { name: copy('connections.title') })
+          .getByRole('region', { name: copy('connections.title'), exact: true })
           .getByRole('button', { name: copy('action.retry'), exact: true })
           .click()
         await page
