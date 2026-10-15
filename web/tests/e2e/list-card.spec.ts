@@ -196,6 +196,15 @@ test('the list card stays whole over a scrolled page and gives the scroll back',
   // The page is scrolled before the card opens. The click below would scroll
   // its own target into view, so the position the card must preserve is the
   // one read after that adjustment, not before it.
+  // The page overflows the window only once the lists, the formats and the
+  // delivery targets have arrived; scrolling it earlier moves nothing.
+  await expect
+    .poll(() =>
+      page
+        .getByRole('main')
+        .evaluate((element) => element.scrollHeight - element.clientHeight),
+    )
+    .toBeGreaterThan(0)
   await page.getByRole('main').evaluate((element) => {
     element.scrollTop = element.scrollHeight
   })
