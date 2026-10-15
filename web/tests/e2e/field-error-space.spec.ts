@@ -5,7 +5,8 @@
  * line were added to the layout then, everything under the field would move
  * down, and a click aimed at the button below — pressed in the same motion that
  * left the field — would land beside it. The field therefore keeps the line
- * whether or not it is used.
+ * whether or not it is used, and an error longer than the line is cut on it
+ * rather than given a second one.
  *
  * The worker fixture in `support/served-product.ts` serves this suite
  * alone, over the data directory named below.
@@ -62,6 +63,52 @@ test('an error that appears on leaving a field moves nothing under it', async ({
   await expect(page.getByText(/^Expected an address like /)).toBeVisible()
 
   expect(await Promise.all([address, ...below].map(box))).toEqual(before)
+})
+
+// How wide an error's text runs depends on the platform's font, the language
+// and the column, and one that wrapped onto a second line moved everything
+// under the field on Linux. The line's letters are spread here so that the
+// text is wider than its line on any platform.
+test('an error longer than its line moves nothing under it and keeps its whole text', async ({
+  page,
+  origin,
+}) => {
+  await openCreateForm(page, origin)
+  const address = deviceField(page, 'deploy.field.address.keenetic')
+  const below = [
+    deviceField(page, 'deploy.field.account.keenetic'),
+    deviceField(page, 'deploy.field.interface.keenetic'),
+    page.getByRole('button', { name: 'Save', exact: true }),
+    page.getByRole('button', { name: 'Cancel', exact: true }),
+  ]
+  await address.evaluate((control) => {
+    let field: Element | null = control.parentElement
+    while (field !== null && field.querySelector('.rv-field__error') === null)
+      field = field.parentElement
+    const line = field?.querySelector<HTMLElement>('.rv-field__error')
+    if (line === null || line === undefined)
+      throw new Error('the field keeps no error line')
+    line.style.letterSpacing = '1em'
+  })
+  await address.fill(NOT_AN_ADDRESS)
+  const before = await Promise.all([address, ...below].map(box))
+
+  await page.keyboard.press('Tab')
+  const error = page.getByText(/^Expected an address like /)
+  await expect(error).toBeVisible()
+
+  expect(await Promise.all([address, ...below].map(box))).toEqual(before)
+  // The text did not fit its line, so the line above held it by cutting it.
+  expect(
+    await error.evaluate((line) => line.scrollWidth > line.clientWidth),
+  ).toBe(true)
+  // Cut on the screen, whole for whoever reads it another way.
+  const text = (await error.textContent()) ?? ''
+  expect(text).toMatch(/^Expected an address like .+\.$/)
+  await expect(error).toHaveAttribute('title', text)
+  await expect(address).toHaveAccessibleDescription(
+    new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+  )
 })
 
 test('typing a value that is refused and pressing Save in one motion presses Save', async ({

@@ -137,7 +137,10 @@ const failure = computed(() =>
     <!-- The library draws the error's line whenever this slot exists, so the
          slot is always given and the line it keeps is one line tall whether or
          not an error is in it: leaving a field with a refused value must not
-         move what is under it, or a click aimed there lands beside it. An
+         move what is under it, or a click aimed there lands beside it. A text
+         longer than the line is cut with an ellipsis rather than wrapped, so
+         no font, language or column width can grow the line; the whole text
+         stays the control's description and the line's tooltip. An
          announced error is a live region that stands from the moment the field
          is drawn and only receives its text: a region that arrives together
          with its text is not reliably announced. -->
@@ -145,6 +148,7 @@ const failure = computed(() =>
       <span
         class="rv-field__error"
         :role="announceError === true ? 'alert' : undefined"
+        :title="failure"
         >{{ failure }}</span
       >
     </template>
@@ -152,9 +156,16 @@ const failure = computed(() =>
 </template>
 
 <style scoped>
+/* The line takes the field's width and lends it none: a text that does not wrap
+   would otherwise widen the field, and the form's column with it. */
 .rv-field__error {
   display: block;
-  min-height: var(--rv-field-error-line);
+  contain: inline-size;
+  height: var(--rv-field-error-line);
+  overflow: hidden;
+  line-height: var(--rv-field-error-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rv-field--aligned {

@@ -501,6 +501,9 @@ Disclosures are for long secondary content, not for hints. A label or a heading
 never gets a sentence under it that restates the label, the placeholder or the
 obvious next step. A field's example is its placeholder, its explanation sits
 behind an informer beside its label, and under a field there is only its error.
+That error keeps one line whether or not it is shown, so it never moves what is
+below; a longer text is cut with an ellipsis and stays whole in the control's
+description and the line's tooltip.
 Keep edits on the surface that owns their
 scope: composing a profile writes only that profile; the library writes the
 library (ADR 0029). Explain shared effects beside an action when they affect
