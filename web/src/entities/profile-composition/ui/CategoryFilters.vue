@@ -58,10 +58,14 @@ const choices = computed(() => [
     ).length,
   },
 ])
+// The row holds the quick chips beside the chips that always stand in it: all
+// categories, the choice panel's trigger and the labelled action. Those are
+// reserved first, so the row never wraps onto a second line the fill height
+// of the table below does not allow for; each quick chip then takes its share.
 const quick = computed(() =>
   choices.value.slice(
     0,
-    Math.max(0, Math.min(5, Math.floor((width.value - 260) / 155))),
+    Math.max(0, Math.min(5, Math.floor((width.value - 360) / 155))),
   ),
 )
 const triggerLabel = computed(

@@ -393,7 +393,10 @@ test('installed app rejects a damaged update, retries, restarts into the new ver
     await update.press('Enter')
     await expect(page.getByRole('button', { name: /^Загрузка/ })).toBeDisabled()
     await page.screenshot({ path: join(parent, 'downloading.png') })
-    const retry = page.getByRole('button', { name: 'Повторить', exact: true })
+    const retry = page.getByRole('button', {
+      name: ru('update.retry'),
+      exact: true,
+    })
     await expect(retry).toBeVisible({ timeout: 60000 })
     expect(
       await powershell(
