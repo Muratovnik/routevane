@@ -85,6 +85,7 @@ onMounted(reload)
     <section
       v-if="
         view.state.value !== 'ready' ||
+        view.archived.value ||
         output === null ||
         output.latest === null
       "
@@ -121,6 +122,22 @@ onMounted(reload)
         :title="t('profile.missing')"
         tone="failed"
       />
+      <!-- An archived profile accepts no change, and a send changes the
+           connection's device; a direct link reaches this page all the same,
+           so it states that and leads back instead of offering the form. -->
+      <RvStateNotice
+        v-else-if="view.archived.value"
+        :body="t('send.archived.body')"
+        live
+        :title="t('send.archived')"
+        tone="waiting"
+      >
+        <template #action>
+          <RvButton :to="`/profiles/${profileId}`">
+            {{ t('send.archived.back') }}
+          </RvButton>
+        </template>
+      </RvStateNotice>
       <RvStateNotice
         v-else-if="output === null"
         :body="t('send.connection.missing.body')"

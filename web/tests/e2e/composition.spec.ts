@@ -348,7 +348,9 @@ test('the composition editor remains operable with text enlarged to 200%', async
   const search = page.getByRole('searchbox', { name: 'Find a list' })
   await search.fill('Discord')
   await listMembership(page, 'Discord').check()
-  await expect(page.getByText('1 list in the profile')).toBeVisible()
+  await expect(
+    page.getByRole('button', { exact: true, name: 'In profile (1)' }),
+  ).toBeVisible()
   expect(await fits(page)).toBe(true)
 })
 

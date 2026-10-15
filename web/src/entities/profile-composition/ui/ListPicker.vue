@@ -439,7 +439,6 @@ defineExpose({ focus })
           :items="futureItems"
           @select="toggleCategoryReference($event === 'auto')"
         />
-        <span role="status">{{ tc('create.resolved', resolved.length) }}</span>
         <div class="picker__forecast-status" role="status">
           <span>{{ overlapMessage }}</span>
           <span

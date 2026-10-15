@@ -345,21 +345,21 @@ test('desktop publishes and transfers a reviewed configuration to a fresh instal
         localStorage.setItem('rv.locale', 'en'),
       )
       await destination.page.goto('routevane://app/settings')
+      // Choosing the file starts its check.
       await destination.page
         .getByLabel('Choose a .json file')
         .setInputFiles(transfer)
-      await destination.page
-        .getByRole('button', { name: 'Preview transfer' })
-        .click()
       const preview = destination.page.getByRole('region', {
         name: 'Will be imported',
       })
       await expect(preview).toContainText('1 profile')
-      await preview.getByRole('button', { name: 'Review and apply' }).click()
+      await preview.getByRole('button', { exact: true, name: 'Import' }).click()
       const confirmation = destination.page.getByRole('dialog', {
         name: 'Add the reviewed configuration to this empty installation?',
       })
-      await confirmation.getByRole('button', { name: 'Apply transfer' }).click()
+      await confirmation
+        .getByRole('button', { exact: true, name: 'Import' })
+        .click()
       await expect(destination.page).toHaveURL('routevane://app/')
       await expect(
         destination.page.getByRole('link', {

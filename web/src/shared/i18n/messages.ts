@@ -247,12 +247,6 @@ const ru: Dictionary = {
   'listPicker.empty.selected': 'Ни один список ещё не выбран.',
   'listPicker.empty.category': 'В выбранных категориях нет списков.',
   'listPicker.empty.none': 'Списков нет.',
-  'create.resolved': {
-    few: 'В профиле {count} списка',
-    many: 'В профиле {count} списков',
-    one: 'В профиле {count} список',
-    other: 'В профиле {count} списка',
-  },
   'create.target': 'Формат',
   'create.target.placeholder': 'Выберите формат',
   'create.target.toggle': 'Показать форматы',
@@ -712,6 +706,9 @@ const ru: Dictionary = {
   'send.profile.failed.body': 'Не удалось прочитать профиль. Повторите запрос.',
   'send.connection.missing': 'Формат не найден',
   'send.connection.missing.body': 'В этом профиле нет такого формата.',
+  'send.archived': 'Профиль в архиве, отправка недоступна',
+  'send.archived.body': 'Файл по-прежнему можно скачать на странице профиля.',
+  'send.archived.back': 'К профилю',
   'send.connection.label': 'Подключение',
   'send.connection.choose': 'Выберите подключение',
   'send.connection.manual': 'Ввести данные для этой отправки',
@@ -886,7 +883,6 @@ const ru: Dictionary = {
   'configTransfer.afterImport':
     'После переноса сохраните пароли подключений заново; автоотправка останется выключенной. Форматы нужно опубликовать заново и создать новые подписки.',
   'configTransfer.reading': 'Читаем конфигурацию…',
-  'configTransfer.preview': 'Проверить перенос',
   'configTransfer.preview.busy': 'Проверяем перенос…',
   'configTransfer.preview.title': 'Будет перенесено',
   'configTransfer.count.customLists': {
@@ -937,10 +933,9 @@ const ru: Dictionary = {
   'configTransfer.failure.fileSize': 'Файл больше 64 МБ.',
   'configTransfer.failure.fileRead': 'Не удалось прочитать конфигурацию.',
   'configTransfer.failure.preview': 'Не удалось проверить конфигурацию.',
-  'configTransfer.apply.review': 'Проверить и применить',
-  'configTransfer.apply': 'Применить перенос',
-  'configTransfer.apply.busy': 'Применяем…',
-  'configTransfer.apply.failed': 'Не удалось применить перенос.',
+  'configTransfer.apply': 'Импортировать',
+  'configTransfer.apply.busy': 'Импортируем…',
+  'configTransfer.apply.failed': 'Не удалось импортировать конфигурацию.',
   'configTransfer.confirm.title':
     'Добавить проверенную конфигурацию в эту пустую установку?',
   'configTransfer.confirm.description':
@@ -1210,10 +1205,6 @@ const en: Dictionary = {
   'listPicker.empty.selected': 'No list is selected yet.',
   'listPicker.empty.category': 'The chosen categories hold no lists.',
   'listPicker.empty.none': 'There are no lists.',
-  'create.resolved': {
-    one: '{count} list in the profile',
-    other: '{count} lists in the profile',
-  },
   'create.target': 'Format',
   'create.target.placeholder': 'Choose a format',
   'create.target.toggle': 'Show the formats',
@@ -1658,6 +1649,10 @@ const en: Dictionary = {
   'send.profile.failed.body': 'Could not load this profile. Retry the request.',
   'send.connection.missing': 'Format not found',
   'send.connection.missing.body': 'This profile does not have that format.',
+  'send.archived': 'The profile is archived; sending is unavailable',
+  'send.archived.body':
+    'The file can still be downloaded from the profile page.',
+  'send.archived.back': 'Back to the profile',
   'send.connection.label': 'Connection',
   'send.connection.choose': 'Choose a connection',
   'send.connection.manual': 'Enter details for this send',
@@ -1833,7 +1828,6 @@ const en: Dictionary = {
   'configTransfer.afterImport':
     'Save the connection passwords again after import; automatic delivery stays off. Publish the formats again and create new subscriptions.',
   'configTransfer.reading': 'Reading configuration…',
-  'configTransfer.preview': 'Preview transfer',
   'configTransfer.preview.busy': 'Checking transfer…',
   'configTransfer.preview.title': 'Will be imported',
   'configTransfer.count.customLists': {
@@ -1872,10 +1866,9 @@ const en: Dictionary = {
   'configTransfer.failure.fileSize': 'The file is larger than 64 MB.',
   'configTransfer.failure.fileRead': 'The configuration could not be read.',
   'configTransfer.failure.preview': 'The configuration could not be checked.',
-  'configTransfer.apply.review': 'Review and apply',
-  'configTransfer.apply': 'Apply transfer',
-  'configTransfer.apply.busy': 'Applying…',
-  'configTransfer.apply.failed': 'The transfer could not be applied.',
+  'configTransfer.apply': 'Import',
+  'configTransfer.apply.busy': 'Importing…',
+  'configTransfer.apply.failed': 'The configuration could not be imported.',
   'configTransfer.confirm.title':
     'Add the reviewed configuration to this empty installation?',
   'configTransfer.confirm.description':

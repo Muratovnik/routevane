@@ -9,6 +9,7 @@ import SendPage from '@/pages/profiles/[id]/send/[output].vue'
 const PROFILE_LINK = '/profiles/profile-1'
 
 const pageModel = () => ({
+  archived: ref(false),
   catalog: ref(null),
   initialize: vi.fn(async () => {}),
   profile: ref({ name: 'Example profile' }),
@@ -137,6 +138,25 @@ describe('send entry read states', () => {
       .element(screen.getByText('not found', { exact: false }))
       .not.toBeInTheDocument()
     await expect.element(screen.getByText('artifact-2')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1 }).all()).toHaveLength(1)
+  })
+
+  it('refuses to send from an archived profile reached by a direct link and leads back to it', async () => {
+    HOST.model.state.value = 'ready'
+    HOST.model.archived.value = true
+    const screen = await renderPage()
+
+    await expect
+      .element(
+        screen.getByText('The profile is archived; sending is unavailable'),
+      )
+      .toBeVisible()
+    await expect
+      .element(screen.getByRole('link', { name: 'Back to the profile' }))
+      .toHaveAttribute('href', PROFILE_LINK)
+    // The archive outranks the file: the panel that sends it is not rendered.
+    await expect.element(screen.getByText('artifact-2')).not.toBeInTheDocument()
+    expect(screen.getByRole('button').all()).toHaveLength(0)
     expect(screen.getByRole('heading', { level: 1 }).all()).toHaveLength(1)
   })
 

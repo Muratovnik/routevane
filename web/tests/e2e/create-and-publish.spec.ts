@@ -182,7 +182,12 @@ test('the library starts empty and shelves the profile the composer creates and 
   await cardMembership(listCard, englishCopy).click()
   await listCard.getByRole('button', { name: 'Close' }).last().click()
   await expect(listMembership(page, 'Discord')).toBeChecked()
-  await expect(page.getByText('1 list in the profile')).toBeVisible()
+  // The in-profile chip is where the count is read; the toolbar does not
+  // state it a second time.
+  await expect(
+    page.getByRole('button', { exact: true, name: 'In profile (1)' }),
+  ).toBeVisible()
+  await expect(page.getByText(/lists? in the profile/)).toHaveCount(0)
   // Each omission goes as soon as what it names is supplied; the others stay.
   await expect(
     page.getByText(englishCopy('create.lists.required')),
@@ -196,7 +201,9 @@ test('the library starts empty and shelves the profile the composer creates and 
   await search.fill('youtu')
   await expect(listMembership(page, 'Discord')).toHaveCount(0)
   await listMembership(page, 'YouTube').check()
-  await expect(page.getByText('2 lists in the profile')).toBeVisible()
+  await expect(
+    page.getByRole('button', { exact: true, name: 'In profile (2)' }),
+  ).toBeVisible()
 
   // Priority is the profile's overlap policy. The first row is dragged below the
   // second here, while the same handle also exposes arrow-key reordering.
@@ -511,7 +518,7 @@ test('the library starts empty and shelves the profile the composer creates and 
     rowHeight,
   )
   await expect(
-    profilePage.getByText('1 list in the profile', { exact: true }),
+    profilePage.getByRole('button', { exact: true, name: 'In profile (1)' }),
   ).toBeVisible()
   await expect(compositionRow).toHaveCount(0)
 

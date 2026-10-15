@@ -159,27 +159,6 @@ const apply = async (): Promise<void> => {
           </template>
         </RvStateNotice>
 
-        <div
-          v-if="transfer.fileName.value !== ''"
-          class="config-transfer__file-row"
-        >
-          <RvButton
-            :disabled="
-              !transfer.canPreview.value ||
-              transfer.state.value === 'previewing'
-            "
-            :loading="transfer.state.value === 'previewing'"
-            :loading-label="t('configTransfer.preview.busy')"
-            @click="transfer.previewSelected"
-          >
-            {{
-              transfer.state.value === 'previewing'
-                ? t('configTransfer.preview.busy')
-                : t('configTransfer.preview')
-            }}
-          </RvButton>
-        </div>
-
         <RvStateNotice
           v-if="transfer.state.value === 'previewing'"
           live
@@ -218,7 +197,7 @@ const apply = async (): Promise<void> => {
             variant="primary"
             @click="requestConfirmation"
           >
-            {{ t('configTransfer.apply.review') }}
+            {{ t('configTransfer.apply') }}
           </RvButton>
         </div>
       </section>
@@ -320,13 +299,6 @@ const apply = async (): Promise<void> => {
 
 .config-transfer__download-status:not(:empty) {
   margin-block-start: var(--rv-space-3);
-}
-
-.config-transfer__file-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--rv-space-3);
-  align-items: center;
 }
 
 .config-transfer__preview-title {

@@ -314,7 +314,10 @@ Sections, addressable by URL:
    «Заменить сохранённый пароль» keeps the new one in its place.
    «Показать изменения» is the primary action until a
    plan exists. The by-hand path is «Скачать файл (.ext)» and a «Как установить
-   вручную» disclosure with the numbered catalog steps.
+   вручную» disclosure with the numbered catalog steps. An archived profile
+   reached by a direct or kept link shows no form: the notice «Профиль в
+   архиве, отправка недоступна» says the file is still downloadable from the
+   profile page, and «К профилю» leads there.
 6. `/connections` — **Connections / Подключения** (ADR 0027; `/devices`
    redirects here). One section answers «куда»: registered connections
    first, as two surfaces of the same level — the registered
@@ -447,8 +450,11 @@ Sections, addressable by URL:
    Export and import are separate actions. Preferences live here,
    not in the chrome. Import starts with a product-styled file
    surface backed by the labelled native file chooser, supports dropping a file,
-   keeps the chosen file visible while reading or checking it, then shows a
-   server-owned preview before enabling the confirmation. Confirmation applies
+   keeps the chosen file visible while reading or checking it. Choosing a file
+   starts its check at once, with no separate step: the server-owned preview,
+   or the reason the file was refused, appears in place, and choosing another
+   file checks that one instead. The preview's one action is «Импортировать»,
+   which opens the confirmation. Confirmation applies
    only the bytes just previewed; selecting another file invalidates it. Read,
    preview, download, and apply failures remain distinct retryable states. The
    destination must be empty. Imported connections carry no credentials or
@@ -636,7 +642,8 @@ category absent from the quick filters. The primary search continues to search
 lists. The panel's ground and border must survive portal rendering.
 
 Category filters precede the list search in both workflows. The composition
-toolbar shows selection and calculation state; the overlap explanation is
+toolbar shows calculation state; the number of selected lists is read once, on
+the «В профиле (N)» filter chip, and no separate line repeats it. The overlap explanation is
 attached to its column heading, and priority semantics stay in documentation.
 Refreshing selected lists is available without choosing a format and while a
 forecast is calculating. Only an actual source read shows the refresh button's

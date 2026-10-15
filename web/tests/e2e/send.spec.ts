@@ -963,6 +963,78 @@ test('a target without a deployer is offered the manual path only', async ({
   await expect(manual).toContainText('/import')
 })
 
+// An archived profile offers no Send on its Publishing tab, and a link kept
+// from before the archive must not reach a working form either. Restoring the
+// same profile brings the form back and the file reaches its destination, so
+// the refusal is the archive's and not a broken screen.
+test('an archived profile refuses to send by a direct link and sends again once restored', async ({
+  page,
+}) => {
+  test.setTimeout(120000)
+  const { profileId, outputId } = await publishProfile(page, 'singbox')
+  const profileURL = `${origin}/profiles/${profileId}`
+  const sendURL = `${profileURL}/send/${outputId}`
+  const headers = { Origin: origin, 'X-Routevane-Request': '1' }
+  const archived = await page.request.post(
+    `${origin}/v1/profiles/${profileId}/archive`,
+    { data: {}, headers },
+  )
+  expect(archived.ok()).toBe(true)
+
+  await page.goto(sendURL)
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Send · sing-box' }),
+  ).toBeVisible()
+  await expect(page.getByText(message('en', 'send.archived'))).toBeVisible()
+  await expect(sendAddress(page, 'en')).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: message('en', 'send.review') }),
+  ).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: 'Apply', exact: true }),
+  ).toHaveCount(0)
+  await page
+    .getByRole('link', { name: message('en', 'send.archived.back') })
+    .click()
+  await page.waitForURL(profileURL)
+
+  const restored = await page.request.post(
+    `${origin}/v1/profiles/${profileId}/restore`,
+    { data: {}, headers },
+  )
+  expect(restored.ok()).toBe(true)
+  // A destination of its own, so this send leaves the shared configuration
+  // the other walkthroughs read untouched.
+  const root = await mkdtemp(join(singBoxRoot, 'restored-'))
+  const controlConfig = join(root, 'config.json')
+  const controlRules = join(root, 'routevane.json')
+  await writeFile(
+    controlConfig,
+    JSON.stringify({
+      route: {
+        rule_set: [
+          {
+            tag: 'routevane',
+            type: 'local',
+            format: 'source',
+            path: controlRules,
+          },
+        ],
+      },
+    }),
+    'utf8',
+  )
+  await page.goto(sendURL)
+  await expect(page.getByText(message('en', 'send.archived'))).toHaveCount(0)
+  await sendAddress(page, 'en').fill(fileURL(controlConfig))
+  await page
+    .getByRole('button', { name: message('en', 'send.review'), exact: true })
+    .click()
+  await page.getByRole('button', { name: 'Apply', exact: true }).click()
+  await expect(page.getByText('Applied', { exact: true })).toBeVisible()
+  expect(await readFile(controlRules, 'utf8')).toContain('youtube.com')
+})
+
 // The domain-based format's name, as its row menu announces it.
 const DNS_TITLES = {
   en: 'Keenetic (domain-based)',

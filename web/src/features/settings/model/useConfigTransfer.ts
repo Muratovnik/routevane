@@ -13,8 +13,7 @@ import {
 
 const maximumFileBytes = configTransferMaximumFileBytes
 
-type TransferState =
-  'idle' | 'reading' | 'selected' | 'previewing' | 'ready' | 'failed'
+type TransferState = 'idle' | 'reading' | 'previewing' | 'ready' | 'failed'
 
 type DownloadState = 'idle' | 'downloading' | 'failed'
 type ApplyState = 'idle' | 'applying' | 'failed'
@@ -35,15 +34,33 @@ export const useConfigTransfer = () => {
   // operator has already replaced.
   let generation = 0
 
-  const canPreview = computed(
-    () => document.value !== null && state.value !== 'reading',
-  )
   const canApply = computed(
     () =>
       preview.value !== null &&
       state.value === 'ready' &&
       applyState.value !== 'applying',
   )
+
+  const previewDocument = async (
+    transfer: ConfigTransferDocument,
+    currentGeneration: number,
+  ): Promise<boolean> => {
+    state.value = 'previewing'
+    try {
+      const nextPreview = await previewConfigTransfer(transfer)
+      if (currentGeneration !== generation || document.value !== transfer)
+        return false
+      preview.value = nextPreview
+      state.value = 'ready'
+      return true
+    } catch {
+      if (currentGeneration !== generation || document.value !== transfer)
+        return false
+      failure.value = 'preview'
+      state.value = 'failed'
+      return false
+    }
+  }
 
   const choose = async (file: File): Promise<void> => {
     generation += 1
@@ -70,6 +87,7 @@ export const useConfigTransfer = () => {
     }
 
     state.value = 'reading'
+    let parsed: ConfigTransferDocument
     try {
       const bytes = await file.arrayBuffer()
       // Keep a leading UTF-8 BOM visible to JSON validation instead of
@@ -78,41 +96,30 @@ export const useConfigTransfer = () => {
         fatal: true,
         ignoreBOM: true,
       }).decode(bytes)
-      const parsed = parseConfigTransferDocument(text)
-      if (currentGeneration !== generation) return
-      document.value = parsed
-      state.value = 'selected'
+      parsed = parseConfigTransferDocument(text)
     } catch {
       if (currentGeneration !== generation) return
       failure.value = 'fileRead'
       state.value = 'failed'
+      return
     }
+    if (currentGeneration !== generation) return
+    document.value = parsed
+    // Choosing a file is asking what it would import: the check starts at
+    // once, under the same generation, so choosing again drops its answer.
+    await previewDocument(parsed, currentGeneration)
   }
 
+  // Checks the chosen file again after a failed check.
   const previewSelected = async (): Promise<boolean> => {
     const transfer = document.value
     if (transfer === null || state.value === 'reading') return false
 
     generation += 1
-    const currentGeneration = generation
     preview.value = null
     applied.value = null
     failure.value = ''
-    state.value = 'previewing'
-    try {
-      const nextPreview = await previewConfigTransfer(transfer)
-      if (currentGeneration !== generation || document.value !== transfer)
-        return false
-      preview.value = nextPreview
-      state.value = 'ready'
-      return true
-    } catch {
-      if (currentGeneration !== generation || document.value !== transfer)
-        return false
-      failure.value = 'preview'
-      state.value = 'failed'
-      return false
-    }
+    return previewDocument(transfer, generation)
   }
 
   const apply = async (): Promise<boolean> => {
@@ -168,7 +175,6 @@ export const useConfigTransfer = () => {
     apply,
     applyState,
     canApply,
-    canPreview,
     choose,
     document,
     download,

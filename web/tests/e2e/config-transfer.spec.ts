@@ -229,13 +229,14 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
     [topDuplicatePath, '/version'],
     [nestedDuplicatePath, '/settings/refresh_interval'],
   ] as const) {
-    await page.getByLabel('Choose a .json file').setInputFiles(duplicatePath)
+    // Choosing a file is what starts its check, and choosing another one
+    // checks that one in turn; there is no separate step to press.
     const refusedPreview = page.waitForResponse(
       (response) =>
         response.url() === `${destinationOrigin}/v1/config-transfer/preview` &&
         response.request().method() === 'POST',
     )
-    await page.getByRole('button', { name: 'Preview transfer' }).click()
+    await page.getByLabel('Choose a .json file').setInputFiles(duplicatePath)
     const refusal = await refusedPreview
     expect(refusal.status()).toBe(422)
     await expect(refusal.json()).resolves.toMatchObject({
@@ -246,15 +247,30 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
       page.getByText('The configuration could not be checked.'),
     ).toBeVisible()
   }
-  await page.getByLabel('Choose a .json file').setInputFiles(transferPath)
   const validPreviewRequest = page.waitForRequest(
     (request) =>
       request.url() === `${destinationOrigin}/v1/config-transfer/preview` &&
       request.method() === 'POST',
   )
-  await page.getByRole('button', { name: 'Preview transfer' }).click()
+  await page.getByLabel('Choose a .json file').setInputFiles(transferPath)
   expect((await validPreviewRequest).postData()).toBe(rawTransfer)
   const preview = page.getByRole('region', { name: 'Will be imported' })
+  // The failed check of the previous file is gone with that file.
+  await expect(
+    page.getByText('The configuration could not be checked.'),
+  ).toHaveCount(0)
+  // Import is the one action the chosen file leaves: beside the file picker —
+  // its native input, unnamed, and the surface naming the chosen file — the
+  // import section holds no other button.
+  const importSection = page.getByRole('region', {
+    exact: true,
+    name: 'Import',
+  })
+  await expect(importSection.getByRole('button')).toHaveText([
+    '',
+    /routevane-config\.json/,
+    'Import',
+  ])
   await expect(preview).toContainText('1 profile')
   await expect(preview).toContainText('1 format')
   await expect(preview).toContainText(
@@ -283,7 +299,7 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
   }
   await page.setViewportSize(DESKTOP_VIEWPORT)
 
-  await preview.getByRole('button', { name: 'Review and apply' }).click()
+  await preview.getByRole('button', { exact: true, name: 'Import' }).click()
   const confirmation = page.getByRole('dialog', {
     name: 'Add the reviewed configuration to this empty installation?',
   })
@@ -297,7 +313,7 @@ test('configuration transfer moves a reviewed profile into a fresh installation'
         request.url() === `${destinationOrigin}/v1/config-transfer/apply` &&
         request.method() === 'POST',
     ),
-    confirmation.getByRole('button', { name: 'Apply transfer' }).click(),
+    confirmation.getByRole('button', { exact: true, name: 'Import' }).click(),
   ])
   expect(applyRequest.postData()).toBe(rawTransfer)
   expect(applyRequest.headers()['x-routevane-transfer-digest']).toMatch(
