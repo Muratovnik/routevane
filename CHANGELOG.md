@@ -11,6 +11,18 @@ This file starts at the first published version, 0.1.0.
 
 ## [Unreleased]
 
+## [0.4.2](https://github.com/Muratovnik/routevane/compare/v0.4.1...v0.4.2) (2026-10-16)
+
+### Features
+
+- **planner:** ([e719557](https://github.com/Muratovnik/routevane/commit/e71955722b437b7cc19b58639351cfae4fcec09b)) Formats that take both domains and addresses (Keenetic domain-based, MikroTik, sing-box and AmneziaVPN) offer «Keep addresses beside domains» in Format settings…, off by default. With it on, a list's addresses that its domains already cover are kept beside them for clients that reach the service without a DNS lookup the router sees; they still pass every value check. Diagnostics says such an address is covered by domain rules and that the format settings can keep it, and reports an address a domain-only format cannot carry as unsupported. The database moves to schema 21: 0.4.1 refuses a database that 0.4.2 has opened, so keep the backup taken before updating if you may go back.
+
+### Bug Fixes
+
+- **planner:** ([d37e76e](https://github.com/Muratovnik/routevane/commit/d37e76e2e8b57d52bab700004898bb85f844b06b)) A prefix from a community-declared feed wider than /16 for IPv4 or /32 for IPv6 is no longer published. It appears in Diagnostics as too wide, so a list such as DeepSeek no longer routes whole regional blocks like 60.0.0.0/8.
+- **web:** ([e719557](https://github.com/Muratovnik/routevane/commit/e71955722b437b7cc19b58639351cfae4fcec09b)) Reopening Format settings right after a save shows the saved FQDN group prefix instead of the previous one.
+- **web:** ([08433d9](https://github.com/Muratovnik/routevane/commit/08433d9634c3da57bba2c19380b9ff353b653217)) The weight forecast on the Composition tab counts the addresses of a format that keeps them beside domains, so a rule-limit warning is no longer missed.
+
 ## [0.4.1](https://github.com/Muratovnik/routevane/compare/v0.4.0...v0.4.1) (2026-10-15)
 
 ### Features
