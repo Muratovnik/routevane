@@ -855,6 +855,7 @@ const announcedLinks = new Set<string>()
               @reissue="askConfirmation('reissue', $event)"
               @remove="askConfirmation('remove', $event)"
               @set-schedule="view.setSchedule"
+              @settings-saved="view.initialize"
             />
             <RvStateNotice
               v-if="view.scheduleState.value === 'failed'"

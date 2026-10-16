@@ -284,10 +284,10 @@ type PreparedPlan struct {
 // PrepareLists reads all selected lists at one cutoff and completes
 // planner and renderer preflight without invoking Render.
 func PrepareLists(ctx context.Context, definitions []domain.ListDefinition, activeRevisions map[string]map[string]string, target domain.TargetDefinition, store ObservationStore, renderer Renderer, cutoff time.Time) (PreparedPlan, error) {
-	return prepareLists(ctx, definitions, activeRevisions, target, store, renderer, cutoff, true)
+	return prepareLists(ctx, definitions, activeRevisions, target, store, renderer, cutoff, true, planner.Options{})
 }
 
-func prepareLists(ctx context.Context, definitions []domain.ListDefinition, activeRevisions map[string]map[string]string, target domain.TargetDefinition, store ObservationStore, renderer Renderer, cutoff time.Time, enforceRuleLimit bool) (PreparedPlan, error) {
+func prepareLists(ctx context.Context, definitions []domain.ListDefinition, activeRevisions map[string]map[string]string, target domain.TargetDefinition, store ObservationStore, renderer Renderer, cutoff time.Time, enforceRuleLimit bool, options planner.Options) (PreparedPlan, error) {
 	if ctx == nil || store == nil || renderer == nil || len(definitions) == 0 || target.ID == "" || target.FormatKey == "" || target.RendererID == "" || len(target.RendererOptions) != 0 || cutoff.IsZero() {
 		return PreparedPlan{}, fmt.Errorf("invalid prepare composition")
 	}
@@ -317,7 +317,7 @@ func prepareLists(ctx context.Context, definitions []domain.ListDefinition, acti
 	}
 	planningTarget := target
 	planningTarget.Constraints.MaxRules = 0
-	plan, err := planner.BuildPlanSet(inputs, planningTarget, cutoff)
+	plan, err := planner.BuildPlanSetWith(inputs, planningTarget, cutoff, options)
 	if err != nil {
 		switch {
 		case errors.Is(err, planner.ErrRuleLimitExceeded):

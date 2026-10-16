@@ -87,3 +87,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0054: an output follows the revision of its own target's artifact fields](./0054-per-target-revision-from-artifact-fields.md) | adopted |
 | [ADR 0055: a deployment attempt names the saved connection it reached](./0055-deployment-attempts-name-their-saved-connection.md) | adopted |
 | [ADR 0056: a community-declared prefix has a narrower width bound](./0056-community-prefixes-have-a-narrower-width.md) | adopted |
+| [ADR 0057: an output may keep addresses beside the domains that cover them](./0057-keep-addresses-beside-domains.md) | adopted |

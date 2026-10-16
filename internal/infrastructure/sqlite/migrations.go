@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 20
+const CurrentSchemaVersion = 21
 
 type migration struct {
 	version int
@@ -834,6 +834,12 @@ END;
 -- and asks each for its succeeded sends to a saved connection, newest first.
 CREATE INDEX deployment_attempts_delivery_idx ON deployment_attempts(artifact_id, completed_at_ns)
     WHERE status = 'succeeded' AND device_id <> '';
+`}, {version: 21, sql: `
+-- A format that takes both names and addresses may keep the addresses a name
+-- already covers (ADR 0057). Every existing output keeps the policy it was
+-- built under: addresses covered by a name are dropped.
+ALTER TABLE outputs ADD COLUMN keep_addresses INTEGER NOT NULL DEFAULT 0
+    CHECK (keep_addresses IN (0, 1));
 `}}
 
 var requiredTables = []string{
@@ -901,7 +907,7 @@ var requiredColumns = map[string][]string{
 	"managed_route_scopes":     {"id", "endpoint", "target_id", "interface", "retired_at_ns", "created_at_ns", "updated_at_ns"},
 	"managed_routes":           {"scope_id", "prefix", "created_by_routevane", "description"},
 	"managed_route_claims":     {"scope_id", "output_id", "prefix", "description", "labels_json"},
-	"outputs":                  {"id", "profile_id", "target_id", "format_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id", "fqdn_group_prefix", "removed_at_ns"},
+	"outputs":                  {"id", "profile_id", "target_id", "format_key", "renderer_id", "renderer_version", "target_revision", "created_at_ns", "latest_artifact_id", "previous_artifact_id", "device_id", "fqdn_group_prefix", "removed_at_ns", "keep_addresses"},
 	"output_attempts":          {"id", "output_id", "status", "code", "projected_rules", "maximum_rules", "artifact_id", "completed_at_ns", "uncovered_lists_json"},
 	"plan_snapshots":           {"id", "output_id", "routing_plan_hash", "routing_plan_json", "policy_version", "catalog_revision", "observation_cutoff_ns", "created_at_ns", "status"},
 	"artifact_builds":          {"id", "output_id", "plan_snapshot_id", "renderer_id", "renderer_version", "artifact_hash", "artifact_path", "size_bytes", "content_type", "content_created_at_ns", "validation_status", "status"},

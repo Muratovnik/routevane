@@ -1697,6 +1697,7 @@ var everyAPIPath = []struct {
 	{"/v1/outputs/" + testID + "/build", "outputs.build"},
 	{"/v1/outputs/" + testID + "/device", "outputs.device"},
 	{"/v1/outputs/" + testID + "/fqdn-prefix", "outputs.fqdn-prefix"},
+	{"/v1/outputs/" + testID + "/keep-addresses", "outputs.keep-addresses"},
 	{"/v1/outputs/" + testID + "/remove", "outputs.remove"},
 	{"/v1/outputs/" + testID + "/subscription/reissue", "outputs.subscription.reissue"},
 	{"/v1/subscriptions/" + testID + "", "subscriptions.get"},
@@ -2114,4 +2115,13 @@ func (f *fakeBackend) SetOutputFQDNPrefix(_ context.Context, id, prefix string) 
 		return application.Output{}, err
 	}
 	return application.Output{ID: id, TargetID: "keenetic-dns", FQDNGroupPrefix: prefix}, nil
+}
+
+// SetOutputKeepAddresses accepts the setting only on the one id the HTTP
+// tests treat as a format that takes names and addresses.
+func (f *fakeBackend) SetOutputKeepAddresses(_ context.Context, id string, keep bool) (application.Output, error) {
+	if keep && id != strings.Repeat("a", 32) {
+		return application.Output{}, application.ErrKeepAddresses
+	}
+	return application.Output{ID: id, TargetID: "keenetic-dns", KeepAddresses: keep}, nil
 }

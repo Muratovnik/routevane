@@ -11,6 +11,7 @@ import {
   requestJSON,
   jsonObject,
   optionalCount,
+  optionalFlag,
   optionalText,
   postJSON,
   text,
@@ -27,6 +28,8 @@ export type Output = {
   targetID: string
   deviceID: string
   fqdnGroupPrefix?: string
+  // Whether the file keeps the addresses a name already covers (ADR 0057).
+  keepAddresses: boolean
 }
 
 export type StoredOutput = Output & {
@@ -80,6 +83,9 @@ export type OutputCard = {
   targetID: string
   deviceID: string
   fqdnGroupPrefix?: string
+  keepAddresses: boolean
+  // Whether the format can hold the setting; the screen offers it only there.
+  keepAddressesAvailable: boolean
   targetTitle: string
   targetKind: string
   fileExtension: string
@@ -147,6 +153,20 @@ export const setOutputFQDNPrefix = (
     parseCreatedOutput,
   )
 
+export const setOutputKeepAddresses = (
+  outputID: string,
+  keep: boolean,
+): Promise<CreatedOutput> =>
+  requestJSON(
+    `/v1/outputs/${outputID}/keep-addresses`,
+    {
+      method: 'PUT',
+      headers: mutationHeaders,
+      body: JSON.stringify({ keep_addresses: keep }),
+    },
+    parseCreatedOutput,
+  )
+
 export type RemovedOutput = {
   id: string
   removedAt: string
@@ -173,6 +193,7 @@ const outputSchema = v.pipe(
     target_id: text,
     device_id: optionalText,
     fqdn_group_prefix: optionalText,
+    keep_addresses: optionalFlag,
   }),
   v.transform((output): Output => ({
     id: output.id,
@@ -180,6 +201,7 @@ const outputSchema = v.pipe(
     targetID: output.target_id,
     deviceID: output.device_id,
     fqdnGroupPrefix: output.fqdn_group_prefix,
+    keepAddresses: output.keep_addresses,
   })),
 )
 
@@ -200,6 +222,7 @@ const storedOutputSchema = v.pipe(
     target_id: text,
     device_id: optionalText,
     fqdn_group_prefix: optionalText,
+    keep_addresses: optionalFlag,
     latest_artifact_id: optionalText,
   }),
   v.transform((output): StoredOutput => ({
@@ -208,6 +231,7 @@ const storedOutputSchema = v.pipe(
     targetID: output.target_id,
     deviceID: output.device_id,
     fqdnGroupPrefix: output.fqdn_group_prefix,
+    keepAddresses: output.keep_addresses,
     latestArtifactID: output.latest_artifact_id,
   })),
 )
@@ -353,6 +377,8 @@ const outputCardSchema = v.pipe(
     target_id: text,
     device_id: optionalText,
     fqdn_group_prefix: optionalText,
+    keep_addresses: optionalFlag,
+    keep_addresses_available: optionalFlag,
     target_title: text,
     target_kind: optionalText,
     file_extension: optionalText,
@@ -366,6 +392,8 @@ const outputCardSchema = v.pipe(
     targetID: card.target_id,
     deviceID: card.device_id,
     fqdnGroupPrefix: card.fqdn_group_prefix,
+    keepAddresses: card.keep_addresses,
+    keepAddressesAvailable: card.keep_addresses_available,
     targetTitle: card.target_title,
     targetKind: card.target_kind,
     fileExtension: card.file_extension,

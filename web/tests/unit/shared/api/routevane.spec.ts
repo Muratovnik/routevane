@@ -543,6 +543,7 @@ describe('Routevane local API decoders', () => {
         targetID: 'keenetic',
         deviceID: '',
         fqdnGroupPrefix: '',
+        keepAddresses: false,
       },
       snapshotID: 'c'.repeat(32),
       artifactID,
@@ -577,6 +578,7 @@ describe('Routevane local API decoders', () => {
         targetID: 'keenetic',
         deviceID: 'e'.repeat(32),
         fqdnGroupPrefix: '',
+        keepAddresses: false,
       },
     })
     expect(fetchMock).toHaveBeenLastCalledWith(

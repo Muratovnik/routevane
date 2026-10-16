@@ -377,7 +377,12 @@ func (v *TransferDevice) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type TransferOutput struct{ Ref, ProfileRef, TargetID, DeviceRef, FQDNGroupPrefix string }
+type TransferOutput struct {
+	Ref, ProfileRef, TargetID, DeviceRef, FQDNGroupPrefix string
+	// KeepAddresses is omitted while false, so a document that does not use
+	// it reads exactly as it did before the setting existed.
+	KeepAddresses bool
+}
 
 func (v TransferOutput) MarshalJSON() ([]byte, error) {
 	type w struct {
@@ -386,6 +391,7 @@ func (v TransferOutput) MarshalJSON() ([]byte, error) {
 		TargetID        string `json:"target_id"`
 		DeviceRef       string `json:"device_ref,omitempty"`
 		FQDNGroupPrefix string `json:"fqdn_group_prefix,omitempty"`
+		KeepAddresses   bool   `json:"keep_addresses,omitempty"`
 	}
 	return json.Marshal(w(v))
 }
@@ -398,6 +404,7 @@ func (v *TransferOutput) UnmarshalJSON(b []byte) error {
 		TargetID          string  `json:"target_id"`
 		DeviceRef         string  `json:"device_ref,omitempty"`
 		FQDNGroupPrefix   string  `json:"fqdn_group_prefix,omitempty"`
+		KeepAddresses     bool    `json:"keep_addresses,omitempty"`
 	}
 	var x w
 	if err := strictUnmarshal(b, &x); err != nil {
@@ -407,7 +414,7 @@ func (v *TransferOutput) UnmarshalJSON(b []byte) error {
 	if !ok {
 		return transferError("invalid_shape", "profile_ref")
 	}
-	*v = TransferOutput{Ref: x.Ref, ProfileRef: ref, TargetID: x.TargetID, DeviceRef: x.DeviceRef, FQDNGroupPrefix: x.FQDNGroupPrefix}
+	*v = TransferOutput{Ref: x.Ref, ProfileRef: ref, TargetID: x.TargetID, DeviceRef: x.DeviceRef, FQDNGroupPrefix: x.FQDNGroupPrefix, KeepAddresses: x.KeepAddresses}
 	return nil
 }
 
@@ -1353,7 +1360,6 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		if !ok {
 			return transferError("target_missing", p+"/target_id")
 		}
-		_ = target
 		if v.DeviceRef != "" {
 			if !validTransferReference(v.DeviceRef, "device") {
 				return transferError("invalid_shape", p+"/device_ref")
@@ -1365,6 +1371,9 @@ func (s *PublicationService) validateTransferShape(d *ConfigTransferDocument, va
 		}
 		if err := ValidateFQDNPrefix(v.TargetID, v.FQDNGroupPrefix); err != nil {
 			return transferError("invalid_shape", p+"/fqdn_group_prefix")
+		}
+		if v.KeepAddresses && !target.Constraints.TakesNamesAndAddresses() {
+			return transferError("invalid_shape", p+"/keep_addresses")
 		}
 		pair := v.ProfileRef + "\x00" + v.TargetID
 		if pairs[pair] {
@@ -1598,7 +1607,7 @@ func (s *PublicationService) prepareApply(d ConfigTransferDocument) (ConfigTrans
 		if err != nil {
 			return a, transferError("target_missing", "outputs")
 		}
-		a.Outputs[v.Ref] = Output{ID: id, ProfileID: a.ProfileIDs[v.ProfileRef], TargetID: v.TargetID, DeviceID: a.DeviceIDs[v.DeviceRef], FQDNGroupPrefix: v.FQDNGroupPrefix, FormatKey: target.FormatKey, RendererID: target.RendererID, RendererVersion: renderer.Version(), TargetRevision: domain.TargetRevision(target), CreatedAt: now}
+		a.Outputs[v.Ref] = Output{ID: id, ProfileID: a.ProfileIDs[v.ProfileRef], TargetID: v.TargetID, DeviceID: a.DeviceIDs[v.DeviceRef], FQDNGroupPrefix: v.FQDNGroupPrefix, KeepAddresses: v.KeepAddresses, FormatKey: target.FormatKey, RendererID: target.RendererID, RendererVersion: renderer.Version(), TargetRevision: domain.TargetRevision(target), CreatedAt: now}
 	}
 	return a, nil
 }

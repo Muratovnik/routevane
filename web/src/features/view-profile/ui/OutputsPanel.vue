@@ -53,6 +53,8 @@ const emit = defineEmits<{
   rebuild: [outputID: string]
   reissue: [outputID: string]
   remove: [outputID: string]
+  // A format's settings were written; the page reads its formats again.
+  settingsSaved: []
   setSchedule: [interval: RefreshInterval]
 }>()
 
@@ -185,10 +187,19 @@ const focusAdd = async (): Promise<void> => {
 }
 defineExpose({ focusAdd })
 
-const settingsFor = ref<OutputCard | null>(null)
+// The dialog reads the card as the page holds it now, so a setting saved a
+// moment ago is what reopening it shows.
+const settingsForID = ref('')
+const settingsFor = computed<OutputCard | null>(
+  () =>
+    props.outputs.find((output) => output.id === settingsForID.value) ?? null,
+)
 const settingsOpen = ref(false)
-const hasSettings = (output: OutputCard): boolean =>
+// Only the domain-based Keenetic format names its FQDN groups.
+const hasPrefix = (output: OutputCard): boolean =>
   output.targetID === 'keenetic-dns'
+const hasSettings = (output: OutputCard): boolean =>
+  hasPrefix(output) || output.keepAddressesAvailable
 
 const rowMenu = (output: OutputCard): MenuItem[] => {
   const items: MenuItem[] = []
@@ -238,7 +249,7 @@ const rowMenu = (output: OutputCard): MenuItem[] => {
 
 const onRowMenu = (output: OutputCard, key: string): void => {
   if (key === 'settings') {
-    settingsFor.value = output
+    settingsForID.value = output.id
     settingsOpen.value = true
   }
   if (key === 'rebuild') emit('rebuild', output.id)
@@ -448,10 +459,14 @@ const onRowMenu = (output: OutputCard, key: string): void => {
       v-if="settingsFor !== null"
       v-model:open="settingsOpen"
       :busy="props.busy"
+      :keep-addresses="settingsFor.keepAddresses"
+      :keep-addresses-available="settingsFor.keepAddressesAvailable"
       :output-id="settingsFor.id"
       :prefix="settingsFor.fqdnGroupPrefix ?? ''"
+      :prefix-available="hasPrefix(settingsFor)"
       :title="outputTitle(settingsFor)"
       @rebuild="emit('rebuild', $event)"
+      @saved="emit('settingsSaved')"
     />
   </div>
 </template>

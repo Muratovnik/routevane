@@ -322,6 +322,33 @@ to edit hundreds of individual destinations. The tag summary is complete even
 when Diagnostics shows only the first 100 detailed overlap records.
 See [ADR 0036](adr/0036-route-local-list-priority.md) for the ownership rules.
 
+## Keeping addresses beside domains
+
+A format that can carry domain names routes by name: when a list's domains already
+cover a service, Routevane leaves out that list's addresses and third-party
+networks, because the router resolves the names itself and the addresses would
+spend the rule limit twice. Diagnostics shows them as excluded with the reason
+`not_required_for_domain_capable_target`. A network that the service's operator
+publishes itself stays in either case.
+
+A name rule matches only when the router sees the DNS lookup. If some traffic
+reaches the service by an address without one, for example a client that uses a
+cached or fixed address, turn on **Keep addresses beside domains** for that
+format: in the profile's **Publishing** tab, open the format's menu and choose
+**Format settings…**. The switch is off by default, belongs to that one format of
+that one profile, and is offered for Keenetic (domain-based), MikroTik, sing-box
+and AmneziaVPN, the formats that take both domains and addresses. OpenWrt and
+Keenetic BAT carry only one kind and have no switch.
+
+Kept addresses go through the same checks as any other: special-use addresses
+and prefixes that are too wide are still refused, and a prefix from a
+community-declared feed is still held to `/16` (IPv4) or `/32` (IPv6). The format
+holds more rules than before, so it can reach its rule limit sooner; the build
+for that format then fails like any over-limit build, and its previous file stays
+in place. The setting applies at the next build: save it, then build the format
+again. A file already published does not change until then. See
+[ADR 0057](adr/0057-keep-addresses-beside-domains.md).
+
 ## Moving configuration to another computer
 
 Open **Settings → Configuration transfer** on the source computer and download

@@ -121,6 +121,7 @@ type Backend interface {
 	AddOutput(context.Context, string, string) (application.CreatedOutput, error)
 	SetOutputDevice(context.Context, string, string) (application.Output, error)
 	SetOutputFQDNPrefix(context.Context, string, string) (application.Output, error)
+	SetOutputKeepAddresses(context.Context, string, bool) (application.Output, error)
 	IssueSubscription(context.Context, string) (string, error)
 	Output(context.Context, string) (application.Output, error)
 	OutputCards(context.Context, string) ([]application.OutputCard, error)

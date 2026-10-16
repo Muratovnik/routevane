@@ -29,7 +29,8 @@ func (s *Store) Publish(ctx context.Context, candidate application.PublicationCa
 		return application.Output{}, application.PlanSnapshotRecord{}, application.ArtifactBuildRecord{}, cause
 	}
 	var profileID, prefix string
-	err = tx.QueryRowContext(ctx, `SELECT profile_id,fqdn_group_prefix FROM outputs WHERE id=? AND removed_at_ns=0`, candidate.Snapshot.OutputID).Scan(&profileID, &prefix)
+	var keepAddresses bool
+	err = tx.QueryRowContext(ctx, `SELECT profile_id,fqdn_group_prefix,keep_addresses FROM outputs WHERE id=? AND removed_at_ns=0`, candidate.Snapshot.OutputID).Scan(&profileID, &prefix, &keepAddresses)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fail(application.ErrNotFound)
 	}
@@ -43,7 +44,7 @@ func (s *Store) Publish(ctx context.Context, candidate application.PublicationCa
 	if profile.Archived() {
 		return fail(application.ErrProfileArchived)
 	}
-	if application.ProfilePublicationRevision(profile) != candidate.ProfileRevision || prefix != candidate.FQDNGroupPrefix {
+	if application.ProfilePublicationRevision(profile) != candidate.ProfileRevision || prefix != candidate.FQDNGroupPrefix || keepAddresses != candidate.KeepAddresses {
 		return fail(application.ErrProfileChanged)
 	}
 	var latestCutoff int64

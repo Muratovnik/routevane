@@ -1,45 +1,54 @@
 <script setup lang="ts">
 import { nextTick, useId, watch } from 'vue'
 
-import { useOutputPrefix } from '@/features/view-profile/model/useOutputPrefix'
+import { useFormatSettings } from '@/features/view-profile/model/useFormatSettings'
 import { useLocale } from '@/shared/i18n/useLocale'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
+import RvSwitch from '@/shared/ui/RvSwitch.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
 
 /**
- * The settings one format has beyond its row. Today that is the FQDN group
- * prefix of the domain-based Keenetic format (ADR 0049). A saved prefix takes
- * effect at the next build, which the footer says beside Save; «Rebuild now»
- * saves a changed draft and asks for that build at once.
+ * The settings one format has beyond its row: the FQDN group prefix of the
+ * domain-based Keenetic format (ADR 0049) and whether a format that takes both
+ * names and addresses keeps the addresses its names already cover (ADR 0057).
+ * Each is offered only where the format has it. Save writes what changed; a
+ * saved setting takes effect at the next build, which the footer says beside
+ * Save, and «Rebuild now» saves a changed draft and asks for that build at once.
  */
 const props = defineProps<{
   busy: boolean
+  keepAddresses: boolean
+  keepAddressesAvailable: boolean
   open: boolean
   outputId: string
   prefix: string
+  prefixAvailable: boolean
   title: string
 }>()
 
 const emit = defineEmits<{
   'update:open': [open: boolean]
   rebuild: [outputID: string]
+  // A setting reached the server, so the page should read the format again.
+  saved: []
 }>()
 
 const { t } = useLocale()
-const editor = useOutputPrefix(
+const settings = useFormatSettings(
   () => props.outputId,
-  () => props.prefix,
+  () => ({ keepAddresses: props.keepAddresses, prefix: props.prefix }),
 )
+const editor = settings.prefix
 const inputID = `format-prefix-${useId()}`
 
 // Every opening starts from what is stored: a cancelled draft is gone.
 watch(
   () => props.open,
   (open) => {
-    if (open) editor.reset()
+    if (open) settings.reset()
   },
 )
 
@@ -49,14 +58,16 @@ const focusField = async (): Promise<void> => {
 }
 
 const save = async (): Promise<void> => {
-  const outcome = await editor.save()
+  const outcome = await settings.save()
+  if (settings.takeWrote()) emit('saved')
   if (outcome === 'invalid') await focusField()
   else if (outcome === 'saved' || outcome === 'unchanged')
     emit('update:open', false)
 }
 
 const rebuildNow = async (): Promise<void> => {
-  const outcome = await editor.save()
+  const outcome = await settings.save()
+  if (settings.takeWrote()) emit('saved')
   if (outcome === 'invalid') {
     await focusField()
     return
@@ -70,7 +81,7 @@ const rebuildNow = async (): Promise<void> => {
 <template>
   <RvDialog
     :close-label="t('action.close')"
-    :dismissible="editor.state.value !== 'saving'"
+    :dismissible="!settings.saving.value"
     :open="open"
     :title="t('outputs.settings.title', { target: title })"
     variant="panel"
@@ -82,6 +93,7 @@ const rebuildNow = async (): Promise<void> => {
       @submit.prevent="save"
     >
       <RvField
+        v-if="prefixAvailable"
         :error="editor.invalid.value ? t('outputs.prefix.invalid') : undefined"
         :input-id="inputID"
         :label="t('outputs.prefix')"
@@ -90,7 +102,7 @@ const rebuildNow = async (): Promise<void> => {
           <RvTextInput
             v-model="editor.draft.value"
             :described-by="describedBy"
-            :disabled="editor.state.value === 'saving'"
+            :disabled="settings.saving.value"
             :input-id="inputID"
             :invalid="invalid"
             mono
@@ -98,10 +110,23 @@ const rebuildNow = async (): Promise<void> => {
           />
         </template>
       </RvField>
+      <RvSwitch
+        v-if="keepAddressesAvailable"
+        v-model="settings.keepAddresses.draft.value"
+        :description="t('outputs.keepAddresses.note')"
+        :disabled="settings.saving.value"
+        :label="t('outputs.keepAddresses')"
+      />
       <RvStateNotice
-        v-if="editor.state.value === 'failed'"
+        v-if="prefixAvailable && editor.state.value === 'failed'"
         live
         :title="t('outputs.prefix.failed')"
+        tone="failed"
+      />
+      <RvStateNotice
+        v-if="settings.keepAddresses.state.value === 'failed'"
+        live
+        :title="t('outputs.keepAddresses.failed')"
         tone="failed"
       />
     </form>
@@ -111,7 +136,7 @@ const rebuildNow = async (): Promise<void> => {
       </p>
       <div class="format-settings__actions">
         <RvButton
-          :disabled="busy || editor.state.value === 'saving'"
+          :disabled="busy || settings.saving.value"
           variant="secondary"
           @click="rebuildNow"
         >
@@ -119,7 +144,7 @@ const rebuildNow = async (): Promise<void> => {
         </RvButton>
         <RvButton
           form="format-settings-form"
-          :loading="editor.state.value === 'saving'"
+          :loading="settings.saving.value"
           :loading-label="t('outputs.prefix.save')"
           type="submit"
           variant="primary"

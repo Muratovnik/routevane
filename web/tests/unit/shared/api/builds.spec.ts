@@ -2,7 +2,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { RoutevaneAPIError } from '@/shared/api/http'
-import { addOutput, buildOutput, loadOutput } from '@/shared/api/outputs'
+import {
+  addOutput,
+  buildOutput,
+  loadOutput,
+  setOutputKeepAddresses,
+} from '@/shared/api/outputs'
 import { loadProfiles } from '@/shared/api/profiles'
 
 import {
@@ -10,6 +15,7 @@ import {
   artifactID,
   attemptPayload,
   buildPayload,
+  fetchMock,
   outputID,
   profileID,
   profilePayload,
@@ -106,6 +112,7 @@ describe('a build reply describes one published fact', () => {
         targetID: 'keenetic',
         deviceID: '',
         fqdnGroupPrefix: '',
+        keepAddresses: false,
       },
     })
 
@@ -131,6 +138,7 @@ describe('a build reply describes one published fact', () => {
       targetID: 'keenetic',
       deviceID: '',
       fqdnGroupPrefix: '',
+      keepAddresses: false,
       latestArtifactID: artifactID,
     })
   })
@@ -354,5 +362,97 @@ describe('the last delivery of an output', () => {
     }
     answer(card({ ...whole, completed_at: 'yesterday' }))
     await expect(loadProfiles()).rejects.toBeInstanceOf(RoutevaneAPIError)
+  })
+})
+
+describe('an output states whether it keeps addresses beside its domains', () => {
+  it('reads the setting and whether the format can hold it from a card', async () => {
+    answer(
+      profilePayload({
+        outputs: [
+          {
+            id: outputID,
+            target_id: 'mikrotik',
+            target_title: 'MikroTik',
+            created_at: '2026-08-20T12:00:00Z',
+            keep_addresses: true,
+            keep_addresses_available: true,
+          },
+          {
+            id: 'e'.repeat(32),
+            target_id: 'openwrt',
+            target_title: 'OpenWrt',
+            created_at: '2026-08-20T12:00:00Z',
+            keep_addresses: false,
+            keep_addresses_available: false,
+          },
+        ],
+      }),
+    )
+    await expect(loadProfiles()).resolves.toMatchObject([
+      {
+        outputs: [
+          { keepAddresses: true, keepAddressesAvailable: true },
+          { keepAddresses: false, keepAddressesAvailable: false },
+        ],
+      },
+    ])
+  })
+
+  it('reads a reply that states neither as off and unavailable', async () => {
+    answer(
+      profilePayload({
+        outputs: [
+          {
+            id: outputID,
+            target_id: 'keenetic',
+            target_title: 'Keenetic',
+            created_at: '2026-08-20T12:00:00Z',
+          },
+        ],
+      }),
+    )
+    await expect(loadProfiles()).resolves.toMatchObject([
+      { outputs: [{ keepAddresses: false, keepAddressesAvailable: false }] },
+    ])
+  })
+
+  it('sends the choice as a guarded PUT and reads the stored value back', async () => {
+    answer({
+      output: {
+        id: outputID,
+        list_id: profileID,
+        target_id: 'singbox',
+        keep_addresses: true,
+      },
+    })
+    await expect(setOutputKeepAddresses(outputID, true)).resolves.toEqual({
+      output: {
+        id: outputID,
+        profileID,
+        targetID: 'singbox',
+        deviceID: '',
+        fqdnGroupPrefix: '',
+        keepAddresses: true,
+      },
+    })
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `/v1/outputs/${outputID}/keep-addresses`,
+      {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Routevane-Request': '1',
+        },
+        body: JSON.stringify({ keep_addresses: true }),
+      },
+    )
+  })
+
+  it('refuses the setting as an error carrying the server code', async () => {
+    answer({ error: 'invalid_keep_addresses' }, 400)
+    await expect(setOutputKeepAddresses(outputID, true)).rejects.toBeInstanceOf(
+      RoutevaneAPIError,
+    )
   })
 })

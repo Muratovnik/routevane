@@ -138,7 +138,7 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 		return PublishedBuild{}, err
 	}
 	renderer = rendererWithContext(ctx, renderer)
-	prepared, cutoff, err := s.prepareProfile(ctx, profile, target, renderer)
+	prepared, cutoff, err := s.prepareOutputProfile(ctx, profile, output, target, renderer)
 	if err != nil {
 		return PublishedBuild{}, err
 	}
@@ -180,6 +180,7 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 		Attempt:         OutputAttempt{OutputID: id, Status: "success", ProjectedRules: projectedRules, MaximumRules: target.Constraints.MaxRules, ArtifactID: artifactID, CompletedAt: now},
 		ProfileRevision: ProfilePublicationRevision(profile),
 		FQDNGroupPrefix: output.FQDNGroupPrefix,
+		KeepAddresses:   output.KeepAddresses,
 	}
 	publishedOutput, snapshot, artifact, err := s.publishCurrent(ctx, publicationGeneration, candidate)
 	if err != nil {
@@ -216,10 +217,16 @@ func (s *PublicationService) Build(ctx context.Context, id string) (result Publi
 // output, subscription or artifact record just to select another renderer,
 // but it must make exactly the same composition and preflight decisions.
 func (s *PublicationService) prepareProfile(ctx context.Context, profile Profile, target domain.TargetDefinition, renderer Renderer) (PreparedPlan, time.Time, error) {
-	return s.prepareProfileAt(ctx, profile, target, renderer, s.config.Clock.Now().UTC())
+	return s.prepareProfileAt(ctx, profile, target, renderer, s.config.Clock.Now().UTC(), planner.Options{})
 }
 
-func (s *PublicationService) prepareProfileAt(ctx context.Context, profile Profile, target domain.TargetDefinition, renderer Renderer, cutoff time.Time) (PreparedPlan, time.Time, error) {
+// prepareOutputProfile prepares a profile for one of its outputs, under the
+// policy choices the operator made for that output.
+func (s *PublicationService) prepareOutputProfile(ctx context.Context, profile Profile, output Output, target domain.TargetDefinition, renderer Renderer) (PreparedPlan, time.Time, error) {
+	return s.prepareProfileAt(ctx, profile, target, renderer, s.config.Clock.Now().UTC(), output.PlannerOptions())
+}
+
+func (s *PublicationService) prepareProfileAt(ctx context.Context, profile Profile, target domain.TargetDefinition, renderer Renderer, cutoff time.Time, options planner.Options) (PreparedPlan, time.Time, error) {
 	renderer = rendererWithContext(ctx, renderer)
 	// References are expanded, exclusions applied and duplicates dropped once
 	// here, so every renderer sees the same current list set.
@@ -246,7 +253,7 @@ func (s *PublicationService) prepareProfileAt(ctx context.Context, profile Profi
 	if cutoff.IsZero() {
 		return PreparedPlan{}, time.Time{}, fmt.Errorf("clock returned zero time")
 	}
-	prepared, err := prepareLists(ctx, definitions, revisions, target, s.config.Store, renderer, cutoff, false)
+	prepared, err := prepareLists(ctx, definitions, revisions, target, s.config.Store, renderer, cutoff, false, options)
 	if err != nil {
 		return PreparedPlan{}, time.Time{}, err
 	}

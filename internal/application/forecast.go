@@ -185,7 +185,7 @@ func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile
 	renderer = rendererWithContext(ctx, renderer)
 	unbounded := target
 	unbounded.Constraints.MaxRules = 0
-	prepared, _, err := s.prepareProfileAt(ctx, profile, unbounded, renderer, cutoff)
+	prepared, _, err := s.prepareProfileAt(ctx, profile, unbounded, renderer, cutoff, planner.Options{})
 	var incomplete []string
 	if unavailableForecastCoverage(err) {
 		// Publication is still all-or-nothing. Inspection can retain the complete
@@ -193,7 +193,7 @@ func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile
 		var available []string
 		for _, id := range s.ResolvedLists(profile) {
 			one := Profile{Lists: []string{id}, ListDomains: profile.ListDomains}
-			_, _, listErr := s.prepareProfileAt(ctx, one, unbounded, renderer, cutoff)
+			_, _, listErr := s.prepareProfileAt(ctx, one, unbounded, renderer, cutoff, planner.Options{})
 			if unavailableForecastCoverage(listErr) {
 				incomplete = append(incomplete, id)
 			} else if listErr != nil {
@@ -208,7 +208,7 @@ func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile
 				Overlaps: CompositionOverlaps{Items: []CompositionOverlap{}}}, nil
 		}
 		subset := Profile{Lists: available, Priority: available, ListDomains: profile.ListDomains}
-		prepared, _, err = s.prepareProfileAt(ctx, subset, unbounded, renderer, cutoff)
+		prepared, _, err = s.prepareProfileAt(ctx, subset, unbounded, renderer, cutoff, planner.Options{})
 	}
 	if err != nil {
 		return CompositionForecast{}, err

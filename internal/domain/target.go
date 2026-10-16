@@ -18,6 +18,14 @@ type TargetConstraints struct {
 	MaxLists          int
 }
 
+// TakesNamesAndAddresses reports whether a format carries both name rules and
+// address rules. Only such a format drops an address because a name already
+// covers it, so only such a format can be asked to keep it.
+func (c TargetConstraints) TakesNamesAndAddresses() bool {
+	return (c.SupportsDomainExact || c.SupportsDomainSuffix) &&
+		(c.SupportsIPv4 || c.SupportsIPv6 || c.SupportsPrefixes)
+}
+
 // RendererDescriptor is the format metadata of one renderer. It lives in the
 // domain because renderer identity is already a domain concept through
 // TargetDefinition.RendererID, and because a renderer must not depend on the

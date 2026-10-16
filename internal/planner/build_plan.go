@@ -177,7 +177,7 @@ func admissibleValue(rule domain.RouteRule) (string, bool) {
 // argument keeps the primary four-argument API small while allowing the DNS
 // source to pass terminal CNAME observations without a second planner type.
 func BuildPlan(def domain.ListDefinition, sightings []domain.Sighting, target domain.TargetDefinition, cutoff time.Time, relations ...[]domain.Relation) (domain.RoutingPlan, error) {
-	return buildPlan(ListInput{Definition: def, Sightings: sightings, Relations: firstRelations(relations)}, target, cutoff, len(relations) > 0)
+	return buildPlan(ListInput{Definition: def, Sightings: sightings, Relations: firstRelations(relations)}, target, cutoff, len(relations) > 0, Options{})
 }
 
 func firstRelations(relations [][]domain.Relation) []domain.Relation {
@@ -190,7 +190,7 @@ func firstRelations(relations [][]domain.Relation) []domain.Relation {
 // buildPlan is the single policy implementation.  withRelations preserves the
 // distinction between "no relations argument" and "an empty relation set", which
 // callers rely on for plan shape.
-func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time, withRelations bool) (domain.RoutingPlan, error) {
+func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time, withRelations bool, options Options) (domain.RoutingPlan, error) {
 	def, sightings := input.Definition, input.Sightings
 	if def.ID == "" {
 		return domain.RoutingPlan{}, fmt.Errorf("list definition has no id")
@@ -334,9 +334,17 @@ func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time
 		// A range the operator publishes about itself is kept. It is not
 		// derived from these names and may serve endpoints no name in the list
 		// reaches, so dropping it would lose coverage nobody chose to lose.
+		//
+		// The operator may ask a format to keep them anyway (ADR 0057): a name
+		// rule depends on the device's resolver seeing the lookup, an address
+		// rule does not. The value checks above and the target's own support
+		// below still apply to what is kept.
 		redundantUnderDomains := candidate.Kind.IsIP() ||
 			(candidate.Kind.IsPrefix() && sighting.SourceClass != domain.SourceOfficial)
-		if domainSufficient[candidate.ComponentID] && redundantUnderDomains {
+		// Only a value the format could carry is redundant beside its names; one
+		// it cannot carry is refused for that below, so the reason names the
+		// cause and points to the setting only where the setting exists.
+		if !options.KeepAddressesBesideNames && domainSufficient[candidate.ComponentID] && redundantUnderDomains && supportsRule(candidate.Kind, target.Constraints) {
 			excluded = append(excluded, domain.Excluded{Candidate: candidate, Outcome: "rejected", ReasonCodes: []string{ReasonNotRequiredForDomainCapableTarget}, ProvenanceRefs: provenance(sighting.SourceID)})
 			continue
 		}
@@ -454,6 +462,21 @@ func declaredNetwork(sighting domain.Sighting) bool {
 // once after composition. A limit or required-coverage error returns the full
 // diagnostic plan and never truncates it.
 func BuildPlanSet(inputs []ListInput, target domain.TargetDefinition, cutoff time.Time) (domain.RoutingPlan, error) {
+	return BuildPlanSetWith(inputs, target, cutoff, Options{})
+}
+
+// Options are the operator's choices for one format that change policy, not
+// the catalog's description of the format. The zero value is the default
+// policy.
+type Options struct {
+	// KeepAddressesBesideNames keeps the addresses and third-party networks
+	// of a component that a name already covers, instead of dropping them as
+	// a second rendering of the same coverage.
+	KeepAddressesBesideNames bool
+}
+
+// BuildPlanSetWith is BuildPlanSet under the given options.
+func BuildPlanSetWith(inputs []ListInput, target domain.TargetDefinition, cutoff time.Time, options Options) (domain.RoutingPlan, error) {
 	if len(inputs) == 0 {
 		return domain.RoutingPlan{}, fmt.Errorf("list set is empty")
 	}
@@ -482,7 +505,7 @@ func BuildPlanSet(inputs []ListInput, target domain.TargetDefinition, cutoff tim
 		ObservationCutoff: cutoff.UTC(),
 	}
 	for _, input := range ordered {
-		listPlan, err := buildPlan(input, unboundedTarget, cutoff, true)
+		listPlan, err := buildPlan(input, unboundedTarget, cutoff, true, options)
 		if err != nil {
 			return domain.RoutingPlan{}, fmt.Errorf("build list %q: %w", input.Definition.ID, err)
 		}

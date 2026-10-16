@@ -1,17 +1,20 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { page } from 'vitest/browser'
 import { render } from 'vitest-browser-vue'
 import { defineComponent, h } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
+import type { OutputCard } from '@/shared/api/outputs'
 import type { Schedule } from '@/shared/api/profiles'
 
 import OutputsPanel from '@/features/view-profile/ui/OutputsPanel.vue'
 
-const OUTPUT = {
+const OUTPUT: OutputCard = {
   id: 'output-1',
   targetID: 'keenetic',
   deviceID: '',
+  keepAddresses: false,
+  keepAddressesAvailable: false,
   targetTitle: 'Keenetic',
   targetKind: 'router',
   fileExtension: 'bat',
@@ -242,6 +245,7 @@ describe('OutputsPanel connection cell', () => {
 
 describe('OutputsPanel row actions', () => {
   beforeEach(() => useLocale().setLocale('en'))
+  afterEach(() => vi.unstubAllGlobals())
 
   it('puts the extension in the format cell and every act on a format in its menu', async () => {
     const screen = await renderPanel({
@@ -303,6 +307,100 @@ describe('OutputsPanel row actions', () => {
         .all()
         .map((item) => item.element().textContent?.trim()),
     ).toEqual(['Rebuild', 'Remove format…'])
+  })
+
+  // The setting belongs to the formats that take names and addresses, so the
+  // entry follows what the card says about its format, not a list of formats.
+  it.each([
+    ['holds the keep-addresses setting', true, true],
+    ['cannot hold it', false, false],
+  ] as const)(
+    'offers format settings to a format that %s only when it can',
+    async (_case, keepAddressesAvailable, offered) => {
+      const screen = await renderPanel({
+        outputs: [
+          {
+            ...PUBLISHED,
+            targetID: keepAddressesAvailable ? 'mikrotik' : 'openwrt',
+            targetTitle: keepAddressesAvailable ? 'MikroTik' : 'OpenWrt',
+            keepAddressesAvailable,
+          },
+        ],
+      })
+
+      await screen
+        .getByRole('button', {
+          name: `Actions for ${keepAddressesAvailable ? 'MikroTik' : 'OpenWrt'}`,
+        })
+        .click()
+      const items = screen
+        .getByRole('menuitem')
+        .all()
+        .map((item) => item.element().textContent?.trim())
+      expect(items.includes('Format settings…')).toBe(offered)
+    },
+  )
+
+  it('opens the settings of a format that is not domain-based Keenetic without a prefix field, and shows the choice stored on its card', async () => {
+    const screen = await renderPanel({
+      outputs: [
+        {
+          ...PUBLISHED,
+          targetID: 'mikrotik',
+          targetTitle: 'MikroTik',
+          keepAddresses: true,
+          keepAddressesAvailable: true,
+        },
+      ],
+    })
+
+    await screen.getByRole('button', { name: 'Actions for MikroTik' }).click()
+    await screen.getByRole('menuitem', { name: 'Format settings…' }).click()
+    await expect
+      .element(
+        screen.getByRole('switch', { name: 'Keep addresses beside domains' }),
+      )
+      .toBeChecked()
+    await expect
+      .element(screen.getByRole('textbox', { name: 'FQDN group prefix' }))
+      .not.toBeInTheDocument()
+  })
+
+  it('shows a setting saved a moment ago when the card is read again, and asks the page to read it', async () => {
+    const card: OutputCard = {
+      ...PUBLISHED,
+      targetID: 'mikrotik',
+      targetTitle: 'MikroTik',
+      keepAddresses: false,
+      keepAddressesAvailable: true,
+    }
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          output: {
+            id: 'output-1',
+            list_id: 'profile-1',
+            target_id: 'mikrotik',
+            keep_addresses: true,
+          },
+        }),
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const screen = await renderPanel({ outputs: [card] })
+
+    await screen.getByRole('button', { name: 'Actions for MikroTik' }).click()
+    await screen.getByRole('menuitem', { name: 'Format settings…' }).click()
+    const keep = screen.getByRole('switch', {
+      name: 'Keep addresses beside domains',
+    })
+    await keep.click()
+    await screen.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect.poll(() => screen.emitted('settingsSaved')).toEqual([[]])
+    await screen.rerender({ outputs: [{ ...card, keepAddresses: true }] })
+    await screen.getByRole('button', { name: 'Actions for MikroTik' }).click()
+    await screen.getByRole('menuitem', { name: 'Format settings…' }).click()
+    await expect.element(keep).toBeChecked()
   })
 
   it('offers Download and Send as icon buttons named for the format, each explained by a tooltip', async () => {

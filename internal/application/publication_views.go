@@ -112,16 +112,20 @@ type OutputArtifact struct {
 // appears under its stored identity, because hiding it would misreport what
 // the store holds.
 type OutputCard struct {
-	ID              string          `json:"id"`
-	TargetID        string          `json:"target_id"`
-	DeviceID        string          `json:"device_id,omitempty"`
-	FQDNGroupPrefix string          `json:"fqdn_group_prefix,omitempty"`
-	TargetTitle     string          `json:"target_title"`
-	TargetKind      string          `json:"target_kind,omitempty"`
-	FileExtension   string          `json:"file_extension,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	Latest          *OutputArtifact `json:"latest,omitempty"`
-	LastAttempt     *OutputAttempt  `json:"last_attempt,omitempty"`
+	ID              string `json:"id"`
+	TargetID        string `json:"target_id"`
+	DeviceID        string `json:"device_id,omitempty"`
+	FQDNGroupPrefix string `json:"fqdn_group_prefix,omitempty"`
+	// KeepAddresses is the output's setting; KeepAddressesAvailable says
+	// whether its format can hold it, so a screen offers it only there.
+	KeepAddresses          bool            `json:"keep_addresses"`
+	KeepAddressesAvailable bool            `json:"keep_addresses_available"`
+	TargetTitle            string          `json:"target_title"`
+	TargetKind             string          `json:"target_kind,omitempty"`
+	FileExtension          string          `json:"file_extension,omitempty"`
+	CreatedAt              time.Time       `json:"created_at"`
+	Latest                 *OutputArtifact `json:"latest,omitempty"`
+	LastAttempt            *OutputAttempt  `json:"last_attempt,omitempty"`
 	// LastDelivery is the last successful send of any file of this output to the
 	// saved connection the output is bound to now. LastAttempt is the build; the
 	// two are separate facts.
@@ -363,12 +367,14 @@ func (s *PublicationService) outputCard(ctx context.Context, output Output) Outp
 	card := OutputCard{
 		ID: output.ID, TargetID: output.TargetID, DeviceID: output.DeviceID, TargetTitle: output.TargetID,
 		CreatedAt: output.CreatedAt, FQDNGroupPrefix: output.FQDNGroupPrefix,
+		KeepAddresses: output.KeepAddresses,
 	}
 	if target, renderer, err := s.target(output.TargetID); err == nil {
 		if target.Title != "" {
 			card.TargetTitle = target.Title
 		}
 		card.TargetKind = target.Kind
+		card.KeepAddressesAvailable = target.Constraints.TakesNamesAndAddresses()
 		card.FileExtension = renderer.Descriptor().FileExtension
 	}
 	if output.LatestArtifactID != "" {

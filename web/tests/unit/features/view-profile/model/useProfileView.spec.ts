@@ -266,7 +266,13 @@ it('requires a new reveal when the selected output or its subscription changes',
   const published = usePublishedProfile()
   published.clear()
   const build = (id: string, revision = 'first'): FreshBuild => ({
-    output: { id, profileID: PROFILE_ID, targetID: 'keenetic', deviceID: '' },
+    output: {
+      id,
+      profileID: PROFILE_ID,
+      targetID: 'keenetic',
+      deviceID: '',
+      keepAddresses: false,
+    },
     subscriptionURL: `http://example.test/${id}/${revision}`,
     artifactID: `artifact-${id}`,
     artifactHash: 'fixture-hash',

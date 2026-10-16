@@ -53,7 +53,7 @@ func (s *Store) CreateOutput(ctx context.Context, create application.NewOutput) 
 	if o.DeviceID != "" {
 		deviceID = o.DeviceID
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,latest_artifact_id,previous_artifact_id,device_id,fqdn_group_prefix) VALUES(?,?,?,?,?,?,?,?,NULL,NULL,?,?)`, o.ID, o.ProfileID, o.TargetID, o.FormatKey, o.RendererID, o.RendererVersion, o.TargetRevision, o.CreatedAt.UTC().UnixNano(), deviceID, o.FQDNGroupPrefix)
+	_, err = tx.ExecContext(ctx, `INSERT INTO outputs(id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,latest_artifact_id,previous_artifact_id,device_id,fqdn_group_prefix,keep_addresses) VALUES(?,?,?,?,?,?,?,?,NULL,NULL,?,?,?)`, o.ID, o.ProfileID, o.TargetID, o.FormatKey, o.RendererID, o.RendererVersion, o.TargetRevision, o.CreatedAt.UTC().UnixNano(), deviceID, o.FQDNGroupPrefix, o.KeepAddresses)
 	if err != nil {
 		return fail(fmt.Errorf("insert output: %w", err))
 	}
@@ -117,7 +117,7 @@ func (s *Store) CreateSubscription(ctx context.Context, outputID, tokenID string
 	return nil
 }
 
-const outputSelect = `SELECT id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,latest_artifact_id,previous_artifact_id,device_id,fqdn_group_prefix FROM outputs`
+const outputSelect = `SELECT id,profile_id,target_id,format_key,renderer_id,renderer_version,target_revision,created_at_ns,latest_artifact_id,previous_artifact_id,device_id,fqdn_group_prefix,keep_addresses FROM outputs`
 
 func (s *Store) UpdateOutputDevice(ctx context.Context, outputID, deviceID string) error {
 	if !validID(outputID) || (deviceID != "" && !validID(deviceID)) {

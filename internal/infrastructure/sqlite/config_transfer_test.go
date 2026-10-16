@@ -39,10 +39,14 @@ func TestConfigTransferApplyIsFreshAndAtomic(t *testing.T) {
 		Outputs: map[string]application.Output{"output-1": {
 			ID: strings.Repeat("d", 32), ProfileID: strings.Repeat("b", 32), TargetID: "keenetic", DeviceID: strings.Repeat("c", 32),
 			FormatKey: "format", RendererID: "renderer", RendererVersion: "v1", TargetRevision: "revision",
+			KeepAddresses: true,
 		}},
 	}
 	if err := store.ApplyConfigTransfer(context.Background(), apply); err != nil {
 		t.Fatal(err)
+	}
+	if got := countRows(t, store, "SELECT count(*) FROM outputs WHERE keep_addresses=1"); got != 1 {
+		t.Fatalf("import kept addresses on %d output(s), want 1", got)
 	}
 	if got := countRows(t, store, "SELECT count(*) FROM devices WHERE auto_deliver=1"); got != 0 {
 		t.Fatalf("import enabled automatic delivery for %d device(s)", got)

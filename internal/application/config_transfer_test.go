@@ -500,6 +500,11 @@ func TestConfigTransferRejectsMalformedDocumentLocalReferences(t *testing.T) {
 			d.Devices = []TransferDevice{{Ref: "device-1", TargetID: "keenetic", Name: "Router"}}
 			d.Outputs = []TransferOutput{{Ref: "output-1", ProfileRef: "profile-1", TargetID: "keenetic", DeviceRef: strings.Repeat("b", 32)}}
 		}},
+		// The test format carries addresses only: there is no name to keep them beside.
+		{"keep addresses on a format without names", "outputs/0/keep_addresses", func(d *ConfigTransferDocument) {
+			d.Profiles = []TransferProfile{{Ref: "profile-1", Name: "Profile", Lists: []string{"example"}, RefreshInterval: RefreshOff}}
+			d.Outputs = []TransferOutput{{Ref: "output-1", ProfileRef: "profile-1", TargetID: "keenetic", KeepAddresses: true}}
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			document := base

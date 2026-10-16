@@ -547,3 +547,34 @@ func TestPublicationCommitUsesCurrentProfileState(t *testing.T) {
 		}
 	})
 }
+
+// Keeping addresses changes what the file holds, so a build planned before the
+// switch must not publish under it.
+func TestKeepAddressesChangeInvalidatesItsPendingPublication(t *testing.T) {
+	ctx := context.Background()
+	fixture := newPrefixPublicationFixture(t)
+	pending := fixture.startBlockedBuild()
+	released := false
+	defer func() {
+		if !released {
+			close(fixture.barrier.release)
+		}
+	}()
+	waitPublicationBarrier(t, fixture.barrier.reached)
+	if _, err := fixture.service.SetOutputKeepAddresses(ctx, fixture.output.ID, true); err != nil {
+		t.Fatal(err)
+	}
+	close(fixture.barrier.release)
+	released = true
+	if err := waitPublicationBuild(t, pending); !errors.Is(err, application.ErrProfileChanged) {
+		t.Fatalf("publication planned before the switch error=%v, want ErrProfileChanged", err)
+	}
+	snapshots, artifacts, err := fixture.store.PublicationCounts(ctx)
+	if err != nil || snapshots != 0 || artifacts != 0 {
+		t.Fatalf("candidate rows: snapshots=%d artifacts=%d err=%v", snapshots, artifacts, err)
+	}
+	built, err := fixture.service.Build(ctx, fixture.output.ID)
+	if err != nil || built.Output.LatestArtifactID == "" || !built.Output.KeepAddresses {
+		t.Fatalf("rebuild after the switch=%#v err=%v", built.Output, err)
+	}
+}

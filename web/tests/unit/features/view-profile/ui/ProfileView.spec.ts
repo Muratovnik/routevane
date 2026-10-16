@@ -557,6 +557,7 @@ describe('subscription link block', () => {
       profileID: 'profile-1',
       targetID: 'keenetic',
       deviceID: '',
+      keepAddresses: false,
     },
     subscriptionURL,
     artifactID: 'artifact-1',

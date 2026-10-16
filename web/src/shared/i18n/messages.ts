@@ -624,7 +624,7 @@ const ru: Dictionary = {
   'profile.diagnostics.reason.unsupported_by_target':
     'формат это не поддерживает',
   'profile.diagnostics.reason.not_required_for_domain_capable_target':
-    'адрес не нужен формату с доменными правилами',
+    'покрыт доменными правилами; в настройках формата его можно оставить',
   'profile.diagnostics.reason.wide_network_expansion':
     'диапазон слишком широк для автоматического добавления',
   'profile.diagnostics.reason.shared_cdn_or_cloud':
@@ -815,6 +815,10 @@ const ru: Dictionary = {
   'outputs.settings.title': 'Настройки формата · {target}',
   'outputs.settings.nextBuild': 'Применится при следующей сборке',
   'outputs.settings.rebuild': 'Пересобрать сейчас',
+  'outputs.keepAddresses': 'Оставлять адреса рядом с доменами',
+  'outputs.keepAddresses.note':
+    'Добавлять адреса, даже если их уже покрывают домены.',
+  'outputs.keepAddresses.failed': 'Не удалось сохранить настройку',
   'outputs.reissue.confirm': 'Выпустить новую ссылку для {target}?',
   'outputs.reissue.confirm.body':
     'Текущая ссылка перестанет работать сразу; роутеры и приложения, которые её используют, нужно будет обновить.',
@@ -1571,7 +1575,7 @@ const en: Dictionary = {
   'profile.diagnostics.reason.unsupported_by_target':
     'not supported by this format',
   'profile.diagnostics.reason.not_required_for_domain_capable_target':
-    'address is unnecessary for a domain-capable format',
+    'covered by domain rules; format settings can keep it',
   'profile.diagnostics.reason.wide_network_expansion':
     'network is too broad to add automatically',
   'profile.diagnostics.reason.shared_cdn_or_cloud':
@@ -1762,6 +1766,10 @@ const en: Dictionary = {
   'outputs.settings.title': 'Format settings · {target}',
   'outputs.settings.nextBuild': 'Applies at the next build',
   'outputs.settings.rebuild': 'Rebuild now',
+  'outputs.keepAddresses': 'Keep addresses beside domains',
+  'outputs.keepAddresses.note':
+    'Include addresses even when domains already cover them.',
+  'outputs.keepAddresses.failed': 'The setting could not be saved',
   'outputs.reissue.confirm': 'Issue a new link for {target}?',
   'outputs.reissue.confirm.body':
     'The current link stops working at once; routers and apps that use it will need to be updated.',

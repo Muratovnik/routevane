@@ -240,9 +240,9 @@ Sections, addressable by URL:
    profile shows the bound connection as text, offers no changes and no Send;
    Download stays. Each row's
    «⋮» menu holds «Открыть подключение» while a connection is bound,
-   «Настройки формата…» (the FQDN group prefix of a domain-based
-   format: its rule appears only as a refused save, «Применится при следующей
-   сборке» beside Save, and «Пересобрать сейчас»), «Пересобрать», «Выпустить
+   «Настройки формата…» (offered for a format with a setting to choose; the
+   dialog is described below; «Применится при следующей сборке» stands beside
+   Save, with «Пересобрать сейчас»), «Пересобрать», «Выпустить
    новую ссылку…» once the format has published, and «Убрать формат…». Issuing a
    new link and removing a format each confirm with their consequence; the new
    link is shown once (see «The one-time secret»). After a reload no format
@@ -251,6 +251,17 @@ Sections, addressable by URL:
    several. Automatic delivery is
    primary when a deployer exists; subscription and manual download remain
    available ways to get the file.
+   The format settings dialog holds the choices a format offers. The domain-based
+   Keenetic format offers the FQDN group prefix, whose rule appears only as a
+   refused save. Every format that takes both domain and address rules (that
+   Keenetic format, MikroTik, sing-box and AmneziaVPN) also offers one switch,
+   «Оставлять адреса рядом с доменами», off by default. Off, the format
+   leaves out the addresses and third-party networks of a list whose domains
+   already cover it; on, it keeps them beside the domains. A kept address passes
+   the same value checks, and a format close to its rule limit may be refused
+   sooner. OpenWrt and Keenetic BAT show no switch. Like the prefix, the switch
+   applies at the next build and leaves the published file unchanged until then
+   (ADR 0057).
    The Diagnostics tab is one table of the rules of the shown file: a list
    filter, a search field, columns for list, value and reason, and a state
    column only when the file excluded something. When it did, a choice beside
@@ -989,6 +1000,7 @@ reduced motion and unsupported browsers switch immediately.
 Native data tables share `RvTable`: one bordered scroll surface, rounded corners,
 a filled header, cell separators and optional dense rows/sticky headers. Callers
 own column geometry and slot content, including selection and menus. Long forms
-stay outside comparison rows; a format's FQDN group prefix is configured in
-the «Настройки формата…» dialog of its row menu. Format choices and connection names use the
+stay outside comparison rows; a format's settings, the FQDN group prefix and
+the address switch, are configured in the «Настройки формата…» dialog of its
+row menu. Format choices and connection names use the
 same decorative icons, with a generic device icon for an unknown plugin target.

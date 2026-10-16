@@ -38,6 +38,9 @@ func TestArchivedProfileRefusesStoredOperatorMutationsAndRestoreReenablesThem(t 
 		{"prefix", func(store *Store, _ application.Profile, output application.Output) error {
 			return store.UpdateOutputFQDNPrefix(context.Background(), output.ID, "changed")
 		}},
+		{"keep addresses", func(store *Store, _ application.Profile, output application.Output) error {
+			return store.UpdateOutputKeepAddresses(context.Background(), output.ID, true)
+		}},
 		{"device binding", func(store *Store, _ application.Profile, output application.Output) error {
 			return store.UpdateOutputDevice(context.Background(), output.ID, "")
 		}},

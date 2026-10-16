@@ -670,6 +670,103 @@ func TestBuildPlanNamesTheValueFaultBeforeDomainCoverage(t *testing.T) {
 	}
 }
 
+// A format may keep the addresses a name already covers (ADR 0057). Only the
+// "covered by a name" judgement is lifted: the value checks and the target's
+// own support still decide what is kept.
+func TestBuildPlanSetWithKeepsAddressesBesideNames(t *testing.T) {
+	now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	definition := domain.ListDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web", Required: true}}, CatalogRevision: "test"}
+	values := []string{"example.com", "198.51.100.7", "203.0.113.0/24", "60.0.0.0/8", "127.0.0.1"}
+	sightings := make([]domain.Sighting, 0, len(values))
+	for _, value := range values {
+		resource, err := resourceFromString(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sightings = append(sightings, domain.Sighting{
+			ListID: "example", ComponentID: "web", Resource: resource,
+			SourceID: "feed:community", SourceClass: domain.SourceCommunity, SourceRevision: "test",
+			FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid, ObservationCount: 1,
+		})
+	}
+	input := []ListInput{{Definition: definition, Sightings: sightings}}
+	namesAndAddresses := domain.TargetDefinition{ID: "names-and-addresses", FormatKey: "names-and-addresses", Constraints: domain.TargetConstraints{SupportsDomainSuffix: true, SupportsIPv4: true, SupportsPrefixes: true}}
+	namesOnly := domain.TargetDefinition{ID: "names-only", FormatKey: "names-only", Constraints: domain.TargetConstraints{SupportsDomainSuffix: true}}
+	cases := []struct {
+		name    string
+		target  domain.TargetDefinition
+		options Options
+		rules   []string
+		reasons map[string]string
+	}{
+		{
+			name: "by default a name covers its addresses", target: namesAndAddresses,
+			rules: []string{"example.com"},
+			reasons: map[string]string{
+				"198.51.100.7":   ReasonNotRequiredForDomainCapableTarget,
+				"203.0.113.0/24": ReasonNotRequiredForDomainCapableTarget,
+				"60.0.0.0/8":     ReasonPrefixTooWide,
+				"127.0.0.1":      ReasonSpecialUseDestination,
+			},
+		},
+		{
+			name: "kept addresses still pass the value checks", target: namesAndAddresses, options: Options{KeepAddressesBesideNames: true},
+			rules: []string{"198.51.100.7", "203.0.113.0/24", "example.com"},
+			reasons: map[string]string{
+				"60.0.0.0/8": ReasonPrefixTooWide,
+				"127.0.0.1":  ReasonSpecialUseDestination,
+			},
+		},
+		// The reason must not point to a setting the format does not offer.
+		{
+			name: "a format without address rules refuses them for that", target: namesOnly,
+			rules: []string{"example.com"},
+			reasons: map[string]string{
+				"198.51.100.7":   ReasonUnsupportedByTarget,
+				"203.0.113.0/24": ReasonUnsupportedByTarget,
+				"60.0.0.0/8":     ReasonPrefixTooWide,
+				"127.0.0.1":      ReasonSpecialUseDestination,
+			},
+		},
+		{
+			name: "a format without address rules cannot keep them", target: namesOnly, options: Options{KeepAddressesBesideNames: true},
+			rules: []string{"example.com"},
+			reasons: map[string]string{
+				"198.51.100.7":   ReasonUnsupportedByTarget,
+				"203.0.113.0/24": ReasonUnsupportedByTarget,
+				"60.0.0.0/8":     ReasonPrefixTooWide,
+				"127.0.0.1":      ReasonSpecialUseDestination,
+			},
+		},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			plan, err := BuildPlanSetWith(input, test.target, now, test.options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rules := make([]string, len(plan.Rules))
+			for i, rule := range plan.Rules {
+				rules[i] = rule.CanonicalValue()
+			}
+			slices.Sort(rules)
+			if !slices.Equal(rules, test.rules) {
+				t.Fatalf("rules = %v, want %v", rules, test.rules)
+			}
+			got := make(map[string]string, len(plan.Excluded))
+			for _, excluded := range plan.Excluded {
+				if len(excluded.ReasonCodes) != 1 {
+					t.Fatalf("%s reasons = %v, want one", excluded.Candidate.CanonicalValue(), excluded.ReasonCodes)
+				}
+				got[excluded.Candidate.CanonicalValue()] = excluded.ReasonCodes[0]
+			}
+			if !maps.Equal(got, test.reasons) {
+				t.Fatalf("excluded = %v, want %v", got, test.reasons)
+			}
+		})
+	}
+}
+
 // resourceFromString builds the resource a feed value would produce, choosing
 // prefix or address the same way the feed decoder does.
 func resourceFromString(value string) (domain.Resource, error) {

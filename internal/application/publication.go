@@ -91,9 +91,13 @@ type ProfileComposition struct {
 // profile, so an edited profile is served by the same output rather than a new one.
 type Output struct {
 	FQDNGroupPrefix string `json:"fqdn_group_prefix,omitempty"`
-	ID              string `json:"id"`
-	ProfileID       string `json:"list_id"`
-	TargetID        string `json:"target_id"`
+	// KeepAddresses keeps the addresses a name already covers in this output's
+	// file (ADR 0057). Only a format that takes both names and addresses can
+	// hold it.
+	KeepAddresses bool   `json:"keep_addresses"`
+	ID            string `json:"id"`
+	ProfileID     string `json:"list_id"`
+	TargetID      string `json:"target_id"`
 	// DeviceID is the one registered destination this output may deliver to.
 	// Empty means file/subscription only. The explicit binding prevents a timer
 	// from guessing among multiple profiles for the same kind of device.
@@ -174,6 +178,9 @@ type PublicationCandidate struct {
 	Attempt         OutputAttempt
 	ProfileRevision [32]byte
 	FQDNGroupPrefix string
+	// KeepAddresses is the output setting the candidate was planned under; a
+	// candidate planned under another value is stale.
+	KeepAddresses bool
 }
 
 // ProfilePublicationRevision identifies exactly the profile state that can
