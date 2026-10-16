@@ -193,8 +193,11 @@ func TestDesktopExplicitPortRecoveryPreservesSubscriptionAndNextOrigin(t *testin
 		if attempt < 2 {
 			args = append(args, "--recover-desktop-port")
 		}
+		// A backend that stops before announcing an origin says why only in
+		// its log, so the attempt keeps it for the failure message.
+		logs := &syncBuffer{}
 		go func() {
-			exited <- runWithDeps(write, io.Discard, args, runtimeDeps{Context: ctx, DesktopInput: input})
+			exited <- runWithDeps(write, logs, args, runtimeDeps{Context: ctx, DesktopInput: input})
 			_ = write.Close()
 		}()
 		if _, err := io.WriteString(control, token+"\n"); err != nil {
@@ -202,7 +205,12 @@ func TestDesktopExplicitPortRecoveryPreservesSubscriptionAndNextOrigin(t *testin
 		}
 		line, err := bufio.NewReader(read).ReadString('\n')
 		if err != nil {
-			t.Fatal(err)
+			code := -1
+			select {
+			case code = <-exited:
+			case <-ctx.Done():
+			}
+			t.Fatalf("attempt %d: no ready origin: %v exit=%d logs=%s", attempt, err, code, logs.String())
 		}
 		current := strings.TrimSpace(line)
 		if current == origin || (previous != "" && current != previous) {
@@ -230,10 +238,10 @@ func TestDesktopExplicitPortRecoveryPreservesSubscriptionAndNextOrigin(t *testin
 		select {
 		case code := <-exited:
 			if code != 0 {
-				t.Fatalf("desktop exit=%d", code)
+				t.Fatalf("attempt %d: desktop exit=%d logs=%s", attempt, code, logs.String())
 			}
 		case <-ctx.Done():
-			t.Fatal("recovery backend outlived parent")
+			t.Fatalf("attempt %d: recovery backend outlived parent logs=%s", attempt, logs.String())
 		}
 		stop()
 	}
