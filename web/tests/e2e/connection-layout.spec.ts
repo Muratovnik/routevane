@@ -221,7 +221,10 @@ for (const locale of ['en', 'ru'] as const) {
       })
       await prefix.fill('home-vpn')
       await settings
-        .getByRole('button', { name: copy('outputs.prefix.save'), exact: true })
+        .getByRole('button', {
+          name: copy('outputs.settings.save'),
+          exact: true,
+        })
         .click()
       await expect(settings).toBeHidden()
       await page.reload()
@@ -267,7 +270,7 @@ for (const locale of ['en', 'ru'] as const) {
       await page.setViewportSize({ width: 1280, height: 640 })
       await chooseFormatAction(page, dnsTitle, 'outputs.menu.settings', copy)
       const save = settings.getByRole('button', {
-        name: copy('outputs.prefix.save'),
+        name: copy('outputs.settings.save'),
         exact: true,
       })
       await save.scrollIntoViewIfNeeded()

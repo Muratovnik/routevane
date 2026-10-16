@@ -145,11 +145,11 @@ const rebuildNow = async (): Promise<void> => {
         <RvButton
           form="format-settings-form"
           :loading="settings.saving.value"
-          :loading-label="t('outputs.prefix.save')"
+          :loading-label="t('outputs.settings.save')"
           type="submit"
           variant="primary"
         >
-          {{ t('outputs.prefix.save') }}
+          {{ t('outputs.settings.save') }}
         </RvButton>
       </div>
     </template>

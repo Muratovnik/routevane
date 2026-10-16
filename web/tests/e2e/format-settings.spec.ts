@@ -146,7 +146,10 @@ for (const language of ['en', 'ru'] as const) {
       // A change is a draft until Save: nothing is stored yet.
       expect(await storedKeep(page.request, origin, mikrotik)).toBe(false)
       await dialog
-        .getByRole('button', { name: copy('outputs.prefix.save'), exact: true })
+        .getByRole('button', {
+          name: copy('outputs.settings.save'),
+          exact: true,
+        })
         .click()
       await expect(dialog).toBeHidden()
       expect(await storedKeep(page.request, origin, mikrotik)).toBe(true)
@@ -165,7 +168,10 @@ for (const language of ['en', 'ru'] as const) {
       await expect(keep).toBeChecked()
       await keep.click()
       await dialog
-        .getByRole('button', { name: copy('outputs.prefix.save'), exact: true })
+        .getByRole('button', {
+          name: copy('outputs.settings.save'),
+          exact: true,
+        })
         .click()
       await expect(dialog).toBeHidden()
       expect(await storedKeep(page.request, origin, mikrotik)).toBe(false)
@@ -181,7 +187,10 @@ for (const language of ['en', 'ru'] as const) {
       await prefix.fill('both')
       await keepSwitch(page, titles.dns).click()
       await dnsDialog
-        .getByRole('button', { name: copy('outputs.prefix.save'), exact: true })
+        .getByRole('button', {
+          name: copy('outputs.settings.save'),
+          exact: true,
+        })
         .click()
       await expect(dnsDialog).toBeHidden()
       expect(await storedKeep(page.request, origin, dns)).toBe(true)

@@ -780,7 +780,7 @@ const ru: Dictionary = {
   'error.fqdn_ownership_conflict':
     'FQDN-группа с таким именем не управляется этим подключением. Проверьте или перенесите её вручную перед применением. Изменения не внесены.',
   'outputs.prefix': 'Префикс FQDN-групп',
-  'outputs.prefix.save': 'Сохранить',
+  'outputs.settings.save': 'Сохранить',
   'send.plan.fqdn.commands': 'Планируемые команды FQDN',
   'outputs.prefix.invalid':
     'Введите до 24 строчных латинских букв, цифр и дефисов начиная с буквы и без дефиса в конце.',
@@ -1731,7 +1731,7 @@ const en: Dictionary = {
   'error.fqdn_ownership_conflict':
     'An FQDN group with this name is not managed by this connection. Review or migrate it manually before applying. No changes were made.',
   'outputs.prefix': 'FQDN group prefix',
-  'outputs.prefix.save': 'Save',
+  'outputs.settings.save': 'Save',
   'send.plan.fqdn.commands': 'Planned FQDN commands',
   'outputs.prefix.invalid':
     'Use up to 24 lowercase letters, digits and hyphens, starting with a letter and with no trailing hyphen.',

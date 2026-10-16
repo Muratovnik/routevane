@@ -1158,7 +1158,7 @@ for (const language of ['en', 'ru'] as const) {
         name: copy('outputs.prefix'),
       })
       const save = settings.getByRole('button', {
-        name: copy('outputs.prefix.save'),
+        name: copy('outputs.settings.save'),
         exact: true,
       })
       await openSettings()
