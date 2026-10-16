@@ -782,6 +782,18 @@ describe('composition forecast', () => {
     expect(String(fetchMock.mock.calls[0]?.[1]?.body)).not.toContain('targets')
   })
 
+  it('names the formats that keep addresses beside domains', async () => {
+    fetchMock.mockResolvedValueOnce(json({ targets: [] }))
+    await previewComposition(
+      { lists: ['discord'], categories: [], exclusions: [], listDomains: {} },
+      ['keenetic', 'keenetic-dns'],
+      ['keenetic-dns'],
+    )
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))
+    expect(body.targets).toEqual(['keenetic', 'keenetic-dns'])
+    expect(body.keep_addresses_targets).toEqual(['keenetic-dns'])
+  })
+
   it('refuses a forecast that does not state its own bounds', async () => {
     fetchMock.mockResolvedValueOnce(
       json({

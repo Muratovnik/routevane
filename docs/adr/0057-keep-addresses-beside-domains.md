@@ -94,10 +94,13 @@ covers, beside the names.
   addresses that expire on schedule, as ADR 0010 describes for formats without
   names.
 
-- The weight forecast currently plans with default options, so with the
-  setting on it can understate the built file. The build and its `rule_limit`
-  check use the output's setting. Aligning the forecast is separate work. A
-  command-line build of lists names no output and keeps the default.
+- The weight forecast plans a format with the setting when the profile's output
+  for it keeps addresses: the preview request names such formats in
+  `keep_addresses_targets`, and a format that cannot take both kinds of rule is
+  refused there as well. The forecast answers per format, so when two outputs of
+  one profile share a format and only one keeps addresses, the larger file is
+  the one weighed. A command-line build of lists names no output and keeps the
+  default.
 
 - Database schema version 21 is one-way. An older Routevane, such as 0.4.1 at
   schema 20, refuses a database the new version has opened. The existing rule

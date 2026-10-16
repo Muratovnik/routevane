@@ -34,7 +34,12 @@ const props = defineProps<{
   // What this profile already publishes, already named in the operator's
   // language. The editor asks the server what the draft would weigh in these
   // formats; with none bound there is nothing to weigh it against.
-  outputs: { id: string; targetID: string; title: string }[]
+  outputs: {
+    id: string
+    targetID: string
+    title: string
+    keepAddresses?: boolean
+  }[]
 }>()
 
 const emit = defineEmits<{
@@ -70,6 +75,16 @@ const resolved = computed(() =>
 const forecastTargets = computed(() => [
   ...new Set(props.outputs.map((output) => output.targetID)),
 ])
+// A format that keeps addresses beside domains is weighed with them (ADR 0057).
+// The forecast answers per format, so when two of this profile's outputs share
+// one and only one keeps addresses, the larger file is the one weighed.
+const forecastKeepAddresses = computed(() => [
+  ...new Set(
+    props.outputs
+      .filter((output) => output.keepAddresses === true)
+      .map((output) => output.targetID),
+  ),
+])
 
 watch(
   () =>
@@ -77,6 +92,7 @@ watch(
       draftComposition.value,
       resolved.value,
       forecastTargets.value,
+      forecastKeepAddresses.value,
     ]),
   () => {
     // An empty target list asks the endpoint about every format there is,
@@ -90,6 +106,7 @@ watch(
       draftComposition.value,
       resolved.value,
       forecastTargets.value,
+      forecastKeepAddresses.value,
     )
   },
   { immediate: true },
@@ -171,7 +188,12 @@ const setPriority = (ids: string[]): void => {
 
 const retryForecast = (): void => {
   if (forecastTargets.value.length === 0) return
-  forecast.retry(draftComposition.value, resolved.value, forecastTargets.value)
+  forecast.retry(
+    draftComposition.value,
+    resolved.value,
+    forecastTargets.value,
+    forecastKeepAddresses.value,
+  )
 }
 
 const submit = async (): Promise<void> => {
@@ -259,7 +281,12 @@ watch(stored, (next, previous) => {
             @update:model-value="setComposition"
             @reorder="setPriority"
             @refresh="
-              forecast.refresh(draftComposition, resolved, forecastTargets)
+              forecast.refresh(
+                draftComposition,
+                resolved,
+                forecastTargets,
+                forecastKeepAddresses,
+              )
             "
             @retry="retryForecast"
           />

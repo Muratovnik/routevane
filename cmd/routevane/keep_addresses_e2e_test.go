@@ -103,6 +103,28 @@ func TestKeepAddressesBesideDomainsReachesTheRouterFile(t *testing.T) {
 				t.Fatalf("after restart card %s (%s) keep=%v available=%v", card.ID, card.TargetID, card.KeepAddresses, card.KeepAddressesAvailable)
 			}
 		}
+		// The forecast weighs the format the way its build will plan it.
+		forecastRules := func(body string) int {
+			t.Helper()
+			var answer struct {
+				Targets []struct {
+					ProjectedRules int `json:"projected_rules"`
+				} `json:"targets"`
+			}
+			if err := json.Unmarshal(postJSON(t, origin+"/v1/profiles/preview", body), &answer); err != nil || len(answer.Targets) != 1 {
+				t.Fatalf("forecast %s = %#v err=%v", body, answer, err)
+			}
+			return answer.Targets[0].ProjectedRules
+		}
+		without := forecastRules(`{"lists":["alpha"],"targets":["keenetic-dns"]}`)
+		with := forecastRules(`{"lists":["alpha"],"targets":["keenetic-dns"],"keep_addresses_targets":["keenetic-dns"]}`)
+		if with != without+1 {
+			t.Fatalf("forecast with kept address=%d, without=%d", with, without)
+		}
+		if refused := postGuardedBody(t, origin+"/v1/profiles/preview", `{"lists":["alpha"],"targets":["keenetic"],"keep_addresses_targets":["keenetic"]}`); refused.status < 400 {
+			t.Fatalf("forecast kept addresses for a BAT format: status=%d body=%s", refused.status, refused.body)
+		}
+
 		postJSON(t, origin+"/v1/outputs/"+outputID+"/build", `{}`)
 		if file := published(origin); !strings.Contains(file, resolved) {
 			t.Fatalf("build with the setting on left out the address: %q", file)

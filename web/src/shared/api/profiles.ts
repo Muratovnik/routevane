@@ -190,10 +190,14 @@ export type TargetForecast = {
  * something the catalog does not carry, or a failed storage/renderer read.
  * Missing coverage is represented per target by incompleteLists; facts
  * for complete lists remain available without claiming the draft fits.
+ *
+ * keepAddresses names the targets whose format keeps addresses beside domains
+ * (ADR 0057), so their forecast counts what their build will publish.
  */
 export const previewComposition = (
   composition: ProfileComposition,
   targets: string[] = [],
+  keepAddresses: string[] = [],
 ): Promise<TargetForecast[]> =>
   postJSON(
     '/v1/profiles/preview',
@@ -204,6 +208,9 @@ export const previewComposition = (
       list_domains: composition.listDomains,
       priority: composition.priority ?? [],
       ...(targets.length === 0 ? {} : { targets }),
+      ...(keepAddresses.length === 0
+        ? {}
+        : { keep_addresses_targets: keepAddresses }),
     },
     parseForecasts,
   )

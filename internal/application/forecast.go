@@ -113,6 +113,16 @@ type ListRuleForecast struct {
 // offering the choice needs; a named set is answered in sorted order, so the
 // same request always produces the same document.
 func (s *PublicationService) ForecastComposition(ctx context.Context, requested ProfileComposition, targetIDs []string) ([]CompositionForecast, error) {
+	return s.ForecastCompositionKeeping(ctx, requested, targetIDs, nil)
+}
+
+// ForecastCompositionKeeping is ForecastComposition for a profile some of whose
+// formats keep addresses beside the domains that cover them (ADR 0057). Those
+// formats plan the way their build will, so the forecast counts the addresses the
+// file will hold. Each named format must be among the forecast targets and able
+// to take both kinds of rule: a setting the format cannot have is refused, not
+// silently forecast as off.
+func (s *PublicationService) ForecastCompositionKeeping(ctx context.Context, requested ProfileComposition, targetIDs, keepAddresses []string) ([]CompositionForecast, error) {
 	// The composition passes exactly the checks profile creation applies, so a
 	// forecast can never describe a composition the product would then refuse to
 	// store, and a composition resolving to nothing is refused here by name.
@@ -121,6 +131,10 @@ func (s *PublicationService) ForecastComposition(ctx context.Context, requested 
 		return nil, err
 	}
 	targets, err := s.forecastTargets(targetIDs)
+	if err != nil {
+		return nil, err
+	}
+	keep, err := s.forecastKeepAddresses(targets, keepAddresses)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +149,7 @@ func (s *PublicationService) ForecastComposition(ctx context.Context, requested 
 	cutoff := s.config.Clock.Now().UTC()
 	forecasts := make([]CompositionForecast, 0, len(targets))
 	for _, targetID := range targets {
-		forecast, err := s.forecastTarget(ctx, profile, targetID, cutoff)
+		forecast, err := s.forecastTarget(ctx, profile, targetID, cutoff, planner.Options{KeepAddressesBesideNames: keep[targetID]})
 		if err != nil {
 			return nil, err
 		}
@@ -168,6 +182,23 @@ func (s *PublicationService) forecastTargets(requested []string) ([]string, erro
 	return ids, nil
 }
 
+// forecastKeepAddresses names the forecast targets that plan with addresses
+// kept beside their domains.
+func (s *PublicationService) forecastKeepAddresses(targets, requested []string) (map[string]bool, error) {
+	if len(requested) > maxCompositionItems {
+		return nil, fmt.Errorf("invalid forecast targets")
+	}
+	keep := make(map[string]bool, len(requested))
+	for _, id := range requested {
+		target, known := s.config.Targets[id]
+		if !known || !slices.Contains(targets, id) || !target.Constraints.TakesNamesAndAddresses() {
+			return nil, fmt.Errorf("invalid forecast target")
+		}
+		keep[id] = true
+	}
+	return keep, nil
+}
+
 // forecastTarget plans the composition for one target with that target's rule
 // bound lifted, then measures the finished plan against the real bound.
 //
@@ -177,7 +208,7 @@ func (s *PublicationService) forecastTargets(requested []string) ([]string, erro
 // changes nothing about which rules the plan holds and only decides whether
 // that refusal fires — and predicting that refusal is the whole point, which it
 // cannot do from behind it.
-func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile, targetID string, cutoff time.Time) (CompositionForecast, error) {
+func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile, targetID string, cutoff time.Time, options planner.Options) (CompositionForecast, error) {
 	target, renderer, err := s.target(targetID)
 	if err != nil {
 		return CompositionForecast{}, fmt.Errorf("invalid forecast target")
@@ -185,7 +216,7 @@ func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile
 	renderer = rendererWithContext(ctx, renderer)
 	unbounded := target
 	unbounded.Constraints.MaxRules = 0
-	prepared, _, err := s.prepareProfileAt(ctx, profile, unbounded, renderer, cutoff, planner.Options{})
+	prepared, _, err := s.prepareProfileAt(ctx, profile, unbounded, renderer, cutoff, options)
 	var incomplete []string
 	if unavailableForecastCoverage(err) {
 		// Publication is still all-or-nothing. Inspection can retain the complete
@@ -193,7 +224,7 @@ func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile
 		var available []string
 		for _, id := range s.ResolvedLists(profile) {
 			one := Profile{Lists: []string{id}, ListDomains: profile.ListDomains}
-			_, _, listErr := s.prepareProfileAt(ctx, one, unbounded, renderer, cutoff, planner.Options{})
+			_, _, listErr := s.prepareProfileAt(ctx, one, unbounded, renderer, cutoff, options)
 			if unavailableForecastCoverage(listErr) {
 				incomplete = append(incomplete, id)
 			} else if listErr != nil {
@@ -208,7 +239,7 @@ func (s *PublicationService) forecastTarget(ctx context.Context, profile Profile
 				Overlaps: CompositionOverlaps{Items: []CompositionOverlap{}}}, nil
 		}
 		subset := Profile{Lists: available, Priority: available, ListDomains: profile.ListDomains}
-		prepared, _, err = s.prepareProfileAt(ctx, subset, unbounded, renderer, cutoff, planner.Options{})
+		prepared, _, err = s.prepareProfileAt(ctx, subset, unbounded, renderer, cutoff, options)
 	}
 	if err != nil {
 		return CompositionForecast{}, err

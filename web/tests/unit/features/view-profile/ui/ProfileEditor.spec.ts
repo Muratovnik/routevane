@@ -33,7 +33,12 @@ const LISTS = [
   { categories: [], id: 'youtube', title: 'YouTube' },
 ]
 
-const OUTPUTS = [
+const OUTPUTS: {
+  id: string
+  targetID: string
+  title: string
+  keepAddresses?: boolean
+}[] = [
   { id: 'output-1', targetID: 'keenetic', title: 'Keenetic' },
   { id: 'output-2', targetID: 'limited-fixture', title: 'Limited fixture' },
 ]
@@ -310,6 +315,35 @@ describe('ProfileEditor', () => {
     // A format that would refuse the draft says so; saving stays available,
     // because a failed rebuild is already reported per connection.
     await expect.element(screen.getByText(OVERFLOW)).toBeVisible()
+  })
+
+  // A format that keeps addresses beside domains is weighed with them, and
+  // switching the setting asks again (ADR 0057).
+  it('weighs a format that keeps addresses with its addresses', async () => {
+    const fetchMock = stubPreview()
+    const keeping = [
+      { ...OUTPUTS[0]!, keepAddresses: true },
+      { ...OUTPUTS[1]!, keepAddresses: false },
+    ]
+    const screen = await renderEditor({ outputs: keeping })
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
+    const sent = (call: number) => {
+      // The stub takes only the URL; the request init is still the second argument.
+      const init = (
+        fetchMock.mock.calls[call] as unknown[] | undefined
+      )?.[1] as RequestInit | undefined
+      return JSON.parse(String(init?.body))
+    }
+    expect(sent(0).keep_addresses_targets).toEqual(['keenetic'])
+
+    await screen.rerender({
+      outputs: keeping.map((output) => ({ ...output, keepAddresses: false })),
+    })
+    await vi.advanceTimersByTimeAsync(600)
+    await settle()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(sent(1)).not.toHaveProperty('keep_addresses_targets')
   })
 
   // With nothing bound there is no format to weigh against, so the rows carry

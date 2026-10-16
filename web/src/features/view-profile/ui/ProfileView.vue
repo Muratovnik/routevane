@@ -309,6 +309,7 @@ const editorOutputs = computed(() =>
     id: output.id,
     targetID: output.targetID,
     title: view.outputTitle(output),
+    keepAddresses: output.keepAddresses,
   })),
 )
 const importedOrdinal = computed(() =>

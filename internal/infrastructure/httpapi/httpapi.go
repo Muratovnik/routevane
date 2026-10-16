@@ -90,11 +90,12 @@ type Backend interface {
 	ExportFormats() []application.ExportFormat
 	Export(context.Context, string, string) (application.ExportPayload, error)
 	CreateProfile(context.Context, string, application.ProfileComposition) (application.Profile, error)
-	// ForecastComposition answers what a composition would cost on each named
+	// ForecastCompositionKeeping answers what a composition would cost on each named
 	// target before the profile exists. It reads and computes; it stores nothing,
 	// which is what lets a screen ask before the operator has committed to
-	// anything.
-	ForecastComposition(context.Context, application.ProfileComposition, []string) ([]application.CompositionForecast, error)
+	// anything. The last argument names the targets whose format keeps
+	// addresses beside domains (ADR 0057).
+	ForecastCompositionKeeping(context.Context, application.ProfileComposition, []string, []string) ([]application.CompositionForecast, error)
 	Profile(context.Context, string) (application.Profile, error)
 	UpdateProfile(context.Context, string, string, application.ProfileComposition) (application.Profile, error)
 	// Archival is its own pair of verbs rather than a field of an update: it is

@@ -46,9 +46,10 @@ type fakeBackend struct {
 	// forecastComposition and forecastTargets record what the preview route
 	// passed through, so a test can prove the forecast asked about the same
 	// composition the request carried rather than a summary of it.
-	forecastComposition application.ProfileComposition
-	forecastTargets     []string
-	customLists         []application.CustomList
+	forecastComposition   application.ProfileComposition
+	forecastTargets       []string
+	forecastKeepAddresses []string
+	customLists           []application.CustomList
 	// categories is the merged answer the backend would give. categoryEdits
 	// records what each route passed through, so a test can prove the request
 	// reached the application unchanged rather than summarized.
@@ -302,11 +303,11 @@ func (f *fakeBackend) CreateProfile(_ context.Context, _ string, composition app
 	return application.Profile{ID: strings.Repeat("a", 32)}, nil
 }
 
-// ForecastComposition answers the way the application does: an unknown target
+// ForecastCompositionKeeping answers the way the application does: an unknown target
 // is refused with a plain error rather than answered with silence, and a known
 // one comes back with the numbers a screen refuses on.
-func (f *fakeBackend) ForecastComposition(_ context.Context, composition application.ProfileComposition, targets []string) ([]application.CompositionForecast, error) {
-	f.forecastComposition, f.forecastTargets = composition, targets
+func (f *fakeBackend) ForecastCompositionKeeping(_ context.Context, composition application.ProfileComposition, targets, keepAddresses []string) ([]application.CompositionForecast, error) {
+	f.forecastComposition, f.forecastTargets, f.forecastKeepAddresses = composition, targets, keepAddresses
 	known := map[string]application.CompositionForecast{
 		"keenetic": {
 			TargetID: "keenetic", MaximumRules: 1024, ProjectedRules: 1742, Fits: false,
@@ -1210,7 +1211,7 @@ func TestCompositionForecastAnswersEveryRequestedTargetWithItsOwnNumbers(t *test
 	}
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, mutationRequest(t, "/v1/profiles/preview",
-		`{"lists":["youtube","twitch"],"categories":["video"],"exclusions":["vimeo"],"priority":["twitch","youtube"],"list_domains":{"youtube":["custom.example"]},"targets":["keenetic","singbox"]}`))
+		`{"lists":["youtube","twitch"],"categories":["video"],"exclusions":["vimeo"],"priority":["twitch","youtube"],"list_domains":{"youtube":["custom.example"]},"targets":["keenetic","singbox"],"keep_addresses_targets":["singbox"]}`))
 	const want = `{"targets":[` +
 		`{"target_id":"keenetic","maximum_rules":1024,"projected_rules":1742,"fits":false,"per_list":[{"list_id":"twitch","rules":1230},{"list_id":"youtube","rules":512}],"overlaps":{"items":[],"truncated":false}},` +
 		`{"target_id":"singbox","maximum_rules":8192,"projected_rules":1742,"fits":true,"per_list":[{"list_id":"twitch","rules":1230},{"list_id":"youtube","rules":512}],"overlaps":{"items":[],"truncated":false}}` +
@@ -1230,6 +1231,10 @@ func TestCompositionForecastAnswersEveryRequestedTargetWithItsOwnNumbers(t *test
 	}
 	if !reflect.DeepEqual(backend.forecastTargets, []string{"keenetic", "singbox"}) {
 		t.Fatalf("targets=%#v", backend.forecastTargets)
+	}
+	// A format that keeps addresses is weighed the way its build will plan.
+	if !reflect.DeepEqual(backend.forecastKeepAddresses, []string{"singbox"}) {
+		t.Fatalf("keep addresses targets=%#v", backend.forecastKeepAddresses)
 	}
 }
 

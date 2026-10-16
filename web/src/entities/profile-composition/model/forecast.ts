@@ -42,6 +42,7 @@ type Ask = {
   composition: ProfileComposition
   resolved: string[]
   targets: string[]
+  keepAddresses: string[]
 }
 
 /**
@@ -94,14 +95,24 @@ export const useCompositionForecast = (delay = SETTLE_DELAY) => {
     if (!current?.resolved.includes(listID)) return
     if (!observed) observedForForecast.delete(listID)
     if (!observing.value)
-      request(current.composition, current.resolved, current.targets)
+      request(
+        current.composition,
+        current.resolved,
+        current.targets,
+        current.keepAddresses,
+      )
   })
 
   // Returning from another library tab must also invalidate observations that
   // can have changed without changing the selected list identifiers.
   useEventListener(window, 'focus', () => {
     if (current && !observing.value)
-      request(current.composition, current.resolved, current.targets)
+      request(
+        current.composition,
+        current.resolved,
+        current.targets,
+        current.keepAddresses,
+      )
   })
 
   const ask = useDebounceFn((next: Ask) => read(next, false), delay)
@@ -113,7 +124,11 @@ export const useCompositionForecast = (delay = SETTLE_DELAY) => {
 
   const attemptRead = async (next: Ask): Promise<Outcome> => {
     try {
-      const answer = await previewComposition(next.composition, next.targets)
+      const answer = await previewComposition(
+        next.composition,
+        next.targets,
+        next.keepAddresses,
+      )
       if (next.attempt !== issued) return 'silent'
       forecasts.value = answer
       failure.value = null
@@ -174,9 +189,10 @@ export const useCompositionForecast = (delay = SETTLE_DELAY) => {
     composition: ProfileComposition,
     resolved: string[],
     targets: string[] = [],
+    keepAddresses: string[] = [],
   ): void => {
     issued += 1
-    current = { attempt: issued, composition, resolved, targets }
+    current = { attempt: issued, composition, resolved, targets, keepAddresses }
     failure.value = null
     pending.value = resolved.length > 0
     if (resolved.length === 0) {
@@ -184,7 +200,7 @@ export const useCompositionForecast = (delay = SETTLE_DELAY) => {
       forecasts.value = []
       return
     }
-    void ask({ attempt: issued, composition, resolved, targets })
+    void ask({ attempt: issued, composition, resolved, targets, keepAddresses })
   }
 
   // An explicit retry is new operator intent. Let it read the sources again;
@@ -193,20 +209,28 @@ export const useCompositionForecast = (delay = SETTLE_DELAY) => {
     composition: ProfileComposition,
     resolved: string[],
     targets: string[] = [],
+    keepAddresses: string[] = [],
   ): void => {
     for (const id of resolved) observedForForecast.delete(id)
-    request(composition, resolved, targets)
+    request(composition, resolved, targets, keepAddresses)
   }
 
   const refresh = async (
     composition: ProfileComposition,
     resolved: string[],
     targets: string[] = [],
+    keepAddresses: string[] = [],
   ): Promise<void> => {
     if (observing.value) return
     ask.cancel()
     issued += 1
-    const next = { attempt: issued, composition, resolved, targets }
+    const next = {
+      attempt: issued,
+      composition,
+      resolved,
+      targets,
+      keepAddresses,
+    }
     current = next
     failure.value = null
     pending.value = resolved.length > 0

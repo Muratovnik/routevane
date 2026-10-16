@@ -30,16 +30,19 @@ func (h *handler) createProfile(w http.ResponseWriter, r *http.Request) {
 // decodes the same composition fields creation accepts, so a screen forecasts
 // exactly what it is about to create rather than a summary of it, and the
 // answer costs no stored row. targets is optional: an absent or empty set asks
-// about every target in the catalog.
+// about every target in the catalog. keep_addresses_targets names the targets
+// whose format keeps addresses beside domains (ADR 0057), so their forecast
+// counts what their build will publish.
 func (h *handler) previewComposition(w http.ResponseWriter, r *http.Request) {
 	var request struct {
 		application.ProfileComposition
-		Targets []string `json:"targets"`
+		Targets              []string `json:"targets"`
+		KeepAddressesTargets []string `json:"keep_addresses_targets"`
 	}
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	forecasts, err := h.backend.ForecastComposition(r.Context(), request.ProfileComposition, request.Targets)
+	forecasts, err := h.backend.ForecastCompositionKeeping(r.Context(), request.ProfileComposition, request.Targets, request.KeepAddressesTargets)
 	if err != nil {
 		h.backendError(w, err)
 		return
