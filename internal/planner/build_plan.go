@@ -99,6 +99,16 @@ const (
 	minRoutablePrefixBitsV6 = 16
 )
 
+// A third-party curator's list declares networks it attributes to a service;
+// it does not own them. Aggregated lists routinely carry whole regional or
+// cloud blocks for a single service, so a community declaration is held to a
+// narrower width than a vendor's own (ADR 0056). The operator's own entries and
+// official declarations keep the general bound above.
+const (
+	minCommunityPrefixBitsV4 = 16
+	minCommunityPrefixBitsV6 = 32
+)
+
 // admissionOrder returns the sightings to read, names first. It is a reading
 // order for one pass, not a property of the plan: the caller keeps the canonical
 // order for everything that is stored or hashed. Ties keep the canonical order,
@@ -138,6 +148,26 @@ func routableValue(rule domain.RouteRule) (string, bool) {
 		}
 		if !netpolicy.RoutablePrefix(prefix) {
 			return ReasonSpecialUseDestination, false
+		}
+	}
+	return "", true
+}
+
+// admissibleValue adds to routableValue the one bound that depends on who
+// declared the value: a community prefix wider than its class allows is
+// refused with the same width reason, because to the operator it is the same
+// fault.
+func admissibleValue(rule domain.RouteRule) (string, bool) {
+	if reason, routable := routableValue(rule); !routable {
+		return reason, false
+	}
+	if rule.Kind.IsPrefix() && rule.SourceClass == domain.SourceCommunity {
+		minimum := minCommunityPrefixBitsV6
+		if rule.Prefix.Addr().Unmap().Is4() {
+			minimum = minCommunityPrefixBitsV4
+		}
+		if rule.Prefix.Bits() < minimum {
+			return ReasonPrefixTooWide, false
 		}
 	}
 	return "", true
@@ -230,7 +260,7 @@ func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time
 			excluded = append(excluded, domain.Excluded{Outcome: "rejected", ReasonCodes: []string{ReasonInvalidResource}, ProvenanceRefs: []string{seed.SourceID}})
 			continue
 		}
-		if reason, routable := routableValue(rule); !routable {
+		if reason, routable := admissibleValue(rule); !routable {
 			excluded = append(excluded, domain.Excluded{Candidate: rule, Outcome: "rejected", ReasonCodes: []string{reason}, ProvenanceRefs: provenance(seed.SourceID)})
 			continue
 		}
@@ -289,6 +319,13 @@ func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time
 			graceUntil := grace[sighting.SourceID].GraceUntil
 			candidate.ExpiresAt = &graceUntil
 		}
+		// The value is judged before any reason that would merely make it
+		// unnecessary: a loopback address or a /7 is refused for what it is,
+		// and saying instead that a name already covers it would hide the fault.
+		if reason, routable := admissibleValue(candidate); !routable {
+			excluded = append(excluded, domain.Excluded{Candidate: candidate, Outcome: "rejected", ReasonCodes: []string{reason}, ProvenanceRefs: provenance(sighting.SourceID)})
+			continue
+		}
 		// A target that routes by name does not need the addresses that name
 		// resolves to, nor a third party's aggregation of them: both are a
 		// rendering of the same names, and carrying them spends the device's
@@ -312,10 +349,6 @@ func buildPlan(input ListInput, target domain.TargetDefinition, cutoff time.Time
 				reasons = append(reasons, ReasonSharedCDNorCloud)
 			}
 			excluded = append(excluded, domain.Excluded{Candidate: candidate, Outcome: "quarantined", ReasonCodes: reasons, ProvenanceRefs: provenance(sighting.SourceID)})
-			continue
-		}
-		if reason, routable := routableValue(candidate); !routable {
-			excluded = append(excluded, domain.Excluded{Candidate: candidate, Outcome: "rejected", ReasonCodes: []string{reason}, ProvenanceRefs: provenance(sighting.SourceID)})
 			continue
 		}
 		if !supportsRule(candidate.Kind, target.Constraints) {

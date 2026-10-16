@@ -3,8 +3,10 @@ package planner
 import (
 	"bytes"
 	"errors"
+	"maps"
 	"net/netip"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -544,6 +546,126 @@ func TestBuildPlanDomainSightingCoversAddressesReportedWithIt(t *testing.T) {
 	for _, excluded := range plan.Excluded {
 		if !contains(excluded.ReasonCodes, ReasonNotRequiredForDomainCapableTarget) {
 			t.Fatalf("excluded reasons = %#v", excluded.ReasonCodes)
+		}
+	}
+}
+
+// A curated third-party list attributes networks to a service; it does not own
+// them. The width it may declare is narrower than a vendor's, and the bound sits
+// exactly at /16 for IPv4 and /32 for IPv6 (ADR 0056).
+func TestBuildPlanHoldsCommunityPrefixesToANarrowerWidth(t *testing.T) {
+	now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	target := domain.TargetDefinition{ID: "ip-only", FormatKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsIPv6: true, SupportsPrefixes: true}}
+	definition := domain.ListDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web"}}, CatalogRevision: "test"}
+	cases := []struct {
+		name   string
+		value  string
+		class  domain.SourceClass
+		routed bool
+	}{
+		{"a community IPv4 /15", "60.0.0.0/15", domain.SourceCommunity, false},
+		{"a community IPv4 /16", "60.0.0.0/16", domain.SourceCommunity, true},
+		{"a community IPv4 /8, as iplist ships for one service", "60.0.0.0/8", domain.SourceCommunity, false},
+		{"a community IPv6 /31", "2a00::/31", domain.SourceCommunity, false},
+		{"a community IPv6 /32", "2a00::/32", domain.SourceCommunity, true},
+		{"an official IPv4 /8 keeps the general bound", "60.0.0.0/8", domain.SourceOfficial, true},
+		{"an official IPv6 /16 keeps the general bound", "2a00::/16", domain.SourceOfficial, true},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			resource, err := resourceFromString(test.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sighting := domain.Sighting{
+				ListID: "example", ComponentID: "web", Resource: resource,
+				SourceID: "feed:" + string(test.class), SourceClass: test.class, SourceRevision: "test",
+				FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid, ObservationCount: 1,
+			}
+			plan, err := BuildPlan(definition, []domain.Sighting{sighting}, target, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.routed {
+				if len(plan.Rules) != 1 || plan.Rules[0].CanonicalValue() != test.value || len(plan.Excluded) != 0 {
+					t.Fatalf("rules = %#v, excluded = %#v, want %s routed", plan.Rules, plan.Excluded, test.value)
+				}
+				return
+			}
+			if len(plan.Rules) != 0 {
+				t.Fatalf("%s became a route rule: %#v", test.value, plan.Rules)
+			}
+			if len(plan.Excluded) != 1 || plan.Excluded[0].Outcome != "rejected" || !contains(plan.Excluded[0].ReasonCodes, ReasonPrefixTooWide) {
+				t.Fatalf("excluded = %#v, want one rejection for %q", plan.Excluded, ReasonPrefixTooWide)
+			}
+		})
+	}
+}
+
+// The bound follows the declaring class, not the path a value arrives by: a
+// catalog seed declared as community is held to it, and the operator's own
+// entry is not.
+func TestBuildPlanHoldsCommunitySeedsToTheNarrowerWidth(t *testing.T) {
+	now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	target := domain.TargetDefinition{ID: "ip-only", FormatKey: "ip-only", Constraints: domain.TargetConstraints{SupportsIPv4: true, SupportsPrefixes: true}}
+	definition := domain.ListDefinition{
+		ID: "example", Components: []domain.ComponentDefinition{{ID: "web"}}, CatalogRevision: "test",
+		Seeds: []domain.Seed{
+			{Kind: domain.RulePrefix4, Value: "60.0.0.0/12", ComponentID: "web", SourceID: "community:curator", SourceClass: domain.SourceCommunity},
+			{Kind: domain.RulePrefix4, Value: "112.0.0.0/12", ComponentID: "web", SourceID: "manual:operator", SourceClass: domain.SourceManual},
+		},
+	}
+	plan, err := BuildPlan(definition, nil, target, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Rules) != 1 || plan.Rules[0].CanonicalValue() != "112.0.0.0/12" {
+		t.Fatalf("rules = %#v, want only the operator's /12", plan.Rules)
+	}
+	if len(plan.Excluded) != 1 || !contains(plan.Excluded[0].ReasonCodes, ReasonPrefixTooWide) {
+		t.Fatalf("excluded = %#v, want the community /12 refused as too wide", plan.Excluded)
+	}
+}
+
+// A value that cannot be a route is refused for what it is, even where a name
+// already covers its component: "a name covers it" would tell the operator the
+// value was merely unnecessary and hide that it was never admissible.
+func TestBuildPlanNamesTheValueFaultBeforeDomainCoverage(t *testing.T) {
+	now := time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
+	target := domain.TargetDefinition{ID: "domain-and-ip", FormatKey: "domain-and-ip", Constraints: domain.TargetConstraints{SupportsDomainSuffix: true, SupportsIPv4: true, SupportsPrefixes: true}}
+	definition := domain.ListDefinition{ID: "example", Components: []domain.ComponentDefinition{{ID: "web"}}, CatalogRevision: "test"}
+	want := map[string]string{
+		"38.0.0.0/7":      ReasonPrefixTooWide,
+		"60.0.0.0/8":      ReasonPrefixTooWide,
+		"127.0.0.1":       ReasonSpecialUseDestination,
+		"198.51.100.0/24": ReasonNotRequiredForDomainCapableTarget,
+	}
+	sightings := make([]domain.Sighting, 0, len(want)+1)
+	for _, value := range append([]string{"example.com"}, slices.Sorted(maps.Keys(want))...) {
+		resource, err := resourceFromString(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sightings = append(sightings, domain.Sighting{
+			ListID: "example", ComponentID: "web", Resource: resource,
+			SourceID: "feed:community", SourceClass: domain.SourceCommunity, SourceRevision: "test",
+			FirstSeen: now, LastSeen: now, ValidUntil: now.Add(time.Hour), Validity: domain.ValidityValid, ObservationCount: 1,
+		})
+	}
+	plan, err := BuildPlan(definition, sightings, target, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.Rules) != 1 || plan.Rules[0].Kind != domain.RuleDomainSuffix {
+		t.Fatalf("rules = %#v, want only the name", plan.Rules)
+	}
+	got := make(map[string][]string, len(plan.Excluded))
+	for _, excluded := range plan.Excluded {
+		got[excluded.Candidate.CanonicalValue()] = excluded.ReasonCodes
+	}
+	for value, reason := range want {
+		if reasons := got[value]; len(reasons) != 1 || reasons[0] != reason {
+			t.Errorf("%s reasons = %v, want [%s]", value, reasons, reason)
 		}
 	}
 }

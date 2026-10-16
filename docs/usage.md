@@ -70,7 +70,10 @@ list holds strings or objects carrying `ip_prefix`, `ipv6_prefix`, `prefix`,
 hop, the response size, the entry count, and the deadline are bounded, and an
 entry that does not normalize is skipped rather than recorded. A prefix from a
 published operator feed is accepted; an observed or inferred prefix stays
-quarantined. A source that fails while its previous success is still inside the
+quarantined. A feed declared `class: community` attributes networks to a service
+without owning them, so its prefixes wider than `/16` (IPv4) or `/32` (IPv6) are
+refused as `prefix_too_wide`
+([ADR 0056](adr/0056-community-prefixes-have-a-narrower-width.md)). A source that fails while its previous success is still inside the
 grace window keeps the rules from that last successful read with a
 `source_degraded` warning instead of dropping them; a value that read no longer
 listed is not brought back. The policy is recorded in
