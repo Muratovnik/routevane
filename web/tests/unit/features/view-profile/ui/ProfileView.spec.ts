@@ -245,8 +245,8 @@ describe('profile screen read boundaries', () => {
       .element(publishing.getByText('Automatic delivery is off'))
       .not.toBeInTheDocument()
     await expect
-      .element(publishing.getByRole('link', { name: 'Send Keenetic' }))
-      .toHaveAttribute('href', '/profiles/profile-1/send/output-1')
+      .element(publishing.getByRole('button', { name: 'Send Keenetic' }))
+      .toBeEnabled()
   })
 
   it('shows loading, then a failed read with retry, then the recovered profile', async () => {
@@ -439,7 +439,7 @@ it('keeps the saved schedule on refusal and retries the requested interval', asy
   const screen = await renderRoute(true)
   await screen.getByRole('tab', { name: 'Publishing' }).click()
   const schedule = screen.getByRole('combobox', {
-    name: 'Profile refresh',
+    name: 'Source refresh',
     exact: true,
   })
   await schedule.click()

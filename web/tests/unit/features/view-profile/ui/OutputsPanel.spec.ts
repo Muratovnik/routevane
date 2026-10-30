@@ -22,6 +22,9 @@ const OUTPUT: OutputCard = {
   latest: null,
   lastAttempt: null,
   lastDelivery: null,
+  deviceName: '',
+  latestDelivery: null,
+  latestFailure: null,
 }
 
 const PUBLISHED = {
@@ -32,6 +35,7 @@ const PUBLISHED = {
     sizeBytes: 10,
     contentType: 'text/plain',
     contentCreatedAt: '2026-09-03T09:00:00Z',
+    builtAt: '2026-09-03T09:00:00Z',
   },
 }
 
@@ -96,7 +100,7 @@ describe('OutputsPanel connection cell', () => {
     })
 
     await expect
-      .element(screen.getByRole('combobox', { name: 'Profile refresh' }))
+      .element(screen.getByRole('combobox', { name: 'Source refresh' }))
       .toBeVisible()
     await expect
       .element(screen.getByLabelText('Connection for Keenetic'))
@@ -196,7 +200,7 @@ describe('OutputsPanel connection cell', () => {
       .element(screen.getByLabelText('Connection for Keenetic'))
       .not.toBeInTheDocument()
     await expect
-      .element(screen.getByRole('combobox', { name: 'Profile refresh' }))
+      .element(screen.getByRole('combobox', { name: 'Source refresh' }))
       .not.toBeInTheDocument()
     await expect
       .element(screen.getByRole('button', { name: 'Add a format' }))
@@ -272,7 +276,7 @@ describe('OutputsPanel row actions', () => {
         .getByRole('columnheader')
         .all()
         .map((header) => header.element().textContent?.trim()),
-    ).toEqual(['Format', 'Connection', 'Content from', 'Last sent', 'Actions'])
+    ).toEqual(['Format', 'Connection', 'Updated', 'Last sent', 'Actions'])
     await screen
       .getByRole('button', { name: 'Actions for Keenetic (domain-based)' })
       .click()
@@ -409,13 +413,12 @@ describe('OutputsPanel row actions', () => {
     const download = screen.getByRole('link', {
       name: 'Download the file for Keenetic',
     })
-    const send = screen.getByRole('link', { name: 'Send Keenetic' })
+    // Sending opens over the page, so it is an act rather than a way out.
+    const send = screen.getByRole('button', { name: 'Send Keenetic' })
     await expect
       .element(download)
       .toHaveAttribute('href', '/v1/artifacts/artifact-1')
-    await expect
-      .element(send)
-      .toHaveAttribute('href', '/profiles/profile-1/send/output-1')
+
     // The glyph is the whole face: no word stands beside it.
     expect(download.element().textContent?.trim()).toBe('')
     expect(send.element().textContent?.trim()).toBe('')
@@ -425,13 +428,16 @@ describe('OutputsPanel row actions', () => {
     expect(page.getByTestId('rv-tooltip').element().textContent).toContain(
       'Send Keenetic',
     )
+
+    await send.click()
+    expect(screen.emitted('send')).toEqual([['output-1']])
   })
 
   it('offers no Send for a format that cannot be sent and no Download before a file exists', async () => {
     const screen = await renderPanel({ deployable: () => false })
 
     await expect
-      .element(screen.getByRole('link', { name: /^Send/ }))
+      .element(screen.getByRole('button', { name: /^Send/ }))
       .not.toBeInTheDocument()
     await expect
       .element(screen.getByRole('link', { name: /^Download/ }))
@@ -491,7 +497,7 @@ describe('OutputsPanel row actions', () => {
         )
         .toBeVisible()
       await expect
-        .element(screen.getByRole('link', { name: 'Send Keenetic' }))
+        .element(screen.getByRole('button', { name: 'Send Keenetic' }))
         .not.toBeInTheDocument()
       await screen.getByRole('button', { name: 'Actions for Keenetic' }).click()
       expect(
@@ -516,57 +522,118 @@ describe('OutputsPanel row actions', () => {
 })
 
 describe('OutputsPanel last sent column', () => {
-  beforeEach(() => useLocale().setLocale('en'))
-
-  const COMPLETED_AT = '2026-09-05T10:30:00Z'
-  const sentCell = (screen: Awaited<ReturnType<typeof renderPanel>>): string =>
-    screen.getByRole('cell').all()[3]?.element().textContent?.trim() ?? ''
-  const delivery = (deviceID: string) => ({
-    deviceID,
-    artifactID: 'artifact-1',
-    completedAt: COMPLETED_AT,
+  // Five minutes before the test runs, so the cell reads as a distance.
+  let COMPLETED_AT = ''
+  beforeEach(() => {
+    useLocale().setLocale('en')
+    COMPLETED_AT = new Date(Date.now() - 5 * 60_000).toISOString()
   })
 
-  it('shows the date the file last reached the bound connection', async () => {
+  const sentCell = (screen: Awaited<ReturnType<typeof renderPanel>>) =>
+    screen.getByRole('row', { name: /^Keenetic/ })
+  const delivery = (deviceID: string, artifactID = 'artifact-1') => ({
+    deviceID,
+    artifactID,
+    completedAt: COMPLETED_AT,
+  })
+  const OFFICE = { ...CONNECTED_DEVICE, id: 'device-2', name: 'Office router' }
+
+  it('says how long ago the file reached the bound connection', async () => {
     const screen = await renderPanel({
       devices: [CONNECTED_DEVICE],
       outputs: [
         {
           ...PUBLISHED,
           deviceID: 'device-1',
-          lastDelivery: delivery('device-1'),
+          deviceName: 'Home router',
+          latestDelivery: delivery('device-1'),
         },
       ],
     })
 
-    const expected = new Intl.DateTimeFormat('en', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }).format(new Date(COMPLETED_AT))
-    await expect.element(screen.getByText(expected)).toBeVisible()
-    expect(sentCell(screen)).toBe(expected)
+    await expect
+      .element(screen.getByText('5 minutes ago', { exact: true }))
+      .toBeVisible()
+    // The bound connection is named in its own cell, not again here.
+    expect(
+      sentCell(screen)
+        .element()
+        .textContent?.match(/Home router/g),
+    ).toHaveLength(1)
   })
 
-  // The server reports only the bound connection's send; a card that still
-  // carries one for another connection (read just before a re-bind) must not
-  // be shown for the row, and a row with no connection has none to report.
-  it.each([
-    ['another connection than the bound one', 'device-1', 'device-2'],
-    ['a connection while none is bound', '', 'device-2'],
-  ])('shows a dash for a send to %s', async (_case, bound, sentTo) => {
+  // A send by hand to another saved connection is still where the file went
+  // last; the row names that connection because it is not the bound one.
+  it('names a connection other than the bound one, and a removed one', async () => {
+    const screen = await renderPanel({
+      devices: [CONNECTED_DEVICE, OFFICE],
+      outputs: [
+        {
+          ...PUBLISHED,
+          deviceID: 'device-1',
+          latestDelivery: delivery('device-2'),
+        },
+      ],
+    })
+    await expect
+      .element(screen.getByText('to “Office router”', { exact: true }))
+      .toBeVisible()
+
+    await screen.rerender({
+      outputs: [
+        { ...PUBLISHED, deviceID: '', latestDelivery: delivery('device-9') },
+      ],
+    })
+    await expect
+      .element(screen.getByText('to “a removed connection”', { exact: true }))
+      .toBeVisible()
+  })
+
+  it('says an earlier file reached the router than the format publishes now', async () => {
     const screen = await renderPanel({
       devices: [CONNECTED_DEVICE],
       outputs: [
         {
           ...PUBLISHED,
-          deviceID: bound,
-          lastDelivery: delivery(sentTo),
+          deviceID: 'device-1',
+          latestDelivery: delivery('device-1', 'artifact-0'),
         },
       ],
     })
 
-    await expect.element(screen.getByText('—', { exact: true })).toBeVisible()
-    expect(sentCell(screen)).toBe('—')
+    await expect
+      .element(screen.getByText('an earlier file was sent', { exact: true }))
+      .toBeVisible()
+  })
+
+  it('states a send that failed after the last delivery, and why on request', async () => {
+    const screen = await renderPanel({
+      devices: [CONNECTED_DEVICE],
+      outputs: [
+        {
+          ...PUBLISHED,
+          deviceID: 'device-1',
+          deviceName: 'Home router',
+          latestDelivery: delivery('device-1'),
+          latestFailure: {
+            deviceID: 'device-1',
+            code: 'device_auth_rejected',
+            step: 'probe',
+            completedAt: COMPLETED_AT,
+          },
+        },
+      ],
+    })
+
+    await expect
+      .element(screen.getByText('Not sent', { exact: true }))
+      .toBeVisible()
+    await screen
+      .getByRole('button', { name: 'Why Keenetic was not sent' })
+      .click()
+    await expect
+      .element(page.getByText(/“Home router”: The router did not accept/))
+      .toBeVisible()
   })
 
   it('shows a dash when nothing was ever sent', async () => {
@@ -576,7 +643,6 @@ describe('OutputsPanel last sent column', () => {
     })
 
     await expect.element(screen.getByText('—', { exact: true })).toBeVisible()
-    expect(sentCell(screen)).toBe('—')
   })
 })
 

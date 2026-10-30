@@ -2,16 +2,20 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 
 import DiagnosticsPanel from '@/features/view-profile/ui/DiagnosticsPanel.vue'
+import { useDeviceCleanup } from '@/entities/device-cleanup/model/useDeviceCleanup'
+import DeviceCleanupChoice from '@/entities/device-cleanup/ui/DeviceCleanupChoice.vue'
 import OutputConfirmDialog from '@/features/view-profile/ui/OutputConfirmDialog.vue'
 import ProfileEditor from '@/features/view-profile/ui/ProfileEditor.vue'
 import UncoveredLists from '@/features/view-profile/ui/UncoveredLists.vue'
 import OutputsPanel from '@/features/view-profile/ui/OutputsPanel.vue'
 import { useProfileView } from '@/features/view-profile/model/useProfileView'
+import type { SendContext } from '@/features/view-profile/model/sendContext'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { ExportFormat } from '@/shared/api/exports'
 import { legacyImportedOrdinal } from '@/shared/lib/legacyProfile'
 import { targetIcon } from '@/shared/lib/targetIcon'
 import { profilePageHash, parseProfilePageHash } from '@/shared/lib/profileHash'
+import { useNotify } from '@/shared/model/useNotify'
 import { useSurfacePreferences } from '@/shared/model/useSurfacePreferences'
 import type { ProfileComposition } from '@/shared/api/profiles'
 import type {
@@ -24,6 +28,7 @@ import type {
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvCodeBlock from '@/shared/ui/RvCodeBlock.vue'
 import RvCopyButton from '@/shared/ui/RvCopyButton.vue'
+import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvDisclosure from '@/shared/ui/RvDisclosure.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
@@ -39,6 +44,14 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   changed: []
+}>()
+
+defineSlots<{
+  send(props: {
+    context: SendContext
+    applied: () => void
+    busy: (busy: boolean) => void
+  }): unknown
 }>()
 
 const { dateTime, formatBytes, t, tc, tor } = useLocale()
@@ -378,6 +391,74 @@ onMounted(async () => {
   if (arrived) heading.value?.focus()
 })
 
+// Sending a format opens over the page rather than leaving it, and the address
+// names it, so a reload or a link reopens the same send.
+const sendContext = computed<SendContext | null>(() => {
+  const id = pageLocation.value.send
+  if (id === '' || view.state.value !== 'ready' || view.archived.value)
+    return null
+  const output = view.outputs.value.find((candidate) => candidate.id === id)
+  if (output === undefined || output.latest === null) return null
+  return {
+    artifactID: output.latest.id,
+    // The name the format's FQDN groups carry on the router (ADR 0049).
+    groupPrefix:
+      output.targetID === 'keenetic-dns'
+        ? output.fqdnGroupPrefix || 'routevane'
+        : '',
+    heading: t('send.heading', { format: view.outputTitle(output) }),
+    outputID: output.id,
+    preferredDeviceID: output.deviceID,
+    target:
+      view.catalog.value?.targets.find(
+        (candidate) => candidate.id === output.targetID,
+      ) ?? null,
+    targetID: output.targetID,
+  }
+})
+
+// A send link for a format this page cannot send — gone, without a file yet,
+// or in an archived profile — says so once and leaves the address, so the
+// sheet does not open by itself later.
+const { notify } = useNotify()
+const unsendableKey = (outputID: string): string => {
+  if (view.archived.value) return 'send.archived'
+  return view.outputs.value.some((candidate) => candidate.id === outputID)
+    ? 'profiles.noArtifact'
+    : 'send.connection.missing'
+}
+watch(
+  () => [pageLocation.value.send, view.state.value, sendContext.value] as const,
+  ([send, state, context]) => {
+    if (send === '' || state !== 'ready' || context !== null) return
+    notify({ title: t(unsendableKey(send)), tone: 'waiting' })
+    void router.replace({ hash: profilePageHash({ tab: tab.value }) })
+  },
+)
+
+// An apply under way holds the sheet open: closing it would drop the answer
+// the row behind it waits for.
+const sendBusy = ref(false)
+const onSendBusy = (busy: boolean): void => {
+  sendBusy.value = busy
+}
+
+const openSend = (outputID: string): void => {
+  void router.push({
+    hash: profilePageHash({ send: outputID, tab: tab.value }),
+  })
+}
+
+const closeSend = (): void => {
+  sendBusy.value = false
+  void router.push({ hash: profilePageHash({ tab: tab.value }) })
+}
+
+// A file the device accepted changes what the formats report about delivery.
+const onSendApplied = (): void => {
+  void view.initialize()
+}
+
 const formatTime = (value: string): string => {
   const parsed = new Date(value)
   return Number.isNaN(parsed.valueOf()) ? '—' : dateTime.value.format(parsed)
@@ -444,11 +525,11 @@ const profileMenuItems = computed<MenuItem[]>(() => {
       return {
         icon: targetIcon(output.targetID),
         key: `send:${output.id}`,
+        disabled: output.latest === null,
         label:
           device === undefined
             ? format
             : t('profiles.sendTo', { format, connection: device.name }),
-        to: `/profiles/${props.profileId}/send/${output.id}`,
       }
     })
   if (sendItems.length > 0) {
@@ -495,6 +576,7 @@ const onProfileMenu = async (key: string): Promise<void> => {
     await nextTick()
     await outputsPanel.value?.focusAdd()
   }
+  if (key.startsWith('send:')) openSend(key.slice('send:'.length))
   if (key === 'rebuild') await onRebuild()
   if (key === 'archive') await onArchive(true)
   if (key === 'restore') await onArchive(false)
@@ -524,12 +606,27 @@ const confirmTarget = computed(() => {
   return output === undefined ? '' : view.outputTitle(output)
 })
 
+// Removing a format can also remove what it delivered to routers; the
+// question reads what that would be when it opens.
+const cleanup = useDeviceCleanup()
+const {
+  chosen: removeFromDevices,
+  objects: cleanupObjects,
+  requested: cleanupRequested,
+  state: cleanupState,
+} = cleanup
+// The removal stopped at a router after asking to clean them: what is left
+// there is read again and the question says the format stayed.
+const cleanupStopped = ref(false)
+
 const askConfirmation = (
   kind: 'reissue' | 'remove',
   outputID: string,
 ): void => {
   confirming.value = { kind, outputID }
   confirmError.value = null
+  cleanupStopped.value = false
+  if (kind === 'remove') cleanup.open({ kind: 'output', id: outputID })
   confirmOpen.value = true
 }
 
@@ -537,12 +634,18 @@ const onConfirm = async (): Promise<void> => {
   const request = confirming.value
   if (request === null) return
   confirmError.value = null
+  cleanupStopped.value = false
+  const cleaning = request.kind === 'remove' && cleanupRequested.value
   const error =
     request.kind === 'reissue'
       ? await view.reissue(request.outputID)
-      : await view.remove(request.outputID)
+      : await view.remove(request.outputID, cleaning)
   if (error !== null) {
     confirmError.value = error
+    if (cleaning) {
+      cleanupStopped.value = true
+      void cleanup.reread()
+    }
     return
   }
   confirmOpen.value = false
@@ -855,6 +958,7 @@ const announcedLinks = new Set<string>()
               @rebuild="onRebuildOutput"
               @reissue="askConfirmation('reissue', $event)"
               @remove="askConfirmation('remove', $event)"
+              @send="openSend"
               @set-schedule="view.setSchedule"
               @settings-saved="view.initialize"
             />
@@ -1021,9 +1125,38 @@ const announcedLinks = new Set<string>()
         "
         :error="confirmError"
         :kind="confirming.kind"
+        :removes-from-devices="cleanupRequested"
         :target="confirmTarget"
         @confirm="onConfirm"
-      />
+      >
+        <template v-if="cleanupStopped" #error>
+          <p>{{ t('cleanup.stopped.output') }}</p>
+        </template>
+        <DeviceCleanupChoice
+          v-if="confirming.kind === 'remove'"
+          v-model="removeFromDevices"
+          :disabled="view.work.value === 'removing'"
+          :objects="cleanupObjects"
+          :state="cleanupState"
+        />
+      </OutputConfirmDialog>
+
+      <RvDialog
+        :close-label="t('action.close')"
+        :dismissible="!sendBusy"
+        :open="sendContext !== null"
+        :title="sendContext?.heading ?? ''"
+        variant="sheet"
+        @update:open="$event === false && closeSend()"
+      >
+        <slot
+          v-if="sendContext !== null"
+          :applied="onSendApplied"
+          :busy="onSendBusy"
+          :context="sendContext"
+          name="send"
+        />
+      </RvDialog>
     </template>
   </section>
 </template>

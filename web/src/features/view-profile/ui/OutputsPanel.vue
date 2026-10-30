@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useNow } from '@vueuse/core'
 import { computed, nextTick, ref, useTemplateRef } from 'vue'
 
 import FormatSettingsDialog from '@/features/view-profile/ui/FormatSettingsDialog.vue'
@@ -14,6 +15,7 @@ import type { ChoiceGroup, ChoiceOption, MenuItem } from '@/shared/ui/types'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
+import RvInfoTip from '@/shared/ui/RvInfoTip.vue'
 import RvMenu from '@/shared/ui/RvMenu.vue'
 import RvSearchSelect from '@/shared/ui/RvSearchSelect.vue'
 import RvSelect from '@/shared/ui/RvSelect.vue'
@@ -53,27 +55,27 @@ const emit = defineEmits<{
   rebuild: [outputID: string]
   reissue: [outputID: string]
   remove: [outputID: string]
+  /** The operator asked to send this format's file to its connection. */
+  send: [outputID: string]
   // A format's settings were written; the page reads its formats again.
   settingsSaved: []
   setSchedule: [interval: RefreshInterval]
 }>()
 
-const { locale, t } = useLocale()
+const { formatAgo, formatMoment, t, tor } = useLocale()
+// «5 минут назад» has to move on while the page stays open.
+const now = useNow({ interval: 60_000 })
 
-// A table cell holds the whole moment on one line: the short date and the
-// minute, not the seconds a cell would have to cut.
-const compactTime = computed(
-  () =>
-    new Intl.DateTimeFormat(locale.value, {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    }),
-)
+// A moment in a cell reads as a distance while that is easier, and the whole
+// moment is one hover away.
+const ago = (value: string): string => formatAgo(value, now.value.valueOf())
 
-const formatTime = (value: string): string => {
-  const parsed = new Date(value)
-  return Number.isNaN(parsed.valueOf()) ? '—' : compactTime.value.format(parsed)
-}
+// When the format's current file became current; an older server says only
+// when its bytes were made.
+const builtAt = (output: OutputCard): string =>
+  output.latest === null
+    ? ''
+    : output.latest.builtAt || output.latest.contentCreatedAt
 
 const outputTitle = (output: OutputCard): string =>
   props.targetTitle(output.targetID, output.targetTitle)
@@ -145,20 +147,59 @@ const scheduleValue = computed<string>({
 const connectionLink = (output: OutputCard): string =>
   `/connections${connectionPageHash(output.deviceID)}`
 
-// The date the file last reached the connection the row is bound to. The server
-// already reports only that connection's send; the comparison guards against a
-// card read just before the row was re-bound.
-const lastSent = (output: OutputCard): string => {
-  const delivery = output.lastDelivery
-  if (
-    delivery === null ||
-    output.deviceID === '' ||
-    delivery.deviceID !== output.deviceID
-  ) {
-    return '—'
-  }
-  return formatTime(delivery.completedAt)
+// Where the format's file last went and how that ended: a send that failed
+// after the last delivery is the state, a delivery is the time and — when it
+// went to a connection other than the bound one — that connection, and a
+// delivery of an earlier file says the router has an older version.
+type DeliveryState = {
+  kind: 'none' | 'failed' | 'sent'
+  at: string
+  // The connection, named only where the row does not already say it.
+  device: string
+  reason: string
+  older: boolean
 }
+
+const connectionName = (output: OutputCard, deviceID: string): string => {
+  if (deviceID === output.deviceID && output.deviceName !== '')
+    return output.deviceName
+  return (
+    props.devices.find((device) => device.id === deviceID)?.name ??
+    t('outputs.sent.forgotten')
+  )
+}
+
+const deliveryState = (output: OutputCard): DeliveryState => {
+  const failure = output.latestFailure
+  if (failure !== null)
+    return {
+      kind: 'failed',
+      at: failure.completedAt,
+      device: connectionName(output, failure.deviceID),
+      reason: tor(`error.${failure.code}`, t('error.deploy_failed')),
+      older: false,
+    }
+  const delivery = output.latestDelivery
+  if (delivery === null)
+    return { kind: 'none', at: '', device: '', reason: '', older: false }
+  return {
+    kind: 'sent',
+    at: delivery.completedAt,
+    device:
+      delivery.deviceID === output.deviceID
+        ? ''
+        : connectionName(output, delivery.deviceID),
+    reason: '',
+    older: output.latest !== null && delivery.artifactID !== output.latest.id,
+  }
+}
+
+const deliveries = computed(
+  () =>
+    new Map(props.outputs.map((output) => [output.id, deliveryState(output)])),
+)
+const delivery = (output: OutputCard): DeliveryState =>
+  deliveries.value.get(output.id) ?? deliveryState(output)
 
 // Formats stay grouped by the kind of thing they feed: a reader looks for a
 // router or an application before looking for a name.
@@ -396,16 +437,54 @@ const onRowMenu = (output: OutputCard, key: string): void => {
             <span
               class="outputs__date"
               :class="{ 'outputs__date--none': output.latest === null }"
+              :title="
+                output.latest === null
+                  ? undefined
+                  : formatMoment(builtAt(output))
+              "
             >
               {{
                 output.latest === null
                   ? t('profiles.noArtifact')
-                  : formatTime(output.latest.contentCreatedAt)
+                  : ago(builtAt(output))
               }}
             </span>
           </td>
           <td class="outputs__cell-sent">
-            <span class="outputs__date">{{ lastSent(output) }}</span>
+            <span
+              v-if="delivery(output).kind === 'failed'"
+              class="outputs__failure"
+            >
+              <RvStatus :label="t('outputs.sent.failed')" tone="failed" />
+              <RvInfoTip
+                :label="t('outputs.sent.why', { target: outputTitle(output) })"
+                :text="
+                  t('outputs.sent.failedAt', {
+                    at: formatMoment(delivery(output).at),
+                    device: delivery(output).device,
+                    reason: delivery(output).reason,
+                  })
+                "
+              />
+            </span>
+            <template v-else-if="delivery(output).kind === 'sent'">
+              <span
+                class="outputs__date"
+                :title="formatMoment(delivery(output).at)"
+              >
+                {{ ago(delivery(output).at) }}
+              </span>
+              <span
+                v-if="delivery(output).device !== ''"
+                class="outputs__date outputs__where"
+              >
+                {{ t('outputs.sent.to', { device: delivery(output).device }) }}
+              </span>
+              <span v-if="delivery(output).older" class="outputs__older">
+                {{ t('outputs.sent.older') }}
+              </span>
+            </template>
+            <span v-else class="outputs__date">—</span>
           </td>
           <td class="outputs__cell-actions">
             <div class="outputs__actions">
@@ -433,12 +512,13 @@ const onRowMenu = (output: OutputCard, key: string): void => {
                 side="top"
               >
                 <RvButton
+                  :disabled="output.latest === null"
                   icon-only
                   :label="
                     t('outputs.send.aria', { target: outputTitle(output) })
                   "
-                  :to="`/profiles/${props.profileId}/send/${output.id}`"
                   variant="quiet"
+                  @click="emit('send', output.id)"
                 >
                   <RvIcon name="send" />
                 </RvButton>
@@ -596,6 +676,25 @@ const onRowMenu = (output: OutputCard, key: string): void => {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.outputs__where {
+  color: var(--rv-color-ink-tertiary);
+  font-size: var(--rv-text-meta);
+}
+
+/* The router has an earlier file than the format publishes now: worth a
+   send, not an alarm. */
+.outputs__older {
+  display: block;
+  color: var(--rv-color-status-warning);
+  font-size: var(--rv-text-meta);
+}
+
+.outputs__failure {
+  display: flex;
+  gap: var(--rv-space-1);
+  align-items: center;
 }
 
 /* A date fits the column; the words saying there is no file do not in every

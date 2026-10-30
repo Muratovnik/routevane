@@ -16,6 +16,7 @@ import {
   updateDevice,
   type DeviceCard,
   type DeviceWrite,
+  type CredentialCheck,
 } from '@/shared/api/devices'
 import {
   failureKind,
@@ -58,6 +59,9 @@ export const useDevices = () => {
   const work = ref<DevicesWork>('idle')
   const registeredID = ref('')
   const failure = ref<DeviceFailure | null>(null)
+  // What the last saved password's sign-in showed (ADR 0059); null until one
+  // is saved, and for a server that does not say.
+  const credentialCheck = ref<CredentialCheck | null>(null)
   // What the last failed read of the registry, and of what the formats can
   // deliver to, was: the screen words each by what happened to the request.
   const readFailure = ref<FailureKind>('unreachable')
@@ -187,6 +191,9 @@ export const useDevices = () => {
         deployableTargets.value.some(
           (candidate) => candidate.targetID === targetID,
         ),
+      // A write answers with the device alone; the formats it serves are
+      // the registry read's to say.
+      usedBy: previous?.usedBy ?? [],
     }
     const index = devices.value.findIndex((device) => device.id === saved.id)
     if (index === -1) devices.value = [...devices.value, next]
@@ -285,9 +292,13 @@ export const useDevices = () => {
   const saveCredential = (id: string, credential: string): Promise<boolean> => {
     if (!secretStoreAvailable.value || credential === '')
       return Promise.resolve(false)
+    credentialCheck.value = null
     return run(
       () => saveDeviceCredential(id, credential),
-      (saved) => applyWrite(saved, {}),
+      (saved) => {
+        credentialCheck.value = saved.verification ?? null
+        applyWrite(saved, {})
+      },
     )
   }
 
@@ -327,6 +338,7 @@ export const useDevices = () => {
   return {
     busy,
     catalogAvailable,
+    credentialCheck,
     deployableTargets,
     deploymentCatalogAvailable,
     devices,

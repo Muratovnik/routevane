@@ -8,6 +8,7 @@ import {
   type Decoder,
   fields,
   getJSON,
+  optionalCount,
   optionalFlag,
   optionalText,
   optionalTimestamp,
@@ -28,6 +29,21 @@ export type ListSource = {
   type: 'dns' | 'http'
 }
 
+// When a list's automatic sources were last read and what that read changed.
+// `none` is a list with no enabled source; `never` one whose sources were never
+// read; `failed` one whose latest read failed; `stale` one whose material is
+// past its validity. `added` and `removed` count what the latest successful read
+// brought and withdrew.
+export type ListFreshnessState = 'none' | 'never' | 'failed' | 'stale' | 'fresh'
+
+export type ListFreshness = {
+  state: ListFreshnessState
+  // An ISO timestamp, empty when no source was ever read.
+  lastReadAt: string
+  added: number
+  removed: number
+}
+
 export type ListDetail = {
   id: string
   title: string
@@ -42,6 +58,8 @@ export type ListDetail = {
   // An operator-defined list. Its domains belong to the list itself and
   // are editable, unlike a shipped catalog entry.
   custom?: boolean
+  // Absent from a list with no automatic source and from an older server.
+  freshness?: ListFreshness
 }
 
 export type ListSourcePreview = {
@@ -358,6 +376,9 @@ export type ListContentsRow = {
   origin: string
   enabled: boolean
   missing: boolean
+  // The value belongs to the list's own definition rather than to a verdict:
+  // switching it off records an exclude, never the removal of an include.
+  definition: boolean
 }
 
 export type ListContentsSource = {
@@ -367,6 +388,11 @@ export type ListContentsSource = {
   enabled: boolean
   url: string
   state?: 'unread' | 'ready' | 'stale' | 'failed' | 'disabled'
+  // ISO timestamps, empty when the source never succeeded or never failed.
+  lastSuccessAt: string
+  lastFailureAt: string
+  // The code of the latest failure, empty when there was none.
+  lastError: string
 }
 
 export type ListContents = {
@@ -374,6 +400,8 @@ export type ListContents = {
   rows: ListContentsRow[]
   sources: ListContentsSource[]
   observed: boolean
+  // Null from a server that does not report it.
+  freshness: ListFreshness | null
 }
 
 export type DomainVerdict = 'include' | 'exclude' | 'auto'
@@ -381,7 +409,13 @@ export type DomainVerdict = 'include' | 'exclude' | 'auto'
 export const loadListContents = (listID: string): Promise<ListContents> =>
   getJSON(`/v1/lists/${encodeURIComponent(listID)}/contents`, parseListContents)
 
-export type ListRefresh = { skippedEntries: number; failedRuns: number }
+export type ListRefresh = {
+  skippedEntries: number
+  failedRuns: number
+  // What this read brought and withdrew; both zero when no source was read.
+  added: number
+  removed: number
+}
 
 export const refreshList = async (listID: string): Promise<ListRefresh> => {
   try {
@@ -472,6 +506,7 @@ const contentsRowSchema = fields({
   origin: optionalText,
   enabled: optionalFlag,
   missing: optionalFlag,
+  definition: optionalFlag,
 })
 
 const contentsSourceSchema = fields({
@@ -483,7 +518,28 @@ const contentsSourceSchema = fields({
   state: v.optional(
     v.picklist(['unread', 'ready', 'stale', 'failed', 'disabled']),
   ),
+  last_success_at: optionalTimestamp,
+  last_failure_at: optionalTimestamp,
+  last_error: optionalText,
 })
+
+// A state outside the five is a server this build does not understand, so the
+// list reads as having no freshness rather than a guessed one.
+const freshnessSchema = v.pipe(
+  fields({
+    state: v.picklist(['none', 'never', 'failed', 'stale', 'fresh']),
+    last_read_at: optionalTimestamp,
+    added: optionalCount,
+    removed: optionalCount,
+  }),
+  v.transform((freshness): ListFreshness => ({
+    state: freshness.state,
+    lastReadAt: freshness.last_read_at,
+    added: freshness.added,
+    removed: freshness.removed,
+  })),
+)
+const optionalFreshness = v.fallback(v.optional(freshnessSchema), undefined)
 
 const listContentsSchema = v.pipe(
   fields({
@@ -491,12 +547,24 @@ const listContentsSchema = v.pipe(
     rows: v.array(contentsRowSchema),
     sources: v.array(contentsSourceSchema),
     observed: optionalFlag,
+    freshness: optionalFreshness,
   }),
   v.transform((contents): ListContents => ({
     listID: contents.list_id,
     rows: contents.rows,
-    sources: contents.sources,
+    sources: contents.sources.map((source) => ({
+      id: source.id,
+      type: source.type,
+      custom: source.custom,
+      enabled: source.enabled,
+      url: source.url,
+      ...(source.state === undefined ? {} : { state: source.state }),
+      lastSuccessAt: source.last_success_at,
+      lastFailureAt: source.last_failure_at,
+      lastError: source.last_error,
+    })),
     observed: contents.observed,
+    freshness: contents.freshness ?? null,
   })),
 )
 
@@ -578,6 +646,7 @@ const listDetailSchema = v.pipe(
     sources: v.optional(v.array(listSourceSchema), []),
     source_count: v.optional(count),
     custom: optionalFlag,
+    freshness: optionalFreshness,
   }),
   v.transform((detail): ListDetail => ({
     id: detail.id,
@@ -587,6 +656,7 @@ const listDetailSchema = v.pipe(
     sources: detail.sources,
     sourceCount: detail.source_count ?? detail.sources.length,
     ...(detail.custom ? { custom: true } : {}),
+    ...(detail.freshness === undefined ? {} : { freshness: detail.freshness }),
   })),
 )
 
@@ -727,11 +797,15 @@ const parseListRefresh: Decoder<ListRefresh> = decode(
       refresh: fields({
         skipped_entries: v.optional(count, 0),
         failed_runs: v.optional(count, 0),
+        added: v.optional(count, 0),
+        removed: v.optional(count, 0),
       }),
     }),
     v.transform(({ refresh }) => ({
       skippedEntries: refresh.skipped_entries,
       failedRuns: refresh.failed_runs,
+      added: refresh.added,
+      removed: refresh.removed,
     })),
   ),
 )

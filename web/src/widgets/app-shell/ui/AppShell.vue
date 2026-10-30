@@ -14,6 +14,7 @@ import RvTooltip from '@/shared/ui/RvTooltip.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
+import RvToaster from '@/shared/ui/RvToaster.vue'
 import ApplicationUpdate from '@/features/application-update/ui/ApplicationUpdate.vue'
 
 /**
@@ -201,6 +202,10 @@ const retry = async (): Promise<void> => {
         </div>
       </main>
     </div>
+    <!-- Outside the shell's grids: its region is a node in the flow even
+         while every notice stands fixed over the page, and inside the content
+         column it would take a row and its gap. -->
+    <RvToaster :close-label="t('notify.close')" :label="t('notify.region')" />
   </div>
 </template>
 

@@ -156,13 +156,26 @@ test('saving a password, switching delivery on, and removing the password are se
   ).toBeVisible()
   expect(registry.device('fake-router').credential_stored).toBe(true)
 
-  // Removing the password takes the switch's precondition away with it.
+  // Removing the password takes the switch's precondition away with it, and
+  // the question before it says so.
   await toggle.click()
   await expect(toggle).toBeChecked()
-  await expect(
-    credential.getByText(copy('devices.credential.removeEffect')),
-  ).toBeVisible()
   await credential
+    .getByRole('button', {
+      name: copy('devices.credential.remove'),
+      exact: true,
+    })
+    .click()
+  const question = page.getByRole('dialog', {
+    name: copy('devices.credential.remove.title').replace(
+      '{name}',
+      'Home router',
+    ),
+  })
+  await expect(
+    question.getByText(copy('devices.credential.removeEffect')),
+  ).toBeVisible()
+  await question
     .getByRole('button', {
       name: copy('devices.credential.remove'),
       exact: true,

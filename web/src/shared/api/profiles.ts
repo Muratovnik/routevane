@@ -1,5 +1,6 @@
 import * as v from 'valibot'
 
+import { retirementBody } from './deviceObjects'
 import {
   count,
   decode,
@@ -245,8 +246,15 @@ export const restoreProfile = (profileID: string): Promise<ProfileRecord> =>
 // Deleting is the step after archival and cannot be undone. The server answers
 // 409 `profile_not_archived` for a profile still on the shelf and 404 for one it
 // no longer knows; the reply names the profile because nothing can be read back.
-export const deleteProfile = (profileID: string): Promise<DeletedProfile> =>
-  postJSON(`/v1/profiles/${profileID}/delete`, {}, parseDeleted)
+export const deleteProfile = (
+  profileID: string,
+  removeFromDevices = false,
+): Promise<DeletedProfile> =>
+  postJSON(
+    `/v1/profiles/${profileID}/delete`,
+    retirementBody(removeFromDevices),
+    parseDeleted,
+  )
 
 export const refreshProfile = async (profileID: string): Promise<void> => {
   await postJSON(`/v1/profiles/${profileID}/refresh`, {}, parseRefresh)

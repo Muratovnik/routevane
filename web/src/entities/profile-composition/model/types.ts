@@ -11,6 +11,7 @@ export type {
   ListContents,
   ListContentsRow,
   ListDetail,
+  ListFreshness,
 } from '@/shared/api/catalog'
 
 export type { ProfileComposition, TargetForecast } from '@/shared/api/profiles'

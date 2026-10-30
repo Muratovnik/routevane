@@ -131,6 +131,62 @@ describe('numbers and sizes', () => {
   })
 })
 
+// One spelling of a moment on every surface: the shelf and a profile's formats
+// once wrote the same publication as «30 окт. 2026 г., 20:48:53» and
+// «30.10.2026, 20:48», which read as two different times.
+describe('moments', () => {
+  const PUBLISHED = '2026-10-30T17:48:53Z'
+  const NOW = Date.parse(PUBLISHED)
+
+  it('writes a moment as the date with its whole year and the minute, in the locale', () => {
+    const { formatMoment, setLocale } = useLocale()
+
+    // The hour depends on the zone the browser runs in; the shape does not.
+    setLocale('ru')
+    expect(formatMoment(PUBLISHED)).toMatch(/^30\.10\.2026, \d{2}:48$/)
+    setLocale('en')
+    expect(formatMoment(PUBLISHED)).toMatch(/^10\/30\/2026, \d{2}:48\s[AP]M$/)
+  })
+
+  it('writes a dash for a value that is not a moment', () => {
+    const { formatAgo, formatMoment } = useLocale()
+
+    expect(formatMoment('')).toBe('—')
+    expect(formatMoment('not a time')).toBe('—')
+    expect(formatAgo('not a time', NOW)).toBe('—')
+  })
+
+  it.each([
+    ['now', 20_000, 'сейчас'],
+    ['minutes', 5 * 60_000, '5 минут назад'],
+    ['hours', 3 * 3_600_000, '3 часа назад'],
+    ['a day', 30 * 3_600_000, 'вчера'],
+    ['days', 3 * 86_400_000, '3 дня назад'],
+  ])('says how long ago, in %s', (_, distance, words) => {
+    const { formatAgo, setLocale } = useLocale()
+
+    setLocale('ru')
+    expect(formatAgo(new Date(NOW - distance), NOW)).toBe(words)
+  })
+
+  it('gives the date itself once a week has passed', () => {
+    const { formatAgo, formatMoment, setLocale } = useLocale()
+    const old = new Date(NOW - 8 * 86_400_000)
+
+    setLocale('ru')
+    expect(formatAgo(old, NOW)).toBe(formatMoment(old))
+  })
+
+  // Only a clock that disagrees with the service's produces a moment in the
+  // future; it is not "in 3 minutes".
+  it('reads a moment ahead of the clock as now', () => {
+    const { formatAgo, setLocale } = useLocale()
+
+    setLocale('ru')
+    expect(formatAgo(new Date(NOW + 180_000), NOW)).toBe('сейчас')
+  })
+})
+
 // Storage is a convenience: it carries the choice between visits, it does not
 // decide what a locale is, and it is never written on the operator's behalf.
 describe('the remembered choice', () => {

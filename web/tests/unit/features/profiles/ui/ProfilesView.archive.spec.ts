@@ -321,6 +321,84 @@ describe('ProfilesView archive', () => {
       expect(service.deleted()).toBe(0)
     })
 
+    // A deletion that also cleans routers can stop at one of them. The
+    // question then says the profile stayed, names the router's refusal in
+    // the words a send uses, and reads again what is left there.
+    it('says the profile stayed and why when cleaning a router stops the deletion', async () => {
+      const surface = {
+        output_id: `output-${OLD_ARCHIVED}`,
+        target_id: 'keenetic-dns',
+        endpoint: 'http://192.0.2.1',
+        connection: { id: 'device-1', name: 'Home router' },
+        cleanable: true,
+        fqdn_groups: ['routevane-a'],
+      }
+      const service = installShelfService({
+        deleteRefusal: {
+          body: {
+            error: 'operation failed',
+            code: 'rollback_failed',
+            retired: false,
+            device_cleanup: [],
+          },
+          status: 502,
+        },
+        deviceObjects: { device_objects: [surface], cleanable: true },
+        profiles: [live(NEWEST, 'Newest'), archived(OLD_ARCHIVED, 'Old media')],
+      })
+      const screen = await renderShelf()
+      await screen.getByText('Archive 1', { exact: true }).click()
+      await menuOf(screen, 'Old media').click()
+      await screen
+        .getByRole('menuitem', { name: 'Delete permanently…' })
+        .click()
+      await expect
+        .element(
+          screen.getByText(
+            /groups and routes already sent to routers stay in place/,
+          ),
+        )
+        .toBeVisible()
+      await screen
+        .getByRole('switch', { name: 'Also remove from the router' })
+        .click()
+      // The question's body follows the switch.
+      await expect
+        .element(
+          screen.getByText(
+            /groups and routes sent to routers are removed from them/,
+          ),
+        )
+        .toBeVisible()
+      await screen
+        .getByRole('button', { name: 'Delete permanently', exact: true })
+        .click()
+
+      await expect
+        .element(
+          screen.getByText('The rollback failed. Check the device by hand.'),
+        )
+        .toBeVisible()
+      await expect
+        .element(
+          screen.getByText(
+            'The profile was not deleted. Below is what is still on the routers.',
+          ),
+        )
+        .toBeVisible()
+      const deletion = service.calls.find(
+        (call) => call.method === 'POST' && call.path.endsWith('/delete'),
+      )
+      expect(JSON.parse(deletion?.body ?? '{}')).toEqual({
+        remove_from_devices: true,
+      })
+      const reads = service.calls.filter((call) =>
+        call.path.endsWith('/device-objects'),
+      )
+      expect(reads).toHaveLength(2)
+      expect(service.deleted()).toBe(0)
+    })
+
     it('keeps the question open and says why when the server refuses', async () => {
       const service = installShelfService({
         deleteRefusal: {
@@ -350,6 +428,7 @@ describe('ProfilesView archive', () => {
         )
         .toBeVisible()
       await expect.element(screen.getByRole('dialog')).toBeVisible()
+      // Asking again cannot succeed, so the act is no longer offered.
       await expect
         .element(
           screen.getByRole('button', {
@@ -357,7 +436,7 @@ describe('ProfilesView archive', () => {
             exact: true,
           }),
         )
-        .toBeDisabled()
+        .not.toBeInTheDocument()
       // The server's English is never shown.
       await expect
         .element(screen.getByText('profile is not archived'))

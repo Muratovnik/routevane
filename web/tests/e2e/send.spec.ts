@@ -560,7 +560,18 @@ test('the send screen builds its form from the deployer and applies the file loc
   await menuPanel(page)
     .getByRole('menuitem', { name: 'sing-box', exact: true })
     .click()
-  await page.waitForURL(`${profileURL}/send/${outputId}`)
+  // The send opens over the profile; the same screen also stands at its own
+  // address, which is what a link to it reaches.
+  const sheet = page.getByRole('dialog', {
+    name: 'Send · sing-box',
+    exact: true,
+  })
+  await expect(sheet).toBeVisible()
+  // The menu was opened on the Publishing tab, and the sheet keeps it.
+  await expect(page).toHaveURL(`${profileURL}#tab=outputs&send=${outputId}`)
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
+  await page.goto(`${profileURL}/send/${outputId}`)
   // The trail to the profile stands above the title, which names the format;
   // no state is claimed before anything was attempted.
   const title = page.getByRole('heading', { level: 1, name: 'Send · sing-box' })
@@ -694,10 +705,7 @@ test('the send screen builds its form from the deployer and applies the file loc
   await menuPanel(page)
     .getByRole('menuitem', { name: 'Send', exact: true })
     .click()
-  await menuPanel(page)
-    .getByRole('menuitem', { name: 'sing-box', exact: true })
-    .click()
-  await page.waitForURL(`${profileURL}/send/${outputId}`)
+  await page.goto(`${profileURL}/send/${outputId}`)
   await expect(address).toHaveValue(fileURL(configPath))
   await review.click()
   await page.getByRole('button', { name: 'Apply', exact: true }).click()
@@ -784,23 +792,7 @@ for (const language of ['en', 'ru'] as const) {
         })
         await route.continue()
       })
-      await page
-        .getByRole('main')
-        .getByRole('button', {
-          name: copy('profiles.menu').replace('{name}', 'YouTube'),
-          exact: true,
-        })
-        .click()
-      await menuPanel(page)
-        .getByRole('menuitem', {
-          name: copy('profiles.menu.send'),
-          exact: true,
-        })
-        .click()
-      await menuPanel(page)
-        .getByRole('menuitem', { name: 'sing-box', exact: true })
-        .click()
-      await page.waitForURL(`${profileURL}/send/${outputId}`)
+      await page.goto(`${profileURL}/send/${outputId}`)
       await expect(
         page.getByText(copy('send.profile.failed'), { exact: true }),
       ).toBeVisible()

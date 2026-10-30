@@ -236,7 +236,7 @@ for (const locale of ['en', 'ru'] as const) {
       const table = page.getByRole('table')
       for (const title of ['Keenetic', dnsTitle])
         await expect(
-          table.getByRole('link', {
+          table.getByRole('button', {
             name: copy('outputs.send.aria').replace('{target}', title),
             exact: true,
           }),

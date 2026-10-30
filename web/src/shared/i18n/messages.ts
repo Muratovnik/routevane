@@ -145,8 +145,19 @@ const ru: Dictionary = {
   'devices.credential.saved': 'Пароль сохранён',
   'devices.credential.save': 'Сохранить пароль',
   'devices.credential.replace': 'Заменить',
-  'devices.credential.remove': 'Удалить пароль',
-  'devices.credential.where': 'Хранится в хранилище учётных данных системы',
+  'devices.credential.remove': 'Удалить',
+  'devices.credential.where': 'Хранится в системном хранилище паролей.',
+  'devices.credential.remove.title': 'Удалить пароль подключения «{name}»?',
+  'devices.credential.remove.body':
+    'Для отправки на это подключение пароль придётся вводить заново.',
+  'devices.credential.removed': 'Пароль удалён',
+  'devices.credential.rejected':
+    'Роутер не принял этот пароль, он не сохранён.',
+  'devices.credential.check.verified': 'Роутер принял вход с ним.',
+  'devices.credential.check.interface':
+    'Роутер принял вход, но интерфейса «{name}» на нём нет. Проверьте «Интерфейс для маршрутов».',
+  'devices.credential.check.unverified': 'Пароль сохранён без проверки',
+  'devices.credential.check.failed': 'Проверить вход не удалось.',
   'devices.credential.unavailable':
     'В системе нет хранилища учётных данных, пароль сохранить нельзя.',
   'devices.credential.removeEffect': 'Удаление пароля выключит и автоотправку.',
@@ -161,6 +172,8 @@ const ru: Dictionary = {
 
   'shell.nav.settings': 'Настройки',
   'shell.skip': 'Перейти к содержимому',
+  'notify.region': 'Уведомления ({hotkey})',
+  'notify.close': 'Закрыть уведомление',
 
   'profiles.title': 'Профили',
   'profiles.loadMore': 'Загрузить ещё',
@@ -228,6 +241,8 @@ const ru: Dictionary = {
   'profiles.delete.title': 'Удалить профиль «{name}» навсегда?',
   'profiles.delete.body':
     'Ссылки подписки этого профиля перестанут работать — роутеры и приложения, которые их используют, перестанут получать обновления. Опубликованные файлы и журнал отправок сохраняются; группы и маршруты, уже отправленные на роутеры, останутся. Отменить удаление нельзя.',
+  'profiles.delete.body.clean':
+    'Ссылки подписки этого профиля перестанут работать — роутеры и приложения, которые их используют, перестанут получать обновления. Опубликованные файлы и журнал отправок сохраняются; группы и маршруты, отправленные на роутеры, будут убраны с них. Отменить удаление нельзя.',
   'profiles.delete.done': 'Профиль «{name}» удалён',
   'profiles.delete.notArchived':
     'Профиль не в архиве, поэтому его нельзя удалить. Обновите список.',
@@ -379,7 +394,15 @@ const ru: Dictionary = {
   'lists.list.attach.retry': 'Повторить добавление',
   'lists.list.detach': 'Убрать из категории',
   'lists.list.remove': 'Удалить список',
-  'lists.list.remove.body': 'Список «{list}» и его записи будут удалены.',
+  'lists.list.remove.title': 'Удалить список «{list}»?',
+  'lists.list.remove.body': 'Его записи удаляются вместе с ним.',
+  'lists.list.remove.failed': 'Список не удалён',
+  'lists.list.created': 'Список «{list}» создан',
+  'lists.list.removed': 'Список «{list}» удалён',
+  'lists.detached': '«{list}» больше не в категории «{category}»',
+  'lists.category.remove.title': 'Удалить категорию «{category}»?',
+  'lists.category.removed': 'Категория «{category}» удалена',
+  'lists.category.renamed': 'Категория переименована: «{category}»',
   'lists.list.remove.submit': 'Удалить',
   'lists.list.inUse': 'Список не удалён',
   'lists.priority.save': 'Сохранить порядок',
@@ -438,12 +461,27 @@ const ru: Dictionary = {
     other: 'Пропущено записей источников: {count}',
   },
   'listCard.observing': 'Читаем источники…',
-  'listCard.refresh.ready': 'Источники прочитаны',
   'listCard.refresh.waiting': 'Источники ещё не читались',
   'listCard.refresh.none': 'Нет автоматических источников',
   'listCard.refresh.failed.source': 'Источники недоступны. Записи сохранены.',
   'listCard.refresh.failed.generic':
     'Причина сбоя неизвестна. Записи сохранены.',
+  'listCard.refresh.short': 'Обновить',
+  'listCard.sources.manage': 'Источники',
+  'listFreshness.none': 'Нет автоматических источников',
+  'listFreshness.off': 'Все источники выключены',
+  'listFreshness.never': 'Источники ещё не читались',
+  'listFreshness.failed': 'Источники прочитать не удалось',
+  'listFreshness.failed.since':
+    'Последнее чтение не удалось · данные получены {ago}',
+  'listFreshness.read': 'Обновлено {ago}',
+  'listFreshness.stale': 'данные устарели',
+  'listFreshness.added': 'новых: {count}',
+  'listFreshness.removed': 'ушло из источников: {count}',
+  'listFreshness.unchanged': 'без изменений',
+  'listFreshness.cell.never': 'не читались',
+  'listFreshness.cell.failed': 'ошибка чтения',
+  'lists.column.updated': 'Обновлено',
   'listCard.domains.disabledInLibrary': 'Отключено в библиотеке',
   'listCard.action.failed': 'Не удалось применить изменение. Повторите.',
   'listCard.mutation.pending': 'Сохраняем изменение…',
@@ -659,7 +697,7 @@ const ru: Dictionary = {
   'profile.notice.imported.body':
     'Этот профиль перенесён из прежней версии Routevane. Его состав и подготовленный формат сохранены; при желании профиль можно переименовать или добавить другой формат.',
   'profile.facts.archived': 'В архиве с',
-  'profile.schedule': 'Автообновление профиля',
+  'profile.schedule': 'Обновление источников',
   'profile.schedule.default': 'Как в настройках',
   'profile.schedule.followsDefault': 'Как в настройках — {rule}',
   'profile.schedule.lastFailed': '{time}, с ошибкой',
@@ -683,8 +721,14 @@ const ru: Dictionary = {
     'Выберите роутер или приложение — Routevane подготовит подходящий формат.',
   'outputs.column.target': 'Формат',
   'outputs.column.device': 'Подключение',
-  'outputs.column.updated': 'Содержимое от',
+  'outputs.column.updated': 'Обновлено',
   'outputs.column.sent': 'Отправлено',
+  'outputs.sent.failed': 'Не отправлено',
+  'outputs.sent.why': 'Почему не отправлено: {target}',
+  'outputs.sent.failedAt': '{at}, «{device}»: {reason}',
+  'outputs.sent.to': 'на «{device}»',
+  'outputs.sent.older': 'отправлена прежняя версия',
+  'outputs.sent.forgotten': 'удалённое подключение',
   'outputs.column.actions': 'Действия',
   'outputs.device.label': 'Подключение для {target}',
   'outputs.device.none': 'Не выбрано',
@@ -724,6 +768,7 @@ const ru: Dictionary = {
   'send.status.applying': 'Применяем',
   'send.status.applied': 'Применено',
   'send.status.failed': 'Не применено',
+  'send.status.reviewFailed': 'Изменения не получены',
   'send.status.outcome_unknown': 'Результат неизвестен',
   'send.outcomeUnknown.title': 'Результат отправки пока неизвестен',
   'send.outcomeUnknown.body':
@@ -777,6 +822,41 @@ const ru: Dictionary = {
   'send.step.backup': 'Резервная копия',
   'send.step.ownership': 'Учёт управляемых объектов',
   'send.step.other': 'Операция с устройством',
+  'send.step.remove': 'Удаление с устройства',
+  'cleanup.switch': 'Также убрать с роутера',
+  'cleanup.note':
+    'Сначала Routevane уберёт с роутеров то, что туда отправил этот формат, и проверит результат. Удаление состоится, только если это получится на всех роутерах.',
+  'cleanup.unavailable':
+    'Убрать с роутера сейчас нельзя: причина указана ниже. Удаление оставит роутер как есть.',
+  'cleanup.loading': 'Проверяем, что формат оставил на роутерах…',
+  'cleanup.failed':
+    'Не удалось узнать, что формат оставил на роутерах. Удаление оставит их как есть.',
+  'cleanup.surface': '«{name}» ({endpoint})',
+  'cleanup.groups': {
+    one: '{count} FQDN-группа',
+    few: '{count} FQDN-группы',
+    many: '{count} FQDN-групп',
+    other: '{count} FQDN-группы',
+  },
+  'cleanup.routes': {
+    one: '{count} маршрут',
+    few: '{count} маршрута',
+    many: '{count} маршрутов',
+    other: '{count} маршрута',
+  },
+  'cleanup.nothing': 'своих объектов нет',
+  'cleanup.blocked.connection_missing':
+    'нет сохранённого подключения с этим адресом и интерфейсом',
+  'cleanup.blocked.credential_missing': 'у подключения не сохранён пароль',
+  'cleanup.blocked.removal_unsupported':
+    'этот формат не умеет убирать за собой',
+  'cleanup.error.unavailable':
+    'Убрать с роутера нельзя: причина указана у роутера ниже. Роутеры не тронуты.',
+  'cleanup.error.failed': 'Убрать с роутера не получилось.',
+  'cleanup.stopped.output':
+    'Формат остался в профиле. Ниже — то, что сейчас осталось на роутерах.',
+  'cleanup.stopped.profile':
+    'Профиль не удалён. Ниже — то, что сейчас осталось на роутерах.',
   'error.fqdn_ownership_conflict':
     'FQDN-группа с таким именем не управляется этим подключением. Проверьте или перенесите её вручную перед применением. Изменения не внесены.',
   'outputs.prefix': 'Префикс FQDN-групп',
@@ -828,11 +908,14 @@ const ru: Dictionary = {
   'outputs.remove.confirm': 'Убрать формат {target}?',
   'outputs.remove.confirm.body':
     'Ссылка подписки и файл формата перестанут открываться, привязка к подключению снимется. Уже доставленное останется там, куда было отправлено.',
+  'outputs.remove.confirm.body.clean':
+    'Ссылка подписки и файл формата перестанут открываться, привязка к подключению снимется. То, что формат отправил на роутеры, будет убрано с них.',
   'outputs.remove.submit': 'Убрать формат',
   'outputs.error.archived': 'Профиль в архиве: его форматы не меняются.',
   'outputs.error.missing': 'Этого формата больше нет в профиле.',
   'send.heading': 'Отправка · {format}',
   'send.connection.none': 'Нет сохранённых подключений',
+  'send.connection.none.format': 'Нет подключений для формата «{format}»',
   'send.connection.add': 'Добавить подключение',
   'send.password.override': 'Ввести другой для этой отправки',
   'send.password.rejected': 'Сохранённый пароль не принят',
@@ -965,11 +1048,22 @@ const ru: Dictionary = {
   'error.deployer_unavailable': 'Для этого формата нет способа применения.',
   'error.confirmation_required': 'Требуется подтверждение.',
   'error.deploy_failed': 'Применение не завершилось.',
+  'error.device_auth_rejected':
+    'Роутер не принял логин или пароль. Проверьте их в подключении.',
+  'error.device_unreachable':
+    'Роутер не отвечает. Проверьте адрес и что компьютер в той же сети.',
+  'error.device_answer_invalid':
+    'Ответ роутера не удалось разобрать. Проверьте, что прошивка поддерживается.',
+  'error.device_command_rejected': 'Роутер отклонил команду Routevane.',
+  'error.device_interface_missing':
+    'На роутере нет такого интерфейса. Проверьте «Интерфейс для маршрутов» в подключении.',
   'error.attempt_mismatch': 'Отправка не началась. Повторите её.',
 
   'action.retry': 'Повторить',
   'action.back': 'Назад',
   'action.cancel': 'Отменить',
+  'action.undo': 'Вернуть',
+  'confirm.irreversible': 'Это действие нельзя отменить.',
   'action.save': 'Сохранить',
   'action.close': 'Закрыть',
 
@@ -1113,8 +1207,19 @@ const en: Dictionary = {
   'devices.credential.saved': 'Password saved',
   'devices.credential.save': 'Save password',
   'devices.credential.replace': 'Replace',
-  'devices.credential.remove': 'Remove password',
-  'devices.credential.where': 'Kept in the credential store of this system',
+  'devices.credential.remove': 'Remove',
+  'devices.credential.where': 'Kept in the system password store.',
+  'devices.credential.remove.title': 'Remove the password of “{name}”?',
+  'devices.credential.remove.body':
+    'Sending to this connection will ask for the password again.',
+  'devices.credential.removed': 'Password removed',
+  'devices.credential.rejected':
+    'The router did not accept this password, so it was not saved.',
+  'devices.credential.check.verified': 'The router accepted a sign-in with it.',
+  'devices.credential.check.interface':
+    'The router accepted the sign-in, but it has no interface “{name}”. Check the route interface.',
+  'devices.credential.check.unverified': 'Password saved without a check',
+  'devices.credential.check.failed': 'The sign-in could not be checked.',
   'devices.credential.unavailable':
     'This system has no credential store, so a password cannot be saved.',
   'devices.credential.removeEffect':
@@ -1130,6 +1235,8 @@ const en: Dictionary = {
 
   'shell.nav.settings': 'Settings',
   'shell.skip': 'Skip to content',
+  'notify.region': 'Notifications ({hotkey})',
+  'notify.close': 'Close the notification',
 
   'profiles.title': 'Profiles',
   'profiles.loadMore': 'Load more',
@@ -1195,6 +1302,8 @@ const en: Dictionary = {
   'profiles.delete.title': 'Delete profile “{name}” permanently?',
   'profiles.delete.body':
     'The subscription links of this profile will stop working: routers and apps that use them will no longer receive updates. Published files and the delivery log are kept; groups and routes already sent to routers stay in place. Deletion cannot be undone.',
+  'profiles.delete.body.clean':
+    'The subscription links of this profile will stop working: routers and apps that use them will no longer receive updates. Published files and the delivery log are kept; groups and routes sent to routers are removed from them. Deletion cannot be undone.',
   'profiles.delete.done': 'Profile “{name}” deleted',
   'profiles.delete.notArchived':
     'The profile is not archived, so it cannot be deleted. Refresh the list.',
@@ -1341,7 +1450,15 @@ const en: Dictionary = {
   'lists.list.attach.retry': 'Try adding again',
   'lists.list.detach': 'Remove from the category',
   'lists.list.remove': 'Delete the list',
-  'lists.list.remove.body': 'List “{list}” and its entries are removed.',
+  'lists.list.remove.title': 'Delete the list “{list}”?',
+  'lists.list.remove.body': 'Its entries are deleted with it.',
+  'lists.list.remove.failed': 'The list was not deleted',
+  'lists.list.created': 'List “{list}” created',
+  'lists.list.removed': 'List “{list}” deleted',
+  'lists.detached': '“{list}” is no longer in “{category}”',
+  'lists.category.remove.title': 'Delete the category “{category}”?',
+  'lists.category.removed': 'Category “{category}” deleted',
+  'lists.category.renamed': 'Category renamed: “{category}”',
   'lists.list.remove.submit': 'Delete',
   'lists.list.inUse': 'The list was not deleted',
   'lists.priority.save': 'Save order',
@@ -1398,11 +1515,25 @@ const en: Dictionary = {
     other: '{count} source entries skipped',
   },
   'listCard.observing': 'Reading the sources…',
-  'listCard.refresh.ready': 'Sources read',
   'listCard.refresh.waiting': 'Sources not read yet',
   'listCard.refresh.none': 'No automatic sources',
   'listCard.refresh.failed.source': 'Sources unavailable. Entries kept.',
   'listCard.refresh.failed.generic': 'Unknown refresh error. Entries kept.',
+  'listCard.refresh.short': 'Refresh',
+  'listCard.sources.manage': 'Sources',
+  'listFreshness.none': 'No automatic sources',
+  'listFreshness.off': 'Every source is switched off',
+  'listFreshness.never': 'Sources not read yet',
+  'listFreshness.failed': 'The sources could not be read',
+  'listFreshness.failed.since': 'The last read failed · data from {ago}',
+  'listFreshness.read': 'Updated {ago}',
+  'listFreshness.stale': 'out of date',
+  'listFreshness.added': '{count} new',
+  'listFreshness.removed': '{count} gone from the sources',
+  'listFreshness.unchanged': 'no changes',
+  'listFreshness.cell.never': 'not read yet',
+  'listFreshness.cell.failed': 'read failed',
+  'lists.column.updated': 'Updated',
   'listCard.domains.disabledInLibrary': 'Disabled in library',
   'listCard.action.failed': 'The change could not be applied. Try again.',
   'listCard.mutation.pending': 'Saving change…',
@@ -1609,7 +1740,7 @@ const en: Dictionary = {
   'profile.notice.imported.body':
     'This came from an earlier version of Routevane. Its contents and prepared format were preserved; you can rename it or add another format.',
   'profile.facts.archived': 'Archived since',
-  'profile.schedule': 'Profile refresh',
+  'profile.schedule': 'Source refresh',
   'profile.schedule.default': 'As in settings',
   'profile.schedule.followsDefault': 'As in settings — {rule}',
   'profile.schedule.lastFailed': '{time}, with an error',
@@ -1633,8 +1764,14 @@ const en: Dictionary = {
     'Choose a router or application and Routevane will prepare its format.',
   'outputs.column.target': 'Format',
   'outputs.column.device': 'Connection',
-  'outputs.column.updated': 'Content from',
+  'outputs.column.updated': 'Updated',
   'outputs.column.sent': 'Last sent',
+  'outputs.sent.failed': 'Not sent',
+  'outputs.sent.why': 'Why {target} was not sent',
+  'outputs.sent.failedAt': '{at}, “{device}”: {reason}',
+  'outputs.sent.to': 'to “{device}”',
+  'outputs.sent.older': 'an earlier file was sent',
+  'outputs.sent.forgotten': 'a removed connection',
   'outputs.column.actions': 'Actions',
   'outputs.device.label': 'Connection for {target}',
   'outputs.device.none': 'None',
@@ -1675,6 +1812,7 @@ const en: Dictionary = {
   'send.status.applying': 'Applying',
   'send.status.applied': 'Applied',
   'send.status.failed': 'Not applied',
+  'send.status.reviewFailed': 'Changes not received',
   'send.status.outcome_unknown': 'Outcome unknown',
   'send.outcomeUnknown.title': 'The delivery outcome is not yet known',
   'send.outcomeUnknown.body':
@@ -1728,6 +1866,37 @@ const en: Dictionary = {
   'send.step.backup': 'Backup',
   'send.step.ownership': 'Managed object ownership',
   'send.step.other': 'Device operation',
+  'send.step.remove': 'Removal from the device',
+  'cleanup.switch': 'Also remove from the router',
+  'cleanup.note':
+    'Routevane first removes from the routers what this format sent there and checks the result. The removal goes ahead only if that succeeds on every router.',
+  'cleanup.unavailable':
+    'It cannot be removed from the router now; the reason is below. Deleting leaves the router as it is.',
+  'cleanup.loading': 'Checking what the format left on routers…',
+  'cleanup.failed':
+    'What the format left on routers could not be read. Deleting leaves them as they are.',
+  'cleanup.surface': '“{name}” ({endpoint})',
+  'cleanup.groups': {
+    one: '{count} FQDN group',
+    other: '{count} FQDN groups',
+  },
+  'cleanup.routes': {
+    one: '{count} route',
+    other: '{count} routes',
+  },
+  'cleanup.nothing': 'nothing of its own',
+  'cleanup.blocked.connection_missing':
+    'no saved connection has this address and interface',
+  'cleanup.blocked.credential_missing': 'the connection has no saved password',
+  'cleanup.blocked.removal_unsupported':
+    'this format cannot remove what it sent',
+  'cleanup.error.unavailable':
+    'It cannot be removed from the router: the reason stands beside the router below. No router was touched.',
+  'cleanup.error.failed': 'Removing from the router did not complete.',
+  'cleanup.stopped.output':
+    'The format stays in the profile. Below is what is still on the routers.',
+  'cleanup.stopped.profile':
+    'The profile was not deleted. Below is what is still on the routers.',
   'error.fqdn_ownership_conflict':
     'An FQDN group with this name is not managed by this connection. Review or migrate it manually before applying. No changes were made.',
   'outputs.prefix': 'FQDN group prefix',
@@ -1779,12 +1948,15 @@ const en: Dictionary = {
   'outputs.remove.confirm': 'Remove the {target} format?',
   'outputs.remove.confirm.body':
     'Its subscription link and file stop answering, and its connection is unbound. What was already delivered stays where it was sent.',
+  'outputs.remove.confirm.body.clean':
+    'Its subscription link and file stop answering, and its connection is unbound. What the format sent to routers is removed from them.',
   'outputs.remove.submit': 'Remove format',
   'outputs.error.archived':
     'The profile is archived: its formats do not change.',
   'outputs.error.missing': 'This format is no longer in the profile.',
   'send.heading': 'Send · {format}',
   'send.connection.none': 'No saved connections',
+  'send.connection.none.format': 'No connections for the {format} format',
   'send.connection.add': 'Add a connection',
   'send.password.override': 'Enter another for this send',
   'send.password.rejected': 'The saved password was not accepted',
@@ -1904,11 +2076,22 @@ const en: Dictionary = {
   'error.deployer_unavailable': 'This format has no applying method.',
   'error.confirmation_required': 'Confirmation is required.',
   'error.deploy_failed': 'Applying did not finish.',
+  'error.device_auth_rejected':
+    'The router did not accept the login or the password. Check them in the connection.',
+  'error.device_unreachable':
+    'The router does not answer. Check the address and that this computer is on its network.',
+  'error.device_answer_invalid':
+    'The router’s answer could not be read. Check that its firmware is supported.',
+  'error.device_command_rejected': 'The router rejected a Routevane command.',
+  'error.device_interface_missing':
+    'The router has no such interface. Check the route interface in the connection.',
   'error.attempt_mismatch': 'The send did not start. Try it again.',
 
   'action.retry': 'Retry',
   'action.back': 'Back',
   'action.cancel': 'Cancel',
+  'action.undo': 'Undo',
+  'confirm.irreversible': 'This cannot be undone.',
   'action.save': 'Save',
   'action.close': 'Close',
 

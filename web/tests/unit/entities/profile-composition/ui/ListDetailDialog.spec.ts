@@ -11,11 +11,13 @@ import ListDetailDialog from '@/entities/profile-composition/ui/ListDetailDialog
 const CONTENTS = 'List contents'
 const SEARCH_CONTENTS = 'Search the contents'
 const REFRESH = /^Refresh from sources/
-const CONFIGURE = 'Configure sources'
+// The control that opens the sources panel names them and how many there are.
+const CONFIGURE = /^Sources/
 const DELETE = 'Delete the list'
 const SAVING = 'Saving change…'
 const NOT_APPLIED = 'The change was not applied.'
-const SOURCES_READ = 'Sources read'
+// The card's line about a completed read starts with when it happened.
+const READ_CLAIM = /^Updated /
 
 const DISCORD = {
   categories: ['communication'],
@@ -35,6 +37,24 @@ const json = (payload: unknown, status = 200): Response =>
     headers: { 'Content-Type': 'application/json' },
   })
 
+// What a server says about the latest read of these sources: nothing to read,
+// never read, or read just now with nothing changed.
+const readState = (
+  observed: boolean,
+  sources: { enabled: boolean }[],
+): Record<string, unknown> => {
+  const unread = { last_read_at: null, added: 0, removed: 0 }
+  if (!sources.some((source) => source.enabled))
+    return { state: 'none', ...unread }
+  if (!observed) return { state: 'never', ...unread }
+  return {
+    state: 'fresh',
+    last_read_at: new Date().toISOString(),
+    added: 0,
+    removed: 0,
+  }
+}
+
 const contentsResponse = (
   observed = true,
   sources = [
@@ -43,6 +63,7 @@ const contentsResponse = (
   ],
   enabledOverrides: Record<string, boolean> = {},
   manual = false,
+  freshness: Record<string, unknown> = readState(observed, sources),
 ): Response =>
   json({
     list_id: 'discord',
@@ -84,6 +105,7 @@ const contentsResponse = (
     ],
     sources,
     observed,
+    freshness,
   })
 
 const stubAPI = (
@@ -231,9 +253,7 @@ describe('ListDetailDialog', () => {
       await expect
         .element(screen.getByRole('button', { name: 'Retry', exact: true }))
         .toBeVisible()
-      await expect
-        .element(screen.getByLabelText(SOURCES_READ))
-        .not.toBeInTheDocument()
+      await expect.element(screen.getByText(READ_CLAIM)).not.toBeInTheDocument()
       expect(api.keys()).toEqual([
         'GET /v1/lists/discord/contents',
         'POST /v1/lists/discord/refresh',
@@ -344,9 +364,7 @@ describe('ListDetailDialog', () => {
     await screen.getByRole('button', { name: REFRESH }).click()
     await expect.element(screen.getByText('Refreshing…')).toBeVisible()
     // Nothing claims the sources were read while the read is still in flight.
-    await expect
-      .element(screen.getByRole('img', { name: SOURCES_READ }))
-      .not.toBeInTheDocument()
+    await expect.element(screen.getByText(READ_CLAIM)).not.toBeInTheDocument()
 
     // Deleting waits for the work in flight rather than racing it.
     const remove = screen.getByRole('button', { name: DELETE })
@@ -355,7 +373,7 @@ describe('ListDetailDialog', () => {
 
     held.resolve(json({ refresh: { skipped_entries: 0 } }))
     await expect
-      .element(screen.getByRole('img', { name: SOURCES_READ }))
+      .element(screen.getByText('Updated now · no changes'))
       .toBeVisible()
     expect(keys()).toEqual([
       'GET /v1/lists/discord/contents',
@@ -376,9 +394,102 @@ describe('ListDetailDialog', () => {
     await expect
       .element(screen.getByText('No automatic sources', { exact: false }))
       .toBeVisible()
+    await expect.element(screen.getByText(READ_CLAIM)).not.toBeInTheDocument()
+    // With nothing to count, the card does not state a count of none.
     await expect
-      .element(screen.getByRole('img', { name: SOURCES_READ }))
+      .element(screen.getByText('Sources · 0'))
       .not.toBeInTheDocument()
+  })
+
+  it('says when the sources were read and what the read changed', async () => {
+    const lastRead = new Date(Date.now() - 5 * 60_000).toISOString()
+    stubAPI({
+      'GET /v1/lists/discord/contents': () =>
+        contentsResponse(true, undefined, {}, false, {
+          state: 'fresh',
+          last_read_at: lastRead,
+          added: 12,
+          removed: 3,
+        }),
+    })
+    const screen = await renderCard({ mode: 'library' })
+
+    await expect
+      .element(
+        screen.getByText(
+          'Updated 5 minutes ago · 12 new · 3 gone from the sources',
+        ),
+      )
+      .toBeVisible()
+    // The card hands the moment to whoever lists it, which knew none.
+    await vi.waitFor(() => {
+      expect(screen.emitted('observed')?.[0]).toEqual([
+        'discord',
+        { state: 'fresh', lastReadAt: lastRead, added: 12, removed: 3 },
+      ])
+    })
+
+    useLocale().setLocale('ru')
+    await expect
+      .element(
+        screen.getByText(
+          'Обновлено 5 минут назад · новых: 12 · ушло из источников: 3',
+        ),
+      )
+      .toBeVisible()
+  })
+
+  it('states a failed latest read as a failure without a retry of its own', async () => {
+    stubAPI({
+      'GET /v1/lists/discord/contents': () =>
+        contentsResponse(true, undefined, {}, false, {
+          state: 'failed',
+          last_read_at: null,
+          added: 0,
+          removed: 0,
+        }),
+    })
+    const screen = await renderCard({ mode: 'library' })
+
+    await expect
+      .element(screen.getByText('The sources could not be read'))
+      .toBeVisible()
+    // Reading again is the card's refresh, not a second control.
+    await expect
+      .element(screen.getByRole('button', { name: 'Retry' }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('button', { name: REFRESH }))
+      .toBeEnabled()
+  })
+
+  it('reports nothing to the library when the card read the moment it already knew', async () => {
+    const lastRead = new Date().toISOString()
+    const freshness = {
+      state: 'fresh',
+      last_read_at: lastRead,
+      added: 0,
+      removed: 0,
+    }
+    stubAPI({
+      'GET /v1/lists/discord/contents': () =>
+        contentsResponse(true, undefined, {}, false, freshness),
+    })
+    const screen = await renderCard({
+      list: {
+        ...DISCORD,
+        freshness: {
+          state: 'fresh',
+          lastReadAt: lastRead,
+          added: 0,
+          removed: 0,
+        },
+      },
+      mode: 'library',
+    })
+
+    await expect.element(screen.getByText(READ_CLAIM)).toBeVisible()
+    expect(screen.emitted('observed')).toBeUndefined()
   })
 
   it('ignores a late contents response after the card closes', async () => {
@@ -507,6 +618,84 @@ describe('ListDetailDialog', () => {
     expect(calls[1]?.body).toBe(
       JSON.stringify({ values: ['discord.gg'], verdict: 'exclude' }),
     )
+  })
+
+  // Switching a value off says it in the verdict that switches it off: the
+  // list's own definition is excluded, and a value the operator only added is
+  // taken back — and excluded when a source still offers it after that.
+  describe('switching an operator value off', () => {
+    const ownContents = (enabled: Record<string, boolean>): Response =>
+      json({
+        list_id: 'discord',
+        rows: [
+          {
+            value: 'own.example.test',
+            kind: 'domain',
+            origin: 'manual',
+            enabled: enabled['own.example.test'] ?? true,
+            definition: true,
+          },
+          {
+            value: 'added.example.test',
+            kind: 'domain',
+            origin: 'manual',
+            enabled: enabled['added.example.test'] ?? true,
+          },
+        ],
+        sources: [{ id: 'itdoginfo', type: 'http', enabled: true }],
+        observed: true,
+      })
+    const verdicts = (calls: { body: string | null; key: string }[]) =>
+      calls
+        .filter((call) => call.key === 'POST /v1/lists/discord/domains')
+        .map((call) => JSON.parse(call.body ?? '{}') as unknown)
+
+    it('excludes a value of the list definition', async () => {
+      const { calls } = stubAPI({
+        'GET /v1/lists/discord/contents': () => ownContents({}),
+        'POST /v1/lists/discord/domains': () =>
+          ownContents({ 'own.example.test': false }),
+      })
+      const screen = await renderCard({
+        list: { ...DISCORD, custom: true },
+        mode: 'library',
+      })
+
+      await entrySwitch(screen, 'own.example.test').click()
+
+      await vi.waitFor(() => {
+        expect(verdicts(calls)).toEqual([
+          { values: ['own.example.test'], verdict: 'exclude' },
+        ])
+      })
+      await expect
+        .poll(() => isChecked(entrySwitch(screen, 'own.example.test')))
+        .toBe(false)
+    })
+
+    it('excludes an added value a source still offers once the addition is taken back', async () => {
+      let answers = 0
+      const { calls } = stubAPI({
+        'GET /v1/lists/discord/contents': () => ownContents({}),
+        // Taking the addition back leaves the value on, because a source
+        // offers it; only the exclude that follows switches it off.
+        'POST /v1/lists/discord/domains': () =>
+          ownContents({ 'added.example.test': answers++ === 0 }),
+      })
+      const screen = await renderCard({ mode: 'library' })
+
+      await entrySwitch(screen, 'added.example.test').click()
+
+      await vi.waitFor(() => {
+        expect(verdicts(calls)).toEqual([
+          { values: ['added.example.test'], verdict: 'auto' },
+          { values: ['added.example.test'], verdict: 'exclude' },
+        ])
+      })
+      await expect
+        .poll(() => isChecked(entrySwitch(screen, 'added.example.test')))
+        .toBe(false)
+    })
   })
 
   // The act that stores a custom list's name stands beside the input, inside the

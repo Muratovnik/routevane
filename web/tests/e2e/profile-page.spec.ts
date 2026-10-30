@@ -427,9 +427,14 @@ test('send links navigate through the router for one and multiple published outp
   await menu.click()
   await page.getByRole('menuitem', { name: 'Send', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Keenetic', exact: true }).click()
+  // The send opens over the profile, and the address names it.
   await expect(page).toHaveURL(
-    `${origin}/profiles/${profileId}/send/${outputId}`,
+    `${origin}/profiles/${profileId}#send=${outputId}`,
   )
+  await expect(
+    page.getByRole('dialog', { name: 'Send · Keenetic', exact: true }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
   const headers = { Origin: origin, 'X-Routevane-Request': '1' }
   const added = await page.request.post(
     `${origin}/v1/profiles/${profileId}/outputs`,
@@ -447,8 +452,11 @@ test('send links navigate through the router for one and multiple published outp
   await page.getByRole('menuitem', { name: 'Send', exact: true }).click()
   await page.getByRole('menuitem', { name: 'sing-box', exact: true }).click()
   await expect(page).toHaveURL(
-    `${origin}/profiles/${profileId}/send/${output.id}`,
+    `${origin}/profiles/${profileId}#send=${output.id}`,
   )
+  await expect(
+    page.getByRole('dialog', { name: 'Send · sing-box', exact: true }),
+  ).toBeVisible()
 })
 
 test('Back retraces the tabs the operator opened and then leaves the profile', async ({
@@ -834,6 +842,103 @@ test('the row menu removes a format after stating what removal does', async ({
   )
 })
 
+// What a format delivered can be removed with it (ADR 0060). The test build
+// cannot reach a router, so the routers' answers are the test's: what the format
+// left, and a refusal at the router. The refusal keeps the format and says
+// why; without the choice the server removes the format as before.
+test('removing a format offers to clean the router and keeps the format when a router refuses', async ({
+  page,
+  origin,
+}) => {
+  const { profileId } = await buildProfile(page, origin)
+  const headers = { Origin: origin, 'X-Routevane-Request': '1' }
+  const added = await page.request.post(
+    `${origin}/v1/profiles/${profileId}/outputs`,
+    { headers, data: { target_id: 'singbox' } },
+  )
+  expect(added.ok()).toBe(true)
+  const { output } = (await added.json()) as { output: { id: string } }
+  let reads = 0
+  await page.route(`**/v1/outputs/${output.id}/device-objects`, (route) => {
+    reads += 1
+    return route.fulfill({
+      json: {
+        device_objects: [
+          {
+            output_id: output.id,
+            target_id: 'singbox',
+            endpoint: 'http://192.0.2.1',
+            connection: { id: 'device-1', name: 'Home router' },
+            cleanable: true,
+            fqdn_groups: ['routevane-a', 'routevane-b'],
+          },
+        ],
+        cleanable: true,
+      },
+    })
+  })
+  const bodies: unknown[] = []
+  await page.route(`**/v1/outputs/${output.id}/remove`, (route) => {
+    bodies.push(route.request().postDataJSON())
+    return route.fulfill({
+      status: 502,
+      json: {
+        error: 'operation failed',
+        code: 'device_unreachable',
+        retired: false,
+        device_cleanup: [],
+      },
+    })
+  })
+  await page.reload()
+  await publishingTab(page).click()
+  const publishing = page.getByRole('tabpanel', { name: 'Publishing' })
+  const row = publishing.getByRole('row').filter({ hasText: 'sing-box' })
+  await expect(row).toHaveCount(1)
+
+  await chooseFormatAction(page, 'sing-box', 'outputs.menu.remove')
+  const confirm = page.getByRole('dialog', {
+    name: 'Remove the sing-box format?',
+  })
+  await expect(confirm).toContainText('“Home router” (http://192.0.2.1)')
+  await expect(confirm).toContainText('2 FQDN groups')
+  await expect(confirm).toContainText(
+    englishCopy('outputs.remove.confirm.body'),
+  )
+  const clean = confirm.getByRole('switch', {
+    name: englishCopy('cleanup.switch'),
+  })
+  await clean.click()
+  // The question's body follows the choice.
+  await expect(confirm).toContainText(
+    englishCopy('outputs.remove.confirm.body.clean'),
+  )
+  await confirm
+    .getByRole('button', { name: 'Remove format', exact: true })
+    .click()
+
+  await expect(confirm).toContainText(englishCopy('error.device_unreachable'))
+  await expect(confirm).toContainText(englishCopy('cleanup.stopped.output'))
+  expect(bodies).toEqual([{ remove_from_devices: true }])
+  await expect.poll(() => reads).toBe(2)
+  // The page behind the open question is out of the accessibility tree, so the
+  // server says the format is still there.
+  const kept = (await (
+    await page.request.get(`${origin}/v1/profiles/${profileId}`)
+  ).json()) as { outputs: { id: string }[] }
+  expect(kept.outputs.map((candidate) => candidate.id)).toContain(output.id)
+
+  // Without the choice the format is removed and the routers stay as they are.
+  await page.unroute(`**/v1/outputs/${output.id}/remove`)
+  await clean.click()
+  await expect(clean).not.toBeChecked()
+  await confirm
+    .getByRole('button', { name: 'Remove format', exact: true })
+    .click()
+  await expect(confirm).toBeHidden()
+  await expect(row).toHaveCount(0)
+})
+
 test('diagnostics is one table of rules with a list filter and a search', async ({
   page,
   origin,
@@ -1001,7 +1106,7 @@ test('publishing cells stay on one line at 1024px and archived facts keep their 
   await expect(
     row.getByRole('link', { name: 'Download the file for Keenetic' }),
   ).toBeVisible()
-  await expect(row.getByRole('link', { name: 'Send Keenetic' })).toBeVisible()
+  await expect(row.getByRole('button', { name: 'Send Keenetic' })).toBeVisible()
   const menu = formatMenu(page, 'Keenetic')
   const trigger = (await menu.boundingBox())!
   expect(Math.min(trigger.width, trigger.height)).toBeGreaterThanOrEqual(24)
@@ -1051,7 +1156,7 @@ test('publishing cells stay on one line at 1024px and archived facts keep their 
     archivedRow.getByRole('link', { name: 'Download the file for Keenetic' }),
   ).toBeVisible()
   await expect(
-    archivedRow.getByRole('link', { name: 'Send Keenetic' }),
+    archivedRow.getByRole('button', { name: 'Send Keenetic' }),
   ).toHaveCount(0)
   await expect(formatMenu(page, 'Keenetic')).toHaveCount(0)
 })

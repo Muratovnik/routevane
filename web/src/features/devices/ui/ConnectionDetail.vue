@@ -15,7 +15,7 @@ import type { DeviceCard } from '@/shared/api/devices'
 import { useLocale } from '@/shared/i18n/useLocale'
 import { targetIcon } from '@/shared/lib/targetIcon'
 import RvButton from '@/shared/ui/RvButton.vue'
-import RvDialog from '@/shared/ui/RvDialog.vue'
+import RvConfirmDialog from '@/shared/ui/RvConfirmDialog.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
 import RvMenu from '@/shared/ui/RvMenu.vue'
@@ -380,37 +380,21 @@ const onForget = async (): Promise<void> => {
       :title="t('devices.work.failed')"
       tone="failed"
     />
-    <RvDialog
+    <RvConfirmDialog
+      :busy="devices.busy.value"
+      :cancel-label="t('action.cancel')"
       :close-label="t('action.close')"
-      :dismissible="!devices.busy.value"
+      :confirm-label="t('devices.forget')"
       :open="forgetting"
       :title="t('devices.forget.confirm', { name: connection.name })"
-      variant="panel"
+      @confirm="onForget"
       @update:open="$event === false && (forgetting = false)"
     >
       <!-- What forgetting ends, read from what this connection holds. -->
       <ul class="connection__consequences">
         <li v-for="key in forgetConsequences" :key="key">{{ t(key) }}</li>
       </ul>
-      <template #footer>
-        <RvButton
-          :disabled="devices.busy.value"
-          variant="quiet"
-          @click="forgetting = false"
-          >{{ t('action.cancel') }}</RvButton
-        >
-        <RvButton
-          :disabled="devices.busy.value"
-          :loading="devices.busy.value"
-          :loading-label="t('devices.forget')"
-          variant="danger"
-          @click="onForget"
-          ><RvIcon v-if="!devices.busy.value" name="trash" />{{
-            t('devices.forget')
-          }}</RvButton
-        >
-      </template>
-    </RvDialog>
+    </RvConfirmDialog>
   </RvSection>
 </template>
 

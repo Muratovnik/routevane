@@ -250,7 +250,10 @@ test('an operator category carries its lists into a profile and is kept while a 
   await expect(
     removal.getByText(englishCopy('lists.category.inUse.next')),
   ).toBeVisible()
-  await removal.getByRole('button', { name: 'Cancel' }).click()
+  await removal
+    .getByRole('button', { name: 'Close', exact: true })
+    .last()
+    .click()
   await page.getByRole('button', { name: 'Categories', exact: true }).click()
   const categories = page.getByRole('dialog', {
     name: 'Categories',
@@ -354,6 +357,14 @@ test('the library deletes a category with its lists, and composing offers none o
   await newProfile.getByLabel('Domains', { exact: true }).fill('draft.example')
   await newProfile.getByRole('button', { exact: true, name: 'Create' }).click()
   await expect(newProfile).toBeHidden()
+  // The new list's card opens, where its entries and sources are edited next.
+  const createdCard = page.getByRole('dialog', {
+    name: 'Draft fixture',
+    exact: true,
+  })
+  await expect(createdCard).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(createdCard).toBeHidden()
   await expect(libraryRegion(page)).toContainText('Draft fixture')
 
   await openCategoryActions(page, 'Черновик')

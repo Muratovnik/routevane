@@ -16,6 +16,7 @@ import type { ChoiceOption, Fact, StatusTone } from '@/shared/ui/types'
 import RvCodeBlock from '@/shared/ui/RvCodeBlock.vue'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDisclosure from '@/shared/ui/RvDisclosure.vue'
+import RvFact from '@/shared/ui/RvFact.vue'
 import RvFacts from '@/shared/ui/RvFacts.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
@@ -30,16 +31,30 @@ import RvTextInput from '@/shared/ui/RvTextInput.vue'
  * Sending one published file of one format: to a saved connection, or with
  * details entered for this send only, after a preview of what will change. The
  * by-hand path — the file and how to install it — is always below.
+ *
+ * It stands as a page of its own or, `embedded`, inside the side panel the
+ * profile opens it in; the panel then owns the title and the way back, and a
+ * missing connection is added where the operator already is.
  */
 const props = defineProps<{
   artifactId: string
-  breadcrumbs: { label: string; to: string }[]
+  breadcrumbs?: { label: string; to: string }[]
+  embedded?: boolean
   /** The name the format's groups carry on a router; empty when it has none. */
   groupPrefix: string
   heading: string
   target: TargetOption | null
   targetId: string
   preferredDeviceId?: string
+}>()
+
+const emit = defineEmits<{
+  /** The operator asked for a connection this send can use. */
+  addConnection: []
+  /** The device accepted the file. */
+  applied: []
+  /** A file is being applied; the panel must stay open until it answers. */
+  busy: [busy: boolean]
 }>()
 
 const { formatBytes, locale, t, tor } = useLocale()
@@ -110,6 +125,15 @@ const interfacePlaceholder = computed(() =>
   tor(`deploy.field.interface.${props.targetId}.placeholder`, ''),
 )
 
+// A review that failed changed nothing on the device; only an attempt that ran
+// can be said not to have been applied.
+const statusKey = computed(() => {
+  const state = deployment.state.value
+  if (state === 'failed' && !attemptVisible.value)
+    return 'send.status.reviewFailed'
+  return `send.status.${state}`
+})
+
 const statusTone = computed<StatusTone>(() => {
   const state = deployment.state.value
   if (state === 'applied') return 'ready'
@@ -117,17 +141,49 @@ const statusTone = computed<StatusTone>(() => {
   return state === 'planning' || state === 'applying' ? 'busy' : 'waiting'
 })
 
+// The plan names the device it goes to the way the operator checks it — the
+// address, the account and the interface — not the format it was built for,
+// which the panel's title already says.
 const planFacts = computed<Fact[]>(() => {
   const plan = deployment.plan.value
+  const recipient = currentRecipient.value
   if (plan === null) return []
-  return [
-    { key: 'device', label: t('send.plan.device'), value: plan.title },
-    {
-      key: 'file',
-      label: t('send.plan.file'),
-      value: formatBytes(plan.sizeBytes),
-    },
-  ]
+  const facts: Fact[] = []
+  const named = connections.selected.value
+  if (!connections.manual.value && named !== null)
+    facts.push({
+      key: 'device',
+      label: t('send.plan.device'),
+      value: named.name,
+    })
+  if (recipient !== null) {
+    facts.push({
+      key: 'address',
+      label: addressLabel.value,
+      mono: true,
+      value: recipient.device,
+    })
+    if (recipient.username !== '')
+      facts.push({
+        key: 'account',
+        label: accountLabel.value,
+        mono: true,
+        value: recipient.username,
+      })
+    if (recipient.interfaceName !== '')
+      facts.push({
+        key: 'interface',
+        label: interfaceLabel.value,
+        mono: true,
+        value: recipient.interfaceName,
+      })
+  }
+  facts.push({
+    key: 'file',
+    label: t('send.plan.file'),
+    value: formatBytes(plan.sizeBytes),
+  })
+  return facts
 })
 
 const attemptVisible = computed(
@@ -295,6 +351,15 @@ const enterAnotherPassword = async (): Promise<void> => {
   document.getElementById(fieldID('password'))?.focus()
 }
 
+watch(
+  () => deployment.state.value,
+  (state, previous) => {
+    if (state === 'applied') emit('applied')
+    if ((state === 'applying') !== (previous === 'applying'))
+      emit('busy', state === 'applying')
+  },
+)
+
 // A new artifact invalidates a plan made for the previous one.
 watch(
   () => [props.artifactId, props.targetId],
@@ -307,8 +372,13 @@ onMounted(() => {
 </script>
 
 <template>
-  <section aria-labelledby="send-title" class="send">
+  <section
+    :aria-labelledby="embedded ? undefined : 'send-title'"
+    class="send"
+    :class="{ 'send--embedded': embedded }"
+  >
     <RvPageHeader
+      v-if="!embedded"
       :breadcrumb-label="t('profile.breadcrumb')"
       :breadcrumbs="breadcrumbs"
       :title="heading"
@@ -316,10 +386,15 @@ onMounted(() => {
     >
       <RvStatus
         v-if="deployment.state.value !== 'idle'"
-        :label="t(`send.status.${deployment.state.value}`)"
+        :label="t(statusKey)"
         :tone="statusTone"
       />
     </RvPageHeader>
+    <RvStatus
+      v-else-if="deployment.state.value !== 'idle'"
+      :label="t(statusKey)"
+      :tone="statusTone"
+    />
 
     <RvStateNotice
       v-if="deployment.targetsState.value === 'loading'"
@@ -362,8 +437,16 @@ onMounted(() => {
           </template>
         </RvStateNotice>
         <p v-if="noSavedConnections" class="send__none">
-          <span>{{ t('send.connection.none') }}</span>
-          <NuxtLink class="send__link" to="/connections">
+          <span>{{
+            t('send.connection.none.format', { format: targetTitle })
+          }}</span>
+          <RvButton
+            v-if="embedded"
+            size="compact"
+            @click="emit('addConnection')"
+            ><RvIcon name="plus" />{{ t('send.connection.add') }}</RvButton
+          >
+          <NuxtLink v-else class="send__link" to="/connections">
             {{ t('send.connection.add') }}
           </NuxtLink>
         </p>
@@ -440,10 +523,7 @@ onMounted(() => {
             "
             class="send__saved"
           >
-            <span class="send__saved-fact">
-              <RvIcon name="check" />
-              {{ t('devices.credential.saved') }}
-            </span>
+            <RvFact :label="t('devices.credential.saved')" />
             <RvButton
               v-if="savedPasswordInUse && !offerAnotherPassword"
               :disabled="deployment.busy.value"
@@ -550,11 +630,15 @@ onMounted(() => {
         <RvFacts :items="planFacts" />
         <template v-if="deployment.plan.value.fqdnChanges !== undefined">
           <p class="send__note">{{ t('send.plan.fqdn') }}</p>
-          <RvCodeBlock
+          <div
             v-if="deployment.plan.value.fqdnChanges.length > 0"
-            :caption="t('send.plan.fqdn.commands')"
-            :text="deployment.plan.value.fqdnChanges.join('\n')"
-          />
+            class="send__commands"
+          >
+            <RvCodeBlock
+              :caption="t('send.plan.fqdn.commands')"
+              :text="deployment.plan.value.fqdnChanges.join('\n')"
+            />
+          </div>
           <p v-else class="send__note">{{ t('send.plan.fqdn.unchanged') }}</p>
         </template>
         <p class="send__note">{{ t('send.plan.backup') }}</p>
@@ -709,6 +793,19 @@ onMounted(() => {
   width: 100%;
 }
 
+/* Inside the profile's side sheet the panel stands at the inset of the
+   sheet's title; a sheet leaves that inset to its sections (RvDialog). */
+.send--embedded {
+  padding: var(--rv-space-5) var(--rv-space-6) var(--rv-space-8);
+}
+
+@container dialog (width <= 36rem) {
+  .send--embedded {
+    padding-right: var(--rv-space-4);
+    padding-left: var(--rv-space-4);
+  }
+}
+
 .send__section-title {
   font-size: var(--rv-text-section);
 }
@@ -743,13 +840,6 @@ onMounted(() => {
   align-items: center;
 }
 
-.send__saved-fact {
-  display: inline-flex;
-  gap: var(--rv-space-2);
-  align-items: center;
-  font-weight: 600;
-}
-
 .send__submit {
   display: flex;
   gap: var(--rv-space-3);
@@ -760,11 +850,19 @@ onMounted(() => {
   display: grid;
   gap: var(--rv-space-4);
   justify-items: start;
-  max-width: 32rem;
+
+  /* The commands are read line by line, so the plan takes the room the page
+     has rather than the form's narrow column. */
+  max-width: var(--rv-measure-workspace);
   padding: var(--rv-space-5);
   background: var(--rv-color-surface);
   border: var(--rv-border-hair) solid var(--rv-color-rule);
   border-radius: var(--rv-radius-md);
+}
+
+.send__commands {
+  justify-self: stretch;
+  min-width: 0;
 }
 
 .send__note {

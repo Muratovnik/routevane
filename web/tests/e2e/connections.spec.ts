@@ -476,9 +476,18 @@ test('an output can be explicitly bound to and detached from a compatible device
   await page.waitForURL(`${origin}/connections#connection=${deviceID}`)
   await page.goBack()
   await publishingTab.click()
+  // Send opens over the profile and names the format's send in the address.
+  await publishing
+    .getByRole('button', { name: 'Send Keenetic', exact: true })
+    .click()
+  await expect(page).toHaveURL(
+    `${origin}/profiles/${profileId}#tab=outputs&send=${outputId}`,
+  )
   await expect(
-    publishing.getByRole('link', { name: 'Send Keenetic', exact: true }),
-  ).toHaveAttribute('href', `/profiles/${profileId}/send/${outputId}`)
+    page.getByRole('dialog', { name: 'Send · Keenetic', exact: true }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page).toHaveURL(`${origin}/profiles/${profileId}#tab=outputs`)
 
   const [detachedResponse] = await Promise.all([
     page.waitForResponse(

@@ -27,6 +27,26 @@ export type DeviceCard = {
   credentialStored: boolean
   autoDeliver: boolean
   deployable: boolean
+  // Every live format bound to this connection, so a change to the connection
+  // can say what it affects. Empty from a server that does not report it.
+  usedBy: DeviceUse[]
+}
+
+export type DeviceUse = {
+  profileID: string
+  profileName: string
+  outputID: string
+  targetID: string
+  archived: boolean
+}
+
+// What saving a password learned by signing in with it (ADR 0059). A refused
+// password is not saved and answers with an error instead; every result here
+// means the password is kept. `code` names why it is kept unchecked, or what
+// the router lacks.
+export type CredentialCheck = {
+  result: 'verified' | 'interface_missing' | 'unverified' | 'not_applicable'
+  code: string
 }
 
 // Writes answer with the stored device, while catalog-derived card fields are
@@ -40,6 +60,8 @@ export type DeviceWrite = {
   interfaceName?: string
   credentialStored?: boolean
   autoDeliver?: boolean
+  // Present on the answer to saving a password.
+  verification?: CredentialCheck
 }
 
 type DeviceRegistry = {
@@ -115,6 +137,40 @@ export const disableAutoDelivery = (id: string): Promise<DeviceWrite> =>
     parseDeviceWrite,
   )
 
+const deviceUseSchema = v.pipe(
+  fields({
+    profile_id: text,
+    profile_name: text,
+    output_id: text,
+    target_id: text,
+    archived: optionalFlag,
+  }),
+  v.transform((use): DeviceUse => ({
+    profileID: use.profile_id,
+    profileName: use.profile_name,
+    outputID: use.output_id,
+    targetID: use.target_id,
+    archived: use.archived,
+  })),
+)
+
+// A result this build does not know reads as no check at all, never as a
+// verified one.
+const verificationSchema = v.fallback(
+  v.optional(
+    fields({
+      result: v.picklist([
+        'verified',
+        'interface_missing',
+        'unverified',
+        'not_applicable',
+      ]),
+      code: optionalText,
+    }),
+  ),
+  undefined,
+)
+
 const deviceSchema = v.pipe(
   fields({
     id: text,
@@ -127,6 +183,7 @@ const deviceSchema = v.pipe(
     credential_stored: optionalFlag,
     auto_deliver: optionalFlag,
     deployable: optionalFlag,
+    used_by: v.optional(v.array(deviceUseSchema), []),
   }),
   v.transform((device): DeviceCard => ({
     id: device.id,
@@ -139,6 +196,7 @@ const deviceSchema = v.pipe(
     credentialStored: device.credential_stored,
     autoDeliver: device.auto_deliver,
     deployable: device.deployable,
+    usedBy: device.used_by,
   })),
 )
 
@@ -172,8 +230,9 @@ const parseDeviceWrite: Decoder<DeviceWrite> = decode(
         credential_stored: v.optional(optionalFlag),
         auto_deliver: v.optional(optionalFlag),
       }),
+      verification: verificationSchema,
     }),
-    v.transform(({ device }): DeviceWrite => ({
+    v.transform(({ device, verification }): DeviceWrite => ({
       id: device.id,
       targetID: device.target_id,
       name: device.name,
@@ -182,6 +241,7 @@ const parseDeviceWrite: Decoder<DeviceWrite> = decode(
       interfaceName: device.interface,
       credentialStored: device.credential_stored,
       autoDeliver: device.auto_deliver,
+      ...(verification === undefined ? {} : { verification }),
     })),
   ),
 )

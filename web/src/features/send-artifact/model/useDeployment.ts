@@ -300,7 +300,8 @@ export const useDeployment = (
   const savedPasswordRefused = computed(
     () =>
       sentWithSavedPassword.value &&
-      errorKey.value === 'error.connection_invalid',
+      (errorKey.value === 'error.connection_invalid' ||
+        errorKey.value === 'error.device_auth_rejected'),
   )
 
   // A password the operator asked to keep goes to the connection once an apply
@@ -575,6 +576,8 @@ const passwordSaveFailureKey = (error: unknown): string => {
       return 'devices.credential.unavailable'
     case 'credential_invalid':
       return 'devices.credential.invalid'
+    case 'device_auth_rejected':
+      return 'devices.credential.rejected'
     default:
       return 'send.password.save.failed'
   }
@@ -592,6 +595,12 @@ const failureCodes = new Set([
   'confirmation_required',
   'fqdn_ownership_conflict',
   'deploy_failed',
+  // Why the device refused (ADR 0008): each names what the operator can fix.
+  'device_auth_rejected',
+  'device_unreachable',
+  'device_answer_invalid',
+  'device_command_rejected',
+  'device_interface_missing',
 ])
 
 export const messageKey = (error: unknown): string => {

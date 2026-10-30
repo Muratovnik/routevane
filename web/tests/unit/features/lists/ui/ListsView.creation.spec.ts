@@ -109,7 +109,7 @@ describe('creating categories and lists', () => {
     })
   })
 
-  it('creates a new list in the same sheet without rereading the whole library', async () => {
+  it('creates a new list in the same sheet and opens its card', async () => {
     const created = {
       id: 'custom-created-list',
       title: 'Local list',
@@ -118,6 +118,21 @@ describe('creating categories and lists', () => {
     const { calls } = stubAPI({
       ...catalogRoutes(),
       'POST /v1/lists': () => json({ list: created }, 201),
+      'GET /v1/lists/custom-created-list/contents': () =>
+        json({
+          list_id: created.id,
+          rows: [
+            {
+              value: 'local.example',
+              kind: 'domain',
+              origin: 'manual',
+              enabled: true,
+              definition: true,
+            },
+          ],
+          sources: [],
+          observed: true,
+        }),
     })
     const screen = await renderLibrary()
     await expect.element(screen.getByRole('table')).toBeVisible()
@@ -138,11 +153,23 @@ describe('creating categories and lists', () => {
     await fillField(screen, 'Domains', created.domains.join('\n'))
     await sheet.getByRole('button', { name: 'Create' }).click()
 
-    await expect.element(screen.getByRole('dialog')).not.toBeInTheDocument()
-    expect(calls.at(-1)).toEqual({
-      body: JSON.stringify({ title: created.title, domains: created.domains }),
-      key: 'POST /v1/lists',
-    })
+    // The sheet gives way to the new list's own card, where its entries and
+    // sources are edited next.
+    await expect
+      .element(screen.getByRole('dialog', { name: NEW_LIST }))
+      .not.toBeInTheDocument()
+    await expect
+      .element(screen.getByRole('dialog', { name: created.title }))
+      .toBeVisible()
+    expect(calls.filter((call) => call.key === 'POST /v1/lists')).toEqual([
+      {
+        body: JSON.stringify({
+          title: created.title,
+          domains: created.domains,
+        }),
+        key: 'POST /v1/lists',
+      },
+    ])
     expect(rowNames(screen)).toContain(created.title)
   })
 

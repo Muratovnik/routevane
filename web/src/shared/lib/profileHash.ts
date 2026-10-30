@@ -2,13 +2,16 @@
 // server deliberately refuses query strings, so the fragment is the one part
 // of the address a bookmark or refresh can carry to the same facet.
 
+// `send` names the format whose send panel is open over the page, so a reload
+// or a link reopens it.
 export type ProfilePageLocation = {
+  send: string
   setup: string
   tab: string
 }
 
 export const profilePageHash = (
-  options: { setup?: string; tab?: string } = {},
+  options: { send?: string; setup?: string; tab?: string } = {},
 ): string => {
   const values = new URLSearchParams()
   if (options.setup !== undefined && options.setup !== '')
@@ -19,6 +22,8 @@ export const profilePageHash = (
     options.tab !== 'overview'
   )
     values.set('tab', options.tab)
+  if (options.send !== undefined && options.send !== '')
+    values.set('send', options.send)
   const encoded = values.toString()
   return encoded === '' ? '' : `#${encoded}`
 }
@@ -26,6 +31,7 @@ export const profilePageHash = (
 export const parseProfilePageHash = (hash: string): ProfilePageLocation => {
   const values = new URLSearchParams(hash.replace(/^#/, ''))
   return {
+    send: values.get('send') ?? '',
     setup: values.get('setup') ?? '',
     tab: values.get('tab') ?? 'overview',
   }

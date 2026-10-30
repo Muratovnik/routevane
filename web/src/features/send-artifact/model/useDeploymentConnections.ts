@@ -64,9 +64,16 @@ export const useDeploymentConnections = (
       devices.value = registry.devices
       secretStoreAvailable.value = registry.secretStoreAvailable
       if (!initialized && selectionVersion === selectionAtStart) {
+        // The connection the format is bound to, and otherwise the only one
+        // that can take this file: asking the operator to pick the one choice
+        // there is reads as a step the screen forgot.
+        const only =
+          compatible.value.length === 1 ? compatible.value[0]?.id : undefined
         selectedID.value =
           compatible.value.find((device) => device.id === preferredDeviceID())
-            ?.id ?? MANUAL_CONNECTION
+            ?.id ??
+          only ??
+          MANUAL_CONNECTION
       }
       initialized = true
       state.value = 'ready'

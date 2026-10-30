@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useId, useTemplateRef, watch } from 'vue'
 
-import { passwordRefused } from '@/features/devices/lib/deviceFailure'
+import {
+  passwordRefusalKey,
+  passwordRefused,
+} from '@/features/devices/lib/deviceFailure'
 import { keepFocus } from '@/features/devices/lib/keepFocus'
 import type { DevicesModel } from '@/features/devices/model/useDevices'
 import type { DeviceCard } from '@/shared/api/devices'
 import { useLocale } from '@/shared/i18n/useLocale'
+import { useNotify } from '@/shared/model/useNotify'
 import RvButton from '@/shared/ui/RvButton.vue'
+import RvConfirmDialog from '@/shared/ui/RvConfirmDialog.vue'
+import RvFact from '@/shared/ui/RvFact.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
-import RvStatus from '@/shared/ui/RvStatus.vue'
 import RvTextInput from '@/shared/ui/RvTextInput.vue'
-import RvTooltip from '@/shared/ui/RvTooltip.vue'
 
 /**
  * The password of a connection whose format needs one, as its own saved fact
@@ -30,18 +34,21 @@ const props = defineProps<{
   label: string
 }>()
 
-const { t } = useLocale()
+const { t, tor } = useLocale()
+const { notify } = useNotify()
 const headingID = useId()
 const fieldID = useId()
 const password = ref('')
-// The service refused the password it was given and said so: the words go at
+// The service refused the password it was given and said why: the words go at
 // the field until the operator types another.
-const refused = ref(false)
+const refusal = ref('')
 watch(password, () => {
-  refused.value = false
+  refusal.value = ''
 })
 // A saved password is replaced by saying so, not by editing a stand-in for it.
 const replacing = ref(false)
+// Removing a password also ends automatic delivery, so it asks first.
+const removing = ref(false)
 const field = useTemplateRef<InstanceType<typeof RvTextInput>>('field')
 const replace = useTemplateRef<InstanceType<typeof RvButton>>('replace')
 
@@ -69,23 +76,57 @@ const onSave = async (): Promise<void> => {
   )
   if (done) {
     replacing.value = false
+    announceCheck()
     return
   }
   password.value = ''
-  if (passwordRefused(props.devices.failure.value)) {
+  const failure = props.devices.failure.value
+  if (passwordRefused(failure)) {
     await nextTick()
     // Clearing the field above is a change too; the refusal is stated after it.
-    refused.value = true
+    refusal.value = passwordRefusalKey(failure)
     field.value?.element()?.focus()
   }
 }
 
+// Saving signed in with the password (ADR 0059). What that sign-in showed is
+// said once, after the fact that the password is kept.
+const announceCheck = (): void => {
+  const check = props.devices.credentialCheck.value
+  if (check === null || check.result === 'not_applicable') return
+  if (check.result === 'verified') {
+    notify({
+      title: t('devices.credential.saved'),
+      body: t('devices.credential.check.verified'),
+      tone: 'ready',
+    })
+    return
+  }
+  if (check.result === 'interface_missing') {
+    notify({
+      title: t('devices.credential.saved'),
+      body: t('devices.credential.check.interface', {
+        name: props.connection.interfaceName,
+      }),
+      tone: 'waiting',
+    })
+    return
+  }
+  notify({
+    title: t('devices.credential.check.unverified'),
+    body: tor(`error.${check.code}`, t('devices.credential.check.failed')),
+    tone: 'waiting',
+  })
+}
+
 const onRemove = async (): Promise<void> => {
   if (disabled.value) return
-  await keepFocus(
+  const done = await keepFocus(
     () => props.devices.removeCredential(props.connection.id),
     () => field.value?.element(),
   )
+  removing.value = false
+  if (done) notify({ title: t('devices.credential.removed') })
 }
 
 const startReplacing = async (): Promise<void> => {
@@ -98,7 +139,7 @@ const stopReplacing = async (): Promise<void> => {
   password.value = ''
   // A refusal belongs to the attempt that drew it, and the field was already
   // empty, so clearing it above is no change for the watcher to see.
-  refused.value = false
+  refusal.value = ''
   replacing.value = false
   await nextTick()
   focusReplace()?.focus()
@@ -119,7 +160,7 @@ const stopReplacing = async (): Promise<void> => {
       <!-- The act stands in the field's own row, so the error — when there is
            one — runs under the whole row, not under the input alone. -->
       <RvField
-        :error="refused ? t('devices.credential.invalid') : undefined"
+        :error="refusal === '' ? undefined : t(refusal)"
         :input-id="fieldID"
         :label="label"
       >
@@ -157,24 +198,41 @@ const stopReplacing = async (): Promise<void> => {
 
     <template v-else>
       <div class="credential__row">
-        <RvStatus :label="t('devices.credential.saved')" tone="ready" />
-        <RvButton ref="replace" :disabled="disabled" @click="startReplacing"
-          ><RvIcon name="edit" />{{ t('devices.credential.replace') }}</RvButton
-        >
-        <RvTooltip :text="t('devices.credential.remove')">
-          <RvButton
-            :aria-label="t('devices.credential.remove')"
-            :disabled="disabled"
-            @click="onRemove"
+        <RvFact :label="t('devices.credential.saved')" />
+        <span class="credential__actions">
+          <RvButton ref="replace" :disabled="disabled" @click="startReplacing"
+            ><RvIcon name="edit" />{{
+              t('devices.credential.replace')
+            }}</RvButton
           >
-            <RvIcon name="trash" />
-          </RvButton>
-        </RvTooltip>
+          <RvButton
+            :disabled="disabled"
+            variant="quiet"
+            @click="removing = true"
+            ><RvIcon name="trash" />{{
+              t('devices.credential.remove')
+            }}</RvButton
+          >
+        </span>
       </div>
-      <p v-if="connection.autoDeliver" class="credential__note">
+      <p class="credential__note">{{ t('devices.credential.where') }}</p>
+    </template>
+
+    <RvConfirmDialog
+      :busy="devices.busy.value"
+      :cancel-label="t('action.cancel')"
+      :close-label="t('action.close')"
+      :confirm-label="t('devices.credential.remove')"
+      :open="removing"
+      :title="t('devices.credential.remove.title', { name: connection.name })"
+      @confirm="onRemove"
+      @update:open="removing = $event"
+    >
+      <p>{{ t('devices.credential.remove.body') }}</p>
+      <p v-if="connection.autoDeliver">
         {{ t('devices.credential.removeEffect') }}
       </p>
-    </template>
+    </RvConfirmDialog>
   </section>
 </template>
 
@@ -210,6 +268,14 @@ const stopReplacing = async (): Promise<void> => {
   gap: var(--rv-space-3);
   align-items: center;
   min-width: 0;
+}
+
+/* The fact reads first; what can be done about it stands at the row's end. */
+.credential__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--rv-space-3);
+  margin-inline-start: auto;
 }
 
 .credential__input {

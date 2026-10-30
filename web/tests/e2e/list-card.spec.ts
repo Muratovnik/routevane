@@ -608,6 +608,16 @@ test('source skips are visible without changing profiles, and clear after a clea
   const { list: list } = (await created.json()) as {
     list: { id: string }
   }
+  // Reading is offered for a list that has a source to read. The answer to
+  // every read below is the test's, so the feed is never fetched.
+  const source = await page.request.post(
+    `${origin}/v1/lists/${list.id}/sources`,
+    {
+      headers,
+      data: { format: 'text', url: 'https://feed.example/skips.txt' },
+    },
+  )
+  expect(source.ok()).toBe(true)
   const before = await (await page.request.get(`${origin}/v1/profiles`)).text()
   let skipped = 1
   let failed = false

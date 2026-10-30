@@ -77,6 +77,9 @@ export const useProfiles = () => {
   const justDeleted = ref<ProfileCard | null>(null)
   const deleting = ref('')
   const deleteFailure = ref<DeleteFailure>('')
+  // The code of the last refused deletion, so a refusal at a router can say
+  // which one and why.
+  const deleteRefusal = ref('')
   const rebuilding = ref('')
   const rebuiltID = ref('')
   const rebuildFailedID = ref('')
@@ -329,7 +332,10 @@ export const useProfiles = () => {
    * words. A profile the server no longer knows is gone either way, so its row
    * leaves with the same count correction a deletion makes.
    */
-  const removeForever = async (card: ProfileCard): Promise<boolean> => {
+  const removeForever = async (
+    card: ProfileCard,
+    removeFromDevices = false,
+  ): Promise<boolean> => {
     if (deleting.value !== '') return false
     deleting.value = card.id
     deleteFailure.value = ''
@@ -338,8 +344,10 @@ export const useProfiles = () => {
     loadingMore.value = false
     moreFailed.value = false
     try {
-      await deleteProfile(card.id)
+      await deleteProfile(card.id, removeFromDevices)
     } catch (error) {
+      deleteRefusal.value =
+        error instanceof RoutevaneAPIError ? (error.code ?? '') : ''
       if (error instanceof RoutevaneAPIError && error.status === 404) {
         deleteFailure.value = 'gone'
       } else if (
@@ -488,6 +496,7 @@ export const useProfiles = () => {
     copyContents,
     copyFailedID,
     deleteFailure,
+    deleteRefusal,
     deleting,
     deployableOutputs,
     downloadable,

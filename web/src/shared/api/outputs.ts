@@ -1,4 +1,5 @@
 import * as v from 'valibot'
+import { retirementBody } from './deviceObjects'
 import { servingOrigin } from './desktop'
 
 import {
@@ -13,6 +14,7 @@ import {
   optionalCount,
   optionalFlag,
   optionalText,
+  optionalTimestamp,
   postJSON,
   text,
   texts,
@@ -67,6 +69,9 @@ export type OutputArtifact = {
   sizeBytes: number
   contentType: string
   contentCreatedAt: string
+  // When this file became the format's current one; empty from a server that
+  // does not report it.
+  builtAt: string
 }
 
 // The last time this format's file reached a saved connection, whichever
@@ -75,6 +80,15 @@ export type OutputArtifact = {
 export type OutputDelivery = {
   deviceID: string
   artifactID: string
+  completedAt: string
+}
+
+// A send to a saved connection that failed after the latest successful one:
+// the stable code it answered with and the step it stopped at.
+export type OutputDeliveryFailure = {
+  deviceID: string
+  code: string
+  step: string
   completedAt: string
 }
 
@@ -93,6 +107,12 @@ export type OutputCard = {
   latest: OutputArtifact | null
   lastAttempt: OutputAttempt | null
   lastDelivery: OutputDelivery | null
+  // The bound connection's name, empty when the format is bound to none.
+  deviceName: string
+  // The newest successful send of any file of this format to any saved
+  // connection, and a failed send newer than it.
+  latestDelivery: OutputDelivery | null
+  latestFailure: OutputDeliveryFailure | null
 }
 
 export type BuildResult = {
@@ -174,8 +194,15 @@ export type RemovedOutput = {
 
 // Retiring a format is permanent (ADR 0051): its links stop answering, its
 // files stay where they are, and nothing on a router is touched.
-export const removeOutput = (outputID: string): Promise<RemovedOutput> =>
-  postJSON(`/v1/outputs/${outputID}/remove`, {}, parseRemovedOutput)
+export const removeOutput = (
+  outputID: string,
+  removeFromDevices = false,
+): Promise<RemovedOutput> =>
+  postJSON(
+    `/v1/outputs/${outputID}/remove`,
+    retirementBody(removeFromDevices),
+    parseRemovedOutput,
+  )
 
 // A reissued link replaces the active one at once. The new address is a bearer
 // shown exactly once, held in memory by the caller and never read back.
@@ -316,6 +343,7 @@ const cardArtifactSchema = v.pipe(
     size_bytes: count,
     content_type: text,
     content_created_at: timestamp,
+    built_at: optionalTimestamp,
   }),
   v.transform((artifact): OutputArtifact => ({
     id: artifact.id,
@@ -323,6 +351,7 @@ const cardArtifactSchema = v.pipe(
     sizeBytes: artifact.size_bytes,
     contentType: artifact.content_type,
     contentCreatedAt: artifact.content_created_at,
+    builtAt: artifact.built_at,
   })),
 )
 
@@ -368,6 +397,21 @@ const deliverySchema = v.pipe(
   })),
 )
 
+const deliveryFailureSchema = v.pipe(
+  fields({
+    device_id: text,
+    code: text,
+    step: optionalText,
+    completed_at: timestamp,
+  }),
+  v.transform((failure): OutputDeliveryFailure => ({
+    deviceID: failure.device_id,
+    code: failure.code,
+    step: failure.step,
+    completedAt: failure.completed_at,
+  })),
+)
+
 // An absent artifact or attempt is a card that honestly has none. A malformed
 // one is a reply outside the contract, and it refuses the whole list rather
 // than showing a row nobody can trust.
@@ -386,6 +430,9 @@ const outputCardSchema = v.pipe(
     latest: v.nullish(cardArtifactSchema, null),
     last_attempt: v.nullish(attemptSchema, null),
     last_delivery: v.nullish(deliverySchema, null),
+    device_name: optionalText,
+    latest_delivery: v.nullish(deliverySchema, null),
+    latest_failure: v.nullish(deliveryFailureSchema, null),
   }),
   v.transform((card): OutputCard => ({
     id: card.id,
@@ -401,6 +448,9 @@ const outputCardSchema = v.pipe(
     latest: card.latest,
     lastAttempt: card.last_attempt,
     lastDelivery: card.last_delivery,
+    deviceName: card.device_name,
+    latestDelivery: card.latest_delivery,
+    latestFailure: card.latest_failure,
   })),
 )
 

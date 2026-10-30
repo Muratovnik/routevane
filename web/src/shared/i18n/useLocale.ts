@@ -98,6 +98,31 @@ if (typeof document !== 'undefined') {
 
 const numberFormat = computed(() => new Intl.NumberFormat(current.value))
 
+// One way to write a moment on every surface: the date with its whole year and
+// the minute. Seconds are noise for anything an operator compares, a two-digit
+// year reads as a day in another order, and two spellings of the same time on
+// two screens read as two different times.
+const momentFormat = computed(
+  () =>
+    new Intl.DateTimeFormat(current.value, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+)
+
+const relativeFormat = computed(
+  () => new Intl.RelativeTimeFormat(current.value, { numeric: 'auto' }),
+)
+
+const MINUTE = 60_000
+const HOUR = 60 * MINUTE
+const DAY = 24 * HOUR
+// Past a week a relative distance stops being easier to read than the date.
+const RELATIVE_LIMIT = 7 * DAY
+
 // Plain bytes are spelled out because CLDR's abbreviation of `byte` in English
 // is the ungrammatical "950 byte"; its written form, "950 bytes", is the one
 // English actually uses and Russian's "950 байт" declines correctly with it.
@@ -161,14 +186,10 @@ export const useLocale = () => {
 
   return {
     available: locales,
-    dateTime: computed(
-      () =>
-        new Intl.DateTimeFormat(current.value, {
-          dateStyle: 'medium',
-          timeStyle: 'medium',
-        }),
-    ),
+    dateTime: momentFormat,
+    formatAgo,
     formatBytes,
+    formatMoment,
     formatNumber,
     locale: computed(() => current.value),
     setLocale,
@@ -176,6 +197,41 @@ export const useLocale = () => {
     tc: translatePlural,
     tor: translateOr,
   }
+}
+
+const parseMoment = (value: string | Date): Date | null => {
+  const parsed = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(parsed.valueOf()) ? null : parsed
+}
+
+/**
+ * A moment as every surface writes it — «30.10.2026, 20:48» — or a dash for a
+ * value that is not one, so a missing time never reads as a wrong one.
+ */
+export const formatMoment = (value: string | Date): string => {
+  const parsed = parseMoment(value)
+  return parsed === null ? '—' : momentFormat.value.format(parsed)
+}
+
+/**
+ * How long ago a moment was — «5 минут назад», «вчера» — while that is easier
+ * to read than the date, and the moment itself after a week. A moment in the
+ * future, which only a clock that disagrees produces, reads as now.
+ */
+export const formatAgo = (
+  value: string | Date,
+  now: number = Date.now(),
+): string => {
+  const parsed = parseMoment(value)
+  if (parsed === null) return '—'
+  const distance = Math.max(0, now - parsed.valueOf())
+  if (distance >= RELATIVE_LIMIT) return momentFormat.value.format(parsed)
+  const format = relativeFormat.value
+  if (distance < MINUTE) return format.format(0, 'second')
+  if (distance < HOUR)
+    return format.format(-Math.floor(distance / MINUTE), 'minute')
+  if (distance < DAY) return format.format(-Math.floor(distance / HOUR), 'hour')
+  return format.format(-Math.floor(distance / DAY), 'day')
 }
 
 /**

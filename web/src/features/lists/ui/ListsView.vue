@@ -2,11 +2,13 @@
 import RvTable from '@/shared/ui/RvTable.vue'
 import RvPageHeader from '@/shared/ui/RvPageHeader.vue'
 import { useWorkspaceInspection } from '@/shared/model/useWorkspacePane'
+import { useNow } from '@vueuse/core'
 import { useSortable } from '@vueuse/integrations/useSortable'
 import { computed, onMounted, ref, useTemplateRef, watch } from 'vue'
 
 import CategoryFilters from '@/entities/profile-composition/ui/CategoryFilters.vue'
 import { matchesCategories } from '@/entities/profile-composition/model/categoryFilter'
+import { useFreshnessText } from '@/entities/profile-composition/model/freshness'
 import CategoryLabel from '@/entities/profile-composition/ui/CategoryLabel.vue'
 import ListDetailDialog from '@/entities/profile-composition/ui/ListDetailDialog.vue'
 import { useLists, type LibraryRefusal } from '@/features/lists/model/useLists'
@@ -21,8 +23,10 @@ import type { FailureKind } from '@/shared/api/http'
 import { useLocale } from '@/shared/i18n/useLocale'
 import { libraryPageHash, parseLibraryPageHash } from '@/shared/lib/listsHash'
 import type { ChoiceOption, MenuItem, SegmentOption } from '@/shared/ui/types'
+import { useNotify } from '@/shared/model/useNotify'
 import { useTableDragGeometry } from '@/shared/model/useTableDragGeometry'
 import RvButton from '@/shared/ui/RvButton.vue'
+import RvConfirmDialog from '@/shared/ui/RvConfirmDialog.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
@@ -42,6 +46,7 @@ import RvTextInput from '@/shared/ui/RvTextInput.vue'
  */
 const inspectWorkspace = useWorkspaceInspection()
 const { t, tc, tor } = useLocale()
+const { notify } = useNotify()
 const library = useLists()
 const route = useRoute()
 const router = useRouter()
@@ -388,14 +393,69 @@ const onProfileAction = (list: ListDetail, key: string): void => {
     const from = library.categories.value.find(
       (entry) => entry.id === key.slice(7),
     )
-    if (from) void library.detachList(from, list.id)
+    if (from) void detach(from, list)
     return
   }
   if (key === 'detach' && category !== null && !library.stale.value) {
-    void library.detachList(category, list.id)
+    void detach(category, list)
     return
   }
   if (key === 'remove') startRemoveList(list)
+}
+
+// A refusal names the profiles holding the object: deleting again cannot work
+// until they change, so the dialog stops offering it. Any other refusal is a
+// failure worth retrying, said in one notice.
+const inUseRefusal = computed(() => library.refusal.value?.kind === 'inUse')
+const listRefusedInUse = computed(
+  () => removingList.value !== null && inUseRefusal.value,
+)
+const categoryRefusedInUse = computed(
+  () => removingCategory.value && inUseRefusal.value,
+)
+const otherRefusal = computed(() => {
+  const refusal = library.refusal.value
+  return refusal === null || refusal.kind === 'inUse' ? null : refusal
+})
+const listFailure = computed(() =>
+  removingList.value !== null && otherRefusal.value !== null
+    ? t('lists.list.remove.failed')
+    : null,
+)
+const categoryFailure = computed(() =>
+  removingCategory.value && otherRefusal.value !== null
+    ? t('lists.category.failed')
+    : null,
+)
+const refusalBody = computed(() =>
+  otherRefusal.value === null ? '' : failureBody(otherRefusal.value),
+)
+
+const categoryName = (category: CategoryDetail): string =>
+  tor(`category.${category.id}`, category.title)
+
+/**
+ * Taking a list out of a category changes what every profile naming that
+ * category carries, so the act says what it did and offers the way back.
+ */
+const detach = async (
+  category: CategoryDetail,
+  list: ListDetail,
+): Promise<void> => {
+  const result = await library.detachList(category, list.id)
+  if (!committed(result.status)) return
+  notify({
+    action: {
+      label: t('action.undo'),
+      run: () => {
+        void library.addList(result.value ?? category, list.id)
+      },
+    },
+    title: t('lists.detached', {
+      category: categoryName(category),
+      list: list.title,
+    }),
+  })
 }
 
 const startRemoveList = (list: ListDetail): void => {
@@ -415,6 +475,7 @@ const submitCategoryTitle = async (): Promise<void> => {
     if (committed(result.status)) {
       categoryForm.value = 'closed'
       categorySubject.value = null
+      notify({ title: t('lists.category.renamed', { category: title }) })
     }
     return
   }
@@ -453,6 +514,9 @@ const confirmRemoveCategory = async (): Promise<void> => {
   if (committed(result.status)) {
     removingCategory.value = false
     categorySubject.value = null
+    notify({
+      title: t('lists.category.removed', { category: categoryName(category) }),
+    })
     // Only the category that was on screen needs a safe replacement. Removing
     // another row from its overflow menu must not move the operator.
     if (activeCategoryID.value === category.id) select(UNCATEGORIZED_ID)
@@ -466,6 +530,7 @@ const confirmRemoveList = async (): Promise<void> => {
   if (committed(result.status)) {
     removingList.value = null
     if (activeListID.value === list.id) closeList()
+    notify({ title: t('lists.list.removed', { list: list.title }) })
   }
 }
 
@@ -486,13 +551,19 @@ const createList = async (draft: {
     return
   }
   const category = activeRow.value?.category ?? null
+  const createdID = created.value.id
   if (category === null) {
     pendingCreatedListID.value = ''
     listSheetOpen.value = false
-    return
+  } else {
+    pendingCreatedListID.value = createdID
+    await submitPickedLists(createdID)
+    if (listSheetOpen.value) return
   }
-  pendingCreatedListID.value = created.value.id
-  await submitPickedLists(created.value.id)
+  // A new list lands at the end of a table that can run to fifty rows, out of
+  // sight. Its card is what the operator made it for, so it opens on it.
+  notify({ title: t('lists.list.created', { list: draft.title }) })
+  openList(createdID)
 }
 
 const retryCreatedListAttachment = async (): Promise<void> => {
@@ -503,6 +574,17 @@ const retryCreatedListAttachment = async (): Promise<void> => {
 const onListUpdated = (detail: ListDetail): void => {
   library.acceptUpdatedList(detail)
 }
+
+// The column says when each list's sources were last read; a read made in the
+// card lands here without reading the library again.
+const freshnessText = useFreshnessText()
+const now = useNow({ interval: 60_000 })
+const listFreshness = (list: ListDetail) =>
+  freshnessText.cell(list.freshness, now.value.valueOf())
+const listFreshnessLine = (list: ListDetail): string | undefined =>
+  list.freshness === undefined || list.freshness.state === 'none'
+    ? undefined
+    : freshnessText.line(list.freshness, now.value.valueOf()).label
 
 const closeListSheet = (): void => {
   if (library.busy.value) return
@@ -756,6 +838,9 @@ const submitPriority = async (): Promise<void> => {
             <th class="lists__category-column" scope="col">
               {{ t('listPicker.column.category') }}
             </th>
+            <th class="lists__updated-column" scope="col">
+              {{ t('lists.column.updated') }}
+            </th>
             <th class="lists__action-column" scope="col">
               <span class="rv-visually-hidden">{{
                 t('lists.column.actions')
@@ -822,6 +907,13 @@ const submitPriority = async (): Promise<void> => {
               /><span v-if="listCategories(list).length === 0">{{
                 t('listPicker.other')
               }}</span>
+            </td>
+            <td
+              class="lists__updated-column"
+              :class="`lists__updated--${listFreshness(list).tone}`"
+              :title="listFreshnessLine(list)"
+            >
+              {{ listFreshness(list).label }}
             </td>
             <td class="lists__action-column">
               <RvMenu
@@ -986,15 +1078,24 @@ const submitPriority = async (): Promise<void> => {
 
     <!-- Deleting a category asks the one question it has to ask: what becomes
          of the lists it holds. -->
-    <RvDialog
+    <RvConfirmDialog
+      :busy="library.busy.value"
+      :cancel-label="t(categoryRefusedInUse ? 'action.close' : 'action.cancel')"
       :close-label="t('action.close')"
-      :dismissible="!library.busy.value"
+      :confirm-label="t('lists.category.remove.submit')"
+      :confirmable="!categoryRefusedInUse"
+      :error="categoryFailure"
       :open="removingCategory"
-      :title="t('lists.category.remove')"
-      variant="panel"
+      :title="
+        t('lists.category.remove.title', {
+          category:
+            categorySubject === null ? '' : categoryName(categorySubject),
+        })
+      "
+      @confirm="confirmRemoveCategory"
       @update:open="$event === false && closeCategoryRemoval()"
     >
-      <div class="lists__form">
+      <template #choices>
         <RvSegmented
           v-model="chosenDisposition"
           :disabled="library.busy.value"
@@ -1002,95 +1103,47 @@ const submitPriority = async (): Promise<void> => {
           name="lists-category-disposition"
           :options="dispositions"
         />
-        <template v-if="library.refusal.value !== null">
-          <InUseRefusal
-            v-if="library.refusal.value.kind === 'inUse'"
-            :profiles="library.refusal.value.profiles"
-            subject="category"
-          />
-          <RvStateNotice
-            v-else
-            :body="failureBody(library.refusal.value)"
-            live
-            :title="t('lists.category.failed')"
-            tone="failed"
-          />
-        </template>
-      </div>
-      <template #footer>
-        <RvButton
-          :disabled="library.busy.value"
-          variant="quiet"
-          @click="closeCategoryRemoval"
-        >
-          {{ t('action.cancel') }}
-        </RvButton>
-        <RvButton
-          :disabled="library.busy.value"
-          :loading="library.busy.value"
-          variant="danger"
-          @click="confirmRemoveCategory"
-        >
-          {{ t('lists.category.remove.submit') }}
-        </RvButton>
       </template>
-    </RvDialog>
+      <template #refusal>
+        <InUseRefusal
+          v-if="library.refusal.value?.kind === 'inUse'"
+          :profiles="library.refusal.value.profiles"
+          subject="category"
+        />
+      </template>
+      <template #error>{{ refusalBody }}</template>
+    </RvConfirmDialog>
 
-    <RvDialog
+    <RvConfirmDialog
+      :busy="library.busy.value"
+      :cancel-label="t(listRefusedInUse ? 'action.close' : 'action.cancel')"
       :close-label="t('action.close')"
-      :dismissible="!library.busy.value"
+      :confirm-label="t('lists.list.remove.submit')"
+      :confirmable="!listRefusedInUse"
+      :error="listFailure"
+      :irreversible="t('confirm.irreversible')"
       :open="removingList !== null"
-      :title="t('lists.list.remove')"
-      variant="panel"
+      :title="t('lists.list.remove.title', { list: removingList?.title ?? '' })"
+      @confirm="confirmRemoveList"
       @update:open="$event === false && closeListRemoval()"
     >
-      <div class="lists__form">
-        <p class="lists__form-note">
-          {{
-            t('lists.list.remove.body', {
-              list: removingList?.title ?? '',
-            })
-          }}
-        </p>
-        <template v-if="library.refusal.value !== null">
-          <InUseRefusal
-            v-if="library.refusal.value.kind === 'inUse'"
-            :profiles="library.refusal.value.profiles"
-            subject="list"
-          />
-          <RvStateNotice
-            v-else
-            :body="failureBody(library.refusal.value)"
-            live
-            :title="t('lists.category.failed')"
-            tone="failed"
-          />
-        </template>
-      </div>
-      <template #footer>
-        <RvButton
-          :disabled="library.busy.value"
-          variant="quiet"
-          @click="closeListRemoval"
-        >
-          {{ t('action.cancel') }}
-        </RvButton>
-        <RvButton
-          :disabled="library.busy.value"
-          :loading="library.busy.value"
-          variant="danger"
-          @click="confirmRemoveList"
-        >
-          {{ t('lists.list.remove.submit') }}
-        </RvButton>
+      {{ t('lists.list.remove.body') }}
+      <template #refusal>
+        <InUseRefusal
+          v-if="library.refusal.value?.kind === 'inUse'"
+          :profiles="library.refusal.value.profiles"
+          subject="list"
+        />
       </template>
-    </RvDialog>
+      <template #error>{{ refusalBody }}</template>
+    </RvConfirmDialog>
 
     <ListDetailDialog
       :disabled="library.busy.value"
       mode="library"
       :list="activeList"
       @close="closeList"
+      @observed="library.acceptFreshness"
       @remove="startRemoveList"
       @updated="onListUpdated"
     />
@@ -1164,6 +1217,17 @@ const submitPriority = async (): Promise<void> => {
 
 .lists__category-column {
   width: var(--rv-catalog-category-column);
+}
+
+.lists__updated-column {
+  width: var(--rv-catalog-updated-column);
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
+  white-space: nowrap;
+}
+
+.lists__updated--failed {
+  color: var(--rv-color-status-failed);
 }
 
 .lists__list-row {
@@ -1313,6 +1377,12 @@ const submitPriority = async (): Promise<void> => {
 }
 
 @container (width <= 40rem) {
+  /* A narrow library keeps the names and categories; the moment of the last
+     read is on the list's own card. */
+  .lists__updated-column {
+    display: none;
+  }
+
   .lists__workspace .lists__priority-column {
     width: calc(var(--rv-picker-priority-width) + var(--rv-space-2));
     padding-inline: var(--rv-space-1);

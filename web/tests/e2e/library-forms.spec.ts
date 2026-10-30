@@ -207,8 +207,12 @@ test('a refused deletion links the profiles that hold the list and marks archive
   // The refusal itself says which profile is archived: no profile was read to
   // find out.
   expect(profileReads).toEqual([])
-  // The list is still there: a refusal changes nothing.
-  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click()
+  // The list is still there: a refusal changes nothing, and leaves only the
+  // way out — the last Close, the corner one being first.
+  await dialog
+    .getByRole('button', { name: 'Close', exact: true })
+    .last()
+    .click()
   await expect(libraryRow(libraryRegion(page), 'Held list')).toBeVisible()
   await expect(linkTo(page, `/profiles/${profiles.live}`)).toHaveCount(0)
 })

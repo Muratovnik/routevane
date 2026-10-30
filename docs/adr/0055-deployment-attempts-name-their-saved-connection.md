@@ -4,6 +4,13 @@ status: adopted
 
 # ADR 0055: a deployment attempt names the saved connection it reached
 
+The interface clause of this decision is amended: the Publishing tab now shows
+the newest successful send of a format's file to any saved connection
+(`latest_delivery`), naming that connection when it is not the bound one, and a
+failed send that completed after it (`latest_failure`). `last_delivery` keeps
+the meaning below for the clients that read it. The journal, its column and its
+rules are unchanged.
+
 ## Context
 
 The Publishing tab of a profile shows, for each format, when its file last

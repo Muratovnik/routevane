@@ -1,3 +1,4 @@
+import { useNow } from '@vueuse/core'
 import { computed, onScopeDispose, ref, watch } from 'vue'
 
 import {
@@ -26,7 +27,13 @@ import { libraryPageHash } from '@/shared/lib/listsHash'
 import { useDebouncedMutation } from '@/shared/model/useDebouncedMutation'
 import type { ChoiceOption } from '@/shared/ui/types'
 
-import type { ListContents, ListContentsRow, ListDetail } from './types'
+import { useFreshnessText, type FreshnessText } from './freshness'
+import type {
+  ListContents,
+  ListContentsRow,
+  ListDetail,
+  ListFreshness,
+} from './types'
 
 export type ListDetailProps = {
   mode: 'compose' | 'library'
@@ -51,6 +58,11 @@ export type ListDetailReport = {
    * refusal serve both ways in.
    */
   remove: (detail: ListDetail) => void
+  /**
+   * The contents state when the list's sources were last read. Whoever shows
+   * the list elsewhere keeps the same moment without reading it again.
+   */
+  observed?: (listID: string, freshness: ListFreshness) => void
 }
 
 // The batch endpoint takes at most this many values in one request, so a long
@@ -78,6 +90,9 @@ export const useListDetail = (
   report: ListDetailReport,
 ) => {
   const { t, tc, tor } = useLocale()
+  const freshnessText = useFreshnessText()
+  // «5 минут назад» has to move on while the card stays open.
+  const now = useNow({ interval: 60_000 })
 
   const composing = computed(() => props.mode === 'compose')
   const curating = computed(() => props.mode === 'library')
@@ -157,10 +172,21 @@ export const useListDetail = (
     async (value, enabled) => {
       const list = props.list
       if (list === null) return undefined
+      if (enabled) return setListValues(list.id, [value], 'auto')
       const row = rows.value.find((candidate) => candidate.value === value)
-      const verdict: DomainVerdict =
-        enabled || row?.origin === 'manual' ? 'auto' : 'exclude'
-      return setListValues(list.id, [value], verdict)
+      // The list's own definition and anything the catalog or a source offers
+      // are switched off by an exclude. A value only the operator added is taken
+      // back instead — unless a source offers it too, in which case taking the
+      // addition back leaves it on and only an exclude switches it off.
+      const takeBack = row?.origin === 'manual' && row.definition !== true
+      const verdict: DomainVerdict = takeBack ? 'auto' : 'exclude'
+      const answer = await setListValues(list.id, [value], verdict)
+      const stillOn =
+        answer.rows.find((candidate) => candidate.value === value)?.enabled ===
+        true
+      return takeBack && stillOn
+        ? setListValues(list.id, [value], 'exclude')
+        : answer
     },
     {
       resolve: (next, enabled, value) =>
@@ -203,6 +229,20 @@ export const useListDetail = (
         : { ...source, enabled }
     }),
   )
+
+  // What the card says about its sources when nothing is in flight: none at
+  // all, or when they were last read and what that read changed.
+  const sourceSummary = computed<FreshnessText | null>(() => {
+    const loaded = contents.value
+    if (loaded === null) return null
+    if (loaded.sources.length === 0)
+      return { label: t('listFreshness.none'), tone: 'waiting' }
+    if (loaded.freshness !== null)
+      return freshnessText.line(loaded.freshness, now.value.valueOf())
+    return loaded.observed
+      ? null
+      : { label: t('listFreshness.never'), tone: 'waiting' }
+  })
 
   // Before the contents land, the catalog entry already knows how many sources
   // the list has, so the control that opens them never starts at nothing.
@@ -350,6 +390,22 @@ export const useListDetail = (
     for (const source of next.sources)
       sourceMutations.seed(source.id, source.enabled)
     contentsState.value = 'ready'
+    reportFreshness(next)
+  }
+
+  const reportFreshness = (next: ListContents): void => {
+    const known = props.list?.freshness
+    const fresh = next.freshness
+    if (
+      fresh === null ||
+      (known !== undefined &&
+        known.state === fresh.state &&
+        known.lastReadAt === fresh.lastReadAt &&
+        known.added === fresh.added &&
+        known.removed === fresh.removed)
+    )
+      return
+    report.observed?.(next.listID, fresh)
   }
 
   // A toggle response is authoritative for the rows and sources it observed,
@@ -810,6 +866,7 @@ export const useListDetail = (
     sourceMutations,
     sources,
     sourcesOpen,
+    sourceSummary,
     titleDraft,
     titleError,
     toggleBlocked,

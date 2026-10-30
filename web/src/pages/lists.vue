@@ -9,7 +9,7 @@ const { t } = useLocale()
 
 useHead({
   title: computed(
-    () => `${t('shell.product')} · ${t('profiles.title').toLowerCase()}`,
+    () => `${t('shell.product')} · ${t('lists.title').toLowerCase()}`,
   ),
 })
 </script>

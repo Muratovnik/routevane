@@ -500,6 +500,15 @@ describe('the server states its fields, the screen reads its own', () => {
           credential_stored: true,
           auto_deliver: true,
           deployable: true,
+          used_by: [
+            {
+              profile_id: 'profile-1',
+              profile_name: 'Home',
+              output_id: 'output-1',
+              target_id: 'keenetic',
+              archived: true,
+            },
+          ],
         },
       ],
       secret_store_available: true,
@@ -517,6 +526,15 @@ describe('the server states its fields, the screen reads its own', () => {
           credentialStored: true,
           autoDeliver: true,
           deployable: true,
+          usedBy: [
+            {
+              profileID: 'profile-1',
+              profileName: 'Home',
+              outputID: 'output-1',
+              targetID: 'keenetic',
+              archived: true,
+            },
+          ],
         },
       ],
       secretStoreAvailable: true,
@@ -610,11 +628,29 @@ describe('the server states its fields, the screen reads its own', () => {
           origin: 'itdoginfo',
           enabled: true,
           missing: false,
+          definition: true,
         },
         { value: '1.1.1.0/24', kind: 'prefix' },
       ],
-      sources: [{ id: 'itdoginfo', type: 'http', custom: true, enabled: true }],
+      sources: [
+        {
+          id: 'itdoginfo',
+          type: 'http',
+          custom: true,
+          enabled: true,
+          state: 'failed',
+          last_success_at: '2026-10-30T10:00:00Z',
+          last_failure_at: '2026-10-30T11:00:00Z',
+          last_error: 'source_unavailable',
+        },
+      ],
       observed: true,
+      freshness: {
+        state: 'failed',
+        last_read_at: '2026-10-30T10:00:00Z',
+        added: 3,
+        removed: 1,
+      },
     })
     await expect(loadListContents('discord')).resolves.toEqual({
       listID: 'discord',
@@ -625,6 +661,7 @@ describe('the server states its fields, the screen reads its own', () => {
           origin: 'itdoginfo',
           enabled: true,
           missing: false,
+          definition: true,
         },
         {
           value: '1.1.1.0/24',
@@ -632,6 +669,7 @@ describe('the server states its fields, the screen reads its own', () => {
           origin: '',
           enabled: false,
           missing: false,
+          definition: false,
         },
       ],
       sources: [
@@ -641,10 +679,34 @@ describe('the server states its fields, the screen reads its own', () => {
           custom: true,
           enabled: true,
           url: '',
+          state: 'failed',
+          lastSuccessAt: '2026-10-30T10:00:00Z',
+          lastFailureAt: '2026-10-30T11:00:00Z',
+          lastError: 'source_unavailable',
         },
       ],
       observed: true,
+      freshness: {
+        state: 'failed',
+        lastReadAt: '2026-10-30T10:00:00Z',
+        added: 3,
+        removed: 1,
+      },
     })
+
+    // A server that does not report freshness, or reports a state this build
+    // does not know, leaves the list without one rather than a guessed one.
+    for (const freshness of [undefined, { state: 'ripe', added: 0 }]) {
+      answer({
+        list_id: 'discord',
+        rows: [],
+        sources: [],
+        ...(freshness === undefined ? {} : { freshness }),
+      })
+      await expect(loadListContents('discord')).resolves.toMatchObject({
+        freshness: null,
+      })
+    }
 
     answer({
       service_id: 'discord',

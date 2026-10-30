@@ -19,10 +19,24 @@ describe('list page hash', () => {
 
   it('parses what it writes and defaults the rest', () => {
     expect(parseProfilePageHash('#setup=keenetic&tab=outputs')).toEqual({
+      send: '',
       setup: 'keenetic',
       tab: 'outputs',
     })
-    expect(parseProfilePageHash('')).toEqual({ setup: '', tab: 'overview' })
+    expect(parseProfilePageHash('')).toEqual({
+      send: '',
+      setup: '',
+      tab: 'overview',
+    })
+    // The open send panel is part of the address, beside the tab.
+    expect(profilePageHash({ send: 'output-1', tab: 'outputs' })).toBe(
+      '#tab=outputs&send=output-1',
+    )
+    expect(parseProfilePageHash('#tab=outputs&send=output-1')).toEqual({
+      send: 'output-1',
+      setup: '',
+      tab: 'outputs',
+    })
   })
 
   it.each(['profile', 'list'])(

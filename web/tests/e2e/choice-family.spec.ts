@@ -66,8 +66,11 @@ const openFeedForm = async (page: Page, origin: string) => {
     .getByRole('button', { name: 'Open the contents of list Discord' })
     .click()
   const card = page.getByRole('dialog', { exact: true, name: 'Discord' })
+  // The control that opens the sources names them and how many there are.
   await card
-    .getByRole('button', { name: englishCopy('listCard.sources.configure') })
+    .getByRole('button', {
+      name: new RegExp(`^${englishCopy('listCard.sources.manage')}`),
+    })
     .click()
   await page
     .getByRole('button', { name: englishCopy('listCard.feed.add') })

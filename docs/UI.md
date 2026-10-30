@@ -200,9 +200,13 @@ Sections, addressable by URL:
    («catalog», «by hand», «v2fly»), because a value already shows what kind
    it is. **Opened from a profile, the card reads**: the rows carry no control,
    because the profile's own act is the footer and the list itself is edited
-   where lists are edited (ADR 0029). The source count («Источники · 2») labels the refresh button, which rereads
-   existing sources and invalidates the draft forecast. Source configuration
-   stays in the library, behind a separate settings icon.
+   where lists are edited (ADR 0029). One line under the heading says when
+   the list's automatic sources were last read and what that read changed —
+   «Обновлено 5 минут назад · новых: 12 · ушло из источников: 3», «без
+   изменений», «данные устарели», «Источники ещё не читались», «Нет
+   автоматических источников» — and a read under way or failed takes its place
+   with its status. Composing states the source count («Источники · 2») as a
+   fact; reading again and configuring sources belong to the library.
    The footer is one line: the membership status, the toggle beside
    it, and «applies when the profile is saved» only while the card was opened
    from an unsaved draft. A draft's name is proposed from what is picked, so
@@ -225,18 +229,29 @@ Sections, addressable by URL:
    has just been issued or reissued, because that is the only moment the link
    can be read (see «The one-time secret»).
    The Publishing tab is one table and what sits around it. Above the table
-   stand one field, «Автообновление профиля» (Settings supplies only the
+   stand one field, «Обновление источников» (Settings supplies only the
    global default), and the «Добавить формат» action, which opens the
    searchable format choice; adding a format creates it and publishes it in
    one move, because a format with no file is a promise the screen cannot keep.
    Each row is one line: the format with its file extension, its connection,
-   the content date, and the date the file last reached that connection
-   («Отправлено»: the latest successful send to a saved connection, manual or
-   automatic; a dash when there has been none). The connection cell holds only
+   «Обновлено» — when the current file became current — and «Отправлено»: the
+   latest successful send of the format's file to any saved connection, manual
+   or automatic, with that connection named when it is not the bound one,
+   «отправлена прежняя версия» when the file it reached is older than the
+   current one, and «Не отправлено» with the reason behind an information
+   button when a later send failed; a dash when there has been none (ADR
+   0055). Both moments read as a distance («5 минут назад») for a week and as
+   the date after it, with the whole moment on hover. The connection cell holds only
    the choice, which names connections only, with «Не выбрано» first; a
    connection's delivery state is the option's note, and the connection page
    owns that state. Download and Send are compact icon buttons at the row's
-   end, each named for its format and explained by a tooltip. An archived
+   end, each named for its format and explained by a tooltip. Send — from the
+   row or from the profile menu — opens the send panel over the profile as a
+   side sheet; the address carries `#send={format}`, so a reload reopens it,
+   and a successful send updates the row behind it. The sheet cannot be
+   closed while a file is being applied. A link to a format the page cannot
+   send — no longer in the profile, without a file yet, or in an archived
+   profile — says so once in the corner and leaves the address. An archived
    profile shows the bound connection as text, offers no changes and no Send;
    Download stays. Each row's
    «⋮» menu holds «Открыть подключение» while a connection is bound,
@@ -248,7 +263,18 @@ Sections, addressable by URL:
    link is shown once (see «The one-time secret»). After a reload no format
    has its link on screen; each format's own menu offers «Выпустить новую
    ссылку…», and the tab carries no notice that speaks for one format of
-   several. Automatic delivery is
+   several. «Убрать формат…» offers «Также убрать с роутера» when the format
+   left objects on a router: the question lists each router with what would
+   go from it, and when one cannot be cleaned (no connection, no saved
+   password, a format that cannot remove) the switch is withdrawn and the
+   reason stands beside that router. The question's body follows the switch:
+   what stays on the routers, or what will be removed from them. Chosen, the
+   removal happens first and the format is retired only if every router was
+   cleaned (ADR 0060); a refusal keeps the format, names the router's reason in
+   the words a send uses, and the question reads again what is still on the
+   routers, since a router cleaned before the one that refused stays clean.
+   Deleting an archived profile offers the same choice for all its formats.
+   Automatic delivery is
    primary when a deployer exists; subscription and manual download remain
    available ways to get the file.
    The format settings dialog holds the choices a format offers. The domain-based
@@ -281,7 +307,12 @@ Sections, addressable by URL:
    the same identity colors. The filter includes «Без категории»; a labelled
    «+» tag beside the filters creates a category, and «Категории» in the page
    header opens category management. «Новый список»
-   creates a list or adds an existing one to the selected category. Creating a
+   creates a list or adds an existing one to the selected category; a created
+   list opens in its card, because it lands at the end of the table, out of
+   sight. A column «Обновлено» says when each list's sources were last read
+   («5 минут назад · новых: 12», «не читались», «ошибка чтения») with the
+   card's whole sentence on hover, and a read made in a card updates it in
+   place. Creating a
    category and creating a list are each one bounded dialog — a centred box, not
    a working sheet — with the name at the shared field width and the actions
    together at the right of its footer. Category management names itself once,
@@ -315,7 +346,9 @@ Sections, addressable by URL:
    service answered with an error — because they ask for different next steps,
    and the commands that need the lists stay unavailable until they are read;
    the composer and the list card say the same.
-5. `/profiles/{profileId}/send/{outputId}` — **Send.** An action, not a step:
+5. `/profiles/{profileId}/send/{outputId}` — **Send.** The same panel the
+   profile opens as a side sheet stands at this address for links and
+   bookmarks. An action, not a step:
    automatic applying with a plan, a backup and an audit trail when the format
    has a deployer, and the by-hand path always stated below it. The trail
    «Профили › {profile}» stands above the title «Отправка · {format}»; a status
@@ -327,8 +360,7 @@ Sections, addressable by URL:
    otherwise the password field is shown, with «Сохранить пароль в подключении»
    when the system has a credential store, stating that the password will be
    kept in the Windows credential store. The password is saved only after the
-   send succeeds: a preview of a router does not contact it and proves nothing
-   about the password. A send refused while it used the saved password says
+   send succeeds, and saving signs in with it once more (ADR 0059). A send refused while it used the saved password says
    «Сохранённый пароль не принят» and offers «Ввести другой для этой отправки»;
    «Заменить сохранённый пароль» keeps the new one in its place.
    «Показать изменения» is the primary action until a
@@ -408,12 +440,16 @@ Sections, addressable by URL:
    «Пароль» and «Автоотправка» are two sections, each its own act, and neither
    is part of saving parameters (ADR 0050). A format that needs a password shows
    «Пароль» under the parameters. Without a saved one it is a field and
-   «Сохранить пароль» with the consequence of saving beside them; with one it is
-   the statement «Пароль сохранён» with «Заменить» and a trash «Удалить». The
-   password is never read back, masked or otherwise, and where the system has no
-   secret store the section says saving is unavailable instead of offering a
-   field. Removing the password also turns automatic delivery off, and the
-   section says so while delivery is on. A format that needs no password shows
+   «Сохранить пароль» with where it is kept beside them; with one it is the
+   fact «Пароль сохранён» — a check mark and words, not a status dot — with
+   «Заменить» and «Удалить». Saving signs in to the router read-only first
+   (ADR 0059): a password the router refuses is not kept and the field says so;
+   a kept one is announced with what the sign-in showed — accepted, no such
+   interface on the router, or not checked because the router did not answer.
+   The password is never read back, masked or otherwise, and where the system
+   has no secret store the section says saving is unavailable instead of
+   offering a field. «Удалить» asks first, and the question says that
+   automatic delivery goes with the password while it is on. A format that needs no password shows
    no such section. «Автоотправка» is one switch that states what the server
    holds and changes only when the server confirms. For a format that needs a
    password it is unavailable until one is saved, with the reason in words
@@ -487,7 +523,8 @@ Sections, addressable by URL:
    rewrites the document sent to the server.
 
 The URL hash carries only page location — the active tab, the first-setup
-handoff and, on Connections, the connection to open (`#connection=<id>`; an
+handoff, on a profile the format whose send sheet is open (`#send=<id>`), and,
+on Connections, the connection to open (`#connection=<id>`; an
 unknown id opens the default one) — never profile contents: a refresh,
 bookmark, second tab or second browser resolves the same server-owned object
 via `GET /v1/profile-shelf/{shelf}` and `GET /v1/profiles/{profileId}`, never
@@ -595,6 +632,23 @@ the thing that will happen.
   the server.
 - Server codes and server English never reach the operator as themselves.
   Models answer with message keys; the interface owns the sentence.
+- A fact is not a status. A saved password, a membership or a completed read
+  is stated as a check mark in the brand accent and words (`RvFact`); the
+  status dot (`RvStatus`) is kept for what is under way, waiting, failed or
+  ready to act on.
+- The result of an act that leaves the screen as it was — a list created, a
+  category deleted, a password saved or removed — is announced once in the
+  corner (`RvToaster`, through `useNotify`): a title, an optional sentence and,
+  where the act can be undone, one action such as «Вернуть». A notice that
+  carries an action stays longer; the corner keeps at most three. A refusal
+  is not a notice: it stays where the act was asked for.
+- An act that cannot be undone asks first in one shape (`RvConfirmDialog`):
+  the question names the thing, the body says what goes with it, the
+  destructive button says the act, and a refusal stays inside the question
+  with the act withdrawn when asking again cannot succeed.
+- A moment is written one way everywhere: the date with its whole year and
+  the minute; where a distance reads better, «5 минут назад» for a week and the
+  date after it.
 
 ## The one-time secret
 

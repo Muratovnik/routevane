@@ -19,7 +19,6 @@ import {
   cardRow,
   cardRows,
   dialogScrims,
-  escapeRegExp,
   libraryRegion,
   libraryRowName,
   segmentOption,
@@ -77,6 +76,16 @@ for (const language of ['en', 'ru'] as const) {
         },
       )
       expect(disabled.status()).toBe(200)
+      // Reading is offered only for a list with a source. Every read below is
+      // answered by the test, so the feed is never fetched.
+      const source = await page.request.post(
+        `${origin}/v1/lists/${list.id}/sources`,
+        {
+          headers,
+          data: { format: 'text', url: 'https://feed.example/geometry.txt' },
+        },
+      )
+      expect(source.ok()).toBe(true)
 
       try {
         await page.goto(`${origin}/profiles/new`)
@@ -244,14 +253,13 @@ for (const language of ['en', 'ru'] as const) {
             body: JSON.stringify({ refresh: { skipped_entries: 0 } }),
           })
         })
-        // The action names both the act and how many sources it reads, which
-        // is what keeps it recognizable while it works.
+        // The action names the act in full; its visible word is the start of
+        // that name, which is what keeps it recognizable while it works.
         const refresh = library.getByRole('button', {
-          name: new RegExp(`^${escapeRegExp(copy('listCard.refresh'))}: `),
+          name: copy('listCard.refresh'),
+          exact: true,
         })
-        await expect(refresh).toHaveAccessibleName(
-          new RegExp(`^${escapeRegExp(copy('listCard.refresh'))}:`),
-        )
+        await expect(refresh).toContainText(copy('listCard.refresh.short'))
         const libraryClose = library
           .getByRole('button', { name: copy('action.close') })
           .last()
@@ -559,6 +567,17 @@ for (const language of ['en', 'ru'] as const) {
           body: JSON.stringify({
             ...contents,
             observed: refreshCalls > 1,
+            // The read that succeeded is the one the card then reports.
+            ...(refreshCalls > 1
+              ? {
+                  freshness: {
+                    state: 'fresh',
+                    last_read_at: new Date().toISOString(),
+                    added: 0,
+                    removed: 0,
+                  },
+                }
+              : {}),
           }),
         })
       })
@@ -607,7 +626,9 @@ for (const language of ['en', 'ru'] as const) {
         await expect(
           card.getByRole('heading', { name: copy('listCard.domains') }),
         ).toBeVisible()
-        await expect(card.getByText(copy('listCard.observing'))).toBeVisible()
+        await expect(
+          card.getByText(copy('listCard.refresh.busy'), { exact: true }),
+        ).toBeVisible()
         await expect(close).toBeDisabled()
         await page.keyboard.press('Escape')
         await expect(card).toBeVisible()
@@ -672,7 +693,9 @@ for (const language of ['en', 'ru'] as const) {
           .click()
         await expect(card.getByRole('alert')).toHaveCount(0)
         await expect(
-          card.getByRole('img', { name: copy('listCard.refresh.ready') }),
+          card
+            .getByTestId('rv-list-card-status')
+            .getByText(copy('listFreshness.unchanged'), { exact: false }),
         ).toBeVisible()
         const recoveredFilterBox = await card
           .getByRole('searchbox', { name: copy('listCard.filter') })
@@ -682,9 +705,9 @@ for (const language of ['en', 'ru'] as const) {
           .boundingBox()
         expect(recoveredFilterBox).not.toBeNull()
         expect(recoveredRefreshStatusBox).not.toBeNull()
-        // Recovery replaces the localized reading status with the compact ready
-        // icon, so the reserved row's own height changes with the translation
-        // and the platform's wrapping. The filter must follow that change
+        // Recovery replaces the localized reading status with the line about
+        // the read, so the reserved row's own height changes with the
+        // translation and the platform's wrapping. The filter must follow that change
         // exactly, which is what proves nothing else moved it.
         const recoveredStatusChange =
           (recoveredRefreshStatusBox?.height ?? 0) -

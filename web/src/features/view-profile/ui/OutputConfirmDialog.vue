@@ -2,9 +2,7 @@
 import { computed } from 'vue'
 
 import { useLocale } from '@/shared/i18n/useLocale'
-import RvButton from '@/shared/ui/RvButton.vue'
-import RvDialog from '@/shared/ui/RvDialog.vue'
-import RvStateNotice from '@/shared/ui/RvStateNotice.vue'
+import RvConfirmDialog from '@/shared/ui/RvConfirmDialog.vue'
 
 /**
  * The confirmation an irreversible act on one format asks for: reissuing its
@@ -19,6 +17,8 @@ const props = defineProps<{
   error: string | null
   kind: 'reissue' | 'remove'
   open: boolean
+  /** The removal also takes from routers what the format sent there. */
+  removesFromDevices?: boolean
   target: string
 }>()
 
@@ -29,55 +29,28 @@ const emit = defineEmits<{
 
 const { t } = useLocale()
 const copy = computed(() => `outputs.${props.kind}`)
+const body = computed(() =>
+  props.kind === 'remove' && props.removesFromDevices === true
+    ? t('outputs.remove.confirm.body.clean')
+    : t(`${copy.value}.confirm.body`),
+)
 </script>
 
 <template>
-  <RvDialog
+  <RvConfirmDialog
+    :busy="busy"
+    :cancel-label="t('action.cancel')"
     :close-label="t('action.close')"
-    :dismissible="!busy"
+    :confirm-label="t(`${copy}.submit`)"
+    :error="error === null ? null : t(error)"
     :open="open"
     :title="t(`${copy}.confirm`, { target })"
-    variant="panel"
+    @confirm="emit('confirm')"
     @update:open="emit('update:open', $event)"
   >
-    <div class="output-confirm">
-      <p class="output-confirm__consequence">{{ t(`${copy}.confirm.body`) }}</p>
-      <RvStateNotice
-        v-if="error !== null"
-        live
-        :title="t(error)"
-        tone="failed"
-      />
-    </div>
-    <template #footer>
-      <RvButton
-        :disabled="busy"
-        variant="quiet"
-        @click="emit('update:open', false)"
-      >
-        {{ t('action.cancel') }}
-      </RvButton>
-      <RvButton
-        :loading="busy"
-        :loading-label="t(`${copy}.submit`)"
-        variant="danger"
-        @click="emit('confirm')"
-      >
-        {{ t(`${copy}.submit`) }}
-      </RvButton>
-    </template>
-  </RvDialog>
+    <p>{{ body }}</p>
+    <!-- What else the act can do, chosen by the caller. -->
+    <template #choices><slot /></template>
+    <template #error><slot name="error" /></template>
+  </RvConfirmDialog>
 </template>
-
-<style scoped>
-/* The panel's body is the caller's to pad; it keeps the header's inset. */
-.output-confirm {
-  display: grid;
-  gap: var(--rv-space-4);
-}
-
-.output-confirm__consequence {
-  max-width: var(--rv-measure-prose);
-  font-size: var(--rv-text-interface);
-}
-</style>

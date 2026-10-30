@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { nextTick, ref, watch } from 'vue'
 
-import type { ListDetail } from '@/entities/profile-composition/model/types'
+import type {
+  ListDetail,
+  ListFreshness,
+} from '@/entities/profile-composition/model/types'
 import {
   useListDetail,
   type ListDetailProps,
@@ -9,6 +12,7 @@ import {
 import { useLocale } from '@/shared/i18n/useLocale'
 import RvButton from '@/shared/ui/RvButton.vue'
 import RvDialog from '@/shared/ui/RvDialog.vue'
+import RvFact from '@/shared/ui/RvFact.vue'
 import RvField from '@/shared/ui/RvField.vue'
 import RvFilePicker from '@/shared/ui/RvFilePicker.vue'
 import RvIcon from '@/shared/ui/RvIcon.vue'
@@ -43,6 +47,8 @@ const emit = defineEmits<{
    * and one refusal serve both ways in.
    */
   remove: [detail: ListDetail]
+  /** The list's sources were read; the moment and what it changed. */
+  observed: [listID: string, freshness: ListFreshness]
 }>()
 
 const { t, tc } = useLocale()
@@ -74,7 +80,6 @@ const {
   interactionBusy,
   libraryHref,
   membershipLabel,
-  observing,
   onAddFeed,
   onAddValues,
   onAddValuesOpen,
@@ -103,6 +108,7 @@ const {
   sourceMutations,
   sources,
   sourcesOpen,
+  sourceSummary,
   titleDraft,
   titleError,
   toggleBlocked,
@@ -110,6 +116,7 @@ const {
 } = useListDetail(props, {
   close: () => emit('close'),
   created: (detail) => emit('created', detail),
+  observed: (listID, freshness) => emit('observed', listID, freshness),
   remove: (detail) => emit('remove', detail),
   updated: (detail) => emit('updated', detail),
 })
@@ -288,52 +295,11 @@ watch(contentsState, async (state) => {
           </strong>
         </div>
         <div class="list-card__commands">
-          <!-- Reading the sources is the frequent act; editing which sources
-               there are is the rare one, so the frequent one is the control
-               and the rare one opens a panel. Re-reading belongs to the library
-               that owns these sources: a route only reads a list, and the
-               composer already carries one control that re-reads every list it
-               uses. Offering a third one here would put the same act on one
-               screen three times over, at three scopes nobody asked about. -->
-          <RvTooltip v-if="curating" :text="t('listCard.refresh')">
-            <RvButton
-              class="list-card__refresh-button"
-              :aria-busy="refreshing ? 'true' : undefined"
-              :aria-label="`${t('listCard.refresh')}: ${t('listCard.sources.open', { count: sourceCount })}`"
-              :disabled="interactionBusy || contentsState !== 'ready'"
-              size="compact"
-              type="button"
-              variant="secondary"
-              @click="onRefreshSources"
-            >
-              <RvIcon name="refresh" :spin="refreshing" />
-              <span>{{
-                t('listCard.sources.open', { count: sourceCount })
-              }}</span>
-            </RvButton>
-          </RvTooltip>
-          <p v-else class="list-card__sources-fact">
-            {{ t('listCard.sources.open', { count: sourceCount }) }}
-          </p>
-          <RvTooltip v-if="curating" :text="t('listCard.sources.configure')">
-            <RvButton
-              class="list-card__sources-button"
-              :aria-label="t('listCard.sources.configure')"
-              :disabled="interactionBusy"
-              size="compact"
-              type="button"
-              variant="secondary"
-              @click="sourcesOpen = true"
-              ><RvIcon name="settings"
-            /></RvButton>
-          </RvTooltip>
-
-          <!-- Source reads keep one compact, reserved status row. The retry
-               control is present but invisible until an error so the filter
-               and the known rows do not move when the answer changes. -->
-          <!-- The row changes its own role with the answer it carries, so no
-               single accessible query names the row itself; a test that reads
-               the height it reserves needs a hook of its own. -->
+          <!-- When the sources were last read and what that read changed is
+               the card's one line about them; the act of reading them again
+               sits beside it. Re-reading belongs to the library that owns the
+               sources: a route only reads a list, and the composer already
+               carries one control that re-reads every list it uses. -->
           <div
             class="list-card__refresh-status"
             data-testid="rv-list-card-status"
@@ -358,9 +324,7 @@ watch(contentsState, async (state) => {
             <RvStatus
               v-else-if="refreshing"
               class="list-card__refresh-indicator"
-              :label="
-                t(observing ? 'listCard.observing' : 'listCard.refresh.busy')
-              "
+              :label="t('listCard.refresh.busy')"
               tone="busy"
             />
             <RvStatus
@@ -370,40 +334,26 @@ watch(contentsState, async (state) => {
               tone="failed"
             />
             <RvStatus
-              v-else-if="sources.length === 0"
+              v-else-if="sourceSummary?.tone === 'failed'"
               class="list-card__refresh-indicator"
-              :label="t('listCard.refresh.none')"
-              tone="waiting"
+              :label="sourceSummary.label"
+              tone="failed"
             />
-            <RvTooltip
-              v-else-if="contents?.observed === true"
-              :text="t('listCard.refresh.ready')"
+            <RvFact
+              v-else-if="sourceSummary?.tone === 'ready'"
+              class="list-card__freshness"
+              :label="sourceSummary.label"
+            />
+            <span
+              v-else-if="sourceSummary !== null"
+              class="list-card__freshness"
             >
-              <span
-                class="list-card__ready"
-                role="img"
-                :aria-label="t('listCard.refresh.ready')"
-                tabindex="0"
-                ><RvIcon name="check"
-              /></span>
-            </RvTooltip>
-            <RvStatus
-              v-else
-              class="list-card__refresh-indicator"
-              :label="t('listCard.refresh.waiting')"
-              tone="waiting"
-            />
+              {{ sourceSummary.label }}
+            </span>
             <RvButton
+              v-if="refreshError !== '' || contentsState === 'failed'"
               class="list-card__refresh-retry"
-              :aria-hidden="
-                refreshError === '' && contentsState !== 'failed'
-                  ? 'true'
-                  : undefined
-              "
-              :disabled="
-                (refreshError === '' && contentsState !== 'failed') ||
-                interactionBusy
-              "
+              :disabled="interactionBusy"
               size="compact"
               type="button"
               @click="
@@ -416,6 +366,46 @@ watch(contentsState, async (state) => {
               {{ t('action.retry') }}
             </RvButton>
           </div>
+          <template v-if="curating">
+            <!-- Until the contents land, the catalog's count of sources stands
+                 in, so the row keeps its controls while another list loads. -->
+            <RvButton
+              v-if="
+                contents === null
+                  ? sourceCount > 0
+                  : effectiveSources.some((source) => source.enabled)
+              "
+              class="list-card__refresh-button"
+              :aria-busy="refreshing ? 'true' : undefined"
+              :aria-label="t('listCard.refresh')"
+              :disabled="interactionBusy || contentsState !== 'ready'"
+              size="compact"
+              type="button"
+              variant="secondary"
+              @click="onRefreshSources"
+            >
+              <RvIcon name="refresh" :spin="refreshing" />
+              <span>{{ t('listCard.refresh.short') }}</span>
+            </RvButton>
+            <RvButton
+              class="list-card__sources-button"
+              :disabled="interactionBusy"
+              size="compact"
+              type="button"
+              variant="secondary"
+              @click="sourcesOpen = true"
+            >
+              <RvIcon name="settings" />
+              <span>{{
+                sourceCount === 0
+                  ? t('listCard.sources.manage')
+                  : t('listCard.sources.open', { count: sourceCount })
+              }}</span>
+            </RvButton>
+          </template>
+          <p v-else-if="sourceCount > 0" class="list-card__sources-fact">
+            {{ t('listCard.sources.open', { count: sourceCount }) }}
+          </p>
         </div>
 
         <div class="list-card__toolbar">
@@ -833,10 +823,10 @@ watch(contentsState, async (state) => {
   font-size: var(--rv-text-dense);
 }
 
-/* Source reads are a compact fact beside the table. Keeping the retry slot in
-   the row even while it is hidden means loading, failure and recovery share
-   the same geometry; the row itself can still grow for translated or zoomed
-   copy instead of clipping it. */
+/* Source reads are a compact fact beside the table. The row keeps the height
+   of a compact control, so the Retry that a failure adds does not move the
+   filter or the rows below; it can still grow for translated or zoomed copy
+   instead of clipping it. */
 .list-card__refresh-status {
   flex: 1 1 var(--rv-composer-field-width);
   display: grid;
@@ -859,8 +849,10 @@ watch(contentsState, async (state) => {
   flex: none;
 }
 
-.list-card__refresh-retry[aria-hidden='true'] {
-  visibility: hidden;
+.list-card__freshness {
+  min-width: 0;
+  color: var(--rv-color-ink-muted);
+  font-size: var(--rv-text-dense);
 }
 
 .list-card__aside {
@@ -1188,8 +1180,6 @@ watch(contentsState, async (state) => {
 
 .list-card__sources-button {
   flex: none;
-  width: var(--rv-control-compact);
-  padding: 0;
 }
 
 /* Composing states how many feeds the list reads; it does not offer to read
@@ -1198,16 +1188,6 @@ watch(contentsState, async (state) => {
   flex: none;
   color: var(--rv-color-ink-muted);
   font-size: var(--rv-text-dense);
-}
-
-.list-card__ready {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  justify-self: start;
-  width: var(--rv-control-compact);
-  height: var(--rv-control-compact);
-  color: var(--rv-color-status-ready);
 }
 
 .list-card__library-link {

@@ -122,6 +122,17 @@ test('a documentation-range router keeps a saved password in the test build and 
   expect((await api.device(device.id)).device).toMatchObject({
     credential_stored: true,
   })
+  // Saving signs in once (ADR 0059). The test build refuses to dial a
+  // documentation address, so the notice says the password was kept without a
+  // check, and why.
+  await expect(
+    page.getByText(copy('devices.credential.check.unverified'), {
+      exact: true,
+    }),
+  ).toBeVisible()
+  await expect(
+    page.getByText(copy('error.device_unreachable'), { exact: true }),
+  ).toBeVisible()
 
   // A send now takes the saved password without asking, and the preview the
   // server answers is built with it: the route format needs no device for that.
@@ -176,6 +187,18 @@ test('a documentation-range router keeps a saved password in the test build and 
   // Removing the password ends it on the server, and the send asks again.
   await page.goto(`${origin}/connections`)
   await credential
+    .getByRole('button', {
+      name: copy('devices.credential.remove'),
+      exact: true,
+    })
+    .click()
+  await page
+    .getByRole('dialog', {
+      name: copy('devices.credential.remove.title').replace(
+        '{name}',
+        'Documentation router',
+      ),
+    })
     .getByRole('button', {
       name: copy('devices.credential.remove'),
       exact: true,

@@ -3,6 +3,7 @@ import { render } from 'vitest-browser-vue'
 
 import DevicesView from '@/features/devices/ui/DevicesView.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
+import { useNotify } from '@/shared/model/useNotify'
 
 const DEVICES = '/v1/devices'
 const REQUIREMENTS = '/v1/deployments/targets'
@@ -114,6 +115,8 @@ type Registry = {
   writes: { path: string; body: unknown }[]
   /** The answer the service gives to one action instead of performing it. */
   refusal: { action: string; status: number; body: unknown } | null
+  /** What saving a password reports its sign-in found (ADR 0059). */
+  verification?: unknown
 }
 
 /** The registry's routes as ADR 0050 states them, kept in memory per case. */
@@ -160,6 +163,8 @@ const installRegistry = (seed: Wire[], secretStore = true): Registry => {
         device.name = String(body.name)
         device.address = String(body.address)
       } else throw new Error(`unexpected write ${input}`)
+      if (action === 'credential' && state.verification !== undefined)
+        return json({ device, verification: state.verification })
       return json({ device })
     }),
   )
@@ -187,7 +192,7 @@ describe('a connection password', () => {
       .element(screen.getByText('Save the password first'))
       .toBeVisible()
     await expect
-      .element(screen.getByText('Kept in the credential store of this system'))
+      .element(screen.getByText('Kept in the system password store.'))
       .toBeVisible()
 
     await screen.getByLabelText('Router password').fill(TYPED)
@@ -215,16 +220,21 @@ describe('a connection password', () => {
       body: { enabled: true },
     })
 
-    // Removing the password says beside the act that delivery goes with it.
+    // Removing the password asks first, and the question says that delivery
+    // goes with it.
+    registry.hold = undefined
+    await screen.getByRole('button', { name: 'Remove', exact: true }).click()
+    const question = screen.getByRole('dialog', {
+      name: 'Remove the password of “Home router”?',
+    })
     await expect
       .element(
-        screen.getByText(
+        question.getByText(
           'Removing the password also turns automatic delivery off.',
         ),
       )
       .toBeVisible()
-    registry.hold = undefined
-    await screen.getByRole('button', { name: 'Remove password' }).click()
+    await question.getByRole('button', { name: 'Remove', exact: true }).click()
     await expect
       .element(screen.getByText('Password saved'))
       .not.toBeInTheDocument()
@@ -364,6 +374,71 @@ describe('changing a saved connection', () => {
       )
       .toBeVisible()
   })
+
+  // Saving signs in with the password first (ADR 0059): a password the router
+  // refuses is not kept and is named at its field, and one it accepts is kept
+  // and said to work.
+  it('names a password the router refused at the field and keeps none', async () => {
+    const registry = installRegistry([router()])
+    registry.refusal = {
+      action: 'credential',
+      status: 422,
+      body: { error: 'device_auth_rejected', field: 'credential' },
+    }
+    const screen = await render(DevicesView)
+    const field = screen.getByLabelText('Router password')
+
+    await field.fill(TYPED)
+    await screen.getByRole('button', { name: 'Save password' }).click()
+
+    await expect
+      .element(
+        screen.getByText(
+          'The router did not accept this password, so it was not saved.',
+        ),
+      )
+      .toBeVisible()
+    expect(document.activeElement).toBe(field.element())
+    await expect
+      .element(screen.getByText('Password saved'))
+      .not.toBeInTheDocument()
+  })
+
+  it.each([
+    [
+      { result: 'verified' },
+      'Password saved',
+      'The router accepted a sign-in with it.',
+    ],
+    [
+      { result: 'unverified', code: 'device_unreachable' },
+      'Password saved without a check',
+      'The router does not answer. Check the address and that this computer is on its network.',
+    ],
+    [
+      { result: 'unverified', code: 'check_failed' },
+      'Password saved without a check',
+      'The sign-in could not be checked.',
+    ],
+  ])(
+    'says what the sign-in on saving showed: %o',
+    async (verification, title, body) => {
+      useNotify().notices.value.forEach((notice) =>
+        useNotify().dismiss(notice.id),
+      )
+      const registry = installRegistry([router()])
+      registry.verification = verification
+      const screen = await render(DevicesView)
+
+      await screen.getByLabelText('Router password').fill(TYPED)
+      await screen.getByRole('button', { name: 'Save password' }).click()
+
+      await expect.element(screen.getByText('Password saved')).toBeVisible()
+      await vi.waitFor(() => {
+        expect(useNotify().notices.value.at(-1)).toMatchObject({ title, body })
+      })
+    },
+  )
 
   it('says beside the address that the service refused it, and keeps the notice for what has no field', async () => {
     const registry = installRegistry([router()])

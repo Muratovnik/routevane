@@ -1,5 +1,6 @@
 import { computed, ref, watch, type Ref } from 'vue'
 
+import { cleanupRefusalKey } from '@/entities/device-cleanup/model/useDeviceCleanup'
 import { usePublishedProfile } from '@/entities/profile-build/model/publishedProfile'
 import { useFreshCatalog } from '@/shared/model/useFreshCatalog'
 import { useSurfacePreferences } from '@/shared/model/useSurfacePreferences'
@@ -91,7 +92,10 @@ export const outputActionError = (error: unknown): string => {
   if (error.code === 'subscription_not_issued')
     return 'outputs.reissue.error.notIssued'
   if (error.status === 404) return 'outputs.error.missing'
-  return 'error.unexpected'
+  // Removing what a format delivered stopped at a router; the format was not
+  // retired and the reason names what to fix (ADR 0060).
+  const cleanup = cleanupRefusalKey(error.code)
+  return cleanup === '' ? 'error.unexpected' : cleanup
 }
 
 /**
@@ -564,11 +568,14 @@ export const useProfileView = (profileID: () => string) => {
    * remove retires one format for good (ADR 0051). The profile is read again,
    * because the format, its link and its binding are gone from the server.
    */
-  const remove = async (outputID: string): Promise<string | null> => {
+  const remove = async (
+    outputID: string,
+    removeFromDevices = false,
+  ): Promise<string | null> => {
     if (busy.value) return 'error.unexpected'
     work.value = 'removing'
     try {
-      await removeOutput(outputID)
+      await removeOutput(outputID, removeFromDevices)
     } catch (error) {
       work.value = 'idle'
       return outputActionError(error)

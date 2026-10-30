@@ -7,6 +7,11 @@ import { profileHref } from '@/features/profiles/lib/profileHref'
 import { useProfileMenu } from '@/features/profiles/model/useProfileMenu'
 import { useProfiles } from '@/features/profiles/model/useProfiles'
 import ProfileDeleteDialog from '@/features/profiles/ui/ProfileDeleteDialog.vue'
+import {
+  cleanupRefusalKey,
+  useDeviceCleanup,
+} from '@/entities/device-cleanup/model/useDeviceCleanup'
+import DeviceCleanupChoice from '@/entities/device-cleanup/ui/DeviceCleanupChoice.vue'
 import { useLocale } from '@/shared/i18n/useLocale'
 import type { ProfileCard } from '@/shared/api/profiles'
 import { legacyImportedOrdinal } from '@/shared/lib/legacyProfile'
@@ -174,17 +179,47 @@ const archivedSince = (card: ProfileCard): string => {
 // the moment the server agrees.
 const pendingDelete = ref<ProfileCard | null>(null)
 
+// Deleting can also remove what the profile's formats delivered to routers;
+// the question reads what that would be when it opens.
+const cleanup = useDeviceCleanup()
+const {
+  chosen: removeFromDevices,
+  objects: cleanupObjects,
+  requested: cleanupRequested,
+  state: cleanupState,
+} = cleanup
+// The deletion stopped at a router after asking to clean them: what is left
+// there is read again and the question says the profile stayed.
+const cleanupStopped = ref(false)
+
 const askDelete = (card: ProfileCard): void => {
   library.deleteFailure.value = ''
+  cleanupStopped.value = false
+  cleanup.open({ kind: 'profile', id: card.id })
   pendingDelete.value = card
 }
 
 const confirmDelete = async (): Promise<void> => {
   const card = pendingDelete.value
   if (card === null) return
-  const done = await library.removeForever(card)
-  if (done || library.deleteFailure.value === 'gone') pendingDelete.value = null
+  cleanupStopped.value = false
+  const cleaning = cleanupRequested.value
+  const done = await library.removeForever(card, cleaning)
+  if (done || library.deleteFailure.value === 'gone') {
+    pendingDelete.value = null
+    return
+  }
+  if (cleaning) {
+    cleanupStopped.value = true
+    void cleanup.reread()
+  }
 }
+
+// A deletion that stopped at a router names why, in the words a send uses.
+const cleanupRefusal = computed(() => {
+  const key = cleanupRefusalKey(library.deleteRefusal.value)
+  return key === '' ? '' : t(key)
+})
 
 const deleteFailureText = computed(() => {
   const card = pendingDelete.value
@@ -195,7 +230,9 @@ const deleteFailureText = computed(() => {
     case 'gone':
       return t('profiles.delete.gone')
     case 'failed':
-      return t('profiles.delete.failed', { name: displayName(card) })
+      return cleanupRefusal.value === ''
+        ? t('profiles.delete.failed', { name: displayName(card) })
+        : cleanupRefusal.value
     default:
       return ''
   }
@@ -446,9 +483,20 @@ const onMenu = (card: ProfileCard, key: string): void => {
       :busy="library.deleting.value !== ''"
       :failure="deleteFailureText"
       :name="pendingDelete === null ? null : displayName(pendingDelete)"
+      :removes-from-devices="cleanupRequested"
       @cancel="pendingDelete = null"
       @confirm="confirmDelete"
-    />
+    >
+      <template v-if="cleanupStopped" #error>
+        <p>{{ t('cleanup.stopped.profile') }}</p>
+      </template>
+      <DeviceCleanupChoice
+        v-model="removeFromDevices"
+        :disabled="library.deleting.value !== ''"
+        :objects="cleanupObjects"
+        :state="cleanupState"
+      />
+    </ProfileDeleteDialog>
   </section>
 </template>
 

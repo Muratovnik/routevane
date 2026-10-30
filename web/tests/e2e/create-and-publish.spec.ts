@@ -391,7 +391,7 @@ test('the library starts empty and shelves the profile the composer creates and 
   expect((await directDownload).suggestedFilename()).toMatch(/\.bat$/)
 
   await expect(
-    outputRow.getByRole('link', { name: 'Send Keenetic', exact: true }),
+    outputRow.getByRole('button', { name: 'Send Keenetic', exact: true }),
   ).toBeVisible()
 
   // The breadcrumb returns to the shelf, which now holds the new row.

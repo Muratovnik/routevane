@@ -42,6 +42,7 @@ const deviceCard = (autoDeliver = true): DeviceCard => ({
   credentialStored: autoDeliver,
   autoDeliver,
   deployable: true,
+  usedBy: [],
 })
 
 const installScenario = (overrides: Partial<Scenario> = {}) => {

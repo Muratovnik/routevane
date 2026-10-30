@@ -25,7 +25,7 @@ export type FakeProfile = {
   outputs: FakeOutput[]
 }
 
-export type ShelfCall = { method: string; path: string }
+export type ShelfCall = { method: string; path: string; body?: string }
 
 type ServiceOptions = {
   profiles: FakeProfile[]
@@ -38,6 +38,8 @@ type ServiceOptions = {
   buildFails?: boolean
   /** Archived profiles beyond the ones listed, which the server counts. */
   archivedElsewhere?: number
+  /** What a profile's formats left on routers (ADR 0060). */
+  deviceObjects?: unknown
 }
 
 const TIMESTAMP = '2026-09-12T12:00:00Z'
@@ -175,6 +177,9 @@ export const installShelfService = (options: ServiceOptions) => {
       profile.archived = write[2] === 'archive'
       return json({ profile: record(profile) })
     }
+    const objects = /^\/v1\/profiles\/([^/]+)\/device-objects$/.exec(path)
+    if (objects !== null && options.deviceObjects !== undefined)
+      return json(options.deviceObjects)
     const detail = /^\/v1\/profiles\/([^/]+)$/.exec(path)
     if (detail !== null) {
       const profile = find(detail[1] ?? '')
@@ -244,7 +249,11 @@ export const installShelfService = (options: ServiceOptions) => {
 
   const fetchMock = vi.fn((input: string, init?: RequestInit) => {
     const method = init?.method ?? 'GET'
-    calls.push({ method, path: input })
+    calls.push({
+      method,
+      path: input,
+      ...(typeof init?.body === 'string' ? { body: init.body } : {}),
+    })
     const decoration = decorations[input]
     if (decoration !== undefined) return Promise.resolve(json(decoration))
     const answered = route(input, method)

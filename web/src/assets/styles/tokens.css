@@ -214,6 +214,7 @@
     calc((100cqw - var(--rv-catalog-utility-width)) * 0.55),
     24rem
   );
+  --rv-catalog-updated-column: 11rem;
   --rv-picker-rule-width: 5rem;
   --rv-picker-overlap-width: 10rem;
   --rv-picker-mobile-height: clamp(22rem, 64dvh, 32rem);

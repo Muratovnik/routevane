@@ -113,9 +113,13 @@ describe('deleting and detaching', () => {
     // The refusal itself says which profile is archived: nothing reads a
     // profile to find out.
     expect(keys().some((key) => key.startsWith('GET /v1/profiles'))).toBe(false)
-    await screen
-      .getByRole('dialog')
-      .getByRole('button', { name: 'Cancel' })
+    // Nothing is left to confirm, so the dialog offers only to close.
+    await expect
+      .element(dialog.getByRole('button', { name: 'Delete' }))
+      .not.toBeInTheDocument()
+    await dialog
+      .getByRole('button', { name: 'Close', exact: true })
+      .last()
       .click()
     expect(await categoryNames(screen)).toContain('Домашние')
   })
@@ -169,12 +173,14 @@ describe('deleting and detaching', () => {
     await openCategory(screen, 'Communication')
     await openMenu(screen, 'Actions for list Telegram')
     await screen.getByRole('menuitem', { name: 'Delete the list' }).click()
+    // The question names the list; the body says what goes with it.
     await expect
       .element(
-        screen.getByText('List “Telegram” and its entries are removed.', {
-          exact: false,
-        }),
+        screen.getByRole('dialog', { name: 'Delete the list “Telegram”?' }),
       )
+      .toBeVisible()
+    await expect
+      .element(screen.getByText('Its entries are deleted with it.'))
       .toBeVisible()
     await expect
       .element(
@@ -198,7 +204,8 @@ describe('deleting and detaching', () => {
     // The one nothing holds goes, and the catalog is read back after it.
     await screen
       .getByRole('dialog')
-      .getByRole('button', { name: 'Cancel' })
+      .getByRole('button', { name: 'Close', exact: true })
+      .last()
       .click()
     await openCategory(screen, UNCATEGORIZED)
     await openMenu(screen, 'Actions for list Steam')

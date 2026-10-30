@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { useLocale } from '@/shared/i18n/useLocale'
-import RvButton from '@/shared/ui/RvButton.vue'
-import RvDialog from '@/shared/ui/RvDialog.vue'
-import RvIcon from '@/shared/ui/RvIcon.vue'
-import RvStatus from '@/shared/ui/RvStatus.vue'
+import RvConfirmDialog from '@/shared/ui/RvConfirmDialog.vue'
 
 /**
  * The question asked before a profile is deleted for good. It names the profile
@@ -19,6 +16,8 @@ defineProps<{
   failure: string
   /** The profile is not archived, so asking again cannot succeed. */
   blocked: boolean
+  /** The deletion also takes from routers what its formats sent there. */
+  removesFromDevices?: boolean
 }>()
 
 defineEmits<{ cancel: []; confirm: [] }>()
@@ -27,46 +26,27 @@ const { t } = useLocale()
 </script>
 
 <template>
-  <RvDialog
+  <RvConfirmDialog
+    :busy="busy"
+    :cancel-label="t('action.cancel')"
     :close-label="t('action.close')"
-    :dismissible="!busy"
+    :confirm-label="t('profiles.delete.confirm')"
+    :confirmable="!blocked"
+    :error="failure === '' ? null : failure"
     :open="name !== null"
     :title="t('profiles.delete.title', { name: name ?? '' })"
-    variant="panel"
+    @confirm="$emit('confirm')"
     @update:open="$event === false && $emit('cancel')"
   >
-    <div class="profile-delete">
-      <p class="profile-delete__body">{{ t('profiles.delete.body') }}</p>
-      <p v-if="failure !== ''" role="alert">
-        <RvStatus :label="failure" tone="failed" />
-      </p>
-    </div>
-    <template #footer>
-      <RvButton :disabled="busy" variant="quiet" @click="$emit('cancel')">
-        {{ t('action.cancel') }}
-      </RvButton>
-      <RvButton
-        :disabled="blocked"
-        :loading="busy"
-        :loading-label="t('profiles.delete.confirm')"
-        variant="danger"
-        @click="$emit('confirm')"
-      >
-        <RvIcon name="trash" />
-        {{ t('profiles.delete.confirm') }}
-      </RvButton>
-    </template>
-  </RvDialog>
+    <p>
+      {{
+        removesFromDevices === true
+          ? t('profiles.delete.body.clean')
+          : t('profiles.delete.body')
+      }}
+    </p>
+    <!-- What else the deletion can do, chosen by the caller. -->
+    <template #choices><slot /></template>
+    <template #error><slot name="error" /></template>
+  </RvConfirmDialog>
 </template>
-
-<style scoped>
-.profile-delete {
-  display: grid;
-  gap: var(--rv-space-3);
-}
-
-.profile-delete__body {
-  max-width: var(--rv-measure-prose);
-  color: var(--rv-color-ink-muted);
-}
-</style>

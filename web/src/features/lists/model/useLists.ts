@@ -19,6 +19,7 @@ import {
   type CategoryLists,
   type ProfileReference,
   type ListDetail,
+  type ListFreshness,
 } from '@/shared/api/catalog'
 
 export type LibraryState = 'loading' | 'ready' | 'failed'
@@ -183,6 +184,18 @@ export const useLists = () => {
               sources: list.sources,
             }
           : list,
+      ),
+    }
+  }
+
+  /** A read made in a list's card is the same fact the catalog would answer. */
+  const acceptFreshness = (listID: string, freshness: ListFreshness): void => {
+    const current = catalog.value
+    if (current === null) return
+    catalog.value = {
+      ...current,
+      listDetails: current.listDetails.map((list) =>
+        list.id === listID ? { ...list, freshness } : list,
       ),
     }
   }
@@ -355,6 +368,7 @@ export const useLists = () => {
     write(() => removeList(listID), listInUse)
 
   return {
+    acceptFreshness,
     acceptUpdatedList,
     addCategory,
     addCustomList,
