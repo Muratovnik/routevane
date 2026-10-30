@@ -178,13 +178,14 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	}
 	devices, err := application.NewDeviceService(application.DeviceConfig{
 		Store:                    store,
-		Secrets:                  newSecretStore(),
+		Secrets:                  deps.Secrets,
 		Targets:                  publication.Targets,
 		Deployable:               func(id string) bool { _, ok := deployableIDs[id]; return ok },
 		NeedsCredential:          func(id string) bool { _, ok := credentialTargets[id]; return ok },
 		NeedsInterface:           func(id string) bool { _, ok := interfaceTargets[id]; return ok },
 		ValidateStoredConnection: deployments.ValidateStoredConnection,
 		RetireManagedRoutes:      deployments.RetireManagedRoutes,
+		CheckCredential:          deployments.CheckCredential,
 		Clock:                    application.ClockFunc(deps.Now),
 		Entropy:                  rand.Reader,
 	})
@@ -453,10 +454,13 @@ func (b serveBackend) ForgetDevice(ctx context.Context, id string) error {
 	return b.devices.ForgetDevice(ctx, id)
 }
 
-func (b serveBackend) SaveDeviceCredential(ctx context.Context, id, secret string) (application.Device, error) {
+// SaveDeviceCredential holds the delivery gate through the check as well as the
+// write, as a preview holds it through its probe: an address edit between the
+// two would keep a password checked against a destination it no longer names.
+func (b serveBackend) SaveDeviceCredential(ctx context.Context, id, secret string) (application.Device, application.CredentialCheck, error) {
 	release, err := b.deliveryGate.Acquire(ctx)
 	if err != nil {
-		return application.Device{}, err
+		return application.Device{}, application.CredentialCheck{}, err
 	}
 	defer release()
 	return b.devices.SaveCredential(ctx, id, secret)

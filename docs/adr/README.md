@@ -23,7 +23,7 @@ Important chains: 0004 → 0013/0023 (objects and issuance), 0004/0018/0023 → 
 0027 → 0041 (one interface word per object),
 0004/0010 → 0053 (a refused build names the lists it could not cover),
 0024 → 0025 → 0029 (editing),
-0012 → 0014 → 0031 → 0050 (credentials, unattended delivery and the saved password), 0008 → 0020 → 0042
+0012 → 0014 → 0031 → 0050 → 0059 (credentials, unattended delivery, the saved password and its check), 0008 → 0020 → 0042
 (deployment recovery), 0008 → 0032 → 0034
 (Keenetic route ownership and descriptions), 0017 → 0040 → 0049 (Keenetic FQDN
 group ownership and names), and 0002 → 0030 (Go).
@@ -89,3 +89,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0056: a community-declared prefix has a narrower width bound](./0056-community-prefixes-have-a-narrower-width.md) | adopted |
 | [ADR 0057: an output may keep addresses beside the domains that cover them](./0057-keep-addresses-beside-domains.md) | adopted |
 | [ADR 0058: sign in to KeeneticOS 5.2 with its newer login](./0058-keeneticos-5-2-login.md) | adopted |
+| [ADR 0059: saving a router password checks it with a read-only login first](./0059-saving-a-password-checks-it-first.md) | adopted |

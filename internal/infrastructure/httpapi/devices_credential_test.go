@@ -161,3 +161,68 @@ func TestEveryDeviceCarriesTheSavedCredentialFact(t *testing.T) {
 		t.Fatalf("credential_stored = %v present = %v", value, present)
 	}
 }
+
+// ADR 0059: a saved password's reply says what the read-only login found, and
+// the log names the route, the result and the code only. Clients that read
+// only `device` keep working: the check is a sibling of it.
+func TestSavingACredentialAnswersWhatItsCheckFound(t *testing.T) {
+	base := "/v1/devices/" + strings.Repeat("d", 32)
+	for _, check := range []application.CredentialCheck{
+		{Result: application.CredentialVerified},
+		{Result: application.CredentialInterfaceMissing, Code: "device_interface_missing"},
+		{Result: application.CredentialUnverified, Code: "device_unreachable"},
+		{Result: application.CredentialCheckNotApplicable},
+	} {
+		t.Run(check.Result, func(t *testing.T) {
+			backend := testBackend()
+			backend.credentialCheck = check
+			var logs bytes.Buffer
+			server := serveDevice(t, backend, &logs)
+			secret := rand.Text()
+			response := httptest.NewRecorder()
+			server.Handler().ServeHTTP(response, mutationRequest(t, base+"/credential", fmt.Sprintf(`{"credential":%q}`, secret)))
+			var reply struct {
+				Device       map[string]any `json:"device"`
+				Verification map[string]any `json:"verification"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &reply); err != nil || response.Code != http.StatusOK || reply.Device["credential_stored"] != true {
+				t.Fatalf("status=%d body=%s err=%v", response.Code, response.Body.String(), err)
+			}
+			code, coded := reply.Verification["code"]
+			if reply.Verification["result"] != check.Result || coded != (check.Code != "") || coded && code != check.Code {
+				t.Fatalf("verification = %v, want %#v", reply.Verification, check)
+			}
+			line := `"route":"devices.credential","result":"` + check.Result + `","code":"` + check.Code + `"`
+			if !strings.Contains(logs.String(), line) {
+				t.Fatalf("the log lacks %s: %s", line, logs.String())
+			}
+			if strings.Contains(response.Body.String(), secret) || strings.Contains(logs.String(), secret) {
+				t.Fatal("a response or log disclosed the credential")
+			}
+		})
+	}
+}
+
+// A password the device refused is a field refusal, on the credential route
+// and on the enabling request that carries one.
+func TestAPasswordTheDeviceRefusedIsAFieldRefusal(t *testing.T) {
+	base := "/v1/devices/" + strings.Repeat("d", 32)
+	for _, request := range []struct{ path, body string }{
+		{base + "/credential", `{"credential":"wrong"}`},
+		{base + "/auto-delivery", `{"enabled":true,"credential":"wrong"}`},
+	} {
+		backend := testBackend()
+		backend.deviceErr = fmt.Errorf("check the credential: %w", application.ErrDeviceAuthRejected)
+		var logs bytes.Buffer
+		server := serveDevice(t, backend, &logs)
+		status, reply, raw := postDevice(t, server, request.path, request.body)
+		var body map[string]any
+		_ = json.Unmarshal([]byte(raw), &body)
+		if status != http.StatusUnprocessableEntity || reply.Error != "device_auth_rejected" || body["field"] != "credential" || reply.Device != nil {
+			t.Fatalf("%s: status=%d body=%s", request.path, status, raw)
+		}
+		if strings.Contains(logs.String(), "wrong") {
+			t.Fatalf("the log carries the refused password: %s", logs.String())
+		}
+	}
+}

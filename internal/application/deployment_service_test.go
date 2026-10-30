@@ -302,3 +302,51 @@ func auditDetail(t *testing.T, result DeployResult, step string) string {
 	t.Fatalf("no %q event in %#v", step, result.Events)
 	return ""
 }
+
+type passwordlessSpyDeployer struct{ *spyDeployer }
+
+func (passwordlessSpyDeployer) Requirements() ConnectionRequirements {
+	return ConnectionRequirements{}
+}
+
+// ADR 0059: checking a password before it is kept is the target deployer's own
+// read-only probe after its connection check, and a target with no login to ask
+// is said to have none rather than probed.
+func TestCheckingACredentialProbesTheTargetsDeployerOnly(t *testing.T) {
+	artifacts := deploymentTestArtifacts()
+	deployer := &spyDeployer{formatKey: "keenetic-bat-ipv4-v1"}
+	deployments := deploymentTestService(t, artifacts, deployer)
+	connection := deploymentTestCommand(false).Connection
+	if err := deployments.CheckCredential(context.Background(), artifacts.target.ID, connection); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(deployer.calls, ",") != StepProbe || len(deployer.seenPasswords) != 1 || deployer.seenPasswords[0] != deployTestPassword {
+		t.Fatalf("calls = %v passwords = %d", deployer.calls, len(deployer.seenPasswords))
+	}
+	// A firmware the format does not support still answered the login.
+	deployer.formatKey = ""
+	if err := deployments.CheckCredential(context.Background(), artifacts.target.ID, connection); err != nil {
+		t.Fatalf("unsupported firmware err = %v", err)
+	}
+	deployer.probeErr = fmt.Errorf("login: %w", ErrDeviceAuthRejected)
+	if err := deployments.CheckCredential(context.Background(), artifacts.target.ID, connection); !errors.Is(err, ErrDeviceAuthRejected) {
+		t.Fatalf("refused login err = %v", err)
+	}
+
+	// A connection the deployer refuses is not probed.
+	deployer.calls, deployer.probeErr = nil, nil
+	connection.Password = ""
+	if err := deployments.CheckCredential(context.Background(), artifacts.target.ID, connection); !errors.Is(err, ErrConnectionInvalid) || len(deployer.calls) != 0 {
+		t.Fatalf("refused connection err = %v calls = %v", err, deployer.calls)
+	}
+
+	passwordless := passwordlessSpyDeployer{&spyDeployer{}}
+	free := deploymentTestService(t, artifacts, passwordless)
+	if err := free.CheckCredential(context.Background(), artifacts.target.ID, deploymentTestCommand(false).Connection); !errors.Is(err, ErrNoCredentialCheck) || len(passwordless.calls) != 0 {
+		t.Fatalf("passwordless deployer err = %v calls = %v", err, passwordless.calls)
+	}
+	artifacts.target.RendererID = "download-only"
+	if err := deployments.CheckCredential(context.Background(), artifacts.target.ID, deploymentTestCommand(false).Connection); !errors.Is(err, ErrNoCredentialCheck) {
+		t.Fatalf("no deployer err = %v", err)
+	}
+}

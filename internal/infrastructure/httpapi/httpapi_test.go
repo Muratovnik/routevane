@@ -39,6 +39,8 @@ type fakeBackend struct {
 	defaultPriority    []string
 	defaultPriorityErr error
 	storedCredential   string
+	// credentialCheck is what the backend reports a password check found.
+	credentialCheck    application.CredentialCheck
 	deviceErr          error
 	removedCredentials int
 	archived           bool
@@ -473,12 +475,16 @@ func (f *fakeBackend) UpdateDevice(_ context.Context, id, name, address, account
 	return application.Device{ID: id, TargetID: "keenetic", Name: name, Address: address, Account: account, Interface: interfaceName}, nil
 }
 func (f *fakeBackend) ForgetDevice(context.Context, string) error { return nil }
-func (f *fakeBackend) SaveDeviceCredential(_ context.Context, id, secret string) (application.Device, error) {
+func (f *fakeBackend) SaveDeviceCredential(_ context.Context, id, secret string) (application.Device, application.CredentialCheck, error) {
 	if f.deviceErr != nil {
-		return application.Device{}, f.deviceErr
+		return application.Device{}, application.CredentialCheck{}, f.deviceErr
 	}
 	f.storedCredential = secret
-	return application.Device{ID: id, TargetID: "keenetic", Name: "Роутер", Address: "http://192.0.2.1", CredentialStored: true}, nil
+	check := f.credentialCheck
+	if check.Result == "" {
+		check.Result = application.CredentialVerified
+	}
+	return application.Device{ID: id, TargetID: "keenetic", Name: "Роутер", Address: "http://192.0.2.1", CredentialStored: true}, check, nil
 }
 func (f *fakeBackend) RemoveDeviceCredential(_ context.Context, id string) (application.Device, error) {
 	if f.deviceErr != nil {
@@ -1874,8 +1880,16 @@ func TestTheDeployRouteCarriesItsOwnBudget(t *testing.T) {
 	if profileRefresh.timeout+writeDeadlineSlack >= 10*time.Minute {
 		t.Fatalf("profile refresh budget = %s outlives the desktop transport", profileRefresh.timeout)
 	}
+	// Saving a device password signs in to the device first (ADR 0059), so a
+	// route that may save one keeps a screen's budget after the check's own.
+	for _, name := range []string{"devices.credential", "devices.autodelivery"} {
+		credential, owned := routes[name]
+		if !owned || credential.timeout < requestTimeout+application.CredentialCheckBudget || credential.timeout >= spec.timeout {
+			t.Fatalf("%s budget = %s", name, credential.timeout)
+		}
+	}
 	for route, other := range routes {
-		if route == "artifacts.deploy" || route == "lists.refresh" || route == "profiles.refresh" || other.timeout == 0 {
+		if route == "artifacts.deploy" || route == "lists.refresh" || route == "profiles.refresh" || route == "devices.credential" || route == "devices.autodelivery" || other.timeout == 0 {
 			continue
 		}
 		t.Errorf("route %q also overrides the budget (%s); every override needs its own reason", route, other.timeout)

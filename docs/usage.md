@@ -531,7 +531,14 @@ from the currently selected connection.
 
 A router's password is its own saved fact, separate from automatic delivery.
 Under **Connections** you save it explicitly, which is your consent to keeping
-it; saving again replaces it, and removing it deletes it. Saving a password for
+it; saving again replaces it, and removing it deletes it. Before keeping it,
+Routevane signs in to the router once with that password and changes nothing
+there. A password the router refuses is not saved, and a password saved earlier
+stays. If the router accepts it, the password is saved as checked. If the router
+accepts it but has no interface of the connection's name, the password is saved
+and the interface is what to correct. If the router cannot be reached, the
+password is saved without being checked, and the next send is the first to try
+it. See [ADR 0059](adr/0059-saving-a-password-checks-it-first.md). Saving a password for
 a router that needs one is currently available only on Windows, where Routevane
 keeps it in the Windows credential store. The registry records only that a
 password is held, never the password. On Linux or macOS, use manual delivery and

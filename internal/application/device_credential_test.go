@@ -20,7 +20,7 @@ func TestSavingACredentialIsIndependentOfAutomaticDelivery(t *testing.T) {
 		t.Fatal("a freshly registered device holds no credential")
 	}
 
-	saved, err := devices.SaveCredential(context.Background(), device.ID, "first")
+	saved, _, err := devices.SaveCredential(context.Background(), device.ID, "first")
 	if err != nil || !saved.CredentialStored || saved.AutoDeliver {
 		t.Fatalf("saved = %#v err = %v", saved, err)
 	}
@@ -33,7 +33,7 @@ func TestSavingACredentialIsIndependentOfAutomaticDelivery(t *testing.T) {
 
 	// Replacing needs no flag write: the fact was already true.
 	store.updateErr = errors.New("disk full")
-	replaced, err := devices.SaveCredential(context.Background(), device.ID, "second")
+	replaced, _, err := devices.SaveCredential(context.Background(), device.ID, "second")
 	if err != nil || !replaced.CredentialStored || secrets.secrets[secretKey(device.ID)] != "second" {
 		t.Fatalf("replaced = %#v secrets = %#v err = %v", replaced, secrets.secrets, err)
 	}
@@ -63,7 +63,7 @@ func TestSavingACredentialRefusesWhatCannotBeKept(t *testing.T) {
 			if test.target != "" {
 				store.devices[0].TargetID = test.target
 			}
-			_, err := devices.SaveCredential(context.Background(), device.ID, test.secret)
+			_, _, err := devices.SaveCredential(context.Background(), device.ID, test.secret)
 			if err == nil || test.wantErr != nil && !errors.Is(err, test.wantErr) {
 				t.Fatalf("err = %v, want refusal %v", err, test.wantErr)
 			}
@@ -81,7 +81,7 @@ func TestAFailedFirstSaveTakesTheStoredSecretWithIt(t *testing.T) {
 	devices, store := deviceService(t, secrets)
 	device := registered(t, devices)
 	store.updateErr = errors.New("disk full")
-	if _, err := devices.SaveCredential(context.Background(), device.ID, "пароль"); !errors.Is(err, store.updateErr) {
+	if _, _, err := devices.SaveCredential(context.Background(), device.ID, "пароль"); !errors.Is(err, store.updateErr) {
 		t.Fatalf("err = %v", err)
 	}
 	if len(secrets.secrets) != 0 || store.devices[0].CredentialStored {
@@ -134,7 +134,7 @@ func TestEnablingAutomaticDeliveryNeedsASavedCredentialWhenTheDeployerTakesOne(t
 		t.Fatal("automatic delivery was enabled without a saved credential")
 	}
 
-	if _, err := devices.SaveCredential(context.Background(), device.ID, "saved"); err != nil {
+	if _, _, err := devices.SaveCredential(context.Background(), device.ID, "saved"); err != nil {
 		t.Fatal(err)
 	}
 	enabled, err := devices.EnableAutoDelivery(context.Background(), device.ID, "")
@@ -157,7 +157,7 @@ func TestEnablingWithASuppliedCredentialSavesItFirst(t *testing.T) {
 	secrets := &fakeSecretStore{available: true}
 	devices, _ := deviceService(t, secrets)
 	device := registered(t, devices)
-	if _, err := devices.SaveCredential(context.Background(), device.ID, "old"); err != nil {
+	if _, _, err := devices.SaveCredential(context.Background(), device.ID, "old"); err != nil {
 		t.Fatal(err)
 	}
 	enabled, err := devices.EnableAutoDelivery(context.Background(), device.ID, "new")
@@ -185,12 +185,13 @@ func TestACredentialFreeDeviceNeverReportsASavedCredential(t *testing.T) {
 		NeedsInterface:           func(string) bool { return false },
 		ValidateStoredConnection: func(string, Connection) error { return nil },
 		RetireManagedRoutes:      func(context.Context, string, Connection) error { return nil },
+		CheckCredential:          func(context.Context, string, Connection) error { return nil },
 		Clock:                    ClockFunc(time.Now), Entropy: bytes.NewReader(bytes.Repeat([]byte{1}, 64)),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := devices.SaveCredential(context.Background(), id, "secret"); err == nil {
+	if _, _, err := devices.SaveCredential(context.Background(), id, "secret"); err == nil {
 		t.Fatal("a credential was saved for a deployer that takes none")
 	}
 	removed, err := devices.RemoveCredential(context.Background(), id)
@@ -208,7 +209,7 @@ func TestForgettingADeviceRemovesACredentialSavedWithoutAutomaticDelivery(t *tes
 	secrets := &fakeSecretStore{available: true}
 	devices, store := deviceService(t, secrets)
 	device := registered(t, devices)
-	if _, err := devices.SaveCredential(context.Background(), device.ID, "saved"); err != nil {
+	if _, _, err := devices.SaveCredential(context.Background(), device.ID, "saved"); err != nil {
 		t.Fatal(err)
 	}
 	if err := devices.ForgetDevice(context.Background(), device.ID); err != nil {
@@ -225,7 +226,7 @@ func TestChangingAConnectionDeletesACredentialSavedWithoutAutomaticDelivery(t *t
 	secrets := &fakeSecretStore{available: true}
 	devices, _ := deviceService(t, secrets)
 	device := registered(t, devices)
-	if _, err := devices.SaveCredential(context.Background(), device.ID, "saved"); err != nil {
+	if _, _, err := devices.SaveCredential(context.Background(), device.ID, "saved"); err != nil {
 		t.Fatal(err)
 	}
 	updated, err := devices.UpdateDevice(context.Background(), device.ID, device.Name, "http://10.255.0.2", device.Account, device.Interface)

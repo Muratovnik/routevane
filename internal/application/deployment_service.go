@@ -117,6 +117,28 @@ func (s *DeploymentService) ValidateStoredConnection(targetID string, connection
 	return nil
 }
 
+// CheckCredential signs in to a registered device with a password before it is
+// kept (ADR 0059). It runs the deployer's own Probe, the read-only step a
+// preview and every deployment start with, so the device is asked and never
+// changed. A firmware the format does not support still answered the login, so
+// the probe's compatibility verdict is not part of this answer. A target whose
+// deployer takes no password has nothing to check.
+func (s *DeploymentService) CheckCredential(ctx context.Context, targetID string, connection Connection) error {
+	target, err := s.config.Artifacts.TargetDefinition(targetID)
+	if err != nil {
+		return err
+	}
+	deployer, registered := s.config.Deployers[target.RendererID]
+	if !registered || deployer == nil || !deployer.Requirements().NeedsCredential {
+		return ErrNoCredentialCheck
+	}
+	if err := deployer.ValidateConnection(connection); err != nil {
+		return fmt.Errorf("%w: %w", ErrConnectionInvalid, err)
+	}
+	_, err = deployer.Probe(ctx, connection)
+	return err
+}
+
 // DeployCommand is one deployment attempt. Confirm is the caller's explicit
 // intent to change the device; without it the list reports what would happen
 // and stops.

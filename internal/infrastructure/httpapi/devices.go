@@ -3,6 +3,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/Muratovnik/routevane/internal/application"
@@ -69,9 +70,10 @@ func (h *handler) forgetDevice(w http.ResponseWriter, r *http.Request, id string
 }
 
 // saveDeviceCredential keeps a password for the device in the operating
-// system's store (ADR 0050). The credential travels in the request body and
-// nowhere else: the reply states the device, never the secret, and the request
-// is never logged.
+// system's store (ADR 0050) after a read-only login with it (ADR 0059). The
+// credential travels in the request body and nowhere else: the reply states the
+// device and what the check found, never the secret, and the request is never
+// logged. A password the device refused answers 422 and is not kept.
 func (h *handler) saveDeviceCredential(w http.ResponseWriter, r *http.Request, id string) {
 	var request struct {
 		Credential string `json:"credential"`
@@ -79,12 +81,23 @@ func (h *handler) saveDeviceCredential(w http.ResponseWriter, r *http.Request, i
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	device, err := h.backend.SaveDeviceCredential(r.Context(), id, request.Credential)
+	device, check, err := h.backend.SaveDeviceCredential(r.Context(), id, request.Credential)
+	if errors.Is(err, application.ErrDeviceAuthRejected) {
+		h.logCredentialCheck("rejected", "device_auth_rejected")
+	}
 	if err != nil {
 		h.backendError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"device": device})
+	h.logCredentialCheck(check.Result, check.Code)
+	writeJSON(w, http.StatusOK, map[string]any{"device": device, "verification": check})
+}
+
+// logCredentialCheck records what checking a password found, by the route, the
+// result and the stable code only: the device's own answer and its address stay
+// out of the log, as they do for a refused send.
+func (h *handler) logCredentialCheck(result, code string) {
+	h.logger.Info("credential check", "route", "devices.credential", "result", result, "code", code)
 }
 
 // removeDeviceCredential deletes the saved password. Automatic delivery that
@@ -103,7 +116,8 @@ func (h *handler) removeDeviceCredential(w http.ResponseWriter, r *http.Request,
 
 // autoDelivery turns unattended delivery on or off. Turning it on needs a saved
 // credential when the deployer takes one; a credential in the request body is
-// saved first, for compatibility. Turning it off keeps the saved credential.
+// checked and saved first, for compatibility, and one the device refuses
+// answers 422 and enables nothing. Turning it off keeps the saved credential.
 // The reply states the device, never the secret, and the request is never
 // logged.
 func (h *handler) autoDelivery(w http.ResponseWriter, r *http.Request, id string) {

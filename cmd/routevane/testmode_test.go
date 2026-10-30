@@ -6,6 +6,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/json"
+	"net/http"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -60,5 +63,39 @@ func TestTestModeOpensNoDeviceConnection(t *testing.T) {
 	}
 	if elapsed := time.Since(started); elapsed > time.Second {
 		t.Fatalf("the refusal took %s; a dial was attempted", elapsed)
+	}
+}
+
+// A browser suite saving a router password drives a test build, which opens no
+// device connection. The password's read-only check (ADR 0059) therefore finds
+// the router unreachable at once: the password is kept, and the reply says it
+// could not be checked.
+func TestTestModeKeepsAPasswordItCannotCheck(t *testing.T) {
+	origin, stop, done, stderr := startServeServer(t, writeAlphaBetaCatalog(t), filepath.Join(t.TempDir(), "data"), runtimeDeps{})
+	defer func() {
+		stop()
+		if code := <-done; code != 0 {
+			t.Errorf("serve=%d stderr=%s", code, stderr.String())
+		}
+	}()
+	var created struct {
+		Device application.Device `json:"device"`
+	}
+	registered := postJSON(t, origin+"/v1/devices", `{"target_id":"keenetic","name":"Router","address":"http://192.0.2.10","account":"admin","interface":"Wireguard0"}`)
+	if err := json.Unmarshal(registered, &created); err != nil || created.Device.ID == "" {
+		t.Fatalf("register=%s err=%v", registered, err)
+	}
+	started := time.Now()
+	saved := postGuardedBody(t, origin+"/v1/devices/"+created.Device.ID+"/credential", `{"credential":"suite-password"}`)
+	var reply struct {
+		Device       application.Device          `json:"device"`
+		Verification application.CredentialCheck `json:"verification"`
+	}
+	if err := json.Unmarshal(saved.body, &reply); err != nil || saved.status != http.StatusOK || !reply.Device.CredentialStored ||
+		reply.Verification != (application.CredentialCheck{Result: application.CredentialUnverified, Code: "device_unreachable"}) {
+		t.Fatalf("save status=%d body=%s err=%v", saved.status, saved.body, err)
+	}
+	if elapsed := time.Since(started); elapsed > 5*time.Second {
+		t.Fatalf("the save took %s; a dial was attempted", elapsed)
 	}
 }

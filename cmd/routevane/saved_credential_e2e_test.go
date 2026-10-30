@@ -63,6 +63,7 @@ func TestASavedPasswordServesManualDeliveryWithoutAutomaticDelivery(t *testing.T
 		Deployable: func(string) bool { return true }, NeedsCredential: func(string) bool { return true }, NeedsInterface: func(string) bool { return true },
 		ValidateStoredConnection: deployments.ValidateStoredConnection,
 		RetireManagedRoutes:      func(context.Context, string, application.Connection) error { return nil },
+		CheckCredential:          deployments.CheckCredential,
 		Clock:                    clock, Entropy: bytes.NewReader(bytes.Repeat([]byte{9}, 128)),
 	})
 	if err != nil {
@@ -151,9 +152,10 @@ func TestASavedPasswordServesManualDeliveryWithoutAutomaticDelivery(t *testing.T
 	if status, reply := plan("one-use-secret"); status != http.StatusOK || reply["error"] != nil {
 		t.Fatalf("plan with a request password status=%d reply=%v", status, reply)
 	}
-	// Each plan validates the resolved connection twice: once when the saved
-	// access is resolved and once when the plan is built.
-	if got := strings.Join(deployer.seen, ","); got != "saved-secret,saved-secret,one-use-secret,one-use-secret" || secrets.value != "saved-secret" {
+	// Saving validated the connection once before its read-only login (ADR
+	// 0059). Each plan validates the resolved connection twice: once when the
+	// saved access is resolved and once when the plan is built.
+	if got := strings.Join(deployer.seen, ","); got != "saved-secret,saved-secret,saved-secret,one-use-secret,one-use-secret" || secrets.value != "saved-secret" {
 		t.Fatalf("passwords used = %q, stored = %q", got, secrets.value)
 	}
 

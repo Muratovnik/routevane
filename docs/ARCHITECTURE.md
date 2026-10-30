@@ -159,6 +159,9 @@ through an explicit save and the OS secret-store boundary, and the registry
 records that fact beside, not inside, automatic-delivery consent
 ([saved credential](adr/0050-saved-connection-credential.md)); unavailable
 secret-store support cannot silently fall back to SQLite or browser storage.
+Before it is stored, the password is checked with the deployer's read-only
+probe; only a login the device refuses stops the save
+([password check](adr/0059-saving-a-password-checks-it-first.md)).
 
 The scheduler publishes due outputs independently and passes only successful,
 exact artifact IDs to delivery. A device binding, connection metadata, consent

@@ -189,6 +189,7 @@ func TestRegisteredDeploymentReadsTheSavedCredentialOnlyAfterAcquiringTheDeliver
 				Deployable: func(string) bool { return true }, NeedsCredential: func(string) bool { return true }, NeedsInterface: func(string) bool { return true },
 				ValidateStoredConnection: deployments.ValidateStoredConnection,
 				RetireManagedRoutes:      func(context.Context, string, application.Connection) error { return nil },
+				CheckCredential:          deployments.CheckCredential,
 				Clock:                    clock, Entropy: bytes.NewReader(bytes.Repeat([]byte{7}, 128)),
 			})
 			if err != nil {

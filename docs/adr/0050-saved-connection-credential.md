@@ -12,6 +12,13 @@ the credential, and that a manual send may read a stored credential only while
 automatic delivery is on. The rest of both ADRs, including the deployment
 lifecycle, the delivery gate and the manual request contract, is unchanged.
 
+Saving is amended by [ADR 0059](0059-saving-a-password-checks-it-first.md): a
+password is checked with a read-only login before it is kept, a password the
+device refuses is not kept and answers `device_auth_rejected` on the device
+routes, and a successful save reports what the check found. The statements below
+that a refused password is known only to a send, and that only a send proves a
+password, no longer hold; everything else here is unchanged.
+
 ## Context
 
 ADR 0014 stored a router password only as part of the consent to automatic

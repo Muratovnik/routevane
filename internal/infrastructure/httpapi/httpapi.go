@@ -45,6 +45,12 @@ const (
 	// desktop transport's ten-minute abort, write slack included, so the
 	// operator gets this route's own answer rather than a transport failure.
 	profileRefreshRequestTimeout = 5 * time.Minute
+	// credentialRequestTimeout is the budget for a route that may save a
+	// device password. Saving signs in to the device first, read-only, inside
+	// the check's own budget (ADR 0059); the screen's budget is added on top so
+	// waiting for the delivery gate and writing the store keep their time after
+	// a slow device.
+	credentialRequestTimeout = requestTimeout + application.CredentialCheckBudget
 )
 
 type Backend interface {
@@ -143,7 +149,9 @@ type Backend interface {
 	RegisterDevice(ctx context.Context, targetID, name, address, account, interfaceName string) (application.Device, error)
 	UpdateDevice(ctx context.Context, id, name, address, account, interfaceName string) (application.Device, error)
 	ForgetDevice(context.Context, string) error
-	SaveDeviceCredential(ctx context.Context, id, secret string) (application.Device, error)
+	// SaveDeviceCredential checks the password with a read-only login before
+	// keeping it (ADR 0059) and answers what the check found.
+	SaveDeviceCredential(ctx context.Context, id, secret string) (application.Device, application.CredentialCheck, error)
 	RemoveDeviceCredential(context.Context, string) (application.Device, error)
 	EnableAutoDelivery(ctx context.Context, id, secret string) (application.Device, error)
 	DisableAutoDelivery(context.Context, string) (application.Device, error)
@@ -538,6 +546,10 @@ func writeBackendError(w http.ResponseWriter, err error) {
 		// Another part of the connection does not suit the deployer, the same
 		// meaning the deploy routes give this code.
 		writeError(w, http.StatusUnprocessableEntity, "connection_invalid")
+	case errors.Is(err, application.ErrDeviceAuthRejected):
+		// The device refused the password offered for saving (ADR 0059). The
+		// code is the one a refused send carries, with the same field.
+		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "device_auth_rejected", "field": "credential"})
 	case errors.Is(err, application.ErrCredentialInvalid):
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "credential_invalid", "field": "credential"})
 	case errors.Is(err, application.ErrSecretStoreUnavailable):

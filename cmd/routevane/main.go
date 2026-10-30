@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Muratovnik/routevane/internal/application"
 	deployerkeenetic "github.com/Muratovnik/routevane/internal/deployers/keenetic"
 	"github.com/Muratovnik/routevane/internal/discovery"
 	"github.com/Muratovnik/routevane/internal/domain"
@@ -56,6 +57,10 @@ type runtimeDeps struct {
 	// destination policy, which still refuses anything that is not a local
 	// network address.
 	DeviceDialer deployerkeenetic.Dialer
+	// Secrets is where saved device passwords go. Production is the operating
+	// system's store (a memory store in the test build); a test that drives the
+	// server end to end passes its own so it never writes to the workstation.
+	Secrets application.SecretStore
 	// PluginsDir is where installed out-of-process adapters live. Empty means no
 	// plugin host is started at all.
 	PluginsDir     string
@@ -90,6 +95,7 @@ func productionDeps() runtimeDeps {
 		OpenBrowser:  openSystemBrowser,
 		DesktopInput: os.Stdin,
 		DeviceDialer: defaultDeviceDialer(),
+		Secrets:      newSecretStore(),
 	}
 }
 
@@ -133,6 +139,9 @@ func normalizeDeps(deps runtimeDeps) runtimeDeps {
 	if deps.DeviceDialer == nil {
 		// Nil in a release build, where the deployers use the standard dialer.
 		deps.DeviceDialer = production.DeviceDialer
+	}
+	if deps.Secrets == nil {
+		deps.Secrets = production.Secrets
 	}
 	return deps
 }

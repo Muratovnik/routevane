@@ -108,6 +108,7 @@ func deviceService(t *testing.T, secrets *fakeSecretStore) (*DeviceService, *fak
 			return nil
 		},
 		RetireManagedRoutes: func(context.Context, string, Connection) error { return nil },
+		CheckCredential:     func(context.Context, string, Connection) error { return nil },
 		Clock:               ClockFunc(func() time.Time { return time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC) }),
 		Entropy:             bytes.NewReader(bytes.Repeat([]byte{7}, 512)),
 	})
@@ -187,6 +188,7 @@ func TestRegistrationAppliesTheDeployersStoredConnectionPolicy(t *testing.T) {
 			return nil
 		},
 		RetireManagedRoutes: func(context.Context, string, Connection) error { return nil },
+		CheckCredential:     func(context.Context, string, Connection) error { return nil },
 		Clock:               ClockFunc(time.Now), Entropy: bytes.NewReader(bytes.Repeat([]byte{1}, 64)),
 	})
 	if err != nil {
@@ -347,6 +349,7 @@ func TestADeviceWithoutCredentialRequirementsCanOptInWithoutAStoredSecret(t *tes
 		NeedsInterface:           func(string) bool { return false },
 		ValidateStoredConnection: func(string, Connection) error { return nil },
 		RetireManagedRoutes:      func(context.Context, string, Connection) error { return nil },
+		CheckCredential:          func(context.Context, string, Connection) error { return nil },
 		Clock:                    ClockFunc(time.Now), Entropy: bytes.NewReader(bytes.Repeat([]byte{1}, 64)),
 	})
 	if err != nil {
@@ -372,6 +375,7 @@ func TestADeviceWithoutADeployerCannotOptInToAutomaticDelivery(t *testing.T) {
 		NeedsInterface:           func(string) bool { return false },
 		ValidateStoredConnection: func(string, Connection) error { return nil },
 		RetireManagedRoutes:      func(context.Context, string, Connection) error { return nil },
+		CheckCredential:          func(context.Context, string, Connection) error { return nil },
 		Clock:                    ClockFunc(time.Now), Entropy: bytes.NewReader(bytes.Repeat([]byte{1}, 64)),
 	})
 	if err != nil {

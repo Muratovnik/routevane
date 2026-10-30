@@ -24,10 +24,48 @@ var (
 	// a device whose deployer needs a password and none is saved (ADR 0050).
 	ErrCredentialRequired = errors.New("the device needs a saved credential")
 	// ErrCredentialInvalid is returned when the password offered for saving is
-	// empty or longer than the store keeps. It judges the value only: whether a
-	// device accepts the password is known to a send, never to the registry.
+	// empty or longer than the store keeps. It judges the value only: whether
+	// the device accepts it is the check that follows (ADR 0059).
 	ErrCredentialInvalid = errors.New("the credential cannot be saved")
+	// ErrNoCredentialCheck is returned by a credential check whose target has
+	// no deployer that signs in with a password, so there is nothing to ask the
+	// device. The password is then kept unchecked, as before ADR 0059.
+	ErrNoCredentialCheck = errors.New("the device's deployer has no login to check a password with")
 )
+
+// The results of checking a password before it is kept (ADR 0059).
+const (
+	// CredentialVerified: the device accepted the login and answered the
+	// read-only questions its deployer asks before any change.
+	CredentialVerified = "verified"
+	// CredentialInterfaceMissing: the device accepted the login and reported
+	// that it has no interface of the connection's name. The password is right;
+	// the connection needs another interface before a send can work.
+	CredentialInterfaceMissing = "interface_missing"
+	// CredentialUnverified: the device could not be asked, or its answer was
+	// not usable, so the password was kept without knowing whether it is right.
+	CredentialUnverified = "unverified"
+	// CredentialCheckNotApplicable: the device's deployer has no login to ask.
+	CredentialCheckNotApplicable = "not_applicable"
+)
+
+// CredentialCheckBudget bounds the read-only login that checks a password
+// before it is kept. It is one request's budget of the Keenetic deployer: a
+// router that has not finished signing in by then is reported as unreachable
+// and the password is kept unchecked, instead of holding the operator's form
+// and the delivery gate for the several requests a slow login could take. The
+// HTTP route adds this budget to its own, so the store write keeps its time.
+const CredentialCheckBudget = 15 * time.Second
+
+// CredentialCheck is what a read-only login with an offered password said
+// before the password was kept. It names an outcome and a stable code, never
+// the device's own answer, its address or the password.
+type CredentialCheck struct {
+	Result string `json:"result"`
+	// Code is the stable code, in DeploymentFailureCode's vocabulary, of why a
+	// password was kept without being verified.
+	Code string `json:"code,omitempty"`
+}
 
 // Device is a registered instance of a catalog target: what the operator calls
 // it, where it is, whether a password is saved for it, and whether they asked
@@ -131,14 +169,20 @@ type DeviceConfig struct {
 	// surface when connection metadata changes or a device is forgotten. It
 	// never contacts the device.
 	RetireManagedRoutes func(context.Context, string, Connection) error
-	Clock               Clock
-	Entropy             interface{ Read([]byte) (int, error) }
+	// CheckCredential signs in to the device with a complete connection and
+	// asks only read-only questions (the deployer's Probe), so a password can be
+	// checked before it is kept. It returns ErrNoCredentialCheck when the
+	// target's deployer has no login to ask, and otherwise the device refusal
+	// its deployer reported.
+	CheckCredential func(context.Context, string, Connection) error
+	Clock           Clock
+	Entropy         interface{ Read([]byte) (int, error) }
 }
 
 type DeviceService struct{ config DeviceConfig }
 
 func NewDeviceService(config DeviceConfig) (*DeviceService, error) {
-	if config.Store == nil || config.Secrets == nil || config.Targets == nil || config.Deployable == nil || config.NeedsCredential == nil || config.NeedsInterface == nil || config.ValidateStoredConnection == nil || config.RetireManagedRoutes == nil || config.Clock == nil || config.Entropy == nil {
+	if config.Store == nil || config.Secrets == nil || config.Targets == nil || config.Deployable == nil || config.NeedsCredential == nil || config.NeedsInterface == nil || config.ValidateStoredConnection == nil || config.RetireManagedRoutes == nil || config.CheckCredential == nil || config.Clock == nil || config.Entropy == nil {
 		return nil, ErrDeviceComposition
 	}
 	return &DeviceService{config: config}, nil
@@ -418,40 +462,90 @@ const maxCredentialBytes = 1024
 // consent to storage and is independent of automatic delivery. A saved
 // credential replaces any earlier one. A deployer that takes no credential has
 // nothing to save, so the flag can never claim a password that does not exist.
-func (s *DeviceService) SaveCredential(ctx context.Context, id, secret string) (Device, error) {
+//
+// The password is checked first with a read-only login to the device (ADR
+// 0059). A password the device refuses is not kept and nothing is written; any
+// other outcome keeps it and is reported in the returned check.
+func (s *DeviceService) SaveCredential(ctx context.Context, id, secret string) (Device, CredentialCheck, error) {
 	device, err := s.Device(ctx, id)
 	if err != nil {
-		return Device{}, err
+		return Device{}, CredentialCheck{}, err
 	}
 	if !s.config.Deployable(device.TargetID) {
-		return Device{}, fmt.Errorf("%w: %q", ErrDeployerUnavailable, device.TargetID)
+		return Device{}, CredentialCheck{}, fmt.Errorf("%w: %q", ErrDeployerUnavailable, device.TargetID)
 	}
 	if !s.config.NeedsCredential(device.TargetID) {
-		return Device{}, fmt.Errorf("the device's deployer takes no credential")
+		return Device{}, CredentialCheck{}, fmt.Errorf("the device's deployer takes no credential")
 	}
 	if secret == "" || len(secret) > maxCredentialBytes {
-		return Device{}, ErrCredentialInvalid
+		return Device{}, CredentialCheck{}, ErrCredentialInvalid
 	}
+	// A platform that cannot keep the password does not ask the device about it.
 	if !s.config.Secrets.Available() {
-		return Device{}, ErrSecretStoreUnavailable
+		return Device{}, CredentialCheck{}, ErrSecretStoreUnavailable
+	}
+	check, err := s.checkCredential(ctx, device, secret)
+	if err != nil {
+		return Device{}, CredentialCheck{}, err
 	}
 	if err := s.config.Secrets.PutSecret(ctx, secretKey(device.ID), device.Account, secret); err != nil {
-		return Device{}, fmt.Errorf("store the credential: %w", err)
+		return Device{}, CredentialCheck{}, fmt.Errorf("store the credential: %w", err)
 	}
 	if device.CredentialStored {
 		// The store now holds the replacement and the recorded fact was already
 		// true, so there is nothing to write.
-		return device, nil
+		return device, check, nil
 	}
 	now := s.config.Clock.Now().UTC()
 	if now.IsZero() {
-		return Device{}, s.compensateStoredSecret(ctx, device.ID, fmt.Errorf("clock returned zero time"))
+		return Device{}, CredentialCheck{}, s.compensateStoredSecret(ctx, device.ID, fmt.Errorf("clock returned zero time"))
 	}
 	device.CredentialStored, device.UpdatedAt = true, now
 	if err := s.config.Store.UpdateDevice(ctx, device); err != nil {
-		return Device{}, s.compensateStoredSecret(ctx, device.ID, err)
+		return Device{}, CredentialCheck{}, s.compensateStoredSecret(ctx, device.ID, err)
 	}
-	return device, nil
+	return device, check, nil
+}
+
+// checkCredential asks the device, within its own budget, whether it accepts
+// the password on the stored connection. Only a refused login is an error. The
+// device's error is reduced to a stable code here: it can carry the device's
+// answer and the address, and nothing above this needs either.
+func (s *DeviceService) checkCredential(ctx context.Context, device Device, secret string) (CredentialCheck, error) {
+	checkCtx, cancel := context.WithTimeout(ctx, CredentialCheckBudget)
+	defer cancel()
+	err := s.config.CheckCredential(checkCtx, device.TargetID, Connection{URL: device.Address, Username: device.Account, Password: secret, Interface: device.Interface})
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		// The request itself ended: nobody is waiting for the outcome, and a
+		// password kept without the operator seeing the answer is not consent.
+		return CredentialCheck{}, ctxErr
+	}
+	switch {
+	case err == nil:
+		return CredentialCheck{Result: CredentialVerified}, nil
+	case errors.Is(err, ErrNoCredentialCheck):
+		return CredentialCheck{Result: CredentialCheckNotApplicable}, nil
+	case errors.Is(err, ErrDeviceAuthRejected):
+		return CredentialCheck{}, fmt.Errorf("check the credential: %w", ErrDeviceAuthRejected)
+	case errors.Is(err, ErrDeviceInterfaceMissing):
+		return CredentialCheck{Result: CredentialInterfaceMissing, Code: DeploymentFailureCode(ErrDeviceInterfaceMissing)}, nil
+	case checkCtx.Err() != nil:
+		// The check's own budget ran out: the device did not finish answering,
+		// whatever step the deployer was at.
+		return CredentialCheck{Result: CredentialUnverified, Code: DeploymentFailureCode(ErrDeviceUnreachable)}, nil
+	default:
+		return CredentialCheck{Result: CredentialUnverified, Code: credentialCheckCode(err)}, nil
+	}
+}
+
+// credentialCheckCode names an unverified check in the deployment vocabulary,
+// except that a failure no device code describes is a failed check rather than
+// a failed deployment: nothing was being deployed.
+func credentialCheckCode(err error) string {
+	if code := DeploymentFailureCode(err); code != "deploy_failed" {
+		return code
+	}
+	return "check_failed"
 }
 
 // compensateStoredSecret removes a secret whose flag was never recorded. It is
@@ -506,8 +600,9 @@ func (s *DeviceService) clearCredential(ctx context.Context, device Device, disa
 
 // EnableAutoDelivery turns unattended delivery on. A deployer that needs a
 // credential requires one to be saved already (ADR 0050); a non-empty secret is
-// saved first, the same as SaveCredential, so a caller that sends both in one
-// request still works. A deployer that takes no credential removes an obsolete
+// saved first, the same as SaveCredential and with the same check, so a caller
+// that sends both in one request still works and a password the device refuses
+// enables nothing. A deployer that takes no credential removes an obsolete
 // entry and records only the consent flag.
 func (s *DeviceService) EnableAutoDelivery(ctx context.Context, id, secret string) (Device, error) {
 	device, err := s.Device(ctx, id)
@@ -519,7 +614,7 @@ func (s *DeviceService) EnableAutoDelivery(ctx context.Context, id, secret strin
 	}
 	if s.config.NeedsCredential(device.TargetID) {
 		if secret != "" {
-			if device, err = s.SaveCredential(ctx, id, secret); err != nil {
+			if device, _, err = s.SaveCredential(ctx, id, secret); err != nil {
 				return Device{}, err
 			}
 		}

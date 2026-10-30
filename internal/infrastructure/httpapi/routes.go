@@ -177,13 +177,13 @@ var routes = map[string]routeSpec{
 	"devices.forget": {path: "/v1/devices/{id}/forget", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.forgetDevice(w, r, r.PathValue("id"))
 	}},
-	"devices.credential": {path: "/v1/devices/{id}/credential", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"devices.credential": {path: "/v1/devices/{id}/credential", methods: writeMethods, timeout: credentialRequestTimeout, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.saveDeviceCredential(w, r, r.PathValue("id"))
 	}},
 	"devices.credential.remove": {path: "/v1/devices/{id}/credential/remove", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.removeDeviceCredential(w, r, r.PathValue("id"))
 	}},
-	"devices.autodelivery": {path: "/v1/devices/{id}/auto-delivery", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"devices.autodelivery": {path: "/v1/devices/{id}/auto-delivery", methods: writeMethods, timeout: credentialRequestTimeout, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.autoDelivery(w, r, r.PathValue("id"))
 	}},
 	"settings.get": {path: "/v1/settings", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
