@@ -48,13 +48,39 @@ const (
 	handshakeTimeout = 5 * time.Second
 )
 
+// ErrDeviceRefused covers both the device's refusals and this deployer's own
+// refusal of a connection, so it carries no device-neutral meaning by itself:
+// each device refusal adds the application's reason where it is raised, a
+// rejected credential, a rejected command or an unusable login exchange. The
+// two sentinels below always mean one device fact, so they carry theirs.
 var (
 	ErrUnsupportedFirmware = errors.New("device firmware does not support this deployment")
 	ErrDeviceRefused       = errors.New("device refused the request")
-	ErrDeviceUnreachable   = errors.New("device is unreachable")
-	ErrDeviceAnswer        = errors.New("device answer is not usable")
+	ErrDeviceUnreachable   = error(&deviceFact{text: "device is unreachable", kind: application.ErrDeviceUnreachable})
+	ErrDeviceAnswer        = error(&deviceFact{text: "device answer is not usable", kind: application.ErrDeviceAnswerInvalid})
 	ErrArtifactMismatch    = errors.New("artifact is not a Keenetic route artifact")
 )
+
+// deviceFact is a sentinel of this package that also answers errors.Is for the
+// application's name of the same fact, keeping its own text.
+type deviceFact struct {
+	text string
+	kind error
+}
+
+func (e *deviceFact) Error() string { return e.text }
+func (e *deviceFact) Unwrap() error { return e.kind }
+
+// loginRefused is a login the device ended with status after the credential
+// was offered. 401 and 403 reject the credential; any other status ends an
+// exchange this deployer cannot complete.
+func loginRefused(status int) error {
+	kind := application.ErrDeviceAnswerInvalid
+	if status == http.StatusUnauthorized || status == http.StatusForbidden {
+		kind = application.ErrDeviceAuthRejected
+	}
+	return fmt.Errorf("%w: %w: authentication status %d", ErrDeviceRefused, kind, status)
+}
 
 // Dialer opens the connection to a destination the device policy accepted.
 type Dialer interface {
@@ -158,7 +184,7 @@ func (s *session) requireInterface(ctx context.Context, name string) error {
 		return err
 	}
 	if _, present := interfaces[name]; !present {
-		return fmt.Errorf("%w: the device has no interface %q", ErrDeviceAnswer, name)
+		return fmt.Errorf("%w: %w: the device has no interface %q", ErrDeviceAnswer, application.ErrDeviceInterfaceMissing, name)
 	}
 	return nil
 }

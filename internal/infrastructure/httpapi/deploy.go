@@ -15,7 +15,8 @@ import (
 // A one-use credential is handed to the deployer without being stored, logged,
 // or returned. A registered selection may resolve a consented saved credential
 // under the delivery gate. The request log records the route and method only,
-// and the audit record this returns carries identities and outcomes.
+// a refusal adds its stable code and step, and the audit record this returns
+// carries identities and outcomes.
 //
 // Without confirm the handler answers with the plan, including read-only device
 // inspection when required. Only the confirmed step can mutate the device.
@@ -51,7 +52,9 @@ func (h *handler) deploy(w http.ResponseWriter, r *http.Request, id string) {
 		plan, err := h.backend.DeployPlan(r.Context(), command)
 		if err != nil {
 			if errors.Is(err, application.ErrFQDNOwnershipConflict) || errors.Is(err, application.ErrDeployFailed) || errors.Is(err, application.ErrConnectionInvalid) || errors.Is(err, application.ErrDeviceIncompatible) {
-				writeJSON(w, deployStatus(err), deployRefusal(err))
+				refusal := deployRefusal(err)
+				h.logDeployRefusal(false, refusal["error"], refusal["step"])
+				writeJSON(w, deployStatus(err), refusal)
 				return
 			}
 			h.backendError(w, err)
@@ -84,7 +87,9 @@ func (h *handler) deploy(w http.ResponseWriter, r *http.Request, id string) {
 	if attempt.ID == "" {
 		if err != nil {
 			if errors.Is(err, application.ErrConnectionInvalid) || errors.Is(err, application.ErrDeviceIncompatible) || errors.Is(err, application.ErrDeployerUnavailable) {
-				writeJSON(w, deployStatus(err), deployRefusal(err))
+				refusal := deployRefusal(err)
+				h.logDeployRefusal(true, refusal["error"], refusal["step"])
+				writeJSON(w, deployStatus(err), refusal)
 				return
 			}
 			h.backendError(w, err)
@@ -97,6 +102,7 @@ func (h *handler) deploy(w http.ResponseWriter, r *http.Request, id string) {
 	// exactly the case an operator needs the record of.
 	body := deploymentAttemptBody(attempt)
 	if attempt.Status == application.DeploymentAttemptFailed {
+		h.logDeployRefusal(true, attempt.Error, attempt.Result.FailedStep())
 		writeJSON(w, deployCodeStatus(attempt.Error), body)
 		return
 	}
@@ -122,7 +128,15 @@ func (h *handler) deployNotStarted(w http.ResponseWriter, err error) {
 	if errors.Is(err, application.ErrAddressRejected) {
 		body["error"], body["field"] = "address_rejected", "address"
 	}
+	h.logDeployRefusal(true, body["error"].(string), "")
 	writeJSON(w, status, body)
+}
+
+// logDeployRefusal records one refused preview or send by its stable code and
+// the step it stopped at. The error itself stays out of this line: a device's
+// own answer can be inside it, and so can the address it was sent to.
+func (h *handler) logDeployRefusal(confirmed bool, code, step string) {
+	h.logger.Warn("deployment refused", "route", routeDeploy, "confirmed", confirmed, "code", code, "step", step)
 }
 
 func (h *handler) deploymentAttempt(w http.ResponseWriter, r *http.Request, id string) {
@@ -152,6 +166,14 @@ func deploymentAttemptBody(attempt application.DeploymentAttempt) map[string]any
 	}
 	if attempt.Error != "" {
 		body["error"] = attempt.Error
+		if field := deployRefusalField(attempt.Error); field != "" {
+			body["field"] = field
+		}
+	}
+	if attempt.Status == application.DeploymentAttemptFailed {
+		if step := attempt.Result.FailedStep(); step != "" {
+			body["step"] = step
+		}
 	}
 	return body
 }
@@ -162,23 +184,51 @@ func deployFailure(err error) string {
 	return application.DeploymentFailureCode(err)
 }
 
-// deployRefusal is the body of a refusal that stopped a send before it touched
-// anything. A refused address is the one refusal that names a field, so the
-// screen can say it beside the address it was typed in (ADR 0050); every other
-// refusal is the stable code of DeploymentFailureCode alone. The attempt
-// journal keeps `connection_invalid` for it: the field is a detail of the
+// deployRefusal is the body of a refusal that stopped a send or a preview
+// before it changed anything. A refusal about one connection field names it,
+// so the screen can say it beside that field (ADR 0050): a refused address, a
+// password the device rejected, an interface the device does not have. Every
+// refusal is otherwise the stable code of DeploymentFailureCode, with the step
+// it stopped at when the preview names one. The attempt journal keeps
+// `connection_invalid` for a refused address: the field is a detail of the
 // refusal, not a second failure kind.
 func deployRefusal(err error) map[string]string {
 	if errors.Is(err, application.ErrAddressRejected) {
 		return map[string]string{"error": "address_rejected", "field": "address"}
 	}
-	return map[string]string{"error": deployFailure(err)}
+	code := deployFailure(err)
+	body := map[string]string{"error": code}
+	if field := deployRefusalField(code); field != "" {
+		body["field"] = field
+	}
+	if step := application.RefusalStep(err); step != "" {
+		body["step"] = step
+	}
+	return body
 }
 
+// deployRefusalField is the connection field a device refusal is about.
+func deployRefusalField(code string) string {
+	switch code {
+	case "device_auth_rejected":
+		return "credential"
+	case "device_interface_missing":
+		return "interface"
+	default:
+		return ""
+	}
+}
+
+// deployCodeStatus is the status of a stable failure code. A request the route
+// cannot act on is 400; a device that rejected one named connection field is
+// 422, like a refused address, because the operator must change that field;
+// everything else the device or its state refused is 409.
 func deployCodeStatus(code string) int {
 	switch code {
 	case "connection_invalid", "confirmation_required", "deployer_unavailable":
 		return http.StatusBadRequest
+	case "device_auth_rejected", "device_interface_missing":
+		return http.StatusUnprocessableEntity
 	default:
 		return http.StatusConflict
 	}
@@ -194,10 +244,9 @@ func deployStatus(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, application.ErrAddressRejected):
 		return http.StatusUnprocessableEntity
-	case errors.Is(err, application.ErrConnectionInvalid), errors.Is(err, application.ErrDeployComposition),
-		errors.Is(err, application.ErrConfirmationRequired), errors.Is(err, application.ErrDeployerUnavailable):
+	case errors.Is(err, application.ErrDeployComposition):
 		return http.StatusBadRequest
 	default:
-		return http.StatusConflict
+		return deployCodeStatus(deployFailure(err))
 	}
 }

@@ -241,10 +241,10 @@ func (s *DeploymentService) Plan(ctx context.Context, command DeployCommand) (De
 		}
 		device, probeErr := deployer.Probe(ctx, command.Connection)
 		if probeErr != nil {
-			return DeployPlan{}, fmt.Errorf("%w: probe: %w", ErrDeployFailed, probeErr)
+			return DeployPlan{}, &StepError{Step: StepProbe, Err: fmt.Errorf("%w: %w", ErrDeployFailed, probeErr)}
 		}
 		if device.FormatKey != target.FormatKey {
-			return DeployPlan{}, ErrDeviceIncompatible
+			return DeployPlan{}, &StepError{Step: StepProbe, Err: ErrDeviceIncompatible}
 		}
 		endpoint, endpointErr := fqdn.FQDNEndpoint(command.Connection.Redacted())
 		if endpointErr != nil {
@@ -256,7 +256,7 @@ func (s *DeploymentService) Plan(ctx context.Context, command DeployCommand) (De
 		}
 		plan.FQDNChanges, err = fqdn.PreviewFQDNGroups(ctx, device, command.Connection, DeployArtifact{RendererID: payload.Artifact.RendererID, Payload: payload.Payload, OwnedFQDNGroups: prior.Groups})
 		if err != nil {
-			return DeployPlan{}, fmt.Errorf("%w: preview: %w", ErrDeployFailed, err)
+			return DeployPlan{}, &StepError{Step: StepPreview, Err: fmt.Errorf("%w: %w", ErrDeployFailed, err)}
 		}
 	}
 	return plan, nil

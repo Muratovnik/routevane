@@ -16,6 +16,8 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/argon2"
+
+	"github.com/Muratovnik/routevane/internal/application"
 )
 
 // The x-ndw4-interactive login KeeneticOS 5.2 introduced is a three-phase
@@ -236,7 +238,7 @@ func (s *session) authenticateNDW4(ctx context.Context, endpoint, username, pass
 		return err
 	}
 	if status != http.StatusUnauthorized {
-		return fmt.Errorf("%w: %w: first answer status %d", ErrDeviceRefused, errNDW4Unavailable, status)
+		return fmt.Errorf("%w: %w: %w: first answer status %d", ErrDeviceRefused, application.ErrDeviceAnswerInvalid, errNDW4Unavailable, status)
 	}
 	parameters, err := parseNDW4Parameters(header.Get(ndw4DataHeader))
 	if err != nil {
@@ -253,7 +255,8 @@ func (s *session) authenticateNDW4(ctx context.Context, endpoint, username, pass
 	}
 	signatureText, signature, signatureErr := parseNDW4Signature(header.Get(ndw4DataHeader))
 	if status != http.StatusUnauthorized || signatureErr != nil {
-		return fmt.Errorf("%w: authentication status %d", ErrDeviceRefused, status)
+		// A device that rejects the proof answers 401 without a signature.
+		return loginRefused(status)
 	}
 	if !hmac.Equal(ndw4DeviceSignature(keys, message), signature) {
 		return fmt.Errorf("%w: the device did not prove it knows the password", ErrDeviceAnswer)
@@ -266,7 +269,7 @@ func (s *session) authenticateNDW4(ctx context.Context, endpoint, username, pass
 		return err
 	}
 	if status != http.StatusOK {
-		return fmt.Errorf("%w: authentication status %d", ErrDeviceRefused, status)
+		return loginRefused(status)
 	}
 	return nil
 }

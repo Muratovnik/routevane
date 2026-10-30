@@ -65,15 +65,16 @@ func TestLoginPrefersNDW4AndNeverRetriesAfterTheProof(t *testing.T) {
 		emptyNDW4Answer bool
 		refuseNDW2      bool
 		wantErr         error
+		wantKind        error
 		wantNDW2        int
 		wantNDW4        int
 	}{
 		// The 5.2 router of ADR 0058 refuses the older login for this account.
 		{name: "5.2 device", refuseNDW2: true, wantNDW4: 3},
-		{name: "wrong password", changedPassword: true, refuseNDW2: true, wantErr: ErrDeviceRefused, wantNDW4: 2},
-		{name: "device without the password", forgeSignature: true, wantErr: ErrDeviceAnswer, wantNDW4: 2},
+		{name: "wrong password", changedPassword: true, refuseNDW2: true, wantErr: ErrDeviceRefused, wantKind: application.ErrDeviceAuthRejected, wantNDW4: 2},
+		{name: "device without the password", forgeSignature: true, wantErr: ErrDeviceAnswer, wantKind: application.ErrDeviceAnswerInvalid, wantNDW4: 2},
 		{name: "unusable first answer", emptyNDW4Answer: true, wantNDW2: 1, wantNDW4: 1},
-		{name: "unusable first answer and refused older login", emptyNDW4Answer: true, refuseNDW2: true, wantErr: ErrDeviceRefused, wantNDW2: 1, wantNDW4: 1},
+		{name: "unusable first answer and refused older login", emptyNDW4Answer: true, refuseNDW2: true, wantErr: ErrDeviceRefused, wantKind: application.ErrDeviceAuthRejected, wantNDW2: 1, wantNDW4: 1},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			account := devicePassword
@@ -92,6 +93,12 @@ func TestLoginPrefersNDW4AndNeverRetriesAfterTheProof(t *testing.T) {
 			info, err := deployer.Probe(context.Background(), connection)
 			if test.wantErr == nil && (err != nil || info.FormatKey == "") || test.wantErr != nil && !errors.Is(err, test.wantErr) {
 				t.Fatalf("probe = %#v, %v; want error %v", info, err, test.wantErr)
+			}
+			if test.wantKind != nil && !errors.Is(err, test.wantKind) {
+				t.Fatalf("probe = %v; want reason %v", err, test.wantKind)
+			}
+			if test.wantKind != application.ErrDeviceAuthRejected && errors.Is(err, application.ErrDeviceAuthRejected) {
+				t.Fatalf("probe = %v reads as a rejected password", err)
 			}
 			if ndw2, ndw4 := double.logins(); ndw2 != test.wantNDW2 || ndw4 != test.wantNDW4 {
 				t.Fatalf("logins: older=%d newer=%d, want %d and %d", ndw2, ndw4, test.wantNDW2, test.wantNDW4)

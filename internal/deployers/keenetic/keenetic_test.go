@@ -766,8 +766,29 @@ func TestProbeReportsTheFirmwareAndRefusesAnUnsupportedOne(t *testing.T) {
 	// An interface the device does not have is a device answer.
 	unknown := newDeviceFixture(t, "5.1.2")
 	unknown.connection.Interface = "Nonexistent0"
-	if _, err := unknown.deployer.Probe(context.Background(), unknown.connection); !errors.Is(err, ErrDeviceAnswer) {
-		t.Fatalf("err = %v, want ErrDeviceAnswer", err)
+	_, err = unknown.deployer.Probe(context.Background(), unknown.connection)
+	if !errors.Is(err, ErrDeviceAnswer) || !errors.Is(err, application.ErrDeviceInterfaceMissing) {
+		t.Fatalf("err = %v, want ErrDeviceAnswer and a missing interface", err)
+	}
+}
+
+// A device that is not listening is unreachable, in this package's words and
+// in the application's, and is never mistaken for a refused password.
+func TestAnUnreachableDeviceIsNamedAsUnreachable(t *testing.T) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := listener.Addr().String()
+	_ = listener.Close()
+	deployer := New(Options{Dialer: fixtureDialer{target: closed}})
+	connection := application.Connection{URL: "http://10.255.0.1", Username: deviceUser, Password: devicePassword, Interface: deviceInterface}
+	_, err = deployer.Probe(context.Background(), connection)
+	if !errors.Is(err, ErrDeviceUnreachable) || !errors.Is(err, application.ErrDeviceUnreachable) || errors.Is(err, application.ErrDeviceAuthRejected) {
+		t.Fatalf("err = %v, want an unreachable device", err)
+	}
+	if ErrDeviceUnreachable.Error() != "device is unreachable" || ErrDeviceAnswer.Error() != "device answer is not usable" {
+		t.Fatalf("sentinel text changed: %q, %q", ErrDeviceUnreachable, ErrDeviceAnswer)
 	}
 }
 

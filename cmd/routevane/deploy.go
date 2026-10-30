@@ -227,6 +227,7 @@ func deployErrorCode(err error) string {
 	case errors.Is(err, application.ErrDeployComposition):
 		return "composition_invalid"
 	default:
-		return "deploy_failed"
+		// What the device refused is named the way the HTTP routes name it.
+		return application.DeploymentFailureCode(err)
 	}
 }

@@ -105,7 +105,7 @@ func (s *session) authenticateNDW2(ctx context.Context, username, password strin
 	challenge := header.Get("X-NDM-Challenge")
 	realm := header.Get("X-NDM-Realm")
 	if status != http.StatusUnauthorized || challenge == "" || realm == "" {
-		return fmt.Errorf("%w: challenge status %d", ErrDeviceRefused, status)
+		return fmt.Errorf("%w: %w: challenge status %d", ErrDeviceRefused, application.ErrDeviceAnswerInvalid, status)
 	}
 	digest := md5.Sum([]byte(username + ":" + realm + ":" + password)) // #nosec G401 -- the device's documented challenge scheme fixes this construction; it is not a password store.
 	inner := hex.EncodeToString(digest[:])
@@ -115,7 +115,7 @@ func (s *session) authenticateNDW2(ctx context.Context, username, password strin
 		return err
 	}
 	if authStatus != http.StatusOK {
-		return fmt.Errorf("%w: authentication status %d", ErrDeviceRefused, authStatus)
+		return loginRefused(authStatus)
 	}
 	return nil
 }
@@ -203,7 +203,7 @@ func deviceError(answer json.RawMessage) error {
 	}
 	for _, status := range envelope.Status {
 		if strings.EqualFold(status.Status, "error") {
-			return fmt.Errorf("%w: %s %s", ErrDeviceRefused, status.Code, status.Message)
+			return fmt.Errorf("%w: %w: %s %s", ErrDeviceRefused, application.ErrDeviceCommandRejected, status.Code, status.Message)
 		}
 	}
 	return nil
@@ -286,7 +286,7 @@ func (s *session) raw(ctx context.Context, method, path string, body []byte) ([]
 		return nil, fmt.Errorf("%w: %s answered beyond the byte bound", ErrDeviceAnswer, path)
 	}
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%w: %s answered %d", ErrDeviceRefused, path, response.StatusCode)
+		return nil, fmt.Errorf("%w: %w: %s answered %d", ErrDeviceRefused, application.ErrDeviceCommandRejected, path, response.StatusCode)
 	}
 	return payload, nil
 }

@@ -215,6 +215,12 @@ func deploymentRequestHash(command DeployCommand) string {
 
 // DeploymentFailureCode is the stable, non-secret classification persisted
 // with an attempt and returned by the HTTP boundary.
+//
+// A step's own outcome outranks the device's reason for it: a backup, a
+// verification or a rollback that failed keeps that code whatever the device
+// said, and a refused connection stays refused before any device was asked.
+// The device codes then name what the device did. A missing interface comes
+// before an unusable answer because it travels with one.
 func DeploymentFailureCode(err error) string {
 	switch {
 	case err == nil:
@@ -235,6 +241,16 @@ func DeploymentFailureCode(err error) string {
 		return "deployer_unavailable"
 	case errors.Is(err, ErrConfirmationRequired):
 		return "confirmation_required"
+	case errors.Is(err, ErrDeviceAuthRejected):
+		return "device_auth_rejected"
+	case errors.Is(err, ErrDeviceInterfaceMissing):
+		return "device_interface_missing"
+	case errors.Is(err, ErrDeviceUnreachable):
+		return "device_unreachable"
+	case errors.Is(err, ErrDeviceCommandRejected):
+		return "device_command_rejected"
+	case errors.Is(err, ErrDeviceAnswerInvalid):
+		return "device_answer_invalid"
 	default:
 		return "deploy_failed"
 	}

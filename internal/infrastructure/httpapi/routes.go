@@ -22,6 +22,8 @@ const writeDeadlineSlack = 10 * time.Second
 const (
 	routeUI     = "ui"
 	routeStatus = "status"
+	// routeDeploy is also named by the refusal log the deploy handler writes.
+	routeDeploy = "artifacts.deploy"
 )
 
 // routeSpec is everything the transport knows about one route: which path it
@@ -148,7 +150,7 @@ var routes = map[string]routeSpec{
 	"deployments.targets": {path: "/v1/deployments/targets", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"targets": h.backend.DeployableTargets()})
 	}},
-	"artifacts.deploy": {path: "/v1/artifacts/{id}/deploy", methods: writeMethods, timeout: deployRequestTimeout, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	routeDeploy: {path: "/v1/artifacts/{id}/deploy", methods: writeMethods, timeout: deployRequestTimeout, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.deploy(w, r, r.PathValue("id"))
 	}},
 	"deployments.attempt": {path: "/v1/deployment-attempts/{id}", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {

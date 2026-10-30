@@ -30,6 +30,45 @@ var (
 	ErrDeviceUnchanged = errors.New("deployment left the device unchanged")
 )
 
+// What a device did when it refused. A deployer wraps one of these beside its
+// own error so a screen can name the cause without knowing which deployer
+// spoke. They describe the device's answer, never its content.
+var (
+	// ErrDeviceAuthRejected is a login the device answered by rejecting the
+	// account or its password.
+	ErrDeviceAuthRejected = errors.New("device rejected the credential")
+	// ErrDeviceUnreachable is a device that could not be reached or stopped
+	// answering: a refused connection, a timeout or a broken transport.
+	ErrDeviceUnreachable = errors.New("device could not be reached")
+	// ErrDeviceAnswerInvalid is an answer this deployer cannot use: malformed,
+	// beyond its bound, or a protocol the deployer does not speak.
+	ErrDeviceAnswerInvalid = errors.New("device answered in a way the deployer cannot use")
+	// ErrDeviceCommandRejected is a command the device refused after login.
+	ErrDeviceCommandRejected = errors.New("device rejected a command")
+	// ErrDeviceInterfaceMissing is a connection interface the device reports it
+	// does not have. It travels together with ErrDeviceAnswerInvalid.
+	ErrDeviceInterfaceMissing = errors.New("device has no such interface")
+)
+
+// StepError names the step a refusal stopped at when no audit event records
+// it, as on a read-only preview.
+type StepError struct {
+	Step string
+	Err  error
+}
+
+func (e *StepError) Error() string { return e.Step + ": " + e.Err.Error() }
+func (e *StepError) Unwrap() error { return e.Err }
+
+// RefusalStep is the step err was raised at, or "" when it names none.
+func RefusalStep(err error) string {
+	var stepped *StepError
+	if errors.As(err, &stepped) {
+		return stepped.Step
+	}
+	return ""
+}
+
 // Connection is how to reach one device. It carries a credential, so it is
 // deliberately a separate argument rather than a field of DeviceInfo: nothing
 // that is logged, serialized, or returned may hold it.
@@ -177,6 +216,7 @@ const rollbackBudget = 2 * time.Minute
 // DeployStep identities used in the audit trail.
 const (
 	StepProbe     = "probe"
+	StepPreview   = "preview"
 	StepBackup    = "backup"
 	StepDeploy    = "deploy"
 	StepVerify    = "verify"
@@ -201,6 +241,18 @@ type DeployResult struct {
 	Applied    bool          `json:"applied"`
 	RolledBack bool          `json:"rolled_back"`
 	Events     []DeployEvent `json:"events"`
+}
+
+// FailedStep is the step whose failure ended the attempt: the last audited step
+// that failed, so a failed rollback outranks the failure that triggered it. It
+// is "" when the attempt failed before any audited step.
+func (r DeployResult) FailedStep() string {
+	for index := len(r.Events) - 1; index >= 0; index-- {
+		if r.Events[index].Outcome == "failed" {
+			return r.Events[index].Step
+		}
+	}
+	return ""
 }
 
 // DeployRequest is one deployment attempt.
@@ -259,7 +311,7 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 	device, err := deployer.Probe(ctx, request.Connection)
 	record(StepProbe, started, err, device.FirmwareVersion)
 	if err != nil {
-		return result, fmt.Errorf("%w: probe: %v", ErrDeployFailed, err)
+		return result, fmt.Errorf("%w: probe: %w", ErrDeployFailed, err)
 	}
 	device.DeployerID = deployer.ID()
 	result.Device = device
@@ -449,5 +501,5 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 	if errors.Is(deployErr, ErrOwnershipPersist) {
 		return result, deployErr
 	}
-	return result, fmt.Errorf("%w: deploy: %v", ErrDeployFailed, deployErr)
+	return result, fmt.Errorf("%w: deploy: %w", ErrDeployFailed, deployErr)
 }

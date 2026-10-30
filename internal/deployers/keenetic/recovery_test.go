@@ -13,15 +13,15 @@ import (
 func TestCommandChecksDeviceStatusWithoutOutput(t *testing.T) {
 	for _, tc := range []struct {
 		name, body string
-		want       error
+		want, kind error
 	}{
-		{"saved", `{"status":[{"status":"message","code":"saved"}]}`, nil},
-		{"save error", `{"status":[{"status":"error","code":"save-refused"}]}`, ErrDeviceRefused},
-		{"batch error", `[{"status":[{"status":"error"}]}]`, ErrDeviceRefused},
-		{"parse error", `[{"parse":{"status":[{"status":"error"}]}}]`, ErrDeviceRefused},
-		{"bad JSON", `truncated`, ErrDeviceAnswer},
-		{"null", `null`, ErrDeviceAnswer},
-		{"wrong status shape", `{"status":"error"}`, ErrDeviceAnswer},
+		{"saved", `{"status":[{"status":"message","code":"saved"}]}`, nil, nil},
+		{"save error", `{"status":[{"status":"error","code":"save-refused"}]}`, ErrDeviceRefused, application.ErrDeviceCommandRejected},
+		{"batch error", `[{"status":[{"status":"error"}]}]`, ErrDeviceRefused, application.ErrDeviceCommandRejected},
+		{"parse error", `[{"parse":{"status":[{"status":"error"}]}}]`, ErrDeviceRefused, application.ErrDeviceCommandRejected},
+		{"bad JSON", `truncated`, ErrDeviceAnswer, application.ErrDeviceAnswerInvalid},
+		{"null", `null`, ErrDeviceAnswer, application.ErrDeviceAnswerInvalid},
+		{"wrong status shape", `{"status":"error"}`, ErrDeviceAnswer, application.ErrDeviceAnswerInvalid},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte(tc.body)) }))
@@ -29,8 +29,8 @@ func TestCommandChecksDeviceStatusWithoutOutput(t *testing.T) {
 			s := session{client: server.Client(), baseURL: server.URL}
 			for _, out := range []any{nil, &map[string]any{}} {
 				err := s.command(context.Background(), "/rci/system/configuration/save", map[string]any{}, out)
-				if !errors.Is(err, tc.want) {
-					t.Fatalf("out=%T error=%v want=%v", out, err, tc.want)
+				if !errors.Is(err, tc.want) || !errors.Is(err, tc.kind) {
+					t.Fatalf("out=%T error=%v want=%v and %v", out, err, tc.want, tc.kind)
 				}
 			}
 		})
