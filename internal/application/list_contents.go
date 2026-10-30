@@ -31,12 +31,20 @@ type ListContents struct {
 // shipped seed, "manual" for an operator entry, otherwise the id of the
 // automatic source that observed it. Missing marks a standing verdict whose
 // value no current material offers.
+//
+// Definition marks a value of the list's own static definition: a shipped
+// seed, or a domain the operator wrote into a list they created. Origin cannot
+// say this for an operator's list, where the definition and an include verdict
+// are both "manual". It decides the switch: a definition value is switched off
+// by an exclude verdict and back on by auto, while a value that stands on an
+// include verdict alone is withdrawn by auto.
 type ListContentsRow struct {
-	Value   string `json:"value"`
-	Kind    string `json:"kind"`
-	Origin  string `json:"origin"`
-	Enabled bool   `json:"enabled"`
-	Missing bool   `json:"missing,omitempty"`
+	Value      string `json:"value"`
+	Kind       string `json:"kind"`
+	Origin     string `json:"origin"`
+	Enabled    bool   `json:"enabled"`
+	Missing    bool   `json:"missing,omitempty"`
+	Definition bool   `json:"definition,omitempty"`
 }
 
 // ListContentsSource is one automatic source with the operator's switch.
@@ -89,20 +97,23 @@ func (s *PublicationService) ListContents(ctx context.Context, listID string) (L
 		staticOrigin = "manual"
 	}
 	rows := make(map[string]*ListContentsRow)
-	addRow := func(value, kind, origin string) {
+	addRow := func(value, kind, origin string) *ListContentsRow {
 		if existing, seen := rows[value]; seen {
 			// A value several origins offer keeps the strongest claim: the
 			// operator's own word over the catalog, the catalog over a feed.
 			if originRank(origin) < originRank(existing.Origin) {
 				existing.Origin = origin
 			}
-			return
+			return existing
 		}
 		_, off := excluded[value]
-		rows[value] = &ListContentsRow{Value: value, Kind: kind, Origin: origin, Enabled: !off}
+		row := &ListContentsRow{Value: value, Kind: kind, Origin: origin, Enabled: !off}
+		rows[value] = row
+		return row
 	}
+	// The untuned seeds are the definition, so an excluded one stays a row.
 	for _, seed := range base.Seeds {
-		addRow(seed.Value, rowKind(seed.Kind), staticOrigin)
+		addRow(seed.Value, rowKind(seed.Kind), staticOrigin).Definition = true
 	}
 	for _, value := range tuning.Includes {
 		if canonical, kind, err := domain.NormalizeRuleValue(value); err == nil {

@@ -200,8 +200,8 @@ func TestIncludedAddressesAndNetworksPlantSeedsOfTheirKind(t *testing.T) {
 	// Names lead, then addresses, then networks; each block alphabetical, so a
 	// table of hundreds of rows reads in one order whatever it holds.
 	want := []ListContentsRow{
-		{Value: "example.com", Kind: "domain", Origin: "catalog", Enabled: true},
-		{Value: "192.0.2.1", Kind: "ip", Origin: "catalog", Enabled: true},
+		{Value: "example.com", Kind: "domain", Origin: "catalog", Enabled: true, Definition: true},
+		{Value: "192.0.2.1", Kind: "ip", Origin: "catalog", Enabled: true, Definition: true},
 		{Value: "198.51.100.7", Kind: "ip", Origin: "manual", Enabled: true},
 		{Value: "198.51.100.8", Kind: "ip", Origin: "dns-main", Enabled: true},
 		{Value: "2001:db8::1", Kind: "ip", Origin: "manual", Enabled: true},
@@ -339,9 +339,9 @@ func TestListContentsMergesStaticAndObservedRows(t *testing.T) {
 	}
 	want := []ListContentsRow{
 		{Value: "cdn.example.net", Kind: "domain", Origin: "vendor", Enabled: false},
-		{Value: "example.com", Kind: "domain", Origin: "catalog", Enabled: true},
+		{Value: "example.com", Kind: "domain", Origin: "catalog", Enabled: true, Definition: true},
 		{Value: "gone.example", Kind: "domain", Enabled: false, Missing: true},
-		{Value: "192.0.2.1", Kind: "ip", Origin: "catalog", Enabled: true},
+		{Value: "192.0.2.1", Kind: "ip", Origin: "catalog", Enabled: true, Definition: true},
 	}
 	if !reflect.DeepEqual(contents.Rows, want) {
 		t.Fatalf("rows = %#v", contents.Rows)

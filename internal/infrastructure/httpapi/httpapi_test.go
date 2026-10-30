@@ -147,7 +147,7 @@ func (f *fakeBackend) ListContents(_ context.Context, listID string) (applicatio
 	return application.ListContents{
 		ListID: listID,
 		Rows: []application.ListContentsRow{
-			{Value: "example.com", Kind: "domain", Origin: "catalog", Enabled: true},
+			{Value: "example.com", Kind: "domain", Origin: "catalog", Enabled: true, Definition: true},
 			{Value: "198.51.100.7", Kind: "ip", Origin: "manual", Enabled: true},
 		},
 		Sources: []application.ListContentsSource{
