@@ -231,8 +231,13 @@ var routes = map[string]routeSpec{
 	}},
 	// Deletion is the step after archival, and the one route that retires a
 	// profile for good (ADR 0051). It is a POST like every other verb here.
-	"profiles.delete": {path: "/v1/profiles/{id}/delete", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"profiles.delete": {path: "/v1/profiles/{id}/delete", methods: writeMethods, timeout: cleanupRequestTimeout, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.deleteProfile(w, r, r.PathValue("id"))
+	}},
+	// What the profile's formats delivered to devices, read from the ownership
+	// ledgers, so the deletion dialog can say what stays or would be removed.
+	"profiles.device-objects": {path: "/v1/profiles/{id}/device-objects", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.deviceObjects(w, r, h.backend.ProfileDeviceObjects, r.PathValue("id"))
 	}},
 	"profiles.schedule": {path: "/v1/profiles/{id}/schedule", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.updateProfileSchedule(w, r, r.PathValue("id"))
@@ -255,8 +260,11 @@ var routes = map[string]routeSpec{
 	"outputs.device": {path: "/v1/outputs/{id}/device", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.setOutputDevice(w, r, r.PathValue("id"))
 	}},
-	"outputs.remove": {path: "/v1/outputs/{id}/remove", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+	"outputs.remove": {path: "/v1/outputs/{id}/remove", methods: writeMethods, timeout: cleanupRequestTimeout, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.removeOutput(w, r, r.PathValue("id"))
+	}},
+	"outputs.device-objects": {path: "/v1/outputs/{id}/device-objects", methods: readMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
+		h.deviceObjects(w, r, h.backend.OutputDeviceObjects, r.PathValue("id"))
 	}},
 	"outputs.subscription.reissue": {path: "/v1/outputs/{id}/subscription/reissue", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.reissueSubscription(w, r, r.PathValue("id"))

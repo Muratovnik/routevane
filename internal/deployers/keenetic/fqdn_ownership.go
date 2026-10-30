@@ -162,6 +162,83 @@ func (d *FQDNDeployer) PreviewFQDNGroups(ctx context.Context, device application
 	return reconcileGroups(wanted, existing, routes, device.Interface), nil
 }
 
+// PreviewFQDNRemoval lists the commands that would remove exactly the owned
+// groups and their routing attachments. It reads the device and never writes.
+func (d *FQDNDeployer) PreviewFQDNRemoval(ctx context.Context, device application.DeviceInfo, connection application.Connection, owned []application.ManagedFQDNGroup) ([]string, error) {
+	session, err := d.routes().connect(ctx, connection)
+	if err != nil {
+		return nil, err
+	}
+	defer session.close()
+	return session.removalCommands(ctx, device, owned)
+}
+
+// RemoveFQDNGroups withdraws each owned group's route and then deletes the
+// group, the order the device requires (ADR 0021). A name outside the ledger is
+// invisible here, so a group the operator or another output made is never in
+// the batch. An owned group already gone needs nothing, and a device holding
+// none of them is a verified no-op.
+func (d *FQDNDeployer) RemoveFQDNGroups(ctx context.Context, device application.DeviceInfo, connection application.Connection, owned []application.ManagedFQDNGroup) (mutationSubmitted bool, err error) {
+	defer func() {
+		if err != nil && !mutationSubmitted {
+			err = errors.Join(application.ErrDeviceUnchanged, err)
+		}
+	}()
+	session, err := d.routes().connect(ctx, connection)
+	if err != nil {
+		return false, err
+	}
+	defer session.close()
+	commands, err := session.removalCommands(ctx, device, owned)
+	if err != nil || len(commands) == 0 {
+		return false, err
+	}
+	commands = append(commands, "system configuration save")
+	return true, session.parseBatch(ctx, commands)
+}
+
+// VerifyFQDNGroupsRemoved reads the device back and refuses while any owned
+// group, or a routing attachment naming one, is still there.
+func (d *FQDNDeployer) VerifyFQDNGroupsRemoved(ctx context.Context, device application.DeviceInfo, connection application.Connection, owned []application.ManagedFQDNGroup) error {
+	session, err := d.routes().connect(ctx, connection)
+	if err != nil {
+		return err
+	}
+	defer session.close()
+	existing, routes, err := session.ownedObservation(ctx, owned, false)
+	if err != nil {
+		return err
+	}
+	_, remaining := compareGroups(map[string]fqdnGroup{}, existing, routes, device.Interface)
+	if len(remaining) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: %d owned objects still present (present=%s)", ErrDeviceAnswer, len(remaining), strings.Join(remaining, ","))
+}
+
+// removalCommands is reconcileGroups with nothing wanted, over the owned
+// groups only: routes are withdrawn before the groups they name.
+func (s *session) removalCommands(ctx context.Context, device application.DeviceInfo, owned []application.ManagedFQDNGroup) ([]string, error) {
+	existing, routes, err := s.ownedObservation(ctx, owned, true)
+	if err != nil {
+		return nil, err
+	}
+	return reconcileGroups(map[string]fqdnGroup{}, existing, routes, device.Interface), nil
+}
+
+// ownedObservation reads the device and keeps only what the ledger owns, with
+// the same refusals a send applies to an owned object it cannot handle.
+func (s *session) ownedObservation(ctx context.Context, owned []application.ManagedFQDNGroup, beforeWrite bool) (map[string]fqdnGroup, map[string]fqdnRoute, error) {
+	if len(owned) == 0 {
+		return map[string]fqdnGroup{}, map[string]fqdnRoute{}, nil
+	}
+	existing, routes, err := s.observedGroups(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	return scopedGroups(application.DeployArtifact{OwnedFQDNGroups: owned}, map[string]fqdnGroup{}, existing, routes, beforeWrite)
+}
+
 // The parse endpoint accepts CLI words, not interface descriptions. Native
 // interface IDs include forms such as Wireguard0 and GigabitEthernet0/Vlan7.
 func validInterfaceWord(value string) bool {

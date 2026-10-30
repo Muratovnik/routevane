@@ -222,6 +222,9 @@ const (
 	StepVerify    = "verify"
 	StepOwnership = "ownership"
 	StepRollback  = "rollback"
+	// StepRemove is the change of a device cleanup: it removes what one output
+	// delivered instead of installing an artifact (ADR 0060).
+	StepRemove = "remove"
 )
 
 // DeployEvent is one audited step. It contains identities and outcomes only:
@@ -379,24 +382,11 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 		}
 	}
 
-	started = clock.Now()
-	backup, err := deployer.Backup(ctx, device, request.Connection)
-	record(StepBackup, started, err, backup.Ref.Hash)
+	backup, err := storeVerifiedBackup(ctx, deployer, device, request.Connection, backups, clock, record)
 	if err != nil {
-		return result, fmt.Errorf("%w: backup: %v", ErrBackupRequired, err)
+		return result, err
 	}
-	if len(backup.Payload) == 0 {
-		return result, fmt.Errorf("%w: backup is empty", ErrBackupRequired)
-	}
-	stored, err := backups.PutBackup(ctx, device.DeployerID, clock.Now().UTC(), backup.Payload)
-	if err != nil {
-		return result, fmt.Errorf("%w: store backup: %v", ErrBackupRequired, err)
-	}
-	if !stored.Verified() {
-		return result, fmt.Errorf("%w: stored backup is not verifiable", ErrBackupRequired)
-	}
-	backup.Ref = stored
-	result.Backup = stored
+	result.Backup = backup.Ref
 
 	started = clock.Now()
 	var deployErr error
@@ -479,18 +469,7 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 	}
 
 	// A failed deployment that may have written rolls back from its backup.
-	//
-	// The rollback runs on a context detached from the caller's, with its own
-	// budget. The cancellation that failed a deployment must not also disarm the
-	// recovery from it: a request deadline that expired mid-write, or an operator
-	// who closed the screen, is exactly when the device is already changed and
-	// the backup is the only way back. A rollback that inherited that dead
-	// context would fail immediately and leave the device half-written.
-	rollbackCtx, cancelRollback := context.WithTimeout(context.WithoutCancel(ctx), rollbackBudget)
-	defer cancelRollback()
-	started = clock.Now()
-	rollbackErr := deployer.Rollback(rollbackCtx, device, request.Connection, backup)
-	record(StepRollback, started, rollbackErr, stored.ID)
+	rollbackErr := restoreDetached(ctx, deployer, device, request.Connection, backup, clock, record)
 	if rollbackErr != nil {
 		return result, errors.Join(fmt.Errorf("%w: %v", ErrRollbackFailed, rollbackErr), deployErr)
 	}
@@ -502,4 +481,49 @@ func DeployToDevice(ctx context.Context, request DeployRequest, deployers Deploy
 		return result, deployErr
 	}
 	return result, fmt.Errorf("%w: deploy: %w", ErrDeployFailed, deployErr)
+}
+
+// stepRecorder appends one audited step to a result.
+type stepRecorder func(step string, started time.Time, err error, detail string)
+
+// storeVerifiedBackup takes the device's configuration and keeps a copy that is
+// stored, read back and hash-verified before anything on the device changes.
+// Every operation that changes a device starts from it: without it a rollback
+// is impossible.
+func storeVerifiedBackup(ctx context.Context, deployer Deployer, device DeviceInfo, connection Connection, backups BackupStore, clock Clock, record stepRecorder) (BackupPayload, error) {
+	started := clock.Now()
+	backup, err := deployer.Backup(ctx, device, connection)
+	record(StepBackup, started, err, backup.Ref.Hash)
+	if err != nil {
+		return BackupPayload{}, fmt.Errorf("%w: backup: %v", ErrBackupRequired, err)
+	}
+	if len(backup.Payload) == 0 {
+		return BackupPayload{}, fmt.Errorf("%w: backup is empty", ErrBackupRequired)
+	}
+	stored, err := backups.PutBackup(ctx, device.DeployerID, clock.Now().UTC(), backup.Payload)
+	if err != nil {
+		return BackupPayload{}, fmt.Errorf("%w: store backup: %v", ErrBackupRequired, err)
+	}
+	if !stored.Verified() {
+		return BackupPayload{}, fmt.Errorf("%w: stored backup is not verifiable", ErrBackupRequired)
+	}
+	backup.Ref = stored
+	return backup, nil
+}
+
+// restoreDetached puts the device back from its verified backup.
+//
+// The rollback runs on a context detached from the caller's, with its own
+// budget. The cancellation that failed a change must not also disarm the
+// recovery from it: a request deadline that expired mid-write, or an operator
+// who closed the screen, is exactly when the device is already changed and the
+// backup is the only way back. A rollback that inherited that dead context
+// would fail immediately and leave the device half-written (ADR 0020).
+func restoreDetached(ctx context.Context, deployer Deployer, device DeviceInfo, connection Connection, backup BackupPayload, clock Clock, record stepRecorder) error {
+	rollbackCtx, cancelRollback := context.WithTimeout(context.WithoutCancel(ctx), rollbackBudget)
+	defer cancelRollback()
+	started := clock.Now()
+	err := deployer.Rollback(rollbackCtx, device, connection, backup)
+	record(StepRollback, started, err, backup.Ref.ID)
+	return err
 }

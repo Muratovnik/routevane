@@ -78,3 +78,31 @@ func (s *Store) RetireManagedFQDNOwnership(ctx context.Context, endpoint, device
 	_, err := s.db.ExecContext(ctx, `DELETE FROM managed_fqdn_groups WHERE endpoint=? AND interface=?`, endpoint, deviceInterface)
 	return err
 }
+
+// OutputFQDNEndpoints lists every device endpoint where the output's ledger
+// names FQDN groups. A retired connection's rows are already deleted (see
+// RetireManagedFQDNOwnership), so every endpoint listed is active ownership.
+func (s *Store) OutputFQDNEndpoints(ctx context.Context, outputID string) ([]string, error) {
+	if !validID(outputID) {
+		return nil, application.ErrNotFound
+	}
+	ctx, cancel := bounded(ctx)
+	defer cancel()
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT endpoint FROM managed_fqdn_groups WHERE output_id=? ORDER BY endpoint`, outputID)
+	if err != nil {
+		return nil, fmt.Errorf("read FQDN ownership endpoints: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	endpoints := make([]string, 0)
+	for rows.Next() {
+		var endpoint string
+		if err := rows.Scan(&endpoint); err != nil {
+			return nil, fmt.Errorf("scan FQDN ownership endpoint: %w", err)
+		}
+		endpoints = append(endpoints, endpoint)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read FQDN ownership endpoints: %w", err)
+	}
+	return endpoints, nil
+}

@@ -62,3 +62,19 @@ type ManagedFQDNDeployer interface {
 	DesiredFQDNGroups(DeviceInfo, DeployArtifact) ([]ManagedFQDNGroup, error)
 	PreviewFQDNGroups(context.Context, DeviceInfo, Connection, DeployArtifact) ([]string, error)
 }
+
+// ManagedFQDNRemover removes exactly the groups one output's ledger names on
+// one device, with their routing attachments, and nothing else (ADR 0060).
+// The owned groups are trusted persisted evidence supplied by the lifecycle;
+// a name the ledger does not hold is never touched, whatever it looks like.
+type ManagedFQDNRemover interface {
+	// PreviewFQDNRemoval reads the device and returns the commands a removal
+	// would submit. It never writes.
+	PreviewFQDNRemoval(context.Context, DeviceInfo, Connection, []ManagedFQDNGroup) ([]string, error)
+	// RemoveFQDNGroups submits the removal. False is permitted only when no
+	// mutation was submitted, as for MutationAwareDeployer.
+	RemoveFQDNGroups(context.Context, DeviceInfo, Connection, []ManagedFQDNGroup) (mutationSubmitted bool, err error)
+	// VerifyFQDNGroupsRemoved reads the device back and refuses while any owned
+	// group or its routing attachment is still there.
+	VerifyFQDNGroupsRemoved(context.Context, DeviceInfo, Connection, []ManagedFQDNGroup) error
+}

@@ -51,6 +51,14 @@ const (
 	// waiting for the delivery gate and writing the store keep their time after
 	// a slow device.
 	credentialRequestTimeout = requestTimeout + application.CredentialCheckBudget
+	// cleanupRequestTimeout is the budget for retiring a format or a profile.
+	// Without the opt-in a retirement answers at once; with it, the route first
+	// runs a send's device lifecycle once for every surface the formats
+	// delivered to, one after another, so it outgrows a single send. A
+	// removal cut by this budget is rolled back on its own detached budget
+	// (ADR 0020) and nothing is retired. It stays inside the desktop
+	// transport's ten-minute abort, write slack included.
+	cleanupRequestTimeout = 5 * time.Minute
 )
 
 type Backend interface {
@@ -115,6 +123,13 @@ type Backend interface {
 	// or a format (ADR 0051). Each answers the moment it took effect.
 	DeleteProfile(context.Context, string) (time.Time, error)
 	RemoveOutput(context.Context, string) (time.Time, error)
+	// The device forms of retirement first remove from every device what the
+	// retired formats delivered there, and retire only after every removal
+	// verified (ADR 0060). The reads list those objects by surface.
+	DeleteProfileCleaningDevices(context.Context, string) (application.Retirement, error)
+	RemoveOutputCleaningDevices(context.Context, string) (application.Retirement, error)
+	ProfileDeviceObjects(context.Context, string) ([]application.DeviceObjects, error)
+	OutputDeviceObjects(context.Context, string) ([]application.DeviceObjects, error)
 	// ReissueSubscription returns the complete new token exactly once.
 	ReissueSubscription(context.Context, string) (string, error)
 	// ResolvedLists and MissingCategories keep resolution on the server. A

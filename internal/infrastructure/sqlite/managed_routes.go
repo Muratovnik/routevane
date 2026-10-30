@@ -176,3 +176,33 @@ func (s *Store) RetireManagedRouteOwnership(ctx context.Context, scope applicati
 	}
 	return nil
 }
+
+// OutputManagedRouteScopes lists the active route surfaces where the output
+// holds claims. A retired scope is history and authorizes nothing (ADR 0032),
+// so it is not listed.
+func (s *Store) OutputManagedRouteScopes(ctx context.Context, outputID string) ([]application.ManagedRouteScope, error) {
+	if !validID(outputID) {
+		return nil, application.ErrNotFound
+	}
+	ctx, cancel := bounded(ctx)
+	defer cancel()
+	rows, err := s.db.QueryContext(ctx, `SELECT DISTINCT s.endpoint,s.target_id,s.interface FROM managed_route_claims c
+JOIN managed_route_scopes s ON s.id=c.scope_id AND s.retired_at_ns=0
+WHERE c.output_id=? ORDER BY s.endpoint,s.target_id,s.interface`, outputID)
+	if err != nil {
+		return nil, fmt.Errorf("read managed route scopes: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+	scopes := make([]application.ManagedRouteScope, 0)
+	for rows.Next() {
+		var scope application.ManagedRouteScope
+		if err := rows.Scan(&scope.Endpoint, &scope.TargetID, &scope.Interface); err != nil {
+			return nil, fmt.Errorf("scan managed route scope: %w", err)
+		}
+		scopes = append(scopes, scope)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read managed route scopes: %w", err)
+	}
+	return scopes, nil
+}

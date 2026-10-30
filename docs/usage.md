@@ -261,9 +261,27 @@ with the body `{}` revokes the current token and returns the new URL once in
 (`POST /v1/outputs/{id}/remove`) and deleting an archived profile
 (`POST /v1/profiles/{id}/delete`) revoke their links the same way and hide them
 from every read and timer, while their published files stay on disk. Deletion
-cannot be undone. Neither action changes a router: routes and groups a removed
-format already delivered keep working until you remove them on the device
+cannot be undone.
+
+With the body `{}`, neither action changes a router: routes and groups a removed
+format already delivered keep working until you remove them on the device, and
+Routevane keeps its record that they are its own
 ([ADR 0051](adr/0051-profile-and-format-retirement-and-subscription-reissue.md)).
+To remove them too, send `{"remove_from_devices": true}`. Routevane then removes
+from each router only what the format delivered there: its FQDN groups with their
+routes, and its static routes except those another format still uses or that were
+on the router before Routevane. It signs in through the saved connection for that
+router, so each such connection needs a saved password.
+`GET /v1/outputs/{id}/device-objects` and `GET /v1/profiles/{id}/device-objects`
+list what was delivered where, through which connection, and whether it can be
+removed, without contacting a router. Every router is checked before any is
+changed; each removal makes a configuration backup first, reads the router back
+and restores the backup if the result does not match. The format or profile is
+removed only after every router was cleaned. Otherwise nothing is removed and the
+answer names the router, the step and the reason, such as
+`device_cleanup_unavailable` for a connection without a saved password,
+`device_auth_rejected` or `verify_failed`
+([ADR 0060](adr/0060-retiring-a-format-can-remove-what-it-delivered.md)).
 
 The root document and SPA deep links return no-store HTML. Hashed `/_nuxt/`
 assets are immutable, unknown API and asset paths remain 404, and the UI carries

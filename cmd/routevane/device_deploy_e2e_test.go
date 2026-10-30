@@ -59,6 +59,9 @@ type fakeKeeneticDevice struct {
 	callerCancelled     chan struct{}
 	rollbackStarted     chan struct{}
 	releaseRollback     <-chan struct{}
+	// refuseLogin is a router whose password changed after it was saved: the
+	// older login answers 401 whatever it is sent.
+	refuseLogin bool
 }
 
 func newFakeKeeneticDevice() *fakeKeeneticDevice {
@@ -105,10 +108,11 @@ func (d *fakeKeeneticDevice) handler() http.Handler {
 		case r.URL.Path == "/auth" && r.Method == http.MethodPost:
 			d.mu.Lock()
 			d.olderLogins++
+			refuse := d.refuseLogin
 			d.mu.Unlock()
 			inner := md5.Sum([]byte(deviceUser + ":" + deviceRealm + ":" + devicePassword)) // #nosec G401 -- reproduces the device's documented challenge scheme in a test.
 			outer := sha256.Sum256([]byte(deviceChallenge + hex.EncodeToString(inner[:])))
-			if d.ndw4 != nil || !strings.Contains(body, hex.EncodeToString(outer[:])) {
+			if refuse || d.ndw4 != nil || !strings.Contains(body, hex.EncodeToString(outer[:])) {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}

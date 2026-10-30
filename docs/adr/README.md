@@ -17,7 +17,8 @@ the change and is the one place it is stated; earlier bodies are deliberately
 not rewritten, because an ADR records the decision as it was taken.
 
 Important chains: 0004 → 0013/0023 (objects and issuance), 0004/0018/0023 → 0051
-(retirement and link reissue), 0013 → 0016 → 0028 →
+→ 0060 (retirement, link reissue and removing what a retired format delivered),
+0013 → 0016 → 0028 →
 0029 → 0036 (composition, vocabulary, library ownership, default and route priority),
 0028 → 0039 (the deferred identifiers, and the executable that carries them),
 0027 → 0041 (one interface word per object),
@@ -90,3 +91,4 @@ Later clauses replace only the scope they name, not every invariant in an earlie
 | [ADR 0057: an output may keep addresses beside the domains that cover them](./0057-keep-addresses-beside-domains.md) | adopted |
 | [ADR 0058: sign in to KeeneticOS 5.2 with its newer login](./0058-keeneticos-5-2-login.md) | adopted |
 | [ADR 0059: saving a router password checks it with a read-only login first](./0059-saving-a-password-checks-it-first.md) | adopted |
+| [ADR 0060: retiring a format can remove what it delivered](./0060-retiring-a-format-can-remove-what-it-delivered.md) | adopted |

@@ -80,6 +80,11 @@ type fakeBackend struct {
 	subscriptionErr error
 	// buildErr is what a build refuses with, when a test sets one.
 	buildErr error
+	// cleanupErr and cleanups are what the device forms of retirement answer
+	// with; deviceObjects is what the ledger reads answer.
+	cleanupErr    error
+	cleanups      []application.DeviceCleanupAttempt
+	deviceObjects []application.DeviceObjects
 }
 
 func (f *fakeBackend) ExportConfigTransfer(context.Context) ([]byte, error) {
@@ -437,6 +442,28 @@ func (f *fakeBackend) RemoveOutput(_ context.Context, id string) (time.Time, err
 	}
 	f.retired = append(f.retired, "remove "+id)
 	return retiredAt, nil
+}
+func (f *fakeBackend) DeleteProfileCleaningDevices(_ context.Context, id string) (application.Retirement, error) {
+	if f.cleanupErr != nil {
+		return application.Retirement{Cleanups: f.cleanups}, f.cleanupErr
+	}
+	f.retired = append(f.retired, "delete-cleaning "+id)
+	return application.Retirement{RetiredAt: retiredAt, Cleanups: f.cleanups}, nil
+}
+func (f *fakeBackend) RemoveOutputCleaningDevices(_ context.Context, id string) (application.Retirement, error) {
+	if f.cleanupErr != nil {
+		return application.Retirement{Cleanups: f.cleanups}, f.cleanupErr
+	}
+	f.retired = append(f.retired, "remove-cleaning "+id)
+	return application.Retirement{RetiredAt: retiredAt, Cleanups: f.cleanups}, nil
+}
+func (f *fakeBackend) ProfileDeviceObjects(_ context.Context, id string) ([]application.DeviceObjects, error) {
+	f.retired = append(f.retired, "profile-objects "+id)
+	return f.deviceObjects, f.retireErr
+}
+func (f *fakeBackend) OutputDeviceObjects(_ context.Context, id string) ([]application.DeviceObjects, error) {
+	f.retired = append(f.retired, "output-objects "+id)
+	return f.deviceObjects, f.retireErr
 }
 func (f *fakeBackend) ReissueSubscription(_ context.Context, id string) (string, error) {
 	if f.retireErr != nil {
@@ -1706,6 +1733,7 @@ var everyAPIPath = []struct {
 	{"/v1/profiles/" + testID + "/archive", "profiles.archive"},
 	{"/v1/profiles/" + testID + "/restore", "profiles.restore"},
 	{"/v1/profiles/" + testID + "/delete", "profiles.delete"},
+	{"/v1/profiles/" + testID + "/device-objects", "profiles.device-objects"},
 	{"/v1/profiles/" + testID + "/export", "profiles.export"},
 	{"/v1/devices", "devices.collection"},
 	{"/v1/devices/" + testID + "/update", "devices.update"},
@@ -1719,6 +1747,7 @@ var everyAPIPath = []struct {
 	{"/v1/outputs/" + testID + "/fqdn-prefix", "outputs.fqdn-prefix"},
 	{"/v1/outputs/" + testID + "/keep-addresses", "outputs.keep-addresses"},
 	{"/v1/outputs/" + testID + "/remove", "outputs.remove"},
+	{"/v1/outputs/" + testID + "/device-objects", "outputs.device-objects"},
 	{"/v1/outputs/" + testID + "/subscription/reissue", "outputs.subscription.reissue"},
 	{"/v1/subscriptions/" + testID + "", "subscriptions.get"},
 	{"/v1/snapshots/" + testID + "", "snapshots.get"},
@@ -1888,8 +1917,17 @@ func TestTheDeployRouteCarriesItsOwnBudget(t *testing.T) {
 			t.Fatalf("%s budget = %s", name, credential.timeout)
 		}
 	}
+	// Retiring a format or a profile can first run a send's device lifecycle
+	// for every surface its formats delivered to (ADR 0060), so both routes
+	// outgrow one send and still answer before the desktop transport gives up.
+	for _, route := range []string{"outputs.remove", "profiles.delete"} {
+		retire, owned := routes[route]
+		if !owned || retire.timeout <= spec.timeout || retire.timeout+writeDeadlineSlack >= 10*time.Minute {
+			t.Fatalf("%s budget = %s, deploy budget = %s", route, retire.timeout, spec.timeout)
+		}
+	}
 	for route, other := range routes {
-		if route == "artifacts.deploy" || route == "lists.refresh" || route == "profiles.refresh" || route == "devices.credential" || route == "devices.autodelivery" || other.timeout == 0 {
+		if route == "artifacts.deploy" || route == "lists.refresh" || route == "profiles.refresh" || route == "devices.credential" || route == "devices.autodelivery" || route == "outputs.remove" || route == "profiles.delete" || other.timeout == 0 {
 			continue
 		}
 		t.Errorf("route %q also overrides the budget (%s); every override needs its own reason", route, other.timeout)

@@ -143,9 +143,10 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 	// The server can apply what it publishes. Deployment is composed separately
 	// because it is a different decision: publication owns formats, deployment
 	// owns transports.
+	deployers := deployerRegistry(deps, deployOptions{})
 	deployments, err := application.NewDeploymentService(application.DeploymentConfig{
 		Artifacts:     publication,
-		Deployers:     deployerRegistry(deps, deployOptions{}),
+		Deployers:     deployers,
 		Backups:       filesystem.BackupStore{DataRoot: root},
 		ManagedRoutes: store, ManagedFQDN: store,
 		Clock: application.ClockFunc(deps.Now),
@@ -193,6 +194,19 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
 		return 1
 	}
+	// Retiring a format can first remove what it delivered (ADR 0060). It runs
+	// the same deployers, backups and ownership ledgers as a send, and records
+	// each removal in its own journal.
+	deviceCleanups, err := application.NewDeviceCleanupService(application.DeviceCleanupConfig{
+		Publication: publication, Devices: devices, Deployers: deployers,
+		Backups:       filesystem.BackupStore{DataRoot: root},
+		ManagedRoutes: store, ManagedFQDN: store, Delivered: store, Journal: store,
+		Clock: application.ClockFunc(deps.Now), Entropy: rand.Reader,
+	})
+	if err != nil {
+		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
+		return 1
+	}
 	deliveryGate := application.NewDeliveryGate()
 	automaticDelivery, err := application.NewAutomaticDeliveryService(application.AutomaticDeliveryConfig{
 		Devices: devices, Deployments: journaledDeployments{attempts: deploymentAttempts, logger: logger}, Outputs: publication, Gate: deliveryGate,
@@ -202,7 +216,7 @@ func runServe(stdout io.Writer, logger *slog.Logger, options serveOptions, deps 
 		return 1
 	}
 	origin := "http://" + listener.Addr().String()
-	server, err := httpapi.New(origin, serveBackend{PublicationService: publication, deployments: deployments, deploymentAttempts: deploymentAttempts, devices: devices, deliveryGate: deliveryGate}, logger)
+	server, err := httpapi.New(origin, serveBackend{PublicationService: publication, deployments: deployments, deploymentAttempts: deploymentAttempts, devices: devices, deviceCleanups: deviceCleanups, deliveryGate: deliveryGate}, logger)
 	if err != nil {
 		logResult(logger, "serve", "", "", "failed", 0, started, "composition_invalid")
 		return 1
@@ -367,6 +381,7 @@ type serveBackend struct {
 	deployments        *application.DeploymentService
 	deploymentAttempts *application.DeploymentAttemptService
 	devices            *application.DeviceService
+	deviceCleanups     *application.DeviceCleanupService
 	deliveryGate       *application.DeliveryGate
 }
 
@@ -443,6 +458,35 @@ func (b serveBackend) RemoveOutput(ctx context.Context, id string) (time.Time, e
 	}
 	defer release()
 	return b.PublicationService.RemoveOutput(ctx, id)
+}
+
+// The device forms of retirement hold the gate through every removal and the
+// retirement after it, as a send holds it through its lifecycle: no automatic
+// delivery may write the same objects back between the two.
+func (b serveBackend) DeleteProfileCleaningDevices(ctx context.Context, id string) (application.Retirement, error) {
+	release, err := b.deliveryGate.Acquire(ctx)
+	if err != nil {
+		return application.Retirement{}, err
+	}
+	defer release()
+	return b.deviceCleanups.DeleteProfile(ctx, id)
+}
+
+func (b serveBackend) RemoveOutputCleaningDevices(ctx context.Context, id string) (application.Retirement, error) {
+	release, err := b.deliveryGate.Acquire(ctx)
+	if err != nil {
+		return application.Retirement{}, err
+	}
+	defer release()
+	return b.deviceCleanups.RemoveOutput(ctx, id)
+}
+
+func (b serveBackend) ProfileDeviceObjects(ctx context.Context, id string) ([]application.DeviceObjects, error) {
+	return b.deviceCleanups.ProfileDeviceObjects(ctx, id)
+}
+
+func (b serveBackend) OutputDeviceObjects(ctx context.Context, id string) ([]application.DeviceObjects, error) {
+	return b.deviceCleanups.OutputDeviceObjects(ctx, id)
 }
 
 func (b serveBackend) ForgetDevice(ctx context.Context, id string) error {

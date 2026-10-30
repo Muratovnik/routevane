@@ -13,6 +13,11 @@ subscription per output of
 explicit reissue. Publication immutability, archival as a frozen state, and the
 issuance rules of both ADRs are unchanged.
 
+The clause "Router state is not touched" is replaced by
+[ADR 0060](0060-retiring-a-format-can-remove-what-it-delivered.md) for a
+retirement that asks to remove what the retired formats delivered. A retirement
+that does not ask still leaves router state and the ownership ledgers as below.
+
 ## Context
 
 Nothing could leave Routevane for good. An archived profile kept its

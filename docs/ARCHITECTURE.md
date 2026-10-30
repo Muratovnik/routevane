@@ -61,6 +61,10 @@ Library writes and profile selection are separate flows. A directly referenced
 library object cannot be deleted; profiles can be archived and restored, and an
 archived profile can be deleted as a tombstone that keeps its published history
 ([ADR 0051](adr/0051-profile-and-format-retirement-and-subscription-reissue.md)).
+On request, a retirement first removes what the retired formats delivered to each
+router, by their ownership ledgers and through the send lifecycle, and retires
+only after every removal verified
+([ADR 0060](adr/0060-retiring-a-format-can-remove-what-it-delivered.md)).
 Published history is immutable
 ([ADR 0029](adr/0029-composing-is-per-route-and-the-library-is-its-own-flow.md)).
 

@@ -144,6 +144,9 @@ type fqdnE2EDevice struct {
 	groups   map[string]fqdnE2EGroup
 	routes   map[string]string
 	commands int
+	// keepDeletedGroups acknowledges a group deletion without performing it,
+	// so a read-back finds the group still there.
+	keepDeletedGroups bool
 }
 
 func newFQDNE2EDevice() *fqdnE2EDevice {
@@ -240,7 +243,9 @@ func (d *fqdnE2EDevice) applyCommand(line string) bool {
 				if d.routes[name] != "" {
 					return false
 				}
-				delete(d.groups, name)
+				if !d.keepDeletedGroups {
+					delete(d.groups, name)
+				}
 			} else if !exists {
 				d.groups[name] = fqdnE2EGroup{}
 			}

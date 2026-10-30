@@ -1,6 +1,6 @@
 package sqlite
 
-const CurrentSchemaVersion = 21
+const CurrentSchemaVersion = 22
 
 type migration struct {
 	version int
@@ -840,10 +840,40 @@ CREATE INDEX deployment_attempts_delivery_idx ON deployment_attempts(artifact_id
 -- built under: addresses covered by a name are dropped.
 ALTER TABLE outputs ADD COLUMN keep_addresses INTEGER NOT NULL DEFAULT 0
     CHECK (keep_addresses IN (0, 1));
+`}, {version: 22, sql: `
+-- ADR 0060: retiring a format can first remove from each device what it
+-- delivered there. Each removal is recorded like a deployment attempt: claimed
+-- before its first device effect, completed once, never changed or deleted
+-- afterwards. It is its own journal because it applies no artifact, and the
+-- deployment journal's rows are what a profile page reads as deliveries.
+CREATE TABLE device_cleanup_attempts (
+ id TEXT PRIMARY KEY CHECK (length(id)=32 AND id NOT GLOB '*[^0-9a-f]*'),
+ output_id TEXT NOT NULL REFERENCES outputs(id) CHECK (length(output_id)=32 AND output_id NOT GLOB '*[^0-9a-f]*'),
+ device_id TEXT NOT NULL CHECK (length(device_id)=32 AND device_id NOT GLOB '*[^0-9a-f]*'),
+ endpoint TEXT NOT NULL CHECK (length(endpoint) BETWEEN 1 AND 512),
+ status TEXT NOT NULL CHECK(status IN ('pending','succeeded','failed')),
+ started_at_ns INTEGER NOT NULL,
+ completed_at_ns INTEGER,
+ result_json TEXT NOT NULL,
+ error_code TEXT NOT NULL CHECK (length(error_code) <= 64),
+ CHECK((status='pending' AND completed_at_ns IS NULL AND result_json='' AND error_code='') OR
+       (status='succeeded' AND completed_at_ns IS NOT NULL AND result_json<>'' AND error_code='') OR
+       (status='failed' AND completed_at_ns IS NOT NULL AND result_json<>'' AND error_code<>''))
+) STRICT;
+CREATE TRIGGER device_cleanup_attempts_identity_immutable BEFORE UPDATE OF id,output_id,device_id,endpoint,started_at_ns ON device_cleanup_attempts BEGIN
+ SELECT RAISE(ABORT, 'immutable device cleanup attempt identity');
+END;
+CREATE TRIGGER device_cleanup_attempts_terminal_immutable BEFORE UPDATE OF status,completed_at_ns,result_json,error_code ON device_cleanup_attempts WHEN OLD.status<>'pending' OR NEW.status='pending' BEGIN
+ SELECT RAISE(ABORT, 'immutable device cleanup attempt outcome');
+END;
+CREATE TRIGGER device_cleanup_attempts_no_delete BEFORE DELETE ON device_cleanup_attempts BEGIN
+ SELECT RAISE(ABORT, 'immutable device cleanup attempt');
+END;
 `}}
 
 var requiredTables = []string{
 	"deployment_attempts",
+	"device_cleanup_attempts",
 	"managed_fqdn_groups",
 	"settings",
 	"devices",
@@ -881,6 +911,7 @@ var requiredTables = []string{
 
 var requiredColumns = map[string][]string{
 	"deployment_attempts":      {"id", "artifact_id", "request_hash", "status", "started_at_ns", "completed_at_ns", "result_json", "error_code", "device_id"},
+	"device_cleanup_attempts":  {"id", "output_id", "device_id", "endpoint", "status", "started_at_ns", "completed_at_ns", "result_json", "error_code"},
 	"managed_fqdn_groups":      {"endpoint", "output_id", "name", "interface", "state_json"},
 	"schema_migrations":        {"version", "applied_at_ns"},
 	"resources":                {"id", "kind", "normalized_value", "ip_version", "created_at_ns"},
@@ -934,6 +965,7 @@ var requiredForeignKeys = map[string][]string{
 	"managed_routes":           {"managed_route_scopes"},
 	"managed_route_claims":     {"managed_routes", "outputs"},
 	"managed_fqdn_groups":      {"outputs"},
+	"device_cleanup_attempts":  {"outputs"},
 	"legacy_target_revisions":  {"outputs"},
 }
 
@@ -947,6 +979,9 @@ var requiredTriggers = []string{
 	"deployment_attempts_identity_immutable",
 	"deployment_attempts_no_delete",
 	"deployment_attempts_terminal_immutable",
+	"device_cleanup_attempts_identity_immutable",
+	"device_cleanup_attempts_no_delete",
+	"device_cleanup_attempts_terminal_immutable",
 	"legacy_target_revisions_closed",
 	"legacy_target_revisions_no_update",
 	"outputs_identity_immutable",

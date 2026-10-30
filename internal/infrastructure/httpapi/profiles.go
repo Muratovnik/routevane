@@ -251,9 +251,20 @@ func (h *handler) build(w http.ResponseWriter, r *http.Request, id string) {
 
 // deleteProfile retires an archived profile (ADR 0051). The reply states which
 // profile and when, so a caller never has to read back an object that no
-// longer answers.
+// longer answers. With remove_from_devices it first removes what the profile's
+// formats delivered to devices (ADR 0060).
 func (h *handler) deleteProfile(w http.ResponseWriter, r *http.Request, id string) {
-	if !decodeEmpty(w, r) {
+	cleanDevices, ok := decodeRetirement(w, r)
+	if !ok {
+		return
+	}
+	if cleanDevices {
+		retirement, err := h.backend.DeleteProfileCleaningDevices(r.Context(), id)
+		if err != nil {
+			h.retirementError(w, "profiles.delete", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"id": id, "deleted_at": retirement.RetiredAt, "device_cleanup": cleanupList(retirement.Cleanups)})
 		return
 	}
 	deletedAt, err := h.backend.DeleteProfile(r.Context(), id)
@@ -264,9 +275,20 @@ func (h *handler) deleteProfile(w http.ResponseWriter, r *http.Request, id strin
 	writeJSON(w, http.StatusOK, map[string]any{"id": id, "deleted_at": deletedAt})
 }
 
-// removeOutput retires one format of a profile that is still on the shelf.
+// removeOutput retires one format of a profile that is still on the shelf,
+// first removing what it delivered to devices when remove_from_devices asks.
 func (h *handler) removeOutput(w http.ResponseWriter, r *http.Request, id string) {
-	if !decodeEmpty(w, r) {
+	cleanDevices, ok := decodeRetirement(w, r)
+	if !ok {
+		return
+	}
+	if cleanDevices {
+		retirement, err := h.backend.RemoveOutputCleaningDevices(r.Context(), id)
+		if err != nil {
+			h.retirementError(w, "outputs.remove", err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"id": id, "removed_at": retirement.RetiredAt, "device_cleanup": cleanupList(retirement.Cleanups)})
 		return
 	}
 	removedAt, err := h.backend.RemoveOutput(r.Context(), id)
