@@ -56,6 +56,12 @@ type publicationFakeStore struct {
 	// storage, so a refusal can be shown to have written nothing.
 	deletedProfiles []string
 	removedOutputs  []string
+	// listObservations is what ReadListObservations answers for the library.
+	listObservations map[string]ListObservations
+}
+
+func (s *publicationFakeStore) ReadListObservations(context.Context, string) (map[string]ListObservations, error) {
+	return s.listObservations, nil
 }
 
 func (s *publicationFakeStore) CreateCustomList(_ context.Context, list CustomList) error {

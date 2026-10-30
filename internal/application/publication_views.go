@@ -37,6 +37,9 @@ type ListDetail struct {
 	// own definition only where this is true: a shipped catalog entry is data
 	// the process reads, not a stored row it may rewrite.
 	Custom bool `json:"custom,omitempty"`
+	// Freshness is the list's latest read, present where the listing was
+	// read with the store (ListDetailsWithFreshness).
+	Freshness *ListFreshness `json:"freshness,omitempty"`
 }
 
 // ListDomain is a human-readable catalog rule. IncludeSubdomains is kept

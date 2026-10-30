@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/Muratovnik/routevane/internal/application"
 	"github.com/Muratovnik/routevane/internal/domain"
 )
 
@@ -102,40 +103,148 @@ WHERE r.list_id=?`, listID)
 	// Source health is read in the same transaction as the observations it
 	// explains, so a grace decision can never be based on a different snapshot
 	// of the database than the routes it keeps alive.
-	rows, err = tx.QueryContext(ctx, `SELECT source_id, source_revision,
-COALESCE(MAX(CASE WHEN status='success' THEN completed_at_ns END), 0) AS last_success_ns,
-COALESCE(MAX(CASE WHEN status='failed' THEN completed_at_ns END), 0) AS last_failure_ns
-FROM source_runs WHERE list_id=? GROUP BY source_id, source_revision
-ORDER BY source_id, source_revision`, listID)
+	health, err := readSourceHealth(ctx, tx, listSourceHealthQuery, listID)
 	if err != nil {
-		return PlanningSnapshot{}, fmt.Errorf("read source health: %w", err)
+		return PlanningSnapshot{}, err
 	}
-	for rows.Next() {
-		var sourceID, revision string
-		var successNS, failureNS int64
-		if err := rows.Scan(&sourceID, &revision, &successNS, &failureNS); err != nil {
-			return PlanningSnapshot{}, closeRowsWith(rows, fmt.Errorf("scan source health: %w", err))
-		}
-		state := SourceRunState{SourceID: sourceID, SourceRevision: revision}
-		if successNS > 0 {
-			state.LastSuccessAt = unixNanos(successNS)
-		}
-		if failureNS > 0 {
-			state.LastFailureAt = unixNanos(failureNS)
-		}
-		result.SourceHealth = append(result.SourceHealth, state)
-	}
-	if err := rows.Err(); err != nil {
-		return PlanningSnapshot{}, closeRowsWith(rows, fmt.Errorf("read source health: %w", err))
-	}
-	if err := rows.Close(); err != nil {
-		return PlanningSnapshot{}, fmt.Errorf("close source health: %w", err)
-	}
+	result.SourceHealth = health[listID]
 	if err := tx.Commit(); err != nil {
 		return PlanningSnapshot{}, fmt.Errorf("complete planning read: %w", err)
 	}
 	slices.SortFunc(result.Sightings, func(a, b domain.Sighting) int { return cmp.Compare(a.Fingerprint(), b.Fingerprint()) })
 	slices.SortFunc(result.Relations, func(a, b domain.Relation) int { return cmp.Compare(a.Fingerprint(), b.Fingerprint()) })
+	return result, nil
+}
+
+// Source health per (list, source, revision): the latest success and failure,
+// the success before the latest one, and the code of the latest failure. The
+// correlated reads walk source_runs_list_source_idx within one identity.
+const sourceHealthColumns = `SELECT g.list_id, g.source_id, g.source_revision, g.last_success_ns, g.last_failure_ns,
+COALESCE((SELECT MAX(p.completed_at_ns) FROM source_runs p
+ WHERE p.list_id=g.list_id AND p.source_id=g.source_id AND p.source_revision=g.source_revision
+ AND p.status='success' AND p.completed_at_ns < g.last_success_ns), 0) AS previous_success_ns,
+COALESCE((SELECT f.error_code FROM source_runs f
+ WHERE f.list_id=g.list_id AND f.source_id=g.source_id AND f.source_revision=g.source_revision AND f.status='failed'
+ ORDER BY f.completed_at_ns DESC, f.id DESC LIMIT 1), '') AS last_error_code
+FROM (SELECT list_id, source_id, source_revision,
+ COALESCE(MAX(CASE WHEN status='success' THEN completed_at_ns END), 0) AS last_success_ns,
+ COALESCE(MAX(CASE WHEN status='failed' THEN completed_at_ns END), 0) AS last_failure_ns
+ FROM source_runs`
+
+const listSourceHealthQuery = sourceHealthColumns + ` WHERE list_id=? GROUP BY list_id, source_id, source_revision) g
+ORDER BY g.source_id, g.source_revision`
+
+const allSourceHealthQuery = sourceHealthColumns + ` GROUP BY list_id, source_id, source_revision) g
+ORDER BY g.list_id, g.source_id, g.source_revision`
+
+func readSourceHealth(ctx context.Context, tx *sql.Tx, query string, args ...any) (map[string][]SourceRunState, error) {
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("read source health: %w", err)
+	}
+	health := make(map[string][]SourceRunState)
+	for rows.Next() {
+		var listID, errorCode string
+		var successNS, failureNS, previousNS int64
+		state := SourceRunState{}
+		if err := rows.Scan(&listID, &state.SourceID, &state.SourceRevision, &successNS, &failureNS, &previousNS, &errorCode); err != nil {
+			return nil, closeRowsWith(rows, fmt.Errorf("scan source health: %w", err))
+		}
+		if successNS > 0 {
+			state.LastSuccessAt = unixNanos(successNS)
+		}
+		if failureNS > 0 {
+			state.LastFailureAt = unixNanos(failureNS)
+			state.LastErrorCode = errorCode
+		}
+		if previousNS > 0 {
+			state.PreviousSuccessAt = unixNanos(previousNS)
+		}
+		health[listID] = append(health[listID], state)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, closeRowsWith(rows, fmt.Errorf("read source health: %w", err))
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close source health: %w", err)
+	}
+	return health, nil
+}
+
+// ReadListObservations reads every list's source history in one read-only
+// transaction: three queries whatever the number of lists. Stamps carry only
+// what freshness compares — identities and times — not metadata or relations,
+// and no resource is re-parsed: the stored value is already canonical.
+func (s *Store) ReadListObservations(ctx context.Context, formatKey string) (map[string]application.ListObservations, error) {
+	if formatKey == "" {
+		return nil, fmt.Errorf("invalid list observations request")
+	}
+	ctx, cancel := bounded(ctx)
+	defer cancel()
+	tx, err := s.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		return nil, fmt.Errorf("begin list observations read: %w", err)
+	}
+	defer tx.Rollback()
+	result := make(map[string]application.ListObservations)
+	formats, err := tx.QueryContext(ctx, `SELECT list_id, catalog_revision FROM effective_formats WHERE format_key=?`, formatKey)
+	if err != nil {
+		return nil, fmt.Errorf("read list formats: %w", err)
+	}
+	for formats.Next() {
+		var listID, revision string
+		if err := formats.Scan(&listID, &revision); err != nil {
+			return nil, closeRowsWith(formats, fmt.Errorf("scan list format: %w", err))
+		}
+		observations := result[listID]
+		observations.CatalogRevision = revision
+		result[listID] = observations
+	}
+	if err := formats.Err(); err != nil {
+		return nil, closeRowsWith(formats, fmt.Errorf("read list formats: %w", err))
+	}
+	if err := formats.Close(); err != nil {
+		return nil, fmt.Errorf("close list formats: %w", err)
+	}
+	stamps, err := tx.QueryContext(ctx, `SELECT s.list_id, s.source_id, s.source_revision, r.kind, r.normalized_value,
+s.first_seen_ns, s.last_seen_ns, s.valid_until_ns, s.invalid
+FROM sightings s JOIN resources r ON r.id=s.resource_id`)
+	if err != nil {
+		return nil, fmt.Errorf("read observation stamps: %w", err)
+	}
+	for stamps.Next() {
+		var listID, kind, value string
+		var firstNS, lastNS, validNS int64
+		var invalid int
+		stamp := application.ObservationStamp{}
+		if err := stamps.Scan(&listID, &stamp.SourceID, &stamp.SourceRevision, &kind, &value, &firstNS, &lastNS, &validNS, &invalid); err != nil {
+			return nil, closeRowsWith(stamps, fmt.Errorf("scan observation stamp: %w", err))
+		}
+		stamp.Value = application.ObservationValue(domain.ResourceKind(kind), value)
+		stamp.FirstSeen, stamp.LastSeen, stamp.ValidUntil = unixNanos(firstNS), unixNanos(lastNS), unixNanos(validNS)
+		stamp.Invalid = invalid != 0
+		observations := result[listID]
+		observations.Stamps = append(observations.Stamps, stamp)
+		result[listID] = observations
+	}
+	if err := stamps.Err(); err != nil {
+		return nil, closeRowsWith(stamps, fmt.Errorf("read observation stamps: %w", err))
+	}
+	if err := stamps.Close(); err != nil {
+		return nil, fmt.Errorf("close observation stamps: %w", err)
+	}
+	health, err := readSourceHealth(ctx, tx, allSourceHealthQuery)
+	if err != nil {
+		return nil, err
+	}
+	for listID, states := range health {
+		observations := result[listID]
+		observations.SourceHealth = states
+		result[listID] = observations
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("complete list observations read: %w", err)
+	}
 	return result, nil
 }
 

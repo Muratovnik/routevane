@@ -54,7 +54,9 @@ type Backend interface {
 	Lists() []string
 	DefaultPriority(context.Context) ([]string, error)
 	SetDefaultPriority(context.Context, []string) error
-	ListDetails() []application.ListDetail
+	// ListDetailsWithFreshness is the library listing; each list carries its
+	// latest read, read for every list at once.
+	ListDetailsWithFreshness(context.Context) ([]application.ListDetail, error)
 	PreviewList(context.Context, string) (application.ListPreview, error)
 	// Custom lists are the operator-defined part of the catalog: created
 	// and edited here, planned exactly like a shipped list everywhere else.
@@ -69,7 +71,7 @@ type Backend interface {
 	// verdicts on destinations — domains, addresses, networks. Contents is the
 	// one table the list card renders.
 	ListContents(ctx context.Context, listID string) (application.ListContents, error)
-	RefreshListByID(ctx context.Context, listID string) (application.RefreshSummary, error)
+	RefreshListByID(ctx context.Context, listID string) (application.ListRefresh, error)
 	SetListSourceEnabled(ctx context.Context, listID, sourceID string, enabled bool) error
 	AddListSource(ctx context.Context, listID, url string, format domain.FeedFormat) (application.CustomSource, error)
 	RemoveListSource(ctx context.Context, listID, sourceID string) error

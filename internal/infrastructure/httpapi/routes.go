@@ -97,7 +97,12 @@ var routes = map[string]routeSpec{
 			h.backendError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"lists": h.backend.Lists(), "list_details": h.backend.ListDetails(), "categories": h.backend.Categories(), "default_priority": priority})
+		details, err := h.backend.ListDetailsWithFreshness(r.Context())
+		if err != nil {
+			h.backendError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"lists": h.backend.Lists(), "list_details": details, "categories": h.backend.Categories(), "default_priority": priority})
 	}},
 	"lists.priority": {path: "/v1/lists/priority", methods: writeMethods, handle: func(h *handler, w http.ResponseWriter, r *http.Request) {
 		h.setDefaultPriority(w, r)

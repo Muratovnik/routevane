@@ -289,6 +289,10 @@ type PublicationRepository interface {
 	// file is one decision rather than one per line.
 	SetDomainVerdicts(ctx context.Context, listID string, values []string, verdict DomainVerdict) error
 	ListTunings(context.Context) (map[string]ListTuning, error)
+	// ReadListObservations reads every list's source history for the given
+	// format in one coherent read, keyed by list id, so the library can date
+	// all its lists without a read per list.
+	ReadListObservations(ctx context.Context, formatKey string) (map[string]ListObservations, error)
 	CreateSubscription(ctx context.Context, outputID, tokenID string, tokenHash [32]byte, createdAt time.Time) error
 	// DeleteProfile retires an archived profile as a tombstone in one
 	// transaction: every token of its formats is revoked, each live format is

@@ -98,6 +98,11 @@ type SourceRunState struct {
 	SourceRevision string
 	LastSuccessAt  time.Time
 	LastFailureAt  time.Time
+	// PreviousSuccessAt is the successful cycle before LastSuccessAt, zero
+	// when there was none. It names what a source withdrew at its latest read.
+	PreviousSuccessAt time.Time
+	// LastErrorCode is the stable code of the cycle at LastFailureAt.
+	LastErrorCode string
 }
 
 // LastRunFailed reports whether the most recent cycle for this identity failed.
@@ -388,6 +393,8 @@ type RefreshSummary struct {
 	// DegradedSources lists the sources that failed this cycle while their
 	// previous success is still inside the grace window.
 	DegradedSources []string `json:"degraded_sources,omitempty"`
+	// ObservedAt is the one time this refresh stamped every cycle with.
+	ObservedAt time.Time `json:"-"`
 }
 
 func RefreshList(ctx context.Context, definition domain.ListDefinition, target domain.TargetDefinition, sources SourceRegistry, store ObservationStore, clock Clock) (RefreshSummary, error) {
@@ -399,6 +406,7 @@ func RefreshList(ctx context.Context, definition domain.ListDefinition, target d
 	if observedAt.IsZero() {
 		return summary, fmt.Errorf("clock returned zero time")
 	}
+	summary.ObservedAt = observedAt
 	profileJSON, err := json.Marshal(target)
 	if err != nil {
 		return summary, fmt.Errorf("encode effective profile: %w", err)

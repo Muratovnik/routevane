@@ -112,13 +112,20 @@ func (f *fakeBackend) SetDefaultPriority(_ context.Context, priority []string) e
 	f.defaultPriority = append([]string(nil), priority...)
 	return nil
 }
-func (f *fakeBackend) ListDetails() []application.ListDetail {
+func (f *fakeBackend) ListDetailsWithFreshness(context.Context) ([]application.ListDetail, error) {
 	return []application.ListDetail{{
 		ID: "example", Title: "Example", Categories: []string{"diagnostic"},
 		Domains: []application.ListDomain{{Value: "example.com", IncludeSubdomains: true}},
 		Sources: []application.ListSource{{ID: "dns", Type: "dns"}, {ID: "vendor", Type: "http"}}, SourceCount: 2,
-	}}
+		Freshness: &application.ListFreshness{State: application.ListFreshnessFresh, LastReadAt: &fakeLastReadAt, Added: 3, Removed: 1},
+	}}, nil
 }
+
+var (
+	fakeLastReadAt    = time.Date(2026, 10, 30, 9, 15, 0, 0, time.UTC)
+	fakeLastFailureAt = time.Date(2026, 10, 30, 10, 0, 0, 0, time.UTC)
+)
+
 func (f *fakeBackend) PreviewList(context.Context, string) (application.ListPreview, error) {
 	return application.ListPreview{
 		ListID: "example",
@@ -151,13 +158,15 @@ func (f *fakeBackend) ListContents(_ context.Context, listID string) (applicatio
 			{Value: "198.51.100.7", Kind: "ip", Origin: "manual", Enabled: true},
 		},
 		Sources: []application.ListContentsSource{
-			{ID: "dns", Type: "dns", Enabled: true},
+			{ID: "dns", Type: "dns", Enabled: true, State: "failed", LastSuccessAt: &fakeLastReadAt, LastFailureAt: &fakeLastFailureAt, LastError: "dns_observation_failed"},
+			{ID: "vendor", Type: "http", Enabled: true, State: "unread"},
 		},
-		Observed: true,
+		Observed:  false,
+		Freshness: application.ListFreshness{State: application.ListFreshnessFailed, LastReadAt: &fakeLastReadAt, Added: 3, Removed: 1},
 	}, nil
 }
-func (f *fakeBackend) RefreshListByID(_ context.Context, listID string) (application.RefreshSummary, error) {
-	return application.RefreshSummary{ListID: listID, SourceRuns: 1, SuccessfulRuns: 1}, nil
+func (f *fakeBackend) RefreshListByID(_ context.Context, listID string) (application.ListRefresh, error) {
+	return application.ListRefresh{RefreshSummary: application.RefreshSummary{ListID: listID, SourceRuns: 1, SuccessfulRuns: 1, ObservedAt: fakeLastReadAt}, Added: 3, Removed: 1}, nil
 }
 func (f *fakeBackend) SetListSourceEnabled(_ context.Context, listID, sourceID string, enabled bool) error {
 	f.sourceToggles = append(f.sourceToggles, listID+"/"+sourceID+"="+strconv.FormatBool(enabled))
@@ -742,7 +751,7 @@ func TestListsAndBuildUseBoundedSafeDTOs(t *testing.T) {
 	lists.RemoteAddr = "127.0.0.1:1"
 	listsResponse := httptest.NewRecorder()
 	server.Handler().ServeHTTP(listsResponse, lists)
-	if listsResponse.Code != http.StatusOK || !strings.Contains(listsResponse.Body.String(), `"lists":["example"]`) || !strings.Contains(listsResponse.Body.String(), `"list_details":[{"id":"example","title":"Example","categories":["diagnostic"],"domains":[{"value":"example.com","include_subdomains":true}],"sources":[{"id":"dns","type":"dns"},{"id":"vendor","type":"http"}],"source_count":2}]`) {
+	if listsResponse.Code != http.StatusOK || !strings.Contains(listsResponse.Body.String(), `"lists":["example"]`) || !strings.Contains(listsResponse.Body.String(), `"list_details":[{"id":"example","title":"Example","categories":["diagnostic"],"domains":[{"value":"example.com","include_subdomains":true}],"sources":[{"id":"dns","type":"dns"},{"id":"vendor","type":"http"}],"source_count":2,"freshness":{"state":"fresh","last_read_at":"2026-10-30T09:15:00Z","added":3,"removed":1}}]`) {
 		t.Fatalf("lists response=%d %s", listsResponse.Code, listsResponse.Body.String())
 	}
 	preview := mutationRequest(t, "/v1/lists/example/preview", `{}`)

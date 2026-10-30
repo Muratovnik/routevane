@@ -197,3 +197,71 @@ func healthByID(t *testing.T, states []SourceRunState) map[string]SourceRunState
 	}
 	return result
 }
+
+// Freshness names what a source's latest read withdrew by the read before it,
+// and a failure by its stable code. The library reads every list at once, so
+// the bulk read must hand back the same history per list as the single read.
+func TestSourceHistoryCarriesThePreviousReadAndTheFailureCode(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, newDataRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	t0 := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+	profileJSON, err := json.Marshal(domain.RawJSONTargetDefinition())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cycle := func(list string, at time.Time, values ...string) {
+		t.Helper()
+		sightings := make([]domain.Sighting, 0, len(values))
+		for _, value := range values {
+			resource, err := domain.NewDomainResource(value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sightings = append(sightings, domain.Sighting{ListID: list, ComponentID: "web", Resource: resource, SourceID: "feed", SourceClass: domain.SourceCommunity, SourceRevision: "r1", FirstSeen: at, LastSeen: at, ValidUntil: at.Add(time.Hour), ObservationCount: 1, Validity: domain.ValidityValid})
+		}
+		format := FormatRecord{FormatKey: "raw-v1", ListID: list, TargetID: "raw-json", RendererID: "raw-json", CatalogRevision: strings.Repeat("a", 64), ConfigJSON: profileJSON, UpdatedAt: at}
+		if err := store.ApplySuccess(ctx, SuccessCycle{ListID: list, SourceID: "feed", SourceRevision: "r1", StartedAt: at, CompletedAt: at, Sightings: sightings, Format: &format}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cycle("first", t0, "a.example", "b.example")
+	cycle("first", t0.Add(time.Minute), "a.example")
+	failedAt := t0.Add(2 * time.Minute)
+	if err := store.RecordFailure(ctx, FailureCycle{ListID: "first", SourceID: "feed", SourceRevision: "r1", StartedAt: failedAt, CompletedAt: failedAt, ErrorCode: "http_feed_failed"}); err != nil {
+		t.Fatal(err)
+	}
+	cycle("second", t0, "c.example")
+
+	snapshot, err := store.ReadPlanningSnapshot(ctx, "first", map[string]string{"feed": "r1"}, "raw-v1", failedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := SourceRunState{SourceID: "feed", SourceRevision: "r1", LastSuccessAt: t0.Add(time.Minute), LastFailureAt: failedAt, PreviousSuccessAt: t0, LastErrorCode: "http_feed_failed"}
+	if len(snapshot.SourceHealth) != 1 || snapshot.SourceHealth[0] != want {
+		t.Fatalf("health = %#v, want %#v", snapshot.SourceHealth, want)
+	}
+
+	all, err := store.ReadListObservations(ctx, "raw-v1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 || all["first"].CatalogRevision != strings.Repeat("a", 64) || len(all["first"].SourceHealth) != 1 || all["first"].SourceHealth[0] != want {
+		t.Fatalf("first list = %#v", all["first"])
+	}
+	stamps := map[string]application.ObservationStamp{}
+	for _, stamp := range all["first"].Stamps {
+		stamps[stamp.Value] = stamp
+	}
+	a, b := stamps[application.ObservationValue(domain.ResourceDomain, "a.example")], stamps[application.ObservationValue(domain.ResourceDomain, "b.example")]
+	if len(stamps) != 2 || !a.FirstSeen.Equal(t0) || !a.LastSeen.Equal(t0.Add(time.Minute)) || !b.LastSeen.Equal(t0) || a.SourceID != "feed" || a.SourceRevision != "r1" {
+		t.Fatalf("stamps = %#v", all["first"].Stamps)
+	}
+	second := all["second"]
+	if len(second.Stamps) != 1 || len(second.SourceHealth) != 1 || !second.SourceHealth[0].PreviousSuccessAt.IsZero() || second.SourceHealth[0].LastErrorCode != "" || !second.SourceHealth[0].LastFailureAt.IsZero() {
+		t.Fatalf("second list = %#v", second)
+	}
+}

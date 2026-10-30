@@ -24,6 +24,9 @@ type ListContents struct {
 	// Observed means every enabled source has a successful current read. A
 	// format row is written before source work and cannot establish this fact.
 	Observed bool `json:"observed"`
+	// Freshness is the list's latest read and what it changed, the same
+	// summary the library listing carries.
+	Freshness ListFreshness `json:"freshness"`
 }
 
 // ListContentsRow is one destination of the list. Kind is "domain",
@@ -50,13 +53,22 @@ type ListContentsRow struct {
 // ListContentsSource is one automatic source with the operator's switch.
 // The URL is disclosed only for the operator's own feeds: it is their data,
 // while a catalog feed's configuration stays behind the catalog.
+//
+// LastSuccessAt and LastFailureAt are the source's latest successful and
+// failed cycles at its current revision, nil when there was none; LastError is
+// the stable code of that failure. A switched-off source keeps reporting its
+// history, so switching it back on shows how old its material is.
 type ListContentsSource struct {
-	ID      string `json:"id"`
-	Type    string `json:"type"`
-	Custom  bool   `json:"custom"`
-	Enabled bool   `json:"enabled"`
-	URL     string `json:"url,omitempty"`
-	State   string `json:"state"`
+	ID            string     `json:"id"`
+	Type          string     `json:"type"`
+	Custom        bool       `json:"custom"`
+	Enabled       bool       `json:"enabled"`
+	URL           string     `json:"url,omitempty"`
+	State         string     `json:"state"`
+	LastSuccessAt *time.Time `json:"last_success_at"`
+	LastFailureAt *time.Time `json:"last_failure_at"`
+	LastError     string     `json:"last_error,omitempty"`
+	revision      string
 }
 
 func (s *PublicationService) ListContents(ctx context.Context, listID string) (ListContents, error) {
@@ -78,13 +90,14 @@ func (s *PublicationService) ListContents(ctx context.Context, listID string) (L
 	for _, source := range base.Sources {
 		_, off := disabled[source.ID]
 		contents.Sources = append(contents.Sources, ListContentsSource{
-			ID: source.ID, Type: string(source.Type), Enabled: !off,
+			ID: source.ID, Type: string(source.Type), Enabled: !off, revision: source.Revision,
 		})
 	}
 	for _, feed := range tuning.CustomSources {
 		_, off := disabled[feed.ID]
 		contents.Sources = append(contents.Sources, ListContentsSource{
 			ID: feed.ID, Type: string(domain.SourceHTTP), Custom: true, Enabled: !off, URL: feed.URL,
+			revision: customSourceRevision(feed),
 		})
 	}
 	slices.SortFunc(contents.Sources, func(a, b ListContentsSource) int { return cmp.Compare(a.ID, b.ID) })
@@ -147,14 +160,26 @@ func (s *PublicationService) ListContents(ctx context.Context, listID string) (L
 			addRow(sighting.Resource.CanonicalValue(), string(sighting.Resource.Kind), sighting.SourceID)
 		}
 	}
+	observations := snapshotObservations(snapshot)
 	contents.Observed = true
 	for i := range contents.Sources {
 		source := &contents.Sources[i]
-		source.State = listSourceState(*source, snapshot, effective, cutoff)
+		source.State = "disabled"
+		if source.Enabled {
+			source.State = enabledSourceState(observations, effective, source.ID, cutoff)
+		}
 		if source.Enabled && source.State != "ready" {
 			contents.Observed = false
 		}
+		if state, ok := sourceHealth(observations, source.ID, source.revision); ok {
+			source.LastSuccessAt = optionalTime(state.LastSuccessAt)
+			source.LastFailureAt = optionalTime(state.LastFailureAt)
+			if source.LastFailureAt != nil {
+				source.LastError = state.LastErrorCode
+			}
+		}
 	}
+	contents.Freshness = listFreshness(observations, effective, cutoff)
 
 	// A standing verdict whose value no material offers anymore is still the
 	// operator's decision; it stays visible instead of silently evaporating.
@@ -179,37 +204,14 @@ func (s *PublicationService) ListContents(ctx context.Context, listID string) (L
 	return contents, nil
 }
 
-// Source state is derived from the same snapshot as the displayed rows. Empty
-// successful reads are legitimate; expired stored observations are not fresh.
-func listSourceState(source ListContentsSource, snapshot PlanningSnapshot, definition domain.ListDefinition, cutoff time.Time) string {
-	if !source.Enabled {
-		return "disabled"
+// optionalTime answers a stored instant as an RFC 3339 UTC value, and a
+// moment that never happened as null.
+func optionalTime(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
 	}
-	if snapshot.Format.CatalogRevision == "" {
-		return "unread"
-	}
-	if snapshot.Format.CatalogRevision != definition.CatalogRevision {
-		return "stale"
-	}
-	revision := sourceRevisions(definition)[source.ID]
-	for _, state := range snapshot.SourceHealth {
-		if state.SourceID != source.ID || state.SourceRevision != revision {
-			continue
-		}
-		if state.LastRunFailed() {
-			return "failed"
-		}
-		if state.LastSuccessAt.IsZero() || state.LastSuccessAt.After(cutoff) {
-			return "unread"
-		}
-		for _, sighting := range snapshot.Sightings {
-			if sighting.SourceID == source.ID && sighting.SourceRevision == revision && (sighting.Validity == domain.ValidityStale || sighting.Validity == domain.ValidityArchived) {
-				return "stale"
-			}
-		}
-		return "ready"
-	}
-	return "unread"
+	value = value.UTC()
+	return &value
 }
 
 // rowKind folds the six rule kinds into the three the card names.
@@ -252,14 +254,35 @@ func originRank(origin string) int {
 // the result, so the contents table and the next build read the same fresh
 // material. It is the list card's refresh: no list is touched and nothing
 // is published.
-func (s *PublicationService) RefreshListByID(ctx context.Context, listID string) (RefreshSummary, error) {
+func (s *PublicationService) RefreshListByID(ctx context.Context, listID string) (ListRefresh, error) {
 	definition, ok := s.definition(listID)
 	if !ok {
-		return RefreshSummary{}, ErrNotFound
+		return ListRefresh{}, ErrNotFound
 	}
-	summary, err := RefreshList(ctx, definition, domain.RawJSONTargetDefinition(), s.config.Sources, s.config.Store, s.config.Clock)
+	rawFormat := domain.RawJSONTargetDefinition()
+	summary, err := RefreshList(ctx, definition, rawFormat, s.config.Sources, s.config.Store, s.config.Clock)
+	refresh := ListRefresh{RefreshSummary: summary}
 	if err != nil && !errors.Is(err, ErrSourceDegraded) {
-		return summary, err
+		return refresh, err
 	}
-	return summary, nil
+	// What this refresh changed is read back from what it stored, through the
+	// same function as the card and the library, so the three cannot differ.
+	snapshot, err := s.config.Store.ReadPlanningSnapshot(ctx, listID, sourceRevisions(definition), rawFormat.FormatKey, summary.ObservedAt)
+	if err != nil {
+		return refresh, fmt.Errorf("read refreshed observations: %w", err)
+	}
+	freshness := listFreshness(snapshotObservations(snapshot), definition, summary.ObservedAt)
+	if freshness.LastReadAt != nil && freshness.LastReadAt.Equal(summary.ObservedAt) {
+		refresh.Added, refresh.Removed = freshness.Added, freshness.Removed
+	}
+	return refresh, nil
+}
+
+// ListRefresh is the list card's refresh answer: the cycle counts and the
+// change this refresh brought. Added and Removed mean what they mean in
+// ListFreshness, for this read; both are zero when no source was read.
+type ListRefresh struct {
+	RefreshSummary
+	Added   int `json:"added"`
+	Removed int `json:"removed"`
 }
