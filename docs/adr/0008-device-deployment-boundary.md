@@ -76,7 +76,9 @@ verification decisions below. All other decisions in this ADR remain adopted.
 ## Two findings the peer protocol forces
 
 The RCI challenge scheme is defined with MD5 by the device, and a router cannot
-hold a publicly trusted certificate for its LAN address. Both are properties of
+hold a publicly trusted certificate for its LAN address. Since
+[ADR 0058](0058-keeneticos-5-2-login.md) the MD5 challenge is used only when the
+device does not offer the KeeneticOS 5.2 login. Both are properties of
 the peer, not choices this code makes, and neither can be coded away while
 speaking to the device at all.
 

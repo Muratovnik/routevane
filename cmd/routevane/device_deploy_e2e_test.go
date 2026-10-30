@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/Muratovnik/routevane/internal/application"
+	"github.com/Muratovnik/routevane/internal/deployers/keenetic/keenetictest"
 	"github.com/Muratovnik/routevane/internal/infrastructure/sqlite"
 )
 
@@ -36,8 +37,12 @@ const (
 // fakeKeeneticDevice answers the RCI surface the deployer uses and records the
 // state a deployment leaves behind.
 type fakeKeeneticDevice struct {
-	mu                  sync.Mutex
-	authenticated       bool
+	mu            sync.Mutex
+	authenticated bool
+	// ndw4 makes the device a KeeneticOS 5.2 router that offers the newer login
+	// and refuses the older one for this account (ADR 0058).
+	ndw4                *keenetictest.NDW4
+	olderLogins         int
 	routes              map[string]string
 	comments            map[string]string
 	config              []byte
@@ -80,11 +85,30 @@ func (d *fakeKeeneticDevice) handler() http.Handler {
 			}
 			w.Header().Set("X-NDM-Realm", deviceRealm)
 			w.Header().Set("X-NDM-Challenge", deviceChallenge)
+			if d.ndw4 != nil {
+				w.Header().Add("WWW-Authenticate", `x-ndw2-interactive realm="`+deviceRealm+`" challenge="`+deviceChallenge+`"`)
+				w.Header().Add("WWW-Authenticate", keenetictest.Challenge)
+			}
 			w.WriteHeader(http.StatusUnauthorized)
+		case r.URL.Path == "/auth" && r.Method == http.MethodPost && d.ndw4 != nil && keenetictest.Owns([]byte(body)):
+			status, data, completed := d.ndw4.Answer([]byte(body))
+			if data != "" {
+				w.Header().Set("X-NDM-Data", data)
+			}
+			if completed {
+				d.mu.Lock()
+				d.authenticated = true
+				d.mu.Unlock()
+				http.SetCookie(w, &http.Cookie{Name: "ndm_session", Value: "opaque"})
+			}
+			w.WriteHeader(status)
 		case r.URL.Path == "/auth" && r.Method == http.MethodPost:
+			d.mu.Lock()
+			d.olderLogins++
+			d.mu.Unlock()
 			inner := md5.Sum([]byte(deviceUser + ":" + deviceRealm + ":" + devicePassword)) // #nosec G401 -- reproduces the device's documented challenge scheme in a test.
 			outer := sha256.Sum256([]byte(deviceChallenge + hex.EncodeToString(inner[:])))
-			if !strings.Contains(body, hex.EncodeToString(outer[:])) {
+			if d.ndw4 != nil || !strings.Contains(body, hex.EncodeToString(outer[:])) {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
@@ -380,6 +404,51 @@ func TestAppliesAPublishedArtifactToADeviceAndRollsBackAFailedVerification(t *te
 		if strings.Contains(text, devicePassword) {
 			t.Fatalf("the credential leaked: %s", text)
 		}
+	}
+	for _, body := range device.sentBodies() {
+		if strings.Contains(body, devicePassword) {
+			t.Fatalf("the credential was sent to the device in cleartext: %s", body)
+		}
+	}
+}
+
+// A KeeneticOS 5.2 router that holds the account only for the newer login still
+// receives a published artifact through the full confirmed lifecycle, and no
+// login the device would refuse is attempted (ADR 0058).
+func TestDeploysToAKeeneticThatOnlyAcceptsTheNewerLogin(t *testing.T) {
+	catalog := filepath.Join("..", "..", "testdata", "expiry", "catalog")
+	data := filepath.Join(t.TempDir(), "data")
+	now := time.Date(2026, 10, 30, 12, 0, 0, 0, time.UTC)
+	resolver := &hostAddressResolver{}
+	resolver.set(map[string][]string{"youtube.expiry.test": {"192.0.2.10"}})
+	device := newFakeKeeneticDevice()
+	device.ndw4 = &keenetictest.NDW4{Login: deviceUser, Password: devicePassword, Salt: []byte("0123456789abcdef"), Iterations: 2, MemoryKiB: 8}
+	deviceServer := httptest.NewServer(device.handler())
+	defer deviceServer.Close()
+
+	origin, cancel, done, stderr := startServeServerWithHostResolver(t, catalog, data, resolver, func() time.Time { return now })
+	profileID, outputID, _ := createProfileOutput(t, origin, "Видео", "keenetic", "youtube")
+	artifactID := refreshAndBuild(t, origin, profileID, outputID).Artifact.ID
+	cancel()
+	if code := <-done; code != 0 || artifactID == "" {
+		t.Fatalf("server code=%d artifact=%q stderr=%s", code, artifactID, stderr.String())
+	}
+
+	deps := runtimeDeps{Resolver: resolver, DeviceDialer: redirectDialer{target: deviceServer.Listener.Addr().String()}, Now: func() time.Time { return now }, Context: context.Background()}
+	args := []string{"deploy", "--artifact", artifactID, "--target", "keenetic", "--device", "http://10.255.0.1", "--user", deviceUser, "--interface", deviceInterfaceName, "--catalog-dir", catalog, "--data-dir", data, "--confirm"}
+	applied := deployViaCLI(t, deps, args, devicePassword)
+	steps := make([]string, 0, len(applied.Events))
+	for _, event := range applied.Events {
+		steps = append(steps, event.Step+":"+event.Outcome)
+	}
+	if !applied.Applied || applied.RolledBack || strings.Join(steps, ",") != "probe:success,backup:success,deploy:success,verify:success,ownership:success" {
+		t.Fatalf("result = %#v, audit = %v", applied, steps)
+	}
+	device.mu.Lock()
+	attached, olderLogins := device.routes["192.0.2.10/255.255.255.255"], device.olderLogins
+	device.mu.Unlock()
+	if attached != deviceInterfaceName || olderLogins != 0 {
+		t.Fatalf("route=%q older logins=%d", attached, olderLogins)
 	}
 	for _, body := range device.sentBodies() {
 		if strings.Contains(body, devicePassword) {

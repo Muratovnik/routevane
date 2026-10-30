@@ -468,6 +468,12 @@ never guesses from interface membership. Every step is recorded with its outcome
 and duration; no credential appears in the record. See
 [`ADR 0032`](adr/0032-persist-exact-keenetic-static-route-ownership.md).
 
+Routevane signs in the way the router's own web interface does. KeeneticOS 5.2
+offers a newer login and can refuse the older one for an account; Routevane uses
+the newer login whenever the router offers it and the older one on earlier
+firmware. A password the router refuses is not retried with the other login. See
+[`ADR 0058`](adr/0058-keeneticos-5-2-login.md).
+
 For a route Routevane creates, Keenetic's **Description** shows its provenance as
 `(category/list)`. An uncategorized list uses `(Без категории/list)`. When a
 prefix comes from several lists, the lexicographically first label is followed

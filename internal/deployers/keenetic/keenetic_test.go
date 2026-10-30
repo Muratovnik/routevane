@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/Muratovnik/routevane/internal/application"
+	"github.com/Muratovnik/routevane/internal/deployers/keenetic/keenetictest"
 	"github.com/Muratovnik/routevane/internal/domain"
 	"github.com/Muratovnik/routevane/internal/netpolicy"
 	"github.com/Muratovnik/routevane/internal/planjson"
@@ -58,10 +59,19 @@ type deviceDouble struct {
 	config           []byte
 
 	authenticated bool
-	deployCalls   int
-	saveCalls     int
-	restoreCalls  int
-	batches       [][]map[string]any
+	// ndw4 makes the double a KeeneticOS 5.2 device that also offers the newer
+	// login; refuseNDW2 makes it refuse the older login for that account, as the
+	// device in ADR 0058 does; emptyNDW4Answer answers the newer login without
+	// its data, so nothing derived from the password is ever asked for.
+	ndw4            *keenetictest.NDW4
+	refuseNDW2      bool
+	emptyNDW4Answer bool
+	ndw2Logins      int
+	ndw4Requests    int
+	deployCalls     int
+	saveCalls       int
+	restoreCalls    int
+	batches         [][]map[string]any
 	// failDeploy and failVerify make the device reject an operation.
 	failDeploy     bool
 	failParseAfter int
@@ -224,6 +234,10 @@ func (d *deviceDouble) handler() http.Handler {
 			}
 			w.Header().Set("X-NDM-Realm", deviceRealm)
 			w.Header().Set("X-NDM-Challenge", deviceChallenge)
+			if d.ndw4 != nil {
+				w.Header().Add("WWW-Authenticate", `x-ndw2-interactive realm="`+deviceRealm+`" challenge="`+deviceChallenge+`"`)
+				w.Header().Add("WWW-Authenticate", keenetictest.Challenge)
+			}
 			w.WriteHeader(http.StatusUnauthorized)
 		case r.URL.Path == "/auth" && r.Method == http.MethodPost:
 			var credentials struct {
@@ -235,7 +249,30 @@ func (d *deviceDouble) handler() http.Handler {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			if credentials.Login != deviceUser || credentials.Password != expectedProof() {
+			if d.ndw4 != nil && keenetictest.Owns(body) {
+				d.mu.Lock()
+				d.ndw4Requests++
+				d.mu.Unlock()
+				status, data, completed := d.ndw4.Answer(body)
+				if d.emptyNDW4Answer {
+					status, data, completed = http.StatusUnauthorized, "", false
+				}
+				if data != "" {
+					w.Header().Set("X-NDM-Data", data)
+				}
+				if completed {
+					d.mu.Lock()
+					d.authenticated = true
+					d.mu.Unlock()
+					http.SetCookie(w, &http.Cookie{Name: "ndm_session", Value: "opaque"})
+				}
+				w.WriteHeader(status)
+				return
+			}
+			d.mu.Lock()
+			d.ndw2Logins++
+			d.mu.Unlock()
+			if d.refuseNDW2 || credentials.Login != deviceUser || credentials.Password != expectedProof() {
 				w.WriteHeader(http.StatusUnauthorized)
 				return
 			}
@@ -419,6 +456,12 @@ func (d *deviceDouble) counts() (deploys, saves, restores int) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return d.deployCalls, d.saveCalls, d.restoreCalls
+}
+
+func (d *deviceDouble) logins() (ndw2, ndw4 int) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.ndw2Logins, d.ndw4Requests
 }
 
 func (d *deviceDouble) sentPaths() []string {
