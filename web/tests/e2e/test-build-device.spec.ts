@@ -161,10 +161,11 @@ test('a documentation-range router keeps a saved password in the test build and 
   expect(outcome).not.toContain(PASSWORD)
   expect(attempt.ok()).toBe(false)
   // The saved password got the send as far as the device probe, the first
-  // step that needs the network, and nothing was applied.
+  // step that needs the network, and nothing was applied. The refused dial
+  // reads as a router that does not answer.
   expect(JSON.parse(outcome)).toMatchObject({
     status: 'failed',
-    error: 'deploy_failed',
+    error: 'device_unreachable',
     result: {
       applied: false,
       events: [{ step: 'probe', outcome: 'failed' }],
