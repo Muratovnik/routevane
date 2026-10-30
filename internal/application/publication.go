@@ -172,6 +172,40 @@ type OutputDelivery struct {
 	CompletedAt time.Time `json:"completed_at"`
 }
 
+// OutputDeliveryFailure is a send of a file of one output to a saved
+// connection that ended failed: the connection, the stable failure code the
+// send answered with, the audited step it stopped at when one is recorded,
+// and the moment it completed. The journal holds no raw error text.
+type OutputDeliveryFailure struct {
+	DeviceID    string    `json:"device_id"`
+	Code        string    `json:"code"`
+	Step        string    `json:"step,omitempty"`
+	CompletedAt time.Time `json:"completed_at"`
+}
+
+// OutputActivity is what lately happened to one output, read for a whole page
+// of outputs at once so a screen listing many of them costs a bounded number
+// of queries.
+//
+// DeviceName names the saved connection the output is bound to now, empty when
+// it is bound to none. BuiltAt is when the output's current file became
+// current: the first successful build that published it after the output last
+// published any other file. A rebuild that produced the same file again does
+// not move it; content_created_at, which follows identical bytes back to their
+// first appearance, may stay older still.
+//
+// LatestDelivery is the newest succeeded send of any file of the output to any
+// saved connection, the bound one or another. LatestFailure is the newest
+// failed send to a saved connection, present only while it completed after
+// LatestDelivery. A send to an address typed by hand names no connection and
+// counts as neither; a pending attempt has no outcome and counts as neither.
+type OutputActivity struct {
+	DeviceName     string
+	BuiltAt        time.Time
+	LatestDelivery *OutputDelivery
+	LatestFailure  *OutputDeliveryFailure
+}
+
 type PublicationCandidate struct {
 	Snapshot        PlanSnapshotRecord
 	Artifact        ArtifactBuildRecord
@@ -314,6 +348,10 @@ type PublicationRepository interface {
 	// files has reached the saved connection the output is bound to now,
 	// including an output bound to none.
 	LatestOutputDelivery(context.Context, string) (OutputDelivery, error)
+	// OutputActivities reads OutputActivity for the given live outputs in a
+	// bounded number of queries. An id it knows nothing about is absent from
+	// the map rather than an error.
+	OutputActivities(ctx context.Context, outputIDs []string) (map[string]OutputActivity, error)
 	Output(context.Context, string) (Output, error)
 	// OutputsByProfile returns one profile's outputs in a stable order; Outputs
 	// returns every stored output, bounded the same way Profiles is.

@@ -62,6 +62,10 @@ func (s *fakeDeviceStore) Device(_ context.Context, id string) (Device, error) {
 
 func (s *fakeDeviceStore) Devices(context.Context) ([]Device, error) { return s.devices, nil }
 
+func (s *fakeDeviceStore) DeviceUses(context.Context) (map[string][]DeviceUse, error) {
+	return map[string][]DeviceUse{}, nil
+}
+
 func (s *fakeDeviceStore) UpdateDevice(_ context.Context, device Device) error {
 	if s.updateErr != nil {
 		return s.updateErr

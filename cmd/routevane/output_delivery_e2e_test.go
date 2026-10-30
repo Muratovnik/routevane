@@ -17,6 +17,12 @@ import (
 // device is that: a failed send, a send to an address typed by hand and a send
 // to another connection leave the card without one, and the card keeps its
 // build attempt as a separate fact.
+//
+// Beside it the card states the newest successful send to any saved
+// connection (latest_delivery), a failed send to one that came after it
+// (latest_failure), the bound connection's name and when the current file was
+// built, and the connection list names the formats bound to each connection.
+// The profile page, the library and the profile shelf state the same.
 func TestOutputCardReportsOnlyASuccessfulSendToTheBoundConnection(t *testing.T) {
 	catalog := filepath.Join("..", "..", "testdata", "expiry", "catalog")
 	data := filepath.Join(t.TempDir(), "data")
@@ -67,8 +73,8 @@ func TestOutputCardReportsOnlyASuccessfulSendToTheBoundConnection(t *testing.T) 
 		},
 	}
 
-	// card reads the output the way both screens do: the profile page and the
-	// profile shelf. The two must state the same delivery.
+	// card reads the output the way every screen does: the profile page, the
+	// library and the profile shelf. They must state the same delivery.
 	card := func() map[string]any {
 		t.Helper()
 		var page struct {
@@ -87,10 +93,75 @@ func TestOutputCardReportsOnlyASuccessfulSendToTheBoundConnection(t *testing.T) 
 		if list.status != 200 || json.Unmarshal(list.body, &shelf) != nil || len(shelf.Profiles) != 1 || len(shelf.Profiles[0].Outputs) != 1 {
 			t.Fatalf("profile shelf status=%d body=%s", list.status, list.body)
 		}
-		if viewed, listed := page.Outputs[0]["last_delivery"], shelf.Profiles[0].Outputs[0]["last_delivery"]; !jsonEqual(t, viewed, listed) {
-			t.Fatalf("the profile view says %v and the shelf says %v", viewed, listed)
+		var active struct {
+			Profiles []struct {
+				Outputs []map[string]any `json:"outputs"`
+			} `json:"profiles"`
+		}
+		shelved := httpGet(t, origin+"/v1/profile-shelf/active", nil)
+		if shelved.status != 200 || json.Unmarshal(shelved.body, &active) != nil || len(active.Profiles) != 1 || len(active.Profiles[0].Outputs) != 1 {
+			t.Fatalf("active shelf status=%d body=%s", shelved.status, shelved.body)
+		}
+		for _, field := range []string{"last_delivery", "latest_delivery", "latest_failure", "device_name", "latest"} {
+			viewed := page.Outputs[0][field]
+			if listed := shelf.Profiles[0].Outputs[0][field]; !jsonEqual(t, viewed, listed) {
+				t.Fatalf("%s: the profile view says %v and the library says %v", field, viewed, listed)
+			}
+			if onShelf := active.Profiles[0].Outputs[0][field]; !jsonEqual(t, viewed, onShelf) {
+				t.Fatalf("%s: the profile view says %v and the shelf says %v", field, viewed, onShelf)
+			}
 		}
 		return page.Outputs[0]
+	}
+	// failureOf is the latest_failure a refused send's own answer describes.
+	failureOf := func(response httpResponse, deviceID string, at time.Time) map[string]any {
+		t.Helper()
+		var body struct {
+			Error string `json:"error"`
+			Step  string `json:"step"`
+		}
+		if err := json.Unmarshal(response.body, &body); err != nil || body.Error == "" {
+			t.Fatalf("failed send body=%s err=%v", response.body, err)
+		}
+		failure := map[string]any{"device_id": deviceID, "code": body.Error, "completed_at": at.Format(time.RFC3339Nano)}
+		if body.Step != "" {
+			failure["step"] = body.Step
+		}
+		return failure
+	}
+	requireLatest := func(label string, delivery, failure map[string]any) {
+		t.Helper()
+		output := card()
+		got, present := output["latest_delivery"]
+		if (delivery == nil) == present || (delivery != nil && !jsonEqual(t, got, delivery)) {
+			t.Fatalf("%s: latest_delivery = %v, want %v", label, got, delivery)
+		}
+		got, present = output["latest_failure"]
+		if (failure == nil) == present || (failure != nil && !jsonEqual(t, got, failure)) {
+			t.Fatalf("%s: latest_failure = %v, want %v", label, got, failure)
+		}
+	}
+	// usedBy is the connection list's answer for one connection.
+	usedBy := func(deviceID string) []any {
+		t.Helper()
+		var listed struct {
+			Devices []map[string]any `json:"devices"`
+		}
+		response := httpGet(t, origin+"/v1/devices", nil)
+		if response.status != 200 || json.Unmarshal(response.body, &listed) != nil {
+			t.Fatalf("devices status=%d body=%s", response.status, response.body)
+		}
+		for _, device := range listed.Devices {
+			if device["id"] == deviceID {
+				uses, ok := device["used_by"].([]any)
+				if !ok {
+					t.Fatalf("device %s has no used_by list: %v", deviceID, device)
+				}
+				return uses
+			}
+		}
+		t.Fatalf("device %s is not listed: %s", deviceID, response.body)
+		return nil
 	}
 	requireNoDelivery := func(label string) {
 		t.Helper()
@@ -104,6 +175,19 @@ func TestOutputCardReportsOnlyASuccessfulSendToTheBoundConnection(t *testing.T) 
 	}
 
 	requireNoDelivery("before any send")
+	requireLatest("before any send", nil, nil)
+	first := card()
+	latest, _ := first["latest"].(map[string]any)
+	if latest == nil || latest["built_at"] != now.Format(time.RFC3339Nano) || latest["content_created_at"] != now.Format(time.RFC3339Nano) {
+		t.Fatalf("the first build's file does not state when it was built: %v", first["latest"])
+	}
+	if first["device_name"] != "Local sing-box" {
+		t.Fatalf("the card does not name its connection: %v", first)
+	}
+	wantUse := []any{map[string]any{"profile_id": profileID, "profile_name": "Scheduled formats", "output_id": outputID, "target_id": "singbox", "archived": false}}
+	if got := usedBy(registered.Device.ID); !jsonEqual(t, got, wantUse) {
+		t.Fatalf("used_by = %v, want %v", got, wantUse)
+	}
 
 	// A send to an address typed by hand succeeds and names no connection.
 	typed := send(strings.Repeat("1", 32), map[string]any{"device": localFileURL(typedConfig)})
@@ -114,6 +198,7 @@ func TestOutputCardReportsOnlyASuccessfulSendToTheBoundConnection(t *testing.T) 
 		t.Fatalf("the typed send did not install the file: %v", err)
 	}
 	requireNoDelivery("after a send to a typed address")
+	requireLatest("after a send to a typed address", nil, nil)
 
 	// A send to the saved connection fails once its configuration is gone: the
 	// attempt is recorded as failed and delivered nothing.
@@ -125,10 +210,13 @@ func TestOutputCardReportsOnlyASuccessfulSendToTheBoundConnection(t *testing.T) 
 		t.Fatalf("a send to a missing configuration status=%d body=%s", failed.status, failed.body)
 	}
 	requireNoDelivery("after a failed send to the saved connection")
+	requireLatest("after a failed send to the saved connection", nil, failureOf(failed, registered.Device.ID, now))
 
 	// The same send succeeds once the configuration is back, and the card then
 	// names the connection, the file and the moment it completed.
 	writeLocalSingBoxConfig(t, configPath, ruleSetPath)
+	clock.Add(int64(time.Minute))
+	now = nowFunc()
 	sent := send(strings.Repeat("3", 32), cloneSend(savedConnection))
 	if sent.status != 200 || !strings.Contains(string(sent.body), `"status":"succeeded"`) {
 		t.Fatalf("send to the saved connection status=%d body=%s", sent.status, sent.body)
@@ -141,17 +229,21 @@ func TestOutputCardReportsOnlyASuccessfulSendToTheBoundConnection(t *testing.T) 
 	if got := card()["last_delivery"]; !jsonEqual(t, got, want) {
 		t.Fatalf("last_delivery = %v, want %v", got, want)
 	}
+	requireLatest("after a success that followed the failure", want, nil)
 
 	// A later failure does not take the delivery back.
 	if err := os.Remove(configPath); err != nil {
 		t.Fatal(err)
 	}
-	if later := send(strings.Repeat("4", 32), cloneSend(savedConnection)); later.status < 400 {
+	clock.Add(int64(time.Minute))
+	later := send(strings.Repeat("4", 32), cloneSend(savedConnection))
+	if later.status < 400 {
 		t.Fatalf("a send to a missing configuration status=%d body=%s", later.status, later.body)
 	}
 	if got := card()["last_delivery"]; !jsonEqual(t, got, want) {
 		t.Fatalf("a failed send changed last_delivery to %v", got)
 	}
+	requireLatest("after a failure that followed the success", want, failureOf(later, registered.Device.ID, nowFunc()))
 
 	// A newer one-off send to another saved connection is not the bound one's
 	// delivery: the card keeps naming the connection the format is bound to, and
@@ -181,6 +273,17 @@ func TestOutputCardReportsOnlyASuccessfulSendToTheBoundConnection(t *testing.T) 
 	if got := card()["last_delivery"]; !jsonEqual(t, got, want) {
 		t.Fatalf("a newer send to another connection changed last_delivery to %v", got)
 	}
+	// It is the format's latest delivery all the same, and it is newer than the
+	// failure, which is therefore no longer news.
+	toOther := map[string]any{
+		"device_id":    second.Device.ID,
+		"artifact_id":  build.Artifact.ID,
+		"completed_at": now.Format(time.RFC3339Nano),
+	}
+	requireLatest("after a send to an unbound connection", toOther, nil)
+	if got := usedBy(second.Device.ID); len(got) != 0 {
+		t.Fatalf("a connection nothing is bound to is used by %v", got)
+	}
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/device", `{"device_id":`+mustQuote(t, second.Device.ID)+`}`)
 	wantSecond := map[string]any{
 		"device_id":    second.Device.ID,
@@ -189,6 +292,12 @@ func TestOutputCardReportsOnlyASuccessfulSendToTheBoundConnection(t *testing.T) 
 	}
 	if got := card()["last_delivery"]; !jsonEqual(t, got, wantSecond) {
 		t.Fatalf("after binding to the other connection last_delivery = %v, want %v", got, wantSecond)
+	}
+	if got := usedBy(registered.Device.ID); len(got) != 0 {
+		t.Fatalf("the connection the format left is still used by %v", got)
+	}
+	if got := usedBy(second.Device.ID); !jsonEqual(t, got, wantUse) {
+		t.Fatalf("the connection the format moved to is used by %v, want %v", got, wantUse)
 	}
 	postJSON(t, origin+"/v1/outputs/"+outputID+"/device", `{"device_id":`+mustQuote(t, registered.Device.ID)+`}`)
 	if got := card()["last_delivery"]; !jsonEqual(t, got, want) {

@@ -108,6 +108,10 @@ type OutputArtifact struct {
 	SizeBytes        int64     `json:"size_bytes"`
 	ContentType      string    `json:"content_type"`
 	ContentCreatedAt time.Time `json:"content_created_at"`
+	// BuiltAt is when this file became the output's current file (see
+	// OutputActivity). ContentCreatedAt answers how old the bytes are; BuiltAt
+	// answers when the format last published a different file.
+	BuiltAt time.Time `json:"built_at,omitzero"`
 }
 
 // OutputCard is one output as a screen states it. Target identity is resolved
@@ -133,6 +137,14 @@ type OutputCard struct {
 	// saved connection the output is bound to now. LastAttempt is the build; the
 	// two are separate facts.
 	LastDelivery *OutputDelivery `json:"last_delivery,omitempty"`
+	// DeviceName names the connection DeviceID is, so a list of many formats
+	// can say where each one goes without a second read.
+	DeviceName string `json:"device_name,omitempty"`
+	// LatestDelivery is the newest successful send of any file of this output
+	// to any saved connection, bound or not; LatestFailure is a failed send to
+	// a saved connection that completed after it (see OutputActivity).
+	LatestDelivery *OutputDelivery        `json:"latest_delivery,omitempty"`
+	LatestFailure  *OutputDeliveryFailure `json:"latest_failure,omitempty"`
 }
 
 // ProfileCard is one row of the library screen: the profile itself plus the outputs
@@ -329,14 +341,23 @@ func (s *PublicationService) ProfileCardsPage(ctx context.Context, shelf Profile
 	if err != nil {
 		return ProfileCardPage{}, err
 	}
-	cards := make([]ProfileCard, 0, len(page.Profiles))
-	for _, profile := range page.Profiles {
-		// Reading by profile keeps every row's actions intact even where a
-		// library page contains more outputs than the old global shelf bound.
+	// Reading by profile keeps every row's actions intact even where a
+	// library page contains more outputs than the old global shelf bound. The
+	// delivery state of every output on the page is then read at once.
+	owned := make([][]Output, len(page.Profiles))
+	var all []Output
+	for index, profile := range page.Profiles {
 		outputs, err := s.config.Store.OutputsByProfile(ctx, profile.ID)
 		if err != nil {
 			return ProfileCardPage{}, err
 		}
+		owned[index] = outputs
+		all = append(all, outputs...)
+	}
+	activities := s.outputActivities(ctx, all)
+	cards := make([]ProfileCard, 0, len(page.Profiles))
+	for index, profile := range page.Profiles {
+		outputs := owned[index]
 		card := ProfileCard{
 			ID: profile.ID, Name: profile.Name,
 			Lists: profile.Lists, Categories: profile.Categories, Exclusions: profile.Exclusions, ListDomains: profile.ListDomains, Priority: profile.Priority,
@@ -346,7 +367,7 @@ func (s *PublicationService) ProfileCardsPage(ctx context.Context, shelf Profile
 			Outputs: make([]OutputCard, 0, len(outputs)),
 		}
 		for _, output := range outputs {
-			card.Outputs = append(card.Outputs, s.outputCard(ctx, output))
+			card.Outputs = append(card.Outputs, s.outputCard(ctx, output, activities[output.ID]))
 		}
 		cards = append(cards, card)
 	}
@@ -359,16 +380,37 @@ func (s *PublicationService) OutputCards(ctx context.Context, profileID string) 
 	if err != nil {
 		return nil, err
 	}
+	activities := s.outputActivities(ctx, outputs)
 	cards := make([]OutputCard, 0, len(outputs))
 	for _, output := range outputs {
-		cards = append(cards, s.outputCard(ctx, output))
+		cards = append(cards, s.outputCard(ctx, output, activities[output.ID]))
 	}
 	return cards, nil
 }
 
-func (s *PublicationService) outputCard(ctx context.Context, output Output) OutputCard {
+// outputActivities reads the delivery state of outputs in one call. Like an
+// unreadable artifact, an unreadable state is left off the cards rather than
+// failing the listing: the formats still exist and say so.
+func (s *PublicationService) outputActivities(ctx context.Context, outputs []Output) map[string]OutputActivity {
+	if len(outputs) == 0 {
+		return nil
+	}
+	ids := make([]string, 0, len(outputs))
+	for _, output := range outputs {
+		ids = append(ids, output.ID)
+	}
+	activities, err := s.config.Store.OutputActivities(ctx, ids)
+	if err != nil {
+		return nil
+	}
+	return activities
+}
+
+func (s *PublicationService) outputCard(ctx context.Context, output Output, activity OutputActivity) OutputCard {
 	card := OutputCard{
 		ID: output.ID, TargetID: output.TargetID, DeviceID: output.DeviceID, TargetTitle: output.TargetID,
+		DeviceName:     activity.DeviceName,
+		LatestDelivery: activity.LatestDelivery, LatestFailure: activity.LatestFailure,
 		CreatedAt: output.CreatedAt, FQDNGroupPrefix: output.FQDNGroupPrefix,
 		KeepAddresses: output.KeepAddresses,
 	}
@@ -385,6 +427,7 @@ func (s *PublicationService) outputCard(ctx context.Context, output Output) Outp
 			card.Latest = &OutputArtifact{
 				ID: artifact.ID, SnapshotID: artifact.PlanSnapshotID, SizeBytes: artifact.SizeBytes,
 				ContentType: artifact.ContentType, ContentCreatedAt: artifact.ContentCreatedAt,
+				BuiltAt: activity.BuiltAt,
 			}
 		}
 	}

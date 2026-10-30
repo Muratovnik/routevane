@@ -66,6 +66,20 @@ type DeviceCard struct {
 	// device. A target with no deployer is a download, and saying so is better
 	// than offering a button that cannot work.
 	Deployable bool `json:"deployable"`
+	// UsedBy is every live format bound to this connection, so a screen can
+	// say what a change to the connection affects. It is never null.
+	UsedBy []DeviceUse `json:"used_by"`
+}
+
+// DeviceUse is one format bound to a connection and the profile that owns it.
+// A removed format and a deleted profile's formats hold no binding and are
+// never listed; an archived profile's formats keep theirs and say so.
+type DeviceUse struct {
+	ProfileID   string `json:"profile_id"`
+	ProfileName string `json:"profile_name"`
+	OutputID    string `json:"output_id"`
+	TargetID    string `json:"target_id"`
+	Archived    bool   `json:"archived"`
 }
 
 // DeviceRepository is the stored side of the registry. A device is editable and
@@ -77,6 +91,9 @@ type DeviceRepository interface {
 	Devices(context.Context) ([]Device, error)
 	UpdateDevice(context.Context, Device) error
 	DeleteDevice(context.Context, string) error
+	// DeviceUses returns, in one read, the formats bound to each connection,
+	// keyed by connection id in a stable order.
+	DeviceUses(context.Context) (map[string][]DeviceUse, error)
 }
 
 // SecretStore is the operating system's credential store. It is an interface
@@ -341,6 +358,10 @@ func (s *DeviceService) DeviceCards(ctx context.Context) ([]DeviceCard, error) {
 	if err != nil {
 		return nil, err
 	}
+	uses, err := s.config.Store.DeviceUses(ctx)
+	if err != nil {
+		return nil, err
+	}
 	titles := make(map[string]string, 8)
 	for _, target := range s.config.Targets() {
 		titles[target.ID] = target.Title
@@ -353,7 +374,11 @@ func (s *DeviceService) DeviceCards(ctx context.Context) ([]DeviceCard, error) {
 			// the catalog. Inventing a friendly name would hide the fact.
 			title = device.TargetID
 		}
-		cards = append(cards, DeviceCard{Device: device, TargetTitle: title, Deployable: known && s.config.Deployable(device.TargetID)})
+		usedBy := uses[device.ID]
+		if usedBy == nil {
+			usedBy = []DeviceUse{}
+		}
+		cards = append(cards, DeviceCard{Device: device, TargetTitle: title, Deployable: known && s.config.Deployable(device.TargetID), UsedBy: usedBy})
 	}
 	return cards, nil
 }

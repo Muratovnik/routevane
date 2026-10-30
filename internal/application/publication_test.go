@@ -489,6 +489,9 @@ func (s *publicationFakeStore) LatestOutputAttempt(context.Context, string) (Out
 func (s *publicationFakeStore) LatestOutputDelivery(context.Context, string) (OutputDelivery, error) {
 	return OutputDelivery{}, ErrNotFound
 }
+func (s *publicationFakeStore) OutputActivities(context.Context, []string) (map[string]OutputActivity, error) {
+	return map[string]OutputActivity{}, nil
+}
 func (s *publicationFakeStore) Output(context.Context, string) (Output, error) {
 	return s.output, nil
 }
