@@ -89,7 +89,7 @@ jobs:
       - name: Build and structurally verify every release archive
         shell: pwsh
         run: ./tools/dev.ps1 release -Version "$env:VERSION"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-bundle
           path: .cache/release
@@ -172,7 +172,7 @@ jobs:
         run: |
           python tools/installer_smoke.py --assets .cache/desktop-release --version "$env:VERSION"
           if ($LASTEXITCODE -ne 0) { throw 'installer acceptance failed' }
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: desktop-bundle
           path: .cache/desktop-release
@@ -247,7 +247,7 @@ jobs:
           Copy-Item -Path '.cache/desktop-release/*' -Destination '.cache/candidate'
           python .github/relkit.pyz release bundle $env:VERSION --assets .cache/candidate
           if ($LASTEXITCODE -ne 0) { throw 'candidate inventory validation failed' }
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-candidate
           path: .cache/candidate
