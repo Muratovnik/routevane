@@ -72,6 +72,14 @@ When the skill catalog the session exposes offers a skill for the same work,
 such as a UI workflow for `web/` changes, read it before editing as well; the
 repository requires no such skill and works from a clean clone without one.
 
+## Web platform guidance
+
+When the `modern-web-guidance` skill is available, use its guides as a reference
+for web platform APIs, browser support and fallbacks. They do not override this
+repository's own decisions: its documented design decisions and the rules in
+this file take precedence where they differ. Do not append the skill's
+`### Modern Web Guidance` section to replies.
+
 ## Verification
 
 Run from the repository root. `relkit` is the release-kit dispatcher; it runs
