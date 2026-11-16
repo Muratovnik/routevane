@@ -1,7 +1,6 @@
 'use strict';
 
 const assert = require('node:assert/strict');
-const { createHash } = require('node:crypto');
 const fs = require('node:fs');
 const { createRequire } = require('node:module');
 const path = require('node:path');
@@ -54,19 +53,14 @@ test('real micromatch consumers retain callable, matching, capture and scan APIs
   assert.equal(micromatch.scan('src/**/*.vue').isGlob, true);
 });
 
-test('installed forge consumer resolves the actual owned derivative', () => {
+test('installed forge consumer resolves the upstream release the manifest pins', () => {
   const listhenRequire = createRequire(webRequire.resolve('listhen'));
   const installedRoot = path.dirname(path.dirname(listhenRequire.resolve('node-forge')));
-  const vendor = path.join(__dirname, '../third_party/node-forge');
   assert.equal(fs.lstatSync(installedRoot).isSymbolicLink(), false);
   const installed = JSON.parse(fs.readFileSync(path.join(installedRoot, 'package.json')));
-  assert.equal(installed.name, '@routevane/node-forge');
-  assert.equal(installed.version, '1.4.0-routevane.1');
-  const provenance = JSON.parse(fs.readFileSync(path.join(vendor, 'PROVENANCE.json')));
-  for (const [name, expected] of Object.entries(provenance.runtime_files)) {
-    const actual = createHash('sha256').update(fs.readFileSync(path.join(installedRoot, name))).digest('hex');
-    assert.equal(actual, expected, `installed consumer bytes: ${name}`);
-  }
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '../web/package.json')));
+  assert.equal(installed.name, 'node-forge');
+  assert.equal(installed.version, manifest.overrides['node-forge']);
   const forge = listhenRequire('node-forge');
   assert.equal(forge.md.sha256.create().update('hello world').digest().toHex(),
     'b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9');

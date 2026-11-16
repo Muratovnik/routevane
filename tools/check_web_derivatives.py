@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import sys
 import urllib.request
@@ -12,23 +11,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 BRACES_VERSION = "3.0.3-pn.3"
 BRACES_INTEGRITY = "sha512-QY+Uq4s42STyIMPoRkBuUZfYyvz0uZuwuUburLwMx5N+lWqnHHaBxcKPtgKVKjTyFnS1q4ivKu9Wxi4VG7FE9Q=="
-FORGE_VERSION = "1.4.0-routevane.1"
-FORGE_PATCH = "ceba34402e329f0365134f23fe19898756527d65"
-UPSTREAM_VERSIONS = {"braces": ["3.0.3"], "node-forge": ["1.4.0"]}
-# Recognition is tied to reviewed repairs and their runtime regressions, not a
-# blanket exemption for either upstream package or severity.
+UPSTREAM_VERSIONS = {"braces": ["3.0.3"]}
+# Recognition is tied to the reviewed repair and its runtime regressions, not a
+# blanket exemption for the upstream package or severity.
 REPAIRS = {
     "braces": {
         "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
         "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
         "severity": "high",
         "vulnerable_versions": "<=3.0.3",
-    },
-    "node-forge": {
-        "url": "https://github.com/advisories/GHSA-86w9-cpqp-85rv",
-        "title": "node-forge RSA PKCS#1 v1.5 signature verification accepts extra nested DigestAlgorithm elements",
-        "severity": "high",
-        "vulnerable_versions": "<=1.4.0",
     },
 }
 
@@ -42,9 +33,6 @@ def verify_inventory(root: Path) -> None:
     overrides = package["overrides"]
     if overrides.get("braces") != f"npm:@dieub/braces-depth-guard@{BRACES_VERSION}":
         raise ValueError("braces repair override does not match the reviewed identity")
-    if (overrides.get("node-forge") != "$node-forge"
-            or package["dependencies"].get("node-forge") != "file:../third_party/node-forge"):
-        raise ValueError("forge repair override does not match the owned derivative")
     entries = load_json(root / "web/package-lock.json")["packages"]
     braces_entries = [entry for path, entry in entries.items()
                       if path.endswith("node_modules/braces")]
@@ -55,35 +43,6 @@ def verify_inventory(root: Path) -> None:
             "@dieub/braces-depth-guard", BRACES_VERSION, BRACES_INTEGRITY
         ):
             raise ValueError("lockfile contains an unreviewed braces identity")
-    forge_entries = [entry for path, entry in entries.items()
-                     if path.endswith("node_modules/node-forge")]
-    if not forge_entries:
-        raise ValueError("lockfile does not contain the repaired forge consumer")
-    for entry in forge_entries:
-        if (entry.get("name"), entry.get("version"), entry.get("resolved")) != (
-            "@routevane/node-forge", FORGE_VERSION, "file:../third_party/node-forge"
-        ) or entry.get("link"):
-            raise ValueError("lockfile contains an unreviewed forge identity or link")
-    vendor = root / "third_party/node-forge"
-    identity = load_json(vendor / "package.json")
-    if (identity.get("name"), identity.get("version")) != (
-        "@routevane/node-forge", FORGE_VERSION
-    ):
-        raise ValueError("forge derivative identity changed")
-    provenance = load_json(vendor / "PROVENANCE.json")
-    if provenance.get("patch_commit") != FORGE_PATCH:
-        raise ValueError("forge repair provenance changed")
-    files = provenance["runtime_files"]
-    actual = {p.relative_to(vendor).as_posix() for p in (vendor / "lib").rglob("*")
-              if p.is_file()}
-    if {name for name in files if name.startswith("lib/")} != actual:
-        raise ValueError("forge runtime inventory differs from provenance")
-    for name, expected in files.items():
-        path = vendor / name
-        if path.is_symlink() or not path.resolve().is_relative_to(vendor.resolve()):
-            raise ValueError("forge runtime inventory escapes its source directory")
-        if hashlib.sha256(path.read_bytes()).hexdigest() != expected:
-            raise ValueError(f"forge runtime bytes changed: {name}")
 
 
 def advisory_problems(response: dict) -> list[str]:

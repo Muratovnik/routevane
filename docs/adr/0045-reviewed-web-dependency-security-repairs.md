@@ -22,7 +22,7 @@ the independent lint dependency paths unresolved.
 ## Decision
 
 Keep the existing consumers and the full npm audit of development, optional and
-peer dependencies at High severity. Use two explicitly identified repairs:
+peer dependencies at High severity. Use explicitly identified repairs:
 
 - Override braces with the published MIT
   `@dieub/braces-depth-guard@3.0.3-pn.3`. Its immutable lockfile integrity pins
@@ -31,38 +31,30 @@ peer dependencies at High severity. Use two explicitly identified repairs:
   It preserves the callable CommonJS API, compilation and expansion behavior
   below that bound. This limit addresses stack exhaustion; it does not add a
   general expansion-cardinality or AST-width budget.
-- Override node-forge with the local private package
-  `@routevane/node-forge@1.4.0-routevane.1`, under
-  [third_party/node-forge](../../third_party/node-forge/PROVENANCE.json).
-  Its runtime is the official 1.4.0 tarball with only the nested DigestAlgorithm
-  child-count check from upstream
-  [PR 1152](https://github.com/digitalbazaar/forge/pull/1152), revision
-  `ceba34402e329f0365134f23fe19898756527d65`. The derivative preserves all runtime
-  modules and upstream license notices. Routevane uses the BSD-3-Clause option
-  of the upstream dual license. It is an owned security repair, not an upstream
-  fixed release.
+- node-forge was first overridden with a local derivative of the official 1.4.0
+  tarball carrying only the nested DigestAlgorithm check from upstream
+  [PR 1152](https://github.com/digitalbazaar/forge/pull/1152). Upstream
+  node-forge 1.4.1 fixes the High advisories published against 1.4.0 after the
+  derivative was made, and 1.4.3 rejects the same upstream DigestAlgorithm test
+  vector through the default signature-verification API. The override now pins
+  the upstream release `node-forge@1.4.3`, and the derivative, its provenance
+  and its advisory recognition were removed together, as the maintenance rule
+  below requires. The ordinary npm audit covers it like any other dependency.
 
-The web package uses npm's `install-links=true` project setting to pack the
-local file dependency as an ordinary installed package. The direct dependency
-and `$node-forge` override reference the same source. Clean installation must
-resolve the repaired bytes from listhen without a dangling nested link.
-
-The source provenance records upstream and repaired runtime hashes. The web
-security command verifies that inventory and installed consumer identities,
-runs the security and compatibility regressions, and runs the existing full
-npm audit. It additionally queries the same npm advisory service under the
-original `braces@3.0.3` and `node-forge@1.4.0` identities. Only the two repaired
-advisories with their reviewed URL, title, severity and affected range are
-recognized as fixed. Another High/Critical advisory, or a change to one of
-those fields, blocks the command. Lower severities remain visible and registry
-errors fail closed. Changing a package name alone never establishes remediation.
+The web security command verifies the repaired braces identity in the manifest
+and lockfile and the installed forge consumer, runs the security and
+compatibility regressions, and runs the existing full npm audit. It
+additionally queries the same npm advisory service under the original
+`braces@3.0.3` identity. Only the repaired advisory with its reviewed URL,
+title, severity and affected range is recognized as fixed. Another
+High/Critical advisory, or a change to one of those fields, blocks the command.
+Lower severities remain visible and registry errors fail closed. Changing a
+package name alone never establishes remediation.
 
 ## Verification and maintenance
 
 The regression controls must fail against the unmodified dependencies and pass
-against the repairs. Forge's unchanged upstream public test vector must be
-rejected through the default signature-verification API; valid signatures and
-certificate/PKCS12 operations must still work. Brace tests cover string and AST
+against the repairs. Brace tests cover string and AST
 depth, cyclic children, escaped patterns, ranges and real micromatch APIs.
 Architecture allow/deny behavior, stylesheet discovery, Nuxt generation and dev
 server lifecycle remain covered by the existing mandatory checks.

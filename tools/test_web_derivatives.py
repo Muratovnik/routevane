@@ -31,8 +31,8 @@ class AdvisoryMonitoringTests(unittest.TestCase):
         for key, value in (("vulnerable_versions", "*"), ("title", "broader defect"),
                            ("severity", "critical")):
             with self.subTest(key=key):
-                changed = dict(checks.REPAIRS["node-forge"], **{key: value})
-                self.assertEqual(len(self.problems({"node-forge": [changed]})), 1)
+                changed = dict(checks.REPAIRS["braces"], **{key: value})
+                self.assertEqual(len(self.problems({"braces": [changed]})), 1)
 
     def test_lower_severities_remain_visible(self):
         output = io.StringIO()
@@ -49,34 +49,20 @@ class AdvisoryMonitoringTests(unittest.TestCase):
 
 
 class RepairInventoryTests(unittest.TestCase):
-    def test_identity_bytes_and_inventory_are_enforced(self):
+    def test_identity_and_override_are_enforced(self):
         with tempfile.TemporaryDirectory(dir=checks.ROOT / "tmp") as directory:
             root = Path(directory)
             (root / "web").mkdir()
             for name in ("package.json", "package-lock.json"):
                 shutil.copyfile(checks.ROOT / "web" / name, root / "web" / name)
-            vendor = root / "third_party/node-forge"
-            shutil.copytree(checks.ROOT / "third_party/node-forge", vendor)
             checks.verify_inventory(root)
-            source = vendor / "lib/rsa.js"
-            original = source.read_bytes()
-            source.write_bytes(original + b"\n")
-            with self.assertRaisesRegex(ValueError, "runtime bytes changed"):
-                checks.verify_inventory(root)
-            source.write_bytes(original)
-            unexpected = vendor / "lib/unreviewed.js"
-            unexpected.write_text("module.exports = {}", encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "inventory differs"):
-                checks.verify_inventory(root)
-            unexpected.unlink()
             lock_path = root / "web/package-lock.json"
             lock = json.loads(lock_path.read_text())
             original_lock = lock_path.read_bytes()
-            lock["packages"]["node_modules/listhen/node_modules/node-forge"] = {
-                "resolved": "node_modules/third_party/node-forge", "link": True
-            }
+            braces = next(path for path in lock["packages"] if path.endswith("node_modules/braces"))
+            lock["packages"][braces] = dict(lock["packages"][braces], integrity="sha512-unreviewed")
             lock_path.write_text(json.dumps(lock), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "unreviewed forge identity or link"):
+            with self.assertRaisesRegex(ValueError, "unreviewed braces identity"):
                 checks.verify_inventory(root)
             lock_path.write_bytes(original_lock)
             package = json.loads((root / "web/package.json").read_text())

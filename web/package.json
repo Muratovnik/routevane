@@ -25,7 +25,7 @@
     "shell-quote": "1.12.0",
     "source-map-js": "1.2.2",
     "braces": "npm:@dieub/braces-depth-guard@3.0.3-pn.3",
-    "node-forge": "$node-forge"
+    "node-forge": "1.4.3"
   },
   "scripts": {
     "build": "npm run typecheck && nuxt generate",
@@ -37,7 +37,7 @@
     "lint:styles": "stylelint \"**/*.{css,vue}\"",
     "postinstall": "nuxt prepare",
     "preview": "nuxt preview",
-    "security": "python ../tools/check_web_derivatives.py && node --test ../tools/test_web_dependency_security.cjs ../third_party/node-forge/test/security.cjs && npm audit --package-lock-only --include=dev --include=optional --include=peer --audit-level=high",
+    "security": "python ../tools/check_web_derivatives.py && node --test ../tools/test_web_dependency_security.cjs && npm audit --package-lock-only --include=dev --include=optional --include=peer --audit-level=high",
     "test:browser": "playwright test",
     "test:dev": "playwright test --config playwright.dev.config.ts",
     "test:unit": "vitest run",
@@ -53,8 +53,7 @@
     "sortablejs": "1.15.7",
     "valibot": "1.5.0",
     "vue": "3.5.43",
-    "vue-router": "5.3.1",
-    "node-forge": "file:../third_party/node-forge"
+    "vue-router": "5.3.1"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
