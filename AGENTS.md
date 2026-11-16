@@ -125,12 +125,13 @@ exact task-owned paths, run `relkit audit --staged`, inspect
 the staged diff, and commit in one uninterrupted sequence; never leave a staged
 handoff.
 
-Push `main` after committing such an increment, so that `ci.yml` checks it on
-Linux and the Windows desktop within minutes rather than first at release. Push
-only a fast-forward of `origin/main`: never force, never bypass the pre-push
-guard, and if `origin/main` has commits that local `main` lacks, stop and report
-rather than merging or rebasing. Push no other branch or tag unless the user
-asks; tags belong to the release procedure. After the push, read the `ci.yml`
+Push `main` once per task, after its last increment is committed, so that
+`ci.yml` checks the task's commits on Linux and the Windows desktop before the
+task closes rather than first at release; do not push and wait for CI after each
+increment. Push only a fast-forward of `origin/main`: never force, never bypass
+the pre-push guard, and if `origin/main` has commits that local `main` lacks,
+stop and report rather than merging or rebasing. Push no other branch or tag
+unless the user asks; tags belong to the release procedure. After the push, read the `ci.yml`
 run for the pushed commit: a red run is the pushing task's own defect to fix
 before it closes.
 
